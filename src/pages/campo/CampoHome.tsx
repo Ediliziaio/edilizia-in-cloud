@@ -1,133 +1,476 @@
 /**
- * Home dell'area campo — prima schermata ogni mattina.
+ * Home dell'area campo — dashboard stile AttivitaStaff.
+ * Timbratura integrata, cantieri assegnati, attività e accesso rapido.
  * Condizionale per operaio vs subappaltatore.
- * Scroll verticale — tutto visibile con una mano.
  */
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format, parseISO, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, startOfDay, isBefore } from "date-fns";
 import { it } from "date-fns/locale";
-import { MapPin, AlertTriangle, QrCode,
-  Truck, MessageSquare, FileText, ChevronRight,
-  CheckCircle, Loader2,
-  ShieldCheck, Mic,
+import {
+  MapPin, AlertTriangle, ChevronRight, ChevronLeft,
+  CheckCircle, Loader2, Clock, PlayCircle, PauseCircle, LogOut,
+  ShieldCheck, Mic, QrCode, MessageSquare, FileText,
+  CalendarDays, Plus,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// ── Priority config ──
+const PRIORITY_CONFIG: Record<string, { label: string; dotClass: string; badgeClass: string }> = {
+  urgente: { label: "Urgente", dotClass: "bg-red-500", badgeClass: "bg-red-100 text-red-700" },
+  alta:    { label: "Alta",    dotClass: "bg-orange-500", badgeClass: "bg-orange-100 text-orange-700" },
+  normale: { label: "Normale", dotClass: "bg-blue-500", badgeClass: "bg-blue-100 text-blue-700" },
+  bassa:   { label: "Bassa",   dotClass: "bg-slate-400", badgeClass: "bg-muted text-muted-foreground" },
+};
+
+const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
 export default function CampoHome() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { isOperaio, isSubappaltatore } = useIsCampo();
+
+  const ora = new Date().getHours();
+  const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <p className="text-muted-foreground text-sm capitalize">
+          {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
+        </p>
+        <h1 className="text-2xl font-bold">
+          {saluto}, {profile?.first_name ?? ""}
+        </h1>
+      </div>
+
+      {/* Grid principale */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Colonna sinistra */}
+        <div className="space-y-6">
+          {/* Timbratura integrata (solo operaio) */}
+          {isOperaio && <TimbraturaCampo />}
+
+          {/* Cantieri assegnati */}
+          {isOperaio && <CantieriAssegnati />}
+          {isSubappaltatore && <CantieriSub />}
+
+          {/* Rapportini in sospeso (solo operaio) */}
+          {isOperaio && <RapportiniSospesi />}
+        </div>
+
+        {/* Colonna destra */}
+        <div className="space-y-6">
+          {/* Mini calendario */}
+          <MiniCalendarioCampo />
+
+          {/* Le mie attività */}
+          <MieAttivitaCampo />
+
+          {/* Accesso rapido */}
+          <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Timbratura Campo — integrata nella home
+// ─────────────────────────────────────────────────────────────────────────────
+function TimbraturaCampo() {
+  const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
 
-  // ── Ultima timbratura (solo operaio) ─────────────────────────────────
-  const { data: ultimaTimbratura } = useQuery({
-    queryKey: ["campo-ultima-timbratura", user?.id, today],
+  const { data: timbratureOggi = [], isLoading } = useQuery({
+    queryKey: ["campo-timbrature-oggi", user?.id, today],
     queryFn: async () => {
       const { data } = await supabase
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
         .gte("timestamp_evento", `${today}T00:00:00`)
-        .order("timestamp_evento", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return data;
+        .order("timestamp_evento", { ascending: true });
+      return data ?? [];
     },
-    enabled: !!user?.id && isOperaio,
+    enabled: !!user?.id,
     refetchInterval: 30000,
   });
 
-  const isDentro = ultimaTimbratura?.tipo === "entrata" || ultimaTimbratura?.tipo === "pausa_fine";
+  const oreLavorate = useMemo(() => {
+    let totaleMs = 0;
+    let ultimaEntrata: Date | null = null;
+    for (const t of timbratureOggi) {
+      const ts = new Date(t.timestamp_evento);
+      if (t.tipo === "entrata" || t.tipo === "pausa_fine") ultimaEntrata = ts;
+      else if ((t.tipo === "uscita" || t.tipo === "pausa_inizio") && ultimaEntrata) {
+        totaleMs += ts.getTime() - ultimaEntrata.getTime();
+        ultimaEntrata = null;
+      }
+    }
+    if (ultimaEntrata) totaleMs += Date.now() - ultimaEntrata.getTime();
+    return Math.round((totaleMs / 3_600_000) * 10) / 10;
+  }, [timbratureOggi]);
 
-  // ── Task assegnate (operaio + subappaltatore) ──────────────────────────
-  const { data: myTasks = [] } = useQuery({
-    queryKey: ["campo-my-tasks", user?.id, today],
+  const lastTimbro = timbratureOggi[timbratureOggi.length - 1] as any;
+  const isEntrato = lastTimbro?.tipo === "entrata" || lastTimbro?.tipo === "pausa_fine";
+  const isInPausa = lastTimbro?.tipo === "pausa_inizio";
+  const isUscito = lastTimbro?.tipo === "uscita";
+  const nonHaTimbrato = !lastTimbro;
+
+  const timbraMutation = useMutation({
+    mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
+      const now = new Date().toISOString();
+      const { error } = await supabase.from("campo_timbrature").insert({
+        company_id: (profile as any)?.company_id,
+        user_id: user!.id,
+        tipo,
+        timestamp_evento: now,
+        fonte: "app",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Timbratura registrata");
+      queryClient.invalidateQueries({ queryKey: ["campo-timbrature-oggi"] });
+    },
+    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+  });
+
+  const isMutating = timbraMutation.isPending;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4" /> Timbratura
+          </CardTitle>
+          {isEntrato && (
+            <span className="text-sm font-semibold text-amber-600">
+              {oreLavorate}h lavorate oggi
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : (
+          <>
+            {/* Stato attuale */}
+            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+              isEntrato ? "bg-green-50 text-green-700" :
+              isInPausa ? "bg-amber-50 text-amber-700" :
+              "bg-muted text-muted-foreground"
+            }`}>
+              <div className={`w-2 h-2 rounded-full shrink-0 ${
+                isEntrato ? "bg-green-500 animate-pulse" :
+                isInPausa ? "bg-amber-500 animate-pulse" :
+                "bg-slate-400"
+              }`} />
+              <span className="font-medium">
+                {isUscito ? "Giornata completata" :
+                 isInPausa ? "In pausa" :
+                 isEntrato ? "In servizio" :
+                 "Non hai ancora timbrato"}
+              </span>
+              {lastTimbro?.timestamp_evento && (
+                <span className="ml-auto text-xs opacity-75">
+                  ultimo: {format(new Date(lastTimbro.timestamp_evento), "HH:mm")}
+                </span>
+              )}
+            </div>
+
+            {/* Bottoni azione */}
+            {!isUscito && (
+              <div className="flex flex-wrap gap-2">
+                {nonHaTimbrato && (
+                  <Button className="flex-1 min-w-[120px] gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    disabled={isMutating} onClick={() => timbraMutation.mutate("entrata")}>
+                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                    Entrata
+                  </Button>
+                )}
+                {isEntrato && (
+                  <>
+                    <Button variant="outline" className="flex-1 min-w-[120px] gap-2"
+                      disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_inizio")}>
+                      {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}
+                      Pausa
+                    </Button>
+                    <Button variant="destructive" className="flex-1 min-w-[120px] gap-2"
+                      disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>
+                      {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                      Uscita
+                    </Button>
+                  </>
+                )}
+                {isInPausa && (
+                  <>
+                    <Button className="flex-1 min-w-[120px] gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+                      disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_fine")}>
+                      {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                      Fine Pausa
+                    </Button>
+                    <Button variant="destructive" className="flex-1 min-w-[120px] gap-2"
+                      disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>
+                      {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                      Uscita
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Timeline timbrature di oggi */}
+            {timbratureOggi.length > 0 && (
+              <div className="space-y-1 border-t pt-3">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Oggi</p>
+                {timbratureOggi.map((t: any) => (
+                  <div key={t.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
+                    <span className="font-medium tabular-nums">
+                      {format(new Date(t.timestamp_evento), "HH:mm")}
+                    </span>
+                    <span>—</span>
+                    <span>
+                      {t.tipo === "entrata" ? "Entrata" :
+                       t.tipo === "uscita" ? "Uscita" :
+                       t.tipo === "pausa_inizio" ? "Inizio pausa" :
+                       "Fine pausa"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cantieri Assegnati (operaio) — senza importi
+// ─────────────────────────────────────────────────────────────────────────────
+function CantieriAssegnati() {
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+
+  // Cerca employee_id dal profilo
+  const { data: employeeId } = useQuery({
+    queryKey: ["campo-employee-id", user?.id, profile?.company_id],
     queryFn: async () => {
-      if (!user?.id || !profile?.company_id) return [];
       const { data } = await supabase
-        .from("tasks")
-        .select(`
-          id, title, priority, due_date, status,
-          order:orders!tasks_order_id_fkey(order_code)
-        `)
-        .eq("company_id", profile.company_id)
-        .eq("assigned_to", user.id)
-        .neq("status", "completata")
-        .order("priority", { ascending: false })
-        .limit(5);
-      return data ?? [];
+        .from("employees")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("company_id", profile!.company_id)
+        .maybeSingle();
+      return data?.id ?? null;
     },
     enabled: !!user?.id && !!profile?.company_id,
-    staleTime: 60_000,
   });
 
-  // Ore lavorate oggi (calcolo da prima entrata)
-  const { data: oreLavorate } = useQuery({
-    queryKey: ["campo-ore-oggi", user?.id, today],
+  const { data: lavori = [], isLoading } = useQuery({
+    queryKey: ["campo-lavori-assegnati", employeeId],
     queryFn: async () => {
+      // Usa order_employees (sempre popolata) come fonte primaria
       const { data } = await supabase
-        .from("campo_timbrature")
-        .select("tipo, timestamp_evento")
-        .eq("user_id", user!.id)
-        .gte("timestamp_evento", `${today}T00:00:00`)
-        .order("timestamp_evento", { ascending: true });
-      if (!data?.length) return 0;
-      // Calcola ore nette: somma intervalli entrata-uscita
-      let totaleMs = 0;
-      let ultimaEntrata: Date | null = null;
-      for (const t of data) {
-        if (t.tipo === "entrata" || t.tipo === "pausa_fine") {
-          ultimaEntrata = new Date(t.timestamp_evento);
-        } else if ((t.tipo === "uscita" || t.tipo === "pausa_inizio") && ultimaEntrata) {
-          totaleMs += new Date(t.timestamp_evento).getTime() - ultimaEntrata.getTime();
-          ultimaEntrata = null;
-        }
-      }
-      // Se ancora dentro: aggiungi tempo fino ad ora
-      if (ultimaEntrata) {
-        totaleMs += Date.now() - ultimaEntrata.getTime();
-      }
-      return Math.round((totaleMs / 3600000) * 10) / 10;
-    },
-    enabled: !!user?.id && isOperaio,
-    refetchInterval: 60000,
-  });
-
-  // ── Lavori assegnati oggi (operaio) ───────────────────────────────────
-  const { data: lavoriOggi = [], isLoading: loadingLavori } = useQuery({
-    queryKey: ["campo-lavori-oggi", user?.id, today],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("order_campo_assignments")
+        .from("order_employees")
         .select(`
-          *,
+          id, order_id,
           order:orders(
             id, order_code, description, status,
-            address_line1, city,
-            percentuale_avanzamento,
-            customer:profiles!orders_customer_id_fkey(first_name, last_name)
+            indirizzo_lavori,
+            percentuale_avanzamento
           )
         `)
-        .eq("user_id", user!.id);
-      // Filtro client-side: include lavori attivi oggi o senza date definite
-      const oggi = new Date();
-      oggi.setHours(0, 0, 0, 0);
+        .eq("employee_id", employeeId!);
+      // Deduplica per order_id (possono esserci più righe per lo stesso ordine)
+      const seen = new Set<string>();
       return (data ?? []).filter((a: any) => {
-        const inizio = a.data_inizio ? new Date(a.data_inizio) : null;
-        const fine = a.data_fine_prevista ? new Date(a.data_fine_prevista) : null;
-        if (inizio && inizio > oggi && fine && fine < oggi) return false;
-        if (fine && fine < oggi) return false;
+        if (!a.order?.id || seen.has(a.order.id)) return false;
+        seen.add(a.order.id);
+        // Filtra ordini completati/annullati
+        const status = a.order.status?.toLowerCase();
+        if (status === 'annullato' || status === 'chiuso') return false;
         return true;
       });
     },
-    enabled: !!user?.id && isOperaio,
+    enabled: !!employeeId,
   });
 
-  // ── Rapportini in sospeso (operaio) ──────────────────────────────────
-  const { data: rapportiniSospesi = [] } = useQuery({
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Cantieri assegnati</CardTitle>
+          {lavori.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {lavori.length}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : lavori.length === 0 ? (
+          <div className="flex flex-col items-center py-6 text-center">
+            <CheckCircle className="w-8 h-8 text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground">Nessun cantiere assegnato</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {lavori.map((a: any) => (
+              <button
+                key={a.id}
+                onClick={() => navigate(`/campo/lavoro/${a.order?.id}`)}
+                className="w-full bg-muted/50 border rounded-lg p-3 text-left hover:bg-muted transition-colors"
+              >
+                <div className="flex items-start justify-between mb-1.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-sm text-foreground">{a.order?.order_code}</p>
+                      {a.is_capocantiere && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-primary/30 text-primary">
+                          Capocantiere
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{a.order?.description}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                </div>
+                {a.order?.indirizzo_lavori && (
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{a.order.indirizzo_lavori}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-muted rounded-full h-1.5">
+                    <div
+                      className="bg-primary h-1.5 rounded-full transition-all"
+                      style={{ width: `${a.order?.percentuale_avanzamento ?? 0}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    {a.order?.percentuale_avanzamento ?? 0}%
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cantieri Sub (subappaltatore)
+// ─────────────────────────────────────────────────────────────────────────────
+function CantieriSub() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const { data: cantieri = [], isLoading } = useQuery({
+    queryKey: ["campo-cantieri-sub", user?.id],
+    queryFn: async () => {
+      const { data: subData } = await supabase
+        .from("subappaltatori")
+        .select("id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (!subData?.id) return [];
+      const { data } = await supabase
+        .from("contratti_subappalto")
+        .select(`*, order:orders(id, order_code, description, address_line1, city)`)
+        .eq("subappaltatore_id", subData.id)
+        .eq("stato", "attivo");
+      return data ?? [];
+    },
+    enabled: !!user?.id,
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Cantieri attivi</CardTitle>
+          {cantieri.length > 0 && (
+            <Badge variant="secondary" className="text-xs">{cantieri.length}</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : cantieri.length === 0 ? (
+          <div className="flex flex-col items-center py-6 text-center">
+            <p className="text-sm text-muted-foreground">Nessun cantiere attivo</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {cantieri.map((c: any) => (
+              <button
+                key={c.id}
+                onClick={() => navigate(`/campo/lavoro/${c.order?.id}`)}
+                className="w-full bg-muted/50 border rounded-lg p-3 text-left hover:bg-muted transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-foreground">{c.order?.order_code}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{c.order?.description}</p>
+                    {c.order?.indirizzo_lavori && (
+                      <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{c.order.indirizzo_lavori}</span>
+                      </div>
+                    )}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rapportini in sospeso (operaio)
+// ─────────────────────────────────────────────────────────────────────────────
+function RapportiniSospesi() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const { data: rapportini = [] } = useQuery({
     queryKey: ["campo-rapportini-sospesi", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -139,364 +482,323 @@ export default function CampoHome() {
         .order("data_lavoro", { ascending: false });
       return data ?? [];
     },
-    enabled: !!user?.id && isOperaio,
+    enabled: !!user?.id,
   });
 
-  // ── Cantieri subappaltatore ───────────────────────────────────────────
-  const { data: cantieriSub = [], isLoading: loadingSub } = useQuery({
-    queryKey: ["campo-cantieri-sub", user?.id],
+  if (rapportini.length === 0) return null;
+
+  return (
+    <Card className="border-amber-200 bg-amber-50/50">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2 text-amber-800">
+          <AlertTriangle className="h-4 w-4" />
+          {rapportini.length} rapportini da completare
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {rapportini.slice(0, 3).map((r: any) => (
+          <button
+            key={r.id}
+            onClick={() => navigate(`/campo/lavoro/${r.order_id}`)}
+            className="w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-amber-100/50 transition-colors"
+          >
+            <div>
+              <p className="text-sm text-foreground font-medium">{r.order?.order_code}</p>
+              <p className="text-xs text-muted-foreground">
+                {format(parseISO(r.data_lavoro), "d MMM", { locale: it })} — {r.order?.description?.slice(0, 40)}
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-amber-600 shrink-0" />
+          </button>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mini Calendario mensile
+// ─────────────────────────────────────────────────────────────────────────────
+function MiniCalendarioCampo() {
+  const { user, profile } = useAuth();
+  const companyId = profile?.company_id;
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+
+  const { data: monthTasks = [] } = useQuery({
+    queryKey: ["campo-calendar-tasks", user?.id, companyId, format(monthStart, "yyyy-MM")],
     queryFn: async () => {
-      const { data: subData } = await supabase
-        .from("subappaltatori")
-        .select("id")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      if (!subData?.id) return [];
       const { data } = await supabase
-        .from("contratti_subappalto")
+        .from("tasks")
+        .select("id, title, due_date, priority, status")
+        .eq("company_id", companyId!)
+        .eq("assigned_to", user!.id)
+        .gte("due_date", format(monthStart, "yyyy-MM-dd"))
+        .lte("due_date", format(monthEnd, "yyyy-MM-dd"))
+        .order("due_date", { ascending: true });
+      return data ?? [];
+    },
+    enabled: !!user?.id && !!companyId,
+    staleTime: 60_000,
+  });
+
+  const tasksByDate = useMemo(() => {
+    const map = new Map<string, typeof monthTasks>();
+    for (const t of monthTasks) {
+      if (!t.due_date) continue;
+      const arr = map.get(t.due_date) ?? [];
+      arr.push(t);
+      map.set(t.due_date, arr);
+    }
+    return map;
+  }, [monthTasks]);
+
+  const days = useMemo(() => {
+    const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    let startDow = getDay(monthStart);
+    startDow = startDow === 0 ? 6 : startDow - 1;
+    return { allDays, padding: startDow };
+  }, [monthStart, monthEnd]);
+
+  const selectedTasks = useMemo(() => {
+    if (!selectedDate) return [];
+    return tasksByDate.get(format(selectedDate, "yyyy-MM-dd")) ?? [];
+  }, [selectedDate, tasksByDate]);
+
+  const today = startOfDay(new Date());
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalendarDays className="h-4 w-4" /> Calendario
+          </CardTitle>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-7 w-7"
+              onClick={() => setCurrentMonth(m => subMonths(m, 1))}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium min-w-[120px] text-center capitalize">
+              {format(currentMonth, "MMMM yyyy", { locale: it })}
+            </span>
+            <Button variant="ghost" size="icon" className="h-7 w-7"
+              onClick={() => setCurrentMonth(m => addMonths(m, 1))}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pb-3">
+        {/* Giorni settimana */}
+        <div className="grid grid-cols-7 mb-1">
+          {GIORNI_SETTIMANA.map(g => (
+            <div key={g} className="text-center text-[10px] font-semibold text-muted-foreground py-1 uppercase">
+              {g}
+            </div>
+          ))}
+        </div>
+        {/* Griglia giorni */}
+        <div className="grid grid-cols-7 gap-px">
+          {Array.from({ length: days.padding }).map((_, i) => (
+            <div key={`pad-${i}`} className="aspect-square" />
+          ))}
+          {days.allDays.map(day => {
+            const key = format(day, "yyyy-MM-dd");
+            const dayTasks = tasksByDate.get(key) ?? [];
+            const isSelected = selectedDate && isSameDay(day, selectedDate);
+            const isCurrentDay = isToday(day);
+            const isPast = isBefore(day, today) && !isCurrentDay;
+            return (
+              <TooltipProvider key={key} delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSelectedDate(day)}
+                      className={`relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-all hover:bg-muted/60 ${
+                        isSelected ? "bg-primary text-primary-foreground font-bold shadow-sm" :
+                        isCurrentDay ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30" :
+                        isPast ? "text-muted-foreground/60" : "text-foreground"
+                      }`}
+                    >
+                      <span className="text-xs leading-none">{format(day, "d")}</span>
+                      {dayTasks.length > 0 && (
+                        <div className="flex gap-0.5 mt-0.5">
+                          {dayTasks.slice(0, 3).map((t: any, i: number) => {
+                            const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+                            const isDone = t.status === "completata";
+                            return <div key={i} className={`w-1 h-1 rounded-full ${isDone ? "bg-green-400" : cfg.dotClass}`} />;
+                          })}
+                        </div>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  {dayTasks.length > 0 && (
+                    <TooltipContent side="bottom" className="max-w-[200px]">
+                      <p className="font-medium text-xs mb-1">
+                        {format(day, "d MMMM", { locale: it })} — {dayTasks.length} attività
+                      </p>
+                      {dayTasks.slice(0, 4).map((t: any) => (
+                        <p key={t.id} className="text-xs text-muted-foreground truncate">• {t.title}</p>
+                      ))}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+            );
+          })}
+        </div>
+
+        {/* Task del giorno selezionato */}
+        {selectedDate && (
+          <div className="mt-3 border-t pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              {isToday(selectedDate) ? "Oggi" : format(selectedDate, "d MMMM", { locale: it })}
+              {selectedTasks.length > 0 && ` — ${selectedTasks.length} attività`}
+            </p>
+            {selectedTasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">Nessuna scadenza per questo giorno</p>
+            ) : (
+              <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
+                {selectedTasks.map((t: any) => {
+                  const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+                  const isDone = t.status === "completata";
+                  return (
+                    <div key={t.id} className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 ${isDone ? "bg-green-50" : "bg-muted/50"}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDone ? "bg-green-500" : cfg.dotClass}`} />
+                      <span className={`flex-1 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
+                      <Badge className={`text-[9px] px-1 py-0 ${isDone ? "bg-green-100 text-green-700" : cfg.badgeClass}`}>
+                        {isDone ? "Fatto" : cfg.label}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Le mie attività
+// ─────────────────────────────────────────────────────────────────────────────
+function MieAttivitaCampo() {
+  const { user, profile } = useAuth();
+  const companyId = profile?.company_id;
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["campo-my-tasks", user?.id, companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasks")
         .select(`
-          *,
-          order:orders(id, order_code, description, address_line1, city)
+          id, title, priority, due_date, status,
+          order:orders!tasks_order_id_fkey(order_code)
         `)
-        .eq("subappaltatore_id", subData.id)
-        .eq("stato", "attivo");
+        .eq("company_id", companyId!)
+        .eq("assigned_to", user!.id)
+        .neq("status", "completata")
+        .order("priority", { ascending: false })
+        .limit(8);
       return data ?? [];
     },
-    enabled: !!user?.id && isSubappaltatore,
-  });
-
-  // ── SAL in attesa (subappaltatore) ────────────────────────────────────
-  const { data: salInAttesa = [] } = useQuery({
-    queryKey: ["campo-sal-attesa", user?.id],
-    queryFn: async () => {
-      const { data: subData } = await supabase
-        .from("subappaltatori")
-        .select("id")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      if (!subData?.id) return [];
-      const { data } = await supabase
-        .from("sal_subappaltatori")
-        .select("*")
-        .eq("subappaltatore_id", subData.id)
-        .eq("stato", "ricevuto")
-        .order("created_at", { ascending: false });
-      return data ?? [];
-    },
-    enabled: !!user?.id && isSubappaltatore,
+    enabled: !!user?.id && !!companyId,
+    staleTime: 60_000,
   });
 
   return (
-    <div className="px-4 py-5 space-y-5 pb-6">
-      {/* Saluto */}
-      <div>
-        <p className="text-muted-foreground text-sm">
-          {format(new Date(), "EEEE d MMMM", { locale: it })}
-        </p>
-        <h1 className="text-xl font-bold text-foreground">
-          Ciao, {profile?.first_name} 👷
-        </h1>
-      </div>
-
-      {/* ── BLOCCO 1: Timbratura (solo operaio) ── */}
-      {isOperaio && (
-        <div
-          className={`rounded-2xl p-4 border ${
-            isDentro
-              ? "bg-green-500/10 border-green-500/20"
-              : "bg-muted border-border"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${isDentro ? "bg-green-400 animate-pulse" : "bg-muted-foreground"}`} />
-              <span className="text-sm font-semibold">
-                {isDentro ? "Sei in servizio" : "Non hai ancora timbrato"}
-              </span>
-            </div>
-            {isDentro && oreLavorate != null && (
-              <span className="text-primary font-bold">{oreLavorate}h lavorate</span>
-            )}
-          </div>
-          {ultimaTimbratura && (
-            <p className="text-xs text-muted-foreground mb-3">
-              Ultima timbratura: {format(new Date(ultimaTimbratura.timestamp_evento), "HH:mm")} —{" "}
-              {ultimaTimbratura.tipo === "entrata" ? "Entrata" :
-               ultimaTimbratura.tipo === "uscita" ? "Uscita" :
-               ultimaTimbratura.tipo === "pausa_inizio" ? "Inizio pausa" : "Fine pausa"}
-            </p>
-          )}
-          <button
-            onClick={() => navigate("/campo/timbratura")}
-            className={`w-full py-3.5 rounded-xl font-bold text-base transition-all active:scale-[0.98] ${
-              isDentro
-                ? "bg-red-500 text-white"
-                : "bg-green-500 text-white"
-            }`}
-          >
-            {isDentro ? "TIMBRA USCITA" : "TIMBRA ENTRATA"}
-          </button>
-        </div>
-      )}
-
-      {/* ── BLOCCO 2: Lavori assegnati oggi (operaio) ── */}
-      {isOperaio && (
-        <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Lavori assegnati oggi
-          </h2>
-          {loadingLavori ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : lavoriOggi.length === 0 ? (
-            <div className="bg-muted border border-border rounded-2xl p-6 text-center">
-              <CheckCircle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm">Nessun lavoro assegnato oggi</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {lavoriOggi.map((a: any) => (
-                <button
-                  key={a.id}
-                  onClick={() => navigate(`/campo/lavoro/${a.order?.id}`)}
-                  className="w-full bg-muted border border-border rounded-2xl p-4 text-left active:scale-[0.98] transition-transform"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-semibold text-foreground">{a.order?.order_code}</p>
-                      <p className="text-sm text-foreground line-clamp-1">{a.order?.description}</p>
-                    </div>
-                    {a.is_capocantiere && (
-                      <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5">
-                        Capocantiere
-                      </span>
-                    )}
-                  </div>
-                  {a.order?.address_line1 && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                      <MapPin className="w-3 h-3" />
-                      <span>{a.order.address_line1}, {a.order.city}</span>
-                    </div>
-                  )}
-                  {/* Progress bar */}
-                  <div className="w-full bg-muted rounded-full h-1.5">
-                    <div
-                      className="bg-primary h-1.5 rounded-full transition-all"
-                      style={{ width: `${a.order?.percentuale_avanzamento ?? 0}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-muted-foreground">{a.order?.percentuale_avanzamento ?? 0}% completato</span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                </button>
-              ))}
-            </div>
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Le mie attività</CardTitle>
+          {tasks.length > 0 && (
+            <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
           )}
         </div>
-      )}
-
-      {/* ── BLOCCO 3: Rapportini in sospeso (operaio) ── */}
-      {isOperaio && rapportiniSospesi.length > 0 && (
-        <div>
-          <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="w-5 h-5 text-primary" />
-              <span className="text-primary font-semibold text-sm">
-                {rapportiniSospesi.length} rapportini da completare
-              </span>
-            </div>
-            <div className="space-y-2">
-              {rapportiniSospesi.slice(0, 3).map((r: any) => (
-                <button
-                  key={r.id}
-                  onClick={() => navigate(`/campo/lavoro/${r.order_id}`)}
-                  className="w-full flex items-center justify-between text-left"
-                >
-                  <div>
-                    <p className="text-sm text-foreground">{r.order?.order_code} — {r.order?.description?.slice(0, 30)}...</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(parseISO(r.data_lavoro), "d MMM", { locale: it })}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-primary shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── BLOCCO 1 SUB: Cantieri attivi (subappaltatore) ── */}
-      {isSubappaltatore && (
-        <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Cantieri attivi
-          </h2>
-          {loadingSub ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : cantieriSub.length === 0 ? (
-            <div className="bg-muted border border-border rounded-2xl p-6 text-center">
-              <p className="text-muted-foreground text-sm">Nessun cantiere attivo</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {cantieriSub.map((c: any) => (
-                <button
-                  key={c.id}
-                  onClick={() => navigate(`/campo/lavoro/${c.order?.id}`)}
-                  className="w-full bg-muted border border-border rounded-2xl p-4 text-left active:scale-[0.98] transition-transform"
-                >
-                  <p className="font-semibold text-foreground">{c.order?.order_code}</p>
-                  <p className="text-sm text-foreground">{c.order?.description}</p>
-                  {c.order?.address_line1 && (
-                    <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                      <MapPin className="w-3 h-3" />
-                      <span>{c.order.address_line1}, {c.order.city}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-primary">
-                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(c.importo_contrattuale ?? 0)}
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── BLOCCO 2 SUB: SAL in attesa ── */}
-      {isSubappaltatore && salInAttesa.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            SAL in attesa di approvazione
-          </h2>
-          {salInAttesa.slice(0, 3).map((s: any) => (
-            <button
-              key={s.id}
-              onClick={() => navigate("/campo/sal")}
-              className="w-full bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 text-left active:scale-[0.98] transition-transform"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-foreground">SAL #{s.numero_sal}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {format(parseISO(s.data_emissione ?? s.created_at), "d MMM yyyy", { locale: it })}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-primary font-bold">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(s.importo_netto ?? 0)}
-                  </p>
-                  <span className="text-[10px] bg-blue-500/20 text-blue-600 border border-blue-500/20 rounded-full px-2 py-0.5">
-                    In attesa
-                  </span>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ── BLOCCO 5: Task assegnate ── */}
-      {myTasks.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Le mie attività
-          </h2>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
           <div className="space-y-2">
-            {myTasks.map((t: any) => {
-              const dotClass =
-                t.priority === "urgente" ? "bg-red-500" :
-                t.priority === "alta"    ? "bg-orange-500" :
-                t.priority === "normale" ? "bg-blue-500" :
-                "bg-muted-foreground";
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : tasks.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Nessuna attività in corso
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {tasks.map((t: any) => {
+              const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
               return (
-                <div
-                  key={t.id}
-                  className="bg-muted border border-border rounded-2xl p-4 flex items-start gap-3"
-                >
-                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dotClass}`} />
+                <div key={t.id} className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-muted/50 transition-colors">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground line-clamp-1">{t.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                      {t.order?.order_code && (
-                        <span>{t.order.order_code}</span>
-                      )}
+                    <p className="text-sm font-medium truncate">{t.title}</p>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      {t.order?.order_code && <span>{t.order.order_code}</span>}
                       {t.due_date && (
                         <span>{format(new Date(t.due_date), "d MMM", { locale: it })}</span>
                       )}
                     </div>
                   </div>
+                  <Badge className={`text-[9px] px-1.5 py-0 ${cfg.badgeClass}`}>{cfg.label}</Badge>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-      {/* ── BLOCCO 4: Accessi rapidi ── */}
-      <div>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Accesso rapido
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
-          {isOperaio && (
+// ─────────────────────────────────────────────────────────────────────────────
+// Accesso rapido
+// ─────────────────────────────────────────────────────────────────────────────
+function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; isSubappaltatore: boolean }) {
+  const navigate = useNavigate();
+
+  const items = [
+    ...(isOperaio ? [
+      { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", accent: true },
+      { icon: Mic, label: "Rapportino Vocale", url: "/campo/rapportino-vocale", accent: true },
+      { icon: QrCode, label: "Tesserino", url: "/campo/tesserino" },
+    ] : []),
+    { icon: MessageSquare, label: "Chat", url: "/campo/chat" },
+    { icon: FileText, label: isOperaio ? "Documenti" : "SAL", url: isOperaio ? "/campo/documenti" : "/campo/sal" },
+    ...(isSubappaltatore ? [
+      { icon: FileText, label: "Documenti", url: "/campo/documenti" },
+    ] : []),
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Accesso rapido</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-3 gap-2">
+          {items.map((item) => (
             <button
-              onClick={() => navigate("/campo/sicurezza")}
-              className="bg-muted border border-primary/40 rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
+              key={item.url + item.label}
+              onClick={() => navigate(item.url)}
+              className={`rounded-lg p-3 flex flex-col items-center gap-1.5 transition-colors hover:bg-muted ${
+                (item as any).accent ? "border border-primary/30 bg-primary/5" : "border bg-muted/30"
+              }`}
             >
-              <ShieldCheck className="w-8 h-8 text-primary" />
-              <span className="text-xs font-medium text-foreground">Sicurezza</span>
+              <item.icon className="w-6 h-6 text-primary" />
+              <span className="text-[11px] font-medium text-foreground text-center leading-tight">{item.label}</span>
             </button>
-          )}
-          {isOperaio && (
-            <button
-              onClick={() => navigate("/campo/rapportino-vocale")}
-              className="bg-muted border border-primary/40 rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
-            >
-              <Mic className="w-8 h-8 text-primary" />
-              <span className="text-xs font-medium text-foreground">Rapportino Vocale</span>
-            </button>
-          )}
-          {isOperaio && (
-            <button
-              onClick={() => navigate("/campo/tesserino")}
-              className="bg-muted border border-border rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
-            >
-              <QrCode className="w-8 h-8 text-primary" />
-              <span className="text-xs font-medium text-foreground">Tesserino</span>
-            </button>
-          )}
-          <button
-            onClick={() => navigate(isOperaio ? "/campo/magazzino" : "/campo/sub/documenti")}
-            className="bg-muted border border-border rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
-          >
-            <Truck className="w-8 h-8 text-primary" />
-            <span className="text-xs font-medium text-foreground">{isOperaio ? "Furgone" : "Documenti"}</span>
-          </button>
-          <button
-            onClick={() => navigate("/campo/chat")}
-            className="bg-muted border border-border rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
-          >
-            <MessageSquare className="w-8 h-8 text-primary" />
-            <span className="text-xs font-medium text-foreground">Chat</span>
-          </button>
-          <button
-            onClick={() => navigate(isOperaio ? "/campo/documenti" : "/campo/sal")}
-            className="bg-muted border border-border rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
-          >
-            <FileText className="w-8 h-8 text-primary" />
-            <span className="text-xs font-medium text-foreground">{isOperaio ? "Documenti" : "SAL"}</span>
-          </button>
+          ))}
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -451,7 +451,17 @@ function TimbraturaSede() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task Manager — Le mie Attività (stile Asana)
+// Features: CRUD, multi-select + bulk actions, grouping, search, compact view
 // ─────────────────────────────────────────────────────────────────────────────
+type GroupBy = "none" | "priority" | "category" | "date";
+
+const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
+  { value: "none", label: "Nessuno" },
+  { value: "priority", label: "Priorità" },
+  { value: "category", label: "Categoria" },
+  { value: "date", label: "Data" },
+];
+
 function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -461,6 +471,11 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
   const [editingTask, setEditingTask] = useState<any>(null);
   const [quickAddTitle, setQuickAddTitle] = useState("");
   const quickAddRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [compact, setCompact] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // ── Form state ──
   const [formTitle, setFormTitle] = useState("");
@@ -468,16 +483,13 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
   const [formPriority, setFormPriority] = useState("normale");
   const [formDueDate, setFormDueDate] = useState("");
   const [formCategory, setFormCategory] = useState("altro");
+  const [formStatus, setFormStatus] = useState("da_fare");
 
-  // Effetto: pre-fill dueDate dal calendario
   useEffect(() => {
-    if (initialDueDate) {
-      setFormDueDate(initialDueDate);
-      setDialogOpen(true);
-    }
+    if (initialDueDate) { setFormDueDate(initialDueDate); setDialogOpen(true); }
   }, [initialDueDate]);
 
-  // ── Fetch ALL tasks (include completate per filtro) ──
+  // ── Fetch ALL tasks ──
   const { data: allTasks = [], isLoading } = useQuery({
     queryKey: ["my-tasks-all", user?.id, companyId],
     queryFn: async () => {
@@ -489,7 +501,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
         .eq("company_id", companyId!)
         .eq("assigned_to", user!.id)
         .order("created_at", { ascending: false })
-        .limit(100);
+        .limit(200);
       if (error) { logger.error("MieAttivita — errore:", error); throw error; }
       return data ?? [];
     },
@@ -497,7 +509,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     staleTime: 30_000,
   });
 
-  // ── Filtered tasks ──
+  // ── Filtered + searched tasks ──
   const today = startOfDay(new Date());
   const weekEnd = addDays(today, 7);
 
@@ -516,11 +528,20 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
       case "completate":
         filtered = filtered.filter((t: any) => t.status === "completata");
         break;
-      default: // tutte
+      default:
         filtered = filtered.filter((t: any) => t.status !== "completata");
     }
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((t: any) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.notes && t.notes.toLowerCase().includes(q)) ||
+        (t.category && t.category.toLowerCase().includes(q))
+      );
+    }
     return filtered;
-  }, [allTasks, filter, today, weekEnd]);
+  }, [allTasks, filter, today, weekEnd, searchQuery]);
 
   // Stats
   const stats = useMemo(() => {
@@ -531,6 +552,28 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     const inProgress = active.filter((t: any) => t.status === "in_corso");
     return { total: active.length, overdue: overdue.length, today: todayTasks.length, completed: completed.length, inProgress: inProgress.length };
   }, [allTasks, today]);
+
+  // ── Grouping ──
+  const groupedTasks = useMemo(() => {
+    if (groupBy === "none") return null;
+    const groups = new Map<string, any[]>();
+    for (const t of filteredTasks) {
+      let key: string;
+      if (groupBy === "priority") key = PRIORITY_CONFIG[t.priority ?? "normale"]?.label ?? "Normale";
+      else if (groupBy === "category") key = CATEGORY_OPTIONS.find(c => c.value === t.category)?.label ?? "Altro";
+      else {
+        if (!t.due_date) key = "Senza scadenza";
+        else if (isToday(new Date(t.due_date))) key = "Oggi";
+        else if (isBefore(new Date(t.due_date), today)) key = "Scadute";
+        else if (isBefore(new Date(t.due_date), weekEnd)) key = "Questa settimana";
+        else key = "Più avanti";
+      }
+      const arr = groups.get(key) ?? [];
+      arr.push(t);
+      groups.set(key, arr);
+    }
+    return groups;
+  }, [filteredTasks, groupBy, today, weekEnd]);
 
   // ── Mutations ──
   const invalidate = () => {
@@ -571,11 +614,41 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
   });
 
+  // Bulk update mutation
+  const bulkUpdateStatus = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
+      const updates: any = { status };
+      if (status === "completata") updates.completed_at = new Date().toISOString();
+      const { error } = await supabase.from("tasks").update(updates).in("id", ids).eq("assigned_to", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: (_, { ids, status }) => {
+      const label = STATUS_CONFIG[status]?.label ?? status;
+      toast.success(`${ids.length} attività → ${label}`);
+      setSelectedIds(new Set());
+      invalidate();
+    },
+    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+  });
+
+  const bulkDelete = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("tasks").delete().in("id", ids).eq("assigned_to", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: (_, ids) => {
+      toast.success(`${ids.length} attività eliminate`);
+      setSelectedIds(new Set());
+      invalidate();
+    },
+    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+  });
+
   // ── Helpers ──
   const openCreate = (dueDate?: string) => {
     setEditingTask(null);
     setFormTitle(""); setFormNotes(""); setFormPriority("normale");
-    setFormDueDate(dueDate ?? ""); setFormCategory("altro");
+    setFormDueDate(dueDate ?? ""); setFormCategory("altro"); setFormStatus("da_fare");
     setDialogOpen(true);
   };
 
@@ -584,13 +657,16 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     setFormTitle(t.title); setFormNotes(t.notes ?? "");
     setFormPriority(t.priority ?? "normale");
     setFormDueDate(t.due_date ?? ""); setFormCategory(t.category ?? "altro");
+    setFormStatus(t.status ?? "da_fare");
     setDialogOpen(true);
   };
 
   const handleSave = () => {
     if (!formTitle.trim()) { toast.error("Inserisci un titolo"); return; }
     if (editingTask) {
-      updateTask.mutate({ id: editingTask.id, title: formTitle.trim(), notes: formNotes.trim() || null, priority: formPriority, due_date: formDueDate || null, category: formCategory });
+      const updates: any = { id: editingTask.id, title: formTitle.trim(), notes: formNotes.trim() || null, priority: formPriority, due_date: formDueDate || null, category: formCategory, status: formStatus };
+      if (formStatus === "completata" && editingTask.status !== "completata") updates.completed_at = new Date().toISOString();
+      updateTask.mutate(updates);
     } else {
       createTask.mutate({ title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory });
     }
@@ -603,19 +679,38 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     setQuickAddTitle("");
   };
 
-  const cycleStatus = (t: any) => {
-    const current = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.da_fare;
-    const nextStatus = current.next;
-    if (!nextStatus) return;
-    const updates: any = { id: t.id, status: nextStatus };
-    if (nextStatus === "completata") updates.completed_at = new Date().toISOString();
-    updateTask.mutate(updates);
+  // Click = completa subito (intuitivo come checkbox)
+  const markDone = (t: any) => {
+    updateTask.mutate({ id: t.id, status: "completata", completed_at: new Date().toISOString() });
   };
 
-  // ── Separazione oggi / prossime ──
-  const taskOggi = filteredTasks.filter((t: any) => filter === "tutte" && (!t.due_date || isBefore(new Date(t.due_date), addDays(today, 1))));
-  const taskFuture = filteredTasks.filter((t: any) => filter === "tutte" && t.due_date && !isBefore(new Date(t.due_date), addDays(today, 1)));
-  const showSections = filter === "tutte";
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === filteredTasks.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredTasks.map((t: any) => t.id)));
+  };
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  // ── Separazione oggi / prossime (solo quando groupBy = none) ──
+  const taskOggi = filteredTasks.filter((t: any) => filter === "tutte" && groupBy === "none" && (!t.due_date || isBefore(new Date(t.due_date), addDays(today, 1))));
+  const taskFuture = filteredTasks.filter((t: any) => filter === "tutte" && groupBy === "none" && t.due_date && !isBefore(new Date(t.due_date), addDays(today, 1)));
+  const showDefaultSections = filter === "tutte" && groupBy === "none";
+
+  const hasSelection = selectedIds.size > 0;
 
   // ── Render task card ──
   const renderTask = (t: any) => {
@@ -625,102 +720,123 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     const isDone = t.status === "completata";
     const catLabel = CATEGORY_OPTIONS.find(c => c.value === t.category)?.label;
     const PriorityIcon = cfg.icon;
+    const isSelected = selectedIds.has(t.id);
 
+    if (compact) {
+      // Vista compatta — riga singola
+      return (
+        <div key={t.id} className={`group flex items-center gap-2 rounded border px-3 py-1.5 transition-all text-sm ${isDone ? "opacity-50 bg-muted/30" : ""} ${scaduta ? "border-red-200 bg-red-50/20" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/30"}`}>
+          {/* Checkbox select */}
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => toggleSelect(t.id)}
+            className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary shrink-0"
+          />
+          {/* Complete button */}
+          <button
+            onClick={() => !isDone && markDone(t)}
+            disabled={isDone}
+            className={`shrink-0 transition-colors ${isDone ? "text-green-500" : "text-muted-foreground/30 hover:text-green-500"}`}
+            title={isDone ? "Completata" : "Segna come fatta"}
+          >
+            {isDone ? <CheckCircle className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+          </button>
+          {/* Title */}
+          <span className={`flex-1 truncate cursor-pointer ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => openEdit(t)}>
+            {t.title}
+          </span>
+          {/* Priority dot */}
+          <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} title={cfg.label} />
+          {/* Due date */}
+          {t.due_date && (
+            <span className={`text-[10px] shrink-0 ${scaduta ? "text-red-500 font-semibold" : isToday(new Date(t.due_date)) ? "text-amber-600" : "text-muted-foreground"}`}>
+              {isToday(new Date(t.due_date)) ? "Oggi" : format(new Date(t.due_date), "d/MM", { locale: it })}
+            </span>
+          )}
+          {/* Quick actions on hover */}
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => openEdit(t)} className="p-0.5 text-muted-foreground hover:text-foreground" title="Modifica">
+              <Pencil className="h-3 w-3" />
+            </button>
+            <button onClick={() => deleteTask.mutate(t.id)} className="p-0.5 text-muted-foreground hover:text-red-500" title="Elimina">
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Vista normale — card
     return (
-      <div
-        key={t.id}
-        className={`group flex items-start gap-3 rounded-lg border bg-card p-3 transition-all hover:shadow-sm hover:border-primary/20 ${isDone ? "opacity-60" : ""} ${scaduta ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10" : ""}`}
-      >
-        {/* Status toggle */}
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => cycleStatus(t)}
-                disabled={isDone}
-                className={`mt-0.5 shrink-0 rounded-full p-0.5 transition-colors ${
-                  isDone ? "text-green-500" :
-                  t.status === "in_corso" ? "text-blue-500 hover:text-blue-600" :
-                  "text-muted-foreground/40 hover:text-green-500"
-                }`}
-              >
-                {isDone ? (
-                  <CheckCircle className="h-5 w-5" />
-                ) : t.status === "in_corso" ? (
-                  <div className="relative"><Circle className="h-5 w-5" /><div className="absolute inset-0 flex items-center justify-center"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" /></div></div>
-                ) : (
-                  <Circle className="h-5 w-5" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isDone ? "Completata" : t.status === "in_corso" ? "Segna come completata" : "Segna come in corso"}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+      <div key={t.id} className={`group flex items-start gap-3 rounded-lg border bg-card p-3 transition-all hover:shadow-sm hover:border-primary/20 ${isDone ? "opacity-50" : ""} ${scaduta ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : ""}`}>
+        {/* Checkbox + Complete */}
+        <div className="flex flex-col items-center gap-1 mt-0.5 shrink-0">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => toggleSelect(t.id)}
+            className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary"
+          />
+          <button
+            onClick={() => !isDone && markDone(t)}
+            disabled={isDone}
+            className={`transition-colors ${isDone ? "text-green-500" : "text-muted-foreground/30 hover:text-green-500"}`}
+            title={isDone ? "Completata" : "Segna come fatta"}
+          >
+            {isDone ? <CheckCircle className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
+          </button>
+        </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(t)}>
           <div className="flex items-start justify-between gap-2">
-            <p className={`font-medium text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}>
-              {t.title}
-            </p>
-            <div className="flex items-center gap-1 shrink-0">
-              <Badge className={`text-[10px] px-1.5 py-0 ${cfg.badgeClass}`}>
-                <PriorityIcon className="h-2.5 w-2.5 mr-0.5" />
-                {cfg.label}
-              </Badge>
-            </div>
+            <p className={`font-medium text-sm leading-snug ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
+            <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${cfg.badgeClass}`}>
+              <PriorityIcon className="h-2.5 w-2.5 mr-0.5" />{cfg.label}
+            </Badge>
           </div>
           {t.notes && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.notes}</p>}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-xs text-muted-foreground">
-            {/* Status badge */}
-            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${stCfg.className}`}>
-              {stCfg.label}
-            </Badge>
-            {/* Category */}
-            {catLabel && (
-              <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{catLabel}</span>
-            )}
-            {/* Order link */}
-            {t.order?.order_code && (
-              <Link to="/azienda/ordini" className="flex items-center gap-1 hover:text-foreground transition-colors">
-                <ExternalLink className="w-3 h-3" />{t.order.order_code}
-              </Link>
-            )}
-            {/* Due date */}
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${stCfg.className}`}>{stCfg.label}</Badge>
+            {catLabel && <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{catLabel}</span>}
+            {t.order?.order_code && <Link to="/azienda/ordini" className="flex items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link>}
             {t.due_date && (
               <span className={scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(new Date(t.due_date)) ? "text-amber-600 font-medium" : ""}>
-                {scaduta ? "Scaduta " : isToday(new Date(t.due_date)) ? "Oggi" : "Entro "}
-                {!isToday(new Date(t.due_date)) && format(new Date(t.due_date), "d MMM", { locale: it })}
+                {scaduta ? "Scaduta " : isToday(new Date(t.due_date)) ? "Oggi" : "Entro "}{!isToday(new Date(t.due_date)) && format(new Date(t.due_date), "d MMM", { locale: it })}
               </span>
             )}
           </div>
         </div>
 
-        {/* Actions menu */}
+        {/* Actions */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onClick={() => openEdit(t)}>
-              <Pencil className="h-3.5 w-3.5 mr-2" />Modifica
-            </DropdownMenuItem>
-            {!isDone && (
-              <DropdownMenuItem onClick={() => cycleStatus(t)}>
-                <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
-                {t.status === "da_fare" ? "Inizia" : "Completa"}
-              </DropdownMenuItem>
-            )}
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5 mr-2" />Modifica</DropdownMenuItem>
+            {!isDone && <DropdownMenuItem onClick={() => markDone(t)}><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Segna come fatta</DropdownMenuItem>}
+            {t.status === "da_fare" && <DropdownMenuItem onClick={() => updateTask.mutate({ id: t.id, status: "in_corso" })}><PlayCircle className="h-3.5 w-3.5 mr-2" />Inizia (In corso)</DropdownMenuItem>}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600" onClick={() => deleteTask.mutate(t.id)}>
-              <Trash2 className="h-3.5 w-3.5 mr-2" />Elimina
-            </DropdownMenuItem>
+            <DropdownMenuItem className="text-red-600" onClick={() => deleteTask.mutate(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" />Elimina</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      </div>
+    );
+  };
+
+  // Render grouped section
+  const renderGroup = (key: string, tasks: any[]) => {
+    const isCollapsed = collapsedGroups.has(key);
+    return (
+      <div key={key} className="space-y-1.5">
+        <button onClick={() => toggleGroup(key)} className="flex items-center gap-2 w-full text-left py-1 hover:bg-muted/30 rounded px-1 -mx-1">
+          <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isCollapsed ? "" : "rotate-90"}`} />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{key}</span>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{tasks.length}</Badge>
+        </button>
+        {!isCollapsed && <div className={compact ? "space-y-1" : "space-y-2"}>{tasks.map(renderTask)}</div>}
       </div>
     );
   };
@@ -731,18 +847,16 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <ClipboardCheck className="h-4 w-4" />
-              Le mie Attività
+              <ClipboardCheck className="h-4 w-4" />Le mie Attività
               {stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
             </CardTitle>
             <Button size="sm" className="h-8 gap-1.5" onClick={() => openCreate()}>
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Nuova attività</span>
+              <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova attività</span>
             </Button>
           </div>
 
-          {/* Stats bar */}
-          {stats.total > 0 && (
+          {/* Stats */}
+          {(stats.total > 0 || stats.completed > 0) && (
             <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
               {stats.overdue > 0 && <span className="text-red-500 font-medium">{stats.overdue} scadute</span>}
               {stats.inProgress > 0 && <span className="text-blue-500">{stats.inProgress} in corso</span>}
@@ -760,83 +874,118 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
               { key: "settimana", label: "Settimana", count: null },
               { key: "completate", label: "Completate", count: stats.completed },
             ] as const).map(f => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                  filter === f.key
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                } ${f.key === "scadute" && (f.count ?? 0) > 0 ? "text-red-600" : ""}`}
-              >
+              <button key={f.key} onClick={() => { setFilter(f.key); setSelectedIds(new Set()); }}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                 {f.label}
-                {f.count != null && f.count > 0 && (
-                  <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""}`}>({f.count})</span>
-                )}
+                {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""}`}>({f.count})</span>}
               </button>
             ))}
+          </div>
+
+          {/* Search + view controls */}
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex-1 relative">
+              <Input
+                placeholder="Cerca attività..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="h-8 text-xs pl-8"
+              />
+              <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>}
+            </div>
+            {/* Group by */}
+            <Select value={groupBy} onValueChange={v => { setGroupBy(v as GroupBy); setCollapsedGroups(new Set()); }}>
+              <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue placeholder="Raggruppa" /></SelectTrigger>
+              <SelectContent>{GROUP_OPTIONS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}</SelectContent>
+            </Select>
+            {/* Compact toggle */}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant={compact ? "default" : "outline"} size="sm" className="h-8 w-8 p-0" onClick={() => setCompact(!compact)}>
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="0.5" /><rect x="1" y="7" width="14" height="2" rx="0.5" /><rect x="1" y="12" width="14" height="2" rx="0.5" /></svg>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{compact ? "Vista espansa" : "Vista compatta"}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </CardHeader>
 
         <CardContent>
+          {/* Bulk action bar */}
+          {hasSelection && (
+            <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
+              <input type="checkbox" checked={selectedIds.size === filteredTasks.length} onChange={selectAll} className="h-3.5 w-3.5 accent-primary" />
+              <span className="text-xs font-medium">{selectedIds.size} selezionate</span>
+              <div className="flex-1" />
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "completata" })}>
+                <CheckCircle className="h-3 w-3" />Fatte
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "in_corso" })}>
+                <PlayCircle className="h-3 w-3" />In corso
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
+                <Circle className="h-3 w-3" />Da fare
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-red-600 hover:text-red-700" onClick={() => bulkDelete.mutate([...selectedIds])}>
+                <Trash2 className="h-3 w-3" />Elimina
+              </Button>
+              <button onClick={() => setSelectedIds(new Set())} className="text-muted-foreground hover:text-foreground ml-1"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
           ) : (
             <div className="space-y-4">
-              {/* Quick add inline */}
+              {/* Quick add */}
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
-                  <Input
-                    ref={quickAddRef}
-                    placeholder="Aggiungi attività veloce... (Invio per salvare)"
-                    value={quickAddTitle}
+                  <Input ref={quickAddRef} placeholder="+ Aggiungi attività veloce... (Invio)" value={quickAddTitle}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
-                    className="h-9 text-sm pr-8"
-                  />
-                  {quickAddTitle && (
-                    <button onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                    className="h-9 text-sm pr-8" />
+                  {quickAddTitle && <button onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                 </div>
                 <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={handleQuickAdd} disabled={!quickAddTitle.trim() || createTask.isPending}>
                   {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
 
-              {showSections ? (
+              {/* Grouped view */}
+              {groupBy !== "none" && groupedTasks ? (
+                groupedTasks.size === 0 ? (
+                  <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+                    <Filter className="h-6 w-6 mx-auto mb-2 text-muted-foreground opacity-40" />
+                    <p className="text-sm text-muted-foreground">Nessuna attività trovata</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {[...groupedTasks.entries()].map(([key, tasks]) => renderGroup(key, tasks))}
+                  </div>
+                )
+              ) : showDefaultSections ? (
                 <>
-                  {/* Attività di oggi */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Attività di oggi {taskOggi.length > 0 && `(${taskOggi.length})`}
-                      </p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attività di oggi {taskOggi.length > 0 && `(${taskOggi.length})`}</p>
                     </div>
                     {taskOggi.length === 0 ? (
-                      <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center">
-                        <CheckCircle className="h-5 w-5 mx-auto mb-1 text-green-500 opacity-60" />
-                        <p className="text-xs text-muted-foreground">Nessuna attività per oggi</p>
-                      </div>
-                    ) : taskOggi.map(renderTask)}
+                      <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center"><CheckCircle className="h-5 w-5 mx-auto mb-1 text-green-500 opacity-60" /><p className="text-xs text-muted-foreground">Nessuna attività per oggi</p></div>
+                    ) : <div className={compact ? "space-y-1" : "space-y-2"}>{taskOggi.map(renderTask)}</div>}
                   </div>
                   <div className="border-t" />
-                  {/* Prossime attività */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-blue-500" />
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Prossime attività {taskFuture.length > 0 && `(${taskFuture.length})`}
-                      </p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Prossime attività {taskFuture.length > 0 && `(${taskFuture.length})`}</p>
                     </div>
                     {taskFuture.length === 0 ? (
-                      <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center">
-                        <CalendarDays className="h-5 w-5 mx-auto mb-1 text-blue-400 opacity-60" />
-                        <p className="text-xs text-muted-foreground">Nessuna attività in programma</p>
-                      </div>
-                    ) : taskFuture.map(renderTask)}
+                      <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center"><CalendarDays className="h-5 w-5 mx-auto mb-1 text-blue-400 opacity-60" /><p className="text-xs text-muted-foreground">Nessuna attività in programma</p></div>
+                    ) : <div className={compact ? "space-y-1" : "space-y-2"}>{taskFuture.map(renderTask)}</div>}
                   </div>
                 </>
               ) : filteredTasks.length === 0 ? (
@@ -845,7 +994,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
                   <p className="text-sm text-muted-foreground">Nessuna attività trovata per questo filtro</p>
                 </div>
               ) : (
-                <div className="space-y-2">{filteredTasks.map(renderTask)}</div>
+                <div className={compact ? "space-y-1" : "space-y-2"}>{filteredTasks.map(renderTask)}</div>
               )}
             </div>
           )}
@@ -857,39 +1006,17 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>{editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
-            <DialogDescription>
-              {editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività personale."}
-            </DialogDescription>
+            <DialogDescription>{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività personale."}</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4 py-2">
-            {/* Titolo */}
             <div className="space-y-1.5">
               <Label htmlFor="task-title">Titolo *</Label>
-              <Input
-                id="task-title"
-                placeholder="Cosa devi fare?"
-                value={formTitle}
-                onChange={e => setFormTitle(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && formTitle.trim()) handleSave(); }}
-                autoFocus
-              />
+              <Input id="task-title" placeholder="Cosa devi fare?" value={formTitle} onChange={e => setFormTitle(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && formTitle.trim()) handleSave(); }} autoFocus />
             </div>
-
-            {/* Note */}
             <div className="space-y-1.5">
               <Label htmlFor="task-notes">Descrizione</Label>
-              <Textarea
-                id="task-notes"
-                placeholder="Aggiungi dettagli, link, note..."
-                value={formNotes}
-                onChange={e => setFormNotes(e.target.value)}
-                rows={3}
-                className="resize-none"
-              />
+              <Textarea id="task-notes" placeholder="Aggiungi dettagli, link, note..." value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={3} className="resize-none" />
             </div>
-
-            {/* Row: Priorità + Categoria */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Priorità</Label>
@@ -898,14 +1025,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
                   <SelectContent>
                     {Object.entries(PRIORITY_CONFIG).map(([k, v]) => {
                       const Icon = v.icon;
-                      return (
-                        <SelectItem key={k} value={k}>
-                          <span className="flex items-center gap-2">
-                            <Icon className={`h-3.5 w-3.5 ${k === "urgente" ? "text-red-500" : k === "alta" ? "text-orange-500" : k === "normale" ? "text-blue-500" : "text-slate-400"}`} />
-                            {v.label}
-                          </span>
-                        </SelectItem>
-                      );
+                      return <SelectItem key={k} value={k}><span className="flex items-center gap-2"><Icon className={`h-3.5 w-3.5 ${k === "urgente" ? "text-red-500" : k === "alta" ? "text-orange-500" : k === "normale" ? "text-blue-500" : "text-slate-400"}`} />{v.label}</span></SelectItem>;
                     })}
                   </SelectContent>
                 </Select>
@@ -914,41 +1034,26 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
                 <Label>Categoria</Label>
                 <Select value={formCategory} onValueChange={setFormCategory}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent>{CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
-
-            {/* Scadenza */}
-            <div className="space-y-1.5">
-              <Label htmlFor="task-due">Scadenza</Label>
-              <Input
-                id="task-due"
-                type="date"
-                value={formDueDate}
-                onChange={e => setFormDueDate(e.target.value)}
-                className="h-9"
-              />
-            </div>
-
-            {/* Status (solo in modifica) */}
-            {editingTask && (
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Stato</Label>
-                <Select value={editingTask.status} onValueChange={v => setEditingTask({ ...editingTask, status: v })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="task-due">Scadenza</Label>
+                <Input id="task-due" type="date" value={formDueDate} onChange={e => setFormDueDate(e.target.value)} className="h-9" />
               </div>
-            )}
+              {editingTask && (
+                <div className="space-y-1.5">
+                  <Label>Stato</Label>
+                  <Select value={formStatus} onValueChange={setFormStatus}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>{Object.entries(STATUS_CONFIG).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </div>
-
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
             <Button onClick={handleSave} disabled={!formTitle.trim() || createTask.isPending || updateTask.isPending}>

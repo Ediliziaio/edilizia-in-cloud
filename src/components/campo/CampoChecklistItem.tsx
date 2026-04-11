@@ -1,6 +1,7 @@
 /**
  * Singolo item della checklist sicurezza.
  * Touch target >= 48px, feedback visivo immediato al tap.
+ * Tema chiaro con supporto dark mode via Tailwind.
  */
 import {
   HardHat,
@@ -57,10 +58,10 @@ export default function CampoChecklistItem({
       className={`
         flex items-center gap-3 rounded-xl border-2 p-4 transition-all
         ${checked
-          ? "border-emerald-500 bg-emerald-950/40"
+          ? "border-emerald-500 bg-emerald-50"
           : item.critico
-            ? "border-slate-700 bg-slate-900"
-            : "border-slate-800 bg-slate-900/50"
+            ? "border-border bg-muted"
+            : "border-border bg-muted/50"
         }
       `}
     >
@@ -73,8 +74,8 @@ export default function CampoChecklistItem({
           flex-none w-12 h-12 rounded-xl flex items-center justify-center
           transition-all active:scale-95
           ${checked
-            ? "bg-emerald-500 text-slate-950"
-            : "bg-slate-800 text-slate-400 border border-slate-700"
+            ? "bg-emerald-500 text-white"
+            : "bg-background text-muted-foreground border border-border"
           }
         `}
       >
@@ -82,15 +83,15 @@ export default function CampoChecklistItem({
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white leading-tight">
+        <p className="text-sm font-medium text-foreground leading-tight">
           {item.label}
         </p>
         {item.critico && !checked && (
-          <p className="text-[11px] text-amber-400 mt-0.5">Obbligatorio</p>
+          <p className="text-[11px] text-primary mt-0.5">Obbligatorio</p>
         )}
         {fotoUrl && (
-          <p className="text-[11px] text-emerald-400 mt-0.5 truncate">
-            Foto allegata ✓
+          <p className="text-[11px] text-emerald-600 mt-0.5 truncate">
+            Foto allegata
           </p>
         )}
       </div>
@@ -104,8 +105,8 @@ export default function CampoChecklistItem({
             flex-none w-12 h-12 rounded-xl flex items-center justify-center
             transition-all active:scale-95
             ${fotoUrl
-              ? "bg-emerald-600/20 border border-emerald-500 text-emerald-400"
-              : "bg-slate-800 border border-slate-700 text-slate-400"
+              ? "bg-emerald-50 border border-emerald-500 text-emerald-600"
+              : "bg-background border border-border text-muted-foreground"
             }
           `}
         >

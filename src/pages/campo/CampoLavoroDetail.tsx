@@ -23,33 +23,59 @@ export default function CampoLavoroDetail() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("descrizione");
 
-  // Verifica assegnazione — SICUREZZA OBBLIGATORIA
+  // Verifica assegnazione — controlla order_campo_assignments e order_employees
   const { data: assignment, isLoading } = useQuery({
     queryKey: ["campo-lavoro", orderId, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const orderSelect = `
+        id, order_code, description, status,
+        indirizzo_lavori,
+        percentuale_avanzamento,
+        customer:profiles!orders_customer_id_fkey(
+          first_name, last_name, phone, email
+        )
+      `;
+
+      // 1. Prova order_campo_assignments
+      const { data: campoData } = await supabase
         .from("order_campo_assignments")
-        .select(`
-          *,
-          order:orders(
-            id, order_code, description, status,
-            address_line1, address_line2, city, province,
-            percentuale_avanzamento, notes,
-            customer:profiles!orders_customer_id_fkey(
-              first_name, last_name, phone, email
-            )
-          )
-        `)
+        .select(`*, order:orders(${orderSelect})`)
         .eq("order_id", orderId!)
         .eq("user_id", user!.id)
         .maybeSingle();
 
-      if (error || !data) {
-        // Non assegnato → redirect sicuro
-        navigate("/campo");
-        return null;
+      if (campoData) return campoData;
+
+      // 2. Fallback: controlla order_employees
+      const { data: emp } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+
+      if (emp?.id) {
+        const { data: empRows } = await supabase
+          .from("order_employees")
+          .select("id, order_id")
+          .eq("order_id", orderId!)
+          .eq("employee_id", emp.id)
+          .limit(1);
+        const empAssign = empRows?.[0] ?? null;
+
+        if (empAssign) {
+          const { data: orderData } = await supabase
+            .from("orders")
+            .select(orderSelect)
+            .eq("id", orderId!)
+            .single();
+
+          return { ...empAssign, order: orderData, is_capocantiere: false };
+        }
       }
-      return data;
+
+      // Non assegnato → redirect sicuro
+      navigate("/campo");
+      return null;
     },
     enabled: !!orderId && !!user?.id,
   });
@@ -102,7 +128,7 @@ export default function CampoLavoroDetail() {
   ];
 
   return (
-    <div className="flex flex-col h-full pb-32">
+    <div className="flex flex-col h-full">
       {/* Header sticky */}
       <div className="sticky top-0 z-10 bg-muted border-b border-border px-4 py-3">
         <div className="flex items-center gap-3 mb-1">
@@ -119,16 +145,16 @@ export default function CampoLavoroDetail() {
         </div>
 
         {/* Indirizzo → Google Maps */}
-        {order?.address_line1 && (
+        {order?.indirizzo_lavori && (
           <button
             onClick={() => window.open(
-              `https://maps.google.com/?q=${encodeURIComponent([order.address_line1, order.city, order.province].filter(Boolean).join(", "))}`,
+              `https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`,
               "_blank"
             )}
             className="flex items-center gap-1.5 text-primary text-xs mt-1"
           >
             <MapPin className="w-3.5 h-3.5" />
-            <span>{order.address_line1}, {order.city} {order.province}</span>
+            <span>{order.indirizzo_lavori}</span>
           </button>
         )}
 
@@ -184,14 +210,6 @@ export default function CampoLavoroDetail() {
                     <span>{customer.phone}</span>
                   </a>
                 )}
-              </div>
-            )}
-
-            {/* Note ufficio */}
-            {order?.notes && (
-              <div className="bg-muted border border-border rounded-2xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Note dall'ufficio</p>
-                <p className="text-sm text-foreground">{order.notes}</p>
               </div>
             )}
 
@@ -294,14 +312,11 @@ export default function CampoLavoroDetail() {
       </div>
 
       {/* CTA sticky in basso */}
-      <div
-        className="fixed bottom-0 left-0 right-0 bg-background border-t border-border px-4 pt-3"
-        style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
-      >
+      <div className="sticky bottom-0 bg-background border-t border-border px-4 py-3 z-20">
         <div className="flex gap-3">
           <button
             onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)}
-            className="flex-1 bg-primary text-primary-foreground font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform"
+            className="flex-1 bg-primary text-white font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform"
           >
             NUOVO RAPPORTINO
           </button>
@@ -328,7 +343,7 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
     queryFn: async () => {
       if (!orderCode) return null;
       const { data } = await supabase
-        .from("chat_channels")
+        .from("internal_chat_channels")
         .select("id, name")
         .eq("name", channelName)
         .maybeSingle();

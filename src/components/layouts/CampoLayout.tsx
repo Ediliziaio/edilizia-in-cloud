@@ -16,10 +16,13 @@ import {
   ClipboardCheck,
   FileText,
   Mic,
-  Truck,
   Shield,
   CreditCard,
   Ticket,
+  Settings,
+  Clock,
+  CalendarDays,
+  Receipt,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -86,15 +89,16 @@ export default function CampoLayout() {
   const operaioItems = [
     { title: "Home", url: "/campo", icon: Home, end: true },
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
-    { title: "Timbratura", url: "/campo/timbratura", icon: CreditCard },
+    { title: "Presenze", url: "/campo/presenze", icon: Clock },
+    { title: "Ferie e Permessi", url: "/campo/ferie", icon: CalendarDays },
+    { title: "Cedolini", url: "/campo/cedolini", icon: Receipt },
     { title: "Rapportino Vocale", url: "/campo/rapportino-vocale", icon: Mic },
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
-    { title: "Furgone", url: "/campo/magazzino", icon: Truck },
     { title: "Sicurezza", url: "/campo/sicurezza", icon: Shield },
     { title: "Tesserino", url: "/campo/tesserino", icon: CreditCard },
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
     { title: "Apri Ticket", url: "/campo/ticket/nuovo", icon: Ticket },
-    { title: "Profilo", url: "/campo/profilo", icon: User },
+    { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
 
   // Nav items per subappaltatore
@@ -104,7 +108,7 @@ export default function CampoLayout() {
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
     { title: "SAL", url: "/campo/sal", icon: ClipboardCheck },
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
-    { title: "Profilo", url: "/campo/profilo", icon: User },
+    { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
 
   const navItems = isOperaio ? operaioItems : subItems;

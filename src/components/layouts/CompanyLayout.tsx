@@ -53,7 +53,7 @@ import {
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -450,9 +450,17 @@ interface SettingsNavGroup {
   items: SettingsNavItem[];
 }
 
-/** Costruisce i 9 gruppi della sidebar impostazioni in base ai permessi */
+/** Costruisce i gruppi della sidebar impostazioni in base ai permessi.
+ *  Il primo gruppo "Il mio account" è sempre visibile a tutti i ruoli.
+ *  I gruppi aziendali sono visibili solo se l'utente ha i permessi necessari. */
 function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): SettingsNavGroup[] {
   return [
+    {
+      label: "Il mio account",
+      items: [
+        { to: "/azienda/impostazioni/mio-profilo", label: "Il mio profilo", icon: <Users className="h-4 w-4" />, visible: true },
+      ],
+    },
     {
       label: "La mia azienda",
       items: [
@@ -843,8 +851,7 @@ const CompanySidebar = memo(function CompanySidebar() {
               })}
             
             <div className="mt-auto border-t border-sidebar-border">
-              {permissions.canViewSettings && (
-                <div className="px-2 pt-2">
+              <div className="px-2 pt-2">
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild tooltip="Impostazioni">
@@ -860,20 +867,22 @@ const CompanySidebar = memo(function CompanySidebar() {
                     </SidebarMenuItem>
                   </SidebarMenu>
                 </div>
-              )}
               <div className={cn("p-3", isCollapsed && "p-2 flex flex-col items-center gap-2")}>
                 {isCollapsed ? (
                   <>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Avatar className="h-8 w-8 cursor-default ring-2 ring-sidebar-border">
-                          <AvatarFallback className="bg-sidebar-primary/10 text-sidebar-primary text-xs font-semibold">
-                            {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-                          </AvatarFallback>
-                        </Avatar>
+                        <Link to="/azienda/impostazioni/mio-profilo">
+                          <Avatar className="h-8 w-8 cursor-pointer ring-2 ring-sidebar-border hover:ring-sidebar-primary transition-colors">
+                            <AvatarImage src={profile?.avatar_url ?? undefined} alt="Avatar" />
+                            <AvatarFallback className="bg-sidebar-primary/10 text-sidebar-primary text-xs font-semibold">
+                              {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
                       </TooltipTrigger>
                       <TooltipContent side="right">
-                        {profile?.first_name} {profile?.last_name}
+                        {profile?.first_name} {profile?.last_name} — Il mio profilo
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -896,6 +905,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                   <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-3">
                     <div className="flex items-center gap-3 mb-3">
                       <Avatar className="h-8 w-8 ring-2 ring-sidebar-border">
+                        <AvatarImage src={profile?.avatar_url ?? undefined} alt="Avatar" />
                         <AvatarFallback className="bg-sidebar-primary/10 text-sidebar-primary text-xs font-semibold">
                           {profile?.first_name?.[0]}{profile?.last_name?.[0]}
                         </AvatarFallback>
@@ -909,15 +919,27 @@ const CompanySidebar = memo(function CompanySidebar() {
                         </p>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-                      onClick={handleLogoutOrExit}
-                    >
-                      <LogOut className="h-3.5 w-3.5" />
-                      {isImpersonating ? "Torna a Admin" : "Esci"}
-                    </Button>
+                    <div className="flex flex-col gap-0.5">
+                      <Link to="/azienda/impostazioni/mio-profilo">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                        >
+                          <Settings className="h-3.5 w-3.5" />
+                          Impostazioni
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                        onClick={handleLogoutOrExit}
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        {isImpersonating ? "Torna a Admin" : "Esci"}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

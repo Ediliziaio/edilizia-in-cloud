@@ -49,6 +49,8 @@ export default function CampoTicketNuovo() {
         company_id: companyId,
         order_id: selectedOrderId || null,
         created_by: user!.id,
+        customer_id: user!.id,
+        subject: titolo.trim(),
         titolo: titolo.trim(),
         descrizione: descrizione.trim() || null,
         priorita,
@@ -166,8 +168,7 @@ export default function CampoTicketNuovo() {
 
       {/* Submit */}
       <div
-        className="fixed bottom-0 left-0 right-0 bg-background border-t border-border px-4 pt-3"
-        style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+        className="sticky bottom-0 bg-background border-t border-border px-4 py-3 z-20"
       >
         <button
           onClick={() => submitMutation.mutate()}

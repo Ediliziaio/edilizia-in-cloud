@@ -105,6 +105,7 @@ const RenderStanzaNew = lazy(() => import("@/pages/azienda/RenderStanzaNew"));
 const RenderStanzaGallery = lazy(() => import("@/pages/azienda/RenderStanzaGallery"));
 const RenderStanzaGalleryDetail = lazy(() => import("@/pages/azienda/RenderStanzaGalleryDetail"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
+const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
 const NuovoTemplate = lazy(() => import("@/pages/azienda/firma-elettronica/nuovo-template"));
@@ -250,6 +251,7 @@ export function companyRoutes() {
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />
+        <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         <Route path="personale" element={<PersonalePage />} />
         <Route path="personale/timbratura" element={<TimbraturaKiosk />} />
         <Route path="tesoreria" element={<Tesoreria />} />
@@ -369,7 +371,10 @@ export function companyRoutes() {
         <Route path="marketing/preventivi/:id/modifica" element={<QuoteBuilder />} />
         
         <Route path="impostazioni" element={<SettingsLayout />}>
-          <Route index element={<Navigate to="profilo" replace />} />
+          <Route index element={<Navigate to="mio-profilo" replace />} />
+          {/* ── Il mio account (accessibile a tutti) ── */}
+          <Route path="mio-profilo" element={<MioProfilo />} />
+          {/* ── Impostazioni azienda (solo admin/permessi) ── */}
           <Route path="profilo" element={<SettingsProfile />} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />
           <Route path="listino" element={<SettingsCatalog />} />

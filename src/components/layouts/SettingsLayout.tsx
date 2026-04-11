@@ -7,6 +7,7 @@ interface SectionMeta {
 }
 
 const SECTION_MAP: Record<string, SectionMeta> = {
+  "mio-profilo":          { title: "Il mio profilo",           description: "Gestisci i tuoi dati, sicurezza, calendari e notifiche" },
   profilo:                { title: "Profilo aziendale",        description: "Configura le informazioni della tua azienda" },
   sedi:                   { title: "Sedi",                     description: "Gestisci le sedi operative della tua azienda" },
   branding:               { title: "White-Label",              description: "Personalizza il brand e i colori della piattaforma" },

@@ -1,18 +1,19 @@
 /**
- * Rapportino giornaliero multi-step (5 step):
- * 1. Descrizione lavori
- * 2. Materiali usati (da furgone + manuale)
- * 3. Ore + Avanzamento + Foto
- * 4. Firma cliente (canvas touch)
- * 5. Conferma e invio
+ * Rapportino giornaliero multi-step (3 step):
+ * 1. Descrizione lavori + meteo (facoltativo)
+ * 2. Ore + Avanzamento + Foto (facoltativo)
+ * 3. Riepilogo e invio
+ *
+ * Nessun campo obbligatorio. Firme cliente/operaio rimosse dal rapportino
+ * (la firma cliente serve per documenti di collaudo / fine lavori).
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
-  Camera, X, Minus, Plus, Loader2, Send, PenLine
+  Camera, X, Minus, Plus, Loader2, Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,15 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useGPS } from "@/hooks/useGPS";
 
-const TOTAL_STEPS = 5;
-
-interface Materiale {
-  nome: string;
-  quantita: number;
-  unita: string;
-  da_furgone: boolean;
-  scorta_id?: string;
-}
+const TOTAL_STEPS = 3;
 
 export default function CampoRapportino() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -45,147 +38,22 @@ export default function CampoRapportino() {
   const [meteo, setMeteo] = useState<string>("");
 
   // Step 2
-  const [materiali, setMateriali] = useState<Materiale[]>([]);
-  const [materialeManuale, setMaterialeManuale] = useState({ nome: "", quantita: 1, unita: "pz" });
-  const [decrementiFurgone, setDecrementiFurgone] = useState<Record<string, number>>({});
-
-  // Step 3
   const [oreLavorate, setOreLavorate] = useState(8);
+  const [oreStraordinario, setOreStraordinario] = useState(0);
   const [percentuale, setPercentuale] = useState(0);
-  const [fotoFiles, setFotoFiles] = useState<File[]>([]);
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
   const [uploadingFoto, setUploadingFoto] = useState(false);
 
-  // Step 4
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isDrawingRef = useRef(false);
-  const [firmatoDa, setFirmatoDa] = useState("");
-  const [hasSignature, setHasSignature] = useState(false);
-  const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
-
-  // Step 3 extra
-  const [oreStraordinario, setOreStraordinario] = useState(0);
-
-  // Step 5
+  // Step 3
   const [lavoro_completato, setLavoroCompletato] = useState(false);
-  const firmaOperaioRef = useRef<HTMLCanvasElement>(null);
-  const isDrawingOperaioRef = useRef(false);
-  const [hasSignatureOperaio, setHasSignatureOperaio] = useState(false);
 
   // Acquisisci GPS all'inizio
   useEffect(() => {
     requestPosition();
   }, [requestPosition]);
 
-  // Scorte furgone (solo operaio)
-  const { data: scorte = [] } = useQuery({
-    queryKey: ["scorte-furgone", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("scorte_furgone")
-        .select("*")
-        .eq("tecnico_id", user!.id)
-        .eq("attivo", true)
-        .order("nome_materiale");
-      return data ?? [];
-    },
-    enabled: !!user?.id && !isSubappaltatore,
-  });
-
-  const scorteDisponibili = scorte.filter(
-    (s: any) => (s.quantita_attuale - (decrementiFurgone[s.id] ?? 0)) > 0
-  );
-
-  // ── Canvas firma ─────────────────────────────────────────────────────
-  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    if ("touches" in e) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY,
-      };
-    }
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
-    };
-  };
-
-  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!canvasRef.current) return;
-    e.preventDefault();
-    const ctx = canvasRef.current.getContext("2d");
-    if (!ctx) return;
-    isDrawingRef.current = true;
-    const { x, y } = getPos(e, canvasRef.current);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawingRef.current || !canvasRef.current) return;
-    e.preventDefault();
-    const ctx = canvasRef.current.getContext("2d");
-    if (!ctx) return;
-    const { x, y } = getPos(e, canvasRef.current);
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    setHasSignature(true);
-  };
-
-  const endDraw = () => { isDrawingRef.current = false; };
-
-  const clearFirma = () => {
-    if (!canvasRef.current) return;
-    const ctx = canvasRef.current.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    setHasSignature(false);
-  };
-
-  // ── Canvas firma operaio ─────────────────────────────────────────────────
-  const startDrawOperaio = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!firmaOperaioRef.current) return;
-    e.preventDefault();
-    const ctx = firmaOperaioRef.current.getContext("2d");
-    if (!ctx) return;
-    isDrawingOperaioRef.current = true;
-    const { x, y } = getPos(e, firmaOperaioRef.current);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const drawOperaio = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawingOperaioRef.current || !firmaOperaioRef.current) return;
-    e.preventDefault();
-    const ctx = firmaOperaioRef.current.getContext("2d");
-    if (!ctx) return;
-    const { x, y } = getPos(e, firmaOperaioRef.current);
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    setHasSignatureOperaio(true);
-  };
-
-  const endDrawOperaio = () => { isDrawingOperaioRef.current = false; };
-
-  const clearFirmaOperaio = () => {
-    if (!firmaOperaioRef.current) return;
-    const ctx = firmaOperaioRef.current.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, firmaOperaioRef.current.width, firmaOperaioRef.current.height);
-    setHasSignatureOperaio(false);
-  };
-
-  // ── Upload foto ─────────────────────────────────────────────────��────
+  // ── Upload foto ──────────────────────────────────────────────────────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
     const files = Array.from(e.target.files).slice(0, 5);
@@ -216,50 +84,14 @@ export default function CampoRapportino() {
       }
     }
 
-    setFotoFiles(prev => [...prev, ...files]);
     setFotoPreviews(prev => [...prev, ...previews]);
     setFotoUrls(prev => [...prev, ...urls]);
     setUploadingFoto(false);
   };
 
-  // ── Salvataggio ─────────────────────────────────────────────────────────
+  // ── Salvataggio ──────────────────────────────────────────────────────
   const { mutate: salva, isPending: saving } = useMutation({
     mutationFn: async () => {
-      // Upload firma cliente
-      let uploadedFirmaUrl: string | null = null;
-      if (hasSignature && canvasRef.current) {
-        const blob = await new Promise<Blob>(res =>
-          canvasRef.current!.toBlob(b => res(b!), "image/png")
-        );
-        const path = `${profile!.company_id}/${orderId}/${Date.now()}_firma.png`;
-        const { data: upFirma } = await supabase.storage.from("campo-firme").upload(path, blob);
-        if (upFirma?.path) {
-          const { data: urlD } = supabase.storage.from("campo-firme").getPublicUrl(upFirma.path);
-          uploadedFirmaUrl = urlD.publicUrl;
-        }
-      }
-
-      // Upload firma operaio
-      let uploadedFirmaOperaioUrl: string | null = null;
-      if (hasSignatureOperaio && firmaOperaioRef.current) {
-        const blob = await new Promise<Blob>(res =>
-          firmaOperaioRef.current!.toBlob(b => res(b!), "image/png")
-        );
-        const path = `${profile!.company_id}/${orderId}/${Date.now()}_firma_operaio.png`;
-        const { data: upFirmaOp } = await supabase.storage.from("campo-firme").upload(path, blob);
-        if (upFirmaOp?.path) {
-          const { data: urlD } = supabase.storage.from("campo-firme").getPublicUrl(upFirmaOp.path);
-          uploadedFirmaOperaioUrl = urlD.publicUrl;
-        }
-      }
-
-      // Decrementa scorte furgone
-      for (const [scorta_id, qtaUsata] of Object.entries(decrementiFurgone)) {
-        if (qtaUsata > 0) {
-          await supabase.rpc("decrement_scorta", { p_id: scorta_id, p_qty: qtaUsata });
-        }
-      }
-
       // Inserisci rapportino
       const { data: inserted, error } = await supabase
         .from("campo_rapportini")
@@ -271,8 +103,7 @@ export default function CampoRapportino() {
           data_lavoro: format(new Date(), "yyyy-MM-dd"),
           ore_lavorate: oreLavorate,
           ore_straordinario: oreStraordinario > 0 ? oreStraordinario : 0,
-          descrizione_lavori: descrizione,
-          materiali_usati: materiali,
+          descrizione_lavori: descrizione || null,
           foto_urls: fotoUrls,
           lavoro_completato,
           percentuale_avanzamento: percentuale,
@@ -280,10 +111,6 @@ export default function CampoRapportino() {
           gps_lng: lng || null,
           gps_accuracy: accuracy || null,
           meteo: meteo || null,
-          firma_cliente_url: uploadedFirmaUrl,
-          firma_cliente_nome: firmatoDa || null,
-          firma_cliente_at: hasSignature ? new Date().toISOString() : null,
-          firma_operaio_url: uploadedFirmaOperaioUrl,
           stato: "inviato",
         })
         .select("id")
@@ -291,17 +118,19 @@ export default function CampoRapportino() {
 
       if (error) throw error;
 
-      // Aggiorna avanzamento sull'ordine
-      await supabase
-        .from("orders")
-        .update({ percentuale_avanzamento: percentuale })
-        .eq("id", orderId!);
+      // Aggiorna avanzamento sull'ordine se impostato
+      if (percentuale > 0) {
+        await supabase
+          .from("orders")
+          .update({ percentuale_avanzamento: percentuale })
+          .eq("id", orderId!);
+      }
 
-      // Genera PDF in background (fire-and-forget — non bloccare UX)
+      // Genera PDF in background (fire-and-forget)
       if (inserted?.id) {
         supabase.functions
           .invoke("genera-pdf-rapportino", { body: { rapportino_id: inserted.id } })
-          .catch(() => { /* PDF generato in background, errore non bloccante */ });
+          .catch(() => {});
       }
     },
     onSuccess: () => {
@@ -316,10 +145,6 @@ export default function CampoRapportino() {
   });
 
   const goNext = () => {
-    if (step === 1 && !descrizione.trim()) {
-      toast.error("Inserisci una descrizione dei lavori");
-      return;
-    }
     if (step < TOTAL_STEPS) setStep(s => s + 1);
     else salva();
   };
@@ -349,7 +174,6 @@ export default function CampoRapportino() {
         </button>
         <div className="flex-1">
           <p className="text-xs text-muted-foreground">Rapportino — Passo {step} di {TOTAL_STEPS}</p>
-          {/* Progress bar */}
           <div className="w-full bg-muted rounded-full h-1 mt-1">
             <div
               className="bg-primary h-1 rounded-full transition-all duration-300"
@@ -394,124 +218,8 @@ export default function CampoRapportino() {
           </>
         )}
 
-        {/* ── Step 2: Materiali ── */}
+        {/* ── Step 2: Ore + Avanzamento + Foto ── */}
         {step === 2 && (
-          <>
-            <h2 className="text-lg font-bold text-foreground">Materiali utilizzati</h2>
-
-            {/* Scorte furgone */}
-            {!isSubappaltatore && scorteDisponibili.length > 0 && (
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Dal furgone</p>
-                <div className="space-y-2">
-                  {scorteDisponibili.map((s: any) => {
-                    const qtaInUso = decrementiFurgone[s.id] ?? 0;
-                    return (
-                      <div key={s.id} className="bg-muted border border-border rounded-xl p-3 flex items-center gap-3">
-                        <div className="flex-1">
-                          <p className="text-sm text-foreground">{s.nome_materiale}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Disponibili: {s.quantita_attuale - qtaInUso} {s.unita_misura}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              if (qtaInUso <= 0) return;
-                              setDecrementiFurgone(d => ({ ...d, [s.id]: qtaInUso - 1 }));
-                              setMateriali(m => m.filter(x => x.scorta_id !== s.id || (x.quantita > 1 && (x.quantita-- , true))));
-                            }}
-                            className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center"
-                          >
-                            <Minus className="w-3 h-3 text-foreground" />
-                          </button>
-                          <span className="text-foreground w-6 text-center">{qtaInUso}</span>
-                          <button
-                            onClick={() => {
-                              const newQta = qtaInUso + 1;
-                              if (newQta > s.quantita_attuale) return;
-                              setDecrementiFurgone(d => ({ ...d, [s.id]: newQta }));
-                              const existing = materiali.find(x => x.scorta_id === s.id);
-                              if (existing) {
-                                setMateriali(m => m.map(x => x.scorta_id === s.id ? { ...x, quantita: newQta } : x));
-                              } else {
-                                setMateriali(m => [...m, {
-                                  nome: s.nome_materiale,
-                                  quantita: newQta,
-                                  unita: s.unita_misura,
-                                  da_furgone: true,
-                                  scorta_id: s.id,
-                                }]);
-                              }
-                            }}
-                            className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center"
-                          >
-                            <Plus className="w-3 h-3 text-primary-foreground" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Aggiunta manuale */}
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">Aggiungi manuale</p>
-              <div className="flex gap-2">
-                <input
-                  className="flex-1 bg-muted border border-border rounded-xl px-3 py-2 text-foreground text-base placeholder:text-muted-foreground"
-                  placeholder="Nome materiale"
-                  value={materialeManuale.nome}
-                  onChange={e => setMaterialeManuale(m => ({ ...m, nome: e.target.value }))}
-                />
-                <input
-                  type="number"
-                  className="w-16 bg-muted border border-border rounded-xl px-3 py-2 text-foreground text-base"
-                  value={materialeManuale.quantita}
-                  min={1}
-                  onChange={e => setMaterialeManuale(m => ({ ...m, quantita: Number(e.target.value) }))}
-                />
-                <input
-                  className="w-14 bg-muted border border-border rounded-xl px-3 py-2 text-foreground text-base"
-                  placeholder="pz"
-                  value={materialeManuale.unita}
-                  onChange={e => setMaterialeManuale(m => ({ ...m, unita: e.target.value }))}
-                />
-                <button
-                  onClick={() => {
-                    if (!materialeManuale.nome.trim()) return;
-                    setMateriali(m => [...m, { ...materialeManuale, da_furgone: false }]);
-                    setMaterialeManuale({ nome: "", quantita: 1, unita: "pz" });
-                  }}
-                  className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0"
-                >
-                  <Plus className="w-5 h-5 text-primary-foreground" />
-                </button>
-              </div>
-
-              {materiali.filter(m => !m.da_furgone).length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {materiali.filter(m => !m.da_furgone).map((m, i) => (
-                    <div key={i} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
-                      <span className="text-sm text-foreground">{m.nome} — {m.quantita} {m.unita}</span>
-                      <button
-                        onClick={() => setMateriali(prev => prev.filter((_, idx) => idx !== i))}
-                        className="text-muted-foreground"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* ── Step 3: Ore + Avanzamento + Foto ── */}
-        {step === 3 && (
           <>
             <h2 className="text-lg font-bold text-foreground">Ore e avanzamento</h2>
 
@@ -632,7 +340,7 @@ export default function CampoRapportino() {
                         }}
                         className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
                       >
-                        <X className="w-3 h-3 text-foreground" />
+                        <X className="w-3 h-3 text-white" />
                       </button>
                     </div>
                   ))}
@@ -642,98 +350,12 @@ export default function CampoRapportino() {
           </>
         )}
 
-        {/* ── Step 4: Firma cliente ── */}
-        {step === 4 && (
+        {/* ── Step 3: Riepilogo ── */}
+        {step === 3 && (
           <>
-            <h2 className="text-lg font-bold text-foreground">Firma cliente</h2>
-            <p className="text-sm text-muted-foreground">
-              Fai firmare il cliente a conferma dei lavori eseguiti oggi
-            </p>
+            <h2 className="text-lg font-bold text-foreground">Riepilogo</h2>
 
-            <div className="bg-muted border border-border rounded-2xl overflow-hidden">
-              <canvas
-                ref={canvasRef}
-                width={640}
-                height={320}
-                className="w-full touch-none bg-muted"
-                style={{ height: 160 }}
-                onMouseDown={startDraw}
-                onMouseMove={draw}
-                onMouseUp={endDraw}
-                onTouchStart={startDraw}
-                onTouchMove={draw}
-                onTouchEnd={endDraw}
-              />
-              <div className="p-3 flex items-center justify-between border-t border-border">
-                <span className="text-xs text-muted-foreground">Firma nell'area sopra</span>
-                <button
-                  onClick={clearFirma}
-                  className="text-xs text-muted-foreground flex items-center gap-1 active:text-foreground"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  Cancella
-                </button>
-              </div>
-            </div>
-
-            <input
-              className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-base placeholder:text-muted-foreground"
-              placeholder="Nome del cliente (opzionale)"
-              value={firmatoDa}
-              onChange={e => setFirmatoDa(e.target.value)}
-            />
-
-            <button
-              onClick={() => setStep(5)}
-              className="w-full bg-muted border border-border text-muted-foreground py-3 rounded-xl text-sm active:bg-muted transition-colors"
-            >
-              Salta firma
-            </button>
-          </>
-        )}
-
-        {/* ── Step 5: Firma operaio + Riepilogo ── */}
-        {step === 5 && (
-          <>
-            <h2 className="text-lg font-bold text-foreground">Firma e riepilogo</h2>
-
-            {/* Firma operaio */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <PenLine className="w-4 h-4 text-primary" />
-                <p className="text-sm font-semibold text-foreground">Firma operaio</p>
-                {hasSignatureOperaio && (
-                  <span className="text-xs text-green-600">✓ Firmato</span>
-                )}
-              </div>
-              <div className="bg-muted border border-border rounded-2xl overflow-hidden">
-                <canvas
-                  ref={firmaOperaioRef}
-                  width={640}
-                  height={240}
-                  className="w-full touch-none bg-muted"
-                  style={{ height: 120 }}
-                  onMouseDown={startDrawOperaio}
-                  onMouseMove={drawOperaio}
-                  onMouseUp={endDrawOperaio}
-                  onTouchStart={startDrawOperaio}
-                  onTouchMove={drawOperaio}
-                  onTouchEnd={endDrawOperaio}
-                />
-                <div className="p-3 flex items-center justify-between border-t border-border">
-                  <span className="text-xs text-muted-foreground">Firma nell'area sopra</span>
-                  <button
-                    onClick={clearFirmaOperaio}
-                    className="text-xs text-muted-foreground flex items-center gap-1 active:text-foreground"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    Cancella
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Riepilogo */}
+            {/* Riepilogo dati */}
             <div className="bg-muted border border-border rounded-2xl p-4 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Data</span>
@@ -754,32 +376,29 @@ export default function CampoRapportino() {
                 <span className="text-primary font-bold">{percentuale}%</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Materiali</span>
-                <span className="text-foreground">{materiali.length} voci</span>
-              </div>
-              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Foto</span>
-                <span className="text-foreground">{fotoPreviews.length} foto</span>
+                <span className="text-foreground">{fotoUrls.length} foto</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Firma cliente</span>
-                <span className={hasSignature ? "text-green-600" : "text-muted-foreground"}>
-                  {hasSignature ? "✓ Presente" : "Non firmato"}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Firma operaio</span>
-                <span className={hasSignatureOperaio ? "text-green-600" : "text-muted-foreground"}>
-                  {hasSignatureOperaio ? "✓ Presente" : "Non firmato"}
-                </span>
-              </div>
+              {descrizione && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-1">Descrizione</p>
+                  <p className="text-sm text-foreground">{descrizione}</p>
+                </div>
+              )}
+              {meteo && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Meteo</span>
+                  <span className="text-foreground capitalize">{meteo}</span>
+                </div>
+              )}
             </div>
 
+            {/* Toggle lavoro completato */}
             <div className="flex items-center gap-3 bg-muted border border-border rounded-2xl p-4">
               <button
                 onClick={() => setLavoroCompletato(!lavoro_completato)}
                 className={`w-12 h-6 rounded-full transition-colors ${
-                  lavoro_completato ? "bg-green-500" : "bg-muted"
+                  lavoro_completato ? "bg-green-500" : "bg-border"
                 } relative`}
               >
                 <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
@@ -810,7 +429,7 @@ export default function CampoRapportino() {
           <button
             onClick={goNext}
             disabled={saving}
-            className="flex-1 bg-primary text-primary-foreground font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60"
+            className="flex-1 bg-primary text-white font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {saving ? (
               <Loader2 className="w-5 h-5 animate-spin" />
