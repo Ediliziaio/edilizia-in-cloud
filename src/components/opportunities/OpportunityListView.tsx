@@ -5,9 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+// Table components removed — desktop view uses flex grid for proper column alignment with virtualizer
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { DealHealthBadge } from "./DealHealthBadge";
 import { cn } from "@/lib/utils";
@@ -193,183 +191,181 @@ export const OpportunityListView = memo(function OpportunityListView({
         )}
       </div>
 
-      {/* ── DESKTOP: tabella con scroll orizzontale ── */}
+      {/* ── DESKTOP: griglia con colonne fisse ── */}
       <div className="hidden sm:block border rounded-lg">
         <div ref={scrollRef} className="overflow-auto max-h-[calc(100vh-320px)] rounded-lg">
-          <div style={{ minWidth: "1300px" }}>
-          <Table className="table-fixed">
-            <TableHeader className="sticky top-0 z-10 bg-background">
-              <TableRow className="bg-muted/40">
-                <TableHead style={{ width: 40 }}>
-                  <Checkbox
-                    ref={selectAllRef}
-                    checked={allSelected || (someSelected ? "indeterminate" : false)}
-                    onCheckedChange={handleSelectAll}
-                    className="h-4 w-4"
-                  />
-                </TableHead>
-                <TableHead style={{ width: 220 }}>Nome opportunità</TableHead>
-                <TableHead style={{ width: 160 }}>Contatto</TableHead>
-                <TableHead style={{ width: 140 }}>Fase</TableHead>
-                <TableHead style={{ width: 120 }} className="text-right">Valore</TableHead>
-                <TableHead style={{ width: 90 }}>Stato</TableHead>
-                <TableHead style={{ width: 70 }}>Salute</TableHead>
-                <TableHead style={{ width: 140 }}>Titolare</TableHead>
-                <TableHead style={{ width: 140 }}>Etichette</TableHead>
-                <TableHead style={{ width: 100 }}>Fonte</TableHead>
-                <TableHead style={{ width: 90 }}>Creato il</TableHead>
-                <TableHead style={{ width: 90 }}>Aggiornato</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {opportunities.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={12} className="text-center text-muted-foreground py-12">
-                    Nessuna opportunità trovata
-                  </TableCell>
-                </TableRow>
-              )}
-              {opportunities.length > 0 && (
-                <>
-                  <tr style={{ height: virtualizer.getTotalSize() }} aria-hidden>
-                    <td colSpan={12} style={{ padding: 0, border: 0, height: 0 }} />
-                  </tr>
-                  {virtualizer.getVirtualItems().map((virtualRow) => {
-                    const opp = opportunities[virtualRow.index];
-                    const contact = opp.marketing_contacts;
-                    const fullName = contact
-                      ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
-                      : opp.name;
-                    const contactCity = contact?.city ? ` · ${contact.city}` : "";
-
-                    const profile = opp.assigned_profile;
-                    const ownerName = profile
-                      ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
-                      : null;
-                    const ownerInitials = profile
-                      ? `${profile.first_name?.[0] || ""}${profile.last_name?.[0] || ""}`.toUpperCase()
-                      : null;
-
-                    const tags: string[] = opp.tags || [];
-                    const statusInfo = STATUS_MAP[opp.status] || STATUS_MAP.open;
-                    const isSelected = selectedIds.has(opp.id);
-
-                    return (
-                      <TableRow
-                        key={opp.id}
-                        ref={virtualizer.measureElement}
-                        data-index={virtualRow.index}
-                        className={cn(
-                          "cursor-pointer transition-colors",
-                          isSelected && "bg-primary/5"
-                        )}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          minWidth: "1300px",
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                        onClick={() => setSelectedOpp(opp)}
-                        data-state={isSelected ? "selected" : undefined}
-                      >
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) => onSelect(opp.id, !!checked)}
-                            className="h-4 w-4"
-                          />
-                        </TableCell>
-                        <TableCell className="overflow-hidden">
-                          <div className="truncate">
-                            <p className="text-sm font-medium truncate">{opp.name || fullName}</p>
-                            {contactCity && (
-                              <p className="text-xs text-muted-foreground truncate">{contactCity}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="overflow-hidden">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span
-                              className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-                              style={{ backgroundColor: hashColor(fullName || "?") }}
-                            >
-                              {(fullName?.[0] || "?").toUpperCase()}
-                            </span>
-                            <span className="text-sm truncate">{fullName || "—"}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <Badge variant="outline" className="text-xs font-normal whitespace-nowrap">
-                            {stageMap[opp.stage_id] || "—"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-sm whitespace-nowrap">
-                          € {Number(opp.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("text-[10px] font-medium border-0", statusInfo.className)}>
-                            {statusInfo.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {opp.status === 'open' ? (
-                            <DealHealthBadge opportunity={opp} />
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="overflow-hidden">
-                          {ownerName ? (
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="shrink-0 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold">
-                                {ownerInitials}
-                              </span>
-                              <span className="text-sm truncate">{ownerName}</span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="overflow-hidden">
-                          {tags.length > 0 ? (
-                            <div className="flex items-center gap-1 min-w-0">
-                              <Badge variant="secondary" className="text-[10px] shrink-0">{tags[0]}</Badge>
-                              {tags.length > 1 && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge variant="outline" className="text-[10px] cursor-default shrink-0">
-                                      +{tags.length - 1}
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="text-xs">
-                                    {tags.slice(1).join(", ")}
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground truncate overflow-hidden">
-                          {opp.source || "—"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {opp.created_at ? format(new Date(opp.created_at), "dd MMM yy", { locale: it }) : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {opp.updated_at ? format(new Date(opp.updated_at), "dd MMM yy", { locale: it }) : "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </>
-              )}
-            </TableBody>
-          </Table>
+          {/* Header */}
+          <div
+            className="sticky top-0 z-10 bg-muted/40 border-b flex items-center text-xs font-medium text-muted-foreground"
+            style={{ minWidth: 1400 }}
+          >
+            <div className="w-[44px] shrink-0 px-3 py-3">
+              <Checkbox
+                ref={selectAllRef}
+                checked={allSelected || (someSelected ? "indeterminate" : false)}
+                onCheckedChange={handleSelectAll}
+                className="h-4 w-4"
+              />
+            </div>
+            <div className="w-[240px] shrink-0 px-3 py-3">Nome opportunità</div>
+            <div className="w-[170px] shrink-0 px-3 py-3">Contatto</div>
+            <div className="w-[150px] shrink-0 px-3 py-3">Fase</div>
+            <div className="w-[130px] shrink-0 px-3 py-3 text-right">Valore</div>
+            <div className="w-[90px] shrink-0 px-3 py-3">Stato</div>
+            <div className="w-[70px] shrink-0 px-3 py-3">Salute</div>
+            <div className="w-[150px] shrink-0 px-3 py-3">Titolare</div>
+            <div className="w-[150px] shrink-0 px-3 py-3">Etichette</div>
+            <div className="w-[100px] shrink-0 px-3 py-3">Fonte</div>
+            <div className="w-[90px] shrink-0 px-3 py-3">Creato il</div>
+            <div className="w-[90px] shrink-0 px-3 py-3">Aggiornato</div>
           </div>
+
+          {/* Body */}
+          {opportunities.length === 0 ? (
+            <div className="text-center text-muted-foreground py-12 text-sm">
+              Nessuna opportunità trovata
+            </div>
+          ) : (
+            <div style={{ height: virtualizer.getTotalSize(), position: "relative", minWidth: 1400 }}>
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const opp = opportunities[virtualRow.index];
+                const contact = opp.marketing_contacts;
+                const fullName = contact
+                  ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
+                  : opp.name;
+                const contactCity = contact?.city ? `· ${contact.city}` : "";
+
+                const profile = opp.assigned_profile;
+                const ownerName = profile
+                  ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
+                  : null;
+                const ownerInitials = profile
+                  ? `${profile.first_name?.[0] || ""}${profile.last_name?.[0] || ""}`.toUpperCase()
+                  : null;
+
+                const tags: string[] = opp.tags || [];
+                const statusInfo = STATUS_MAP[opp.status] || STATUS_MAP.open;
+                const isSelected = selectedIds.has(opp.id);
+
+                return (
+                  <div
+                    key={opp.id}
+                    ref={virtualizer.measureElement}
+                    data-index={virtualRow.index}
+                    className={cn(
+                      "flex items-center border-b cursor-pointer transition-colors hover:bg-muted/30",
+                      isSelected && "bg-primary/5"
+                    )}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                    onClick={() => setSelectedOpp(opp)}
+                  >
+                    {/* Checkbox */}
+                    <div className="w-[44px] shrink-0 px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) => onSelect(opp.id, !!checked)}
+                        className="h-4 w-4"
+                      />
+                    </div>
+                    {/* Nome */}
+                    <div className="w-[240px] shrink-0 px-3 py-2.5 overflow-hidden">
+                      <p className="text-sm font-medium truncate">{opp.name || fullName}</p>
+                      {contactCity && <p className="text-xs text-muted-foreground truncate">{contactCity}</p>}
+                    </div>
+                    {/* Contatto */}
+                    <div className="w-[170px] shrink-0 px-3 py-2.5 overflow-hidden">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                          style={{ backgroundColor: hashColor(fullName || "?") }}
+                        >
+                          {(fullName?.[0] || "?").toUpperCase()}
+                        </span>
+                        <span className="text-sm truncate">{fullName || "—"}</span>
+                      </div>
+                    </div>
+                    {/* Fase */}
+                    <div className="w-[150px] shrink-0 px-3 py-2.5">
+                      <Badge variant="outline" className="text-xs font-normal whitespace-nowrap">
+                        {stageMap[opp.stage_id] || "—"}
+                      </Badge>
+                    </div>
+                    {/* Valore */}
+                    <div className="w-[130px] shrink-0 px-3 py-2.5 text-right font-medium text-sm whitespace-nowrap">
+                      € {Number(opp.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                    </div>
+                    {/* Stato */}
+                    <div className="w-[90px] shrink-0 px-3 py-2.5">
+                      <Badge className={cn("text-[10px] font-medium border-0", statusInfo.className)}>
+                        {statusInfo.label}
+                      </Badge>
+                    </div>
+                    {/* Salute */}
+                    <div className="w-[70px] shrink-0 px-3 py-2.5">
+                      {opp.status === "open" ? (
+                        <DealHealthBadge opportunity={opp} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                    {/* Titolare */}
+                    <div className="w-[150px] shrink-0 px-3 py-2.5 overflow-hidden">
+                      {ownerName ? (
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="shrink-0 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold">
+                            {ownerInitials}
+                          </span>
+                          <span className="text-sm truncate">{ownerName}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                    {/* Etichette */}
+                    <div className="w-[150px] shrink-0 px-3 py-2.5 overflow-hidden">
+                      {tags.length > 0 ? (
+                        <div className="flex items-center gap-1 min-w-0">
+                          <Badge variant="secondary" className="text-[10px] shrink-0">{tags[0]}</Badge>
+                          {tags.length > 1 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-[10px] cursor-default shrink-0">
+                                  +{tags.length - 1}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="text-xs">
+                                {tags.slice(1).join(", ")}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                    {/* Fonte */}
+                    <div className="w-[100px] shrink-0 px-3 py-2.5 text-sm text-muted-foreground truncate">
+                      {opp.source || "—"}
+                    </div>
+                    {/* Creato il */}
+                    <div className="w-[90px] shrink-0 px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                      {opp.created_at ? format(new Date(opp.created_at), "dd MMM yy", { locale: it }) : "—"}
+                    </div>
+                    {/* Aggiornato */}
+                    <div className="w-[90px] shrink-0 px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                      {opp.updated_at ? format(new Date(opp.updated_at), "dd MMM yy", { locale: it }) : "—"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
