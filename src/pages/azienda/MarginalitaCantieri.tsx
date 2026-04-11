@@ -143,9 +143,10 @@ export default function MarginalitaCantieri() {
   const { data: rows = [], isLoading, error } = useQuery({
     queryKey: ["marginalita-cantieri", companyId],
     queryFn: async () => {
+      // Limit to 500 to prevent excessive payload; select only fields used in the component
       const { data, error } = await supabase
         .from("v_ordine_marginalita")
-        .select("*")
+        .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, created_at")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(500);

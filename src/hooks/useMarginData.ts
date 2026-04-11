@@ -81,7 +81,8 @@ export function useMarginData(): MarginData {
       const { data, error } = await supabase
         .from("order_items")
         .select("order_id, purchase_price, quantity, vat_rate")
-        .in("order_id", (ordersRaw || []).map(o => o.id));
+        .in("order_id", (ordersRaw || []).map(o => o.id))
+        .limit(5000);
       if (error) throw error;
       return data;
     },
@@ -96,7 +97,8 @@ export function useMarginData(): MarginData {
       const { data, error } = await supabase
         .from("order_external_teams")
         .select("order_id, total_cost, vat_rate")
-        .in("order_id", (ordersRaw || []).map(o => o.id));
+        .in("order_id", (ordersRaw || []).map(o => o.id))
+        .limit(5000);
       if (error) throw error;
       return data;
     },
@@ -111,7 +113,8 @@ export function useMarginData(): MarginData {
       const { data, error } = await supabase
         .from("order_salespeople")
         .select("order_id, commission_type, commission_value, deduction_amount")
-        .in("order_id", (ordersRaw || []).map(o => o.id));
+        .in("order_id", (ordersRaw || []).map(o => o.id))
+        .limit(5000);
       if (error) throw error;
       return data;
     },

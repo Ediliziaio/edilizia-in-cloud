@@ -318,6 +318,8 @@ function OrdersListInner() {
       if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
       if (hideCompleted && lastStatusId) q = q.neq("current_status_id", lastStatusId);
       if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
+      // Cap pipeline to 200 most recent orders to prevent performance issues with large datasets
+      q = q.limit(200);
       const { data, error } = await q;
       if (error) throw error;
       return (data || []) as OrderWithDetails[];

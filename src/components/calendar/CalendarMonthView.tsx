@@ -88,63 +88,78 @@ export function CalendarMonthView({
     return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   }, [currentDate]);
 
-  const getEventsForDay = (day: Date): CalendarEvent[] => {
-    const events: CalendarEvent[] = [];
-    orders.forEach((order) => {
-      if (!hiddenEventTypes.has("posa") && order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
-        events.push({ type: "posa", order, color: "#3B82F6" });
+  // Pre-compute events by date string for O(1) lookups per day instead of O(orders * days)
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    const addEvent = (dateStr: string, event: CalendarEvent) => {
+      const existing = map.get(dateStr);
+      if (existing) existing.push(event);
+      else map.set(dateStr, [event]);
+    };
+    const addEventForRange = (start: Date, end: Date, event: CalendarEvent) => {
+      // Clamp range to visible calendar days to avoid iterating huge ranges
+      const rangeStart = days.length > 0 && start < days[0] ? days[0] : start;
+      const rangeEnd = days.length > 0 && end > days[days.length - 1] ? days[days.length - 1] : end;
+      const cursor = new Date(rangeStart);
+      while (cursor <= rangeEnd) {
+        addEvent(format(cursor, "yyyy-MM-dd"), { ...event });
+        cursor.setDate(cursor.getDate() + 1);
       }
-      if (!hiddenEventTypes.has("merce") && order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
-        events.push({ type: "merce", order, color: "#F59E0B" });
+    };
+
+    orders.forEach((order) => {
+      if (!hiddenEventTypes.has("posa") && order.expected_date) {
+        addEvent(order.expected_date, { type: "posa", order, color: "#3B82F6" });
+      }
+      if (!hiddenEventTypes.has("merce") && order.warehouse_arrival_date) {
+        addEvent(order.warehouse_arrival_date, { type: "merce", order, color: "#F59E0B" });
       }
       if (!hiddenEventTypes.has("lavoro") && order.work_start_date) {
         const workStart = parseISO(order.work_start_date);
         const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
-        if (day >= workStart && day <= workEnd) {
-          events.push({ type: "lavoro", order, color: "#22C55E" });
-        }
+        addEventForRange(workStart, workEnd, { type: "lavoro", order, color: "#22C55E" });
       }
     });
     if (!hiddenEventTypes.has("appuntamento")) {
       appointments.forEach((apt) => {
-        if (isSameDay(parseISO(apt.appointment_date), day)) {
-          events.push({ type: "appointment", appointment: apt, color: "#6366F1" });
-        }
+        addEvent(apt.appointment_date, { type: "appointment", appointment: apt, color: "#6366F1" });
       });
     }
     if (!hiddenEventTypes.has("google_busy")) {
       busySlots.forEach((slot) => {
         const slotStart = parseISO(slot.start_at);
-        const slotEnd = parseISO(slot.end_at);
-        if (slot.is_all_day ? isSameDay(slotStart, day) : (day >= slotStart && day <= slotEnd) || isSameDay(slotStart, day)) {
-          events.push({ type: "google_busy", busySlot: slot, color: "#9CA3AF" });
+        if (slot.is_all_day) {
+          addEvent(format(slotStart, "yyyy-MM-dd"), { type: "google_busy", busySlot: slot, color: "#9CA3AF" });
+        } else {
+          const slotEnd = parseISO(slot.end_at);
+          addEventForRange(slotStart, slotEnd, { type: "google_busy", busySlot: slot, color: "#9CA3AF" });
         }
       });
     }
     if (!hiddenEventTypes.has("leaves")) {
       approvedLeaves.forEach((lr) => {
-        const lrStart = parseISO(lr.start_date);
-        const lrEnd = parseISO(lr.end_date);
-        if (day >= lrStart && day <= lrEnd) {
-          events.push({ type: "leave", leave: lr, color: "#F59E0B" });
-        }
+        addEventForRange(parseISO(lr.start_date), parseISO(lr.end_date), { type: "leave", leave: lr, color: "#F59E0B" });
       });
     }
     if (!hiddenEventTypes.has("intervento")) {
       interventi.forEach((iv) => {
-        if (iv.data_intervento_prevista && isSameDay(parseISO(iv.data_intervento_prevista), day)) {
-          events.push({ type: "intervento", intervento: iv, color: "#E87722" });
+        if (iv.data_intervento_prevista) {
+          addEvent(iv.data_intervento_prevista, { type: "intervento", intervento: iv, color: "#E87722" });
         }
       });
     }
     if (!hiddenEventTypes.has("manutenzione")) {
       manutenzioni.forEach((mn) => {
-        if (mn.prossima_scadenza && isSameDay(parseISO(mn.prossima_scadenza), day)) {
-          events.push({ type: "manutenzione", manutenzione: mn, color: "#3B82F6" });
+        if (mn.prossima_scadenza) {
+          addEvent(mn.prossima_scadenza, { type: "manutenzione", manutenzione: mn, color: "#3B82F6" });
         }
       });
     }
-    return events;
+    return map;
+  }, [orders, appointments, busySlots, approvedLeaves, interventi, manutenzioni, hiddenEventTypes, days]);
+
+  const getEventsForDay = (day: Date): CalendarEvent[] => {
+    return eventsByDate.get(format(day, "yyyy-MM-dd")) || [];
   };
 
   const weekDays = WEEK_DAYS_IT;
@@ -209,7 +224,7 @@ export function CalendarMonthView({
                 </div>
 
                 <div className="space-y-1">
-                  {dayEvents.slice(0, 4).map((event, eventIdx) => {
+                  {dayEvents.slice(0, 5).map((event, eventIdx) => {
                     if (event.type === "google_busy" && event.busySlot) {
                       return (
                         <Tooltip key={`busy-${event.busySlot.id}-${eventIdx}`}>
@@ -416,8 +431,8 @@ export function CalendarMonthView({
                       </Tooltip>
                     );
                   })}
-                  {dayEvents.length > 4 && (
-                    <div className="text-xs text-muted-foreground text-center">+{dayEvents.length - 4} altri</div>
+                  {dayEvents.length > 5 && (
+                    <div className="text-xs text-muted-foreground text-center">+{dayEvents.length - 5} altri</div>
                   )}
                 </div>
               </div>
