@@ -242,9 +242,11 @@ export function companyRoutes() {
         <Route path="costi" element={<CompanyCosts />} />
         
         <Route path="attivita" element={<AttivitaRouter />} />
-        <Route path="timbrature-personali" element={<TimbraturePersonali />} />
-        <Route path="ferie-personali" element={<FeriePersonali />} />
-        <Route path="cedolini-personali" element={<CedoliniPersonali />} />
+        {/* Le pagine timbrature-personali, ferie-personali, cedolini-personali
+            sono ora tab dentro AttivitaStaff — redirect per backward compat */}
+        <Route path="timbrature-personali" element={<Navigate to="/azienda/attivita?tab=timbrature" replace />} />
+        <Route path="ferie-personali" element={<Navigate to="/azienda/attivita?tab=ferie" replace />} />
+        <Route path="cedolini-personali" element={<Navigate to="/azienda/attivita?tab=cedolini" replace />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         <Route path="messaggistica-beta" element={<MessagingBeta />} />
         <Route path="chat" element={<InternalChat />} />

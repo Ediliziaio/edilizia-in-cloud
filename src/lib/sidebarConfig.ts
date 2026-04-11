@@ -77,20 +77,8 @@ export interface MacroArea {
 }
 
 export const macroAreas: MacroArea[] = [
-  // 0. Area personale — visibile SOLO a company_staff (filtrata in CompanyLayout.tsx)
-  {
-    id: "area_personale_staff",
-    title: "La mia area",
-    icon: User,
-    items: [
-      { title: "Le mie Attività",    url: "/azienda/attivita",              icon: ClipboardCheck },
-      { title: "Le mie Timbrature",  url: "/azienda/timbrature-personali",  icon: Clock },
-      { title: "Ferie e Permessi",   url: "/azienda/ferie-personali",       icon: Palmtree },
-      { title: "I miei Cedolini",    url: "/azienda/cedolini-personali",    icon: Receipt },
-    ],
-  },
-
   // 1. Cruscotto — standalone top items
+  // Nota: "La mia area" è stata unificata dentro la pagina Attività con tab
   {
     id: "area_cruscotto",
     title: "Cruscotto",

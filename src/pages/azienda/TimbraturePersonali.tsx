@@ -195,7 +195,7 @@ export default function TimbraturePersonali() {
   const oreAttese = profilo.ore_giornaliere * giorniPresenti;
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">

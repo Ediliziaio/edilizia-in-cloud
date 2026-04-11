@@ -1,14 +1,17 @@
 /**
- * AttivitaStaff — landing page per i dipendenti ufficio (role: company_staff).
+ * AttivitaStaff — pagina unificata per i dipendenti ufficio (role: company_staff).
  * Accessibile da /azienda/attivita
  *
- * Blocchi:
- *  1. Header   — saluto personalizzato + data odierna in italiano
- *  2. Timbratura sede — entrata/pausa/uscita senza GPS
- *  3. Le mie Attività — task assegnate a me, ordinate per priorità/scadenza
+ * Tab:
+ *  1. Attività     — saluto + timbratura sede + task assegnate
+ *  2. Timbrature   — storico timbrature personali
+ *  3. Ferie        — saldo ferie/permessi e richieste
+ *  4. Cedolini     — lista cedolini con download PDF
  */
+import { lazy, Suspense, useState } from "react";
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { format, isToday, isBefore, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -21,6 +24,8 @@ import {
   CheckCircle,
   Loader2,
   ExternalLink,
+  Palmtree,
+  Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,8 +34,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
 import { logger } from "@/utils/logger";
+
+// Lazy load delle sotto-pagine
+const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
+const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
+const CedoliniPersonali = lazy(() => import("@/pages/azienda/CedoliniPersonali"));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Costanti priorità
@@ -57,7 +68,6 @@ function AttivitaHeader() {
       <h1 className="text-2xl font-bold">
         {saluto}, {profile?.first_name ?? ""}
       </h1>
-      <Badge variant="outline" className="mt-1 text-xs">Dipendente Ufficio</Badge>
     </div>
   );
 }
@@ -369,7 +379,7 @@ function MieAttivita() {
       }
     },
     onSuccess: () => {
-      toast.success("Attività completata ✓");
+      toast.success("Attività completata");
       queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
     },
     onError: (err: any) => {
@@ -391,10 +401,7 @@ function MieAttivita() {
         key={t.id}
         className="flex items-start gap-3 rounded-lg border bg-card p-3 hover:bg-muted/40 transition-colors"
       >
-        {/* Dot priorità */}
         <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${cfg.dotClass}`} />
-
-        {/* Contenuto */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <p className="font-medium text-sm leading-snug">{t.title}</p>
@@ -402,40 +409,30 @@ function MieAttivita() {
               {cfg.label}
             </Badge>
           </div>
-
           {t.description && (
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.description}</p>
           )}
-
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-xs text-muted-foreground">
-            {/* Cantiere collegato */}
             {t.order?.order_code && (
-              <Link
-                to={`/azienda/ordini`}
-                className="flex items-center gap-1 hover:text-foreground transition-colors"
-              >
+              <Link to="/azienda/ordini" className="flex items-center gap-1 hover:text-foreground transition-colors">
                 <ExternalLink className="w-3 h-3" />
                 {t.order.order_code}
               </Link>
             )}
-            {/* Articolo magazzino */}
             {t.stock_item?.name && (
               <span className="flex items-center gap-1">
                 <ExternalLink className="w-3 h-3" />
                 {t.stock_item.name}
               </span>
             )}
-            {/* Scadenza */}
             {t.due_date && (
               <span className={scaduta ? "text-red-500 font-medium" : ""}>
-                {scaduta ? "⚠ Scaduta " : "Entro "}
+                {scaduta ? "Scaduta " : "Entro "}
                 {format(new Date(t.due_date), "d MMM", { locale: it })}
               </span>
             )}
           </div>
         </div>
-
-        {/* Bottone completa */}
         <Button
           variant="ghost"
           size="icon"
@@ -479,7 +476,6 @@ function MieAttivita() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Task da fare oggi / scadute */}
             {taskOggi.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -488,8 +484,6 @@ function MieAttivita() {
                 {taskOggi.map(renderTask)}
               </div>
             )}
-
-            {/* Task future */}
             {taskFuture.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -506,16 +500,82 @@ function MieAttivita() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Pagina principale
+// Tab content — Attività (Home)
+// ─────────────────────────────────────────────────────────────────────────────
+function TabAttivita() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <TimbraturaSede />
+      <MieAttivita />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fallback loading
+// ─────────────────────────────────────────────────────────────────────────────
+function TabFallback() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pagina principale con Tabs
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AttivitaStaff() {
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "attivita";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
   return (
     <div className="space-y-6 p-6">
       <AttivitaHeader />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TimbraturaSede />
-        <MieAttivita />
-      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-4 max-w-xl">
+          <TabsTrigger value="attivita" className="gap-1.5">
+            <ClipboardCheck className="h-4 w-4" />
+            <span className="hidden sm:inline">Attività</span>
+          </TabsTrigger>
+          <TabsTrigger value="timbrature" className="gap-1.5">
+            <Clock className="h-4 w-4" />
+            <span className="hidden sm:inline">Timbrature</span>
+          </TabsTrigger>
+          <TabsTrigger value="ferie" className="gap-1.5">
+            <Palmtree className="h-4 w-4" />
+            <span className="hidden sm:inline">Ferie</span>
+          </TabsTrigger>
+          <TabsTrigger value="cedolini" className="gap-1.5">
+            <Receipt className="h-4 w-4" />
+            <span className="hidden sm:inline">Cedolini</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="attivita" className="mt-6">
+          <TabAttivita />
+        </TabsContent>
+
+        <TabsContent value="timbrature" className="mt-6">
+          <Suspense fallback={<TabFallback />}>
+            <TimbraturePersonali />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="ferie" className="mt-6">
+          <Suspense fallback={<TabFallback />}>
+            <FeriePersonali />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="cedolini" className="mt-6">
+          <Suspense fallback={<TabFallback />}>
+            <CedoliniPersonali />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
