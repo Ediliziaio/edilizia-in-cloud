@@ -59,8 +59,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
         const tipoInfo = TIPO_LABELS[s.tipo] || { label: s.tipo, color: "bg-muted text-muted-foreground" };
         const refLabel = s.invoices?.invoice_number
           ? `Fatt. ${s.invoices.invoice_number}`
-          : s.orders?.order_number
-            ? `Ord. ${s.orders.order_number}`
+          : s.orders?.order_code
+            ? `Ord. ${s.orders.order_code}`
             : s.suppliers?.name
               ? s.suppliers.name
               : s.marketing_contacts
@@ -146,8 +146,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
 
             const refLabel = s.invoices?.invoice_number
               ? `Fatt. ${s.invoices.invoice_number}`
-              : s.orders?.order_number
-                ? `Ord. ${s.orders.order_number}`
+              : s.orders?.order_code
+                ? `Ord. ${s.orders.order_code}`
                 : s.suppliers?.name
                   ? s.suppliers.name
                   : s.marketing_contacts

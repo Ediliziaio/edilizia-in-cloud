@@ -302,7 +302,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenze")
-        .select("id, tipo, direction, description, amount, paid_amount, due_date, status, supplier_id, order_id, suppliers(name), orders(order_number)")
+        .select("id, tipo, direction, description, amount, paid_amount, due_date, status, supplier_id, order_id, suppliers(name), orders(order_code)")
         .eq("company_id", companyId!)
         .in("status", ["da_pagare", "parziale"])
         .lte("due_date", endDate)
@@ -551,7 +551,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         direction: s.direction as "entrata" | "uscita",
         tipo: s.tipo,
         supplierName: s.suppliers?.name || null,
-        orderNumber: s.orders?.order_number || null,
+        orderNumber: s.orders?.order_code || null,
         orderId: s.order_id,
       };
     }).filter((s: any) => s.amount > 0);
