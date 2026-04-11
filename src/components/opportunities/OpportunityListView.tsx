@@ -192,13 +192,10 @@ export const OpportunityListView = memo(function OpportunityListView({
       </div>
 
       {/* ── DESKTOP: griglia con colonne fisse ── */}
-      <div className="hidden sm:block border rounded-lg">
-        <div ref={scrollRef} className="overflow-auto max-h-[calc(100vh-320px)] rounded-lg">
-          {/* Header */}
-          <div
-            className="sticky top-0 z-10 bg-muted/40 border-b flex items-center text-xs font-medium text-muted-foreground"
-            style={{ minWidth: 1400 }}
-          >
+      <div className="hidden sm:block border rounded-lg overflow-x-auto">
+        <div className="w-max min-w-full">
+          {/* Header — fuori dal container verticale, resta fisso */}
+          <div className="bg-muted/40 border-b flex items-center text-xs font-medium text-muted-foreground">
             <div className="w-[44px] shrink-0 px-3 py-3">
               <Checkbox
                 ref={selectAllRef}
@@ -220,13 +217,14 @@ export const OpportunityListView = memo(function OpportunityListView({
             <div className="w-[90px] shrink-0 px-3 py-3">Aggiornato</div>
           </div>
 
-          {/* Body */}
+          {/* Body — scroll verticale indipendente */}
+          <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden max-h-[calc(100vh-380px)]">
           {opportunities.length === 0 ? (
             <div className="text-center text-muted-foreground py-12 text-sm">
               Nessuna opportunità trovata
             </div>
           ) : (
-            <div style={{ height: virtualizer.getTotalSize(), position: "relative", minWidth: 1400 }}>
+            <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
               {virtualizer.getVirtualItems().map((virtualRow) => {
                 const opp = opportunities[virtualRow.index];
                 const contact = opp.marketing_contacts;
@@ -366,8 +364,9 @@ export const OpportunityListView = memo(function OpportunityListView({
               })}
             </div>
           )}
-        </div>
-      </div>
+          </div>{/* close scrollRef */}
+        </div>{/* close minWidth */}
+      </div>{/* close border/overflow-x-auto */}
 
       <OpportunityDetailDialog
         opportunity={selectedOpp}
