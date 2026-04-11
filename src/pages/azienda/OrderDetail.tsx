@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt, HardHat } from "lucide-react";
+import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning } from "lucide-react";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
@@ -39,11 +39,11 @@ import { OrdineArticoli } from "@/components/orders/OrdineArticoli";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
-import { OrdineManodopera } from "@/components/orders/OrdineManodopera";
+import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { OrdineSAL } from "@/components/orders/OrdineSAL";
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
-import { OrdineAcquisto } from "@/components/orders/OrdineAcquisto";
+import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 
@@ -51,6 +51,10 @@ import { useOrdinePDF } from "@/hooks/useOrdinePDF";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
+import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
+import { CreaDDTDialog } from "@/components/orders/CreaDDTDialog";
+import { CreaProformaDialog } from "@/components/orders/CreaProformaDialog";
+import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -184,6 +188,7 @@ function OrderDetailInner() {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const isNativeBilling = (effectiveCompany as any)?.billing_mode === "native";
   const queryClient = useQueryClient();
 
   const { downloadPDF, isGenerating: isGeneratingPDF } = useOrdinePDF();
@@ -192,6 +197,10 @@ function OrderDetailInner() {
   const [editedNotes, setEditedNotes] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [creaFatturaOpen, setCreaFatturaOpen] = useState(false);
+  const [creaDDTOpen, setCreaDDTOpen] = useState(false);
+  const [creaProformaOpen, setCreaProformaOpen] = useState(false);
+  const [creaNotaCreditoOpen, setCreaNotaCreditoOpen] = useState(false);
   const [statusChangeDialog, setStatusChangeDialog] = useState<{
     open: boolean; targetStatusId: string | null; targetStatusName: string;
   }>({ open: false, targetStatusId: null, targetStatusName: "" });
@@ -351,6 +360,118 @@ function OrderDetailInner() {
         .select("*, sal_voci(*)")
         .eq("order_id", id!)
         .order("numero_sal");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  // Fetch salespeople for PDF
+  const { data: pdfSalespeople = [] } = useQuery({
+    queryKey: ["order-salespeople-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_salespeople")
+        .select("*, salesperson:salespeople(first_name, last_name)")
+        .eq("order_id", id!);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  // Fetch purchase orders for PDF
+  const { data: pdfPurchaseOrders = [] } = useQuery({
+    queryKey: ["linked-purchase-orders-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select("id, oda_number, status, total, suppliers(name)")
+        .eq("order_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  // Fetch campo assignments for PDF
+  const { data: pdfCampoAssignments = [] } = useQuery({
+    queryKey: ["order-campo-assignments-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_campo_assignments")
+        .select("*, user:profiles(first_name, last_name), subappaltatore:external_teams(name)")
+        .eq("order_id", id!);
+      if (error) throw error;
+      return (data ?? []).map((d: any) => ({
+        ...d,
+        subappaltatore: d.subappaltatore ? { nome: d.subappaltatore.name } : null,
+      }));
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  // Fetch giornale lavori for PDF
+  const { data: pdfGiornaleLavori = [] } = useQuery({
+    queryKey: ["giornale-lavori-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("giornale_lavori")
+        .select("*, giornale_foto(id, url, caption)")
+        .eq("order_id", id!)
+        .order("data_lavori", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  // Fetch varianti for PDF (both OdV and varianti_cliente)
+  const { data: pdfVarianti = [] } = useQuery({
+    queryKey: ["varianti-pdf", id],
+    queryFn: async () => {
+      const [odv, vc] = await Promise.all([
+        supabase.from("ordini_variazione").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
+        supabase.from("varianti_cliente").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
+      ]);
+      return [...(odv.data ?? []), ...(vc.data ?? [])];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  // Fetch diary events + messages for PDF
+  const { data: pdfDiaryEvents = [] } = useQuery({
+    queryKey: ["diary-events-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_events")
+        .select("id, event_type, payload, actor_name, created_at")
+        .eq("order_id", id!)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+  });
+
+  const { data: pdfDiaryMessages = [] } = useQuery({
+    queryKey: ["diary-messages-pdf", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_messages")
+        .select("id, channel, direction, subject, body, to_name, status, sent_by_name, created_at")
+        .eq("order_id", id!)
+        .order("created_at", { ascending: false })
+        .limit(100);
       if (error) throw error;
       return data ?? [];
     },
@@ -614,10 +735,18 @@ function OrderDetailInner() {
       laborEmployees: pdfLaborEmployees,
       laborTeams: pdfLaborTeams,
       salList: pdfSalList,
+      salespeople: pdfSalespeople,
+      purchaseOrders: pdfPurchaseOrders,
+      campoAssignments: pdfCampoAssignments,
+      installments: displayInstallments,
+      giornaleLavori: pdfGiornaleLavori,
+      varianti: pdfVarianti,
+      diaryEvents: pdfDiaryEvents,
+      diaryMessages: pdfDiaryMessages,
       statuses,
       companyName: effectiveCompany?.name,
     });
-  }, [order, orderItems, pdfLaborEmployees, pdfLaborTeams, pdfSalList, statuses, effectiveCompany, downloadPDF]);
+  }, [order, orderItems, pdfLaborEmployees, pdfLaborTeams, pdfSalList, pdfSalespeople, pdfPurchaseOrders, pdfCampoAssignments, displayInstallments, pdfGiornaleLavori, pdfVarianti, pdfDiaryEvents, pdfDiaryMessages, statuses, effectiveCompany, downloadPDF]);
 
   if (orderLoading) {
     return (
@@ -820,8 +949,23 @@ function OrderDetailInner() {
                         >
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{f.numero}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {f.stato}
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                f.stato === "pagata" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                f.stato === "emessa" || f.stato === "consegnata" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                f.stato === "rifiutata" || f.stato === "scaduta" ? "bg-red-50 text-red-700 border-red-200" :
+                                ""
+                              }`}
+                            >
+                              {f.stato === "bozza" ? "Bozza" :
+                               f.stato === "emessa" ? "Emessa" :
+                               f.stato === "pagata" ? "Pagata" :
+                               f.stato === "consegnata" ? "Consegnata" :
+                               f.stato === "inviata_sdi" ? "Inviata SDI" :
+                               f.stato === "rifiutata" ? "Rifiutata" :
+                               f.stato === "scaduta" ? "Scaduta" :
+                               f.stato}
                             </Badge>
                           </div>
                           <span className="text-muted-foreground">
@@ -835,17 +979,64 @@ function OrderDetailInner() {
                       Nessuna fattura collegata
                     </p>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() =>
-                      navigate(`/azienda/documenti/nuovo?tipo=fattura&ordine=${id}`)
-                    }
-                  >
-                    <Receipt className="h-3.5 w-3.5 mr-1.5" />
-                    Crea fattura
-                  </Button>
+                  <div className="grid grid-cols-4 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaFatturaOpen(true);
+                        } else {
+                          toast.info("Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <Receipt className="h-3.5 w-3.5 mr-1" />
+                      Fattura
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaProformaOpen(true);
+                        } else {
+                          toast.info("Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1" />
+                      Proforma
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaDDTOpen(true);
+                        } else {
+                          toast.info("Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <Truck className="h-3.5 w-3.5 mr-1" />
+                      DDT
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaNotaCreditoOpen(true);
+                        } else {
+                          toast.info("Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <FileWarning className="h-3.5 w-3.5 mr-1" />
+                      N. Credito
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -896,14 +1087,15 @@ function OrderDetailInner() {
                 onCancel={() => setIsEditingNotes(false)}
                 onNotesChange={setEditedNotes}
               />
-              <OrdineManodopera orderId={id!} editable={true} />
+              <OrderLaborCosts orderId={id!} editable={true} />
               <OrderErrors orderId={id!} />
               <LinkedTasks orderId={id} category="ordini" />
               <LinkedAppointments orderId={id!} />
-              <OrdineAcquisto
+              <LinkedPurchaseOrdersCard
                 orderId={id!}
                 orderCode={order.order_code}
                 items={displayItems.map((i) => ({
+                  id: i.id,
                   name: i.name,
                   quantity: i.quantity,
                   purchase_price: i.purchase_price,
@@ -1107,17 +1299,64 @@ function OrderDetailInner() {
                     Nessuna fattura collegata
                   </p>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() =>
-                    navigate(`/azienda/documenti/nuovo?tipo=fattura&ordine=${id}`)
-                  }
-                >
-                  <Receipt className="h-3.5 w-3.5 mr-1.5" />
-                  Crea fattura
-                </Button>
+                <div className="grid grid-cols-4 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isNativeBilling) {
+                        setCreaFatturaOpen(true);
+                      } else {
+                        toast.info("Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                      }
+                    }}
+                  >
+                    <Receipt className="h-3.5 w-3.5 mr-1" />
+                    Fattura
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isNativeBilling) {
+                        setCreaProformaOpen(true);
+                      } else {
+                        toast.info("Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                      }
+                    }}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    Proforma
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isNativeBilling) {
+                        setCreaDDTOpen(true);
+                      } else {
+                        toast.info("Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                      }
+                    }}
+                  >
+                    <Truck className="h-3.5 w-3.5 mr-1" />
+                    DDT
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isNativeBilling) {
+                        setCreaNotaCreditoOpen(true);
+                      } else {
+                        toast.info("Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                      }
+                    }}
+                  >
+                    <FileWarning className="h-3.5 w-3.5 mr-1" />
+                    N. Credito
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -1134,13 +1373,13 @@ function OrderDetailInner() {
             />
 
             {/* Manodopera */}
-            <OrdineManodopera orderId={id!} editable={true} />
+            <OrderLaborCosts orderId={id!} editable={true} />
 
             {/* Errori */}
             <OrderErrors orderId={id!} />
 
             {/* Ordini di acquisto */}
-            <OrdineAcquisto
+            <LinkedPurchaseOrdersCard
               orderId={id!}
               orderCode={order.order_code}
               items={displayItems.map((i) => ({
@@ -1245,6 +1484,75 @@ function OrderDetailInner() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Crea Fattura Dialog — smart prefill from order installments */}
+      <CreaFatturaDialog
+        open={creaFatturaOpen}
+        onOpenChange={setCreaFatturaOpen}
+        orderId={id!}
+        orderCode={order.order_code}
+        orderDescription={order.description}
+        totalAmount={order.total_amount}
+        vatRate={order.vat_rate ?? 22}
+        customerId={order.customer?.id ?? null}
+        customerName={
+          order.customer
+            ? `${order.customer.first_name} ${order.customer.last_name}`
+            : "Cliente sconosciuto"
+        }
+        installments={displayInstallments}
+      />
+
+      {/* Crea DDT Dialog — prefill from order items */}
+      <CreaDDTDialog
+        open={creaDDTOpen}
+        onOpenChange={setCreaDDTOpen}
+        orderId={id!}
+        orderCode={order.order_code}
+        orderDescription={order.description}
+        totalAmount={order.total_amount}
+        vatRate={order.vat_rate ?? 22}
+        customerId={order.customer?.id ?? null}
+        customerName={
+          order.customer
+            ? `${order.customer.first_name} ${order.customer.last_name}`
+            : "Cliente sconosciuto"
+        }
+      />
+
+      {/* Crea Proforma Dialog — prefill from order items */}
+      <CreaProformaDialog
+        open={creaProformaOpen}
+        onOpenChange={setCreaProformaOpen}
+        orderId={id!}
+        orderCode={order.order_code}
+        orderDescription={order.description}
+        totalAmount={order.total_amount}
+        vatRate={order.vat_rate ?? 22}
+        customerId={order.customer?.id ?? null}
+        customerName={
+          order.customer
+            ? `${order.customer.first_name} ${order.customer.last_name}`
+            : "Cliente sconosciuto"
+        }
+      />
+
+      {/* Crea Nota di Credito Dialog — prefill from order items */}
+      <CreaNotaCreditoDialog
+        open={creaNotaCreditoOpen}
+        onOpenChange={setCreaNotaCreditoOpen}
+        orderId={id!}
+        orderCode={order.order_code}
+        orderDescription={order.description}
+        totalAmount={order.total_amount}
+        vatRate={order.vat_rate ?? 22}
+        customerId={order.customer?.id ?? null}
+        customerName={
+          order.customer
+            ? `${order.customer.first_name} ${order.customer.last_name}`
+            : "Cliente sconosciuto"
+        }
+      />
     </div>
   );
 }

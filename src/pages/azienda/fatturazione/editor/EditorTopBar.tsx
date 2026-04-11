@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatRelativeTime } from "@/lib/formatters";
 import type { EditorState } from "./useEditorState";
 import type { TipoDocumento, StatoDocumento } from "@/types/fatturazione";
@@ -80,6 +81,12 @@ const TIPO_TO_TD: Record<string, string> = {
   fattura_differita_b: "TD25", autoconsumo: "TD27",
 };
 
+interface ValidationError {
+  field: string;
+  message: string;
+  severity: "error" | "warning";
+}
+
 interface Props {
   state: EditorState;
   isSaving: boolean;
@@ -88,17 +95,22 @@ interface Props {
   onDelete: () => void;
   onFieldChange: (field: string, value: unknown) => void;
   validationErrorCount?: number;
+  validationErrors?: ValidationError[];
   onPreview?: () => void;
   onBack?: () => void;
   onInviaSDI?: () => void;
   onDownloadPDF?: () => void;
   onSendEmail?: () => void;
+  onDuplicate?: () => void;
+  onConvertToFattura?: () => void;
   isInviaSDILoading?: boolean;
+  isConvertLoading?: boolean;
 }
 
 export function EditorTopBar({
-  state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount,
-  onPreview, onBack, onInviaSDI, onDownloadPDF, onSendEmail, isInviaSDILoading,
+  state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount, validationErrors,
+  onPreview, onBack, onInviaSDI, onDownloadPDF, onSendEmail, onDuplicate, onConvertToFattura,
+  isInviaSDILoading, isConvertLoading,
 }: Props) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -162,12 +174,27 @@ export function EditorTopBar({
 
         {/* Center spacer + autosave indicator */}
         <div className="ml-auto flex items-center gap-3">
-          {/* Validation error count pill */}
+          {/* Validation error count pill with details popover */}
           {(validationErrorCount ?? 0) > 0 && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
-              <AlertCircle className="h-3 w-3" />
-              <span>{validationErrorCount} {validationErrorCount === 1 ? "errore" : "errori"}</span>
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors cursor-pointer">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{validationErrorCount} {validationErrorCount === 1 ? "errore" : "errori"}</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-3" align="end">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">Errori di validazione</p>
+                <div className="space-y-1.5 max-h-48 overflow-auto">
+                  {(validationErrors ?? []).map((e, i) => (
+                    <div key={i} className={`flex items-start gap-1.5 text-xs ${e.severity === "error" ? "text-destructive" : "text-amber-600"}`}>
+                      <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                      <span>{e.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
 
           {/* Autosave indicator */}
@@ -204,32 +231,30 @@ export function EditorTopBar({
             <span className="hidden sm:inline">Anteprima</span>
           </Button>
 
-          {/* Post-emission actions: PDF, Stampa, Email — visibili come bottoni diretti */}
-          {!isBozza && (
-            <>
-              {onDownloadPDF && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs gap-1.5 hidden md:flex"
-                  onClick={onDownloadPDF}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>PDF</span>
-                </Button>
-              )}
-              {onSendEmail && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs gap-1.5 hidden lg:flex"
-                  onClick={onSendEmail}
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  <span>Email</span>
-                </Button>
-              )}
-            </>
+          {/* Email — always visible */}
+          {onSendEmail && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1.5 hidden md:flex"
+              onClick={onSendEmail}
+            >
+              <Mail className="h-3.5 w-3.5" />
+              <span>Email</span>
+            </Button>
+          )}
+
+          {/* Post-emission actions: PDF, Stampa */}
+          {!isBozza && onDownloadPDF && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1.5 hidden md:flex"
+              onClick={onDownloadPDF}
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>PDF</span>
+            </Button>
           )}
 
           {/* More menu */}
@@ -240,7 +265,7 @@ export function EditorTopBar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={onDuplicate}>
                 <Copy className="h-3.5 w-3.5 mr-2" />
                 Duplica
               </DropdownMenuItem>
@@ -248,7 +273,7 @@ export function EditorTopBar({
                 <Download className="h-3.5 w-3.5 mr-2" />
                 Scarica PDF
               </DropdownMenuItem>
-              {!isBozza && onSendEmail && (
+              {onSendEmail && (
                 <DropdownMenuItem onClick={onSendEmail}>
                   <Mail className="h-3.5 w-3.5 mr-2" />
                   Invia per email
@@ -269,20 +294,50 @@ export function EditorTopBar({
                   </DropdownMenuItem>
                 </>
               )}
+              {["proforma", "preventivo"].includes(state.tipo) && state.stato !== "annullata" && onConvertToFattura && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-emerald-600 font-medium"
+                    onClick={onConvertToFattura}
+                    disabled={isConvertLoading}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-2" />
+                    {isConvertLoading ? "Conversione..." : "Converti in Fattura"}
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
           {isBozza && (
             <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive/80 h-8 text-xs gap-1"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">Elimina</span>
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive/80 h-8 text-xs gap-1"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="hidden md:inline">Elimina</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Eliminare questa bozza?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {TIPO_LABELS[tipo] ?? tipo} N° {state.numero} verrà eliminata. Questa azione non può essere annullata.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Elimina bozza
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -312,6 +367,41 @@ export function EditorTopBar({
                 </AlertDialogContent>
               </AlertDialog>
             </>
+          )}
+
+          {/* Converti in Fattura — visibile per proforma/preventivo emesse */}
+          {!isBozza && ["proforma", "preventivo"].includes(state.tipo) && state.stato !== "annullata" && onConvertToFattura && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={isConvertLoading}
+                >
+                  {isConvertLoading
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <FileText className="h-3.5 w-3.5" />
+                  }
+                  <span className="hidden sm:inline">Converti in Fattura</span>
+                  <span className="sm:hidden">Fattura</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Convertire in fattura?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Verrà creata una nuova fattura con gli stessi dati di {TIPO_LABELS[tipo] ?? tipo} N° {state.numero}.
+                    Il documento originale verrà segnato come annullato.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction onClick={onConvertToFattura} className="bg-emerald-600 hover:bg-emerald-700">
+                    Converti in Fattura
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
 
           {/* Bottone Invia a SDI — visibile solo quando emessa e tipo SDI */}

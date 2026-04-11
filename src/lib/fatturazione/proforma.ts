@@ -37,12 +37,22 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
   // Ricalcola totali e riepilogo_iva dalle righe per garantire consistenza
   const righe = (doc.righe as RigaDocumento[]) || [];
   const totali = calcolaTotaliDocumento(righe, {
+    scontoGlobalePerc: doc.sconto_globale_percentuale as number | undefined,
+    scontoGlobaleValore: doc.sconto_globale_valore as number | undefined,
     bolloVirtuale: doc.bollo_virtuale as boolean | undefined,
+    bolloImporto: doc.bollo_importo as number | undefined,
     ritenutaAcconto: doc.ritenuta_acconto as boolean | undefined,
     ritenutaAliquota: doc.ritenuta_aliquota as number | undefined,
     cassaPrevidenziale: doc.cassa_previdenziale as boolean | undefined,
     cassaAliquota: doc.cassa_aliquota as number | undefined,
-    cassaImponibile: doc.cassa_importo as number | undefined,
+    cassaImponibile: doc.cassa_imponibile as number | undefined,
+    rivalsaInps: doc.rivalsa_inps as boolean | undefined,
+    rivalsaAliquota: doc.rivalsa_aliquota as number | undefined,
+    altraRitenuta: doc.altra_ritenuta as boolean | undefined,
+    altraRitenutaAliquota: doc.altra_ritenuta_aliquota as number | undefined,
+    arrotondamento: doc.arrotondamento as number | undefined,
+    esigibilitaDefault: doc.esigibilita_iva as "I" | "D" | "S" | undefined,
+    splitPayment: doc.esigibilita_iva === "S",
   });
 
   // Create fattura
@@ -79,6 +89,44 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
       cassa_tipo: doc.cassa_tipo,
       cassa_aliquota: doc.cassa_aliquota,
       cassa_importo: doc.cassa_importo,
+      cassa_imponibile: doc.cassa_imponibile,
+      cassa_aliquota_iva: doc.cassa_aliquota_iva,
+      cassa_ritenuta: doc.cassa_ritenuta,
+      // Sconto globale
+      sconto_globale_percentuale: doc.sconto_globale_percentuale,
+      sconto_globale_valore: totali.scontoGlobaleValore,
+      // Bollo
+      bollo_importo: doc.bollo_importo,
+      // Bank details
+      bic_pagamento: doc.bic_pagamento,
+      nome_banca: doc.nome_banca,
+      intestatario_conto: doc.intestatario_conto,
+      metodo_pagamento_nome: doc.metodo_pagamento_nome,
+      // Rivalsa INPS
+      rivalsa_inps: doc.rivalsa_inps,
+      rivalsa_tipo: doc.rivalsa_tipo,
+      rivalsa_aliquota: doc.rivalsa_aliquota,
+      rivalsa_importo: totali.rivalsa_importo,
+      // Altra ritenuta
+      altra_ritenuta: doc.altra_ritenuta,
+      altra_ritenuta_tipo: doc.altra_ritenuta_tipo,
+      altra_ritenuta_aliquota: doc.altra_ritenuta_aliquota,
+      altra_ritenuta_importo: totali.altra_ritenuta_importo,
+      altra_ritenuta_causale: doc.altra_ritenuta_causale,
+      // Ritenuta causale
+      ritenuta_causale: doc.ritenuta_causale,
+      // PA fields
+      cig: doc.cig,
+      cup: doc.cup,
+      codice_commessa_convenzione: doc.codice_commessa_convenzione,
+      // FE fields
+      esigibilita_iva: doc.esigibilita_iva,
+      arrotondamento: doc.arrotondamento,
+      // Causale & note
+      causale: doc.causale,
+      note_interne: doc.note_interne,
+      // Serie
+      serie: doc.serie,
     } as never)
     .select()
     .single();

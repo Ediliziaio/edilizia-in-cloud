@@ -28,7 +28,7 @@ export function ReceiveGoodsModal({
 
   const [quantityReceived, setQuantityReceived] = useState('');
   const [ddtNumber, setDdtNumber] = useState('');
-  const [qualityStatus, setQualityStatus] = useState<'ok' | 'pending'>('ok');
+  const [qualityStatus, setQualityStatus] = useState<'ok' | 'pending' | 'damaged' | 'partial'>('ok');
   const [qualityNotes, setQualityNotes] = useState('');
   const [notes, setNotes] = useState('');
   const [ddtPhoto, setDdtPhoto] = useState<File | null>(null);
@@ -218,13 +218,15 @@ export function ReceiveGoodsModal({
           {/* Stato qualità */}
           <div className="space-y-2">
             <label className="block text-sm font-medium">Stato qualità *</label>
-            <Select value={qualityStatus} onValueChange={(v: 'ok' | 'pending') => setQualityStatus(v)}>
+            <Select value={qualityStatus} onValueChange={(v: 'ok' | 'pending' | 'damaged' | 'partial') => setQualityStatus(v)}>
               <SelectTrigger disabled={isCreating}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ok">✓ OK</SelectItem>
+                <SelectItem value="ok">✓ OK — Conforme</SelectItem>
                 <SelectItem value="pending">⏳ In verifica</SelectItem>
+                <SelectItem value="damaged">⚠ Danneggiato</SelectItem>
+                <SelectItem value="partial">📦 Consegna parziale</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -79,7 +79,7 @@ function recalculate(state: EditorState): EditorState {
 function editorReducer(state: EditorState, action: Action): EditorState {
   switch (action.type) {
     case "INIT":
-      return { ...action.payload, _initialized: true };
+      return recalculate({ ...action.payload, _initialized: true });
 
     case "SET_FIELD":
       return recalculate({ ...state, [action.field]: action.value });
@@ -193,7 +193,9 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       nome_banca: state.nome_banca,
       intestatario_conto: state.intestatario_conto,
       sconto_globale_percentuale: state.sconto_globale_percentuale,
+      sconto_globale_valore: state.sconto_globale_valore,
       bollo_virtuale: state.bollo_virtuale,
+      bollo_importo: state.bollo_importo,
       ritenuta_acconto: state.ritenuta_acconto,
       ritenuta_aliquota: state.ritenuta_aliquota,
       ritenuta_tipo: state.ritenuta_tipo,
@@ -227,6 +229,11 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
       ddt_numero_colli: state.ddt_numero_colli,
       ddt_peso: state.ddt_peso,
       ddt_aspetto_beni: state.ddt_aspetto_beni,
+      ddt_porto: state.ddt_porto,
+      ddt_mezzo_trasporto: state.ddt_mezzo_trasporto,
+      ddt_data_ora_consegna: state.ddt_data_ora_consegna,
+      ddt_indirizzo_consegna: state.ddt_indirizzo_consegna,
+      ddt_vettore: state.ddt_vettore,
     });
 
     if (serialized === prevStateRef.current) return;
@@ -295,6 +302,11 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
           ddt_numero_colli: state.ddt_numero_colli,
           ddt_peso: state.ddt_peso,
           ddt_aspetto_beni: state.ddt_aspetto_beni,
+          ddt_porto: state.ddt_porto,
+          ddt_mezzo_trasporto: state.ddt_mezzo_trasporto,
+          ddt_data_ora_consegna: state.ddt_data_ora_consegna,
+          ddt_indirizzo_consegna: state.ddt_indirizzo_consegna,
+          ddt_vettore: state.ddt_vettore,
         },
         { onSuccess: () => setLastSaved(new Date()) }
       );
@@ -322,7 +334,9 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
     nome_banca: state.nome_banca,
     intestatario_conto: state.intestatario_conto,
     sconto_globale_percentuale: state.sconto_globale_percentuale,
+    sconto_globale_valore: state.sconto_globale_valore,
     bollo_virtuale: state.bollo_virtuale,
+    bollo_importo: state.bollo_importo,
     ritenuta_acconto: state.ritenuta_acconto,
     ritenuta_aliquota: state.ritenuta_aliquota,
     ritenuta_tipo: state.ritenuta_tipo,
@@ -356,80 +370,96 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
     ddt_numero_colli: state.ddt_numero_colli,
     ddt_peso: state.ddt_peso,
     ddt_aspetto_beni: state.ddt_aspetto_beni,
+    ddt_porto: state.ddt_porto,
+    ddt_mezzo_trasporto: state.ddt_mezzo_trasporto,
+    ddt_data_ora_consegna: state.ddt_data_ora_consegna,
+    ddt_indirizzo_consegna: state.ddt_indirizzo_consegna,
+    ddt_vettore: state.ddt_vettore,
   }) !== prevStateRef.current;
 
-  // Flush autosave and save immediately
-  const saveNow = () => {
+  // Flush autosave and save immediately — returns a Promise so callers can await
+  const saveNow = (): Promise<void> => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
 
     if (state._initialized && state.id && state.stato === "bozza") {
-      updateMutation.mutate(
-        {
-          id: state.id!,
-          righe: state.righe,
-          riepilogo_iva: state.riepilogo_iva,
-          cliente_snapshot: state.cliente_snapshot,
-          anagrafica_id: state.anagrafica_id,
-          subtotale: state.subtotale,
-          imponibile_totale: state.imponibile_totale,
-          iva_totale: state.iva_totale,
-          totale_documento: state.totale_documento,
-          totale_da_pagare: state.totale_da_pagare,
-          ritenuta_importo: state.ritenuta_importo,
-          cassa_importo: state.cassa_importo,
-          rivalsa_importo: state.rivalsa_importo,
-          altra_ritenuta_importo: state.altra_ritenuta_importo,
-          note_documento: state.note_documento,
-          note_interne: state.note_interne,
-          data_emissione: state.data_emissione,
-          data_scadenza: state.data_scadenza,
-          metodo_pagamento_codice: state.metodo_pagamento_codice,
-          iban_pagamento: state.iban_pagamento,
-          bic_pagamento: state.bic_pagamento,
-          nome_banca: state.nome_banca,
-          intestatario_conto: state.intestatario_conto,
-          sconto_globale_percentuale: state.sconto_globale_percentuale,
-          bollo_virtuale: state.bollo_virtuale,
-          bollo_importo: state.bollo_importo,
-          ritenuta_acconto: state.ritenuta_acconto,
-          ritenuta_aliquota: state.ritenuta_aliquota,
-          ritenuta_tipo: state.ritenuta_tipo,
-          ritenuta_causale: state.ritenuta_causale,
-          cassa_previdenziale: state.cassa_previdenziale,
-          cassa_tipo: state.cassa_tipo,
-          cassa_aliquota: state.cassa_aliquota,
-          rivalsa_inps: state.rivalsa_inps,
-          rivalsa_tipo: state.rivalsa_tipo,
-          rivalsa_aliquota: state.rivalsa_aliquota,
-          altra_ritenuta: state.altra_ritenuta,
-          altra_ritenuta_tipo: state.altra_ritenuta_tipo,
-          altra_ritenuta_aliquota: state.altra_ritenuta_aliquota,
-          altra_ritenuta_causale: state.altra_ritenuta_causale,
-          scadenze_pagamento: state.scadenze_pagamento,
-          serie: state.serie,
-          causale: state.causale,
-          cig: state.cig,
-          cup: state.cup,
-          arrotondamento: state.arrotondamento,
-          data_validita: state.data_validita,
-          probabilita_chiusura: state.probabilita_chiusura,
-          testo_intro: state.testo_intro,
-          testo_conclusivo: state.testo_conclusivo,
-          esigibilita_iva: state.esigibilita_iva,
-          allega_pdf_sdi: state.allega_pdf_sdi,
-          emesso_in_seguito_a: state.emesso_in_seguito_a,
-          codice_commessa_convenzione: state.codice_commessa_convenzione,
-          cassa_ritenuta: state.cassa_ritenuta,
-          ddt_causale_trasporto: state.ddt_causale_trasporto,
-          ddt_numero_colli: state.ddt_numero_colli,
-          ddt_peso: state.ddt_peso,
-          ddt_aspetto_beni: state.ddt_aspetto_beni,
-        },
-        { onSuccess: () => setLastSaved(new Date()) }
-      );
+      return new Promise((resolve, reject) => {
+        updateMutation.mutate(
+          {
+            id: state.id!,
+            righe: state.righe,
+            riepilogo_iva: state.riepilogo_iva,
+            cliente_snapshot: state.cliente_snapshot,
+            anagrafica_id: state.anagrafica_id,
+            subtotale: state.subtotale,
+            imponibile_totale: state.imponibile_totale,
+            iva_totale: state.iva_totale,
+            totale_documento: state.totale_documento,
+            totale_da_pagare: state.totale_da_pagare,
+            ritenuta_importo: state.ritenuta_importo,
+            cassa_importo: state.cassa_importo,
+            rivalsa_importo: state.rivalsa_importo,
+            altra_ritenuta_importo: state.altra_ritenuta_importo,
+            note_documento: state.note_documento,
+            note_interne: state.note_interne,
+            data_emissione: state.data_emissione,
+            data_scadenza: state.data_scadenza,
+            metodo_pagamento_codice: state.metodo_pagamento_codice,
+            iban_pagamento: state.iban_pagamento,
+            bic_pagamento: state.bic_pagamento,
+            nome_banca: state.nome_banca,
+            intestatario_conto: state.intestatario_conto,
+            sconto_globale_percentuale: state.sconto_globale_percentuale,
+            bollo_virtuale: state.bollo_virtuale,
+            bollo_importo: state.bollo_importo,
+            ritenuta_acconto: state.ritenuta_acconto,
+            ritenuta_aliquota: state.ritenuta_aliquota,
+            ritenuta_tipo: state.ritenuta_tipo,
+            ritenuta_causale: state.ritenuta_causale,
+            cassa_previdenziale: state.cassa_previdenziale,
+            cassa_tipo: state.cassa_tipo,
+            cassa_aliquota: state.cassa_aliquota,
+            rivalsa_inps: state.rivalsa_inps,
+            rivalsa_tipo: state.rivalsa_tipo,
+            rivalsa_aliquota: state.rivalsa_aliquota,
+            altra_ritenuta: state.altra_ritenuta,
+            altra_ritenuta_tipo: state.altra_ritenuta_tipo,
+            altra_ritenuta_aliquota: state.altra_ritenuta_aliquota,
+            altra_ritenuta_causale: state.altra_ritenuta_causale,
+            scadenze_pagamento: state.scadenze_pagamento,
+            serie: state.serie,
+            causale: state.causale,
+            cig: state.cig,
+            cup: state.cup,
+            arrotondamento: state.arrotondamento,
+            data_validita: state.data_validita,
+            probabilita_chiusura: state.probabilita_chiusura,
+            testo_intro: state.testo_intro,
+            testo_conclusivo: state.testo_conclusivo,
+            esigibilita_iva: state.esigibilita_iva,
+            allega_pdf_sdi: state.allega_pdf_sdi,
+            emesso_in_seguito_a: state.emesso_in_seguito_a,
+            codice_commessa_convenzione: state.codice_commessa_convenzione,
+            cassa_ritenuta: state.cassa_ritenuta,
+            ddt_causale_trasporto: state.ddt_causale_trasporto,
+            ddt_numero_colli: state.ddt_numero_colli,
+            ddt_peso: state.ddt_peso,
+            ddt_aspetto_beni: state.ddt_aspetto_beni,
+            ddt_porto: state.ddt_porto,
+            ddt_mezzo_trasporto: state.ddt_mezzo_trasporto,
+            ddt_data_ora_consegna: state.ddt_data_ora_consegna,
+            ddt_indirizzo_consegna: state.ddt_indirizzo_consegna,
+            ddt_vettore: state.ddt_vettore,
+          },
+          {
+            onSuccess: () => { setLastSaved(new Date()); resolve(); },
+            onError: (err) => reject(err),
+          }
+        );
+      });
     }
+    return Promise.resolve();
   };
 
   return { state, dispatch, isSaving, lastSaved, isDirty, saveNow };

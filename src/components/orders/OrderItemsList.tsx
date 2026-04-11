@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,6 +90,7 @@ interface OrderItemsListProps {
   editable?: boolean;
   allowEdit?: boolean;
   showStatusControls?: boolean;
+  showOdaCoverage?: boolean;
   onAttachmentsRefresh?: () => void;
   onStockPick?: (stockItemId: string, quantity: number) => void;
   onItemUpdate?: (item: OrderItem) => void;
@@ -144,6 +145,7 @@ export function OrderItemsList({
   onAttachmentsRefresh,
   onStockPick,
   onItemUpdate,
+  showOdaCoverage = false,
 }: OrderItemsListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -205,6 +207,38 @@ export function OrderItemsList({
     },
     enabled: !!companyId,
   });
+
+  // Fetch PO item coverage (which order items have linked purchase_order_items)
+  const orderItemIds = useMemo(() => items.filter(i => i.id).map(i => i.id!), [items]);
+  const { data: poItemCoverage = [] } = useQuery({
+    queryKey: ["po-item-coverage", orderItemIds],
+    queryFn: async () => {
+      if (orderItemIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("purchase_order_items")
+        .select("order_item_id, purchase_orders!inner(oda_number, status)")
+        .in("order_item_id", orderItemIds);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{
+        order_item_id: string;
+        purchase_orders: { oda_number: string; status: string };
+      }>;
+    },
+    enabled: showOdaCoverage && orderItemIds.length > 0,
+    staleTime: 30000,
+  });
+
+  // Map: order_item_id → PO info
+  const poItemMap = useMemo(() => {
+    const map = new Map<string, { oda_number: string; status: string }[]>();
+    for (const row of poItemCoverage) {
+      if (!row.order_item_id) continue;
+      const existing = map.get(row.order_item_id) || [];
+      existing.push(row.purchase_orders);
+      map.set(row.order_item_id, existing);
+    }
+    return map;
+  }, [poItemCoverage]);
 
   const getSupplierName = (supplierId?: string) => {
     if (!supplierId) return null;
@@ -723,6 +757,19 @@ export function OrderItemsList({
                     ) : (
                       <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
                         <Clock className="h-3 w-3" />Non pagato
+                      </Badge>
+                    )}
+                    {/* OdA coverage badge */}
+                    {showOdaCoverage && item.id && poItemMap.has(item.id) && (
+                      <Badge className="text-xs bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-700 gap-1">
+                        <Link2 className="h-3 w-3" />
+                        OdA {poItemMap.get(item.id)!.map(p => p.oda_number).join(", ")}
+                      </Badge>
+                    )}
+                    {showOdaCoverage && item.id && !poItemMap.has(item.id) && !item.stock_item_id && (
+                      <Badge variant="outline" className="text-xs text-muted-foreground gap-1 border-dashed">
+                        <Link2 className="h-3 w-3" />
+                        Senza OdA
                       </Badge>
                     )}
                   </div>

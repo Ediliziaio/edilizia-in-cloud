@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
-  Truck, Save, XCircle, ExternalLink, FileCheck,
+  Truck, Save, XCircle, ExternalLink, FileCheck, ShieldCheck,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
@@ -23,6 +23,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { VerifyPurchaseOrderDialog } from "@/components/orders/VerifyPurchaseOrderDialog";
+import { VerificationHistoryCard } from "@/components/orders/VerificationHistoryCard";
 
 const fmtEur = (n: number) => formatCurrency(n);
 
@@ -38,6 +40,15 @@ const STATUS_FLOW: Record<string, string[]> = {
 const STATUS_LABELS: Record<string, string> = {
   bozza: "Bozza", inviato: "Inviato", confermato: "Confermato",
   parziale: "Parziale", ricevuto: "Ricevuto", annullato: "Annullato",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  bozza: "bg-muted text-muted-foreground",
+  inviato: "bg-blue-100 text-blue-800",
+  confermato: "bg-emerald-100 text-emerald-800",
+  parziale: "bg-amber-100 text-amber-800",
+  ricevuto: "bg-green-100 text-green-800",
+  annullato: "bg-destructive/10 text-destructive",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -56,6 +67,9 @@ export default function PurchaseOrderDetail() {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState("");
   const queryClient = useQueryClient();
+
+  // AI Verification
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
 
   // M4 — DDT ricezione
   const [ddtDialogOpen, setDdtDialogOpen] = useState(false);
@@ -155,11 +169,11 @@ export default function PurchaseOrderDetail() {
         <div>
           <h1 className="text-2xl font-bold font-mono">{order.oda_number}</h1>
           <div className="flex items-center gap-2 mt-1">
-            <Badge className="text-xs">{STATUS_LABELS[order.status] || order.status}</Badge>
-            {order.orders?.order_number && (
+            <Badge className={`text-xs border-0 ${STATUS_COLORS[order.status] || ""}`}>{STATUS_LABELS[order.status] || order.status}</Badge>
+            {order.orders?.order_code && (
               <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
                 <Badge variant="outline" className="text-xs hover:bg-accent cursor-pointer">
-                  Ord. {order.orders.order_number} <ExternalLink className="h-3 w-3 ml-1" />
+                  Ord. {order.orders.order_code} <ExternalLink className="h-3 w-3 ml-1" />
                 </Badge>
               </Link>
             )}
@@ -168,6 +182,16 @@ export default function PurchaseOrderDetail() {
 
         {/* Status actions */}
         <div className="flex gap-2 flex-wrap">
+          {order.status !== "bozza" && order.status !== "annullato" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVerifyDialogOpen(true)}
+            >
+              <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+              Verifica AI
+            </Button>
+          )}
           {nextStatuses.map((ns) => (
             <Button
               key={ns}
@@ -343,6 +367,37 @@ export default function PurchaseOrderDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Progresso Ricezione */}
+          {order.status !== "bozza" && order.status !== "annullato" && items.length > 0 && (() => {
+            const totalQty = items.reduce((s, i) => s + Number(i.quantity), 0);
+            const receivedQty = items.reduce((s, i) => s + Number(i.quantity_received || 0), 0);
+            const pct = totalQty > 0 ? Math.round((receivedQty / totalQty) * 100) : 0;
+            return (
+              <Card>
+                <CardContent className="pt-4 pb-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Package className="h-3.5 w-3.5" /> Ricezione merce
+                    </span>
+                    <span className="font-medium">{receivedQty}/{totalQty} pz ({pct}%)</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        pct === 100 ? "bg-emerald-500" : pct > 0 ? "bg-amber-500" : "bg-muted-foreground/20"
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {pct === 100 && (
+                    <p className="text-xs text-emerald-600 font-medium">Tutti gli articoli ricevuti</p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* M4 — DDT Ricezione card */}
           <Card>
             <CardHeader className="pb-2">
@@ -381,8 +436,21 @@ export default function PurchaseOrderDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Verification History */}
+          <VerificationHistoryCard purchaseOrderId={order.id} />
         </div>
       </div>
+
+      {/* Verify Purchase Order Dialog */}
+      <VerifyPurchaseOrderDialog
+        open={verifyDialogOpen}
+        onOpenChange={setVerifyDialogOpen}
+        purchaseOrderId={order.id}
+        odaNumber={order.oda_number}
+        orderId={order.order_id}
+        orderCode={order.orders?.order_code}
+      />
 
       {/* DDT Dialog */}
       <Dialog open={ddtDialogOpen} onOpenChange={setDdtDialogOpen}>

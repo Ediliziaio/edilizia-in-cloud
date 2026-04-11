@@ -496,15 +496,24 @@ export function useWarehouseData() {
   };
 
   // M6/B9 — Real-time subscription: invalidate warehouse items on any change
+  // Debounced to avoid excessive invalidations from rapid multi-row updates
   useEffect(() => {
     if (!companyId) return;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase
       .channel(`warehouse-items-rt-${companyId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
+          queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
+        }, 500);
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [companyId, queryClient]);
 
   const isUpdating = updateItemStatusMutation.isPending || batchUpdateMutation.isPending || batchUpdateSectionMutation.isPending;

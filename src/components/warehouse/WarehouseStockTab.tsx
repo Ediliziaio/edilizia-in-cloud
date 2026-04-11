@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -272,6 +272,19 @@ export default function WarehouseStockTab() {
     );
   }, [stockItems, searchQuery, sectionFilter]);
 
+  // Pagination for stock items
+  const STOCK_PAGE_SIZE = 50;
+  const [stockPage, setStockPage] = useState(0);
+  const stockTotalPages = Math.max(1, Math.ceil(filtered.length / STOCK_PAGE_SIZE));
+  const paginatedItems = useMemo(
+    () => filtered.slice(stockPage * STOCK_PAGE_SIZE, (stockPage + 1) * STOCK_PAGE_SIZE),
+    [filtered, stockPage]
+  );
+
+  // Reset page when search/filter changes
+  const setSearchQueryWithReset = useCallback((q: string) => { setSearchQuery(q); setStockPage(0); }, []);
+  const setSectionFilterWithReset = useCallback((v: string) => { setSectionFilter(v); setStockPage(0); }, []);
+
   const lowStockItems = useMemo(
     () => stockItems.filter((i) => i.min_stock_level > 0 && i.quantity <= i.min_stock_level),
     [stockItems]
@@ -362,7 +375,7 @@ export default function WarehouseStockTab() {
             stockItems={stockItems}
             sections={sections}
             activeSectionFilter={sectionFilter}
-            onFilterSection={setSectionFilter}
+            onFilterSection={setSectionFilterWithReset}
             droppable
           />
         )}
@@ -374,12 +387,12 @@ export default function WarehouseStockTab() {
             <Input
               placeholder="Cerca articolo..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQueryWithReset(e.target.value)}
               className="pl-9"
             />
           </div>
           {sections.length > 0 && (
-            <Select value={sectionFilter} onValueChange={setSectionFilter}>
+            <Select value={sectionFilter} onValueChange={setSectionFilterWithReset}>
               <SelectTrigger className="w-[180px]">
                 <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                 <SelectValue placeholder="Filtra zona" />
@@ -485,7 +498,7 @@ export default function WarehouseStockTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((item) => (
+                  {paginatedItems.map((item) => (
                     <DraggableStockRow
                       key={item.id}
                       item={item}
@@ -507,6 +520,35 @@ export default function WarehouseStockTab() {
               </Table>
             </CardContent>
           </Card>
+        )}
+
+        {/* Pagination */}
+        {stockTotalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {filtered.length} articol{filtered.length === 1 ? "o" : "i"} — Pagina {stockPage + 1} di {stockTotalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setStockPage(Math.max(0, stockPage - 1))}
+                disabled={stockPage === 0}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Precedente
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setStockPage(Math.min(stockTotalPages - 1, stockPage + 1))}
+                disabled={stockPage >= stockTotalPages - 1}
+              >
+                Successiva
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* Drag Overlay */}

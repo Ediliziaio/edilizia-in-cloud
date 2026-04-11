@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { UserCheck, Percent, DollarSign, Receipt, CalendarIcon, Check, Loader2 } from "lucide-react";
+import { UserCheck, Percent, DollarSign, Receipt, CalendarIcon, Check, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,13 +71,34 @@ export function OrderCommissions({
   vatRate,
   readOnly = false,
 }: OrderCommissionsProps) {
-  
+
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
 
   // Dialog state for paid date selection
   const [paidDialogOpen, setPaidDialogOpen] = useState(false);
   const [paidDialogSp, setPaidDialogSp] = useState<OrderSalesperson | null>(null);
   const [selectedPaidDate, setSelectedPaidDate] = useState<Date>(new Date());
+
+  // Dialog for adding a new salesperson
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedSalespersonId, setSelectedSalespersonId] = useState("");
+
+  // Fetch available salespeople for add dialog
+  const { data: availableSalespeople = [] } = useQuery({
+    queryKey: ["salespeople-active", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("salespeople")
+        .select("id, first_name, last_name, commission_type, commission_value")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("is_active", true)
+        .order("last_name");
+      if (error) throw error;
+      return data as { id: string; first_name: string; last_name: string; commission_type: string; commission_value: number }[];
+    },
+    enabled: !!effectiveCompany?.id && addDialogOpen,
+  });
 
   const { data: orderSalespeople = [], isLoading } = useQuery({
     queryKey: queryKeys.orderSalespeople.byOrder(orderId),
@@ -133,6 +155,45 @@ export function OrderCommissions({
     onError: () => {
       toast.error("Errore", { description: "Impossibile aggiornare la provvigione." });
     },
+  });
+
+  // Add salesperson to order
+  const addSalespersonMutation = useMutation({
+    mutationFn: async (spId: string) => {
+      const sp = availableSalespeople.find(s => s.id === spId);
+      if (!sp) throw new Error("Venditore non trovato");
+      const commAmount = sp.commission_type === "fixed"
+        ? sp.commission_value
+        : totalAmount * (sp.commission_value / 100);
+      const { error } = await supabase.from("order_salespeople").insert({
+        order_id: orderId,
+        salesperson_id: spId,
+        commission_type: sp.commission_type,
+        commission_value: sp.commission_value,
+        commission_amount: commAmount,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
+      toast.success("Commerciale aggiunto");
+      setAddDialogOpen(false);
+      setSelectedSalespersonId("");
+    },
+    onError: () => toast.error("Errore nell'aggiunta del commerciale"),
+  });
+
+  // Remove salesperson from order
+  const removeSalespersonMutation = useMutation({
+    mutationFn: async (recordId: string) => {
+      const { error } = await supabase.from("order_salespeople").delete().eq("id", recordId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
+      toast.success("Commerciale rimosso");
+    },
+    onError: () => toast.error("Errore nella rimozione del commerciale"),
   });
 
   // When toggling paid: if turning ON, open dialog; if turning OFF, clear date directly
@@ -245,17 +306,46 @@ export function OrderCommissions({
   }
 
   if (orderSalespeople.length === 0) {
-    return null;
+    return (
+      <>
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                <UserCheck className="h-4 w-4" />
+                Provvigioni Venditori
+              </CardTitle>
+              {!readOnly && (
+                <Button variant="outline" size="sm" className="text-xs" onClick={() => setAddDialogOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />Aggiungi Commerciale
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Nessun commerciale assegnato a questo ordine.</p>
+          </CardContent>
+        </Card>
+        {renderAddDialog()}
+      </>
+    );
   }
 
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserCheck className="h-5 w-5" />
-            Provvigioni Venditori
-          </CardTitle>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
+              <UserCheck className="h-4 w-4" />
+              Provvigioni Venditori
+            </CardTitle>
+            {!readOnly && (
+              <Button variant="outline" size="sm" className="text-xs" onClick={() => setAddDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" />Aggiungi
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {orderSalespeople.map((sp) => {
@@ -286,15 +376,25 @@ export function OrderCommissions({
                       {formatCurrency(currentAmount)}
                     </span>
                     {!readOnly && (
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={sp.is_paid}
-                          onCheckedChange={() => handleTogglePaid(sp)}
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {sp.is_paid ? "Pagata" : "Da pagare"}
-                        </span>
-                      </div>
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={sp.is_paid}
+                            onCheckedChange={() => handleTogglePaid(sp)}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {sp.is_paid ? "Pagata" : "Da pagare"}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => removeSalespersonMutation.mutate(sp.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
                     )}
                     {readOnly && sp.is_paid && (
                       <Badge variant="secondary" className="gap-1">
@@ -455,6 +555,55 @@ export function OrderCommissions({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {renderAddDialog()}
     </>
   );
+
+  function renderAddDialog() {
+    const alreadyAssignedIds = orderSalespeople.map(sp => sp.salesperson_id);
+    const unassigned = availableSalespeople.filter(s => !alreadyAssignedIds.includes(s.id));
+    return (
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Aggiungi Commerciale</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {unassigned.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tutti i commerciali sono già assegnati a questo ordine.</p>
+            ) : (
+              <Select value={selectedSalespersonId} onValueChange={setSelectedSalespersonId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleziona commerciale" />
+                </SelectTrigger>
+                <SelectContent>
+                  {unassigned.map(sp => (
+                    <SelectItem key={sp.id} value={sp.id}>
+                      {sp.first_name} {sp.last_name}
+                      <span className="text-muted-foreground ml-2 text-xs">
+                        ({sp.commission_type === "fixed" ? formatCurrency(sp.commission_value) : `${sp.commission_value}%`})
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddDialogOpen(false); setSelectedSalespersonId(""); }}>
+              Annulla
+            </Button>
+            <Button
+              disabled={!selectedSalespersonId || addSalespersonMutation.isPending}
+              onClick={() => addSalespersonMutation.mutate(selectedSalespersonId)}
+            >
+              {addSalespersonMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Aggiungi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 }

@@ -29,6 +29,8 @@ import {
   Package,
   Plus,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -84,6 +86,10 @@ export default function Warehouse() {
     urgentItemsCount,
     overdueItemsCount,
     activeItemsCount,
+    page,
+    setPage,
+    totalPages,
+    totalCount,
     viewMode,
     setViewMode,
     searchQuery,
@@ -679,6 +685,35 @@ export default function Warehouse() {
             )}
           </DragOverlay>
         </DndContext>
+      )}
+
+      {/* Pagination */}
+      {viewMode !== "stock" && viewMode !== "lotti" && totalPages > 1 && (
+        <div className="flex items-center justify-between print:hidden">
+          <p className="text-sm text-muted-foreground">
+            {totalCount} articol{totalCount === 1 ? "o" : "i"} totali — Pagina {page + 1} di {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(Math.max(0, page - 1))}
+              disabled={page === 0}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Precedente
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+              disabled={page >= totalPages - 1}
+            >
+              Successiva
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* M7 — Barcode/QR scanner (mobile) */}

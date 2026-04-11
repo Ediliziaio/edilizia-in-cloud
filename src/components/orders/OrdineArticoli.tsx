@@ -40,6 +40,7 @@ export function OrdineArticoli({
             editable={true}
             allowEdit={true}
             showStatusControls={true}
+            showOdaCoverage={true}
             onAttachmentsRefresh={onAttachmentsRefresh}
             onItemUpdate={onItemUpdate}
           />

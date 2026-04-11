@@ -104,14 +104,15 @@ function CreateOrderInner() {
     }
   }, [onlyAssigned, user?.id, setValue]);
 
-  // Calculate balance
+  // Calculate balance (deduct financing_cost for financing payment type)
   const total = parseFloat(totalAmount) || 0;
   const vat = parseFloat(vatRate) || 22;
+  const fCostForBalance = paymentType === 'financing' ? (parseFloat(financingCost || "") || 0) : 0;
   const totalWithVat = total * (1 + vat / 100);
   const nonBalanceSum = installments
     .filter(i => i.type !== 'balance')
     .reduce((sum, i) => sum + i.amount, 0);
-  const balance = Math.max(0, totalWithVat - nonBalanceSum);
+  const balance = Math.max(0, totalWithVat - nonBalanceSum - fCostForBalance);
 
   // Payment type change handler
   const handlePaymentTypeChange = (type: PaymentType) => {
@@ -157,7 +158,8 @@ function CreateOrderInner() {
       status_id: draft.statusId || "",
       salesperson_id: draft.salespersonId || "",
       salesperson_data: draft.salespersonData || null,
-      assigned_to: "",
+      assigned_to: draft.assignedTo || "",
+      destination_warehouse_id: draft.destinationWarehouseId || null,
       expected_date: isoToDate(draft.expectedDate),
       warehouse_arrival_date: isoToDate(draft.warehouseArrivalDate),
       work_start_date: isoToDate(draft.workStartDate),
@@ -190,6 +192,8 @@ function CreateOrderInner() {
         statusId: statusId || "",
         salespersonId: salespersonId || "",
         salespersonData: (salespersonData as { commission_type: string; commission_value: number } | null) || null,
+        assignedTo: assignedTo || "",
+        destinationWarehouseId: destinationWarehouseId || null,
         expectedDate: dateToIso(expectedDate),
         warehouseArrivalDate: dateToIso(warehouseArrivalDate),
         workStartDate: dateToIso(workStartDate),
@@ -207,6 +211,7 @@ function CreateOrderInner() {
       if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     };
   }, [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
+      assignedTo, destinationWarehouseId,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
       installments, financingCost,
@@ -326,9 +331,9 @@ function CreateOrderInner() {
         purchase_price: item.purchase_price || 0,
         vat_rate: item.vat_rate ?? 22,
         stock_item_id: item.stock_item_id || null,
-        unit_price: 0,
-        discount_percent: 0,
-        standard_cost: 0,
+        unit_price: item.unit_price ?? 0,
+        discount_percent: item.discount_percent ?? 0,
+        standard_cost: item.standard_cost ?? 0,
         is_paid: item.is_paid || false,
         paid_date: item.paid_date || null,
         payment_method: item.payment_method || null,
@@ -421,12 +426,13 @@ function CreateOrderInner() {
         }
         setPendingFiles([]);
         queryClient.invalidateQueries({ queryKey: ["order-attachments", order.id] });
-        if (uploaded > 0) {
-          toast.success("Ordine creato", { description: `Ordine creato con ${uploaded} document${uploaded > 1 ? 'i' : 'o'}.` });
-        }
+        toast.success("Ordine creato", { description: `Ordine creato con ${uploaded} document${uploaded > 1 ? 'i' : 'o'}.` });
       } else {
         toast.success("Ordine creato", { description: "L'ordine è stato creato con successo." });
       }
+
+      // Auto-navigate to the new order detail
+      navigate(`/azienda/ordini/${order.id}`);
     },
     onError: (error) => {
       toast.error("Errore", { description: "Si è verificato un errore durante la creazione dell'ordine." });
@@ -436,8 +442,8 @@ function CreateOrderInner() {
 
   const onSubmit = (values: OrderFormValues) => {
     const totalVal = parseFloat(values.total_amount) || 0;
-    if (totalVal <= 0) {
-      toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
+    if (totalVal < 0) {
+      toast.error("Importo non valido", { description: "L'importo totale non può essere negativo." });
       return;
     }
 

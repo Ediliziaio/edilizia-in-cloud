@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadProviderSettings, sendEmail } from "../_shared/emailProvider.ts";
+import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
       return json({ error: "Nessun provider email configurato. Configura un provider nelle impostazioni della piattaforma." }, 400);
     }
 
-    const result = await sendEmail(settings, {
+    const result = await sendViaProvider(settings.provider, settings.apiKey, {
       from: settings.fromDefault,
       to: [to_email],
       subject: emailSubject,

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Search, X, ChevronDown, Plus, MapPin, Building2, Pencil } from "lucide-react";
+import { Search, X, ChevronDown, Plus, MapPin, Building2, Pencil, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -82,8 +82,15 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   }, [anagrafiche]);
 
   function selectCliente(a: Record<string, unknown>) {
+    const tipoCliente = (a.tipo_cliente as ClienteSnapshot["tipo_cliente"]) ?? "B2B";
+    const nome = a.nome as string | undefined;
+    const cognome = a.cognome as string | undefined;
+    const ragioneSociale = (a.ragione_sociale as string) ?? `${nome ?? ""} ${cognome ?? ""}`.trim();
     const snap: ClienteSnapshot = {
-      ragione_sociale: (a.ragione_sociale as string) ?? `${a.nome ?? ""} ${a.cognome ?? ""}`.trim(),
+      ragione_sociale: ragioneSociale,
+      // For B2C (persone fisiche), copy nome/cognome separately for FatturaPA XML
+      ...(tipoCliente === "B2C" && nome ? { nome } : {}),
+      ...(tipoCliente === "B2C" && cognome ? { cognome } : {}),
       partita_iva: a.partita_iva as string | undefined,
       codice_fiscale: a.codice_fiscale as string | undefined,
       codice_sdi: a.codice_sdi as string | undefined,
@@ -93,7 +100,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
       indirizzo_comune: a.indirizzo_comune as string | undefined,
       indirizzo_provincia: a.indirizzo_provincia as string | undefined,
       indirizzo_nazione: (a.indirizzo_nazione as string) ?? "IT",
-      tipo_cliente: (a.tipo_cliente as ClienteSnapshot["tipo_cliente"]) ?? "B2B",
+      tipo_cliente: tipoCliente,
     };
     dispatch({ type: "SET_CLIENTE", anagrafica_id: a.id as string, snapshot: snap });
     setSearch("");
@@ -250,33 +257,43 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
-                    {snapshot!.partita_iva && (
-                      <>
-                        <span className="text-muted-foreground">P.IVA</span>
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
+                      <span className="text-muted-foreground">P.IVA</span>
+                      {snapshot!.partita_iva ? (
                         <span className="font-mono">{snapshot!.partita_iva}</span>
-                      </>
-                    )}
-                    {snapshot!.codice_fiscale && (
-                      <>
-                        <span className="text-muted-foreground">CF</span>
-                        <span className="font-mono">{snapshot!.codice_fiscale}</span>
-                      </>
-                    )}
-                    {snapshot!.codice_sdi && (
-                      <>
-                        <span className="text-muted-foreground">SDI</span>
+                      ) : (
+                        <span className="text-amber-600 italic text-[10px]">Non inserita</span>
+                      )}
+
+                      <span className="text-muted-foreground">CF</span>
+                      {snapshot!.codice_fiscale ? (
+                        <span className="font-mono uppercase">{snapshot!.codice_fiscale}</span>
+                      ) : (
+                        <span className="text-amber-600 italic text-[10px]">Non inserito</span>
+                      )}
+
+                      <span className="text-muted-foreground">SDI</span>
+                      {snapshot!.codice_sdi ? (
                         <span className="font-mono">{snapshot!.codice_sdi}</span>
-                      </>
-                    )}
-                    {snapshot!.pec && (
-                      <>
-                        <span className="text-muted-foreground">PEC</span>
+                      ) : (
+                        <span className="text-amber-600 italic text-[10px]">Non inserito</span>
+                      )}
+
+                      <span className="text-muted-foreground">PEC</span>
+                      {snapshot!.pec ? (
                         <span className="truncate">{snapshot!.pec}</span>
-                      </>
-                    )}
-                    {!snapshot!.partita_iva && !snapshot!.codice_fiscale && !snapshot!.codice_sdi && !snapshot!.pec && (
-                      <span className="col-span-2 text-muted-foreground italic">Nessun dato fiscale inserito</span>
+                      ) : (
+                        <span className="text-muted-foreground/50 italic text-[10px]">—</span>
+                      )}
+                    </div>
+
+                    {/* Warning for missing required fiscal data */}
+                    {!snapshot!.partita_iva && !snapshot!.codice_fiscale && (
+                      <div className="flex items-start gap-1.5 p-2 rounded bg-amber-50 border border-amber-200 text-[10px] text-amber-700">
+                        <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                        <span>Per la fatturazione elettronica serve almeno P.IVA o Codice Fiscale. Clicca "Modifica dati cliente" per inserirli.</span>
+                      </div>
                     )}
                   </div>
                 )}

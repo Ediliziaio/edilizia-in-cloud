@@ -11,6 +11,7 @@ import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { toast } from "sonner";
 
 interface OrderItem {
+  id: string;
   name: string;
   quantity: number;
   purchase_price?: number;
@@ -59,6 +60,7 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
         const poItems = relevantItems.map((item, idx) => ({
           company_id: effectiveCompany.id,
           purchase_order_id: po.id,
+          order_item_id: item.id || null,
           description: item.name,
           quantity: item.quantity,
           unit_price: item.purchase_price || 0,

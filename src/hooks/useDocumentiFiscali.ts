@@ -42,6 +42,12 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     sdi_errori: (row.sdi_errori ?? []) as unknown[],
     sdi_data_consegna: row.sdi_data_consegna as string | undefined,
     sdi_notifica_tipo: row.sdi_notifica_tipo as string | undefined,
+    sdi_file_xml_url: row.sdi_file_xml_url as string | undefined,
+    sdi_ricevuta_url: row.sdi_ricevuta_url as string | undefined,
+    trasmissione: row.trasmissione as DocumentoFiscale["trasmissione"],
+    esigibilita_iva: row.esigibilita_iva as DocumentoFiscale["esigibilita_iva"],
+    allega_pdf_sdi: row.allega_pdf_sdi as boolean | undefined,
+    emesso_in_seguito_a: row.emesso_in_seguito_a as string | undefined,
     righe: (row.righe ?? []) as DocumentoFiscale["righe"],
     riepilogo_iva: (row.riepilogo_iva ?? []) as DocumentoFiscale["riepilogo_iva"],
     subtotale: Number(row.subtotale ?? 0),
@@ -65,6 +71,17 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     cassa_imponibile: row.cassa_imponibile as number | undefined,
     cassa_aliquota_iva: row.cassa_aliquota_iva as string | undefined,
     cassa_ritenuta: row.cassa_ritenuta as boolean | undefined,
+    // Rivalsa INPS
+    rivalsa_inps: row.rivalsa_inps as boolean | undefined,
+    rivalsa_aliquota: row.rivalsa_aliquota as number | undefined,
+    rivalsa_importo: row.rivalsa_importo as number | undefined,
+    rivalsa_tipo: row.rivalsa_tipo as string | undefined,
+    // Altra ritenuta
+    altra_ritenuta: row.altra_ritenuta as boolean | undefined,
+    altra_ritenuta_tipo: row.altra_ritenuta_tipo as string | undefined,
+    altra_ritenuta_aliquota: row.altra_ritenuta_aliquota as number | undefined,
+    altra_ritenuta_importo: row.altra_ritenuta_importo as number | undefined,
+    altra_ritenuta_causale: row.altra_ritenuta_causale as string | undefined,
     totale_da_pagare: Number(row.totale_da_pagare ?? 0),
     scadenze_pagamento: (row.scadenze_pagamento ?? []) as DocumentoFiscale["scadenze_pagamento"],
     metodo_pagamento_codice: row.metodo_pagamento_codice as DocumentoFiscale["metodo_pagamento_codice"],
@@ -75,6 +92,9 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     intestatario_conto: row.intestatario_conto as string | undefined,
     documento_correlato_id: row.documento_correlato_id as string | undefined,
     ordine_id: row.ordine_id as string | undefined,
+    riferimenti_ordine: (row.riferimenti_ordine ?? []) as unknown[],
+    riferimenti_ddt: (row.riferimenti_ddt ?? []) as unknown[],
+    codice_commessa_convenzione: row.codice_commessa_convenzione as string | undefined,
     cig: row.cig as string | undefined,
     cup: row.cup as string | undefined,
     causale: (row.causale ?? []) as unknown[],
@@ -303,7 +323,7 @@ export function useUpdateDocumento() {
     onSuccess: (doc) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.detail(doc.id) });
-      toast.success("Documento aggiornato");
+      // No toast — the editor top bar already shows "Salvata X fa" indicator
     },
     onError: (err: Error) => {
       toast.error("Errore nell'aggiornamento", { description: err.message });

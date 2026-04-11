@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
 import type { Installment } from "@/lib/orderUtils";
@@ -11,6 +11,8 @@ export interface OrderDraftData {
   statusId: string;
   salespersonId: string;
   salespersonData: { commission_type: string; commission_value: number } | null;
+  assignedTo: string;
+  destinationWarehouseId: string | null;
   // Dates as ISO strings
   expectedDate: string | null;
   warehouseArrivalDate: string | null;
@@ -49,7 +51,6 @@ function isoToDate(s: string | null | undefined): Date | undefined {
 
 export function useOrderDraft(companyId: string | undefined, orderId?: string) {
   const [draftRestored, setDraftRestored] = useState(false);
-  const savingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadDraft = useCallback((): OrderDraftData | null => {
     if (!companyId) return null;
@@ -64,30 +65,19 @@ export function useOrderDraft(companyId: string | undefined, orderId?: string) {
 
   const saveDraft = useCallback((data: Omit<OrderDraftData, "savedAt">) => {
     if (!companyId) return;
-    if (savingRef.current) clearTimeout(savingRef.current);
-    savingRef.current = setTimeout(() => {
-      try {
-        const toSave: OrderDraftData = { ...data, savedAt: new Date().toISOString() };
-        localStorage.setItem(getDraftKey(companyId, orderId), JSON.stringify(toSave));
-      } catch {
-        // localStorage full or unavailable
-      }
-    }, 500);
+    try {
+      const toSave: OrderDraftData = { ...data, savedAt: new Date().toISOString() };
+      localStorage.setItem(getDraftKey(companyId, orderId), JSON.stringify(toSave));
+    } catch {
+      // localStorage full or unavailable
+    }
   }, [companyId, orderId]);
 
   const clearDraft = useCallback(() => {
     if (!companyId) return;
-    if (savingRef.current) clearTimeout(savingRef.current);
     localStorage.removeItem(getDraftKey(companyId, orderId));
     setDraftRestored(false);
   }, [companyId, orderId]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (savingRef.current) clearTimeout(savingRef.current);
-    };
-  }, []);
 
   return {
     loadDraft,

@@ -62,6 +62,14 @@ export function EditorTotaliSection({ state }: Props) {
         </div>
       )}
 
+      {/* Rivalsa INPS */}
+      {state.rivalsa_inps && (state.rivalsa_importo ?? 0) > 0 && (
+        <div className="flex justify-between text-xs">
+          <span className="text-muted-foreground">Rivalsa INPS ({state.rivalsa_aliquota ?? 4}%)</span>
+          <span className="tabular-nums">+{formatCurrency(state.rivalsa_importo ?? 0)}</span>
+        </div>
+      )}
+
       {/* Bollo */}
       {state.bollo_virtuale && (
         <div className="flex justify-between text-xs">
@@ -81,6 +89,22 @@ export function EditorTotaliSection({ state }: Props) {
         <div className="flex justify-between text-xs text-destructive">
           <span>Ritenuta d'acconto ({state.ritenuta_aliquota ?? 20}%)</span>
           <span className="tabular-nums">-{formatCurrency(state.ritenuta_importo ?? 0)}</span>
+        </div>
+      )}
+
+      {/* Altra ritenuta */}
+      {state.altra_ritenuta && (state.altra_ritenuta_importo ?? 0) > 0 && (
+        <div className="flex justify-between text-xs text-destructive">
+          <span>Altra ritenuta ({state.altra_ritenuta_aliquota ?? 0}%)</span>
+          <span className="tabular-nums">-{formatCurrency(state.altra_ritenuta_importo ?? 0)}</span>
+        </div>
+      )}
+
+      {/* Split Payment indicator */}
+      {state.esigibilita_iva === "S" && (
+        <div className="flex justify-between text-xs text-blue-600">
+          <span>Split Payment (IVA non incassata)</span>
+          <span className="tabular-nums">-{formatCurrency(state.iva_totale ?? 0)}</span>
         </div>
       )}
 

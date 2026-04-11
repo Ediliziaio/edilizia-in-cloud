@@ -32,7 +32,7 @@ import {
 import {
   Plus, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight,
   Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
-  AlertCircle, CheckCircle2, Clock, Truck, FileSearch, RotateCcw, FileSpreadsheet,
+  AlertCircle, CheckCircle2, Clock, Truck, RotateCcw, FileSpreadsheet,
   BarChart3, Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -58,7 +58,6 @@ const TIPO_TABS: {
   { id: "proforma", label: "Pro forma", tipos: ["proforma"], icon: Clock, countKey: "proforma", emptyTitle: "Nessun proforma trovato", emptyDescription: "Crea un proforma da inviare al cliente prima della fattura definitiva." },
   { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito", emptyTitle: "Nessuna nota di credito", emptyDescription: "Le note di credito emesse per stornare fatture appariranno qui." },
   { id: "ddt", label: "DDT", tipos: ["ddt"], icon: Truck, countKey: "ddt", emptyTitle: "Nessun DDT trovato", emptyDescription: "I documenti di trasporto emessi appariranno qui." },
-  { id: "preventivo", label: "Preventivi", tipos: ["preventivo"], icon: FileSearch, countKey: "preventivo", emptyTitle: "Nessun preventivo trovato", emptyDescription: "Crea preventivi da inviare ai clienti. Potrai convertirli in fattura una volta accettati." },
   { id: "annullate", label: "Cestino", tipos: null, icon: Trash2, countKey: "annullate", tabColor: "text-destructive", emptyTitle: "Il cestino è vuoto", emptyDescription: "I documenti eliminati appariranno qui. Dopo 14 giorni vengono cancellati definitivamente." },
 ];
 
@@ -325,12 +324,6 @@ function DocumentiFiscaliListInner() {
           toast.error(e.message);
         }
         break;
-      case "convert_preventivo":
-        navigate(`/azienda/documenti/nuovo?tipo=fattura`, { state: { prefilled: doc } });
-        break;
-      case "accept_preventivo":
-        updateMutation.mutate({ id: doc.id, stato: "accettata" as StatoDocumento });
-        break;
       case "restore":
         updateMutation.mutate({ id: doc.id, stato: "bozza" as StatoDocumento, deleted_at: null });
         break;
@@ -343,10 +336,9 @@ function DocumentiFiscaliListInner() {
   // ── Type-specific columns logic ─────────────────────────
   const showColStorno = activeTab === "nota_credito";
   const showColFatturaCollegata = activeTab === "ddt";
-  const showColValidita = activeTab === "preventivo";
   const showColTipo = isTrash;
   const showColEliminazione = isTrash;
-  const showColScadenza = !showColStorno && !showColFatturaCollegata && !showColValidita && !isTrash;
+  const showColScadenza = !showColStorno && !showColFatturaCollegata && !isTrash;
 
   return (
     <div className="space-y-4">
@@ -383,7 +375,6 @@ function DocumentiFiscaliListInner() {
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=parcella")}>Parcella (TD06)</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_credito")}>Nota di Credito</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=proforma")}>Pro-Forma</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=preventivo")}>Preventivo</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=ddt")}>DDT</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_accompagnatoria")}>Fattura Accompagnatoria (TD24)</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_fattura")}>Acconto su fattura (TD02)</DropdownMenuItem>
@@ -569,7 +560,6 @@ function DocumentiFiscaliListInner() {
                   {showColStorno && <TableHead className="w-36">Storna Fattura</TableHead>}
                   <TableHead className="w-36">Data / Numero</TableHead>
                   {showColScadenza && <TableHead className="w-40">Prox. Scadenza</TableHead>}
-                  {showColValidita && <TableHead className="w-36">Valido fino al</TableHead>}
                   {showColFatturaCollegata && <TableHead className="w-36">Fattura Collegata</TableHead>}
                   <TableHead className="text-right w-28">Importo</TableHead>
                   <TableHead className="w-12" />
@@ -698,17 +688,6 @@ function DocumentiFiscaliListInner() {
                         </TableCell>
                       )}
 
-                      {/* Valido fino al (solo preventivi) */}
-                      {showColValidita && (
-                        <TableCell>
-                          {doc.data_validita ? (
-                            <span className="text-sm">{formatDateShort(doc.data_validita)}</span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      )}
-
                       {/* Fattura Collegata (solo DDT) */}
                       {showColFatturaCollegata && (
                         <TableCell>
@@ -782,23 +761,6 @@ function DocumentiFiscaliListInner() {
                                     <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("convert_proforma", doc)}>
                                       <FileText className="h-4 w-4 mr-2" /> Converti in Fattura
                                     </DropdownMenuItem>
-                                  </>
-                                )}
-
-                                {/* Preventivo: segna accettato + converti */}
-                                {doc.tipo === "preventivo" && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    {doc.stato !== "accettata" && (
-                                      <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("accept_preventivo", doc)}>
-                                        <CheckCircle2 className="h-4 w-4 mr-2" /> Segna Accettato
-                                      </DropdownMenuItem>
-                                    )}
-                                    {doc.stato === "accettata" && (
-                                      <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("convert_preventivo", doc)}>
-                                        <FileText className="h-4 w-4 mr-2" /> Converti in Fattura
-                                      </DropdownMenuItem>
-                                    )}
                                   </>
                                 )}
 

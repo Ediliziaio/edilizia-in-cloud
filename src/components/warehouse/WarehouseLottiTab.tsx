@@ -29,7 +29,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, Package, Loader2 } from "lucide-react";
+import { Plus, Trash2, Package, Loader2, AlertTriangle, Clock } from "lucide-react";
 import { differenceInDays, parseISO, format } from "date-fns";
 
 interface Lotto {
@@ -151,6 +151,11 @@ export default function WarehouseLottiTab() {
     );
   }
 
+  // Compute expiry alerts
+  const today = new Date();
+  const expiredLotti = lotti.filter(l => l.data_scadenza && differenceInDays(parseISO(l.data_scadenza), today) < 0);
+  const expiringLotti = lotti.filter(l => l.data_scadenza && differenceInDays(parseISO(l.data_scadenza), today) >= 0 && differenceInDays(parseISO(l.data_scadenza), today) <= 30);
+
   return (
     <>
       <div className="flex items-center justify-between mb-4">
@@ -163,6 +168,41 @@ export default function WarehouseLottiTab() {
           <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Nuovo lotto
         </Button>
       </div>
+
+      {/* Expiry alerts */}
+      {expiredLotti.length > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5 mb-4">
+          <CardContent className="py-3 flex items-start gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-destructive">
+                {expiredLotti.length} lott{expiredLotti.length === 1 ? "o" : "i"} scadut{expiredLotti.length === 1 ? "o" : "i"}
+              </p>
+              <p className="text-xs text-destructive/80">
+                {expiredLotti.map(l => `${l.numero_lotto} (${l.articolo})`).join(", ")}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {expiringLotti.length > 0 && (
+        <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 mb-4">
+          <CardContent className="py-3 flex items-start gap-2">
+            <Clock className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                {expiringLotti.length} lott{expiringLotti.length === 1 ? "o" : "i"} in scadenza entro 30 giorni
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                {expiringLotti.map(l => {
+                  const days = differenceInDays(parseISO(l.data_scadenza!), today);
+                  return `${l.numero_lotto} (${l.articolo} — ${days}gg)`;
+                }).join(", ")}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {lotti.length === 0 ? (
         <Card>

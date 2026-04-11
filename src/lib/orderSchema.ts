@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const orderSchema = z.object({
+const baseOrderSchema = z.object({
   customer_id: z.string().min(1, "Seleziona un cliente"),
   order_code: z.string().max(50).optional().default(""),
   description: z.string().min(3, "La descrizione deve avere almeno 3 caratteri").max(1000),
@@ -25,6 +25,37 @@ export const orderSchema = z.object({
   vat_rate: z.string().default("22"),
   financing_cost: z.string().optional().default(""),
   has_building_bonus: z.boolean().default(false),
+});
+
+export const orderSchema = baseOrderSchema.superRefine((data, ctx) => {
+  // Validate total_amount is a valid non-negative number when provided
+  if (data.total_amount) {
+    const val = parseFloat(data.total_amount);
+    if (isNaN(val)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "L'importo totale deve essere un numero valido",
+        path: ["total_amount"],
+      });
+    } else if (val < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "L'importo totale non può essere negativo",
+        path: ["total_amount"],
+      });
+    }
+  }
+
+  // Cross-validate: work_end_date >= work_start_date
+  if (data.work_start_date && data.work_end_date) {
+    if (data.work_end_date < data.work_start_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La data di fine lavori non può essere precedente a quella di inizio",
+        path: ["work_end_date"],
+      });
+    }
+  }
 });
 
 export type OrderFormValues = z.infer<typeof orderSchema>;

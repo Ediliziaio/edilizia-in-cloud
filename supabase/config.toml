@@ -278,3 +278,6 @@ verify_jwt = false
 
 [functions.bank-categorize-ai]
 verify_jwt = false
+
+[functions.verify-purchase-order]
+verify_jwt = false

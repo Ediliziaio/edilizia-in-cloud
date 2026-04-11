@@ -150,158 +150,186 @@ function SortableRow({
   return (
     <div ref={setNodeRef} style={style}>
       <Collapsible open={expanded} onOpenChange={setExpanded}>
-        <div className="grid grid-cols-[1.5rem_1.5rem_1fr_4rem_4rem_5rem_3.5rem_4rem_5rem_5.5rem] gap-1 px-2 py-1 border-t items-center group">
-          {/* Drag handle */}
-          <button
-            className="cursor-grab opacity-0 group-hover:opacity-100 transition-opacity"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="h-3 w-3 text-muted-foreground" />
-          </button>
-
-          <span className="text-xs text-muted-foreground">{index + 1}</span>
-
-          <Input
-            value={riga.descrizione}
-            onChange={(e) => onUpdate(index, "descrizione", e.target.value)}
-            className="h-7 text-xs border-0 bg-transparent px-1"
-            placeholder="Descrizione..."
-            disabled={disabled}
-          />
-          <Input
-            type="number"
-            value={riga.quantita}
-            onChange={(e) => onUpdate(index, "quantita", parseFloat(e.target.value) || 0)}
-            className="h-7 text-xs border-0 bg-transparent px-1 text-right"
-            disabled={disabled}
-          />
-          <Select
-            value={riga.unita_misura || "pz"}
-            onValueChange={(v) => onUpdate(index, "unita_misura", v)}
-            disabled={disabled}
-          >
-            <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {UNITA_MISURA.map((u) => (
-                <SelectItem key={u} value={u} className="text-xs">{u}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            type="number"
-            step="0.0001"
-            value={prezziLordi
-              ? Math.round(riga.prezzo_unitario * (1 + (parseFloat(riga.aliquota_iva) || 0) / 100) * 10000) / 10000
-              : riga.prezzo_unitario
-            }
-            onChange={(e) => {
-              const v = parseFloat(e.target.value) || 0;
-              onUpdate(index, "prezzo_unitario", prezziLordi ? calcoloInverso(v, riga.aliquota_iva) : v);
-            }}
-            className="h-7 text-xs border-0 bg-transparent px-1 text-right"
-            title={prezziLordi ? "Prezzo IVA inclusa (verrà scorporata automaticamente)" : "Prezzo netto"}
-            disabled={disabled}
-          />
-          <Input
-            type="number"
-            step="0.01"
-            value={riga.sconto_percentuale ?? ""}
-            onChange={(e) => onUpdate(index, "sconto_percentuale", parseFloat(e.target.value) || 0)}
-            className="h-7 text-xs border-0 bg-transparent px-1 text-right"
-            placeholder="0"
-            disabled={disabled}
-          />
-          {/* IVA Select — combined aliquote + nature codes */}
-          <div className="relative">
-            <Select
-              value={ivaValueFromRiga(riga)}
-              onValueChange={(v) => {
-                const opt = IVA_COMBINED_OPTIONS.find((o) => o.value === v);
-                if (opt) {
-                  onUpdate(index, "aliquota_iva", opt.aliquota);
-                  onUpdate(index, "natura_iva", opt.natura);
-                } else {
-                  // Fallback for plain "0" selection
-                  onUpdate(index, "aliquota_iva", v);
-                  onUpdate(index, "natura_iva", undefined);
-                }
-              }}
-              disabled={disabled}
-            >
-              <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-1 min-w-[3.5rem]">
-                <span className="truncate">{ivaDisplayLabel(riga)}</span>
-              </SelectTrigger>
-              <SelectContent className="max-h-96 w-[22rem]">
-                {/* Group by category — ordine ufficiale SDI */}
-                {[
-                  "Aliquote IVA",
-                  "Escluse (N1)",
-                  "Non soggette (N2)",
-                  "Non imponibili (N3)",
-                  "Esenti (N4)",
-                  "Regime del margine (N5)",
-                  "Inversione contabile (N6)",
-                  "IVA in altro Stato UE (N7)",
-                ].map((group) => {
-                  const items = IVA_COMBINED_OPTIONS.filter((o) => o.group === group);
-                  if (items.length === 0) return null;
-                  return (
-                    <SelectGroup key={group}>
-                      <SelectLabel className="text-[10px] font-semibold text-muted-foreground">{group}</SelectLabel>
-                      {items.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-            {needsNatura && (
-              <Badge variant="destructive" className="absolute -top-1 -right-1 h-3 w-3 p-0 flex items-center justify-center">
-                <AlertTriangle className="h-2 w-2" />
-              </Badge>
-            )}
-          </div>
-
-          <span className="text-xs font-medium text-right tabular-nums">
-            {formatCurrency(riga.totale_riga)}
-          </span>
-
-          {/* Row actions */}
-          {!disabled && (
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
-                  <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
-                </Button>
-              </CollapsibleTrigger>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onDuplicate(index)}>
-                <Copy className="h-3 w-3" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onRemove(index)}>
-                <Trash2 className="h-3 w-3 text-destructive" />
-              </Button>
+        {/* ── Card-like row ── */}
+        <div className={`border-b last:border-b-0 group transition-colors ${isDragging ? "bg-muted/40" : "hover:bg-muted/20"}`}>
+          <div className="flex gap-2 px-3 py-3">
+            {/* Left: drag + number */}
+            <div className="flex flex-col items-center gap-1 pt-0.5 shrink-0 w-6">
+              <button
+                className="cursor-grab opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+              <span className="text-[10px] font-medium text-muted-foreground/60">{index + 1}</span>
             </div>
-          )}
-        </div>
 
-        {/* Natura IVA summary badge when 0% with nature is set */}
-        {riga.natura_iva && (parseFloat(riga.aliquota_iva) || 0) === 0 && (
-          <div className="px-2 pb-1 pl-10">
-            <span className="text-[10px] text-muted-foreground">
-              {riga.natura_iva.replace("_", ".")} – {NATURE_IVA[riga.natura_iva as keyof typeof NATURE_IVA] ?? ""}
-            </span>
+            {/* Center: description + fields */}
+            <div className="flex-1 min-w-0 space-y-2">
+              {/* Description */}
+              <Textarea
+                value={riga.descrizione}
+                onChange={(e) => onUpdate(index, "descrizione", e.target.value)}
+                className="text-sm border-0 bg-transparent px-0 py-0 resize-none min-h-[1.5rem] focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/40 leading-snug"
+                placeholder="Descrizione articolo o prestazione..."
+                rows={riga.descrizione.includes("\n") ? 2 : 1}
+                disabled={disabled}
+                onInput={(e) => {
+                  const t = e.currentTarget;
+                  t.style.height = "auto";
+                  t.style.height = t.scrollHeight + "px";
+                }}
+              />
+
+              {/* Numeric fields row */}
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">Qtà</span>
+                  <Input
+                    type="number"
+                    value={riga.quantita}
+                    onChange={(e) => onUpdate(index, "quantita", parseFloat(e.target.value) || 0)}
+                    className="h-7 w-16 text-xs text-right tabular-nums"
+                    disabled={disabled}
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">U.M.</span>
+                  <Select
+                    value={riga.unita_misura || "pz"}
+                    onValueChange={(v) => onUpdate(index, "unita_misura", v)}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className="h-7 w-16 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNITA_MISURA.map((u) => (
+                        <SelectItem key={u} value={u} className="text-xs">{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">
+                    {prezziLordi ? "Prezzo lordo" : "Prezzo"}
+                  </span>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={prezziLordi
+                      ? Math.round(riga.prezzo_unitario * (1 + (parseFloat(riga.aliquota_iva) || 0) / 100) * 10000) / 10000
+                      : riga.prezzo_unitario
+                    }
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value) || 0;
+                      onUpdate(index, "prezzo_unitario", prezziLordi ? calcoloInverso(v, riga.aliquota_iva) : v);
+                    }}
+                    className="h-7 w-24 text-xs text-right tabular-nums"
+                    disabled={disabled}
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">Sc.%</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={riga.sconto_percentuale ?? ""}
+                    onChange={(e) => onUpdate(index, "sconto_percentuale", parseFloat(e.target.value) || 0)}
+                    className="h-7 w-14 text-xs text-right tabular-nums"
+                    placeholder="0"
+                    disabled={disabled}
+                  />
+                </div>
+                <div className="space-y-0.5 relative">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">IVA</span>
+                  <Select
+                    value={ivaValueFromRiga(riga)}
+                    onValueChange={(v) => {
+                      const opt = IVA_COMBINED_OPTIONS.find((o) => o.value === v);
+                      if (opt) {
+                        onUpdate(index, "aliquota_iva", opt.aliquota);
+                        onUpdate(index, "natura_iva", opt.natura);
+                      } else {
+                        onUpdate(index, "aliquota_iva", v);
+                        onUpdate(index, "natura_iva", undefined);
+                      }
+                    }}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className="h-7 w-[4.5rem] text-xs">
+                      <span className="truncate">{ivaDisplayLabel(riga)}</span>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-96 w-[22rem]">
+                      {[
+                        "Aliquote IVA",
+                        "Escluse (N1)",
+                        "Non soggette (N2)",
+                        "Non imponibili (N3)",
+                        "Esenti (N4)",
+                        "Regime del margine (N5)",
+                        "Inversione contabile (N6)",
+                        "IVA in altro Stato UE (N7)",
+                      ].map((group) => {
+                        const items = IVA_COMBINED_OPTIONS.filter((o) => o.group === group);
+                        if (items.length === 0) return null;
+                        return (
+                          <SelectGroup key={group}>
+                            <SelectLabel className="text-[10px] font-semibold text-muted-foreground">{group}</SelectLabel>
+                            {items.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {needsNatura && (
+                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-3 w-3 p-0 flex items-center justify-center">
+                      <AlertTriangle className="h-2 w-2" />
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Natura IVA note */}
+              {riga.natura_iva && (parseFloat(riga.aliquota_iva) || 0) === 0 && (
+                <span className="text-[10px] text-muted-foreground block">
+                  {riga.natura_iva.replace("_", ".")} – {NATURE_IVA[riga.natura_iva as keyof typeof NATURE_IVA] ?? ""}
+                </span>
+              )}
+            </div>
+
+            {/* Right: total + actions */}
+            <div className="flex flex-col items-end gap-1 shrink-0 min-w-[6rem]">
+              <span className="text-sm font-bold tabular-nums text-foreground">
+                {formatCurrency(riga.totale_riga)}
+              </span>
+              {!disabled && (
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onDuplicate(index)}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onRemove(index)}>
+                    <Trash2 className="h-3 w-3 text-destructive" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
 
         {/* Expanded details */}
         <CollapsibleContent>
-          <div className="px-4 py-3 bg-muted/20 border-t space-y-3 ml-8 mr-2 rounded-b">
+          <div className="px-4 py-3 bg-muted/20 border-b space-y-3 ml-9 mr-3 rounded-b">
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground">Codice articolo</Label>
@@ -519,19 +547,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
-          {/* Header */}
-          <div className="grid grid-cols-[1.5rem_1.5rem_1fr_4rem_4rem_5rem_3.5rem_4rem_5rem_5.5rem] gap-1 px-2 py-1.5 bg-muted/50 text-xs font-medium text-muted-foreground">
-            <span />
-            <span>#</span>
-            <span>Descrizione</span>
-            <span className="text-right">Qtà</span>
-            <span>U.M.</span>
-            <span className="text-right">{usePrezziLordi ? "Prezzo lordo" : "Prezzo"}</span>
-            <span className="text-right">Sc.%</span>
-            <span>IVA</span>
-            <span className="text-right">Importo</span>
-            <span />
-          </div>
+          {/* No grid header needed — each row is self-labelled */}
 
           {/* Sortable rows */}
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

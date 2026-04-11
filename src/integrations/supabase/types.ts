@@ -1,4 +1,3 @@
-Initialising login role...
 export type Json =
   | string
   | number
@@ -2211,6 +2210,7 @@ export type Database = {
       anagrafica_azienda: {
         Row: {
           anno_corrente: number | null
+          anno_corrente_fattura: number
           anno_corrente_preventivo: number
           anno_corrente_proforma: number
           bic_swift: string | null
@@ -2270,6 +2270,7 @@ export type Database = {
         }
         Insert: {
           anno_corrente?: number | null
+          anno_corrente_fattura?: number
           anno_corrente_preventivo?: number
           anno_corrente_proforma?: number
           bic_swift?: string | null
@@ -2329,6 +2330,7 @@ export type Database = {
         }
         Update: {
           anno_corrente?: number | null
+          anno_corrente_fattura?: number
           anno_corrente_preventivo?: number
           anno_corrente_proforma?: number
           bic_swift?: string | null
@@ -6330,6 +6332,47 @@ export type Database = {
           },
         ]
       }
+      company_ai_usage: {
+        Row: {
+          company_id: string
+          feature: string
+          id: string
+          month: string
+          total_cost_eur: number | null
+          total_tokens: number | null
+          usage_count: number
+          usage_limit: number
+        }
+        Insert: {
+          company_id: string
+          feature: string
+          id?: string
+          month: string
+          total_cost_eur?: number | null
+          total_tokens?: number | null
+          usage_count?: number
+          usage_limit?: number
+        }
+        Update: {
+          company_id?: string
+          feature?: string
+          id?: string
+          month?: string
+          total_cost_eur?: number | null
+          total_tokens?: number | null
+          usage_count?: number
+          usage_limit?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_ai_usage_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_auto_topup: {
         Row: {
           company_id: string
@@ -7091,7 +7134,7 @@ export type Database = {
           raw_extracted_json: Json | null
           storage_path: string
           updated_at: string | null
-          uploaded_by: string
+          uploaded_by: string | null
         }
         Insert: {
           committente?: string | null
@@ -7113,7 +7156,7 @@ export type Database = {
           raw_extracted_json?: Json | null
           storage_path: string
           updated_at?: string | null
-          uploaded_by: string
+          uploaded_by?: string | null
         }
         Update: {
           committente?: string | null
@@ -7135,7 +7178,7 @@ export type Database = {
           raw_extracted_json?: Json | null
           storage_path?: string
           updated_at?: string | null
-          uploaded_by?: string
+          uploaded_by?: string | null
         }
         Relationships: [
           {
@@ -7986,7 +8029,13 @@ export type Database = {
       }
       documenti_fiscali: {
         Row: {
+          allega_pdf_sdi: boolean | null
           allegati: Json | null
+          altra_ritenuta: boolean | null
+          altra_ritenuta_aliquota: number | null
+          altra_ritenuta_causale: string | null
+          altra_ritenuta_importo: number | null
+          altra_ritenuta_tipo: string | null
           anagrafica_id: string | null
           anno: number
           arrotondamento: number | null
@@ -8024,6 +8073,8 @@ export type Database = {
           ddt_vettore: Json | null
           deleted_at: string | null
           documento_correlato_id: string | null
+          emesso_in_seguito_a: string | null
+          esigibilita_iva: string | null
           iban_pagamento: string | null
           id: string
           imponibile_totale: number
@@ -8050,6 +8101,10 @@ export type Database = {
           ritenuta_causale: string | null
           ritenuta_importo: number | null
           ritenuta_tipo: string | null
+          rivalsa_aliquota: number | null
+          rivalsa_importo: number | null
+          rivalsa_inps: boolean | null
+          rivalsa_tipo: string | null
           scadenze_pagamento: Json | null
           sconto_globale_percentuale: number | null
           sconto_globale_valore: number | null
@@ -8074,7 +8129,13 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          allega_pdf_sdi?: boolean | null
           allegati?: Json | null
+          altra_ritenuta?: boolean | null
+          altra_ritenuta_aliquota?: number | null
+          altra_ritenuta_causale?: string | null
+          altra_ritenuta_importo?: number | null
+          altra_ritenuta_tipo?: string | null
           anagrafica_id?: string | null
           anno?: number
           arrotondamento?: number | null
@@ -8112,6 +8173,8 @@ export type Database = {
           ddt_vettore?: Json | null
           deleted_at?: string | null
           documento_correlato_id?: string | null
+          emesso_in_seguito_a?: string | null
+          esigibilita_iva?: string | null
           iban_pagamento?: string | null
           id?: string
           imponibile_totale?: number
@@ -8138,6 +8201,10 @@ export type Database = {
           ritenuta_causale?: string | null
           ritenuta_importo?: number | null
           ritenuta_tipo?: string | null
+          rivalsa_aliquota?: number | null
+          rivalsa_importo?: number | null
+          rivalsa_inps?: boolean | null
+          rivalsa_tipo?: string | null
           scadenze_pagamento?: Json | null
           sconto_globale_percentuale?: number | null
           sconto_globale_valore?: number | null
@@ -8162,7 +8229,13 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          allega_pdf_sdi?: boolean | null
           allegati?: Json | null
+          altra_ritenuta?: boolean | null
+          altra_ritenuta_aliquota?: number | null
+          altra_ritenuta_causale?: string | null
+          altra_ritenuta_importo?: number | null
+          altra_ritenuta_tipo?: string | null
           anagrafica_id?: string | null
           anno?: number
           arrotondamento?: number | null
@@ -8200,6 +8273,8 @@ export type Database = {
           ddt_vettore?: Json | null
           deleted_at?: string | null
           documento_correlato_id?: string | null
+          emesso_in_seguito_a?: string | null
+          esigibilita_iva?: string | null
           iban_pagamento?: string | null
           id?: string
           imponibile_totale?: number
@@ -8226,6 +8301,10 @@ export type Database = {
           ritenuta_causale?: string | null
           ritenuta_importo?: number | null
           ritenuta_tipo?: string | null
+          rivalsa_aliquota?: number | null
+          rivalsa_importo?: number | null
+          rivalsa_inps?: boolean | null
+          rivalsa_tipo?: string | null
           scadenze_pagamento?: Json | null
           sconto_globale_percentuale?: number | null
           sconto_globale_valore?: number | null
@@ -19101,6 +19180,119 @@ export type Database = {
           },
         ]
       }
+      purchase_order_verifications: {
+        Row: {
+          ai_model: string | null
+          ai_raw_response: Json | null
+          ai_tokens_used: number | null
+          client_document_type: string | null
+          client_document_url: string | null
+          company_id: string
+          confidence_score: number | null
+          created_at: string
+          id: string
+          items_extra: number | null
+          items_matched: number | null
+          items_mismatched: number | null
+          items_missing: number | null
+          order_id: string | null
+          overall_summary: string | null
+          processing_time_ms: number | null
+          purchase_order_id: string
+          result: string | null
+          status: string
+          supplier_document_type: string
+          supplier_document_url: string
+          total_items_checked: number | null
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          ai_model?: string | null
+          ai_raw_response?: Json | null
+          ai_tokens_used?: number | null
+          client_document_type?: string | null
+          client_document_url?: string | null
+          company_id: string
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          items_extra?: number | null
+          items_matched?: number | null
+          items_mismatched?: number | null
+          items_missing?: number | null
+          order_id?: string | null
+          overall_summary?: string | null
+          processing_time_ms?: number | null
+          purchase_order_id: string
+          result?: string | null
+          status?: string
+          supplier_document_type: string
+          supplier_document_url: string
+          total_items_checked?: number | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          ai_model?: string | null
+          ai_raw_response?: Json | null
+          ai_tokens_used?: number | null
+          client_document_type?: string | null
+          client_document_url?: string | null
+          company_id?: string
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          items_extra?: number | null
+          items_matched?: number | null
+          items_mismatched?: number | null
+          items_missing?: number | null
+          order_id?: string | null
+          overall_summary?: string | null
+          processing_time_ms?: number | null
+          purchase_order_id?: string
+          result?: string | null
+          status?: string
+          supplier_document_type?: string
+          supplier_document_url?: string
+          total_items_checked?: number | null
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_verifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_verifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_verifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_verifications_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_orders: {
         Row: {
           actual_delivery_date: string | null
@@ -19115,6 +19307,7 @@ export type Database = {
           id: string
           internal_notes: string | null
           issue_date: string
+          last_verification_id: string | null
           notes: string | null
           oda_number: string
           order_id: string | null
@@ -19142,6 +19335,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           issue_date?: string
+          last_verification_id?: string | null
           notes?: string | null
           oda_number: string
           order_id?: string | null
@@ -19169,6 +19363,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           issue_date?: string
+          last_verification_id?: string | null
           notes?: string | null
           oda_number?: string
           order_id?: string | null
@@ -19196,6 +19391,13 @@ export type Database = {
             columns: ["delivery_warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_last_verification_id_fkey"
+            columns: ["last_verification_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_verifications"
             referencedColumns: ["id"]
           },
           {
@@ -19507,6 +19709,128 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_render_attachments: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          id: string
+          image_url: string
+          quote_id: string
+          render_bagno_session_id: string | null
+          render_facciata_session_id: string | null
+          render_pavimento_session_id: string | null
+          render_persiane_session_id: string | null
+          render_session_id: string | null
+          render_stanza_session_id: string | null
+          render_tetto_session_id: string | null
+          render_type: string
+          sort_order: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          id?: string
+          image_url: string
+          quote_id: string
+          render_bagno_session_id?: string | null
+          render_facciata_session_id?: string | null
+          render_pavimento_session_id?: string | null
+          render_persiane_session_id?: string | null
+          render_session_id?: string | null
+          render_stanza_session_id?: string | null
+          render_tetto_session_id?: string | null
+          render_type: string
+          sort_order?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          image_url?: string
+          quote_id?: string
+          render_bagno_session_id?: string | null
+          render_facciata_session_id?: string | null
+          render_pavimento_session_id?: string | null
+          render_persiane_session_id?: string | null
+          render_session_id?: string | null
+          render_stanza_session_id?: string | null
+          render_tetto_session_id?: string | null
+          render_type?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_render_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_render_bagno_session_id_fkey"
+            columns: ["render_bagno_session_id"]
+            isOneToOne: false
+            referencedRelation: "render_bagno_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_render_facciata_session_id_fkey"
+            columns: ["render_facciata_session_id"]
+            isOneToOne: false
+            referencedRelation: "render_facciata_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_render_pavimento_session_id_fkey"
+            columns: ["render_pavimento_session_id"]
+            isOneToOne: false
+            referencedRelation: "render_pavimento_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_render_persiane_session_id_fkey"
+            columns: ["render_persiane_session_id"]
+            isOneToOne: false
+            referencedRelation: "render_persiane_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_render_session_id_fkey"
+            columns: ["render_session_id"]
+            isOneToOne: false
+            referencedRelation: "render_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_render_stanza_session_id_fkey"
+            columns: ["render_stanza_session_id"]
+            isOneToOne: false
+            referencedRelation: "render_stanza_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_render_tetto_session_id_fkey"
+            columns: ["render_tetto_session_id"]
+            isOneToOne: false
+            referencedRelation: "render_tetto_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -20627,6 +20951,122 @@ export type Database = {
           },
         ]
       }
+      render_bagno_sessions: {
+        Row: {
+          analisi_bagno: Json | null
+          company_id: string
+          configurazione: Json | null
+          contact_id: string | null
+          cost_billed: number | null
+          cost_real: number | null
+          created_at: string
+          foto_originale_path: string | null
+          foto_originale_url: string | null
+          galleria_note: string | null
+          galleria_titolo: string | null
+          id: string
+          model_used: string | null
+          opportunity_id: string | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          prompt_usato: string | null
+          prompt_version: string | null
+          provider_key: string | null
+          render_result_path: string | null
+          render_result_url: string | null
+          salvato_in_galleria: boolean | null
+          stato: string
+          tipo_intervento: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analisi_bagno?: Json | null
+          company_id: string
+          configurazione?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string
+          foto_originale_path?: string | null
+          foto_originale_url?: string | null
+          galleria_note?: string | null
+          galleria_titolo?: string | null
+          id?: string
+          model_used?: string | null
+          opportunity_id?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_usato?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          render_result_path?: string | null
+          render_result_url?: string | null
+          salvato_in_galleria?: boolean | null
+          stato?: string
+          tipo_intervento?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analisi_bagno?: Json | null
+          company_id?: string
+          configurazione?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string
+          foto_originale_path?: string | null
+          foto_originale_url?: string | null
+          galleria_note?: string | null
+          galleria_titolo?: string | null
+          id?: string
+          model_used?: string | null
+          opportunity_id?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_usato?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          render_result_path?: string | null
+          render_result_url?: string | null
+          salvato_in_galleria?: boolean | null
+          stato?: string
+          tipo_intervento?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_bagno_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_bagno_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "render_bagno_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_bagno_sessions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       render_credits: {
         Row: {
           balance: number
@@ -20658,6 +21098,110 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: true
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      render_facciata_sessions: {
+        Row: {
+          company_id: string
+          config: Json | null
+          config_snapshot: Json | null
+          contact_id: string | null
+          cost_billed: number | null
+          cost_real: number | null
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          foto_analisi: Json | null
+          id: string
+          opportunity_id: string | null
+          original_photo_url: string | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          prompt_blocks: Json | null
+          prompt_char_count: number | null
+          prompt_used: string | null
+          prompt_version: string | null
+          provider_key: string | null
+          result_urls: string[] | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          config?: Json | null
+          config_snapshot?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          foto_analisi?: Json | null
+          id?: string
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_blocks?: Json | null
+          prompt_char_count?: number | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          status?: string
+        }
+        Update: {
+          company_id?: string
+          config?: Json | null
+          config_snapshot?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          foto_analisi?: Json | null
+          id?: string
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_blocks?: Json | null
+          prompt_char_count?: number | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_facciata_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_facciata_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "render_facciata_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_facciata_sessions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
             referencedColumns: ["id"]
           },
         ]
@@ -20764,6 +21308,205 @@ export type Database = {
         }
         Relationships: []
       }
+      render_pavimento_sessions: {
+        Row: {
+          analisi_pavimento: Json | null
+          company_id: string
+          config: Json | null
+          config_snapshot: Json | null
+          contact_id: string | null
+          cost_billed: number | null
+          cost_real: number | null
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          id: string
+          opportunity_id: string | null
+          original_photo_url: string | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          prompt_char_count: number | null
+          prompt_used: string | null
+          prompt_version: string | null
+          provider_key: string | null
+          result_urls: string[] | null
+          status: string
+        }
+        Insert: {
+          analisi_pavimento?: Json | null
+          company_id: string
+          config?: Json | null
+          config_snapshot?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_char_count?: number | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          status?: string
+        }
+        Update: {
+          analisi_pavimento?: Json | null
+          company_id?: string
+          config?: Json | null
+          config_snapshot?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_char_count?: number | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_pavimento_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_pavimento_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "render_pavimento_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_pavimento_sessions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      render_persiane_sessions: {
+        Row: {
+          company_id: string
+          config: Json
+          contact_id: string | null
+          cost_billed: number | null
+          cost_real: number | null
+          created_at: string
+          created_by: string
+          error_message: string | null
+          id: string
+          model_used: string | null
+          opportunity_id: string | null
+          original_photo_url: string | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          prompt_used: string | null
+          prompt_version: string | null
+          provider_key: string | null
+          result_urls: string[] | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          config?: Json
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          id?: string
+          model_used?: string | null
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          config?: Json
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          id?: string
+          model_used?: string | null
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_persiane_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_persiane_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "render_persiane_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_persiane_sessions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       render_provider_config: {
         Row: {
           api_endpoint: string
@@ -20823,6 +21566,7 @@ export type Database = {
           company_id: string
           config: Json | null
           config_snapshot: Json | null
+          contact_id: string | null
           cost_billed: number | null
           cost_real: number | null
           created_at: string | null
@@ -20830,6 +21574,7 @@ export type Database = {
           error_message: string | null
           foto_analisi: Json | null
           id: string
+          opportunity_id: string | null
           original_photo_url: string | null
           processing_completed_at: string | null
           processing_started_at: string | null
@@ -20845,6 +21590,7 @@ export type Database = {
           company_id: string
           config?: Json | null
           config_snapshot?: Json | null
+          contact_id?: string | null
           cost_billed?: number | null
           cost_real?: number | null
           created_at?: string | null
@@ -20852,6 +21598,7 @@ export type Database = {
           error_message?: string | null
           foto_analisi?: Json | null
           id?: string
+          opportunity_id?: string | null
           original_photo_url?: string | null
           processing_completed_at?: string | null
           processing_started_at?: string | null
@@ -20867,6 +21614,7 @@ export type Database = {
           company_id?: string
           config?: Json | null
           config_snapshot?: Json | null
+          contact_id?: string | null
           cost_billed?: number | null
           cost_real?: number | null
           created_at?: string | null
@@ -20874,6 +21622,7 @@ export type Database = {
           error_message?: string | null
           foto_analisi?: Json | null
           id?: string
+          opportunity_id?: string | null
           original_photo_url?: string | null
           processing_completed_at?: string | null
           processing_started_at?: string | null
@@ -20891,6 +21640,235 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "render_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_sessions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      render_stanza_sessions: {
+        Row: {
+          company_id: string
+          config: Json | null
+          config_snapshot: Json | null
+          config_summary: Json | null
+          contact_id: string | null
+          cost_billed: number | null
+          cost_real: number | null
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          id: string
+          opportunity_id: string | null
+          original_photo_url: string | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          prompt_blocks: Json | null
+          prompt_char_count: number | null
+          prompt_used: string | null
+          prompt_version: string | null
+          provider_key: string | null
+          result_urls: string[] | null
+          saved_to_gallery: boolean | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          config?: Json | null
+          config_snapshot?: Json | null
+          config_summary?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_blocks?: Json | null
+          prompt_char_count?: number | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          saved_to_gallery?: boolean | null
+          status?: string
+        }
+        Update: {
+          company_id?: string
+          config?: Json | null
+          config_snapshot?: Json | null
+          config_summary?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_blocks?: Json | null
+          prompt_char_count?: number | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          saved_to_gallery?: boolean | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_stanza_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_stanza_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "render_stanza_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_stanza_sessions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      render_tetto_sessions: {
+        Row: {
+          analisi_tetto: Json | null
+          company_id: string
+          config: Json | null
+          config_snapshot: Json | null
+          contact_id: string | null
+          cost_billed: number | null
+          cost_real: number | null
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          id: string
+          opportunity_id: string | null
+          original_photo_url: string | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          prompt_char_count: number | null
+          prompt_used: string | null
+          prompt_version: string | null
+          provider_key: string | null
+          result_urls: string[] | null
+          status: string
+        }
+        Insert: {
+          analisi_tetto?: Json | null
+          company_id: string
+          config?: Json | null
+          config_snapshot?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_char_count?: number | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          status?: string
+        }
+        Update: {
+          analisi_tetto?: Json | null
+          company_id?: string
+          config?: Json | null
+          config_snapshot?: Json | null
+          contact_id?: string | null
+          cost_billed?: number | null
+          cost_real?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          opportunity_id?: string | null
+          original_photo_url?: string | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          prompt_char_count?: number | null
+          prompt_used?: string | null
+          prompt_version?: string | null
+          provider_key?: string | null
+          result_urls?: string[] | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_tetto_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_tetto_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "render_tetto_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_tetto_sessions_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
             referencedColumns: ["id"]
           },
         ]
@@ -25780,6 +26758,87 @@ export type Database = {
           },
         ]
       }
+      verification_discrepancies: {
+        Row: {
+          actual_source: string | null
+          actual_value: string | null
+          ai_confidence: number | null
+          ai_explanation: string | null
+          ai_suggestion: string | null
+          company_id: string
+          created_at: string
+          discrepancy_type: string
+          expected_source: string | null
+          expected_value: string | null
+          field_name: string | null
+          id: string
+          item_reference: string | null
+          resolution_notes: string | null
+          resolution_status: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          verification_id: string
+        }
+        Insert: {
+          actual_source?: string | null
+          actual_value?: string | null
+          ai_confidence?: number | null
+          ai_explanation?: string | null
+          ai_suggestion?: string | null
+          company_id: string
+          created_at?: string
+          discrepancy_type: string
+          expected_source?: string | null
+          expected_value?: string | null
+          field_name?: string | null
+          id?: string
+          item_reference?: string | null
+          resolution_notes?: string | null
+          resolution_status?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          verification_id: string
+        }
+        Update: {
+          actual_source?: string | null
+          actual_value?: string | null
+          ai_confidence?: number | null
+          ai_explanation?: string | null
+          ai_suggestion?: string | null
+          company_id?: string
+          created_at?: string
+          discrepancy_type?: string
+          expected_source?: string | null
+          expected_value?: string | null
+          field_name?: string | null
+          id?: string
+          item_reference?: string | null
+          resolution_notes?: string | null
+          resolution_status?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          verification_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_discrepancies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_discrepancies_verification_id_fkey"
+            columns: ["verification_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_verifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       virtual_phone_numbers: {
         Row: {
           assigned_to: string | null
@@ -28717,5 +29776,3 @@ export const Constants = {
     },
   },
 } as const
-A new version of Supabase CLI is available: v2.84.2 (currently installed v2.75.0)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

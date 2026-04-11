@@ -19,6 +19,7 @@ import {
 } from "@/hooks/useDocumentiFiscali";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
+import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { toast } from "sonner";
 import { useEditorState } from "./editor/useEditorState";
 import { validateDocumento } from "@/lib/fatturazione/calcoli";
@@ -36,6 +37,7 @@ import { EditorFatturazioneElettronicaSection } from "./editor/EditorFatturazion
 import { EditorOpzioniAvanzateSection } from "./editor/EditorOpzioniAvanzateSection";
 import { EditorContributiRitenuteSection } from "./editor/EditorContributiRitenuteSection";
 import { EditorPersonalizzazioneSection } from "./editor/EditorPersonalizzazioneSection";
+import { EditorSendEmailDialog } from "./editor/EditorSendEmailDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import type { TipoDocumento, DocumentoFiscale } from "@/types/fatturazione";
@@ -47,6 +49,7 @@ export default function EditorDocumento() {
   const isCreate = !id;
   const createdRef = useRef(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   const location = useLocation();
   const prefilled = (location.state as { prefilled?: Partial<DocumentoFiscale> } | null)?.prefilled;
@@ -58,9 +61,11 @@ export default function EditorDocumento() {
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
 
   // Fetch order data for pre-fill when creating from an order
-  const { data: ordineData } = useQuery({
+  // We don't block document creation on this — it's optional pre-fill only
+  const { data: ordineData, isFetched: ordineDataFetched } = useQuery({
     queryKey: ["order-prefill", ordineParam],
     enabled: isCreate && !!ordineParam,
+    retry: 1,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -80,14 +85,15 @@ export default function EditorDocumento() {
   // Auto-create on mount for /nuovo
   useEffect(() => {
     if (isCreate && !createdRef.current) {
-      // If ordine param specified, wait for order data
-      if (ordineParam && !ordineData) return;
+      // If ordine param specified, wait until the query has completed (success OR error)
+      // but don't block forever — proceed after fetch attempt
+      if (ordineParam && !ordineDataFetched) return;
 
       createdRef.current = true;
 
       // Build prefilled data from order if available
       const mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled };
-      if (ordineData) {
+      if (ordineData && !mergedPrefill.note_documento) {
         mergedPrefill.note_documento = ordineData.description || undefined;
       }
 
@@ -100,14 +106,36 @@ export default function EditorDocumento() {
               : `/azienda/documenti/${doc.id}`;
             navigate(newUrl, { replace: true });
           },
+          onError: (err) => {
+            console.error("[EditorDocumento] Create mutation failed:", err);
+            // Reset flag so user can retry, and navigate back
+            createdRef.current = false;
+            navigate(-1);
+          },
         }
       );
     }
-  }, [isCreate, tipoParam, createMutation, navigate, ordineParam, ordineData]);
+  }, [isCreate, tipoParam, createMutation, navigate, ordineParam, ordineData, ordineDataFetched]);
 
   const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
   const [isInviaSDILoading, setIsInviaSDILoading] = useState(false);
+  const [isConvertLoading, setIsConvertLoading] = useState(false);
+
+  // Convert proforma/preventivo to fattura
+  const handleConvertToFattura = useCallback(async () => {
+    if (!state.id) return;
+    setIsConvertLoading(true);
+    try {
+      const fattura = await convertiProformaInFattura(state.id);
+      toast.success(`Convertito in fattura ${fattura.numero}`);
+      navigate(`/azienda/documenti/${fattura.id}`);
+    } catch (err: any) {
+      toast.error("Errore nella conversione", { description: err.message });
+    } finally {
+      setIsConvertLoading(false);
+    }
+  }, [state.id, navigate]);
 
   const handleInviaSDI = useCallback(async () => {
     if (!state.id) return;
@@ -137,6 +165,40 @@ export default function EditorDocumento() {
     try { await downloadNativePDF(state.id, state.numero); toast.success("PDF scaricato"); }
     catch (err: any) { toast.error("Errore download PDF", { description: err.message }); }
   }, [state.id, state.numero]);
+
+  // Duplicate document as new draft
+  const handleDuplicate = useCallback(() => {
+    if (!state.id) return;
+    const prefillData: Partial<DocumentoFiscale> = {
+      anagrafica_id: state.anagrafica_id,
+      cliente_snapshot: state.cliente_snapshot as DocumentoFiscale["cliente_snapshot"],
+      righe: (state.righe ?? []).map((r, i) => ({
+        ...r,
+        id: crypto.randomUUID(),
+        numero_linea: i + 1,
+      })),
+      note_documento: state.note_documento,
+      metodo_pagamento_codice: state.metodo_pagamento_codice,
+      iban_pagamento: state.iban_pagamento,
+      bic_pagamento: state.bic_pagamento,
+      nome_banca: state.nome_banca,
+      intestatario_conto: state.intestatario_conto,
+      esigibilita_iva: state.esigibilita_iva as DocumentoFiscale["esigibilita_iva"],
+      serie: state.serie,
+    };
+    createMutation.mutate(
+      { tipo: (state.tipo ?? "fattura") as TipoDocumento, ...prefillData },
+      {
+        onSuccess: (doc) => {
+          toast.success("Documento duplicato");
+          navigate(`/azienda/documenti/${doc.id}`);
+        },
+        onError: (err) => {
+          toast.error("Errore nella duplicazione", { description: (err as Error).message });
+        },
+      }
+    );
+  }, [state, createMutation, navigate]);
 
   // Handle navigation when leaving with unsaved changes
   const handleBack = useCallback(() => {
@@ -170,7 +232,7 @@ export default function EditorDocumento() {
         lastSaved={lastSaved}
         onEmetti={() => state.id && emittiMutation.mutate(state.id)}
         onDelete={() => {
-          if (state.id && confirm("Eliminare questa bozza?")) {
+          if (state.id) {
             deleteMutation.mutate(state.id, {
               onSuccess: () => navigate("/azienda/documenti"),
             });
@@ -178,11 +240,16 @@ export default function EditorDocumento() {
         }}
         onFieldChange={(field, value) => dispatch({ type: "SET_FIELD", field, value })}
         validationErrorCount={criticalErrorCount}
+        validationErrors={validationErrors}
         onPreview={() => setPreviewOpen(true)}
         onBack={handleBack}
         onInviaSDI={handleInviaSDI}
         onDownloadPDF={handleDownloadPDF}
+        onSendEmail={() => setEmailDialogOpen(true)}
+        onDuplicate={handleDuplicate}
+        onConvertToFattura={handleConvertToFattura}
         isInviaSDILoading={isInviaSDILoading}
+        isConvertLoading={isConvertLoading}
       />
 
       {/* Single-page scrollable form — full width, like Fatture in Cloud */}
@@ -286,6 +353,13 @@ export default function EditorDocumento() {
         onOpenChange={setPreviewOpen}
       />
 
+      {/* Send Email Dialog */}
+      <EditorSendEmailDialog
+        state={state}
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+      />
+
       {/* Leave dialog */}
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <AlertDialogContent>
@@ -312,14 +386,16 @@ export default function EditorDocumento() {
             >
               Esci senza salvare
             </button>
-            <AlertDialogAction onClick={() => {
-              saveNow();
+            <AlertDialogAction onClick={async () => {
               setShowLeaveDialog(false);
-              // Navigate after save completes
-              setTimeout(() => {
-                navigate(pendingNavigation || "/azienda/documenti");
-                setPendingNavigation(null);
-              }, 500);
+              try {
+                await saveNow();
+                toast.success("Bozza salvata");
+              } catch {
+                toast.error("Errore nel salvataggio");
+              }
+              navigate(pendingNavigation || "/azienda/documenti");
+              setPendingNavigation(null);
             }}>
               Salva bozza
             </AlertDialogAction>

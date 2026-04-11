@@ -65,6 +65,7 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
   const [items, setItems] = useState<TransferItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Stock items del magazzino di partenza
   const { data: stockItems = [] } = useQuery({
@@ -191,17 +192,39 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
               .from("warehouse_stock")
               .update({ quantity: destStock.quantity + item.quantity } as any)
               .eq("id", destStock.id);
+          } else if (src) {
+            // Articolo non esiste nel magazzino destinazione → crealo
+            await supabase
+              .from("warehouse_stock")
+              .insert({
+                company_id: companyId!,
+                warehouse_id: toWarehouseId,
+                name: src.name,
+                quantity: item.quantity,
+                min_stock_level: 0,
+              } as any);
           }
 
-          // Movimenti
+          const toWarehouseName = warehouses.find((w) => w.id === toWarehouseId)?.name;
+          const fromWarehouseName = warehouses.find((w) => w.id === fromWarehouseId)?.name;
+
+          // Movimenti: scarico dall'origine + carico nella destinazione
           await supabase.from("warehouse_movements").insert([
             {
               stock_item_id: item.stock_item_id,
               movement_type: "scarico",
               quantity: item.quantity,
-              notes: `Trasferimento verso ${warehouses.find((w) => w.id === toWarehouseId)?.name}`,
+              notes: `Trasferimento verso ${toWarehouseName}`,
               performed_by: user?.id,
               warehouse_id: fromWarehouseId,
+            } as any,
+            {
+              stock_item_id: item.stock_item_id,
+              movement_type: "carico",
+              quantity: item.quantity,
+              notes: `Trasferimento da ${fromWarehouseName}`,
+              performed_by: user?.id,
+              warehouse_id: toWarehouseId,
             } as any,
           ]);
         }
@@ -225,6 +248,7 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
     setNotes("");
     setTransferDate(new Date().toISOString().split("T")[0]);
     setItems([]);
+    setShowConfirm(false);
   };
 
   const canSubmit =
@@ -401,17 +425,47 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
           </div>
         </div>
 
+        {/* Confirmation banner */}
+        {showConfirm && (
+          <div className="border rounded-lg p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-300 space-y-2">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Confermi il trasferimento di {items.length} articol{items.length === 1 ? "o" : "i"} da{" "}
+              <strong>{warehouses.find(w => w.id === fromWarehouseId)?.name}</strong> a{" "}
+              <strong>{warehouses.find(w => w.id === toWarehouseId)?.name}</strong>?
+            </p>
+            <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
+              {items.map((item, idx) => (
+                <li key={idx}>- {item.stock_item_name}: {item.quantity} pz</li>
+              ))}
+            </ul>
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Questa operazione modificherà le giacenze di entrambi i magazzini.
+            </p>
+          </div>
+        )}
+
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => { setShowConfirm(false); onOpenChange(false); }}>
             Annulla
           </Button>
-          <Button
-            onClick={() => createMutation.mutate()}
-            disabled={!canSubmit || createMutation.isPending}
-          >
-            <CheckCircle2 className="h-4 w-4 mr-2" />
-            {createMutation.isPending ? "Creazione…" : "Crea Trasferimento"}
-          </Button>
+          {showConfirm ? (
+            <Button
+              onClick={() => { createMutation.mutate(); setShowConfirm(false); }}
+              disabled={createMutation.isPending}
+              variant="default"
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              {createMutation.isPending ? "Creazione…" : "Conferma Trasferimento"}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => setShowConfirm(true)}
+              disabled={!canSubmit}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Crea Trasferimento
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

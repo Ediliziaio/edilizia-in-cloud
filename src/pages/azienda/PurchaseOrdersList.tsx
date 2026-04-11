@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Package, Plus, Loader2, Search, Truck } from "lucide-react";
+import { Package, Plus, Loader2, Search, Truck, ShieldCheck, ExternalLink, FileText } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
@@ -34,6 +34,24 @@ const STATUS_LABELS: Record<string, string> = {
   annullato: "Annullato",
 };
 
+const VERIFICATION_BADGES: Record<string, { label: string; className: string }> = {
+  match: { label: "Verificato", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" },
+  partial_match: { label: "Discrepanze", className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400" },
+  mismatch: { label: "Non conforme", className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400" },
+};
+
+function VerificationBadge({ result }: { result: string | null | undefined }): JSX.Element | null {
+  if (!result) return null;
+  const cfg = VERIFICATION_BADGES[result];
+  if (!cfg) return null;
+  return (
+    <Badge className={`text-xs border-0 gap-1 ${cfg.className}`}>
+      <ShieldCheck className="h-3 w-3" />
+      {cfg.label}
+    </Badge>
+  );
+}
+
 export default function PurchaseOrdersList() {
   const navigate = useNavigate();
   const { orders, isLoading, create } = usePurchaseOrders();
@@ -55,7 +73,8 @@ export default function PurchaseOrdersList() {
       const q = search.toLowerCase();
       list = list.filter((o) =>
         o.oda_number.toLowerCase().includes(q) ||
-        o.suppliers?.name?.toLowerCase().includes(q)
+        o.suppliers?.name?.toLowerCase().includes(q) ||
+        o.orders?.order_code?.toLowerCase().includes(q)
       );
     }
     return list;
@@ -144,7 +163,20 @@ export default function PurchaseOrdersList() {
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">Nessun ordine d'acquisto trovato.</div>
+        <div className="text-center py-16 space-y-3">
+          <Package className="h-12 w-12 mx-auto text-muted-foreground/40" />
+          <p className="text-muted-foreground font-medium">
+            {search ? "Nessun OdA trovato per la ricerca" : "Nessun ordine d'acquisto"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {search ? "Prova a cambiare i termini di ricerca." : "Crea il primo ordine d'acquisto per gestire i tuoi fornitori."}
+          </p>
+          {!search && (
+            <Button onClick={() => setNewOpen(true)} className="mt-2">
+              <Plus className="h-4 w-4 mr-1" /> Crea il primo OdA
+            </Button>
+          )}
+        </div>
       ) : (
         <>
         {/* Mobile card list */}
@@ -159,14 +191,20 @@ export default function PurchaseOrdersList() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs font-medium">{o.oda_number}</span>
                   <Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>{STATUS_LABELS[o.status] || o.status}</Badge>
+                  <VerificationBadge result={o.last_verification?.result} />
                 </div>
                 <div className="text-sm font-medium mt-0.5 flex items-center gap-1">
                   <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span className="truncate">{o.suppliers?.name || "—"}</span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}
-                  {o.expected_delivery_date && ` · consegna ${format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}`}
+                <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span>{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</span>
+                  {o.expected_delivery_date && <span>· consegna {format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}</span>}
+                  {o.orders?.order_code && (
+                    <span className="inline-flex items-center gap-0.5 text-primary">
+                      <FileText className="h-3 w-3" /> {o.orders.order_code}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -181,6 +219,7 @@ export default function PurchaseOrdersList() {
             <thead><tr className="border-b bg-muted/50">
               <th className="text-left p-3 font-medium">N° OdA</th>
               <th className="text-left p-3 font-medium">Fornitore</th>
+              <th className="text-left p-3 font-medium">Ordine</th>
               <th className="text-left p-3 font-medium">Data</th>
               <th className="text-left p-3 font-medium">Stato</th>
               <th className="text-right p-3 font-medium">Totale</th>
@@ -196,15 +235,28 @@ export default function PurchaseOrdersList() {
                   <td className="p-3 font-mono text-xs font-medium">{o.oda_number}</td>
                   <td className="p-3">
                     <div className="flex items-center gap-1.5">
-                      <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-                      {o.suppliers?.name || "—"}
+                      <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="truncate max-w-[180px]">{o.suppliers?.name || "—"}</span>
                     </div>
+                  </td>
+                  <td className="p-3 text-xs">
+                    {o.orders?.order_code ? (
+                      <span className="inline-flex items-center gap-1 text-primary font-medium">
+                        <FileText className="h-3 w-3" />
+                        {o.orders.order_code}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="p-3 text-muted-foreground">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</td>
                   <td className="p-3">
-                    <Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>
-                      {STATUS_LABELS[o.status] || o.status}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>
+                        {STATUS_LABELS[o.status] || o.status}
+                      </Badge>
+                      <VerificationBadge result={o.last_verification?.result} />
+                    </div>
                   </td>
                   <td className="p-3 text-right font-medium">{formatCurrency(Number(o.total))}</td>
                   <td className="p-3 text-sm text-muted-foreground">
