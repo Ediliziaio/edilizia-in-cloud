@@ -19,7 +19,7 @@ export interface RitenuteGaranzia {
 
 export interface ContrattoSubappalto {
   id: string;
-  importo_contratto: number;
+  importo_contrattuale: number;
   subappaltatore_id: string;
   stato: string;
   ritenuta_garanzia_pct: number | null;
@@ -37,7 +37,7 @@ export function useRitenuteGaranzia(orderId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contratti_subappalto')
-        .select('id, importo_contratto, subappaltatore_id, stato, ritenuta_garanzia_pct')
+        .select('id, importo_contrattuale, subappaltatore_id, stato, ritenuta_garanzia_pct')
         .eq('company_id', companyId!)
         .eq('order_id', orderId!);
       if (error) throw new Error(`[useRitenuteGaranzia] ${error.message}`);

@@ -360,7 +360,7 @@ export default function CampoHome() {
                   )}
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-amber-400">
-                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(c.importo ?? 0)}
+                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(c.importo_contrattuale ?? 0)}
                     </span>
                     <ChevronRight className="w-4 h-4 text-slate-600" />
                   </div>

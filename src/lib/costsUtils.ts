@@ -132,7 +132,7 @@ export function buildEmployeeCosts(activeEmployees: any[]): UnifiedCost[] {
     if (salary === 0) return;
 
     const inpsRate = Number(emp.inps_rate) || 28;
-    const hireDate = emp.hire_date ? new Date(emp.hire_date) : addMonths(now, -11);
+    const hireDate = emp.hire_date ? new Date(emp.hire_date) : emp.created_at ? new Date(emp.created_at) : addMonths(now, -11);
     let month = startOfMonth(hireDate);
 
     while (!isAfter(month, currentMonthEnd)) {

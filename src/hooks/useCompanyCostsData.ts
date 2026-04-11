@@ -129,7 +129,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, first_name, last_name, gross_salary, is_active, hire_date, inps_rate")
+        .select("id, first_name, last_name, gross_salary, is_active, created_at, inps_rate")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .order("last_name");

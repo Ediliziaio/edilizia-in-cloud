@@ -61,7 +61,7 @@ export default function CashFlowForecast() {
           .not("status", "in", '("paid","cancelled","draft")'),
         supabase
           .from("purchase_orders")
-          .select("total_amount")
+          .select("total")
           .eq("company_id", companyId!)
           .not("status", "in", '("ricevuto","annullato")'),
       ]);
@@ -72,7 +72,7 @@ export default function CashFlowForecast() {
         0
       );
       const pendingExpenses = (openPurchaseOrdersRes.data || []).reduce(
-        (s: number, po: any) => s + (po.total_amount || 0),
+        (s: number, po: any) => s + (po.total || 0),
         0
       );
 

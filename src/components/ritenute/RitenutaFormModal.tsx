@@ -82,7 +82,7 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
               <SelectContent>
                 {contratti.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {formatCurrency(c.importo_contratto)} — {c.stato}
+                    {formatCurrency(c.importo_contrattuale)} — {c.stato}
                   </SelectItem>
                 ))}
               </SelectContent>
