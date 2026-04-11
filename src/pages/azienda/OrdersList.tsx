@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
-import { exportToCSV } from "@/lib/csvExport";
+import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -830,8 +830,8 @@ function OrdersListInner() {
 
   // Export CSV
   // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
-  const exportOrdersCSV = useCallback(async () => {
-    if (!effectiveCompany?.id) return;
+  const prepareExportData = useCallback(async () => {
+    if (!effectiveCompany?.id) return null;
     toast({ title: "Esportazione in corso..." });
 
     // Subquery join filters (stesso pattern di B1)
@@ -839,7 +839,7 @@ function OrdersListInner() {
     if (salespersonFilter !== "all") {
       const { data: r } = await supabase.from("order_salespeople").select("order_id").eq("salesperson_id", salespersonFilter);
       const ids = (r || []).map(x => x.order_id);
-      if (!ids.length) { toast({ title: "CSV esportato — 0 ordini" }); return; }
+      if (!ids.length) { toast({ title: "Nessun ordine da esportare" }); return null; }
       allowedExportIds = ids;
     }
     if (laborFilter !== "all") {
@@ -850,13 +850,13 @@ function OrdersListInner() {
         .select("order_id")
         .eq(isTeam ? "external_team_id" : "employee_id", realId);
       const ids = (r || []).map(x => x.order_id);
-      if (!ids.length) { toast({ title: "CSV esportato — 0 ordini" }); return; }
+      if (!ids.length) { toast({ title: "Nessun ordine da esportare" }); return null; }
       allowedExportIds = allowedExportIds ? allowedExportIds.filter(id => ids.includes(id)) : ids;
     }
     if (supplierFilter !== "all") {
       const { data: r } = await supabase.from("order_items").select("order_id").eq("supplier_id", supplierFilter);
       const ids = [...new Set((r || []).map(x => x.order_id))];
-      if (!ids.length) { toast({ title: "CSV esportato — 0 ordini" }); return; }
+      if (!ids.length) { toast({ title: "Nessun ordine da esportare" }); return null; }
       allowedExportIds = allowedExportIds ? allowedExportIds.filter(id => ids.includes(id)) : ids;
     }
 
@@ -889,7 +889,7 @@ function OrdersListInner() {
     if (expectedDateRange.to) query = query.lte("expected_date", new Date(expectedDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
 
     const { data: allOrders, error } = await query;
-    if (error) { toast({ title: "Errore export", variant: "destructive" }); return; }
+    if (error) { toast({ title: "Errore export", variant: "destructive" }); return null; }
 
     const columns: { key: string; label: string }[] = [
       { key: "order_code", label: "Codice Ordine" },
@@ -922,11 +922,24 @@ function OrdersListInner() {
         payment_status: pending.length > 0 ? pending.join(", ") : "Tutto pagato",
       };
     });
-    exportToCSV(rows, columns, `ordini-${format(new Date(), "yyyy-MM-dd")}.csv`);
-    toast({ title: `CSV esportato — ${allOrders?.length ?? 0} ordini` });
+    return { rows, columns, count: allOrders?.length ?? 0 };
   }, [effectiveCompany?.id, salespersonFilter, laborFilter, supplierFilter, customerFilter,
       paymentFilter, debouncedSearch, statusFilter, hideCompleted, lastStatusId,
       amountMin, amountMax, contractDateRange, warehouseDateRange, expectedDateRange, toast]);
+
+  const exportOrdersCSV = useCallback(async () => {
+    const result = await prepareExportData();
+    if (!result) return;
+    exportToCSV(result.rows, result.columns, `ordini-${format(new Date(), "yyyy-MM-dd")}.csv`);
+    toast({ title: `CSV esportato — ${result.count} ordini` });
+  }, [prepareExportData, toast]);
+
+  const exportOrdersXLSX = useCallback(async () => {
+    const result = await prepareExportData();
+    if (!result) return;
+    await exportToXLSX(result.rows, result.columns, `ordini-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast({ title: `Excel esportato — ${result.count} ordini` });
+  }, [prepareExportData, toast]);
 
   // Import handler
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
@@ -1098,6 +1111,9 @@ function OrdersListInner() {
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={exportOrdersCSV}>
                 <Download className="h-4 w-4 mr-2" /> Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportOrdersXLSX}>
+                <Download className="h-4 w-4 mr-2" /> Esporta Excel (XLSX)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setImportOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" /> Importa da file

@@ -18,6 +18,7 @@ const CustomerDocuments = lazy(() => import("@/pages/cliente/CustomerDocuments")
 const CustomerInstallments = lazy(() => import("@/pages/cliente/CustomerInstallments"));
 const CustomerAppointments = lazy(() => import("@/pages/cliente/CustomerAppointments"));
 const CustomerMessages = lazy(() => import("@/pages/cliente/CustomerMessages"));
+const CustomerFirma = lazy(() => import("@/pages/cliente/CustomerFirma"));
 
 // Employee pages
 const EmployeeDashboard = lazy(() => import("@/pages/dipendente/EmployeeDashboard"));
@@ -55,6 +56,7 @@ export function customerRoutes() {
       <Route index element={<CustomerOrders />} />
       <Route path="ordini/:id" element={<CustomerOrderDetail />} />
       <Route path="documenti" element={<CustomerDocuments />} />
+      <Route path="firma" element={<CustomerFirma />} />
       <Route path="rate" element={<CustomerInstallments />} />
       <Route path="appuntamenti" element={<CustomerAppointments />} />
       <Route path="messaggi" element={<CustomerMessages />} />

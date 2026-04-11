@@ -11,7 +11,7 @@ import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialS
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { VariantiCard } from "@/components/orders/VariantiCard";
-import { ArrowLeft, MessageSquare, FileText, AlertCircle } from "lucide-react";
+import { ArrowLeft, MessageSquare, FileText, AlertCircle, CalendarDays, Truck, Wrench, CheckCircle2, Clock } from "lucide-react";
 import { formatDate } from "@/lib/formatters";
 import { type Installment, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 
@@ -172,6 +172,58 @@ export default function CustomerOrderDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Key Dates */}
+      {(order.warehouse_arrival_date || order.work_start_date || order.work_end_date || order.expected_date) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              Date Chiave
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {order.warehouse_arrival_date && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                  <Truck className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-blue-600 font-medium">Arrivo materiali</p>
+                    <p className="text-sm font-semibold">{formatDate(order.warehouse_arrival_date)}</p>
+                  </div>
+                </div>
+              )}
+              {order.work_start_date && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                  <Wrench className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-amber-600 font-medium">Inizio lavori</p>
+                    <p className="text-sm font-semibold">{formatDate(order.work_start_date)}</p>
+                  </div>
+                </div>
+              )}
+              {order.work_end_date && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-emerald-600 font-medium">Fine lavori</p>
+                    <p className="text-sm font-semibold">{formatDate(order.work_end_date)}</p>
+                  </div>
+                </div>
+              )}
+              {order.expected_date && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-purple-50 border border-purple-200">
+                  <Clock className="h-4 w-4 text-purple-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-purple-600 font-medium">Consegna prevista</p>
+                    <p className="text-sm font-semibold">{formatDate(order.expected_date)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Order Description */}
       <Card>

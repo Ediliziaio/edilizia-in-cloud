@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, RefreshCw } from "lucide-react";
+import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, RefreshCw, Settings2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
+import { useDashboardWidgets } from "@/hooks/useDashboardWidgets";
+import { DashboardWidgetCustomizer } from "@/components/dashboard/DashboardWidgetCustomizer";
 import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboardFilters";
 import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
 import {
@@ -131,6 +133,7 @@ export default function CompanyDashboard() {
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { widgets, isCustomizing, setIsCustomizing, toggleWidget, moveWidget, resetToDefault, isWidgetVisible } = useDashboardWidgets();
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -259,6 +262,15 @@ export default function CompanyDashboard() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setIsCustomizing(true)}
+              className="gap-1.5"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Personalizza</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleRefresh}
               disabled={isRefreshing}
               className="gap-1.5"
@@ -295,7 +307,7 @@ export default function CompanyDashboard() {
       <CompanyDashboardFilters filters={filters} onUpdate={updateFilters} />
 
       {/* YTD Revenue Sparkline */}
-      {revenueYTD.length > 0 && (
+      {isWidgetVisible("ytd-revenue") && revenueYTD.length > 0 && (
         <Card className="border-primary/20">
           <CardContent className="pt-4 pb-2">
             <div className="flex items-center justify-between mb-1">
@@ -323,7 +335,7 @@ export default function CompanyDashboard() {
       )}
 
       {/* CEO KPI Strip */}
-      <DashboardCeoStrip
+      {isWidgetVisible("ceo-strip") && <DashboardCeoStrip
 
         revenueThisMonth={ceoStrip.revenueThisMonth}
         revenuePrevMonth={ceoStrip.revenuePrevMonth}
@@ -332,7 +344,7 @@ export default function CompanyDashboard() {
         netCashFlow={cashFlow.netCashFlow}
         ordersThisMonth={ceoStrip.ordersThisMonth}
         ordersPrevMonth={ceoStrip.ordersPrevMonth}
-      />
+      />}
 
       {/* Link to Cruscotto */}
       <div className="flex justify-end">
@@ -372,7 +384,7 @@ export default function CompanyDashboard() {
       )}
 
       {/* Stats Grid with delta % */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      {isWidgetVisible("stat-cards") && <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
           <Link key={stat.title} to={stat.link}>
             <Card className="relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
@@ -396,7 +408,7 @@ export default function CompanyDashboard() {
             </Card>
           </Link>
         ))}
-      </div>
+      </div>}
 
       {/* Main Content Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -516,7 +528,7 @@ export default function CompanyDashboard() {
       </div>
 
       {/* Aging Receivables */}
-      {(agingReceivables.overdue > 0 || agingReceivables.thisWeek > 0 || agingReceivables.thisMonth > 0 || agingReceivables.future > 0) && (
+      {isWidgetVisible("aging-receivables") && (agingReceivables.overdue > 0 || agingReceivables.thisWeek > 0 || agingReceivables.thisMonth > 0 || agingReceivables.future > 0) && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Aging Crediti</CardTitle>
@@ -568,6 +580,16 @@ export default function CompanyDashboard() {
           upcomingWorks={weeklyDeadlines.upcomingWorks}
         />
       </div>
+
+      {/* Widget Customizer Panel */}
+      <DashboardWidgetCustomizer
+        open={isCustomizing}
+        onOpenChange={setIsCustomizing}
+        widgets={widgets}
+        onToggle={toggleWidget}
+        onMove={moveWidget}
+        onReset={resetToDefault}
+      />
     </div>
   );
 }

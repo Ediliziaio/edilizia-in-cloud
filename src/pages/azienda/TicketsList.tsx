@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +20,9 @@ import {
   AlertCircle,
   RefreshCw,
   Plus,
+  Download,
 } from "lucide-react";
+import { ExportButton } from "@/components/shared/ExportButton";
 import {
   formatRelativeTime,
   getTicketStatusColor,
@@ -152,13 +154,41 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             Gestisci i ticket di supporto dei clienti
           </p>
         </div>
-        <Button asChild>
-          <Link to="/azienda/assistenza/nuovo">
-            <Plus className="mr-2 h-4 w-4" />
-            <span className="sm:hidden">Nuovo</span>
-            <span className="hidden sm:inline">Crea Ticket</span>
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportButton
+            getData={() => {
+              if (!tickets?.length) return [];
+              return tickets.map((t: any) => ({
+                id: t.id?.slice(0, 8) || "",
+                subject: t.subject || "",
+                status: getTicketStatusLabel(t.status) || t.status || "",
+                priority: getTicketPriorityLabel(t.priority) || t.priority || "",
+                customer: t.customer ? `${t.customer.first_name || ""} ${t.customer.last_name || ""}`.trim() : "",
+                order: t.order?.description || "",
+                created: t.created_at ? new Date(t.created_at).toLocaleDateString("it-IT") : "",
+                last_message: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString("it-IT") : "",
+              }));
+            }}
+            columns={[
+              { key: "id", label: "ID" },
+              { key: "subject", label: "Oggetto" },
+              { key: "status", label: "Stato" },
+              { key: "priority", label: "Priorità" },
+              { key: "customer", label: "Cliente" },
+              { key: "order", label: "Ordine" },
+              { key: "created", label: "Creato il" },
+              { key: "last_message", label: "Ultimo messaggio" },
+            ]}
+            filename="ticket-assistenza"
+          />
+          <Button asChild>
+            <Link to="/azienda/assistenza/nuovo">
+              <Plus className="mr-2 h-4 w-4" />
+              <span className="sm:hidden">Nuovo</span>
+              <span className="hidden sm:inline">Crea Ticket</span>
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Tab switcher tipo */}

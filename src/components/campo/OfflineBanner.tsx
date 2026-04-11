@@ -2,17 +2,31 @@
  * Banner UI che mostra lo stato offline e la coda di sincronizzazione.
  * Si mostra automaticamente quando il dispositivo è offline o quando
  * ci sono elementi in attesa di sync.
+ * Mostra anche info sulle bozze salvate localmente.
  */
 import { useEffect, useState } from "react";
-import { WifiOff, CloudUpload, Check } from "lucide-react";
+import { WifiOff, CloudUpload, Check, Save } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
+import { listDraftKeys } from "@/hooks/campo/useFormDraft";
 
 export default function OfflineBanner(): JSX.Element | null {
   const online = useNetworkStatus();
   const { queueCount, isSyncing } = useOfflineSync();
   const [showSyncedToast, setShowSyncedToast] = useState(false);
   const [prevQueue, setPrevQueue] = useState(queueCount);
+  const [draftCount, setDraftCount] = useState(0);
+
+  // Conta bozze salvate
+  useEffect(() => {
+    const count = listDraftKeys().length;
+    setDraftCount(count);
+    // Aggiorna ogni 5s
+    const interval = setInterval(() => {
+      setDraftCount(listDraftKeys().length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Mostra brevemente "Sincronizzato" quando la coda passa da >0 a 0
   useEffect(() => {
@@ -34,13 +48,21 @@ export default function OfflineBanner(): JSX.Element | null {
       >
         <WifiOff className="w-4 h-4 shrink-0" />
         <span className="flex-1 leading-tight">
-          Sei offline — i dati saranno sincronizzati automaticamente
+          Sei offline — i dati vengono salvati localmente e sincronizzati al ritorno online
         </span>
-        {queueCount > 0 && (
-          <span className="bg-amber-900/90 text-amber-100 text-[11px] font-bold px-2 py-0.5 rounded-full">
-            {queueCount} in coda
-          </span>
-        )}
+        <span className="flex items-center gap-1.5 shrink-0">
+          {draftCount > 0 && (
+            <span className="bg-amber-900/90 text-amber-100 text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Save className="w-3 h-3" />
+              {draftCount} bozze
+            </span>
+          )}
+          {queueCount > 0 && (
+            <span className="bg-amber-900/90 text-amber-100 text-[11px] font-bold px-2 py-0.5 rounded-full">
+              {queueCount} in coda
+            </span>
+          )}
+        </span>
       </div>
     );
   }

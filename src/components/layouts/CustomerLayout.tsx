@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
-import { Eye, LogOut } from "lucide-react";
+import { Eye, LogOut, PenTool } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { useCustomCSS } from "@/hooks/useCustomCSS";
@@ -39,6 +39,7 @@ import {
 const navItems = [
   { title: "I Miei Ordini", url: "/cliente", icon: ClipboardList, end: true },
   { title: "Documenti", url: "/cliente/documenti", icon: FileText },
+  { title: "Firma Documenti", url: "/cliente/firma", icon: PenTool },
   { title: "Stato Pagamenti", url: "/cliente/rate", icon: CreditCard },
   { title: "Appuntamenti", url: "/cliente/appuntamenti", icon: CalendarDays },
   { title: "Messaggi", url: "/cliente/messaggi", icon: MessageCircle, badge: true },
