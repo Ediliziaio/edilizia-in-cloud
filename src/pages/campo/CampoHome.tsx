@@ -395,11 +395,33 @@ function CantieriAssegnati() {
 // ─────────────────────────────────────────────────────────────────────────────
 function CantieriSub() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const { data: cantieri = [], isLoading } = useQuery({
-    queryKey: ["campo-cantieri-sub", user?.id],
+    queryKey: ["campo-cantieri-sub", user?.id, profile?.company_id],
     queryFn: async () => {
+      // Prima prova order_campo_assignments (assegnazioni dirette)
+      const { data: ocaData } = await supabase
+        .from("order_campo_assignments")
+        .select(`
+          id, order_id, role_type, note,
+          order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento)
+        `)
+        .eq("user_id", user!.id);
+
+      if (ocaData && ocaData.length > 0) {
+        // Deduplica per order_id e filtra completati
+        const seen = new Set<string>();
+        return ocaData.filter((a: any) => {
+          if (!a.order?.id || seen.has(a.order.id)) return false;
+          seen.add(a.order.id);
+          const status = a.order.status?.toLowerCase();
+          if (status === "annullato" || status === "chiuso") return false;
+          return true;
+        });
+      }
+
+      // Fallback: vecchia logica subappaltatori/contratti_subappalto
       const { data: subData } = await supabase
         .from("subappaltatori")
         .select("id")
@@ -408,7 +430,7 @@ function CantieriSub() {
       if (!subData?.id) return [];
       const { data } = await supabase
         .from("contratti_subappalto")
-        .select(`*, order:orders(id, order_code, description, address_line1, city)`)
+        .select(`*, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento)`)
         .eq("subappaltatore_id", subData.id)
         .eq("stato", "attivo");
       return data ?? [];

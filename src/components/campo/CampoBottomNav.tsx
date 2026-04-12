@@ -12,6 +12,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsCampo } from "@/hooks/useIsCampo";
 
 interface NavItem {
   label: string;
@@ -35,6 +36,12 @@ interface Props {
 
 export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
   const location = useLocation();
+  const { isSubappaltatore } = useIsCampo();
+
+  // Subappaltatori non timbrano — filtra il bottone Timbra
+  const visibleItems = isSubappaltatore
+    ? NAV_ITEMS.filter((item) => item.href !== "__timbra__")
+    : NAV_ITEMS;
 
   const isActive = (item: NavItem) => {
     if (item.href === "__timbra__") return false;
@@ -49,7 +56,7 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
       aria-label="Navigazione campo"
     >
       <div className="flex items-stretch h-16">
-        {NAV_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const active = isActive(item);
           const Icon = item.icon;
 
