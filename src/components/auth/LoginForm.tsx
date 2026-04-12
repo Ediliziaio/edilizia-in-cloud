@@ -70,7 +70,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     const refCode = searchParams.get("ref");
     if (refCode) {
       sessionStorage.setItem("referral_code", refCode);
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://rsbrguhkodgnqfomrevo.supabase.co";
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       fetch(`${supabaseUrl}/functions/v1/track-referral-click`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
