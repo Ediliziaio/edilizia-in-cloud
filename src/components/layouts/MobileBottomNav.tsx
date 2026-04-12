@@ -146,14 +146,14 @@ export function MobileBottomNav() {
               <div
                 className={cn(
                   "flex items-center justify-center rounded-2xl transition-all duration-200",
-                  active ? "bg-primary/10 w-12 h-8" : "w-10 h-8"
+                  active ? "bg-blue-50 w-12 h-8" : "w-10 h-8"
                 )}
               >
                 <Icon
                   className={cn(
                     "h-5 w-5 transition-all duration-200",
                     active
-                      ? "text-primary stroke-[2.5]"
+                      ? "text-blue-600 stroke-[2.5]"
                       : "text-muted-foreground stroke-[1.5]"
                   )}
                 />
@@ -162,7 +162,7 @@ export function MobileBottomNav() {
                 className={cn(
                   "text-[10px] leading-none transition-all duration-200",
                   active
-                    ? "text-primary font-semibold"
+                    ? "text-blue-600 font-semibold"
                     : "text-muted-foreground font-medium"
                 )}
               >

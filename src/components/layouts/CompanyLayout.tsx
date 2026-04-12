@@ -88,15 +88,12 @@ import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
-import { useCompanyOnboarding } from "@/hooks/useCompanyOnboarding";
 
 import { CommandPalette } from "@/components/CommandPalette";
-import { SettingsOnboardingBanner } from "@/components/settings/SettingsOnboardingBanner";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
-import { useOnboardingAutoVerify } from "@/hooks/useOnboardingAutoVerify";
-import { NpsModal, useNpsTrigger } from "@/components/onboarding/NpsModal";
+import { NpsModal } from "@/components/onboarding/NpsModal";
 
 const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
   const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
@@ -382,7 +379,6 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
 
 function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem[]) => NavItem[] }) {
   const { data: taskCounts } = useMyTaskCount();
-  const { data: onboarding } = useCompanyOnboarding();
   const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
 
   return (
@@ -391,10 +387,8 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
         <SidebarMenu>
           {items.map((item) => {
             const isTaskItem = item.url === "/azienda/attivita";
-            const isOnboardingItem = item.url === "/azienda/onboarding";
             const badgeCount = isTaskItem ? (taskCounts?.total ?? 0) : 0;
             const badgeVariant = isTaskItem && taskCounts?.overdue ? "destructive" : isTaskItem && taskCounts?.dueToday ? "warning" : "secondary";
-            const onboardingPct = onboarding?.pct ?? 100;
 
             return (
               <SidebarMenuItem key={item.url}>
@@ -416,15 +410,6 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                         )}
                       >
                         {badgeCount}
-                      </Badge>
-                    )}
-                    {isOnboardingItem && onboarding && onboardingPct < 100 && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-auto h-5 min-w-[20px] px-1.5 text-[10px] font-bold bg-orange-100 text-orange-800 border-orange-200"
-                        aria-label={`Setup completato al ${onboardingPct}%`}
-                      >
-                        {onboardingPct}%
                       </Badge>
                     )}
                   </NavLink>
@@ -612,8 +597,6 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
         </div>
       </div>
 
-      {/* IMP5: Banner onboarding progressivo setup azienda */}
-      <SettingsOnboardingBanner />
 
       {/* Gruppi filtrati */}
       {filteredGroups.map(group => (
@@ -993,20 +976,7 @@ export function CompanyLayout() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Onboarding auto-verify: mark steps completed based on real DB conditions
-  useOnboardingAutoVerify();
-
-  // NPS trigger: show survey when onboarding reaches 100%
-  const { data: onboardingData } = useCompanyOnboarding();
   const [npsOpen, setNpsOpen] = useState(false);
-  const shouldShowNps = useNpsTrigger(onboardingData?.pct ?? 0);
-  useEffect(() => {
-    if (shouldShowNps) {
-      // Small delay to avoid showing immediately on page load
-      const t = setTimeout(() => setNpsOpen(true), 3000);
-      return () => clearTimeout(t);
-    }
-  }, [shouldShowNps]);
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 

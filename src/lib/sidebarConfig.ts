@@ -46,7 +46,6 @@ import {
   LayoutGrid,
   ShieldAlert,
   NotebookPen,
-  Rocket,
   Image,
   Wrench,
   Settings,
@@ -87,7 +86,6 @@ export const macroAreas: MacroArea[] = [
       { title: "Cruscotto", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
       { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare }, // no gate — accessible to all authenticated users
-      { title: "Setup Guidato", url: "/azienda/onboarding", icon: Rocket },
     ],
   },
 
