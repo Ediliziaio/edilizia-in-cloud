@@ -369,7 +369,7 @@ function MarketingOpportunitiesContent() {
   }
 
   return (
-    <div className="flex flex-col h-full gap-3">
+    <div className="flex flex-col h-full gap-3 pb-20 md:pb-0">
       <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div className="flex items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
@@ -620,7 +620,7 @@ function MarketingOpportunitiesContent() {
           {viewMode === "list" ? (
             <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} />
           ) : (
-            <div className="flex-1 min-h-0 overflow-hidden"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} /></div>
+            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} /></div>
           )}
         </>
       )}

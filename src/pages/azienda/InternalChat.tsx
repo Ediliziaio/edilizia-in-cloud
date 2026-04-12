@@ -962,7 +962,7 @@ export default function InternalChat() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="h-[calc(100vh-120px)] flex overflow-hidden rounded-xl border shadow-sm bg-[#efeae2] dark:bg-gray-950">
+    <div className="h-[calc(100vh-200px)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-xl border shadow-sm bg-[#efeae2] dark:bg-gray-950">
       {/* ═══ LEFT PANEL: Chat List ═══ */}
       <div className={cn(
         "w-full md:w-[380px] lg:w-[420px] md:min-w-[320px] flex flex-col bg-white dark:bg-[#111b21] border-r border-[#e9edef] dark:border-gray-800",

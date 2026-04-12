@@ -474,7 +474,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const rightPanelOpen = rightTab !== null;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
+    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
       <div className="px-3 pt-2">
         <ApiHealthBanner filter={["whatsapp", "email"]} />
       </div>

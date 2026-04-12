@@ -260,7 +260,7 @@ export default function TicketDetail() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)]">
+    <div className="flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-120px)]">
       {/* Header migliorato con badge */}
       <div className="flex items-start gap-4 pb-4">
         <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/assistenza")}>

@@ -350,10 +350,10 @@ export default function Preventivi() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 md:pb-0">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="border-b mb-2">
-        <nav className="-mb-px flex gap-6" role="tablist" aria-label="Sezioni preventivi">
+        <nav className="-mb-px flex gap-4 md:gap-6 overflow-x-auto" role="tablist" aria-label="Sezioni preventivi">
           <button
             type="button"
             role="tab"

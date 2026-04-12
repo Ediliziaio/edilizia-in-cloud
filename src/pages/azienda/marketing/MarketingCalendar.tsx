@@ -97,7 +97,10 @@ export default function MarketingCalendar() {
   const busySlots = [...googleBusySlots, ...appleBusySlots];
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
-  const [calendarView, setCalendarView] = useState<CalendarView>("week");
+  // Su mobile default a "day", su desktop a "week"
+  const [calendarView, setCalendarView] = useState<CalendarView>(
+    typeof window !== "undefined" && window.innerWidth < 768 ? "day" : "week"
+  );
   const [currentDate, setCurrentDate] = useState(new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -573,20 +576,26 @@ export default function MarketingCalendar() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-20 md:pb-0">
       <ApiHealthBanner filter={["googlemaps"]} />
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-6">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Appuntamenti</h1>
-          <nav className="flex items-center gap-1 border-b">
+          <Button size="sm" className="md:hidden" onClick={() => openNewDialog()}>
+            <Plus className="h-4 w-4 mr-1" />
+            Nuovo
+          </Button>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <nav className="flex items-center gap-1 border-b overflow-x-auto">
             {tabs.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setActiveTab(t.key)}
                 className={cn(
-                  "px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+                  "px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                   activeTab === t.key
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -598,37 +607,39 @@ export default function MarketingCalendar() {
             {!isAdminContext && (
               <button
                 onClick={() => navigate("/azienda/impostazioni/calendari")}
-                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border-b-2 border-transparent transition-colors flex items-center gap-1"
+                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border-b-2 border-transparent transition-colors flex items-center gap-1 whitespace-nowrap"
               >
                 <Settings className="h-3.5 w-3.5" />
-                Impostazioni
+                <span className="hidden md:inline">Impostazioni</span>
               </button>
             )}
           </nav>
+          <Button size="sm" className="hidden md:inline-flex" onClick={() => openNewDialog()}>
+            <Plus className="h-4 w-4 mr-1" />
+            Nuovo
+          </Button>
         </div>
-        <Button size="sm" onClick={() => openNewDialog()}>
-          <Plus className="h-4 w-4 mr-1" />
-          Nuovo
-        </Button>
       </div>
 
       {/* Content */}
       {activeTab === "calendar" && (
-        <div className="flex gap-0 h-[calc(100vh-200px)]">
-          <div className="flex-1 flex flex-col gap-3">
+        <div className="flex gap-0 h-[calc(100vh-220px)] md:h-[calc(100vh-200px)]">
+          <div className="flex-1 flex flex-col gap-3 min-w-0">
             {/* Navigation bar */}
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={goToday}>Oggi</Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goNext}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+            <div className="flex items-center gap-1.5 md:gap-3 flex-wrap">
+              <Button variant="outline" size="sm" className="h-8 px-2 md:px-3" onClick={goToday}>Oggi</Button>
+              <div className="flex items-center">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goNext}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
 
               <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                 <PopoverTrigger asChild>
-                  <button className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">
+                  <button className="text-xs md:text-sm font-medium hover:text-primary transition-colors cursor-pointer truncate max-w-[120px] md:max-w-none">
                     {dateLabel}
                   </button>
                 </PopoverTrigger>
@@ -644,7 +655,7 @@ export default function MarketingCalendar() {
               </Popover>
 
               <Select value={calendarView} onValueChange={(v) => setCalendarView(v as CalendarView)}>
-                <SelectTrigger className="w-[140px] h-8 text-sm">
+                <SelectTrigger className="w-[100px] md:w-[140px] h-8 text-xs md:text-sm ml-auto">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -695,14 +706,16 @@ export default function MarketingCalendar() {
             )}
           </div>
 
-          <MarketingCalendarFilters
-            calendars={calendars}
-            users={users}
-            selectedCalendarIds={selectedCalendarIds}
-            selectedUserIds={selectedUserIds}
-            onToggleCalendar={handleToggleCalendar}
-            onToggleUser={handleToggleUser}
-          />
+          <div className="hidden md:block">
+            <MarketingCalendarFilters
+              calendars={calendars}
+              users={users}
+              selectedCalendarIds={selectedCalendarIds}
+              selectedUserIds={selectedUserIds}
+              onToggleCalendar={handleToggleCalendar}
+              onToggleUser={handleToggleUser}
+            />
+          </div>
         </div>
       )}
 
