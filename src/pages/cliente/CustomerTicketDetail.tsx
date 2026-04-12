@@ -43,17 +43,17 @@ export default function CustomerTicketDetail() {
     staleTime: 30 * 1000,
   });
 
-  // Mark unread messages as read when opening this ticket
+  // Mark ticket as read via ticket_read_status upsert
   useEffect(() => {
     if (!id || !user?.id) return;
     (async () => {
       try {
         await supabase
-          .from("ticket_messages")
-          .update({ read_at: new Date().toISOString() })
-          .eq("ticket_id", id)
-          .neq("sender_id", user.id)
-          .is("read_at", null);
+          .from("ticket_read_status")
+          .upsert(
+            { ticket_id: id, user_id: user.id, last_read_at: new Date().toISOString() },
+            { onConflict: "ticket_id,user_id" }
+          );
         // Refresh unread badge count
         queryClient.invalidateQueries({ queryKey: queryKeys.customerUnread.messages(user.id) });
       } catch {
@@ -168,9 +168,9 @@ export default function CustomerTicketDetail() {
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">Ordine collegato</p>
               <Link to={`/cliente/ordini/${ticket.order.id}`} className="font-medium text-primary hover:underline">
-                {ticket.order.description.length > 60
-                  ? ticket.order.description.substring(0, 60) + "..."
-                  : ticket.order.description}
+                {(ticket.order.description?.length ?? 0) > 60
+                  ? ticket.order.description!.substring(0, 60) + "..."
+                  : ticket.order.description ?? "Ordine"}
               </Link>
             </div>
           </CardContent>

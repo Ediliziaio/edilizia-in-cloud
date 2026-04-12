@@ -6,6 +6,7 @@ import { queryKeys } from "@/lib/queryKeys";
 
 /**
  * Conta i messaggi non letti nei ticket del cliente.
+ * Usa ticket_read_status.last_read_at per determinare quali messaggi sono nuovi.
  * Ascolta in realtime per aggiornare il badge.
  */
 export function useCustomerUnreadCount() {
@@ -15,15 +16,50 @@ export function useCustomerUnreadCount() {
   const { data: unreadCount = 0 } = useQuery({
     queryKey: queryKeys.customerUnread.messages(user?.id),
     queryFn: async () => {
-      // Count ticket messages from staff that haven't been read
-      const { count, error } = await supabase
-        .from("ticket_messages")
-        .select("id, ticket:tickets!inner(customer_id)", { count: "exact", head: true })
-        .eq("tickets.customer_id", user!.id)
-        .neq("sender_id", user!.id)
-        .is("read_at", null);
-      if (error) throw error;
-      return count || 0;
+      // 1. Get all tickets belonging to this customer
+      const { data: tickets, error: ticketsError } = await supabase
+        .from("tickets")
+        .select("id")
+        .eq("customer_id", user!.id);
+      if (ticketsError) throw ticketsError;
+      if (!tickets || tickets.length === 0) return 0;
+
+      const ticketIds = tickets.map((t) => t.id);
+
+      // 2. Get read status for each ticket
+      const { data: readStatuses, error: rsError } = await supabase
+        .from("ticket_read_status")
+        .select("ticket_id, last_read_at")
+        .eq("user_id", user!.id)
+        .in("ticket_id", ticketIds);
+      if (rsError) throw rsError;
+
+      const readMap: Record<string, string> = {};
+      for (const rs of readStatuses || []) {
+        readMap[rs.ticket_id] = rs.last_read_at;
+      }
+
+      // 3. Count messages from others that are newer than last_read_at
+      let totalUnread = 0;
+      for (const ticketId of ticketIds) {
+        const lastRead = readMap[ticketId];
+        let query = supabase
+          .from("ticket_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("ticket_id", ticketId)
+          .neq("sender_id", user!.id);
+
+        if (lastRead) {
+          query = query.gt("created_at", lastRead);
+        }
+        // If no read status exists, all messages from others are unread
+
+        const { count, error } = await query;
+        if (error) throw error;
+        totalUnread += count || 0;
+      }
+
+      return totalUnread;
     },
     enabled: !!user?.id,
     staleTime: 30 * 1000,

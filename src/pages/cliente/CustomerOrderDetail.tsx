@@ -104,7 +104,7 @@ export default function CustomerOrderDetail() {
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !!user?.id,
     staleTime: 2 * 60 * 1000,
   });
 
