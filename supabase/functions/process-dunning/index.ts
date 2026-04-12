@@ -195,11 +195,40 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
   const corsH = getCorsHeaders(req);
+
+  // Auth: accept either internal cron secret (scheduled) OR JWT super_admin (manual trigger)
   const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
   const requestCronSecret = req.headers.get("x-cron-secret");
-  if (!cronSecret || requestCronSecret !== cronSecret) {
-    console.error("process-dunning: accesso non autorizzato");
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
+  const isCronAuth = !!cronSecret && requestCronSecret === cronSecret;
+
+  if (!isCronAuth) {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.error("process-dunning: accesso non autorizzato");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
+    }
+    const token = authHeader.split(" ")[1];
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      console.error("process-dunning: token JWT non valido");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
+    }
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "super_admin")
+      .maybeSingle();
+    if (!roleData) {
+      console.error(`process-dunning: utente ${user.id} non ha ruolo super_admin`);
+      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsH });
+    }
   }
 
   const now = new Date();
