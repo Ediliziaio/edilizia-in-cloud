@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, RefreshCw, Settings2 } from "lucide-react";
+import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, RefreshCw, Settings2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -127,6 +127,21 @@ export default function CompanyDashboard() {
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("dismissed-dashboard-alerts");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const dismissAlert = (alertKey: string) => {
+    setDismissedAlerts(prev => {
+      const next = new Set(prev);
+      next.add(alertKey);
+      localStorage.setItem("dismissed-dashboard-alerts", JSON.stringify([...next]));
+      return next;
+    });
+  };
   const { widgets, isCustomizing, setIsCustomizing, toggleWidget, moveWidget, resetToDefault, isWidgetVisible } = useDashboardWidgets();
 
   const handleRefresh = async () => {
@@ -345,18 +360,21 @@ export default function CompanyDashboard() {
       </div>
 
       {/* Financial Alerts */}
-      {cashFlow.netCashFlow < 0 && (
+      {cashFlow.netCashFlow < 0 && !dismissedAlerts.has("cashflow-negative") && (
         <div className="flex items-center gap-3 p-3 rounded-lg border bg-destructive/10 border-destructive/30 text-destructive">
           <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium">
+          <span className="text-sm font-medium flex-1">
             ⚠️ Cash flow negativo previsto: {formatCurrency(cashFlow.netCashFlow)}.{" "}
             <Link to="/azienda/previsionale" className="underline">Vai al previsionale →</Link>
           </span>
+          <button onClick={() => dismissAlert("cashflow-negative")} className="shrink-0 p-1 rounded hover:bg-destructive/20 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
       {financialAlerts.length > 0 && (
         <div className="space-y-2">
-          {financialAlerts.map((alert, index) => (
+          {financialAlerts.filter((alert, index) => !dismissedAlerts.has(`fin-${alert.type}-${index}`)).map((alert, index) => (
             <div
               key={`alert-${alert.type}-${index}`}
               className={`flex items-center gap-3 p-3 rounded-lg border ${
@@ -366,7 +384,15 @@ export default function CompanyDashboard() {
               }`}
             >
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-medium">{alert.message}</span>
+              <span className="text-sm font-medium flex-1">{alert.message}</span>
+              <button
+                onClick={() => dismissAlert(`fin-${alert.type}-${index}`)}
+                className={`shrink-0 p-1 rounded transition-colors ${
+                  alert.type === "error" ? "hover:bg-destructive/20" : "hover:bg-amber-200/50"
+                }`}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           ))}
         </div>

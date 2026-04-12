@@ -97,24 +97,24 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     staleTime: 300_000,
   });
 
-  // ── Fetch staff users for appointment dialog ──
+  // ── Fetch staff users for appointment dialog — use staff_permissions (company-level RLS) ──
   const { data: staffUsers = [] } = useQuery({
     queryKey: ["staff-users-for-contact", companyId],
     queryFn: async () => {
       if (!companyId) return [];
+      const { data: perms } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", companyId);
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", companyId)
+        .in("id", validIds)
         .order("last_name");
-      if (!profiles?.length) return [];
-      const userIds = profiles.map((p) => p.id);
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
-      const validIds = roles?.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role)).map((r) => r.user_id) || [];
-      return profiles.filter((p) => validIds.includes(p.id));
+      return (profiles || []).filter((p) => p.first_name || p.last_name);
     },
     enabled: !!companyId,
     staleTime: 600_000,
@@ -160,88 +160,67 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const prevId = currentIdx > 0 ? contactIds[currentIdx - 1] : null;
   const nextId = currentIdx < contactIds.length - 1 ? contactIds[currentIdx + 1] : null;
 
-  // ── Fetch staff for assignment ──
+  // ── Fetch staff for assignment — use staff_permissions (company-level RLS) ──
   const { data: staff = [] } = useQuery({
     queryKey: ["company_staff", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data: profiles, error } = await supabase
+      const { data: perms } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", companyId);
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+
+      const { data: profiles } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", companyId);
-      if (error) throw error;
-
-      const userIds = profiles.map((p) => p.id);
-      if (userIds.length === 0) return [];
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
-
-      const validUserIds = roles
-        ?.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role))
-        .map((r) => r.user_id) || [];
-
-      return profiles.filter((p) => validUserIds.includes(p.id));
+        .in("id", validIds);
+      return (profiles || []).filter((p) => p.first_name || p.last_name);
     },
     enabled: !!companyId,
     staleTime: 600_000,
   });
 
-  // ── Fetch salespeople (salesperson + company_admin) for Titolare ──
+  // ── Fetch salespeople for Titolare — use staff_permissions (company-level RLS) ──
   const { data: salespeople = [] } = useQuery({
     queryKey: ["company_salespeople_contact", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data: profiles, error } = await supabase
+      const { data: perms } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", companyId);
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+
+      const { data: profiles } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", companyId);
-      if (error) throw error;
-
-      const userIds = profiles.map((p) => p.id);
-      if (userIds.length === 0) return [];
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
-
-      const validUserIds = roles
-        ?.filter((r) => r.role === "salesperson" || r.role === "company_admin")
-        .map((r) => r.user_id) || [];
-
-      return profiles.filter((p) => validUserIds.includes(p.id));
+        .in("id", validIds);
+      return (profiles || []).filter((p) => p.first_name || p.last_name);
     },
     enabled: !!companyId,
     staleTime: 600_000,
   });
 
-  // ── Fetch call center users for Call Center dropdown ──
+  // ── Fetch call center users — use staff_permissions (company-level RLS) ──
   const { data: callCenterUsers = [] } = useQuery({
     queryKey: ["company_call_center_contact", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data: profiles, error } = await supabase
+      const { data: perms } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", companyId);
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+
+      const { data: profiles } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", companyId);
-      if (error) throw error;
-
-      const userIds = profiles.map((p) => p.id);
-      if (userIds.length === 0) return [];
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
-
-      const validUserIds = roles
-        ?.filter((r) => r.role === "call_center")
-        .map((r) => r.user_id) || [];
-
-      return profiles.filter((p) => validUserIds.includes(p.id));
+        .in("id", validIds);
+      return (profiles || []).filter((p) => p.first_name || p.last_name);
     },
     enabled: !!companyId,
     staleTime: 600_000,

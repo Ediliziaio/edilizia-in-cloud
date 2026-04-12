@@ -105,29 +105,27 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     }));
   };
 
-  // Fetch team members (admin + staff)
+  // Fetch team members — use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
   const { data: teamMembers = [] } = useQuery({
     queryKey: ["company-team-members", effectiveCompany?.id],
     queryFn: async () => {
+      const { data: perms, error: permsErr } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", effectiveCompany!.id);
+      if (permsErr) throw permsErr;
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+
       const { data: profiles, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", effectiveCompany!.id);
+        .in("id", validIds);
       if (error) throw error;
 
-      const userIds = profiles.map((p) => p.id);
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
-
-      const validUserIds = roles
-        ?.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role))
-        .map((r) => r.user_id) || [];
-
-      return profiles
-        .filter((p) => validUserIds.includes(p.id))
-        .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }));
+      return (profiles || [])
+        .filter((p) => p.first_name || p.last_name)
+        .map((p) => ({ id: p.id, name: `${p.first_name || ""} ${p.last_name || ""}`.trim() }));
     },
     enabled: !!effectiveCompany?.id && open,
     staleTime: 5 * 60 * 1000,

@@ -52,16 +52,26 @@ export function OrdineAssegnazioniCampo({ orderId, companyId }: Props) {
     enabled: !!orderId,
   });
 
-  // Utenti campo disponibili (employee + subcontractor della stessa azienda)
+  // Utenti campo disponibili — use staff_permissions (company-level RLS)
   const { data: utentiCampo = [] } = useQuery({
     queryKey: ["utenti-campo-disponibili", companyId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("user_id, role, profile:profiles(id, first_name, last_name, email)")
-        .eq("company_id", companyId)
-        .in("role", ["employee", "subcontractor"]);
-      return data ?? [];
+      const { data: perms } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", companyId!);
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .in("id", validIds);
+      return (profiles || []).map((p) => ({
+        user_id: p.id,
+        role: "employee",
+        profile: p,
+      }));
     },
     enabled: !!companyId && dialogOpen,
   });

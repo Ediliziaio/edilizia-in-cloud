@@ -136,28 +136,24 @@ export default function MarketingCalendar() {
     gcTime: 15 * 60 * 1000,
   });
 
-  // Fetch assignable users
+  // Fetch assignable users — use staff_permissions (company-level RLS) instead of user_roles
   const { data: users = [] } = useQuery({
     queryKey: ["marketing-calendar-users", companyId],
     queryFn: async () => {
       if (!companyId) return [];
+      const { data: perms } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", companyId);
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", companyId)
+        .in("id", validIds)
         .order("last_name");
-      if (!profiles?.length) return [];
-      const userIds = profiles.map((p) => p.id);
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
-      const validIds =
-        roles
-          ?.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role))
-          .map((r) => r.user_id) || [];
-      const result = profiles.filter((p) => validIds.includes(p.id));
-      return result;
+      return (profiles || []).filter((p) => p.first_name || p.last_name);
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,

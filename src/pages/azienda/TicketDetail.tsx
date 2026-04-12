@@ -120,28 +120,25 @@ export default function TicketDetail() {
     staleTime: 30 * 1000,
   });
 
-  // Staff members for assignment dropdown (only staff roles, not customers)
+  // Staff members for assignment dropdown — use staff_permissions (company-level RLS)
   const { data: staffMembers = [] } = useQuery({
     queryKey: queryKeys.companyStaffMembers.list(effectiveCompany?.id),
     queryFn: async () => {
-      // Get user IDs with staff roles
-      const { data: roleData, error: roleErr } = await supabase
-        .from("user_roles")
+      const { data: perms, error: permsErr } = await supabase
+        .from("staff_permissions")
         .select("user_id")
-        .in("role", ["company_admin", "company_staff"])
-        .limit(500);
-      if (roleErr) throw roleErr;
-      const staffIds = (roleData || []).map((r) => r.user_id);
-      if (staffIds.length === 0) return [];
+        .eq("company_id", effectiveCompany!.id);
+      if (permsErr) throw permsErr;
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
 
       const { data, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", effectiveCompany!.id)
-        .in("id", staffIds)
+        .in("id", validIds)
         .limit(200);
       if (error) throw error;
-      return data;
+      return (data || []).filter((p) => p.first_name || p.last_name);
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 10 * 60 * 1000,

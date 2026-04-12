@@ -22,30 +22,26 @@ export function AssignedToSelect({ value, onChange, disabled }: AssignedToSelect
   const { data: users = [] } = useQuery({
     queryKey: ["company-assignable-users", effectiveCompany?.id],
     queryFn: async () => {
+      // Use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
+      const { data: perms, error: permsErr } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", effectiveCompany!.id);
+      if (permsErr) throw permsErr;
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+
       const { data: profiles, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", effectiveCompany!.id);
-
+        .in("id", validIds);
       if (error) throw error;
 
-      // Get roles
-      const userIds = profiles.map((p) => p.id);
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
-
-      // Only include admin and staff
-      const validUserIds = roles
-        ?.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role))
-        .map((r) => r.user_id) || [];
-
-      return profiles
-        .filter((p) => validUserIds.includes(p.id))
+      return (profiles || [])
+        .filter((p) => p.first_name || p.last_name)
         .map((p) => ({
           id: p.id,
-          name: `${p.first_name} ${p.last_name}`,
+          name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
         }));
     },
     enabled: !!effectiveCompany?.id,

@@ -543,6 +543,7 @@ export default function Preventivi() {
           </div>
         </div>
       ) : (
+        <>
         {/* Mobile card view */}
         <div className="sm:hidden divide-y">
           {filtered.map((q: QuoteRow) => {
@@ -662,6 +663,7 @@ export default function Preventivi() {
             </TableBody>
           </Table>
         </div>
+        </>
       )}
 
       {totalPages > 1 && (

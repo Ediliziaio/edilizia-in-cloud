@@ -113,12 +113,12 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
     queryKey: ["company_users_for_actions", companyId],
     queryFn: async () => {
       if (!companyId) return [] as { user_id: string; role: string; name: string }[];
-      const { data: profiles } = await supabase.from("profiles").select("id, first_name, last_name").eq("company_id", companyId);
-      const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("role", ["company_admin", "company_staff"]);
-      if (!roles || !profiles) return [] as { user_id: string; role: string; name: string }[];
-      const profileMap = new Map(profiles.map(p => [p.id, `${p.first_name} ${p.last_name}`]));
-      const companyProfileIds = new Set(profiles.map(p => p.id));
-      return roles.filter(r => companyProfileIds.has(r.user_id)).map(r => ({ user_id: r.user_id, role: r.role, name: profileMap.get(r.user_id) || r.user_id.slice(0, 8) }));
+      // Use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
+      const { data: perms } = await supabase.from("staff_permissions").select("user_id").eq("company_id", companyId);
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [] as { user_id: string; role: string; name: string }[];
+      const { data: profiles } = await supabase.from("profiles").select("id, first_name, last_name").in("id", validIds);
+      return (profiles || []).map(p => ({ user_id: p.id, role: "company_staff", name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.id.slice(0, 8) }));
     },
     // Sprint 3B — aggiornato con nuove azioni che richiedono selezione utente
     enabled: !!companyId && isAction && [
