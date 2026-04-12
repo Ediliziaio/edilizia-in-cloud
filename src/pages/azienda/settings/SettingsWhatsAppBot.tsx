@@ -123,9 +123,8 @@ export default function SettingsWhatsAppBot() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bot className="h-6 w-6" /> WhatsApp Bot AI
-          </h1>
-          <p className="text-muted-foreground mt-1">
+            <Bot className="h-6 w-6" /> WhatsApp Bot AI</h1>
+            <p className="text-muted-foreground mt-1">
             Configura il bot AI per ricevere rapportini, DDT e foto dai tuoi operai via WhatsApp.
           </p>
         </div>
@@ -146,7 +145,7 @@ export default function SettingsWhatsAppBot() {
     );
   }
 
-  const webhookUrl = `https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/whatsapp-webhook`;
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
   return (
     <div className="space-y-6">
