@@ -1013,7 +1013,7 @@ export function CompanyLayout() {
           <header className="h-14 border-b flex items-center px-3 gap-2 md:gap-4 bg-background">
             {/* Mobile: back arrow on sub-pages (no hamburger — bottom nav "App" replaces sidebar) */}
             {isSubPage && (
-              <Button variant="ghost" size="icon" className="md:hidden h-9 w-9 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label="Torna indietro">
+              <Button variant="ghost" size="icon" className="md:hidden h-10 w-10 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label="Torna indietro">
                 <ArrowLeft className="h-5 w-5" aria-hidden="true" />
               </Button>
             )}

@@ -275,7 +275,7 @@ function EmployeesInner() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Gestione Staff</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Gestione Staff</h1>
         <p className="text-muted-foreground">Operai, squadre esterne e staff interno</p>
       </div>
 

@@ -379,7 +379,7 @@ function CustomersListInner() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Clienti</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Clienti</h1>
           <p className="text-muted-foreground">Gestisci i clienti dell'azienda</p>
         </div>
         <div className="flex items-center gap-3">

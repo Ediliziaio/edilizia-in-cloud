@@ -390,7 +390,7 @@ export default function Preventivi() {
         <>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Preventivi</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Preventivi</h1>
           <p className="text-muted-foreground">Gestisci le offerte commerciali</p>
         </div>
         <div className="flex gap-2">
@@ -543,7 +543,37 @@ export default function Preventivi() {
           </div>
         </div>
       ) : (
-        <div className="border rounded-lg">
+        {/* Mobile card view */}
+        <div className="sm:hidden divide-y">
+          {filtered.map((q: QuoteRow) => {
+            const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
+            return (
+              <div
+                key={q.id}
+                className="p-3 flex items-center gap-3 active:bg-muted/50 cursor-pointer"
+                onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-muted-foreground">{q.quote_number}</span>
+                    <Badge variant={sc.variant} className="text-[10px] px-1.5 py-0">{sc.label}</Badge>
+                  </div>
+                  <p className="text-sm font-medium truncate mt-0.5">{q.client_name || "—"}</p>
+                  {q.title && <p className="text-xs text-muted-foreground truncate">{q.title}</p>}
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-semibold">{formatCurrency(q.total || 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">{format(new Date(q.created_at), "dd MMM yy", { locale: it })}</p>
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-8">Nessun preventivo trovato</p>
+          )}
+        </div>
+        {/* Desktop table */}
+        <div className="hidden sm:block border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

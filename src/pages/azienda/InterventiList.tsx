@@ -115,7 +115,7 @@ export default function InterventiList() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Wrench className="h-6 w-6 text-orange-500" />
             Interventi
           </h1>

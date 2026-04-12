@@ -248,7 +248,7 @@ export default function CompanyDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">Benvenuto nel pannello di controllo</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

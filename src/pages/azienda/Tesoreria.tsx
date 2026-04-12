@@ -83,7 +83,7 @@ export default function Tesoreria() {
         <div className="flex items-center gap-3">
           <Landmark className="h-7 w-7 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Tesoreria</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Tesoreria</h1>
             <p className="text-muted-foreground text-sm">Gestisci i tuoi conti bancari e monitora il cash flow in tempo reale</p>
           </div>
         </div>
@@ -124,7 +124,7 @@ export default function Tesoreria() {
         <div className="flex items-center gap-3">
           <Landmark className="h-7 w-7 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Tesoreria</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Tesoreria</h1>
             <p className="text-muted-foreground text-sm">
               Gestisci i tuoi conti bancari e monitora il cash flow in tempo reale
             </p>

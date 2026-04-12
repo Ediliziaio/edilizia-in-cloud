@@ -149,7 +149,7 @@ function PrimaNotaInner() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <BookOpen className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold">Prima Nota</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Prima Nota</h1>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={exportCSV}>
