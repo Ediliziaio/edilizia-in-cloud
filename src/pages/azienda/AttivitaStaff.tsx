@@ -464,7 +464,8 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
 ];
 
 function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
-  const { user, effectiveCompany } = useAuth();
+  const { user, effectiveCompany, role } = useAuth();
+  const isAdmin = role === "company_admin";
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<TaskFilter>("tutte");
@@ -477,6 +478,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
   const [compact, setCompact] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [filterAssignee, setFilterAssignee] = useState<string>("me");
 
   // ── Form state ──
   const [formTitle, setFormTitle] = useState("");
@@ -485,24 +487,48 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
   const [formDueDate, setFormDueDate] = useState("");
   const [formCategory, setFormCategory] = useState("altro");
   const [formStatus, setFormStatus] = useState("da_fare");
+  const [formAssignedTo, setFormAssignedTo] = useState("");
 
   useEffect(() => {
     if (initialDueDate) { setFormDueDate(initialDueDate); setDialogOpen(true); }
   }, [initialDueDate]);
 
-  // ── Fetch ALL tasks ──
-  const { data: allTasks = [], isLoading } = useQuery({
-    queryKey: ["my-tasks-all", user?.id, companyId],
+  // ── Team members for assignment (admin only) ──
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ["attivita-team-members", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: perms } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", companyId!);
+      const validIds = (perms || []).map((p) => p.user_id);
+      if (!validIds.length) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .in("id", validIds)
+        .order("last_name");
+      return (profiles || []).filter((p) => p.first_name || p.last_name);
+    },
+    enabled: !!companyId && isAdmin,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // ── Fetch tasks — admin vede tutto, staff solo le sue ──
+  const { data: allTasks = [], isLoading } = useQuery({
+    queryKey: ["my-tasks-all", user?.id, companyId, isAdmin],
+    queryFn: async () => {
+      let q = supabase
         .from("tasks")
-        .select(`id, title, notes, status, priority, due_date, category,
+        .select(`id, title, notes, status, priority, due_date, category, assigned_to, created_by,
           order:orders!tasks_order_id_fkey(order_code),
-          stock_item:warehouse_stock!tasks_stock_item_id_fkey(name)`)
+          stock_item:warehouse_stock!tasks_stock_item_id_fkey(name),
+          assignee:profiles!tasks_assigned_to_fkey(first_name, last_name)`)
         .eq("company_id", companyId!)
-        .eq("assigned_to", user!.id)
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(300);
+      if (!isAdmin) q = q.eq("assigned_to", user!.id);
+      const { data, error } = await q;
       if (error) { logger.error("MieAttivita — errore:", error); throw error; }
       return data ?? [];
     },
@@ -516,6 +542,11 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
 
   const filteredTasks = useMemo(() => {
     let filtered = allTasks;
+    // Assignee filter (admin only)
+    if (isAdmin && filterAssignee !== "all") {
+      if (filterAssignee === "me") filtered = filtered.filter((t: any) => t.assigned_to === user?.id);
+      else filtered = filtered.filter((t: any) => t.assigned_to === filterAssignee);
+    }
     switch (filter) {
       case "oggi":
         filtered = filtered.filter((t: any) => t.status !== "completata" && t.due_date && (isToday(new Date(t.due_date)) || isBefore(new Date(t.due_date), today)));
@@ -542,7 +573,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
       );
     }
     return filtered;
-  }, [allTasks, filter, today, weekEnd, searchQuery]);
+  }, [allTasks, filter, today, weekEnd, searchQuery, isAdmin, filterAssignee, user?.id]);
 
   // Stats
   const stats = useMemo(() => {
@@ -581,12 +612,13 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     queryClient.invalidateQueries({ queryKey: ["my-tasks-all"] });
     queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["team-tasks"] });
   };
 
   const createTask = useMutation({
-    mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string }) => {
+    mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string }) => {
       const { error } = await supabase.from("tasks").insert({
-        company_id: companyId!, assigned_to: user!.id, created_by: user!.id,
+        company_id: companyId!, assigned_to: task.assigned_to || user!.id, created_by: user!.id,
         title: task.title, notes: task.notes || null,
         priority: task.priority, due_date: task.due_date || null,
         category: task.category, status: "da_fare",
@@ -599,7 +631,10 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
 
   const updateTask = useMutation({
     mutationFn: async ({ id, ...updates }: any) => {
-      const { error } = await supabase.from("tasks").update(updates).eq("id", id).eq("assigned_to", user!.id);
+      let q = supabase.from("tasks").update(updates).eq("id", id);
+      if (!isAdmin) q = q.eq("assigned_to", user!.id);
+      else q = q.eq("company_id", companyId!);
+      const { error } = await q;
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Attività aggiornata"); invalidate(); },
@@ -608,7 +643,10 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
 
   const deleteTask = useMutation({
     mutationFn: async (taskId: string) => {
-      const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("assigned_to", user!.id);
+      let q = supabase.from("tasks").delete().eq("id", taskId);
+      if (!isAdmin) q = q.eq("assigned_to", user!.id);
+      else q = q.eq("company_id", companyId!);
+      const { error } = await q;
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Attività eliminata"); invalidate(); },
@@ -620,7 +658,10 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
       const updates: any = { status };
       if (status === "completata") updates.completed_at = new Date().toISOString();
-      const { error } = await supabase.from("tasks").update(updates).in("id", ids).eq("assigned_to", user!.id);
+      let q = supabase.from("tasks").update(updates).in("id", ids);
+      if (!isAdmin) q = q.eq("assigned_to", user!.id);
+      else q = q.eq("company_id", companyId!);
+      const { error } = await q;
       if (error) throw error;
     },
     onSuccess: (_, { ids, status }) => {
@@ -634,7 +675,10 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
 
   const bulkDelete = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from("tasks").delete().in("id", ids).eq("assigned_to", user!.id);
+      let q = supabase.from("tasks").delete().in("id", ids);
+      if (!isAdmin) q = q.eq("assigned_to", user!.id);
+      else q = q.eq("company_id", companyId!);
+      const { error } = await q;
       if (error) throw error;
     },
     onSuccess: (_, ids) => {
@@ -650,6 +694,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     setEditingTask(null);
     setFormTitle(""); setFormNotes(""); setFormPriority("normale");
     setFormDueDate(dueDate ?? ""); setFormCategory("altro"); setFormStatus("da_fare");
+    setFormAssignedTo(user?.id ?? "");
     setDialogOpen(true);
   };
 
@@ -659,6 +704,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     setFormPriority(t.priority ?? "normale");
     setFormDueDate(t.due_date ?? ""); setFormCategory(t.category ?? "altro");
     setFormStatus(t.status ?? "da_fare");
+    setFormAssignedTo(t.assigned_to ?? user?.id ?? "");
     setDialogOpen(true);
   };
 
@@ -666,10 +712,11 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     if (!formTitle.trim()) { toast.error("Inserisci un titolo"); return; }
     if (editingTask) {
       const updates: any = { id: editingTask.id, title: formTitle.trim(), notes: formNotes.trim() || null, priority: formPriority, due_date: formDueDate || null, category: formCategory, status: formStatus };
+      if (isAdmin && formAssignedTo) updates.assigned_to = formAssignedTo;
       if (formStatus === "completata" && editingTask.status !== "completata") updates.completed_at = new Date().toISOString();
       updateTask.mutate(updates);
     } else {
-      createTask.mutate({ title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory });
+      createTask.mutate({ title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: isAdmin ? formAssignedTo : undefined });
     }
     setDialogOpen(false);
   };
@@ -723,6 +770,8 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     const PriorityIcon = cfg.icon;
     const isSelected = selectedIds.has(t.id);
 
+    const assigneeName = getAssigneeName(t);
+
     if (compact) {
       // Vista compatta — riga singola
       return (
@@ -747,6 +796,10 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
           <span className={`flex-1 truncate cursor-pointer ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => openEdit(t)}>
             {t.title}
           </span>
+          {/* Assignee avatar */}
+          {assigneeName && (
+            <span className="text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 px-1.5 py-0.5 rounded-full shrink-0 font-medium">{assigneeName.split(" ").map((n: string) => n[0]).join("")}</span>
+          )}
           {/* Priority dot */}
           <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} title={cfg.label} />
           {/* Due date */}
@@ -800,6 +853,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
           {t.notes && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.notes}</p>}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 text-xs text-muted-foreground">
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${stCfg.className}`}>{stCfg.label}</Badge>
+            {assigneeName && <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400 font-medium"><Users className="w-3 h-3" />{assigneeName}</span>}
             {catLabel && <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{catLabel}</span>}
             {t.order?.order_code && <Link to="/azienda/ordini" className="flex items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link>}
             {t.due_date && (
@@ -842,17 +896,24 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     );
   };
 
+  // Helper: get assignee name
+  const getAssigneeName = (t: any) => {
+    if (!isAdmin || t.assigned_to === user?.id) return null;
+    const a = t.assignee as any;
+    return a ? `${a.first_name || ""} ${a.last_name || ""}`.trim() : null;
+  };
+
   return (
     <>
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <ClipboardCheck className="h-4 w-4" />Le mie Attività
+              <ClipboardCheck className="h-4 w-4" />{isAdmin ? "Attività" : "Le mie Attività"}
               {stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
             </CardTitle>
             <Button size="sm" className="h-8 gap-1.5" onClick={() => openCreate()}>
-              <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova attività</span>
+              <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova</span>
             </Button>
           </div>
 
@@ -866,7 +927,25 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
             </div>
           )}
 
-          {/* Filtri */}
+          {/* Assignee filter (admin only) */}
+          {isAdmin && teamMembers.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1">
+              {[
+                { key: "me", label: "Le mie" },
+                { key: "all", label: "Tutte" },
+                ...teamMembers.filter(m => m.id !== user?.id).map(m => ({
+                  key: m.id, label: `${m.first_name?.[0] || ""}. ${m.last_name || ""}`.trim()
+                })),
+              ].map(f => (
+                <button key={f.key} onClick={() => setFilterAssignee(f.key)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Filtri stato */}
           <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1">
             {([
               { key: "tutte", label: "Tutte", count: stats.total },
@@ -1007,7 +1086,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>{editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
-            <DialogDescription>{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività personale."}</DialogDescription>
+            <DialogDescription>{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
@@ -1016,9 +1095,26 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="task-notes">Descrizione</Label>
-              <Textarea id="task-notes" placeholder="Aggiungi dettagli, link, note..." value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={3} className="resize-none" />
+              <Textarea id="task-notes" placeholder="Aggiungi dettagli, link, note..." value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={2} className="resize-none" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            {/* Assegna a (admin) + Priorità */}
+            <div className={`grid gap-3 ${isAdmin ? "grid-cols-2" : "grid-cols-2"}`}>
+              {isAdmin && (
+                <div className="space-y-1.5">
+                  <Label>Assegna a</Label>
+                  <Select value={formAssignedTo} onValueChange={setFormAssignedTo}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={user?.id ?? ""}>
+                        <span className="flex items-center gap-2">Me stesso</span>
+                      </SelectItem>
+                      {teamMembers.filter(m => m.id !== user?.id).map(m => (
+                        <SelectItem key={m.id} value={m.id}>{m.first_name} {m.last_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Priorità</Label>
                 <Select value={formPriority} onValueChange={setFormPriority}>
@@ -1031,15 +1127,27 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Categoria</Label>
-                <Select value={formCategory} onValueChange={setFormCategory}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>{CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
+              {!isAdmin && (
+                <div className="space-y-1.5">
+                  <Label>Categoria</Label>
+                  <Select value={formCategory} onValueChange={setFormCategory}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            {/* Categoria (admin) + Scadenza + Stato */}
+            <div className={`grid gap-3 ${editingTask ? "grid-cols-3" : "grid-cols-2"}`}>
+              {isAdmin && (
+                <div className="space-y-1.5">
+                  <Label>Categoria</Label>
+                  <Select value={formCategory} onValueChange={setFormCategory}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label htmlFor="task-due">Scadenza</Label>
                 <Input id="task-due" type="date" value={formDueDate} onChange={e => setFormDueDate(e.target.value)} className="h-9" />
@@ -1059,7 +1167,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
             <Button onClick={handleSave} disabled={!formTitle.trim() || createTask.isPending || updateTask.isPending}>
               {(createTask.isPending || updateTask.isPending) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {editingTask ? "Salva modifiche" : "Crea attività"}
+              {editingTask ? "Salva" : "Crea"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1233,10 +1341,8 @@ export default function AttivitaStaff() {
       <AttivitaHeader />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {isAdmin ? (
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsList className="max-w-[200px]">
             <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Attività</span></TabsTrigger>
-            <TabsTrigger value="ferie" className="gap-1.5"><Palmtree className="h-4 w-4" /><span className="hidden sm:inline">Ferie</span></TabsTrigger>
-            <TabsTrigger value="cedolini" className="gap-1.5"><Receipt className="h-4 w-4" /><span className="hidden sm:inline">Cedolini</span></TabsTrigger>
           </TabsList>
         ) : (
           <TabsList className="grid w-full grid-cols-4 max-w-xl">
@@ -1247,9 +1353,13 @@ export default function AttivitaStaff() {
           </TabsList>
         )}
         <TabsContent value="attivita" className="mt-6"><TabAttivita /></TabsContent>
-        {!isAdmin && <TabsContent value="timbrature" className="mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>}
-        <TabsContent value="ferie" className="mt-6"><Suspense fallback={<TabFallback />}><FeriePersonali /></Suspense></TabsContent>
-        <TabsContent value="cedolini" className="mt-6"><Suspense fallback={<TabFallback />}><CedoliniPersonali /></Suspense></TabsContent>
+        {!isAdmin && (
+          <>
+            <TabsContent value="timbrature" className="mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>
+            <TabsContent value="ferie" className="mt-6"><Suspense fallback={<TabFallback />}><FeriePersonali /></Suspense></TabsContent>
+            <TabsContent value="cedolini" className="mt-6"><Suspense fallback={<TabFallback />}><CedoliniPersonali /></Suspense></TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   );
