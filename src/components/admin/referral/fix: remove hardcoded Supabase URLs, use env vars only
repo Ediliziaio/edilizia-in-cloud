@@ -120,7 +120,7 @@ export function PayoutApprovalTab() {
       }
 
       // Send notification
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || "guqgszwelffntrgtsycm";
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       fetch(`https://${projectId}.supabase.co/functions/v1/send-partner-notification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
