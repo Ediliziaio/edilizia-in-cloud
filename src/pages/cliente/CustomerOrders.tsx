@@ -54,7 +54,7 @@ interface StatusHistoryEntry {
 }
 
 export default function CustomerOrders() {
-  const { user, company } = useAuth();
+  const { user, company, profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const unreadCount = useCustomerUnreadCount();
 
@@ -198,129 +198,124 @@ export default function CustomerOrders() {
     );
   }
 
+  // Greeting based on time of day
+  const hour = new Date().getHours();
+  const greeting = hour < 13 ? "Buongiorno" : hour < 18 ? "Buon pomeriggio" : "Buonasera";
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-5">
+      {/* Header mobile-first con saluto */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">I Miei Ordini</h1>
-        <p className="text-muted-foreground">
+        <p className="text-xs text-muted-foreground md:hidden">
+          {format(new Date(), "EEEE d MMMM yyyy", { locale: it }).replace(/^\w/, c => c.toUpperCase())}
+        </p>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">
+          <span className="md:hidden">{greeting}, {profile?.first_name}</span>
+          <span className="hidden md:inline">I Miei Ordini</span>
+        </h1>
+        <p className="text-sm text-muted-foreground hidden md:block">
           Visualizza lo stato dei tuoi ordini con {company?.name}
         </p>
       </div>
 
-      {/* FEATURE 1 — Dashboard Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-full bg-primary/10 p-2">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Ordini attivi</p>
-              <p className="text-xl font-bold">{activeOrdersCount}</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* FEATURE 1 — Dashboard Summary Cards — compatte su mobile */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+        <div className="bg-background border border-border/60 rounded-2xl p-3 md:p-4 flex items-center gap-2.5">
+          <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <ShoppingCart className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">Ordini attivi</p>
+            <p className="text-lg md:text-xl font-bold leading-tight">{activeOrdersCount}</p>
+          </div>
+        </div>
 
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-full bg-orange-500/10 p-2">
-              <CreditCard className="h-5 w-5 text-orange-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Pagamenti in scadenza
-              </p>
-              <p className="text-xl font-bold">{dueSoonCount}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-background border border-border/60 rounded-2xl p-3 md:p-4 flex items-center gap-2.5">
+          <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-orange-500/10 flex items-center justify-center shrink-0">
+            <CreditCard className="h-4 w-4 md:h-5 md:w-5 text-orange-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">In scadenza</p>
+            <p className="text-lg md:text-xl font-bold leading-tight">{dueSoonCount}</p>
+          </div>
+        </div>
 
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-full bg-blue-500/10 p-2">
-              <CalendarDays className="h-5 w-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Prossimo appuntamento
-              </p>
-              <p className="text-xl font-bold">
-                {nextAppointment
-                  ? format(new Date(nextAppointment), "d MMM", { locale: it })
-                  : "Nessuno"}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-background border border-border/60 rounded-2xl p-3 md:p-4 flex items-center gap-2.5">
+          <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+            <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-blue-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">Appuntamento</p>
+            <p className="text-lg md:text-xl font-bold leading-tight">
+              {nextAppointment
+                ? format(new Date(nextAppointment), "d MMM", { locale: it })
+                : "—"}
+            </p>
+          </div>
+        </div>
 
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-full bg-rose-500/10 p-2">
-              <Mail className="h-5 w-5 text-rose-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Messaggi non letti
-              </p>
-              <p className="text-xl font-bold">{unreadCount}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-background border border-border/60 rounded-2xl p-3 md:p-4 flex items-center gap-2.5">
+          <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0">
+            <Mail className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">Messaggi</p>
+            <p className="text-lg md:text-xl font-bold leading-tight">{unreadCount}</p>
+          </div>
+        </div>
       </div>
 
       {/* FEATURE 3 — Activity Feed */}
       {activityFeed.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                Aggiornamenti recenti
-              </h2>
-            </div>
-            <div className="space-y-3">
-              {activityFeed.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-start gap-3 text-sm"
-                >
-                  {entry.status && (
-                    <Badge
-                      variant="secondary"
-                      className="border flex-shrink-0 mt-0.5"
-                      style={{
-                        backgroundColor: entry.status.color + "20",
-                        color: entry.status.color,
-                        borderColor: entry.status.color + "40",
-                      }}
-                    >
-                      {entry.status.name}
-                    </Badge>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-foreground">
-                      {entry.order?.description ?? "Ordine"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatRelativeTime(entry.changed_at)}
-                    </p>
-                  </div>
+        <div className="bg-background border border-border/60 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <h2 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">
+              Aggiornamenti recenti
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {activityFeed.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex items-start gap-3 text-sm"
+              >
+                {entry.status && (
+                  <Badge
+                    variant="secondary"
+                    className="border flex-shrink-0 mt-0.5 text-[10px]"
+                    style={{
+                      backgroundColor: entry.status.color + "20",
+                      color: entry.status.color,
+                      borderColor: entry.status.color + "40",
+                    }}
+                  >
+                    {entry.status.name}
+                  </Badge>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm text-foreground">
+                    {entry.order?.description ?? "Ordine"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatRelativeTime(entry.changed_at)}
+                  </p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* FEATURE 2 — Search Bar */}
+      {/* FEATURE 2 — Search Bar — stile mobile-first */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Cerca ordine per descrizione..."
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Cerca ordine..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
+          className="w-full bg-muted/80 border border-border/60 rounded-2xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition-all"
         />
       </div>
 
@@ -349,71 +344,62 @@ export default function CustomerOrders() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredOrders.map((order) => (
-            <Card
+            <Link
               key={order.id}
-              className="overflow-hidden hover:shadow-md transition-shadow"
+              to={`/cliente/ordini/${order.id}`}
+              className="block bg-background border border-border/60 rounded-2xl p-4 hover:shadow-md transition-all active:scale-[0.98]"
+              style={{
+                borderLeftWidth: "4px",
+                borderLeftColor: order.status?.color ?? "#94a3b8",
+              }}
             >
-              <Link to={`/cliente/ordini/${order.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-start justify-between">
-                        <h3 className="font-medium line-clamp-2">
-                          {order.description}
-                        </h3>
-                        <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                      </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <h3 className="font-semibold text-sm text-foreground line-clamp-2 leading-snug">
+                    {order.description}
+                  </h3>
 
-                      {order.status && (
-                        <Badge
-                          variant="secondary"
-                          style={{
-                            backgroundColor: order.status.color + "20",
-                            color: order.status.color,
-                            borderColor: order.status.color + "40",
-                          }}
-                          className="border"
-                        >
-                          {order.status.name}
-                        </Badge>
-                      )}
+                  {order.status && (
+                    <Badge
+                      variant="secondary"
+                      className="border text-[10px] px-2 py-0.5"
+                      style={{
+                        backgroundColor: order.status.color + "20",
+                        color: order.status.color,
+                        borderColor: order.status.color + "40",
+                      }}
+                    >
+                      {order.status.name}
+                    </Badge>
+                  )}
 
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-                        <span>
-                          Totale:{" "}
-                          <span className="text-foreground font-medium">
-                            {formatCurrency(order.total_amount)}
-                          </span>
-                        </span>
-                        <span>
-                          Acconto:{" "}
-                          <span className="text-foreground">
-                            {formatCurrency(order.deposit_amount)}
-                          </span>
-                        </span>
-                        <span>
-                          Saldo:{" "}
-                          <span className="text-foreground">
-                            {formatCurrency(order.balance_amount)}
-                          </span>
-                        </span>
-                      </div>
-
-                      {order.expected_date && (
-                        <p className="text-sm text-muted-foreground">
-                          Data prevista:{" "}
-                          {new Date(order.expected_date).toLocaleDateString(
-                            "it-IT"
-                          )}
-                        </p>
-                      )}
-                    </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    <span>
+                      Totale:{" "}
+                      <span className="text-foreground font-semibold">
+                        {formatCurrency(order.total_amount)}
+                      </span>
+                    </span>
+                    <span>
+                      Saldo:{" "}
+                      <span className="text-foreground">
+                        {formatCurrency(order.balance_amount)}
+                      </span>
+                    </span>
                   </div>
-                </CardContent>
-              </Link>
-            </Card>
+
+                  {order.expected_date && (
+                    <p className="text-xs text-muted-foreground">
+                      Previsto:{" "}
+                      {format(new Date(order.expected_date), "d MMM yyyy", { locale: it })}
+                    </p>
+                  )}
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground/50 shrink-0 mt-0.5" />
+              </div>
+            </Link>
           ))}
         </div>
       )}

@@ -19,6 +19,7 @@ const CustomerInstallments = lazy(() => import("@/pages/cliente/CustomerInstallm
 const CustomerAppointments = lazy(() => import("@/pages/cliente/CustomerAppointments"));
 const CustomerMessages = lazy(() => import("@/pages/cliente/CustomerMessages"));
 const CustomerFirma = lazy(() => import("@/pages/cliente/CustomerFirma"));
+const CustomerMenu = lazy(() => import("@/pages/cliente/CustomerMenu"));
 
 // Employee pages
 const EmployeeDashboard = lazy(() => import("@/pages/dipendente/EmployeeDashboard"));
@@ -64,6 +65,7 @@ export function customerRoutes() {
       <Route path="assistenza/nuovo" element={<CreateTicket />} />
       <Route path="assistenza/:id" element={<CustomerTicketDetail />} />
       <Route path="profilo" element={<CustomerProfile />} />
+      <Route path="menu" element={<CustomerMenu />} />
     </Route>
   );
 }

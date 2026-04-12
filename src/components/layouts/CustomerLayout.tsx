@@ -20,6 +20,7 @@ import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { NavLink } from "@/components/NavLink";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 import { useCustomerUnreadCount } from "@/hooks/useCustomerUnreadCount";
+import { CustomerBottomNav } from "@/components/cliente/CustomerBottomNav";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -181,9 +182,8 @@ export function CustomerLayout() {
             </div>
           )}
 
-          {/* Top bar with sidebar trigger */}
-          <header className="h-14 border-b bg-background flex items-center gap-3 px-4 sticky top-0 z-40">
-            <SidebarTrigger className="md:hidden" />
+          {/* Top bar — hidden on mobile (bottom nav replaces it) */}
+          <header className="hidden md:flex h-14 border-b bg-background items-center gap-3 px-4 sticky top-0 z-40">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <ClipboardList className="h-4 w-4" />
               <span>Area Cliente</span>
@@ -197,12 +197,15 @@ export function CustomerLayout() {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-4 md:p-6">
+          <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6">
             <PreviewSessionContext.Provider value={previewSession}>
               <Outlet />
             </PreviewSessionContext.Provider>
           </main>
         </div>
+
+        {/* Mobile bottom navigation */}
+        <CustomerBottomNav unreadCount={unreadCount} />
       </div>
     </SidebarProvider>
   );
