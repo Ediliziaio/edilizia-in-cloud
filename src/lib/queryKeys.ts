@@ -844,12 +844,6 @@ allCompaniesList: ["all-companies-list"] as const,
     invoices: (userId: string | undefined) => ["customer-documents", "invoices", userId] as const,
   },
 
-  // ── Customer Messages (Portal) ────────────────────────
-  customerMessages: {
-    all: ["customer-messages"] as const,
-    list: (userId: string | undefined) => ["customer-messages", userId] as const,
-  },
-
   // ── Public Booking ────────────────────────────────────
   publicBooking: {
     calendar: (slug: string | undefined) => ["public-booking-calendar", slug] as const,

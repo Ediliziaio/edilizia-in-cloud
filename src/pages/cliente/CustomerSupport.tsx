@@ -91,36 +91,30 @@ export default function CustomerSupport() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-20">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold tracking-tight">Assistenza</h1>
         <p className="text-sm text-muted-foreground mt-0.5">I tuoi ticket di supporto</p>
       </div>
 
-      {/* New Ticket Button */}
-      <Button asChild className="w-full rounded-2xl py-3.5 h-auto text-base font-semibold">
-        <Link to="/cliente/assistenza/nuovo">
-          <Plus className="mr-2 h-5 w-5" />
-          Nuovo Ticket
-        </Link>
-      </Button>
-
-      {/* Filter */}
-      <div className="flex items-center gap-2">
-        <Filter className="h-4 w-4 text-muted-foreground" />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px] rounded-xl">
-            <SelectValue placeholder="Filtra per stato" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti</SelectItem>
-            <SelectItem value="aperto">Aperti</SelectItem>
-            <SelectItem value="in_lavorazione">In Lavorazione</SelectItem>
-            <SelectItem value="risolto">Risolti</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Filter — solo se ci sono ticket */}
+      {tickets.length > 0 && (
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px] rounded-xl">
+              <SelectValue placeholder="Filtra per stato" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="aperto">Aperti</SelectItem>
+              <SelectItem value="in_lavorazione">In Lavorazione</SelectItem>
+              <SelectItem value="risolto">Risolti</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {filteredTickets.length === 0 ? (
         <div className="bg-background border border-border/60 rounded-2xl p-8 flex flex-col items-center justify-center text-center">
@@ -134,7 +128,7 @@ export default function CustomerSupport() {
           </h3>
           <p className="text-sm text-muted-foreground max-w-xs">
             {statusFilter === "all"
-              ? "Hai bisogno di aiuto? Usa il bottone in alto per aprire un nuovo ticket."
+              ? "Hai bisogno di aiuto? Apri un nuovo ticket con il bottone qui sotto."
               : "Prova a cambiare il filtro per vedere altri ticket."}
           </p>
         </div>
@@ -185,6 +179,16 @@ export default function CustomerSupport() {
           })}
         </div>
       )}
+
+      {/* FAB — Nuovo Ticket fisso in basso */}
+      <div className="fixed bottom-20 md:bottom-6 left-0 right-0 px-4 z-40 md:relative md:px-0 md:bottom-auto">
+        <Button asChild className="w-full rounded-2xl py-3.5 h-auto text-base font-semibold shadow-lg md:shadow-none">
+          <Link to="/cliente/assistenza/nuovo">
+            <Plus className="mr-2 h-5 w-5" />
+            Nuovo Ticket
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

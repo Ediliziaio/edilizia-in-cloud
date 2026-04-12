@@ -1,7 +1,9 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +24,8 @@ import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 export default function CustomerTicketDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: ticket, isLoading: ticketLoading, isError: ticketError, refetch: refetchTicket } = useQuery({
     queryKey: queryKeys.customerTickets.detail(id),
@@ -30,13 +34,33 @@ export default function CustomerTicketDetail() {
         .from("tickets")
         .select(`id, subject, status, priority, created_at, order_id, order:orders(id, description)`)
         .eq("id", id!)
+        .eq("customer_id", user!.id)
         .single();
       if (error) throw error;
       return data as unknown as CustomerTicketDetailType;
     },
-    enabled: !!id,
+    enabled: !!id && !!user?.id,
     staleTime: 30 * 1000,
   });
+
+  // Mark unread messages as read when opening this ticket
+  useEffect(() => {
+    if (!id || !user?.id) return;
+    (async () => {
+      try {
+        await supabase
+          .from("ticket_messages")
+          .update({ read_at: new Date().toISOString() })
+          .eq("ticket_id", id)
+          .neq("sender_id", user.id)
+          .is("read_at", null);
+        // Refresh unread badge count
+        queryClient.invalidateQueries({ queryKey: queryKeys.customerUnread.messages(user.id) });
+      } catch {
+        // non-critical, ignore
+      }
+    })();
+  }, [id, user?.id, queryClient]);
 
   const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
     queryKey: queryKeys.customerTickets.messages(id),

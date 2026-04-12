@@ -42,7 +42,7 @@ export default function CustomerDocuments() {
       const { data, error } = await supabase
         .from("invoices")
         .select("id, invoice_number, document_type, status, issue_date, total, pdf_url, order_id, orders(order_code)")
-        .or(`client_id.eq.${user!.id},order_id.not.is.null`)
+        .eq("client_id", user!.id)
         .order("issue_date", { ascending: false })
         .limit(100);
       if (error) throw error;

@@ -39,11 +39,12 @@ export default function CustomerOrderDetail() {
           status:order_statuses(name, color, icon)
         `)
         .eq("id", id!)
+        .eq("customer_id", user!.id)
         .single();
       if (error) throw error;
       return data;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user?.id,
     staleTime: 2 * 60 * 1000,
   });
 
