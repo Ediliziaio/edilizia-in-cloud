@@ -7,9 +7,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Home, Calendar, Clock, CalendarDays, Receipt, Mic, MessageSquare,
-  ShieldCheck, CreditCard, FileText, Ticket, Settings, User, LogOut,
-  ClipboardCheck, Package, Search, HardHat, BarChart3, Sparkles,
-  Bell, Phone, Contact, MapPin,
+  ShieldCheck, CreditCard, FileText, Ticket, Settings, LogOut,
+  ClipboardCheck, Search,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
