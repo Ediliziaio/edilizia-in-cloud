@@ -27,6 +27,7 @@ import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
 import { ContactFiltersSheet, type ContactFilters, type FilterRule, type FilterGroup, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // Map filter field keys to actual DB columns
 const FIELD_TO_COLUMN: Record<string, string> = {
@@ -95,6 +96,7 @@ export default function MarketingContacts() {
   const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
   const columnsStorageKey = useMemo(() => getStorageKey(user?.id, companyId), [user?.id, companyId]);
   const queryClient = useQueryClient();
   const { data: contactCustomFields = [] } = useContactCustomFields();
@@ -399,6 +401,9 @@ export default function MarketingContacts() {
 
     // Now query contacts with standard + tag rules
     let query = supabase.from("marketing_contacts").select("id").eq("company_id", companyId);
+    if (permissions.onlyAssigned && user?.id) {
+      query = query.eq("assigned_to", user.id);
+    }
     if (filterIds) query = query.in("id", filterIds);
     for (const rule of standardRules) query = applyRuleToQuery(query, rule);
     for (const rule of tagRules) {
@@ -450,6 +455,11 @@ export default function MarketingContacts() {
         .eq("company_id", companyId)
         .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to);
+
+      // Permission enforcement: restrict to assigned contacts only
+      if (permissions.onlyAssigned && user?.id) {
+        query = query.eq("assigned_to", user.id);
+      }
 
       if (finalIds) query = query.in("id", finalIds);
 

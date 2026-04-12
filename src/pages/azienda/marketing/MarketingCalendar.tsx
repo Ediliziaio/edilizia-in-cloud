@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -52,9 +53,10 @@ type CalendarView = "day" | "week" | "month";
 export default function MarketingCalendar() {
   const navigate = useNavigate();
   const isAdminContext = useIsAdminMarketing();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const permissions = usePermissions();
   const { isGoogleConnected } = useGoogleCalendarSync();
   const { isAppleConnected } = useAppleCalendarSync();
 
@@ -204,7 +206,7 @@ export default function MarketingCalendar() {
     queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data } = await supabase
+      let query = supabase
         .from("appointments")
         .select("*")
         .eq("company_id", companyId)
@@ -212,6 +214,11 @@ export default function MarketingCalendar() {
         .gte("appointment_date", dateRange.start)
         .lte("appointment_date", dateRange.end)
         .order("appointment_date", { ascending: true });
+      // Permission enforcement: restrict to assigned appointments only
+      if (permissions.onlyAssigned && user?.id) {
+        query = query.eq("assigned_to", user.id);
+      }
+      const { data } = await query;
       return (data || []) as any[];
     },
     enabled: !!companyId,

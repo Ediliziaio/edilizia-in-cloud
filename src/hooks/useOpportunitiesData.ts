@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { useEffect, useMemo } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export function usePipelines() {
   const { effectiveCompany } = useAuth();
@@ -100,21 +101,27 @@ async function enrichPage(data: any[]) {
 }
 
 export function useOpportunities(pipelineId: string | null) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
 
   const infiniteQuery = useInfiniteQuery({
     queryKey: queryKeys.opportunities.list(companyId, pipelineId),
     queryFn: async ({ pageParam = 0 }) => {
       const from = pageParam * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
-      const { data, error } = await supabase
+      let query = supabase
         .from("marketing_opportunities")
         .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags)")
         .eq("company_id", companyId!)
         .eq("pipeline_id", pipelineId!)
         .order("created_at", { ascending: false })
         .range(from, to);
+      // Permission enforcement: restrict to assigned opportunities only
+      if (permissions.onlyAssigned && user?.id) {
+        query = query.eq("assigned_to", user.id);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       const enriched = await enrichPage(data);
       return enriched;
