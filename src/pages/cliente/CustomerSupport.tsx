@@ -132,19 +132,11 @@ export default function CustomerSupport() {
               ? "Nessun ticket di assistenza"
               : `Nessun ticket ${getTicketStatusLabel(statusFilter as TicketStatus).toLowerCase()}`}
           </h3>
-          <p className="text-sm text-muted-foreground max-w-xs mb-4">
+          <p className="text-sm text-muted-foreground max-w-xs">
             {statusFilter === "all"
-              ? "Hai bisogno di aiuto? Apri un nuovo ticket di assistenza."
+              ? "Hai bisogno di aiuto? Usa il bottone in alto per aprire un nuovo ticket."
               : "Prova a cambiare il filtro per vedere altri ticket."}
           </p>
-          {statusFilter === "all" && (
-            <Button asChild className="rounded-2xl">
-              <Link to="/cliente/assistenza/nuovo">
-                <Plus className="mr-2 h-4 w-4" />
-                Nuovo Ticket
-              </Link>
-            </Button>
-          )}
         </div>
       ) : (
         <div className="space-y-3">

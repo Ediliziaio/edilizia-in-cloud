@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import { Eye, LogOut, PenTool } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
@@ -20,7 +20,6 @@ import { NavLink } from "@/components/NavLink";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 import { useCustomerUnreadCount } from "@/hooks/useCustomerUnreadCount";
 import { CustomerBottomNav } from "@/components/cliente/CustomerBottomNav";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
@@ -48,7 +47,6 @@ const navItems = [
 
 export function CustomerLayout() {
   const { signOut, company, profile } = useAuth();
-  const navigate = useNavigate();
   const { effectiveBrand } = useBrandSettings(company?.id);
   useCustomCSS();
   const unreadCount = useCustomerUnreadCount();
@@ -117,10 +115,10 @@ export function CustomerLayout() {
                         >
                           <item.icon className="h-4 w-4 shrink-0" />
                           <span className="truncate">{item.title}</span>
-                          {item.badge && unreadCount > 0 && (
-                            <Badge variant="destructive" className="ml-auto h-5 min-w-5 text-[10px] px-1">
+                          {item.title === "Assistenza" && unreadCount > 0 && (
+                            <span className="ml-auto h-5 min-w-5 px-1 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-[10px] font-bold">
                               {unreadCount}
-                            </Badge>
+                            </span>
                           )}
                         </NavLink>
                       </SidebarMenuButton>
