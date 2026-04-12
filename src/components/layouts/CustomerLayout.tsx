@@ -13,7 +13,6 @@ import {
   FileText,
   CreditCard,
   CalendarDays,
-  MessageCircle,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
@@ -43,7 +42,6 @@ const navItems = [
   { title: "Firma Documenti", url: "/cliente/firma", icon: PenTool },
   { title: "Stato Pagamenti", url: "/cliente/rate", icon: CreditCard },
   { title: "Appuntamenti", url: "/cliente/appuntamenti", icon: CalendarDays },
-  { title: "Messaggi", url: "/cliente/messaggi", icon: MessageCircle, badge: true },
   { title: "Assistenza", url: "/cliente/assistenza", icon: HeadphonesIcon },
   { title: "Il Mio Profilo", url: "/cliente/profilo", icon: User },
 ];

@@ -7,7 +7,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Home,
   CreditCard,
-  MessageCircle,
+  HeadphonesIcon,
   PenTool,
   LayoutGrid,
 } from "lucide-react";
@@ -24,7 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Home", icon: Home, href: "/cliente", exact: true },
   { label: "Pagamenti", icon: CreditCard, href: "/cliente/rate" },
   { label: "Firma", icon: PenTool, href: "/cliente/firma" },
-  { label: "Messaggi", icon: MessageCircle, href: "/cliente/messaggi" },
+  { label: "Assistenza", icon: HeadphonesIcon, href: "/cliente/assistenza" },
   { label: "Menu", icon: LayoutGrid, href: "/cliente/menu" },
 ];
 
@@ -73,8 +73,8 @@ export function CustomerBottomNav({ unreadCount = 0 }: Props) {
                       : "text-muted-foreground stroke-[1.5]"
                   )}
                 />
-                {/* Messaggi badge */}
-                {item.label === "Messaggi" && unreadCount > 0 && (
+                {/* Assistenza badge */}
+                {item.label === "Assistenza" && unreadCount > 0 && (
                   <span className="absolute top-1 right-1/2 translate-x-4 h-4 min-w-[16px] px-1 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-[9px] font-bold leading-none">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>

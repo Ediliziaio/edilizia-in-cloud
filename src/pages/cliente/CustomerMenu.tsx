@@ -11,8 +11,8 @@ import {
   PenTool,
   CreditCard,
   CalendarDays,
-  MessageCircle,
   HeadphonesIcon,
+  Plus,
   User,
   Search,
   LogOut,
@@ -50,10 +50,10 @@ const sections: AppSection[] = [
     ],
   },
   {
-    title: "Comunicazione",
+    title: "Assistenza",
     items: [
-      { icon: MessageCircle, label: "Messaggi", url: "/cliente/messaggi", color: "text-blue-600 bg-blue-50" },
-      { icon: HeadphonesIcon, label: "Assistenza", url: "/cliente/assistenza", color: "text-violet-600 bg-violet-50" },
+      { icon: HeadphonesIcon, label: "I Miei Ticket", url: "/cliente/assistenza", color: "text-violet-600 bg-violet-50" },
+      { icon: Plus, label: "Nuovo Ticket", url: "/cliente/assistenza/nuovo", color: "text-emerald-600 bg-emerald-50" },
     ],
   },
   {

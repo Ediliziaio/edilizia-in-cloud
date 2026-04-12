@@ -15,14 +15,13 @@ import {
   ShoppingCart,
   CreditCard,
   CalendarDays,
-  Mail,
+  HeadphonesIcon,
   Activity,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatCurrency, formatRelativeTime } from "@/lib/formatters";
 import { format, addDays } from "date-fns";
 import { it } from "date-fns/locale";
-import { useCustomerUnreadCount } from "@/hooks/useCustomerUnreadCount";
 
 interface Order {
   id: string;
@@ -56,7 +55,21 @@ interface StatusHistoryEntry {
 export default function CustomerOrders() {
   const { user, company, profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const unreadCount = useCustomerUnreadCount();
+  // Conta ticket aperti
+  const { data: openTicketsCount = 0 } = useQuery({
+    queryKey: ["customer-open-tickets", user?.id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", user!.id)
+        .in("status", ["aperto", "in_lavorazione"]);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+  });
 
   // ── Orders query ──────────────────────────────────────────
   const {
@@ -254,15 +267,15 @@ export default function CustomerOrders() {
           </div>
         </div>
 
-        <div className="bg-background border border-border/60 rounded-2xl p-3 md:p-4 flex items-center gap-2.5">
-          <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0">
-            <Mail className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
+        <Link to="/cliente/assistenza" className="bg-background border border-border/60 rounded-2xl p-3 md:p-4 flex items-center gap-2.5 active:scale-[0.97] transition-transform">
+          <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+            <HeadphonesIcon className="h-4 w-4 md:h-5 md:w-5 text-violet-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">Messaggi</p>
-            <p className="text-lg md:text-xl font-bold leading-tight">{unreadCount}</p>
+            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">Ticket aperti</p>
+            <p className="text-lg md:text-xl font-bold leading-tight">{openTicketsCount}</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* FEATURE 3 — Activity Feed */}
