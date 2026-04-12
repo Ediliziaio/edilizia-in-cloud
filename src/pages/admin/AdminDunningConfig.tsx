@@ -212,7 +212,6 @@ export default function AdminDunningConfig() {
   const triggerDunning = useMutation({
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const cronSecret = (import.meta.env.VITE_CRON_SECRET as string | undefined) ?? "";
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-dunning`,
         {
@@ -220,7 +219,6 @@ export default function AdminDunningConfig() {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session?.access_token ?? ""}`,
-            "x-cron-secret": cronSecret,
           },
           body: JSON.stringify({ triggered_by: "manual_admin" }),
         }
