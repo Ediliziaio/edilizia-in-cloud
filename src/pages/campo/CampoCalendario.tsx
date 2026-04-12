@@ -23,6 +23,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { haversineMeters } from "@/lib/tsp";
 import { forwardGeocode } from "@/lib/geocoding";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 // ── Types ──
 interface Cantiere {
@@ -107,6 +111,7 @@ export default function CampoCalendario() {
   const { user, profile } = useAuth();
 
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
+  const [selectedAppuntamento, setSelectedAppuntamento] = useState<Appuntamento | null>(null);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
@@ -457,7 +462,7 @@ export default function CampoCalendario() {
                   )}
 
                   {item.type === "appuntamento" ? (
-                    <AppuntamentoCard item={item} navigate={navigate} />
+                    <AppuntamentoCard item={item} navigate={navigate} onShowDetail={setSelectedAppuntamento} />
                   ) : (
                     <CantiereCard item={item} selectedDay={selectedDay} navigate={navigate} />
                   )}
@@ -467,6 +472,118 @@ export default function CampoCalendario() {
           </div>
         )}
       </div>
+
+      {/* ──── Detail Sheet per appuntamento ──── */}
+      <Sheet open={!!selectedAppuntamento} onOpenChange={(open) => !open && setSelectedAppuntamento(null)}>
+        <SheetContent side="bottom" className="rounded-t-3xl max-h-[80vh] overflow-y-auto pb-10">
+          {selectedAppuntamento && (() => {
+            const a = selectedAppuntamento;
+            const typeInfo = appointmentTypeLabel(a.appointment_type);
+            const timeStr = a.appointment_time
+              ? a.appointment_time.slice(0, 5) + (a.appointment_end_time ? ` - ${a.appointment_end_time.slice(0, 5)}` : "")
+              : null;
+            const dateStr = format(parseISO(a.appointment_date), "EEEE d MMMM yyyy", { locale: it });
+
+            return (
+              <div className="space-y-5">
+                <SheetHeader className="text-left">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">{typeInfo.emoji}</span>
+                    <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", typeInfo.cls)}>
+                      {typeInfo.label}
+                    </span>
+                    {a.order && (
+                      <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                        {(a.order as any).order_code}
+                      </span>
+                    )}
+                  </div>
+                  <SheetTitle className="text-xl">{a.title}</SheetTitle>
+                </SheetHeader>
+
+                {a.description && (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{a.description}</p>
+                )}
+
+                <div className="space-y-3 bg-muted/50 rounded-2xl p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <CalendarDays className="w-4.5 h-4.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Data</p>
+                      <p className="text-sm font-semibold capitalize">{dateStr}</p>
+                    </div>
+                  </div>
+
+                  {timeStr && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <Clock className="w-4.5 h-4.5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Orario</p>
+                        <p className="text-sm font-semibold">{timeStr}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {a.formatted_address && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <MapPin className="w-4.5 h-4.5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-muted-foreground">Indirizzo</p>
+                        <p className="text-sm font-semibold">{a.formatted_address}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Eye className="w-4.5 h-4.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Stato</p>
+                      <p className="text-sm font-semibold capitalize">{a.status || "Programmato"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-2.5">
+                  {a.order_id && (
+                    <Button
+                      onClick={() => {
+                        setSelectedAppuntamento(null);
+                        navigate(`/campo/lavoro/${a.order_id}`);
+                      }}
+                      className="w-full h-12 text-base font-semibold rounded-2xl"
+                    >
+                      <HardHat className="w-5 h-5 mr-2" />
+                      Vai al cantiere
+                    </Button>
+                  )}
+                  {a.formatted_address && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const q = encodeURIComponent(a.formatted_address!);
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, "_blank");
+                      }}
+                      className="w-full h-12 text-base font-semibold rounded-2xl"
+                    >
+                      <Navigation className="w-5 h-5 mr-2" />
+                      Apri in Maps
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -485,7 +602,7 @@ function DistanceBadge({ meters }: { meters: number }) {
 }
 
 // ── Card appuntamento/sopralluogo ──
-function AppuntamentoCard({ item, navigate }: { item: Appuntamento; navigate: any }) {
+function AppuntamentoCard({ item, navigate, onShowDetail }: { item: Appuntamento; navigate: any; onShowDetail?: (a: Appuntamento) => void }) {
   const typeInfo = appointmentTypeLabel(item.appointment_type);
   const timeStr = item.appointment_time
     ? item.appointment_time.slice(0, 5) + (item.appointment_end_time ? ` - ${item.appointment_end_time.slice(0, 5)}` : "")
@@ -493,7 +610,7 @@ function AppuntamentoCard({ item, navigate }: { item: Appuntamento; navigate: an
 
   return (
     <button
-      onClick={() => item.order_id ? navigate(`/campo/lavoro/${item.order_id}`) : null}
+      onClick={() => onShowDetail ? onShowDetail(item) : (item.order_id ? navigate(`/campo/lavoro/${item.order_id}`) : null)}
       className="w-full bg-background border-l-4 border-l-violet-400 border border-border/80 rounded-2xl p-4 text-left active:scale-[0.98] transition-all shadow-sm mb-3"
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">

@@ -692,6 +692,7 @@ function MiniCalendarioCampo() {
 // Le mie attività
 // ─────────────────────────────────────────────────────────────────────────────
 function MieAttivitaCampo() {
+  const navigate = useNavigate();
   const { user, profile } = useAuth();
   const companyId = profile?.company_id;
 
