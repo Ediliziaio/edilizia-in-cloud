@@ -3,7 +3,7 @@
  * Mostra cantieri + appuntamenti/sopralluoghi programmati per data.
  * Calcola distanze dalla sede e tra impegni consecutivi.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { haversineMeters } from "@/lib/tsp";
+import { forwardGeocode } from "@/lib/geocoding";
 
 // ── Types ──
 interface Cantiere {
@@ -201,12 +202,42 @@ export default function CampoCalendario() {
     return (day: Date) => itemsForDay(day).length;
   }, [itemsForDay]);
 
+  // Geocoding cantieri — risolvi indirizzo → coordinate
+  const [geocodedCoords, setGeocodedCoords] = useState<Record<string, { lat: number; lng: number } | null>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const toGeocode = allCantieri.filter((c: any) => {
+      const addr = c.order?.indirizzo_lavori;
+      return addr && !(addr in geocodedCoords);
+    });
+    if (toGeocode.length === 0) return;
+
+    (async () => {
+      const results: Record<string, { lat: number; lng: number } | null> = {};
+      for (const c of toGeocode) {
+        if (cancelled) break;
+        const addr = (c as any).order?.indirizzo_lavori;
+        if (!addr) continue;
+        const coords = await forwardGeocode(addr);
+        results[addr] = coords;
+      }
+      if (!cancelled) {
+        setGeocodedCoords(prev => ({ ...prev, ...results }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [allCantieri]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Calcola distanze dalla sede e tra items consecutivi
   const distanze = useMemo(() => {
     const result: { fromSede?: number; between: number[] }[] = [];
     const geoItems = dayItems.map((item) => {
       if (item.type === "appuntamento") return { lat: item.lat, lng: item.lng };
-      return null; // cantieri non hanno lat/lng diretto
+      // Cantieri: usa coordinate geocodate dall'indirizzo
+      const addr = (item as Cantiere).order?.indirizzo_lavori;
+      if (addr && geocodedCoords[addr]) return geocodedCoords[addr];
+      return null;
     });
 
     for (let i = 0; i < dayItems.length; i++) {
@@ -229,7 +260,7 @@ export default function CampoCalendario() {
       result.push(entry);
     }
     return result;
-  }, [dayItems]);
+  }, [dayItems, geocodedCoords]);
 
   // Mese calendario
   const monthStart = startOfMonth(currentMonth);
