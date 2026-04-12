@@ -66,7 +66,7 @@ function MarketingOpportunitiesContent() {
 
   const { params: urlFilters, setParam: setURLParam } = useURLFilters({
     selectedPipelineId: { key: "pipeline", defaultValue: "" },
-    viewMode: { key: "view", defaultValue: "list" },
+    viewMode: { key: "view", defaultValue: "kanban" },
     searchInput: { key: "q", defaultValue: "" },
     sortField: { key: "ordina", defaultValue: "created_at" },
     sortDir: { key: "dir", defaultValue: "desc" },
