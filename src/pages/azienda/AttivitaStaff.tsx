@@ -1078,31 +1078,18 @@ function TabAttivita() {
 
   return (
     <div className="space-y-6">
-      {isAdmin ? (
-        /* Admin layout — meteo + calendario (no timbratura) */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <MeteoWidget />
-          <div className="lg:col-span-2"><MiniCalendario onAddTask={setAddTaskDate} /></div>
+      {/* Riga 1: Meteo (1/3) + Timbratura o TaskTeam (2/3) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <MeteoWidget />
+        <div className="lg:col-span-2">
+          {isAdmin ? <TaskTeam /> : <TimbraturaSede />}
         </div>
-      ) : (
-        /* Staff layout — meteo + timbratura + calendario */
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <MeteoWidget />
-            <div className="lg:col-span-2"><TimbraturaSede /></div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <MiniCalendario onAddTask={setAddTaskDate} />
-            <MieAttivita initialDueDate={addTaskDate} />
-          </div>
-        </>
-      )}
-      {isAdmin && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <MieAttivita initialDueDate={addTaskDate} />
-          <TaskTeam />
-        </div>
-      )}
+      </div>
+      {/* Riga 2: Calendario (1/2) + Le mie attività (1/2) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MiniCalendario onAddTask={setAddTaskDate} />
+        <MieAttivita initialDueDate={addTaskDate} />
+      </div>
     </div>
   );
 }
