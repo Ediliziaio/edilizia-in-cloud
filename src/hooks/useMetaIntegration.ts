@@ -6,7 +6,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import type { Integration, MetaAsset, MetaLeadForm, IntegrationFieldMapping } from "@/types/integrations";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rsbrguhkodgnqfomrevo.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export function useMetaIntegration(integration: Integration | null) {
   const { effectiveCompany } = useAuth();
