@@ -213,14 +213,14 @@ export default function CampoLayout() {
           )}
 
           {/* Top bar — hidden on mobile (bottom nav replaces it) */}
-          <header className="hidden md:flex h-14 border-b bg-background items-center gap-3 px-4 sticky top-0 z-40">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <header className="hidden md:flex h-14 border-b bg-secondary items-center gap-3 px-4 sticky top-0 z-40">
+            <div className="flex items-center gap-2 text-sm text-secondary-foreground/80">
               <HardHat className="h-4 w-4" />
               <span>Area {roleLabel}</span>
               {company?.name && (
                 <>
-                  <span className="text-muted-foreground/50">&middot;</span>
-                  <span className="font-medium text-foreground">{company.name}</span>
+                  <span className="text-secondary-foreground/40">&middot;</span>
+                  <span className="font-medium text-secondary-foreground">{company.name}</span>
                 </>
               )}
             </div>

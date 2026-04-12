@@ -67,10 +67,11 @@ const TIPI_DOCUMENTO = [
 ];
 
 const STATO_FIRMA: Record<string, { label: string; cls: string; icon: any }> = {
-  pending:   { label: "In attesa di firma", cls: "bg-amber-100 text-amber-700", icon: Clock },
-  signed:    { label: "Firmato",            cls: "bg-green-100 text-green-700",  icon: CheckCircle },
-  expired:   { label: "Scaduto",            cls: "bg-red-100 text-red-700",      icon: AlertCircle },
-  cancelled: { label: "Annullato",          cls: "bg-slate-100 text-slate-600",  icon: AlertCircle },
+  pending:      { label: "In attesa di firma", cls: "bg-amber-100 text-amber-700", icon: Clock },
+  otp_verified: { label: "OTP verificato",     cls: "bg-blue-100 text-blue-700",   icon: CheckCircle },
+  signed:       { label: "Firmato",             cls: "bg-green-100 text-green-700", icon: CheckCircle },
+  expired:      { label: "Scaduto",             cls: "bg-red-100 text-red-700",     icon: AlertCircle },
+  cancelled:    { label: "Annullato",           cls: "bg-slate-100 text-slate-600", icon: AlertCircle },
 };
 
 export default function CampoLavoroDetail() {
@@ -408,34 +409,32 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: a
     enabled: !!orderId,
   });
 
-  // Crea richiesta firma
+  // Crea richiesta firma tramite edge function FEA (invia email + OTP automaticamente)
   const { mutate: creaRichiestaFirma, isPending } = useMutation({
     mutationFn: async () => {
       if (!selectedTipo) throw new Error("Seleziona il tipo di documento");
       if (!customer?.email) throw new Error("Email del cliente non disponibile");
 
-      const token = crypto.randomUUID();
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 7); // scade in 7 giorni
+      const customerName = `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim();
 
-      const { error } = await supabase.from("signature_requests").insert({
-        order_id: orderId,
-        company_id: (profile as any)?.company_id,
-        created_by: user!.id,
-        signer_email: customer.email,
-        signer_name: `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim(),
-        signer_phone: customer.phone || null,
-        tipo_documento: selectedTipo,
-        tipo_firmatario: "cliente",
-        status: "pending",
-        token,
-        expires_at: expires.toISOString(),
-        otp_canale: "email",
+      const { data, error } = await supabase.functions.invoke("fea-richiedi-firma", {
+        body: {
+          tipo_documento: "order",
+          documento_id: orderId,
+          tipo_firmatario: "b2b",
+          signer_email: customer.email,
+          signer_name: customerName || "Cliente",
+          expires_giorni: 7,
+        },
       });
-      if (error) throw error;
+
+      if (error) throw new Error(error.message || "Errore nell'invio della richiesta");
+      if (data?.error) throw new Error(data.error);
+
+      return data;
     },
     onSuccess: () => {
-      toast.success("Richiesta di firma inviata al cliente!");
+      toast.success("Richiesta di firma inviata! Il cliente riceverà un'email con il link per firmare.");
       queryClient.invalidateQueries({ queryKey: ["campo-firme-ordine"] });
       setShowNewDoc(false);
       setSelectedTipo(null);
@@ -578,7 +577,8 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: a
             Storico documenti ({firmeRichieste.length})
           </p>
           {firmeRichieste.map((f: any) => {
-            const tipoDoc = TIPI_DOCUMENTO.find(t => t.tipo === f.tipo_documento);
+            const tipoDoc = TIPI_DOCUMENTO.find(t => t.tipo === f.tipo_documento)
+              || (f.tipo_documento === "order" ? { label: "Documento ordine", icon: FileCheck, color: "text-blue-600 bg-blue-50" } : null);
             const stato = STATO_FIRMA[f.status] || STATO_FIRMA.pending;
             const StatoIcon = stato.icon;
             const DocIcon = tipoDoc?.icon || FileText;
