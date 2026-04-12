@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { queryKeys } from "@/lib/queryKeys";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rsbrguhkodgnqfomrevo.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function FacebookFormsPage() {
   const { effectiveCompany } = useAuth();
