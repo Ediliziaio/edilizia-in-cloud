@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { useState, useRef, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import {
 } from "@/hooks/superadmin/useDunningTemplates";
 import type { DunningTemplate } from "@/hooks/superadmin/useDunningTemplates";
 
-// ─── Valori esempio per l'anteprima ──────────────────────
+// ─── Valori esempio per l'anteprima ────────────────────────
 
 const PREVIEW_VARS: Record<string, string> = {
   company_name: "Acme Edili",
@@ -32,7 +33,7 @@ function applyPreviewVars(html: string): string {
   });
 }
 
-// ─── Helpers cursore textarea ─────────────────────────────
+// ─── Helpers cursore textarea ─────────────────────────
 
 /** Inserisce testo nella posizione del cursore in una textarea */
 function insertAtCursor(
@@ -53,7 +54,7 @@ function insertAtCursor(
   });
 }
 
-// ─── Skeleton lista step ──────────────────────────────────
+// ─── Skeleton lista step ────────────────────────────
 
 function StepListSkeleton() {
   return (
@@ -65,7 +66,7 @@ function StepListSkeleton() {
   );
 }
 
-// ─── Editor template ─────────────────────────────────────
+// ─── Editor template ────────────────────────────────
 
 interface DunningTemplateEditorProps {
   template: DunningTemplate;
@@ -170,7 +171,7 @@ function DunningTemplateEditor({ template }: DunningTemplateEditorProps) {
           <TabsContent value="anteprima" className="mt-2">
             <div
               className="min-h-[200px] rounded-md border border-input bg-white p-4 text-sm text-gray-900 overflow-auto prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: previewBody }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewBody) }}
             />
             <p className="text-[10px] text-muted-foreground mt-1">
               Valori esempio: company_name="{PREVIEW_VARS.company_name}", amount_due="{PREVIEW_VARS.amount_due}", due_date="{PREVIEW_VARS.due_date}"
@@ -233,7 +234,7 @@ function DunningTemplateEditor({ template }: DunningTemplateEditorProps) {
   );
 }
 
-// ─── Scheda step nella lista sinistra ─────────────────────
+// ─── Scheda step nella lista sinistra ─────────────────────────
 
 interface StepCardProps {
   template: DunningTemplate;
