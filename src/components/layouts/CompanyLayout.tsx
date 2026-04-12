@@ -68,6 +68,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useMemo, useState, useEffect, useCallback, memo } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
@@ -631,6 +632,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
 });
 
 const CompanySidebar = memo(function CompanySidebar() {
+  const isMobile = useIsMobile();
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   // Usa useViewAsPermissions: quando viewAsRole è attivo la sidebar mostra gli item del ruolo simulato
   const permissions = useViewAsPermissions();
@@ -775,6 +777,9 @@ const CompanySidebar = memo(function CompanySidebar() {
 
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";
+
+  // Su mobile la navigazione è gestita dalla bottom nav + App Grid — niente sidebar
+  if (isMobile) return null;
 
   return (
     <Sidebar className="border-r" collapsible="icon">
@@ -986,6 +991,7 @@ export function CompanyLayout() {
   };
   
   return (
+    <>
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <CompanySidebar />
@@ -1004,13 +1010,11 @@ export function CompanyLayout() {
           <AnnouncementBanner />
           <SubscriptionBanner />
           <header className="h-14 border-b flex items-center px-3 gap-2 md:gap-4 bg-background">
-            {/* Mobile: hamburger (top level) or back arrow (sub-pages) */}
-            {isSubPage ? (
+            {/* Mobile: back arrow on sub-pages (no hamburger — bottom nav "App" replaces sidebar) */}
+            {isSubPage && (
               <Button variant="ghost" size="icon" className="md:hidden h-9 w-9 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label="Torna indietro">
                 <ArrowLeft className="h-5 w-5" aria-hidden="true" />
               </Button>
-            ) : (
-              <SidebarTrigger className="md:hidden h-9 w-9 -ml-1 shrink-0" />
             )}
 
             {/* Desktop: sidebar trigger */}
@@ -1091,9 +1095,11 @@ export function CompanyLayout() {
         onOpenChange={setNotificationsPanelOpen}
       />
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
-      <MobileBottomNav />
       <PWAInstallBanner />
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
     </SidebarProvider>
+    {/* Bottom nav FUORI dal SidebarProvider per evitare interferenze CSS */}
+    <MobileBottomNav />
+    </>
   );
 }
