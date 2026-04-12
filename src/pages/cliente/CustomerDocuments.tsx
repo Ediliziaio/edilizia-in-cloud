@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { FileText, Download, Loader2, Receipt, FileCheck } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -99,12 +98,12 @@ export default function CustomerDocuments() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  const invoiceStatusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    draft: { label: "Bozza", variant: "secondary" },
-    sent: { label: "Inviata", variant: "default" },
-    paid: { label: "Pagata", variant: "default" },
-    overdue: { label: "Scaduta", variant: "destructive" },
-    cancelled: { label: "Annullata", variant: "outline" },
+  const invoiceStatusMap: Record<string, { label: string; color: string; bg: string }> = {
+    draft: { label: "Bozza", color: "text-slate-600", bg: "bg-slate-100" },
+    sent: { label: "Inviata", color: "text-blue-700", bg: "bg-blue-50" },
+    paid: { label: "Pagata", color: "text-emerald-700", bg: "bg-emerald-50" },
+    overdue: { label: "Scaduta", color: "text-red-700", bg: "bg-red-50" },
+    cancelled: { label: "Annullata", color: "text-gray-500", bg: "bg-gray-100" },
   };
 
   if (isLoading) {
@@ -119,33 +118,32 @@ export default function CustomerDocuments() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Documenti</h1>
+      <h1 className="text-xl font-bold tracking-tight">Documenti</h1>
 
       {!hasContent && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <FileText className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground">Nessun documento disponibile al momento.</p>
-          </CardContent>
-        </Card>
+        <div className="bg-background border border-border/60 rounded-2xl p-8 text-center">
+          <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center mx-auto mb-3">
+            <FileText className="h-6 w-6 text-muted-foreground/50" />
+          </div>
+          <p className="text-muted-foreground">Nessun documento disponibile al momento.</p>
+        </div>
       )}
 
       {/* Invoices */}
       {invoices.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Receipt className="h-5 w-5 text-primary" />
-              Fatture e Documenti Fiscali
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Fatture e Documenti Fiscali
+          </p>
+          <div className="bg-background border border-border/60 rounded-2xl divide-y divide-border/40">
             {invoices.map((inv: any) => {
-              const st = invoiceStatusMap[inv.status] || { label: inv.status, variant: "secondary" as const };
+              const st = invoiceStatusMap[inv.status] || { label: inv.status, color: "text-slate-600", bg: "bg-slate-100" };
               return (
-                <div key={inv.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 gap-3">
+                <div key={inv.id} className="flex items-center justify-between p-4 gap-3 first:rounded-t-2xl last:rounded-b-2xl">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Receipt className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                      <Receipt className="h-5 w-5 text-blue-600" />
+                    </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">
                         {inv.document_type === "credit_note" ? "Nota di credito" : "Fattura"} {inv.invoice_number}
@@ -157,35 +155,39 @@ export default function CustomerDocuments() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant={st.variant}>{st.label}</Badge>
-                    <span className="text-sm font-medium">{fmtCur(inv.total || 0)}</span>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${st.bg} ${st.color}`}>
+                      {st.label}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">{fmtCur(inv.total || 0)}</span>
                     {inv.pdf_url && (
-                      <Button size="icon" variant="ghost" onClick={() => handleDownloadInvoice(inv.pdf_url)}>
-                        <Download className="h-4 w-4" />
-                      </Button>
+                      <button
+                        onClick={() => handleDownloadInvoice(inv.pdf_url)}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-muted transition-colors"
+                      >
+                        <Download className="h-4 w-4 text-muted-foreground" />
+                      </button>
                     )}
                   </div>
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Order Attachments */}
       {attachments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileCheck className="h-5 w-5 text-primary" />
-              Allegati Ordini
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Allegati Ordini
+          </p>
+          <div className="bg-background border border-border/60 rounded-2xl divide-y divide-border/40">
             {attachments.map((att: any) => (
-              <div key={att.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 gap-3">
+              <div key={att.id} className="flex items-center justify-between p-4 gap-3 first:rounded-t-2xl last:rounded-b-2xl">
                 <div className="flex items-center gap-3 min-w-0">
-                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
+                    <FileText className="h-5 w-5 text-slate-500" />
+                  </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{att.file_name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -195,13 +197,16 @@ export default function CustomerDocuments() {
                     </p>
                   </div>
                 </div>
-                <Button size="icon" variant="ghost" onClick={() => handleDownloadAttachment(att.file_url, att.file_name)}>
-                  <Download className="h-4 w-4" />
-                </Button>
+                <button
+                  onClick={() => handleDownloadAttachment(att.file_url, att.file_name)}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-muted transition-colors shrink-0"
+                >
+                  <Download className="h-4 w-4 text-muted-foreground" />
+                </button>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
     </div>
   );

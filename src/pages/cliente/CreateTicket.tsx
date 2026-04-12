@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,14 +28,14 @@ export default function CreateTicket() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedOrderId = searchParams.get("ordine");
-  
+
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [orderId, setOrderId] = useState<string>(preselectedOrderId || "");
+  const [orderId, setOrderId] = useState<string>(preselectedOrderId || "__none__");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,7 +82,7 @@ export default function CreateTicket() {
           subject,
           customer_id: user.id,
           company_id: profile.company_id,
-          order_id: orderId || null,
+          order_id: orderId && orderId !== "__none__" ? orderId : null,
           status: "aperto",
         })
         .select()
@@ -153,24 +152,23 @@ export default function CreateTicket() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
+      <div className="flex items-center gap-3">
+        <button
           onClick={() => navigate("/cliente/assistenza")}
+          className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-muted transition-colors shrink-0"
         >
           <ArrowLeft className="h-5 w-5" />
-        </Button>
+        </button>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Nuovo Ticket</h1>
+          <h1 className="text-xl font-bold tracking-tight">Nuovo Ticket</h1>
           <p className="text-sm text-muted-foreground">
             Descrivi il problema e ti risponderemo al più presto
           </p>
@@ -178,112 +176,114 @@ export default function CreateTicket() {
       </div>
 
       {/* Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Apri una richiesta di assistenza</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Order Selection */}
-            {orders.length > 0 && (
-              <div className="space-y-2">
-                <Label htmlFor="order">Ordine collegato (opzionale)</Label>
-                <Select value={orderId} onValueChange={setOrderId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleziona un ordine..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Nessun ordine</SelectItem>
-                    {orders.map((order) => (
-                      <SelectItem key={order.id} value={order.id}>
-                        {order.description.length > 50 
-                          ? order.description.substring(0, 50) + "..." 
-                          : order.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Collega il ticket a un ordine specifico per un supporto più rapido
-                </p>
+      <div className="bg-background border border-border/60 rounded-2xl p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+          Apri una richiesta di assistenza
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Order Selection */}
+          {orders.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="order">Ordine collegato (opzionale)</Label>
+              <Select value={orderId || "__none__"} onValueChange={setOrderId}>
+                <SelectTrigger className="rounded-xl h-11">
+                  <SelectValue placeholder="Seleziona un ordine..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nessun ordine</SelectItem>
+                  {orders.map((order) => (
+                    <SelectItem key={order.id} value={order.id}>
+                      {order.description.length > 50
+                        ? order.description.substring(0, 50) + "..."
+                        : order.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Collega il ticket a un ordine specifico per un supporto più rapido
+              </p>
+            </div>
+          )}
+
+          {/* Subject */}
+          <div className="space-y-2">
+            <Label htmlFor="subject">Oggetto *</Label>
+            <Input
+              id="subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Riassumi brevemente il problema"
+              required
+              className="rounded-xl h-11"
+            />
+          </div>
+
+          {/* Message */}
+          <div className="space-y-2">
+            <Label htmlFor="message">Messaggio *</Label>
+            <Textarea
+              id="message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Descrivi in dettaglio il problema o la tua richiesta..."
+              rows={6}
+              required
+              className="rounded-xl min-h-[140px]"
+            />
+          </div>
+
+          {/* Allegati */}
+          <div className="space-y-2">
+            <Label>Allegati (opzionale)</Label>
+            <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept={ACCEPTED_FORMATS} />
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={pendingFiles.length >= MAX_FILES} className="rounded-xl h-11">
+              <Paperclip className="h-4 w-4 mr-2" /> Allega file
+            </Button>
+            {pendingFiles.length > 0 && (
+              <div className="space-y-1.5 mt-2">
+                {pendingFiles.map((f, i) => (
+                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 text-sm p-3 rounded-xl border bg-muted/30">
+                    <span className="truncate flex-1">{f.name}</span>
+                    <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                    <button type="button" className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-destructive/10 text-destructive transition-colors" onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">{pendingFiles.length}/{MAX_FILES} file — max 10MB ciascuno</p>
               </div>
             )}
+          </div>
 
-            {/* Subject */}
-            <div className="space-y-2">
-              <Label htmlFor="subject">Oggetto *</Label>
-              <Input
-                id="subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Riassumi brevemente il problema"
-                required
-              />
-            </div>
-
-            {/* Message */}
-            <div className="space-y-2">
-              <Label htmlFor="message">Messaggio *</Label>
-              <Textarea
-                id="message"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Descrivi in dettaglio il problema o la tua richiesta..."
-                rows={6}
-                required
-              />
-            </div>
-
-            {/* Allegati */}
-            <div className="space-y-2">
-              <Label>Allegati (opzionale)</Label>
-              <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept={ACCEPTED_FORMATS} />
-              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={pendingFiles.length >= MAX_FILES}>
-                <Paperclip className="h-4 w-4 mr-2" /> Allega file
-              </Button>
-              {pendingFiles.length > 0 && (
-                <div className="space-y-1 mt-2">
-                  {pendingFiles.map((f, i) => (
-                    <div key={`${f.name}-${i}`} className="flex items-center gap-2 text-sm p-2 rounded border bg-muted/30">
-                      <span className="truncate flex-1">{f.name}</span>
-                      <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
-                    </div>
-                  ))}
-                  <p className="text-xs text-muted-foreground">{pendingFiles.length}/{MAX_FILES} file — max 10MB ciascuno</p>
-                </div>
+          {/* Submit */}
+          <div className="flex flex-col gap-3 pt-2">
+            <Button
+              type="submit"
+              disabled={!subject.trim() || !message.trim() || createTicketMutation.isPending}
+              className="w-full rounded-2xl py-3.5 h-auto text-base font-semibold"
+            >
+              {createTicketMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Invio...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Invia Ticket
+                </>
               )}
-            </div>
-
-            {/* Submit */}
-            <div className="flex justify-end gap-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate("/cliente/assistenza")}
-              >
-                Annulla
-              </Button>
-              <Button
-                type="submit"
-                disabled={!subject.trim() || !message.trim() || createTicketMutation.isPending}
-              >
-                {createTicketMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Invio...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Invia Ticket
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => navigate("/cliente/assistenza")}
+              className="w-full rounded-2xl py-3 h-auto text-muted-foreground"
+            >
+              Annulla
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

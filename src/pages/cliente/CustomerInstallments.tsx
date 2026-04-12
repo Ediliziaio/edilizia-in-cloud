@@ -8,14 +8,11 @@ import {
   Clock,
   AlertTriangle,
   Circle,
-  ArrowRight,
   Receipt,
   TrendingUp,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { format, isPast, isToday, addDays, isBefore } from "date-fns";
 import { it } from "date-fns/locale";
 import { useMemo, useState } from "react";
@@ -138,16 +135,14 @@ export default function CustomerInstallments() {
   if (installments.length === 0) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-bold">Stato Pagamenti</h1>
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Wallet className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="font-medium text-muted-foreground">Nessun pagamento registrato</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">
-              I pagamenti relativi ai tuoi ordini appariranno qui.
-            </p>
-          </CardContent>
-        </Card>
+        <h1 className="text-2xl font-bold">I Miei Pagamenti</h1>
+        <div className="bg-background border border-border/60 rounded-2xl p-8 text-center">
+          <Wallet className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+          <p className="font-medium text-muted-foreground text-base">Nessun pagamento registrato</p>
+          <p className="text-sm text-muted-foreground/70 mt-2">
+            I pagamenti relativi ai tuoi ordini appariranno qui.
+          </p>
+        </div>
       </div>
     );
   }
@@ -161,89 +156,88 @@ export default function CustomerInstallments() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold">Stato Pagamenti</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
+        <h1 className="text-2xl font-bold">I Miei Pagamenti</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Riepilogo dei pagamenti relativi ai tuoi ordini
         </p>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Receipt className="h-4 w-4 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground font-medium">Totale dovuto</p>
+        <div className="bg-background border border-border/60 rounded-2xl p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-muted/60 flex items-center justify-center">
+              <Receipt className="h-5 w-5 text-muted-foreground" />
             </div>
-            <p className="text-lg font-bold">{fmtCur(summary.total)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <p className="text-xs text-muted-foreground font-medium">Pagato</p>
+          </div>
+          <p className="text-xs text-muted-foreground font-medium">Totale dovuto</p>
+          <p className="text-xl font-bold mt-0.5">{fmtCur(summary.total)}</p>
+        </div>
+        <div className="bg-background border border-border/60 rounded-2xl p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             </div>
-            <p className="text-lg font-bold text-emerald-600">{fmtCur(summary.paid)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <p className="text-xs text-muted-foreground font-medium">Residuo</p>
+          </div>
+          <p className="text-xs text-muted-foreground font-medium">Pagato</p>
+          <p className="text-xl font-bold text-emerald-600 mt-0.5">{fmtCur(summary.paid)}</p>
+        </div>
+        <div className="bg-background border border-border/60 rounded-2xl p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <TrendingUp className="h-5 w-5 text-primary" />
             </div>
-            <p className="text-lg font-bold">{fmtCur(summary.remaining)}</p>
-          </CardContent>
-        </Card>
+          </div>
+          <p className="text-xs text-muted-foreground font-medium">Residuo</p>
+          <p className="text-xl font-bold mt-0.5">{fmtCur(summary.remaining)}</p>
+        </div>
         {summary.overdue > 0 ? (
-          <Card className="border-destructive/30">
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-                <p className="text-xs text-destructive font-medium">Scaduto</p>
+          <div className="bg-background border border-destructive/30 rounded-2xl p-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
               </div>
-              <p className="text-lg font-bold text-destructive">{fmtCur(summary.overdue)}</p>
-            </CardContent>
-          </Card>
+            </div>
+            <p className="text-xs text-destructive font-medium">Scaduto</p>
+            <p className="text-xl font-bold text-destructive mt-0.5">{fmtCur(summary.overdue)}</p>
+          </div>
         ) : (
-          <Card>
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Wallet className="h-4 w-4 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground font-medium">Progresso</p>
+          <div className="bg-background border border-border/60 rounded-2xl p-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-muted/60 flex items-center justify-center">
+                <Wallet className="h-5 w-5 text-muted-foreground" />
               </div>
-              <p className="text-lg font-bold">{summary.paidCount}/{summary.totalCount} rate</p>
-            </CardContent>
-          </Card>
+            </div>
+            <p className="text-xs text-muted-foreground font-medium">Progresso</p>
+            <p className="text-xl font-bold mt-0.5">{summary.paidCount}/{summary.totalCount} rate</p>
+          </div>
         )}
       </div>
 
       {/* Progress bar */}
-      <Card>
-        <CardContent className="pt-4 pb-3 px-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium">Avanzamento pagamenti</p>
-            <p className="text-sm text-muted-foreground">{Math.round(summary.paidPercent)}%</p>
-          </div>
-          <Progress value={summary.paidPercent} className="h-2.5" />
-          <div className="flex items-center justify-between mt-1.5">
-            <p className="text-xs text-muted-foreground">{summary.paidCount} di {summary.totalCount} rate pagate</p>
-            <p className="text-xs text-emerald-600 font-medium">{fmtCur(summary.paid)} su {fmtCur(summary.total)}</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="bg-background border border-border/60 rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold">Avanzamento pagamenti</p>
+          <p className="text-base font-bold text-primary">{Math.round(summary.paidPercent)}%</p>
+        </div>
+        <Progress value={summary.paidPercent} className="h-3" />
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-xs text-muted-foreground">{summary.paidCount} di {summary.totalCount} rate pagate</p>
+          <p className="text-xs text-emerald-600 font-medium">{fmtCur(summary.paid)} su {fmtCur(summary.total)}</p>
+        </div>
+      </div>
 
       {/* Filter tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {filterButtons.map((fb) => (
           <button
             key={fb.key}
             onClick={() => setFilter(fb.key)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
+              "flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-colors whitespace-nowrap",
               filter === fb.key
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted/60 text-muted-foreground hover:bg-muted"
@@ -264,11 +258,9 @@ export default function CustomerInstallments() {
 
       {/* Order groups */}
       {filteredGroups.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-muted-foreground text-sm">Nessun pagamento con questo filtro.</p>
-          </CardContent>
-        </Card>
+        <div className="bg-background border border-border/60 rounded-2xl p-8 text-center">
+          <p className="text-muted-foreground text-sm">Nessun pagamento con questo filtro.</p>
+        </div>
       ) : (
         filteredGroups.map(({ order, installments: orderInstallments }) => {
           const orderPaid = orderInstallments.filter((i) => i.is_paid).reduce((s, i) => s + Number(i.amount), 0);
@@ -276,23 +268,29 @@ export default function CustomerInstallments() {
           const orderPaidPercent = orderTotal > 0 ? (orderPaid / orderTotal) * 100 : 0;
 
           return (
-            <Card key={order.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Wallet className="h-4 w-4 text-primary" />
-                    {order.order_code || "Ordine"}
-                  </CardTitle>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">{fmtCur(orderPaid)} <span className="text-muted-foreground font-normal">/ {fmtCur(orderTotal)}</span></p>
+            <div key={order.id} className="bg-background border border-border/60 rounded-2xl overflow-hidden">
+              {/* Order header */}
+              <div className="p-5 pb-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Wallet className="h-5 w-5 text-primary shrink-0" />
+                      <p className="text-base font-bold truncate">{order.order_code || "Ordine"}</p>
+                    </div>
+                    {order.description && (
+                      <p className="text-sm text-muted-foreground truncate mt-0.5 pl-7">{order.description}</p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold">{fmtCur(orderPaid)}</p>
+                    <p className="text-xs text-muted-foreground">su {fmtCur(orderTotal)}</p>
                   </div>
                 </div>
-                {order.description && (
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">{order.description}</p>
-                )}
-                <Progress value={orderPaidPercent} className="h-1.5 mt-2" />
-              </CardHeader>
-              <CardContent className="pt-0 space-y-2">
+                <Progress value={orderPaidPercent} className="h-2 mt-3" />
+              </div>
+
+              {/* Installment rows */}
+              <div className="px-4 pb-4 space-y-3">
                 {orderInstallments.map((inst, idx) => {
                   const status = getInstallmentStatus(inst);
                   const cfg = statusConfig[status];
@@ -301,17 +299,21 @@ export default function CustomerInstallments() {
                     <div
                       key={inst.id}
                       className={cn(
-                        "flex items-center justify-between p-3 rounded-lg border gap-3 transition-colors",
+                        "p-4 rounded-xl border transition-colors",
                         cfg.bg, cfg.borderColor
                       )}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={cn("h-8 w-8 rounded-full flex items-center justify-center shrink-0", cfg.bg)}>
-                          <Icon className={cn("h-4 w-4", cfg.color)} />
+                      <div className="flex items-start gap-3">
+                        <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", cfg.bg, cfg.borderColor, "border")}>
+                          <Icon className={cn("h-5 w-5", cfg.color)} />
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{inst.label || `Rata ${inst.position}`}</p>
-                          <p className="text-xs text-muted-foreground">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold">{inst.label || `Rata ${inst.position}`}</p>
+                            <Badge variant={cfg.badge} className="text-xs shrink-0">{cfg.label}</Badge>
+                          </div>
+                          <p className="text-lg font-bold tabular-nums mt-1">{fmtCur(Number(inst.amount))}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
                             {inst.is_paid && inst.paid_date
                               ? `Pagato il ${format(new Date(inst.paid_date), "dd MMMM yyyy", { locale: it })}`
                               : inst.expected_date
@@ -320,15 +322,11 @@ export default function CustomerInstallments() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant={cfg.badge} className="text-xs">{cfg.label}</Badge>
-                        <span className="text-sm font-bold tabular-nums">{fmtCur(Number(inst.amount))}</span>
-                      </div>
                     </div>
                   );
                 })}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })
       )}

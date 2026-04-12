@@ -21,7 +21,21 @@ interface Appointment {
   is_completed: boolean;
   formatted_address: string | null;
   address_city: string | null;
+  contact_email: string | null;
 }
+
+const EXCLUDED_TYPES = ["preventivo", "telefonata", "consulenza", "videocall", "meeting"];
+
+const typeLabels: Record<string, string> = {
+  posa: "Posa in opera",
+  installazione: "Installazione",
+  manutenzione: "Manutenzione",
+  consegna: "Consegna materiale",
+  collaudo: "Collaudo",
+  sopralluogo: "Sopralluogo tecnico",
+  rilievo: "Rilievo tecnico",
+  assistenza: "Assistenza tecnica",
+};
 
 function generateICS(apt: Appointment): string {
   const dtStart = apt.appointment_time
@@ -86,7 +100,9 @@ export default function CustomerAppointments() {
 
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, title, description, appointment_date, appointment_time, appointment_end_time, appointment_type, status, is_completed, formatted_address, address_city")
+        .select("id, title, description, appointment_date, appointment_time, appointment_end_time, appointment_type, status, is_completed, formatted_address, address_city, contact_email")
+        .eq("contact_email", profile.email)
+        .not("appointment_type", "in", `(${EXCLUDED_TYPES.join(",")})`)
         .order("appointment_date", { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -124,32 +140,41 @@ export default function CustomerAppointments() {
   if (appointments.length === 0) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-bold">Appuntamenti</h1>
-        <Card>
-          <CardContent className="py-12 text-center">
-            <CalendarDays className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground">Nessun appuntamento in programma.</p>
-          </CardContent>
-        </Card>
+        <div>
+          <h1 className="text-xl font-bold">I Miei Interventi</h1>
+          <p className="text-sm text-muted-foreground">Calendario degli interventi programmati</p>
+        </div>
+        <div className="bg-background border border-border/60 rounded-2xl p-8 text-center">
+          <CalendarDays className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground font-medium">Nessun intervento programmato</p>
+          <p className="text-sm text-muted-foreground/70 mt-1">Gli interventi confermati appariranno qui</p>
+        </div>
       </div>
     );
   }
 
-  function AppointmentRow({ apt }: { apt: Appointment }) {
+  function AppointmentCard({ apt }: { apt: Appointment }) {
     const st = statusMap[apt.status] || { label: apt.status, variant: "secondary" as const };
     const d = new Date(apt.appointment_date);
     const isPastDate = isPast(d) && !isToday(d);
+    const typeLabel = typeLabels[apt.appointment_type] || apt.appointment_type;
 
     return (
-      <div className={`flex items-start justify-between gap-3 p-3 rounded-lg border ${isPastDate ? "bg-muted/20 opacity-75" : "bg-muted/30"}`}>
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary shrink-0">
-            <span className="text-xs font-medium uppercase">{format(d, "MMM", { locale: it })}</span>
+      <div className={`bg-background border border-border/60 rounded-2xl p-4 ${isPastDate ? "opacity-70" : ""}`}>
+        <div className="flex items-start gap-3">
+          <div className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-primary/10 text-primary shrink-0">
             <span className="text-lg font-bold leading-none">{format(d, "dd")}</span>
+            <span className="text-[11px] font-medium uppercase mt-0.5">{format(d, "MMM", { locale: it })}</span>
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium">{apt.title}</p>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{typeLabel}</p>
+                <p className="text-xs text-muted-foreground truncate">{apt.title}</p>
+              </div>
+              <Badge variant={st.variant} className="shrink-0 text-[11px]">{st.label}</Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
               {apt.appointment_time && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
@@ -164,18 +189,20 @@ export default function CustomerAppointments() {
                 </span>
               )}
             </div>
-            {apt.description && (
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{apt.description}</p>
+            {!isPastDate && (
+              <div className="mt-3 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs rounded-xl gap-1.5"
+                  onClick={() => downloadICS(apt)}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Aggiungi al calendario
+                </Button>
+              </div>
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Badge variant={st.variant}>{st.label}</Badge>
-          {!isPastDate && (
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => downloadICS(apt)} title="Scarica .ics">
-              <Download className="h-4 w-4" />
-            </Button>
-          )}
         </div>
       </div>
     );
@@ -183,38 +210,37 @@ export default function CustomerAppointments() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Appuntamenti</h1>
+      <div>
+        <h1 className="text-xl font-bold">I Miei Interventi</h1>
+        <p className="text-sm text-muted-foreground">Calendario degli interventi programmati</p>
+      </div>
 
       {upcoming.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Calendar className="h-5 w-5 text-primary" />
-              Prossimi appuntamenti ({upcoming.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            Prossimi interventi ({upcoming.length})
+          </h2>
+          <div className="space-y-3">
             {upcoming.map((apt) => (
-              <AppointmentRow key={apt.id} apt={apt} />
+              <AppointmentCard key={apt.id} apt={apt} />
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {past.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
-              Storico ({past.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Storico ({past.length})
+          </h2>
+          <div className="space-y-3">
             {past.map((apt) => (
-              <AppointmentRow key={apt.id} apt={apt} />
+              <AppointmentCard key={apt.id} apt={apt} />
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
     </div>
   );
