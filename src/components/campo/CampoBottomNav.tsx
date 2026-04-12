@@ -12,7 +12,6 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSidebar } from "@/components/ui/sidebar";
 
 interface NavItem {
   label: string;
@@ -26,7 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Lavori", icon: Calendar, href: "/campo/calendario" },
   { label: "Timbra", icon: Clock, href: "__timbra__" },
   { label: "Chat", icon: MessageSquare, href: "/campo/chat" },
-  { label: "Menu", icon: LayoutGrid, href: "__menu__" },
+  { label: "App", icon: LayoutGrid, href: "/campo/menu" },
 ];
 
 interface Props {
@@ -36,10 +35,9 @@ interface Props {
 
 export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
   const location = useLocation();
-  const { toggleSidebar } = useSidebar();
 
   const isActive = (item: NavItem) => {
-    if (item.href === "__timbra__" || item.href === "__menu__") return false;
+    if (item.href === "__timbra__") return false;
     if (item.exact) return location.pathname === item.href;
     return location.pathname.startsWith(item.href);
   };
@@ -71,26 +69,6 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
                   {item.label}
                 </span>
               </Link>
-            );
-          }
-
-          // Menu — apri sidebar
-          if (item.href === "__menu__") {
-            return (
-              <button
-                key="menu"
-                className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
-                onClick={toggleSidebar}
-                aria-label="Apri menu"
-                type="button"
-              >
-                <div className="flex items-center justify-center w-10 h-8">
-                  <Icon className="h-5 w-5 text-muted-foreground stroke-[1.5]" />
-                </div>
-                <span className="text-[10px] leading-none text-muted-foreground font-medium">
-                  {item.label}
-                </span>
-              </button>
             );
           }
 
