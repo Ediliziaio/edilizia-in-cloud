@@ -90,6 +90,7 @@ export default function CampoLayout() {
   const operaioItems = [
     { title: "Home", url: "/campo", icon: Home, end: true },
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
+    { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
     { title: "Presenze", url: "/campo/presenze", icon: Clock },
     { title: "Ferie e Permessi", url: "/campo/ferie", icon: CalendarDays },
     { title: "Cedolini", url: "/campo/cedolini", icon: Receipt },
@@ -106,6 +107,7 @@ export default function CampoLayout() {
   const subItems = [
     { title: "Home", url: "/campo", icon: Home, end: true },
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
+    { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
     { title: "SAL", url: "/campo/sal", icon: ClipboardCheck },
     { title: "Documenti", url: "/campo/documenti", icon: FileText },

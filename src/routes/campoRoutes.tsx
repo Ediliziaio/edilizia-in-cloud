@@ -29,6 +29,7 @@ const CampoCedolini       = lazy(() => import("@/pages/campo/CampoCedolini"));
 const SubSAL              = lazy(() => import("@/pages/campo/subappaltatore/SubSAL"));
 const SubDocumenti        = lazy(() => import("@/pages/campo/subappaltatore/SubDocumenti"));
 const CampoMenu           = lazy(() => import("@/pages/campo/CampoMenu"));
+const CampoAttivita       = lazy(() => import("@/pages/campo/CampoAttivita"));
 
 export function campoRoutes() {
   return (
@@ -65,6 +66,7 @@ export function campoRoutes() {
       <Route path="sub/documenti" element={<SubDocumenti />} />
       <Route path="profilo" element={<CampoProfilo />} />
       <Route path="impostazioni" element={<CampoImpostazioni />} />
+      <Route path="attivita" element={<CampoAttivita />} />
       <Route path="menu" element={<CampoMenu />} />
       <Route path="*" element={<Navigate to="/campo" replace />} />
     </Route>

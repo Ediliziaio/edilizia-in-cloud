@@ -720,9 +720,19 @@ function MieAttivitaCampo() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Le mie attività</CardTitle>
-          {tasks.length > 0 && (
-            <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {tasks.length > 0 && (
+              <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-primary"
+              onClick={() => navigate("/campo/attivita")}
+            >
+              Vedi tutte <ChevronRight className="w-3 h-3 ml-0.5" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>

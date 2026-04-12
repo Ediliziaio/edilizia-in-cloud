@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Home, Calendar, Clock, CalendarDays, Receipt, Mic, MessageSquare,
   ShieldCheck, CreditCard, FileText, Ticket, Settings, LogOut,
-  ClipboardCheck, Search,
+  ClipboardCheck, Search, CheckSquare,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -43,6 +43,7 @@ export default function CampoMenu() {
       items: [
         { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
         { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },
+        { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
         { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
       ],
@@ -79,6 +80,7 @@ export default function CampoMenu() {
       items: [
         { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
         { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },
+        { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-emerald-600 bg-emerald-50" },
       ],
     },
