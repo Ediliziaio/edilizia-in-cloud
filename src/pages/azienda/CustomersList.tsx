@@ -166,7 +166,9 @@ function CustomersListInner() {
       return data as unknown as PaginatedResult;
     },
     enabled: !!effectiveCompany?.id,
-    staleTime: 30 * 1000,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (prev: any) => prev,
   });
 
   const customers = paginatedData?.rows ?? [];

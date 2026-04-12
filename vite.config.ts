@@ -84,11 +84,20 @@ export default defineConfig(() => ({
         runtimeCaching: [
           {
             // Critical list endpoints: stale-while-revalidate for fast mobile loads
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/(cantieri|clienti|giornale_lavori)/i,
+            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/(cantieri|clienti|giornale_lavori|orders|marketing_contacts|marketing_opportunities|marketing_pipelines|internal_chat_channels|appointments|profiles|staff_permissions|notifications)/i,
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "supabase-critical",
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 },
+              expiration: { maxEntries: 100, maxAgeSeconds: 120 },
+            },
+          },
+          {
+            // RPC endpoints (dashboard KPIs, etc): stale-while-revalidate
+            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/rpc\//i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "supabase-rpc",
+              expiration: { maxEntries: 30, maxAgeSeconds: 180 },
             },
           },
           {

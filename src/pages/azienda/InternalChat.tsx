@@ -159,6 +159,8 @@ function useInternalChat() {
   const { data: channels = [] } = useQuery({
     queryKey: ["internal-chat-channels", companyId],
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("internal_chat_channels").select("*")
@@ -172,6 +174,8 @@ function useInternalChat() {
   const { data: members = [] } = useQuery({
     queryKey: ["internal-chat-members", companyId],
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("internal_chat_members").select("*")
@@ -184,6 +188,8 @@ function useInternalChat() {
   const { data: profiles = [] } = useQuery({
     queryKey: ["chat-profiles", companyId],
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles").select("id, first_name, last_name, email, avatar_url")
@@ -193,27 +199,27 @@ function useInternalChat() {
     },
   });
 
-  // Last message per channel for preview
+  // Last message per channel for preview — single batch query instead of N+1
+  const channelIds = useMemo(() => channels.map((c) => c.id), [channels]);
   const { data: lastMessages = {} } = useQuery({
-    queryKey: ["internal-chat-last-messages", companyId],
-    enabled: !!companyId && channels.length > 0,
+    queryKey: ["internal-chat-last-messages", companyId, channelIds],
+    enabled: !!companyId && channelIds.length > 0,
     queryFn: async () => {
-      const channelIds = channels.map((c) => c.id);
+      // Single query: fetch recent messages for all channels, then pick last per channel
+      const { data, error } = await supabase
+        .from("internal_chat_messages")
+        .select("*")
+        .in("channel_id", channelIds)
+        .order("created_at", { ascending: false })
+        .limit(channelIds.length * 2); // slightly over to handle edge cases
+      if (error) throw error;
       const result: Record<string, Message> = {};
-      // Fetch last message for each channel (batch via Promise.all)
-      await Promise.all(channelIds.map(async (chId) => {
-        const { data } = await supabase
-          .from("internal_chat_messages")
-          .select("*")
-          .eq("channel_id", chId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (data) result[chId] = data as Message;
-      }));
+      for (const msg of (data || []) as Message[]) {
+        if (!result[msg.channel_id]) result[msg.channel_id] = msg;
+      }
       return result;
     },
-    staleTime: 15_000,
+    staleTime: 30_000,
   });
 
   const myChannels = channels.filter((ch) =>

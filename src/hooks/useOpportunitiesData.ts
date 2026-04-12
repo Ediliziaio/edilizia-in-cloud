@@ -31,6 +31,7 @@ export function usePipelines() {
 }
 
 const PAGE_SIZE = 500;
+const MAX_AUTO_PAGES = typeof window !== "undefined" && window.innerWidth < 768 ? 1 : 3;
 
 async function enrichPage(data: any[]) {
   // Enrich with assigned profile names
@@ -54,30 +55,36 @@ async function enrichPage(data: any[]) {
   const today = new Date().toISOString().split("T")[0];
 
   if (oppIds.length > 0) {
-    const [notesRes, docsRes] = await Promise.all([
+    // Run all enrichment queries in parallel
+    const enrichPromises: Promise<any>[] = [
       supabase.from("marketing_contact_notes").select("opportunity_id").in("opportunity_id", oppIds).limit(1000),
       supabase.from("marketing_documents").select("opportunity_id").in("opportunity_id", oppIds).limit(1000),
-    ]);
-
-    let apptRes: any = null;
+    ];
     if (contactIds.length > 0) {
-      apptRes = await supabase
-        .from("appointments")
-        .select("contact_id, appointment_date, appointment_time")
-        .in("contact_id", contactIds)
-        .gte("appointment_date", today)
-        .neq("status", "annullato")
-        .order("appointment_date", { ascending: true })
-        .order("appointment_time", { ascending: true, nullsFirst: false })
-        .limit(1000);
+      enrichPromises.push(
+        supabase
+          .from("appointments")
+          .select("contact_id, appointment_date, appointment_time")
+          .in("contact_id", contactIds)
+          .gte("appointment_date", today)
+          .neq("status", "annullato")
+          .order("appointment_date", { ascending: true })
+          .order("appointment_time", { ascending: true, nullsFirst: false })
+          .limit(1000)
+      );
     }
 
-    if (notesRes.data) {
+    const results = await Promise.all(enrichPromises);
+    const notesRes = results[0];
+    const docsRes = results[1];
+    const apptRes = results[2];
+
+    if (notesRes?.data) {
       notesRes.data.forEach((n: any) => {
         if (n.opportunity_id) notesCountMap[n.opportunity_id] = (notesCountMap[n.opportunity_id] || 0) + 1;
       });
     }
-    if (docsRes.data) {
+    if (docsRes?.data) {
       docsRes.data.forEach((d: any) => {
         if (d.opportunity_id) docsCountMap[d.opportunity_id] = (docsCountMap[d.opportunity_id] || 0) + 1;
       });
@@ -135,10 +142,10 @@ export function useOpportunities(pipelineId: string | null) {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Auto-fetch capped: fetch at most 3 extra pages (1500 records total) to avoid memory bloat
+  // Auto-fetch capped: mobile loads 1 extra page (1000 total), desktop loads 3 (1500 total)
   useEffect(() => {
     const pageCount = infiniteQuery.data?.pages.length ?? 0;
-    if (pageCount < 3 && infiniteQuery.hasNextPage && !infiniteQuery.isFetchingNextPage) {
+    if (pageCount < MAX_AUTO_PAGES && infiniteQuery.hasNextPage && !infiniteQuery.isFetchingNextPage) {
       infiniteQuery.fetchNextPage();
     }
   }, [infiniteQuery.hasNextPage, infiniteQuery.isFetchingNextPage, infiniteQuery.data?.pages.length]);

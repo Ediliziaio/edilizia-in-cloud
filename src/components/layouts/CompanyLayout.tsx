@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useMemo, useState, useEffect, useCallback, memo } from "react";
+import { Suspense, useMemo, useState, useEffect, useCallback, memo } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
@@ -1072,7 +1072,13 @@ export function CompanyLayout() {
           <LifecycleNotificationsBanner />
           <main className="flex-1 p-3 md:p-6 bg-muted/30 pb-20 md:pb-6" id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina">
-              <Outlet />
+              <Suspense fallback={
+                <div className="flex items-center justify-center min-h-[200px]">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              }>
+                <Outlet />
+              </Suspense>
             </ErrorBoundary>
           </main>
           <footer className="hidden md:block text-center py-2 border-t bg-background">
