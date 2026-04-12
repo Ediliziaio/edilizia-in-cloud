@@ -108,9 +108,12 @@ export default function CampoLayout() {
     { title: "Home", url: "/campo", icon: Home, end: true },
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
     { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
+    { title: "Rapportino Vocale", url: "/campo/rapportino-vocale", icon: Mic },
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
+    { title: "Sicurezza", url: "/campo/sicurezza", icon: Shield },
     { title: "SAL", url: "/campo/sal", icon: ClipboardCheck },
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
+    { title: "Apri Ticket", url: "/campo/ticket/nuovo", icon: Ticket },
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
 

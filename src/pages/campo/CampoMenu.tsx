@@ -76,12 +76,14 @@ export default function CampoMenu() {
   // Sezioni per subappaltatore
   const subSections: AppSection[] = [
     {
-      title: "Lavoro",
+      title: "Lavoro e Produttivita",
       items: [
         { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
         { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
-        { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-emerald-600 bg-emerald-50" },
+        { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+        { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
+        { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-cyan-600 bg-cyan-50" },
       ],
     },
     {

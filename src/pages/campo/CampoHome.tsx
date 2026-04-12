@@ -817,9 +817,11 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
       { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
     ] : []),
     ...(isSubappaltatore ? [
-      { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-emerald-600 bg-emerald-50" },
+      { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
+      { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+      { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-teal-600 bg-teal-50" },
       { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-blue-600 bg-blue-50" },
-      { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-violet-600 bg-violet-50" },
+      { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-indigo-600 bg-indigo-50" },
       { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
     ] : []),
   ];
