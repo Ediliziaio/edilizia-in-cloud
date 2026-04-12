@@ -750,7 +750,11 @@ function MieAttivitaCampo() {
             {tasks.map((t: any) => {
               const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
               return (
-                <div key={t.id} className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-muted/50 transition-colors">
+                <div
+                  key={t.id}
+                  onClick={() => navigate("/campo/attivita")}
+                  className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-muted/50 transition-colors cursor-pointer active:scale-[0.98]"
+                >
                   <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{t.title}</p>
