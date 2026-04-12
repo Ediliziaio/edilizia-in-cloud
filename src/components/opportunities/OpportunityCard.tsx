@@ -152,18 +152,19 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   }
 
   const actionIcons = [
-    { icon: Phone, tooltip: "Copia telefono", action: handleCopyPhone },
-    { icon: Mail, tooltip: "Invia email", action: handleEmail },
+    { icon: Phone, tooltip: "Copia telefono", action: handleCopyPhone, mobileVisible: true },
+    { icon: Mail, tooltip: "Invia email", action: handleEmail, mobileVisible: true },
     {
       icon: Tag,
       tooltip: tags.length > 0 ? tags.join(", ") : "Nessuna etichetta",
       action: (e: React.MouseEvent) => { stopProp(e); onClick?.(); },
       badge: tags.length > 0 ? tags.length : null,
+      mobileVisible: false,
     },
-    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Note (${opportunity.notes_count})` : "Note", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null },
-    { icon: Calendar, tooltip: opportunity.next_appointment ? "Appuntamento programmato" : "Calendario", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: opportunity.next_appointment ? 1 : null },
-    { icon: Folder, tooltip: opportunity.documents_count > 0 ? `Documenti (${opportunity.documents_count})` : "Documenti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); }, badge: opportunity.documents_count > 0 ? opportunity.documents_count : null },
-    { icon: Trash2, tooltip: "Elimina", action: handleDeleteClick },
+    { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Note (${opportunity.notes_count})` : "Note", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null, mobileVisible: true },
+    { icon: Calendar, tooltip: opportunity.next_appointment ? "Appuntamento programmato" : "Calendario", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: opportunity.next_appointment ? 1 : null, mobileVisible: true },
+    { icon: Folder, tooltip: opportunity.documents_count > 0 ? `Documenti (${opportunity.documents_count})` : "Documenti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); }, badge: opportunity.documents_count > 0 ? opportunity.documents_count : null, mobileVisible: false },
+    { icon: Trash2, tooltip: "Elimina", action: handleDeleteClick, mobileVisible: false },
   ];
 
   return (
@@ -174,7 +175,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {...(isOverlay ? {} : { ...attributes, ...listeners })}
         onClick={handleCardClick}
         className={cn(
-          "bg-background border rounded-lg p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-2 border-l-[3px]",
+          "bg-background border rounded-lg p-2 md:p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-1.5 md:space-y-2 border-l-[3px]",
           opportunity.status === "open" && "border-l-blue-500",
           opportunity.status === "won" && "border-l-green-500",
           opportunity.status === "lost" && "border-l-red-500",
@@ -196,7 +197,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               <div className="flex items-center gap-1 min-w-0">
                 <LeadTemperatureBadge lastActivityAt={contact.last_activity_at} hasOpenOpportunity createdAt={contact.created_at} compact />
                 <p
-                  className="text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
+                  className="text-xs md:text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
                   onClick={(e) => { e.stopPropagation(); navigate(`/azienda/marketing/contatti/${contact.id}`); }}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -253,12 +254,15 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {/* Action bar */}
         {!isOverlay && (
           <div className="flex items-center justify-between pt-1 border-t border-border/50">
-            {actionIcons.map(({ icon: Icon, tooltip, action, badge }, i) => (
+            {actionIcons.map(({ icon: Icon, tooltip, action, badge, mobileVisible }, i) => (
               <Tooltip key={i}>
                 <TooltipTrigger asChild>
                   <button
                     onClick={action}
-                    className="relative p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                    className={cn(
+                      "relative p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground",
+                      !mobileVisible && "hidden md:block"
+                    )}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {badge && (
@@ -346,7 +350,7 @@ function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldAct
   return (
     <div className={cn("space-y-1", layout === "compact" && "space-y-0.5")}>
       {rows.map((row) => (
-        <p key={row.label} className={cn("leading-tight truncate", layout === "compact" ? "text-[10px]" : "text-[11px]")}>
+        <p key={row.label} className={cn("leading-tight truncate", layout === "compact" ? "text-[10px]" : "text-[10px] md:text-[11px]")}>
           {layout !== "no-label" && (
             <span className="text-muted-foreground">{row.label}: </span>
           )}

@@ -475,7 +475,7 @@ function MarketingOpportunitiesContent() {
           </DropdownMenu>
         </div>
       </div>
-      <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
+      <div className="shrink-0 hidden md:block"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
       {isFetchingNextPage && (
         <div className="flex items-center gap-2 px-1 shrink-0">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
