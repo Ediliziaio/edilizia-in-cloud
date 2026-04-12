@@ -231,22 +231,22 @@ export default function CustomerInstallments() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2.5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-none">
         {filterButtons.map((fb) => (
           <button
             key={fb.key}
             onClick={() => setFilter(fb.key)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-medium transition-colors whitespace-nowrap",
+              "flex items-center gap-1.5 px-5 py-2.5 rounded-2xl text-sm font-medium transition-all whitespace-nowrap shrink-0",
               filter === fb.key
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm"
                 : "bg-muted/60 text-muted-foreground hover:bg-muted"
             )}
           >
             {fb.label}
             {filterCounts[fb.key] > 0 && (
               <span className={cn(
-                "text-xs",
+                "text-xs tabular-nums",
                 filter === fb.key ? "text-primary-foreground/80" : "text-muted-foreground/60"
               )}>
                 ({filterCounts[fb.key]})

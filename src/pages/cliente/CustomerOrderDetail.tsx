@@ -144,21 +144,27 @@ export default function CustomerOrderDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/cliente")}>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate("/cliente")}
+          className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-muted transition-colors shrink-0"
+        >
           <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">Ordine #{order.id.slice(0, 8).toUpperCase()}</h1>
-          <p className="text-sm text-muted-foreground">Creato il {formatDate(order.created_at)}</p>
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold truncate">Ordine #{order.id.slice(0, 8).toUpperCase()}</h1>
+          <p className="text-xs md:text-sm text-muted-foreground">Creato il {formatDate(order.created_at)}</p>
         </div>
-        <Button asChild variant="outline">
-          <Link to={`/cliente/assistenza/nuovo?ordine=${order.id}`}>
-            <MessageSquare className="mr-2 h-4 w-4" />
-            Richiedi Assistenza
-          </Link>
-        </Button>
       </div>
+
+      {/* CTA Assistenza */}
+      <Link
+        to={`/cliente/assistenza/nuovo?ordine=${order.id}`}
+        className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground rounded-2xl py-3.5 text-sm font-semibold hover:bg-primary/90 transition-colors"
+      >
+        <MessageSquare className="h-4 w-4" />
+        Richiedi Assistenza
+      </Link>
 
       {/* Progress Tracker */}
       <Card>
