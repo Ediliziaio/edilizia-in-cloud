@@ -1,12 +1,13 @@
 /**
- * AttivitaStaff — pagina unificata per i dipendenti ufficio (role: company_staff).
+ * AttivitaStaff — pagina unificata per admin e staff.
  * Accessibile da /azienda/attivita
  *
  * Tab:
- *  1. Attività     — dashboard con meteo, calendario mese, timbratura, task manager
- *  2. Timbrature   — storico timbrature personali
- *  3. Ferie        — saldo ferie/permessi e richieste
- *  4. Cedolini     — lista cedolini con download PDF
+ *  1. Attività     — dashboard con meteo, calendario mese, (timbratura solo staff), task manager
+ *  2. Team         — (solo admin) task assegnate ai membri del team
+ *  3. Timbrature   — (solo staff) storico timbrature personali
+ *  4. Ferie        — saldo ferie/permessi e richieste
+ *  5. Cedolini     — lista cedolini con download PDF
  */
 import { lazy, Suspense, useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,7 +22,7 @@ import {
   CheckCircle, Loader2, ExternalLink, Palmtree, Receipt,
   CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
   Thermometer, MapPin, Plus, Pencil, Trash2, X, Filter,
-  ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag,
+  ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -1071,19 +1072,155 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
 // Tab content — Attività (Dashboard Widget)
 // ─────────────────────────────────────────────────────────────────────────────
 function TabAttivita() {
+  const { role } = useAuth();
+  const isAdmin = role === "company_admin";
   const [addTaskDate, setAddTaskDate] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <MeteoWidget />
-        <div className="lg:col-span-2"><TimbraturaSede /></div>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <MiniCalendario onAddTask={setAddTaskDate} />
-        <MieAttivita initialDueDate={addTaskDate} />
-      </div>
+      {isAdmin ? (
+        /* Admin layout — meteo + calendario (no timbratura) */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <MeteoWidget />
+          <div className="lg:col-span-2"><MiniCalendario onAddTask={setAddTaskDate} /></div>
+        </div>
+      ) : (
+        /* Staff layout — meteo + timbratura + calendario */
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <MeteoWidget />
+            <div className="lg:col-span-2"><TimbraturaSede /></div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <MiniCalendario onAddTask={setAddTaskDate} />
+            <MieAttivita initialDueDate={addTaskDate} />
+          </div>
+        </>
+      )}
+      {isAdmin && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <MieAttivita initialDueDate={addTaskDate} />
+          <TaskTeam />
+        </div>
+      )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task del Team (solo admin) — overview attività assegnate ai membri del team
+// ─────────────────────────────────────────────────────────────────────────────
+function TaskTeam() {
+  const { user, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const [filterUser, setFilterUser] = useState<string>("all");
+
+  // Fetch team members
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ["team-members-tasks", companyId],
+    queryFn: async () => {
+      const { data: perms } = await supabase
+        .from("staff_permissions")
+        .select("user_id")
+        .eq("company_id", companyId!);
+      const validIds = (perms || []).map((p) => p.user_id).filter((id) => id !== user?.id);
+      if (!validIds.length) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .in("id", validIds)
+        .order("last_name");
+      return (profiles || []).filter((p) => p.first_name || p.last_name);
+    },
+    enabled: !!companyId && !!user?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Fetch team tasks
+  const { data: teamTasks = [], isLoading } = useQuery({
+    queryKey: ["team-tasks", companyId, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(`id, title, status, priority, due_date, assigned_to,
+          assignee:profiles!tasks_assigned_to_fkey(first_name, last_name)`)
+        .eq("company_id", companyId!)
+        .neq("assigned_to", user!.id)
+        .neq("status", "completata")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId && !!user?.id,
+    staleTime: 60_000,
+  });
+
+  const filteredTasks = useMemo(() => {
+    if (filterUser === "all") return teamTasks;
+    return teamTasks.filter((t: any) => t.assigned_to === filterUser);
+  }, [teamTasks, filterUser]);
+
+  const today = startOfDay(new Date());
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="h-4 w-4" />Task del Team
+            {teamTasks.length > 0 && <Badge variant="secondary" className="text-xs">{teamTasks.length}</Badge>}
+          </CardTitle>
+          <Select value={filterUser} onValueChange={setFilterUser}>
+            <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue placeholder="Tutti" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i membri</SelectItem>
+              {teamMembers.map((m) => (
+                <SelectItem key={m.id} value={m.id}>{m.first_name} {m.last_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
+        ) : filteredTasks.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">Nessuna attività assegnata al team</p>
+          </div>
+        ) : (
+          <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+            {filteredTasks.map((t: any) => {
+              const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+              const scaduta = t.due_date && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date));
+              const assigneeName = [t.assignee?.first_name, t.assignee?.last_name].filter(Boolean).join(" ");
+              const stCfg = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.da_fare;
+              return (
+                <div key={t.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${scaduta ? "border-red-200 bg-red-50/30 dark:border-red-900/30 dark:bg-red-950/10" : "hover:bg-muted/30"}`}>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{t.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Circle className="h-2.5 w-2.5" />{assigneeName}
+                      </span>
+                      <Badge variant="outline" className={`text-[9px] px-1 py-0 ${stCfg.className}`}>{stCfg.label}</Badge>
+                      {t.due_date && (
+                        <span className={`text-[10px] ${scaduta ? "text-red-500 font-semibold" : isToday(new Date(t.due_date)) ? "text-amber-600" : "text-muted-foreground"}`}>
+                          {isToday(new Date(t.due_date)) ? "Oggi" : format(new Date(t.due_date), "d MMM", { locale: it })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1098,6 +1235,8 @@ function TabFallback() {
 // Pagina principale con Tabs
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AttivitaStaff() {
+  const { role } = useAuth();
+  const isAdmin = role === "company_admin";
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "attivita";
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -1106,14 +1245,22 @@ export default function AttivitaStaff() {
     <div className="space-y-6 p-6">
       <AttivitaHeader />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 max-w-xl">
-          <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Attività</span></TabsTrigger>
-          <TabsTrigger value="timbrature" className="gap-1.5"><Clock className="h-4 w-4" /><span className="hidden sm:inline">Timbrature</span></TabsTrigger>
-          <TabsTrigger value="ferie" className="gap-1.5"><Palmtree className="h-4 w-4" /><span className="hidden sm:inline">Ferie</span></TabsTrigger>
-          <TabsTrigger value="cedolini" className="gap-1.5"><Receipt className="h-4 w-4" /><span className="hidden sm:inline">Cedolini</span></TabsTrigger>
-        </TabsList>
+        {isAdmin ? (
+          <TabsList className="grid w-full grid-cols-3 max-w-md">
+            <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Attività</span></TabsTrigger>
+            <TabsTrigger value="ferie" className="gap-1.5"><Palmtree className="h-4 w-4" /><span className="hidden sm:inline">Ferie</span></TabsTrigger>
+            <TabsTrigger value="cedolini" className="gap-1.5"><Receipt className="h-4 w-4" /><span className="hidden sm:inline">Cedolini</span></TabsTrigger>
+          </TabsList>
+        ) : (
+          <TabsList className="grid w-full grid-cols-4 max-w-xl">
+            <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Attività</span></TabsTrigger>
+            <TabsTrigger value="timbrature" className="gap-1.5"><Clock className="h-4 w-4" /><span className="hidden sm:inline">Timbrature</span></TabsTrigger>
+            <TabsTrigger value="ferie" className="gap-1.5"><Palmtree className="h-4 w-4" /><span className="hidden sm:inline">Ferie</span></TabsTrigger>
+            <TabsTrigger value="cedolini" className="gap-1.5"><Receipt className="h-4 w-4" /><span className="hidden sm:inline">Cedolini</span></TabsTrigger>
+          </TabsList>
+        )}
         <TabsContent value="attivita" className="mt-6"><TabAttivita /></TabsContent>
-        <TabsContent value="timbrature" className="mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>
+        {!isAdmin && <TabsContent value="timbrature" className="mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>}
         <TabsContent value="ferie" className="mt-6"><Suspense fallback={<TabFallback />}><FeriePersonali /></Suspense></TabsContent>
         <TabsContent value="cedolini" className="mt-6"><Suspense fallback={<TabFallback />}><CedoliniPersonali /></Suspense></TabsContent>
       </Tabs>

@@ -62,12 +62,12 @@ const CedoliniPersonali = lazy(() => import("@/pages/azienda/CedoliniPersonali")
 
 /**
  * AttivitaRouter — mostra la pagina corretta in base al ruolo.
- * company_staff → AttivitaStaff (landing personale + timbratura sede)
- * tutti gli altri → UnifiedTasks (task manager completo)
+ * company_admin + company_staff → AttivitaStaff (dashboard personale con meteo, calendario, task)
+ * altri ruoli → UnifiedTasks (task manager completo)
  */
 function AttivitaRouter() {
   const { role } = useAuth();
-  if (role === "company_staff") return <AttivitaStaff />;
+  if (role === "company_admin" || role === "company_staff") return <AttivitaStaff />;
   return <UnifiedTasks />;
 }
 // GlobalErrors rendered as tab inside OrdersList — lazy import removed

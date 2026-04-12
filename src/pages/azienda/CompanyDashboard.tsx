@@ -374,27 +374,32 @@ export default function CompanyDashboard() {
       )}
       {financialAlerts.length > 0 && (
         <div className="space-y-2">
-          {financialAlerts.filter((alert, index) => !dismissedAlerts.has(`fin-${alert.type}-${index}`)).map((alert, index) => (
-            <div
-              key={`alert-${alert.type}-${index}`}
-              className={`flex items-center gap-3 p-3 rounded-lg border ${
-                alert.type === "error"
-                  ? "bg-destructive/10 border-destructive/30 text-destructive"
-                  : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400"
-              }`}
-            >
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-medium flex-1">{alert.message}</span>
-              <button
-                onClick={() => dismissAlert(`fin-${alert.type}-${index}`)}
-                className={`shrink-0 p-1 rounded transition-colors ${
-                  alert.type === "error" ? "hover:bg-destructive/20" : "hover:bg-amber-200/50"
+          {financialAlerts.map((alert) => {
+            // Stable key based on alert content, not index
+            const alertKey = `fin-${alert.type}-${alert.message.slice(0, 60).replace(/\s+/g, "_")}`;
+            if (dismissedAlerts.has(alertKey)) return null;
+            return (
+              <div
+                key={alertKey}
+                className={`flex items-center gap-3 p-3 rounded-lg border ${
+                  alert.type === "error"
+                    ? "bg-destructive/10 border-destructive/30 text-destructive"
+                    : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400"
                 }`}
               >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span className="text-sm font-medium flex-1">{alert.message}</span>
+                <button
+                  onClick={() => dismissAlert(alertKey)}
+                  className={`shrink-0 p-1 rounded transition-colors ${
+                    alert.type === "error" ? "hover:bg-destructive/20" : "hover:bg-amber-200/50"
+                  }`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
