@@ -52,7 +52,7 @@ export function PartnerOnboardingModal({ referrer }: Props) {
       if (error) throw error;
 
       // Invia notifica welcome
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || "rsbrguhkodgnqfomrevo";
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       fetch(`https://${projectId}.supabase.co/functions/v1/send-partner-notification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
