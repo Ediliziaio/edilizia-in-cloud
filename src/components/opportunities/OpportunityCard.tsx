@@ -189,7 +189,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 min-w-0">
             {!isOverlay && onSelect && (
-              <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="pt-0.5">
+              <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="pt-0.5 hidden md:block">
                 <Checkbox checked={!!selected} className="h-4 w-4" />
               </div>
             )}

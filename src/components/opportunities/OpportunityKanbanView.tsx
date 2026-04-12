@@ -39,7 +39,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   });
 
   return (
-    <div className={cn("flex flex-col shrink-0 h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[200px] md:min-w-[220px] max-w-[240px] md:max-w-[260px]" : "min-w-[240px] md:min-w-[280px] max-w-[270px] md:max-w-[300px]")}>
+    <div className={cn("flex flex-col shrink-0 h-[calc(100vh-210px)] md:h-[calc(100vh-280px)]", layout === "mini" ? "min-w-[200px] md:min-w-[220px] max-w-[240px] md:max-w-[260px]" : "min-w-[240px] md:min-w-[280px] max-w-[270px] md:max-w-[300px]")}>
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
