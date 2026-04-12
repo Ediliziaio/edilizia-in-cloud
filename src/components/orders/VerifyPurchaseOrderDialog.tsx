@@ -78,7 +78,7 @@ export function VerifyPurchaseOrderDialog({
       if (!session) throw new Error("Non autenticato");
 
       const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL || "https://rsbrguhkodgnqfomrevo.supabase.co"}/functions/v1/verify-purchase-order`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-purchase-order`,
         {
           method: "POST",
           headers: {
