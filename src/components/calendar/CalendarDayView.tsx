@@ -19,7 +19,7 @@ import { AppointmentDialog, type AppointmentData } from "@/components/appointmen
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { toast } from "sonner";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
-import { weatherCodeToEmoji, type WeatherDay } from "@/hooks/useWeatherForecast";
+import { weatherCodeToEmoji, weatherCodeToLabel, type WeatherDay, type MultiLocationWeather, type LocationWeatherDay } from "@/hooks/useWeatherForecast";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
 
@@ -34,6 +34,8 @@ interface CalendarDayViewProps {
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, import("@/types/calendar").CalendarWarehouseInfo>;
   weatherForecast?: Map<string, WeatherDay>;
+  calendarWeatherMulti?: MultiLocationWeather;
+  orderWeatherMap?: Map<string, { weather?: LocationWeatherDay; distanceKm?: number; durationMin?: number; durationLabel?: string; address?: string }>;
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
 }
@@ -48,6 +50,8 @@ export function CalendarDayView({
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
   weatherForecast,
+  calendarWeatherMulti,
+  orderWeatherMap,
   interventi = [],
   manutenzioni = [],
 }: CalendarDayViewProps) {
@@ -61,7 +65,7 @@ export function CalendarDayView({
 
   // All-day events for this day
   const allDayEvents = useMemo(() => {
-    const events: Array<{ type: string; order?: CalendarOrder; leave?: ApprovedLeave; busySlot?: GoogleBusySlot }> = [];
+    const events: Array<{ type: string; order?: CalendarOrder; leave?: ApprovedLeave; busySlot?: GoogleBusySlot; intervento?: CalendarIntervento; manutenzione?: CalendarManutenzione }> = [];
 
     if (!hiddenEventTypes.has("posa")) {
       orders.filter(o => o.expected_date === dateStr).forEach(o => events.push({ type: "posa", order: o }));
@@ -90,14 +94,14 @@ export function CalendarDayView({
     if (!hiddenEventTypes.has("intervento")) {
       interventi.forEach(iv => {
         if (iv.data_intervento_prevista && iv.data_intervento_prevista.split("T")[0] === dateStr) {
-          events.push({ type: "intervento", intervento: iv } as any);
+          events.push({ type: "intervento", intervento: iv });
         }
       });
     }
     if (!hiddenEventTypes.has("manutenzione")) {
       manutenzioni.forEach(mn => {
         if (mn.prossima_scadenza && mn.prossima_scadenza.split("T")[0] === dateStr) {
-          events.push({ type: "manutenzione", manutenzione: mn } as any);
+          events.push({ type: "manutenzione", manutenzione: mn });
         }
       });
     }
@@ -166,31 +170,76 @@ export function CalendarDayView({
         </Button>
       </div>
 
-      {/* Weather card */}
-      {weatherForecast && (() => {
-        const w = weatherForecast.get(dateStr);
-        if (!w) return null;
-        const isHeavyRain = w.precip > 20;
-        const isRainy = w.precip > 5;
-        return (
-          <div className={cn(
-            "mb-3 flex items-center gap-3 p-2 rounded-lg border text-sm",
-            isHeavyRain ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800" :
-            isRainy ? "bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800" :
-            "bg-sky-50 border-sky-200 dark:bg-sky-900/20 dark:border-sky-800"
-          )}>
-            <span className="text-2xl">{weatherCodeToEmoji(w.code)}</span>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{w.minTemp}° – {w.maxTemp}°C</span>
-                {w.precip > 0 && <span className="text-xs text-blue-600">{w.precip}mm</span>}
-              </div>
-              <p className={cn("text-xs", isHeavyRain ? "text-red-600 font-medium" : isRainy ? "text-orange-600" : "text-green-600")}>
-                {isHeavyRain ? "⚠️ Lavori esterni sconsigliati" : isRainy ? "⚠️ Rischio pioggia" : "✓ Ideale per lavori esterni"}
-              </p>
+      {/* Weather card — multi-location */}
+      {(() => {
+        const multiLocs = calendarWeatherMulti?.get(dateStr);
+        if (multiLocs && multiLocs.length > 0) {
+          return (
+            <div className="mb-3 space-y-1.5">
+              {multiLocs.map((loc, i) => {
+                const isHeavyRain = loc.precip > 20;
+                const isRainy = loc.precip > 5;
+                return (
+                  <div key={i} className={cn(
+                    "flex items-center gap-3 p-2 rounded-lg border text-sm",
+                    isHeavyRain ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800" :
+                    isRainy ? "bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800" :
+                    "bg-sky-50 border-sky-200 dark:bg-sky-900/20 dark:border-sky-800"
+                  )}>
+                    <span className="text-2xl">{weatherCodeToEmoji(loc.code)}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {loc.orderRef && <span className="text-[10px] font-mono font-bold text-primary">{loc.orderRef}</span>}
+                        {loc.customerName && <span className="text-xs font-semibold">{loc.customerName}</span>}
+                      </div>
+                      {loc.orderDesc && <p className="text-[10px] text-foreground/80 truncate">{loc.orderDesc}</p>}
+                      {loc.address ? (
+                        <span className="text-[10px] text-muted-foreground truncate block">{loc.address}</span>
+                      ) : loc.city ? (
+                        <span className="text-xs text-muted-foreground">{loc.city}</span>
+                      ) : null}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="font-medium">{loc.minTemp}° – {loc.maxTemp}°C</span>
+                        <span className="text-xs text-muted-foreground">{weatherCodeToLabel(loc.code)}</span>
+                        {loc.precip > 0 && <span className="text-xs text-blue-600">{loc.precip}mm</span>}
+                      </div>
+                      <p className={cn("text-xs", isHeavyRain ? "text-red-600 font-medium" : isRainy ? "text-orange-600" : "text-green-600")}>
+                        {isHeavyRain ? "⚠️ Lavori esterni sconsigliati" : isRainy ? "⚠️ Rischio pioggia" : "✓ Ideale per lavori esterni"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        );
+          );
+        }
+        // Fallback: meteo singolo (sede)
+        if (weatherForecast) {
+          const w = weatherForecast.get(dateStr);
+          if (!w) return null;
+          const isHeavyRain = w.precip > 20;
+          const isRainy = w.precip > 5;
+          return (
+            <div className={cn(
+              "mb-3 flex items-center gap-3 p-2 rounded-lg border text-sm",
+              isHeavyRain ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800" :
+              isRainy ? "bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800" :
+              "bg-sky-50 border-sky-200 dark:bg-sky-900/20 dark:border-sky-800"
+            )}>
+              <span className="text-2xl">{weatherCodeToEmoji(w.code)}</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{w.minTemp}° – {w.maxTemp}°C</span>
+                  {w.precip > 0 && <span className="text-xs text-blue-600">{w.precip}mm</span>}
+                </div>
+                <p className={cn("text-xs", isHeavyRain ? "text-red-600 font-medium" : isRainy ? "text-orange-600" : "text-green-600")}>
+                  {isHeavyRain ? "⚠️ Lavori esterni sconsigliati" : isRainy ? "⚠️ Rischio pioggia" : "✓ Ideale per lavori esterni"}
+                </p>
+              </div>
+            </div>
+          );
+        }
+        return null;
       })()}
 
       {/* Travel summary */}
@@ -210,7 +259,7 @@ export function CalendarDayView({
       {allDayEvents.length > 0 && (
         <div className="mb-3 p-2 bg-muted/30 rounded-lg border space-y-1">
           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Tutto il giorno</p>
-          {allDayEvents.map((evt: any, idx) => {
+          {allDayEvents.map((evt, idx) => {
             if (evt.type === "intervento" && evt.intervento) {
               return (
                 <div key={idx} className="text-xs px-2 py-1 rounded flex items-center gap-1.5" style={{ backgroundColor: "#E87722", color: "white" }}>
@@ -356,11 +405,12 @@ export function CalendarDayView({
           order={editingOrder}
           open={!!editingOrder}
           onOpenChange={(open) => !open && setEditingOrder(null)}
-          onSaved={() => {
+          onSave={() => {
             queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
             setEditingOrder(null);
             toast.success("Date aggiornate");
           }}
+          orderWeatherInfo={orderWeatherMap?.get(editingOrder.id)}
         />
       )}
     </Card>

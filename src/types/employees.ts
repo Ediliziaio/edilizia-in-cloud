@@ -10,6 +10,7 @@ export interface Employee {
   is_active: boolean;
   user_id: string | null;
   role_type: string;
+  area?: string | null;
 }
 
 export interface ExternalTeam {

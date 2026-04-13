@@ -62,9 +62,19 @@ function EmployeesInner() {
   const { data: employees = [], isLoading: loadingEmployees } = useQuery({
     queryKey: queryKeys.employees.list(effectiveCompanyId),
     queryFn: async () => {
-      const { data, error } = await supabase.from("employees").select("*")
+      const { data, error } = await supabase.from("employees")
+        .select("id, company_id, first_name, last_name, email, phone, phone_whatsapp, gross_salary, net_salary, monthly_hours, is_active, user_id, role_type, area")
         .eq("company_id", effectiveCompanyId!).order("last_name");
-      if (error) throw error;
+      if (error) {
+        // Fallback if area column doesn't exist yet
+        if (error.message?.includes("area")) {
+          const { data: fallbackData, error: fallbackError } = await supabase.from("employees").select("*")
+            .eq("company_id", effectiveCompanyId!).order("last_name");
+          if (fallbackError) throw fallbackError;
+          return fallbackData as Employee[];
+        }
+        throw error;
+      }
       return data as Employee[];
     },
     enabled: !!effectiveCompanyId,
@@ -91,6 +101,7 @@ function EmployeesInner() {
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
           monthly_hours: data.monthly_hours, is_active: data.is_active,
+          area: data.area || null,
         }).eq("id", data.id);
         if (error) throw error;
       } else {
@@ -101,6 +112,7 @@ function EmployeesInner() {
           gross_salary: data.gross_salary, net_salary: data.net_salary,
           monthly_hours: data.monthly_hours, is_active: data.is_active,
           role_type: data.role_type || 'operaio',
+          area: data.area || null,
         });
         if (error) throw error;
       }

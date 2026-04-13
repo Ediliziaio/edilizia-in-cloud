@@ -5,9 +5,10 @@ import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-quer
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
-import { useWeatherForecast } from "@/hooks/useWeatherForecast";
+import { useWeatherForecast, useCalendarWeather, type CalendarLocation } from "@/hooks/useWeatherForecast";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarDayView } from "@/components/calendar/CalendarDayView";
@@ -40,6 +41,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 function CalendarInner() {
   const { effectiveCompany } = useAuth();
+  const permissions = usePermissions();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { isGoogleConnected, pullBusySlots, reconcileSync, syncMode } = useGoogleCalendarSync();
@@ -98,9 +100,6 @@ function CalendarInner() {
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds]);
 
-  // Weather forecast (Milan default)
-  const { data: weatherForecast } = useWeatherForecast();
-
   // Compute a ±2-month window around the current date for calendar queries
   const calendarRangeStart = useMemo(() => {
     const d = new Date(currentDate);
@@ -133,6 +132,7 @@ function CalendarInner() {
           created_at,
           customer_id,
           current_status_id,
+          indirizzo_lavori,
           customer:profiles!orders_customer_id_fkey(first_name, last_name),
           status:order_statuses!orders_current_status_id_fkey(name, color),
           order_employees(employee:employees(id, first_name, last_name)),
@@ -178,7 +178,8 @@ function CalendarInner() {
         .from("appointments")
         .select(`
           *,
-          order:orders!appointments_order_id_fkey(order_code, description)
+          order:orders!appointments_order_id_fkey(order_code, description, customer:profiles!orders_customer_id_fkey(first_name, last_name)),
+          contact:contacts!appointments_contact_id_fkey(first_name, last_name)
         `)
         .eq("company_id", effectiveCompany.id)
         // B10 — rimosso .is("calendar_id", null) che escludeva appuntamenti con calendario specifico
@@ -193,6 +194,210 @@ function CalendarInner() {
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
   });
+
+  // ── Meteo multi-location: estrae coordinate dagli appuntamenti ──
+  const appointmentLocations = useMemo<CalendarLocation[]>(() => {
+    const locMap = new Map<string, CalendarLocation>();
+    for (const apt of appointments) {
+      if (apt.lat && apt.lng) {
+        const key = `${Math.round(apt.lat * 100)},${Math.round(apt.lng * 100)}`;
+        const existing = locMap.get(key);
+        // Costruisci nome cliente da ordine o contatto
+        const custName = apt.order?.customer
+          ? `${apt.order.customer.first_name} ${apt.order.customer.last_name}`.trim()
+          : apt.contact
+            ? `${apt.contact.first_name} ${apt.contact.last_name}`.trim()
+            : undefined;
+
+        if (existing) {
+          if (!existing.dates.includes(apt.appointment_date)) {
+            existing.dates.push(apt.appointment_date);
+          }
+          // Arricchisci con dati mancanti
+          if (!existing.address && apt.formatted_address) existing.address = apt.formatted_address;
+          if (!existing.orderRef && apt.order?.order_code) existing.orderRef = apt.order.order_code;
+          if (!existing.orderDesc && apt.order?.description) existing.orderDesc = apt.order.description;
+          if (!existing.customerName && custName) existing.customerName = custName;
+          if (!existing.city && apt.address_city) existing.city = apt.address_city;
+        } else {
+          locMap.set(key, {
+            lat: apt.lat,
+            lng: apt.lng,
+            city: apt.address_city ?? undefined,
+            address: apt.formatted_address ?? undefined,
+            orderRef: apt.order?.order_code ?? undefined,
+            orderDesc: apt.order?.description ?? undefined,
+            customerName: custName,
+            dates: [apt.appointment_date],
+          });
+        }
+      }
+    }
+    return Array.from(locMap.values());
+  }, [appointments]);
+
+  // Fetch meteo sede aziendale (fallback)
+  const companyLocationQuery = useQuery({
+    queryKey: ["company-location-calendar", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("operational_lat, operational_lng, operational_city, legal_city")
+        .eq("id", effectiveCompany!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return {
+        lat: data?.operational_lat ?? 45.4654,
+        lng: data?.operational_lng ?? 9.1859,
+        city: data?.operational_city || data?.legal_city || "Milano",
+      };
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 60 * 60 * 1000,
+  });
+  const companyLoc = companyLocationQuery.data;
+
+  // Meteo multi-location a 14 giorni per ogni cantiere
+  const { data: calendarWeatherMulti } = useCalendarWeather(
+    appointmentLocations,
+    companyLoc?.lat,
+    companyLoc?.lng,
+    companyLoc?.city,
+  );
+
+  // Converti in formato compatibile (worst-case per giorno)
+  const weatherForecast = useMemo(() => {
+    if (!calendarWeatherMulti || calendarWeatherMulti.size === 0) return undefined;
+    const map = new Map<string, import("@/hooks/useWeatherForecast").WeatherDay>();
+    calendarWeatherMulti.forEach((entries, date) => {
+      if (entries.length === 0) return;
+      if (entries.length === 1) {
+        map.set(date, entries[0]);
+        return;
+      }
+      const worst = entries.reduce((a, b) => ({
+        maxTemp: Math.max(a.maxTemp, b.maxTemp),
+        minTemp: Math.min(a.minTemp, b.minTemp),
+        precip: Math.max(a.precip, b.precip),
+        code: Math.max(a.code, b.code),
+      }));
+      map.set(date, worst);
+    });
+    return map;
+  }, [calendarWeatherMulti]);
+
+  // ── Mappa ordine → coordinate cantiere (dagli appuntamenti) ──
+  const orderLocations = useMemo(() => {
+    const map = new Map<string, { lat: number; lng: number; city?: string; address?: string }>();
+    for (const apt of appointments) {
+      if (apt.order_id && apt.lat && apt.lng && !map.has(apt.order_id)) {
+        map.set(apt.order_id, {
+          lat: apt.lat,
+          lng: apt.lng,
+          city: apt.address_city ?? undefined,
+          address: apt.formatted_address ?? undefined,
+        });
+      }
+    }
+    return map;
+  }, [appointments]);
+
+  // ── Distanze reali OSRM (sede → ogni cantiere) ──
+  // Genera una query key stabile dalle location uniche
+  const orderLocEntries = useMemo(() =>
+    Array.from(orderLocations.entries()).sort(([a], [b]) => a.localeCompare(b)),
+    [orderLocations]
+  );
+  const routeQueryKey = useMemo(() =>
+    orderLocEntries.map(([id, loc]) => `${id}:${loc.lat},${loc.lng}`).join("|"),
+    [orderLocEntries]
+  );
+
+  const { data: osrmDistances } = useQuery({
+    queryKey: ["osrm-order-distances", companyLoc?.lat, companyLoc?.lng, routeQueryKey],
+    queryFn: async () => {
+      if (!companyLoc || orderLocEntries.length === 0) return new Map<string, { distanceKm: number; durationMin: number; durationLabel: string }>();
+
+      const results = new Map<string, { distanceKm: number; durationMin: number; durationLabel: string }>();
+
+      // Fetch in parallelo (batch max 10 per evitare rate limiting OSRM)
+      const batches = orderLocEntries.slice(0, 10);
+      const promises = batches.map(async ([orderId, loc]) => {
+        try {
+          const coords = `${companyLoc.lng},${companyLoc.lat};${loc.lng},${loc.lat}`;
+          const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=false`;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!res.ok) return null;
+          const data = await res.json();
+          if (data.code !== "Ok" || !data.routes?.[0]) return null;
+          const route = data.routes[0];
+          const distanceKm = Math.round(route.distance / 1000);
+          const durationMin = Math.round(route.duration / 60);
+          const durationLabel = durationMin < 60
+            ? `${durationMin} min`
+            : `${Math.floor(durationMin / 60)}h ${durationMin % 60}min`;
+          return { orderId, distanceKm, durationMin, durationLabel };
+        } catch {
+          return null;
+        }
+      });
+
+      const responses = await Promise.all(promises);
+      for (const r of responses) {
+        if (r) results.set(r.orderId, { distanceKm: r.distanceKm, durationMin: r.durationMin, durationLabel: r.durationLabel });
+      }
+      return results;
+    },
+    enabled: !!companyLoc && orderLocEntries.length > 0,
+    staleTime: 60 * 60 * 1000, // 1 ora — le distanze non cambiano spesso
+    gcTime: 2 * 60 * 60 * 1000,
+    retry: 1,
+  });
+
+  // ── Mappa finale ordine → meteo + distanza reale ──
+  interface OrderWeatherInfo {
+    weather?: import("@/hooks/useWeatherForecast").LocationWeatherDay;
+    distanceKm?: number;
+    durationMin?: number;
+    durationLabel?: string;
+    address?: string;
+  }
+  const orderWeatherMap = useMemo(() => {
+    const map = new Map<string, OrderWeatherInfo>();
+    if (!companyLoc) return map;
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    orderLocations.forEach((loc, orderId) => {
+      // Distanza reale da OSRM
+      const osrm = osrmDistances?.get(orderId);
+
+      // Meteo per questa location
+      let weather: import("@/hooks/useWeatherForecast").LocationWeatherDay | undefined;
+      if (calendarWeatherMulti) {
+        const dayEntries = calendarWeatherMulti.get(todayStr);
+        if (dayEntries) {
+          const locKey = `${Math.round(loc.lat * 100)},${Math.round(loc.lng * 100)}`;
+          weather = dayEntries.find(e =>
+            `${Math.round(e.lat * 100)},${Math.round(e.lng * 100)}` === locKey
+          );
+          if (!weather && dayEntries.length > 0) weather = dayEntries[0];
+        }
+      }
+
+      map.set(orderId, {
+        weather,
+        distanceKm: osrm?.distanceKm,
+        durationMin: osrm?.durationMin,
+        durationLabel: osrm?.durationLabel,
+        address: loc.address,
+      });
+    });
+
+    return map;
+  }, [orderLocations, companyLoc, calendarWeatherMulti, osrmDistances]);
 
   // Fetch Google Calendar busy slots
   const { data: googleBusySlots = [] } = useQuery({
@@ -219,7 +424,7 @@ function CalendarInner() {
         .from("apple_calendar_busy_slots")
         .select("id, start_at, end_at, summary, is_all_day, user_id, caldav_calendar_url")
         .eq("company_id", effectiveCompany.id);
-      return (data || []).map((s: any) => ({
+      return (data || []).map((s: { id: string; start_at: string; end_at: string; summary: string | null; is_all_day: boolean; user_id: string; caldav_calendar_url: string }) => ({
         ...s,
         google_calendar_id: s.caldav_calendar_url,
         provider: "apple",
@@ -241,8 +446,8 @@ function CalendarInner() {
         .select("appointment_id, source")
         .eq("company_id", effectiveCompany.id);
       if (error) throw error;
-      const synced = new Set((data || []).map((r: any) => r.appointment_id as string));
-      const googleImported = new Set((data || []).filter((r: any) => r.source === "google").map((r: any) => r.appointment_id as string));
+      const synced = new Set((data || []).map((r: { appointment_id: string; source: string }) => r.appointment_id));
+      const googleImported = new Set((data || []).filter((r: { appointment_id: string; source: string }) => r.source === "google").map((r: { appointment_id: string; source: string }) => r.appointment_id));
       return { synced, googleImported };
     },
     enabled: !!effectiveCompany?.id && isGoogleConnected,
@@ -269,16 +474,39 @@ function CalendarInner() {
   const { data: companyEmployees = [] } = useQuery({
     queryKey: ["employees-filter", effectiveCompany?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("employees")
-        .select("id, first_name, last_name, user_id")
+        .select("id, first_name, last_name, user_id, area, role_type")
         .eq("company_id", effectiveCompany!.id)
         .eq("is_active", true)
         .order("last_name");
-      return data || [];
+      if (error) {
+        // Fallback if area column doesn't exist yet
+        const { data: fallback } = await supabase
+          .from("employees")
+          .select("id, first_name, last_name, user_id, role_type")
+          .eq("company_id", effectiveCompany!.id)
+          .eq("is_active", true)
+          .order("last_name");
+        return (fallback || []).map((e: any) => ({
+          ...e,
+          area: e.role_type === "staff_interno" ? "amministrazione" : "cantiere",
+        }));
+      }
+      return (data || []).map((e: any) => ({
+        ...e,
+        area: e.area || (e.role_type === "staff_interno" ? "amministrazione" : "cantiere"),
+      }));
     },
     enabled: !!effectiveCompany?.id,
   });
+
+  // Filter employees by the user's visible_areas permission
+  const filteredEmployees = useMemo(() => {
+    const areas = permissions.visibleAreas;
+    if (!areas || areas.length === 0) return companyEmployees; // Empty = all areas visible
+    return companyEmployees.filter((e: any) => areas.includes(e.area));
+  }, [companyEmployees, permissions.visibleAreas]);
 
   const { data: externalTeams = [] } = useQuery({
     queryKey: ["external-teams-filter", effectiveCompany?.id],
@@ -468,14 +696,14 @@ function CalendarInner() {
           if (!hasTeam) return false;
         }
         // Resource layer filtering
-        const effectiveEmployeeIds = visibleEmployeeIds ?? new Set(companyEmployees.map(e => e.id));
+        const effectiveEmployeeIds = visibleEmployeeIds ?? new Set(filteredEmployees.map(e => e.id));
         const effectiveTeamIds = visibleTeamIds ?? new Set(externalTeams.map(t => t.id));
         const hasVisibleEmployee = !order.order_employees?.length || order.order_employees.some(ae => effectiveEmployeeIds.has(ae.employee.id));
         const hasVisibleTeam = !order.order_external_teams?.length || order.order_external_teams.some(aet => effectiveTeamIds.has(aet.external_team.id));
         if (!hasVisibleEmployee && !hasVisibleTeam) return false;
         return true;
       });
-  }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter, visibleEmployeeIds, visibleTeamIds, companyEmployees, externalTeams]);
+  }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter, visibleEmployeeIds, visibleTeamIds, filteredEmployees, externalTeams]);
 
   // Enrich appointments with assigned profile names (using cached company profiles)
   const profilesById = useMemo(() => {
@@ -510,7 +738,7 @@ function CalendarInner() {
   }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showInterventi, showManutenzioni]);
 
   // Effective visible sets for layer panel
-  const effectiveVisibleEmployees = useMemo(() => visibleEmployeeIds ?? new Set(companyEmployees.map(e => e.id)), [visibleEmployeeIds, companyEmployees]);
+  const effectiveVisibleEmployees = useMemo(() => visibleEmployeeIds ?? new Set(filteredEmployees.map(e => e.id)), [visibleEmployeeIds, filteredEmployees]);
   const effectiveVisibleTeams = useMemo(() => visibleTeamIds ?? new Set(externalTeams.map(t => t.id)), [visibleTeamIds, externalTeams]);
 
   // M13 — ordini non pianificati con drawer
@@ -696,7 +924,7 @@ function CalendarInner() {
           )}
           {employeeFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
-              Operaio: {companyEmployees.find(e => e.id === employeeFilter)?.last_name ?? employeeFilter}
+              Operaio: {filteredEmployees.find(e => e.id === employeeFilter)?.last_name ?? employeeFilter}
               <button onClick={() => setEmployeeFilter("all")} className="ml-0.5 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
@@ -733,7 +961,7 @@ function CalendarInner() {
             </SheetHeader>
             <div className="mt-4 overflow-y-auto">
               <CalendarLayerPanel
-                employees={companyEmployees}
+                employees={filteredEmployees}
                 externalTeams={externalTeams}
                 visibleEmployees={effectiveVisibleEmployees}
                 visibleTeams={effectiveVisibleTeams}
@@ -757,7 +985,7 @@ function CalendarInner() {
                   setVisibleTeamIds(next);
                 }}
                 onToggleAllEmployees={(v) => {
-                  setVisibleEmployeeIds(v ? new Set(companyEmployees.map(e => e.id)) : new Set());
+                  setVisibleEmployeeIds(v ? new Set(filteredEmployees.map(e => e.id)) : new Set());
                 }}
                 onToggleAllTeams={(v) => {
                   setVisibleTeamIds(v ? new Set(externalTeams.map(t => t.id)) : new Set());
@@ -819,7 +1047,7 @@ function CalendarInner() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli operai</SelectItem>
-                  {companyEmployees.map((emp) => (
+                  {filteredEmployees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.last_name} {emp.first_name}
                     </SelectItem>
@@ -908,6 +1136,8 @@ function CalendarInner() {
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
               weatherForecast={showWeather ? weatherForecast : undefined}
+              calendarWeatherMulti={showWeather ? calendarWeatherMulti : undefined}
+              orderWeatherMap={showWeather ? orderWeatherMap : undefined}
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
             />
@@ -923,6 +1153,8 @@ function CalendarInner() {
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
               weatherForecast={showWeather ? weatherForecast : undefined}
+              calendarWeatherMulti={showWeather ? calendarWeatherMulti : undefined}
+              orderWeatherMap={showWeather ? orderWeatherMap : undefined}
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
             />
@@ -938,6 +1170,8 @@ function CalendarInner() {
               approvedLeaves={showLeaves ? approvedLeaves : []}
               warehouseInfo={warehouseInfoByOrderId}
               weatherForecast={showWeather ? weatherForecast : undefined}
+              calendarWeatherMulti={showWeather ? calendarWeatherMulti : undefined}
+              orderWeatherMap={showWeather ? orderWeatherMap : undefined}
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
             />
@@ -946,7 +1180,7 @@ function CalendarInner() {
               orders={scheduledOrders}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
-              employees={companyEmployees}
+              employees={filteredEmployees}
             />
           ) : (
             <CalendarGanttView
@@ -963,7 +1197,7 @@ function CalendarInner() {
 
         {layerPanelOpen && !isMobile && (
           <CalendarLayerPanel
-            employees={companyEmployees}
+            employees={filteredEmployees}
             externalTeams={externalTeams}
             visibleEmployees={effectiveVisibleEmployees}
             visibleTeams={effectiveVisibleTeams}
@@ -987,7 +1221,7 @@ function CalendarInner() {
               setVisibleTeamIds(next);
             }}
             onToggleAllEmployees={(v) => {
-              setVisibleEmployeeIds(v ? new Set(companyEmployees.map(e => e.id)) : new Set());
+              setVisibleEmployeeIds(v ? new Set(filteredEmployees.map(e => e.id)) : new Set());
             }}
             onToggleAllTeams={(v) => {
               setVisibleTeamIds(v ? new Set(externalTeams.map(t => t.id)) : new Set());

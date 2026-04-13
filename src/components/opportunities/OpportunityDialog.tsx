@@ -401,32 +401,44 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {/* Owner + Follower + Call Center */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Titolare</Label>
+                    <Label className="text-xs font-medium">💼 Titolare</Label>
                     <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Non assegnato</SelectItem>
-                        {salespeople.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        {salespeople.length > 0 && salespeople[0]?.source === "all" && (
+                          <div className="px-2 py-1 text-[10px] text-amber-600 font-medium">⚠ Nessun venditore configurato — mostro tutto lo staff</div>
+                        )}
+                        {salespeople.map((s: { id: string; name: string; source?: string }) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Follower</Label>
+                    <Label className="text-xs font-medium">👥 Follower</Label>
                     <Select value={followerId || "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nessuno</SelectItem>
-                        {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        {staff.map((s: { id: string; name: string }) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Call Center</Label>
+                    <Label className="text-xs font-medium">📞 Call Center</Label>
                     <Select value={callCenterId || "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nessuno</SelectItem>
-                        {callCenterUsers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        {callCenterUsers.length > 0 && callCenterUsers[0]?.source === "all" && (
+                          <div className="px-2 py-1 text-[10px] text-amber-600 font-medium">⚠ Nessun call center configurato — mostro tutto lo staff</div>
+                        )}
+                        {callCenterUsers.map((s: { id: string; name: string; source?: string }) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

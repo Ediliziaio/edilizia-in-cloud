@@ -36,8 +36,7 @@ export function useOpportunityCustomFields() {
         .select("*")
         .eq("company_id", companyId!)
         .eq("object_type", "opportunity")
-        .order("position")
-        .limit(100);
+        .order("position");
       if (error) throw error;
       return data;
     },
@@ -54,8 +53,7 @@ export function useContactFieldValues(contactId: string | null) {
       const { data, error } = await supabase
         .from("marketing_contact_field_values")
         .select("*")
-        .eq("contact_id", contactId!)
-        .limit(200);
+        .eq("contact_id", contactId!);
       if (error) throw error;
       return data;
     },
@@ -72,8 +70,7 @@ export function useOpportunityFieldValues(opportunityId: string | null) {
       const { data, error } = await supabase
         .from("marketing_opportunity_field_values")
         .select("*")
-        .eq("opportunity_id", opportunityId!)
-        .limit(200);
+        .eq("opportunity_id", opportunityId!);
       if (error) throw error;
       return data;
     },
@@ -108,26 +105,41 @@ export function useUpsertContactFieldValues() {
   return useMutation({
     mutationFn: async (values: { contact_id: string; field_id: string; value: string | null }[]) => {
       if (!values.length) return;
-      for (const v of values) {
-        const { data: existing } = await supabase
-          .from("marketing_contact_field_values")
-          .select("id")
-          .eq("contact_id", v.contact_id)
-          .eq("field_id", v.field_id)
-          .maybeSingle();
 
-        if (existing) {
-          const { error } = await supabase
-            .from("marketing_contact_field_values")
-            .update({ value: v.value })
-            .eq("id", existing.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from("marketing_contact_field_values")
-            .insert(v);
-          if (error) throw error;
-        }
+      // Batch: fetch all existing values in one query
+      const contactId = values[0].contact_id;
+      const fieldIds = values.map(v => v.field_id);
+      const { data: existingRows } = await supabase
+        .from("marketing_contact_field_values")
+        .select("id, field_id")
+        .eq("contact_id", contactId)
+        .in("field_id", fieldIds);
+
+      const existingMap = new Map((existingRows || []).map(r => [r.field_id, r.id]));
+
+      const toUpdate = values.filter(v => existingMap.has(v.field_id));
+      const toInsert = values.filter(v => !existingMap.has(v.field_id));
+
+      // Batch update existing values
+      const updatePromises = toUpdate.map(v =>
+        supabase
+          .from("marketing_contact_field_values")
+          .update({ value: v.value })
+          .eq("id", existingMap.get(v.field_id)!)
+      );
+
+      // Batch insert new values
+      const insertPromise = toInsert.length > 0
+        ? supabase.from("marketing_contact_field_values").insert(toInsert)
+        : null;
+
+      const results = await Promise.all([
+        ...updatePromises,
+        ...(insertPromise ? [insertPromise] : []),
+      ]);
+
+      for (const result of results) {
+        if (result.error) throw result.error;
       }
     },
     onSuccess: () => {
@@ -144,26 +156,41 @@ export function useUpsertOpportunityFieldValues() {
   return useMutation({
     mutationFn: async (values: { opportunity_id: string; field_id: string; value: string | null }[]) => {
       if (!values.length) return;
-      for (const v of values) {
-        const { data: existing } = await supabase
-          .from("marketing_opportunity_field_values")
-          .select("id")
-          .eq("opportunity_id", v.opportunity_id)
-          .eq("field_id", v.field_id)
-          .maybeSingle();
 
-        if (existing) {
-          const { error } = await supabase
-            .from("marketing_opportunity_field_values")
-            .update({ value: v.value })
-            .eq("id", existing.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from("marketing_opportunity_field_values")
-            .insert(v);
-          if (error) throw error;
-        }
+      // Batch: fetch all existing values in one query
+      const opportunityId = values[0].opportunity_id;
+      const fieldIds = values.map(v => v.field_id);
+      const { data: existingRows } = await supabase
+        .from("marketing_opportunity_field_values")
+        .select("id, field_id")
+        .eq("opportunity_id", opportunityId)
+        .in("field_id", fieldIds);
+
+      const existingMap = new Map((existingRows || []).map(r => [r.field_id, r.id]));
+
+      const toUpdate = values.filter(v => existingMap.has(v.field_id));
+      const toInsert = values.filter(v => !existingMap.has(v.field_id));
+
+      // Batch update existing values
+      const updatePromises = toUpdate.map(v =>
+        supabase
+          .from("marketing_opportunity_field_values")
+          .update({ value: v.value })
+          .eq("id", existingMap.get(v.field_id)!)
+      );
+
+      // Batch insert new values
+      const insertPromise = toInsert.length > 0
+        ? supabase.from("marketing_opportunity_field_values").insert(toInsert)
+        : null;
+
+      const results = await Promise.all([
+        ...updatePromises,
+        ...(insertPromise ? [insertPromise] : []),
+      ]);
+
+      for (const result of results) {
+        if (result.error) throw result.error;
       }
     },
     onSuccess: () => {

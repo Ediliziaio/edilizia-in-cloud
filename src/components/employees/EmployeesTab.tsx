@@ -91,6 +91,7 @@ export function EmployeesTab({
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
+                  <TableHead>Area</TableHead>
                   <TableHead>Contatti</TableHead>
                   <TableHead className="text-right">Stipendio Lordo</TableHead>
                   <TableHead className="text-right">Stipendio Netto</TableHead>
@@ -105,6 +106,32 @@ export function EmployeesTab({
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
                       {employee.first_name} {employee.last_name}
+                    </TableCell>
+                    <TableCell>
+                      {employee.area ? (
+                        <Badge
+                          variant="outline"
+                          className={
+                            employee.area === "cantiere"
+                              ? "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-900/20 dark:text-orange-300"
+                              : employee.area === "commerciale"
+                              ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                              : employee.area === "amministrazione"
+                              ? "border-gray-300 bg-gray-50 text-gray-700 dark:border-gray-600 dark:bg-gray-800/40 dark:text-gray-300"
+                              : employee.area === "tecnico"
+                              ? "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/20 dark:text-purple-300"
+                              : ""
+                          }
+                        >
+                          {employee.area === "cantiere" ? "Cantiere"
+                            : employee.area === "commerciale" ? "Commerciale"
+                            : employee.area === "amministrazione" ? "Amministrazione"
+                            : employee.area === "tecnico" ? "Tecnico"
+                            : employee.area}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1 text-sm text-muted-foreground">

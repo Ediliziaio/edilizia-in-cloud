@@ -1,3 +1,4 @@
+Initialising login role...
 export type Json =
   | string
   | number
@@ -9630,6 +9631,7 @@ export type Database = {
       }
       employees: {
         Row: {
+          area: string
           company_id: string
           created_at: string
           email: string | null
@@ -9648,6 +9650,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          area?: string
           company_id: string
           created_at?: string
           email?: string | null
@@ -9666,6 +9669,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          area?: string
           company_id?: string
           created_at?: string
           email?: string | null
@@ -11485,6 +11489,84 @@ export type Database = {
           },
         ]
       }
+      hr_cedolini: {
+        Row: {
+          anno: number
+          company_id: string
+          contributi_dipendente: number | null
+          created_at: string
+          data_emissione: string | null
+          data_pagamento: string | null
+          employee_id: string
+          id: string
+          lordo: number | null
+          mese: number
+          netto: number | null
+          note: string | null
+          ore_lavorate: number | null
+          ore_straordinario: number | null
+          pdf_url: string | null
+          ritenute_irpef: number | null
+          stato: string
+          updated_at: string
+        }
+        Insert: {
+          anno: number
+          company_id: string
+          contributi_dipendente?: number | null
+          created_at?: string
+          data_emissione?: string | null
+          data_pagamento?: string | null
+          employee_id: string
+          id?: string
+          lordo?: number | null
+          mese: number
+          netto?: number | null
+          note?: string | null
+          ore_lavorate?: number | null
+          ore_straordinario?: number | null
+          pdf_url?: string | null
+          ritenute_irpef?: number | null
+          stato?: string
+          updated_at?: string
+        }
+        Update: {
+          anno?: number
+          company_id?: string
+          contributi_dipendente?: number | null
+          created_at?: string
+          data_emissione?: string | null
+          data_pagamento?: string | null
+          employee_id?: string
+          id?: string
+          lordo?: number | null
+          mese?: number
+          netto?: number | null
+          note?: string | null
+          ore_lavorate?: number | null
+          ore_straordinario?: number | null
+          pdf_url?: string | null
+          ritenute_irpef?: number | null
+          stato?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_cedolini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_cedolini_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hr_festivita: {
         Row: {
           company_id: string
@@ -11817,10 +11899,11 @@ export type Database = {
           motivo: string | null
           note_risposta: string | null
           ore_richieste: number | null
-          profilo_id: string
+          profilo_id: string | null
           stato: string | null
           tipo: string
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           allegato_url?: string | null
@@ -11834,10 +11917,11 @@ export type Database = {
           motivo?: string | null
           note_risposta?: string | null
           ore_richieste?: number | null
-          profilo_id: string
+          profilo_id?: string | null
           stato?: string | null
           tipo: string
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           allegato_url?: string | null
@@ -11851,10 +11935,11 @@ export type Database = {
           motivo?: string | null
           note_risposta?: string | null
           ore_richieste?: number | null
-          profilo_id?: string
+          profilo_id?: string | null
           stato?: string | null
           tipo?: string
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -18923,6 +19008,7 @@ export type Database = {
       profiles: {
         Row: {
           address: string | null
+          area: string | null
           avatar_url: string | null
           company_id: string | null
           created_at: string
@@ -18946,6 +19032,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          area?: string | null
           avatar_url?: string | null
           company_id?: string | null
           created_at?: string
@@ -18969,6 +19056,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          area?: string | null
           avatar_url?: string | null
           company_id?: string | null
           created_at?: string
@@ -19201,8 +19289,8 @@ export type Database = {
           purchase_order_id: string
           result: string | null
           status: string
-          supplier_document_type: string
-          supplier_document_url: string
+          supplier_document_type: string | null
+          supplier_document_url: string | null
           total_items_checked: number | null
           updated_at: string
           verified_at: string | null
@@ -19228,8 +19316,8 @@ export type Database = {
           purchase_order_id: string
           result?: string | null
           status?: string
-          supplier_document_type: string
-          supplier_document_url: string
+          supplier_document_type?: string | null
+          supplier_document_url?: string | null
           total_items_checked?: number | null
           updated_at?: string
           verified_at?: string | null
@@ -19255,8 +19343,8 @@ export type Database = {
           purchase_order_id?: string
           result?: string | null
           status?: string
-          supplier_document_type?: string
-          supplier_document_url?: string
+          supplier_document_type?: string | null
+          supplier_document_url?: string | null
           total_items_checked?: number | null
           updated_at?: string
           verified_at?: string | null
@@ -24083,6 +24171,7 @@ export type Database = {
           only_assigned: boolean
           updated_at: string | null
           user_id: string
+          visible_areas: string[]
         }
         Insert: {
           can_approve_orders?: boolean
@@ -24156,6 +24245,7 @@ export type Database = {
           only_assigned?: boolean
           updated_at?: string | null
           user_id: string
+          visible_areas?: string[]
         }
         Update: {
           can_approve_orders?: boolean
@@ -24229,6 +24319,7 @@ export type Database = {
           only_assigned?: boolean
           updated_at?: string | null
           user_id?: string
+          visible_areas?: string[]
         }
         Relationships: [
           {
@@ -25766,9 +25857,11 @@ export type Database = {
           category: string | null
           company_id: string
           created_at: string
-          customer_id: string
+          created_by: string | null
+          customer_id: string | null
           data_intervento_effettiva: string | null
           data_intervento_prevista: string | null
+          descrizione: string | null
           durata_ore: number | null
           fonte: string | null
           id: string
@@ -25780,10 +25873,12 @@ export type Database = {
           lng_intervento: number | null
           note_tecnico: string | null
           order_id: string | null
+          priorita: string | null
           priority: Database["public"]["Enums"]["ticket_priority"]
           status: Database["public"]["Enums"]["ticket_status"]
           subject: string
           tipo: string | null
+          titolo: string | null
           updated_at: string
         }
         Insert: {
@@ -25791,9 +25886,11 @@ export type Database = {
           category?: string | null
           company_id: string
           created_at?: string
-          customer_id: string
+          created_by?: string | null
+          customer_id?: string | null
           data_intervento_effettiva?: string | null
           data_intervento_prevista?: string | null
+          descrizione?: string | null
           durata_ore?: number | null
           fonte?: string | null
           id?: string
@@ -25805,10 +25902,12 @@ export type Database = {
           lng_intervento?: number | null
           note_tecnico?: string | null
           order_id?: string | null
+          priorita?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
           subject: string
           tipo?: string | null
+          titolo?: string | null
           updated_at?: string
         }
         Update: {
@@ -25816,9 +25915,11 @@ export type Database = {
           category?: string | null
           company_id?: string
           created_at?: string
-          customer_id?: string
+          created_by?: string | null
+          customer_id?: string | null
           data_intervento_effettiva?: string | null
           data_intervento_prevista?: string | null
+          descrizione?: string | null
           durata_ore?: number | null
           fonte?: string | null
           id?: string
@@ -25830,10 +25931,12 @@ export type Database = {
           lng_intervento?: number | null
           note_tecnico?: string | null
           order_id?: string | null
+          priorita?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
           subject?: string
           tipo?: string | null
+          titolo?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -29776,3 +29879,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.90.0 (currently installed v2.75.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

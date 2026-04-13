@@ -10,7 +10,15 @@ interface Employee {
   id: string;
   first_name: string;
   last_name: string;
+  area?: string;
 }
+
+const AREA_LABELS: Record<string, { label: string; emoji: string }> = {
+  cantiere: { label: "Cantiere", emoji: "🏗️" },
+  commerciale: { label: "Commerciale", emoji: "💼" },
+  amministrazione: { label: "Amministrazione", emoji: "🏢" },
+  tecnico: { label: "Tecnico", emoji: "🔧" },
+};
 
 interface ExternalTeam {
   id: string;
@@ -138,7 +146,7 @@ export function CalendarLayerPanel({
                 colorDot="bg-indigo-500"
               />
 
-              {/* Employees */}
+              {/* Employees grouped by area */}
               {employees.length > 0 && (
                 <div className="pt-1.5 border-t border-border/50 mt-1.5">
                   <div className="flex items-center gap-1.5 py-0.5">
@@ -148,20 +156,43 @@ export function CalendarLayerPanel({
                       className="h-3.5 w-3.5"
                     />
                     <Users className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-[11px] font-medium text-muted-foreground">Operai interni</span>
+                    <span className="text-[11px] font-medium text-muted-foreground">Tutti i dipendenti</span>
                   </div>
-                  {filteredEmployees.map((emp) => (
-                    <div key={emp.id} className="flex items-center gap-1.5 py-0.5 pl-4">
-                      <Checkbox
-                        checked={visibleEmployees.has(emp.id)}
-                        onCheckedChange={() => onToggleEmployee(emp.id)}
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className="text-[11px] truncate">
-                        {emp.first_name} {emp.last_name}
-                      </span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const grouped = new Map<string, Employee[]>();
+                    for (const emp of filteredEmployees) {
+                      const area = emp.area || "cantiere";
+                      if (!grouped.has(area)) grouped.set(area, []);
+                      grouped.get(area)!.push(emp);
+                    }
+                    const areaOrder = ["cantiere", "commerciale", "tecnico", "amministrazione"];
+                    return areaOrder
+                      .filter(a => grouped.has(a))
+                      .map(area => {
+                        const emps = grouped.get(area)!;
+                        const info = AREA_LABELS[area] || { label: area, emoji: "👤" };
+                        return (
+                          <div key={area} className="pl-2 mt-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1 py-0.5">
+                              <span>{info.emoji}</span> {info.label}
+                              <span className="text-[9px] font-normal ml-auto">{emps.length}</span>
+                            </p>
+                            {emps.map((emp) => (
+                              <div key={emp.id} className="flex items-center gap-1.5 py-0.5 pl-2">
+                                <Checkbox
+                                  checked={visibleEmployees.has(emp.id)}
+                                  onCheckedChange={() => onToggleEmployee(emp.id)}
+                                  className="h-3.5 w-3.5"
+                                />
+                                <span className="text-[11px] truncate">
+                                  {emp.first_name} {emp.last_name}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      });
+                  })()}
                   {search && filteredEmployees.length === 0 && (
                     <p className="text-[11px] text-muted-foreground pl-4 py-0.5">Nessun risultato</p>
                   )}

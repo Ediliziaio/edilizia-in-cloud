@@ -24,6 +24,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const employeeSchema = z.object({
   first_name: z.string().min(1, "Nome obbligatorio"),
@@ -35,6 +42,7 @@ const employeeSchema = z.object({
   net_salary: z.coerce.number().min(0, "Deve essere >= 0"),
   monthly_hours: z.coerce.number().min(1, "Deve essere >= 1").max(744, "Max 744 ore"),
   is_active: z.boolean(),
+  area: z.enum(["cantiere", "commerciale", "amministrazione", "tecnico"]).default("cantiere"),
 });
 
 export type EmployeeFormData = z.infer<typeof employeeSchema>;
@@ -54,6 +62,7 @@ interface EmployeeDialogProps {
     monthly_hours: number;
     is_active: boolean;
     role_type?: string;
+    area?: string | null;
   } | null;
   onSave: (data: EmployeeFormData) => void;
   isSaving: boolean;
@@ -83,6 +92,7 @@ export function EmployeeDialog({
       net_salary: 0,
       monthly_hours: 160,
       is_active: true,
+      area: "cantiere" as const,
     },
   });
 
@@ -98,6 +108,7 @@ export function EmployeeDialog({
         net_salary: employee.net_salary,
         monthly_hours: employee.monthly_hours,
         is_active: employee.is_active,
+        area: employee.area || (employee.role_type === "staff_interno" ? "amministrazione" : "cantiere"),
       });
     } else {
       form.reset({
@@ -110,6 +121,7 @@ export function EmployeeDialog({
         net_salary: 0,
         monthly_hours: 160,
         is_active: true,
+        area: "cantiere" as const,
       });
     }
   }, [employee, form]);
@@ -209,6 +221,41 @@ export function EmployeeDialog({
                   </FormControl>
                   <FormDescription>
                     Numero WhatsApp per inviare rapportini, DDT e foto via bot AI.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="area"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Area Aziendale *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleziona area" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="cantiere">
+                        <span className="flex items-center gap-2">🏗️ Cantiere</span>
+                      </SelectItem>
+                      <SelectItem value="commerciale">
+                        <span className="flex items-center gap-2">💼 Commerciale</span>
+                      </SelectItem>
+                      <SelectItem value="amministrazione">
+                        <span className="flex items-center gap-2">🏢 Amministrazione</span>
+                      </SelectItem>
+                      <SelectItem value="tecnico">
+                        <span className="flex items-center gap-2">🔧 Tecnico</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Determina in quale calendario e in quali assegnazioni appare questo dipendente
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

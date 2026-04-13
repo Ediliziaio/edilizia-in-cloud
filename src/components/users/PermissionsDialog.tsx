@@ -6,7 +6,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, HardHat, LayoutGrid, Euro, Users2, Megaphone, Zap, ChevronDown, ChevronRight, Settings } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, HardHat, LayoutGrid, Euro, Users2, Megaphone, Zap, ChevronDown, ChevronRight, Settings, MapPin } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -92,6 +93,8 @@ export interface StaffPermissions {
   can_view_settings_security: boolean;
   // ── Speciali ───────────────────────────────────────────
   only_assigned: boolean;
+  /** Aree visibili: se vuoto = tutte le aree. Valori: cantiere, commerciale, amministrazione, tecnico */
+  visible_areas: string[];
   /** Flag interno: l'utente deve cambiare password al primo accesso */
   must_change_password?: boolean | null;
 }
@@ -295,6 +298,60 @@ export function PermissionsDialog({
               checked={permissions.only_assigned || false}
               onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, only_assigned: checked }))}
             />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-blue-600" />
+              <Label className="font-medium">Aree visibili</Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Seleziona le aree aziendali che l'utente può vedere nel calendario e nei dropdown di assegnazione.
+              Se nessuna è selezionata, l'utente vede tutte le aree.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: "cantiere", label: "🏗️ Cantiere", desc: "Operai e tecnici in cantiere" },
+                { value: "commerciale", label: "💼 Commerciale", desc: "Venditori e agenti" },
+                { value: "amministrazione", label: "🏢 Amministrazione", desc: "Staff ufficio" },
+                { value: "tecnico", label: "🔧 Tecnico", desc: "Personale tecnico" },
+              ] as const).map(area => {
+                const checked = (permissions.visible_areas || []).includes(area.value);
+                return (
+                  <label
+                    key={area.value}
+                    className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                      checked ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(c) => {
+                        setPermissions(prev => {
+                          const current = prev.visible_areas || [];
+                          const next = c
+                            ? [...current, area.value]
+                            : current.filter(a => a !== area.value);
+                          return { ...prev, visible_areas: next };
+                        });
+                      }}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium">{area.label}</span>
+                      <p className="text-xs text-muted-foreground">{area.desc}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            {(permissions.visible_areas || []).length === 0 && (
+              <p className="text-xs text-blue-600 bg-blue-50 rounded p-2">
+                Nessuna area selezionata = accesso a tutte le aree (comportamento admin)
+              </p>
+            )}
           </div>
         </div>
 

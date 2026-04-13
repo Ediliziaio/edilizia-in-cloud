@@ -9,6 +9,7 @@ export interface CalendarOrder {
   created_at: string;
   customer_id: string;
   current_status_id: string | null;
+  indirizzo_lavori?: string | null;
   customer: {
     first_name: string;
     last_name: string;
@@ -110,6 +111,14 @@ export interface CalendarAppointment {
   order?: {
     order_code: string | null;
     description: string;
+    customer?: {
+      first_name: string;
+      last_name: string;
+    } | null;
+  } | null;
+  contact?: {
+    first_name: string;
+    last_name: string;
   } | null;
   status?: string;
   formatted_address?: string | null;

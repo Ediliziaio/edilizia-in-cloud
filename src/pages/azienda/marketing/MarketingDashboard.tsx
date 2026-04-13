@@ -1,4 +1,4 @@
-import { LayoutDashboard, Download, RefreshCw, AlertCircle, BarChart3, Phone, Users, Radio, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Download, RefreshCw, AlertCircle, BarChart3, Phone, Users, Radio, TrendingUp, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -14,6 +14,7 @@ import { TabAttivita } from "@/components/marketing/dashboard/tabs/TabAttivita";
 import { TabTeam } from "@/components/marketing/dashboard/tabs/TabTeam";
 import { TabFonti } from "@/components/marketing/dashboard/tabs/TabFonti";
 import { TabTrend } from "@/components/marketing/dashboard/tabs/TabTrend";
+import { TabCommerciale } from "@/components/marketing/dashboard/tabs/TabCommerciale";
 import { exportToCSV } from "@/lib/csvExport";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
@@ -33,6 +34,7 @@ const TAB_ICONS: Record<DashboardTab, React.ElementType> = {
   team: Users,
   fonti: Radio,
   trend: TrendingUp,
+  commerciale: Target,
 };
 
 // Componente interno: mostra SedeFilterBar + LeadPerSedeChart solo se ci sono sedi
@@ -192,13 +194,14 @@ export default function MarketingDashboard() {
 
       {/* Tabs */}
       <Tabs value={effectiveTab} onValueChange={(v) => switchTab(v as DashboardTab)}>
-        <TabsList className="h-9">
+        <TabsList className="h-9 w-full overflow-x-auto flex-nowrap justify-start">
           {visibleTabs.map(tab => {
             const Icon = TAB_ICONS[tab.id];
             return (
-              <TabsTrigger key={tab.id} value={tab.id} className="text-xs gap-1.5 px-3">
+              <TabsTrigger key={tab.id} value={tab.id} className="text-xs gap-1.5 px-2.5 shrink-0">
                 <Icon className="h-3.5 w-3.5" />
-                {tab.label}
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.label.length > 6 ? tab.label.slice(0, 5) + "." : tab.label}</span>
               </TabsTrigger>
             );
           })}
@@ -221,6 +224,9 @@ export default function MarketingDashboard() {
         </TabsContent>
         <TabsContent value="trend">
           <TabTrend data={data} isLoading={isLoading} />
+        </TabsContent>
+        <TabsContent value="commerciale">
+          <TabCommerciale />
         </TabsContent>
       </Tabs>
     </div>

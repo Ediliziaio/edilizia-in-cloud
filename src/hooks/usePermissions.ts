@@ -65,6 +65,8 @@ export interface Permissions {
   isAdmin: boolean;
   isLoading: boolean;
   onlyAssigned: boolean;
+  /** Aree visibili all'utente. Vuoto = tutte le aree. */
+  visibleAreas: string[];
 }
 
 const ALL_PERMISSIONS: Permissions = {
@@ -95,7 +97,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewGiornaleLavori: true, canViewMessaggiEsterni: true,
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
-  isAdmin: true, isLoading: false, onlyAssigned: false,
+  isAdmin: true, isLoading: false, onlyAssigned: false, visibleAreas: [],
 };
 
 const NO_PERMISSIONS: Permissions = {
@@ -126,7 +128,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewGiornaleLavori: false, canViewMessaggiEsterni: false,
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
-  isAdmin: false, isLoading: false, onlyAssigned: false,
+  isAdmin: false, isLoading: false, onlyAssigned: false, visibleAreas: [],
 };
 
 export function usePermissions(): Permissions {
@@ -283,6 +285,7 @@ export function usePermissions(): Permissions {
       isAdmin: false,
       isLoading: false,
       onlyAssigned: permissions?.only_assigned ?? false,
+      visibleAreas: permissions?.visible_areas ?? [],
     };
   }
 

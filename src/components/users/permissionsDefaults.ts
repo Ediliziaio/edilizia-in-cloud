@@ -43,6 +43,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_settings_security: false,
   // Speciali
   only_assigned: false,
+  visible_areas: [],
 };
 
 /** Centralized permission section definitions used by PermissionsDialog, UserRolesPermissionsTab and CreateUserWizard */
@@ -184,6 +185,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_marketing_reports: true,
     can_view_sales_os: true,
     can_view_marketing: true, can_edit_marketing: true,
+    visible_areas: ["commerciale"],
   },
 
   call_center: {
@@ -196,12 +198,14 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_marketing_activities: true,
     can_view_marketing_appointments: true,
     can_view_marketing: true,
+    visible_areas: ["commerciale"],
   },
 
   employee: {
     can_view_calendar: true,
     can_view_giornale_lavori: true,
     only_assigned: true,
+    visible_areas: ["cantiere"],
   },
 
   subcontractor: {
@@ -210,6 +214,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_customers: true,
     can_view_subappaltatori: true,
     only_assigned: true,
+    visible_areas: ["cantiere"],
   },
 };
 

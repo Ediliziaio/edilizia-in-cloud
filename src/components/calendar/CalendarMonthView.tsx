@@ -28,7 +28,9 @@ import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
-import { weatherCodeToEmoji, type WeatherDay } from "@/hooks/useWeatherForecast";
+import { weatherCodeToEmoji, weatherCodeToLabel, type WeatherDay, type MultiLocationWeather, type LocationWeatherDay } from "@/hooks/useWeatherForecast";
+import { WeatherBadgeMulti } from "./WeatherBadge";
+import { Navigation } from "lucide-react";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -55,6 +57,8 @@ interface CalendarMonthViewProps {
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, CalendarWarehouseInfo>;
   weatherForecast?: Map<string, WeatherDay>;
+  calendarWeatherMulti?: MultiLocationWeather;
+  orderWeatherMap?: Map<string, { weather?: LocationWeatherDay; distanceKm?: number; durationMin?: number; durationLabel?: string; address?: string }>;
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
 }
@@ -70,6 +74,8 @@ export function CalendarMonthView({
   hiddenEventTypes = new Set(),
   warehouseInfo,
   weatherForecast,
+  calendarWeatherMulti,
+  orderWeatherMap,
   interventi = [],
   manutenzioni = [],
 }: CalendarMonthViewProps) {
@@ -217,9 +223,19 @@ export function CalendarMonthView({
                   >
                     {format(day, "d")}
                   </div>
-                  {weatherForecast && (() => {
-                    const w = weatherForecast.get(format(day, "yyyy-MM-dd"));
-                    return w ? <span className="text-[10px] leading-none">{weatherCodeToEmoji(w.code)}</span> : null;
+                  {(() => {
+                    const dateKey = format(day, "yyyy-MM-dd");
+                    // Preferisci multi-location se disponibile
+                    if (calendarWeatherMulti) {
+                      const locs = calendarWeatherMulti.get(dateKey);
+                      if (locs && locs.length > 0) return <WeatherBadgeMulti locations={locs} size="sm" />;
+                    }
+                    // Fallback al meteo singolo
+                    if (weatherForecast) {
+                      const w = weatherForecast.get(dateKey);
+                      return w ? <span className="text-[10px] leading-none">{weatherCodeToEmoji(w.code)}</span> : null;
+                    }
+                    return null;
                   })()}
                 </div>
 
@@ -385,48 +401,84 @@ export function CalendarMonthView({
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="right" className="max-w-xs">
-                          <div className="space-y-1">
-                            <p className="font-semibold">{event.order.order_code || "N/A"} - {event.type === "posa" ? "Data Posa" : event.type === "lavoro" ? "Lavori in corso" : "Arrivo Merce"}</p>
-                            <p className="text-sm">{event.order.customer.first_name} {event.order.customer.last_name}</p>
-                            {event.order.description && <p className="text-xs text-muted-foreground line-clamp-2">{event.order.description}</p>}
-                            {event.order.status && (
-                              <div className="flex items-center gap-2 mt-1">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: event.order.status.color }} />
-                                <span className="text-xs">{event.order.status.name}</span>
-                              </div>
-                            )}
-                            {initials ? (
-                              <div className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" /><span>{initials}</span></div>
-                            ) : (
-                              <div className="flex items-center gap-1 text-xs text-amber-500"><Users className="h-3 w-3" /><span>Nessuna squadra</span></div>
-                            )}
-                            {(() => {
-                              const extNames = event.order!.order_external_teams?.map((aet) => aet.external_team.name).join(", ");
-                              return extNames ? (<div className="flex items-center gap-1 text-xs"><UsersRound className="h-3 w-3" /><span>{extNames}</span></div>) : null;
-                            })()}
-                            {logisticRisk && (
-                              <div className="flex items-center gap-1 text-xs text-amber-500 font-medium">
-                                <AlertTriangle className="h-3 w-3" />
-                                {!event.order!.warehouse_arrival_date ? "Merce non confermata" : "Merce arriva dopo la posa"}
-                              </div>
-                            )}
-                            {event.type === "merce" && whInfo && (
-                              <div className="mt-1 space-y-1 border-t pt-1">
-                                <div className="flex gap-3 text-xs">
-                                  <span className="text-green-600 font-medium">✅ {whInfo.readyCount} pronti</span>
-                                  <span className="text-amber-600 font-medium">⏳ {whInfo.pendingCount} in attesa</span>
-                                </div>
-                                {whInfo.items.slice(0, 3).map(item => (
-                                  <div key={item.id} className="flex items-center justify-between text-xs">
-                                    <span className="truncate">{item.name}</span>
-                                    <span className={`ml-2 shrink-0 font-medium ${item.status === "in_magazzino" || item.status === "installato" ? "text-green-600" : "text-amber-600"}`}>{item.status}</span>
+                          {(() => {
+                            const owInfo = orderWeatherMap?.get(event.order!.id);
+                            const orderAddress = event.order!.indirizzo_lavori || owInfo?.address;
+                            return (
+                              <div className="space-y-1">
+                                <p className="font-semibold">{event.order!.order_code || "N/A"} - {event.type === "posa" ? "Data Posa" : event.type === "lavoro" ? "Lavori in corso" : "Arrivo Merce"}</p>
+                                <p className="text-sm">{event.order!.customer.first_name} {event.order!.customer.last_name}</p>
+                                {event.order!.description && <p className="text-xs text-muted-foreground line-clamp-2">{event.order!.description}</p>}
+                                {orderAddress && (
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <MapPin className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{orderAddress}</span>
                                   </div>
-                                ))}
-                                <p className="text-xs text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); setWarehouseDrawer(whInfo); }}>Vedi dettaglio →</p>
+                                )}
+                                {event.order!.status && (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: event.order!.status.color }} />
+                                    <span className="text-xs">{event.order!.status.name}</span>
+                                  </div>
+                                )}
+                                {initials ? (
+                                  <div className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" /><span>{initials}</span></div>
+                                ) : (
+                                  <div className="flex items-center gap-1 text-xs text-amber-500"><Users className="h-3 w-3" /><span>Nessuna squadra</span></div>
+                                )}
+                                {(() => {
+                                  const extNames = event.order!.order_external_teams?.map((aet) => aet.external_team.name).join(", ");
+                                  return extNames ? (<div className="flex items-center gap-1 text-xs"><UsersRound className="h-3 w-3" /><span>{extNames}</span></div>) : null;
+                                })()}
+                                {/* Meteo + Distanza cantiere */}
+                                {owInfo && (owInfo.weather || owInfo.distanceKm != null) && (
+                                  <div className="mt-1 pt-1 border-t border-border/50 space-y-0.5">
+                                    {owInfo.distanceKm != null && (
+                                      <div className="flex items-center gap-1 text-xs">
+                                        <Navigation className="h-3 w-3 text-blue-500 shrink-0" />
+                                        <span className="font-medium">{owInfo.distanceKm} km</span>
+                                        {owInfo.durationLabel && (
+                                          <span className="text-muted-foreground">· {owInfo.durationLabel} dalla sede</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {owInfo.weather && (
+                                      <div className="flex items-center gap-1.5 text-xs">
+                                        <span className="text-base leading-none">{weatherCodeToEmoji(owInfo.weather.code)}</span>
+                                        <span className="font-medium">{weatherCodeToLabel(owInfo.weather.code)}</span>
+                                        <span>{owInfo.weather.minTemp}°–{owInfo.weather.maxTemp}°</span>
+                                        {owInfo.weather.precip > 0 && <span className="text-blue-600">{owInfo.weather.precip}mm</span>}
+                                        {owInfo.weather.precip > 20 && <span className="text-red-500 font-medium">⚠️</span>}
+                                        {owInfo.weather.precip > 5 && owInfo.weather.precip <= 20 && <span className="text-orange-500">⚠️</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {logisticRisk && (
+                                  <div className="flex items-center gap-1 text-xs text-amber-500 font-medium">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    {!event.order!.warehouse_arrival_date ? "Merce non confermata" : "Merce arriva dopo la posa"}
+                                  </div>
+                                )}
+                                {event.type === "merce" && whInfo && (
+                                  <div className="mt-1 space-y-1 border-t pt-1">
+                                    <div className="flex gap-3 text-xs">
+                                      <span className="text-green-600 font-medium">✅ {whInfo.readyCount} pronti</span>
+                                      <span className="text-amber-600 font-medium">⏳ {whInfo.pendingCount} in attesa</span>
+                                    </div>
+                                    {whInfo.items.slice(0, 3).map(item => (
+                                      <div key={item.id} className="flex items-center justify-between text-xs">
+                                        <span className="truncate">{item.name}</span>
+                                        <span className={`ml-2 shrink-0 font-medium ${item.status === "in_magazzino" || item.status === "installato" ? "text-green-600" : "text-amber-600"}`}>{item.status}</span>
+                                      </div>
+                                    ))}
+                                    <p className="text-xs text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); setWarehouseDrawer(whInfo); }}>Vedi dettaglio →</p>
+                                  </div>
+                                )}
+                                <p className="text-xs text-primary mt-1">{event.type === "merce" && whInfo ? "Clicca per i dettagli magazzino" : "Clicca per modificare le date"}</p>
                               </div>
-                            )}
-                            <p className="text-xs text-primary mt-1">{event.type === "merce" && whInfo ? "Clicca per i dettagli magazzino" : "Clicca per modificare le date"}</p>
-                          </div>
+                            );
+                          })()}
                         </TooltipContent>
                       </Tooltip>
                     );
@@ -442,7 +494,7 @@ export function CalendarMonthView({
       </TooltipProvider>
 
       {editingOrder && (
-        <EditOrderDatesDialog order={editingOrder} open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)} />
+        <EditOrderDatesDialog order={editingOrder} open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)} orderWeatherInfo={orderWeatherMap?.get(editingOrder.id)} />
       )}
 
       <AppointmentDialog

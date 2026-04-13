@@ -23,8 +23,8 @@ import { AppointmentDialog, type AppointmentData } from "@/components/appointmen
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
-import { WeatherBadge } from "./WeatherBadge";
-import type { WeatherDay } from "@/hooks/useWeatherForecast";
+import { WeatherBadge, WeatherBadgeMulti } from "./WeatherBadge";
+import type { WeatherDay, MultiLocationWeather, LocationWeatherDay } from "@/hooks/useWeatherForecast";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
 const WEEK_DAYS_IT_FULL = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -40,12 +40,14 @@ interface CalendarWeekViewProps {
   hiddenEventTypes?: Set<string>;
   warehouseInfo?: Map<string, import("@/types/calendar").CalendarWarehouseInfo>;
   weatherForecast?: Map<string, WeatherDay>;
+  calendarWeatherMulti?: MultiLocationWeather;
+  orderWeatherMap?: Map<string, { weather?: LocationWeatherDay; distanceKm?: number; durationMin?: number; durationLabel?: string; address?: string }>;
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
 }
 
 // ── Draggable wrapper ──
-function DraggableEvent({ id, children, data }: { id: string; children: React.ReactNode; data: any }) {
+function DraggableEvent({ id, children, data }: { id: string; children: React.ReactNode; data: Record<string, unknown> }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} className={cn("cursor-grab", isDragging && "opacity-40")}>
@@ -74,6 +76,8 @@ export function CalendarWeekView({
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
   weatherForecast,
+  calendarWeatherMulti,
+  orderWeatherMap,
   interventi = [],
   manutenzioni = [],
 }: CalendarWeekViewProps) {
@@ -96,8 +100,9 @@ export function CalendarWeekView({
 
   // Group all-day events per day
   const allDayByDate = useMemo(() => {
-    const map = new Map<string, Array<{ type: string; order?: CalendarOrder; appointment?: CalendarAppointment; busySlot?: GoogleBusySlot }>>();
-    const addEvent = (dateStr: string, evt: any) => {
+    type AllDayEvent = { type: string; order?: CalendarOrder; appointment?: CalendarAppointment; busySlot?: GoogleBusySlot; leave?: ApprovedLeave; intervento?: CalendarIntervento; manutenzione?: CalendarManutenzione };
+    const map = new Map<string, AllDayEvent[]>();
+    const addEvent = (dateStr: string, evt: AllDayEvent) => {
       if (!map.has(dateStr)) map.set(dateStr, []);
       map.get(dateStr)!.push(evt);
     };
@@ -169,7 +174,7 @@ export function CalendarWeekView({
     const { active, over } = event;
     if (!over) return;
     const toDate = (over.id as string).replace("day-", "");
-    const data = active.data.current as any;
+    const data = active.data.current as { eventType: string; id: string; label: string; date: string } | undefined;
     if (!data || data.date === toDate) return;
 
     setPendingDrop({
@@ -203,15 +208,15 @@ export function CalendarWeekView({
       }
       toast("Evento spostato");
       setPendingDrop(null);
-    } catch (e: any) {
-      toast.error(`Errore: ${e.message}`);
+    } catch (e: unknown) {
+      toast.error(`Errore: ${e instanceof Error ? e.message : String(e)}`);
       setPendingDrop(null);
     } finally {
       setIsConfirming(false);
     }
   };
 
-  const renderAllDayEvent = (evt: any, idx: number) => {
+  const renderAllDayEvent = (evt: { type: string; order?: CalendarOrder; appointment?: CalendarAppointment; busySlot?: GoogleBusySlot; leave?: ApprovedLeave; intervento?: CalendarIntervento; manutenzione?: CalendarManutenzione }, idx: number) => {
     const o = evt.order as CalendarOrder | undefined;
     const lr = evt.leave as ApprovedLeave | undefined;
     const label = lr
@@ -243,7 +248,7 @@ export function CalendarWeekView({
       google_busy: "bg-muted border-l-2 border-muted-foreground/50 text-muted-foreground",
       leave: "bg-amber-500/20 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200",
     };
-    const IconMap: Record<string, any> = { posa: Hammer, lavoro: Wrench, merce: Package };
+    const IconMap: Record<string, React.ComponentType<{ className?: string }>> = { posa: Hammer, lavoro: Wrench, merce: Package };
     const Icon = IconMap[evt.type];
     const dateStr = o?.expected_date || o?.work_start_date || o?.warehouse_arrival_date || "";
     const dragId = o ? `order-${o.id}-${evt.type}-${dateStr}` : `busy-${idx}`;
@@ -339,9 +344,17 @@ export function CalendarWeekView({
             >
               <div>{WEEK_DAYS_IT_FULL[i]}</div>
               <div className="text-lg font-bold">{format(day, "d")}</div>
-              {weatherForecast && (() => {
-                const w = weatherForecast.get(format(day, "yyyy-MM-dd"));
-                return w ? <WeatherBadge weather={w} size="sm" showTemp /> : null;
+              {(() => {
+                const dateKey = format(day, "yyyy-MM-dd");
+                if (calendarWeatherMulti) {
+                  const locs = calendarWeatherMulti.get(dateKey);
+                  if (locs && locs.length > 0) return <WeatherBadgeMulti locations={locs} size="sm" showTemp />;
+                }
+                if (weatherForecast) {
+                  const w = weatherForecast.get(dateKey);
+                  return w ? <WeatherBadge weather={w} size="sm" showTemp /> : null;
+                }
+                return null;
               })()}
             </div>
           ))}
@@ -434,6 +447,7 @@ export function CalendarWeekView({
             queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
             setEditingOrder(null);
           }}
+          orderWeatherInfo={orderWeatherMap?.get(editingOrder.id)}
         />
       )}
 

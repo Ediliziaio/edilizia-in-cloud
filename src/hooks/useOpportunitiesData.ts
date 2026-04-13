@@ -340,6 +340,28 @@ export function useCompanyStaff() {
   });
 }
 
+/**
+ * Helper: fetch profiles for a set of user IDs.
+ * Returns array of { id, name, source } — source indicates where the match came from.
+ */
+async function fetchProfilesByIds(ids: string[], source: string) {
+  if (!ids.length) return [];
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, first_name, last_name")
+    .in("id", ids);
+  return (profiles || [])
+    .filter((p) => p.first_name || p.last_name)
+    .map((p) => ({ id: p.id, name: `${p.first_name || ""} ${p.last_name || ""}`.trim(), source }));
+}
+
+/**
+ * Returns salespeople for the company.
+ * Strategy (cascade):
+ *  1. Users with role='salesperson' in user_roles
+ *  2. Fallback: employees with area='commerciale' who have a user_id (user account)
+ *  3. Fallback: all company staff (so dropdown is never empty)
+ */
 export function useCompanySalespeople() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -348,22 +370,37 @@ export function useCompanySalespeople() {
     queryKey: queryKeys.staff.salespeople(companyId),
     queryFn: async () => {
       if (!companyId) return [];
-      // Use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
+
+      // Get all company user IDs
       const { data: perms } = await supabase
         .from("staff_permissions")
         .select("user_id")
         .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
+      const companyUserIds = (perms || []).map((p) => p.user_id);
+      if (!companyUserIds.length) return [];
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds);
+      // Strategy 1: user_roles → salesperson
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("user_id", companyUserIds)
+        .eq("role", "salesperson");
+      const salesIds = (roleData || []).map((r) => r.user_id);
+      if (salesIds.length) return fetchProfilesByIds(salesIds, "role");
 
-      return (profiles || [])
-        .filter((p) => p.first_name || p.last_name)
-        .map((p) => ({ id: p.id, name: `${p.first_name || ""} ${p.last_name || ""}`.trim() }));
+      // Strategy 2: employees with area='commerciale' and a linked user account
+      const { data: empData } = await supabase
+        .from("employees")
+        .select("user_id")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .eq("area", "commerciale")
+        .not("user_id", "is", null);
+      const empUserIds = (empData || []).map((e: any) => e.user_id as string).filter(Boolean);
+      if (empUserIds.length) return fetchProfilesByIds(empUserIds, "area");
+
+      // Strategy 3: all company staff (never leave dropdown empty)
+      return fetchProfilesByIds(companyUserIds, "all");
     },
     enabled: !!companyId,
     staleTime: 10 * 60 * 1000,
@@ -371,6 +408,10 @@ export function useCompanySalespeople() {
   });
 }
 
+/**
+ * Returns call center users for the company.
+ * Same cascade strategy as salespeople but for role='call_center'.
+ */
 export function useCompanyCallCenterUsers() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -379,26 +420,83 @@ export function useCompanyCallCenterUsers() {
     queryKey: queryKeys.staff.callCenter(companyId),
     queryFn: async () => {
       if (!companyId) return [];
-      // Use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
+
       const { data: perms } = await supabase
         .from("staff_permissions")
         .select("user_id")
         .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
+      const companyUserIds = (perms || []).map((p) => p.user_id);
+      if (!companyUserIds.length) return [];
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds);
+      // Strategy 1: user_roles → call_center
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("user_id", companyUserIds)
+        .eq("role", "call_center");
+      const ccIds = (roleData || []).map((r) => r.user_id);
+      if (ccIds.length) return fetchProfilesByIds(ccIds, "role");
 
-      return (profiles || [])
-        .filter((p) => p.first_name || p.last_name)
-        .map((p) => ({ id: p.id, name: `${p.first_name || ""} ${p.last_name || ""}`.trim() }));
+      // Strategy 2: all company staff (call center is rarely a separate area)
+      return fetchProfilesByIds(companyUserIds, "all");
     },
     enabled: !!companyId,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+  });
+}
+
+/** Returns company staff filtered by area (cantiere, commerciale, amministrazione, tecnico) */
+export function useCompanyStaffByArea(area?: string | string[]) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const areas = area ? (Array.isArray(area) ? area : [area]) : null;
+
+  return useQuery({
+    queryKey: ["company-staff-by-area", companyId, areas],
+    queryFn: async () => {
+      if (!companyId) return [];
+      let query = supabase
+        .from("employees")
+        .select("id, first_name, last_name, role_type, area")
+        .eq("company_id", companyId)
+        .eq("is_active", true);
+
+      if (areas && areas.length > 0) {
+        query = query.in("area", areas);
+      }
+
+      const { data, error } = await query.order("last_name");
+      if (error) {
+        // Fallback if area column doesn't exist yet
+        const { data: fallback } = await supabase
+          .from("employees")
+          .select("id, first_name, last_name, role_type")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .order("last_name");
+        return (fallback || []).map((e: any) => ({
+          id: e.id,
+          firstName: e.first_name,
+          lastName: e.last_name,
+          name: `${e.first_name || ""} ${e.last_name || ""}`.trim(),
+          area: e.role_type === "staff_interno" ? "amministrazione" : "cantiere",
+          roleType: e.role_type,
+        }));
+      }
+
+      return (data || []).map((e: any) => ({
+        id: e.id,
+        firstName: e.first_name,
+        lastName: e.last_name,
+        name: `${e.first_name || ""} ${e.last_name || ""}`.trim(),
+        area: e.area || (e.role_type === "staff_interno" ? "amministrazione" : "cantiere"),
+        roleType: e.role_type,
+      }));
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
