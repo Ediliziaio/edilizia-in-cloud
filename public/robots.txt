@@ -1,5 +1,10 @@
 # robots.txt — ediliziaincloud.com
-# Aggiornato: 2026-04-08
+# Aggiornato: 2026-04-13
+#
+# NOTA: Cloudflare "AI Scrapers and Crawlers" prepend regole Disallow
+# per i bot AI. Assicurarsi che sia DISABILITATO nel pannello Cloudflare
+# (Security > Bots > AI Scrapers and Crawlers) altrimenti le regole
+# Allow qui sotto vengono ignorate dai crawler.
 
 User-agent: *
 Allow: /
@@ -16,17 +21,53 @@ Disallow: /accetta-invito/
 Disallow: /portale-cliente/
 Disallow: /portale-tecnico/
 
-# Allow specific bots full access to all public content
+# ── AI / Search Crawlers ─────────────────────────────────────────
+# Tutti i crawler AI sono ammessi per search e RAG (non per training).
+# Il Content-Signal ai-train=no viene gestito da Cloudflare.
+
 User-agent: Googlebot
 Allow: /
 
 User-agent: GPTBot
 Allow: /
 
+User-agent: ChatGPT-User
+Allow: /
+
 User-agent: ClaudeBot
 Allow: /
 
+User-agent: Claude-Web
+Allow: /
+
 User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Diffbot
+Allow: /
+
+User-agent: YouBot
 Allow: /
 
 Sitemap: https://ediliziaincloud.com/sitemap.xml
