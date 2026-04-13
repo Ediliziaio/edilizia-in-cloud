@@ -994,9 +994,9 @@ export function CompanyLayout() {
   return (
     <>
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen md:min-h-screen flex w-full md:h-auto h-[100dvh] overflow-hidden">
         <CompanySidebar />
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Skip to main content — keyboard / screen-reader accessibility */}
           <a
             href="#main-content"
@@ -1071,7 +1071,7 @@ export function CompanyLayout() {
           </header>
           <OfflineBanner />
           <LifecycleNotificationsBanner />
-          <main className="flex-1 p-3 md:p-6 bg-muted/30 pb-20 md:pb-6" id="main-content" aria-label="Contenuto principale">
+          <main className="flex-1 overflow-y-auto p-3 md:p-6 bg-muted/30 pb-4 md:pb-6" id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina">
               <Suspense fallback={
                 <div className="flex items-center justify-center min-h-[200px]">
@@ -1085,6 +1085,13 @@ export function CompanyLayout() {
           <footer className="hidden md:block text-center py-2 border-t bg-background">
             <PoweredByBadge />
           </footer>
+          {/* Bottom nav come flex item in fondo al layout — NO position:fixed.
+              Su Safari iOS position:fixed non funziona in certi contesti.
+              Con h-[100dvh] + overflow-hidden sul container e overflow-y-auto
+              sul main, la nav resta sempre visibile senza fixed. */}
+          <ErrorBoundary key={location.pathname} title="Errore navigazione mobile">
+            <MobileBottomNav />
+          </ErrorBoundary>
         </div>
       </div>
       {showSupport && (
@@ -1105,12 +1112,6 @@ export function CompanyLayout() {
       <PWAInstallBanner />
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
     </SidebarProvider>
-    {/* Bottom nav FUORI dal SidebarProvider per evitare interferenze CSS.
-        key=pathname resetta l'ErrorBoundary su ogni cambio route, così se crasha
-        su una pagina prova a renderizzare di nuovo sulla prossima. */}
-    <ErrorBoundary key={location.pathname} title="Errore navigazione mobile">
-      <MobileBottomNav />
-    </ErrorBoundary>
     </>
   );
 }

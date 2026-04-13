@@ -10,7 +10,6 @@
  * Chat e App sono sempre presenti.
  */
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -178,10 +177,9 @@ export function MobileBottomNav() {
 
   const bottomNav = (
     <nav
-      className="fixed bottom-0 left-0 right-0 bg-background border-t border-border/50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
+      className="shrink-0 bg-background border-t border-border/50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] md:hidden"
       style={{
         paddingBottom: "env(safe-area-inset-bottom)",
-        zIndex: 9999,
       }}
       aria-label="Navigazione principale"
     >
@@ -262,14 +260,12 @@ export function MobileBottomNav() {
     </nav>
   );
 
-  // Guardia contro document.body null (possibile su Safari WebKit reale
-  // durante restore da bfcache o service worker early mount)
-  if (typeof document === "undefined" || !document.body) return null;
-
   return (
     <>
-      {/* Portal al body per garantire position:fixed funzioni sempre */}
-      {createPortal(bottomNav, document.body)}
+      {/* Render diretto (NO createPortal) — su Safari iOS il portal al body
+          causa problemi con position:fixed che non viene renderizzato.
+          position:fixed funziona correttamente anche senza portal. */}
+      {bottomNav}
       {/* App Grid Sheet */}
       <MobileAppGrid open={appGridOpen} onOpenChange={setAppGridOpen} />
     </>
