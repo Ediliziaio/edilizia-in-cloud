@@ -1,10 +1,11 @@
 /**
- * CruscottoHub — Navigazione unificata tra le 3 dashboard disponibili
+ * CruscottoHub — Navigazione intelligente tra le 3 dashboard disponibili
  *
  * Comportamento:
+ * - Admin / Super Admin → redirect diretto a Cruscotto Aziendale (zero click)
  * - 0 dashboard visibili → messaggio "nessun accesso"
- * - 1 dashboard visibile → redirect immediato (zero click sprecati)
- * - 2–3 dashboard visibili → griglia di card selezionabili
+ * - 1 dashboard visibile → redirect immediato (zero click)
+ * - 2 dashboard visibili → griglia di card selezionabili
  */
 
 import { Navigate, Link } from "react-router-dom";
@@ -61,6 +62,11 @@ export default function CruscottoHub() {
     );
   }
 
+  // Admin → redirect diretto al Cruscotto Aziendale (ha accesso a tutto)
+  if (permissions.isAdmin) {
+    return <Navigate to="/azienda/cruscotto/aziendale" replace />;
+  }
+
   const visibleDashboards = DASHBOARDS.filter((d) => permissions[d.permKey]);
 
   // 0 dashboard — messaggio di accesso negato
@@ -80,7 +86,7 @@ export default function CruscottoHub() {
     return <Navigate to={visibleDashboards[0].url} replace />;
   }
 
-  // 2–3 dashboard — hub con card
+  // 2+ dashboard — hub con card
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">

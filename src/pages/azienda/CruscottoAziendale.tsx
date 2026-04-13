@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
+import { usePermissions } from "@/hooks/usePermissions";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
 import { CruscottoHero } from "@/components/cruscotto/CruscottoHero";
 import { AlertPanel } from "@/components/cruscotto/AlertPanel";
@@ -34,6 +35,7 @@ import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export default function CruscottoAziendale() {
+  const perms = usePermissions();
   const {
     marketing, operations, finance, weeklyAgenda, invoiceStats, companyTargets,
     todayData, cashFlowForecast,
@@ -55,6 +57,13 @@ export default function CruscottoAziendale() {
   const sediVisibili = (sediData?.sedi ?? []).filter(
     (s) => sediSelezionate.length === 0 || sediSelezionate.includes(s.sede_id)
   );
+
+  // ── Sezioni visibili in base ai permessi ──────────────────────────
+  // Admin vede tutto, staff vede solo le sezioni per cui ha i permessi
+  const showFinanza     = perms.isAdmin || perms.canViewPrimaNota || perms.canViewBilling || perms.canViewCosts || perms.canViewTesoreria;
+  const showOperazioni  = perms.isAdmin || perms.canViewDashboard || perms.canViewOrders;
+  const showCommerciale = perms.isAdmin || perms.canViewMarketingDashboard || perms.canViewMarketing;
+  const showHR          = perms.isAdmin || perms.canViewPersone || perms.canViewEmployees;
 
   const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
@@ -106,7 +115,7 @@ export default function CruscottoAziendale() {
       )}
 
       {/* ── Multi-Sede: P&L e Incidenza ────────────────────── */}
-      {sediVisibili.length > 0 && (
+      {showFinanza && sediVisibili.length > 0 && (
         <SectionErrorBoundary sectionName="Analytics per Sede">
           <div className="space-y-4 rounded-lg border bg-white p-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -143,9 +152,11 @@ export default function CruscottoAziendale() {
       </SectionErrorBoundary>
 
       {/* SEZIONE 1b: KPI FATTURAZIONE NATIVA */}
-      <SectionErrorBoundary sectionName="Fatturazione KPI">
-        <BillingKPIWidget />
-      </SectionErrorBoundary>
+      {showFinanza && (
+        <SectionErrorBoundary sectionName="Fatturazione KPI">
+          <BillingKPIWidget />
+        </SectionErrorBoundary>
+      )}
 
       {/* SEZIONE 2: ALERT PANEL */}
       <SectionErrorBoundary sectionName="Alert Panel">
@@ -165,56 +176,72 @@ export default function CruscottoAziendale() {
       </SectionErrorBoundary>
 
       {/* SEZIONE 4: FINANZA & CASH FLOW */}
-      <SectionErrorBoundary sectionName="Finanza">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <CashFlowForecast finance={finance} cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
-          <FinanzaCashFlow finance={finance} isLoading={isLoading} />
-        </div>
-        <div className="mt-4">
-          <PrimaNotaScadenzarioWidget />
-        </div>
-      </SectionErrorBoundary>
+      {showFinanza && (
+        <SectionErrorBoundary sectionName="Finanza">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <CashFlowForecast finance={finance} cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
+            <FinanzaCashFlow finance={finance} isLoading={isLoading} />
+          </div>
+          <div className="mt-4">
+            <PrimaNotaScadenzarioWidget />
+          </div>
+        </SectionErrorBoundary>
+      )}
 
       {/* SEZIONE 4b: SITUAZIONE TOP CLIENTI */}
-      <SectionErrorBoundary sectionName="Top Clienti">
-        <ClienteSituazioneWidget />
-      </SectionErrorBoundary>
+      {showFinanza && (
+        <SectionErrorBoundary sectionName="Top Clienti">
+          <ClienteSituazioneWidget />
+        </SectionErrorBoundary>
+      )}
 
       {/* SEZIONE 4c: PUNTO DI PAREGGIO */}
-      <SectionErrorBoundary sectionName="Punto di Pareggio">
-        <PuntoDiPareggio />
-      </SectionErrorBoundary>
+      {showFinanza && (
+        <SectionErrorBoundary sectionName="Punto di Pareggio">
+          <PuntoDiPareggio />
+        </SectionErrorBoundary>
+      )}
 
       {/* SEZIONE 5: PERFORMANCE COMMERCIALE */}
-      <SectionErrorBoundary sectionName="Vendite">
-        <div className="space-y-4">
-          <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
-          <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
-        </div>
-      </SectionErrorBoundary>
+      {showCommerciale && (
+        <SectionErrorBoundary sectionName="Vendite">
+          <div className="space-y-4">
+            <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
+            <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
+          </div>
+        </SectionErrorBoundary>
+      )}
 
       {/* SEZIONE 6: OPERAZIONI */}
-      <SectionErrorBoundary sectionName="Operazioni">
-        <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} />
-      </SectionErrorBoundary>
+      {showOperazioni && (
+        <SectionErrorBoundary sectionName="Operazioni">
+          <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} />
+        </SectionErrorBoundary>
+      )}
 
       {/* SEZIONE 6b: MARGINALITÀ CANTIERI */}
-      <SectionErrorBoundary sectionName="Marginalità Cantieri">
-        <MarginalitaWidget />
-      </SectionErrorBoundary>
+      {showOperazioni && (
+        <SectionErrorBoundary sectionName="Marginalità Cantieri">
+          <MarginalitaWidget />
+        </SectionErrorBoundary>
+      )}
 
       {/* SEZIONE 7: PERFORMANCE TEAM & TREND */}
-      <SectionErrorBoundary sectionName="HR & Trend">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
-          <CruscottoTrend trend={marketing?.trend} isLoading={isLoading} />
-        </div>
-      </SectionErrorBoundary>
+      {showHR && (
+        <SectionErrorBoundary sectionName="HR & Trend">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
+            <CruscottoTrend trend={marketing?.trend} isLoading={isLoading} />
+          </div>
+        </SectionErrorBoundary>
+      )}
 
       {/* SEZIONE 8: ANALISI FONTI & MARKETING */}
-      <SectionErrorBoundary sectionName="Marketing">
-        <MarketingControl sources={marketing?.sources} funnel={marketing?.funnel} isLoading={isLoading} />
-      </SectionErrorBoundary>
+      {showCommerciale && (
+        <SectionErrorBoundary sectionName="Marketing">
+          <MarketingControl sources={marketing?.sources} funnel={marketing?.funnel} isLoading={isLoading} />
+        </SectionErrorBoundary>
+      )}
 
       {/* Drill-down Drawer */}
       <DrilldownDrawer
