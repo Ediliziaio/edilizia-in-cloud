@@ -1,10 +1,15 @@
 /**
  * Bottom navigation mobile per l'area azienda.
  * Renderizzata tramite Portal nel body per garantire position:fixed funzionante.
- * Chat Team è sempre presente per tutti.
- * "App" apre una schermata full-screen con tutte le sezioni accessibili.
+ *
+ * Le 2 tab dinamiche cambiano in base alla sezione corrente:
+ *   - Marketing (/azienda/marketing/*) → Opportunità + Calendario
+ *   - Gestione (/azienda, /azienda/ordini, ecc.) → Ordini + secondo item per permessi
+ *   - Cruscotto (/azienda/cruscotto/*) → rilevamento profilo automatico
+ *
+ * Chat e App sono sempre presenti.
  */
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -18,6 +23,7 @@ import {
   Euro,
   NotebookPen,
   MessagesSquare,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -35,42 +41,79 @@ interface BottomNavItem {
   permissionKey?: keyof Permissions;
 }
 
-type NavProfile = "commercial" | "office" | "operations" | "generic";
+/* ── Item sets per sezione ─────────────────────────────── */
 
-/* ── Item sets per profilo (2 item dinamici — Home, Chat e App sono fissi) */
-const COMMERCIAL_ITEMS: BottomNavItem[] = [
+/** Marketing & Vendite */
+const MARKETING_ITEMS: BottomNavItem[] = [
   { label: "Opportunità", icon: Target, href: "/azienda/marketing/opportunita", permissionKey: "canViewMarketingOpportunities" },
   { label: "Calendario", icon: CalendarDays, href: "/azienda/marketing/calendario", permissionKey: "canViewMarketingAppointments" },
 ];
 
-const OFFICE_ITEMS: BottomNavItem[] = [
+/** Gestione operativa — ordine di priorità, prende i primi 2 accessibili */
+const GESTIONE_ITEMS: BottomNavItem[] = [
+  { label: "Ordini", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
+  { label: "Magazzino", icon: Package, href: "/azienda/magazzino", permissionKey: "canViewWarehouse" },
+  { label: "Finanza", icon: Euro, href: "/azienda/documenti", permissionKey: "canViewBilling" },
+  { label: "Cantieri", icon: HardHat, href: "/azienda/ordini", permissionKey: "canViewOrders" },
+  { label: "Giornale", icon: NotebookPen, href: "/azienda/giornale-lavori", permissionKey: "canViewGiornaleLavori" },
+  { label: "Clienti", icon: Users, href: "/azienda/clienti", permissionKey: "canViewCustomers" },
+];
+
+/** Cruscotto — profilo rilevato automaticamente */
+const CRUSCOTTO_COMMERCIAL: BottomNavItem[] = [
+  { label: "Opportunità", icon: Target, href: "/azienda/marketing/opportunita", permissionKey: "canViewMarketingOpportunities" },
+  { label: "Calendario", icon: CalendarDays, href: "/azienda/marketing/calendario", permissionKey: "canViewMarketingAppointments" },
+];
+
+const CRUSCOTTO_OFFICE: BottomNavItem[] = [
   { label: "Ordini", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
   { label: "Finanza", icon: Euro, href: "/azienda/documenti", permissionKey: "canViewBilling" },
 ];
 
-const OPERATIONS_ITEMS: BottomNavItem[] = [
+const CRUSCOTTO_OPERATIONS: BottomNavItem[] = [
   { label: "Cantieri", icon: HardHat, href: "/azienda/ordini", permissionKey: "canViewOrders" },
   { label: "Giornale", icon: NotebookPen, href: "/azienda/giornale-lavori", permissionKey: "canViewGiornaleLavori" },
 ];
 
-const GENERIC_ITEMS: BottomNavItem[] = [
+const CRUSCOTTO_GENERIC: BottomNavItem[] = [
   { label: "Ordini", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
   { label: "Clienti", icon: Users, href: "/azienda/clienti", permissionKey: "canViewCustomers" },
 ];
 
-function detectProfile(p: Permissions): NavProfile {
-  if (p.canViewMarketingOpportunities || p.canViewMarketingAppointments) return "commercial";
-  if (p.canViewBilling || p.canViewPrimaNota || p.canViewTesoreria) return "office";
-  if (p.canViewGiornaleLavori || p.canViewInterventi) return "operations";
-  return "generic";
+/* ── Helpers ───────────────────────────────────────────── */
+
+type NavSection = "marketing" | "gestione" | "cruscotto";
+
+function detectSection(pathname: string): NavSection {
+  if (pathname.startsWith("/azienda/marketing")) return "marketing";
+  if (pathname.startsWith("/azienda/cruscotto")) return "cruscotto";
+  return "gestione";
 }
 
-const PROFILE_MAP: Record<NavProfile, BottomNavItem[]> = {
-  commercial: COMMERCIAL_ITEMS,
-  office: OFFICE_ITEMS,
-  operations: OPERATIONS_ITEMS,
-  generic: GENERIC_ITEMS,
-};
+function detectCruscottoProfile(p: Permissions): BottomNavItem[] {
+  if (p.canViewMarketingOpportunities || p.canViewMarketingAppointments) return CRUSCOTTO_COMMERCIAL;
+  if (p.canViewBilling || p.canViewPrimaNota || p.canViewTesoreria) return CRUSCOTTO_OFFICE;
+  if (p.canViewGiornaleLavori || p.canViewInterventi) return CRUSCOTTO_OPERATIONS;
+  return CRUSCOTTO_GENERIC;
+}
+
+function filterAccessible(items: BottomNavItem[], permissions: Permissions, max: number): BottomNavItem[] {
+  const filtered = items.filter((item) => {
+    if (!item.permissionKey) return true;
+    return permissions.isAdmin || permissions[item.permissionKey] === true;
+  });
+  // Evita duplicati di href
+  const seen = new Set<string>();
+  const unique: BottomNavItem[] = [];
+  for (const item of filtered) {
+    if (!seen.has(item.href)) {
+      seen.add(item.href);
+      unique.push(item);
+    }
+    if (unique.length >= max) break;
+  }
+  return unique;
+}
 
 /* ── Componente ────────────────────────────────────────── */
 export function MobileBottomNav() {
@@ -86,16 +129,35 @@ export function MobileBottomNav() {
   // Nascondi nelle impostazioni
   if (location.pathname.startsWith("/azienda/impostazioni")) return null;
 
-  // Rileva il profilo e filtra solo item accessibili
+  // Rileva la sezione corrente e seleziona gli item contestuali
+  const section = detectSection(location.pathname);
   const dynamicItems = (() => {
-    if (permissions.isLoading) return GENERIC_ITEMS;
-    const profile = detectProfile(permissions);
-    const items = PROFILE_MAP[profile];
-    return items.filter((item) => {
-      if (!item.permissionKey) return true;
-      return permissions[item.permissionKey] === true;
-    });
+    if (permissions.isLoading) return CRUSCOTTO_GENERIC.slice(0, 2);
+
+    switch (section) {
+      case "marketing":
+        return filterAccessible(MARKETING_ITEMS, permissions, 2);
+      case "gestione":
+        return filterAccessible(GESTIONE_ITEMS, permissions, 2);
+      case "cruscotto": {
+        const profileItems = detectCruscottoProfile(permissions);
+        return filterAccessible(profileItems, permissions, 2);
+      }
+    }
   })();
+
+  // Home link punta alla dashboard della sezione corrente
+  const homeHref = section === "marketing"
+    ? "/azienda/marketing"
+    : section === "cruscotto"
+      ? "/azienda/cruscotto/aziendale"
+      : "/azienda";
+
+  const isHomeActive = section === "marketing"
+    ? location.pathname === "/azienda/marketing" || location.pathname === "/azienda/marketing/"
+    : section === "cruscotto"
+      ? location.pathname.startsWith("/azienda/cruscotto")
+      : location.pathname === "/azienda" || location.pathname === "/azienda/";
 
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return location.pathname === href;
@@ -103,8 +165,11 @@ export function MobileBottomNav() {
   };
 
   // Layout fisso 5 tab: Home | [dynamic1] | Chat | [dynamic2] | App
-  const navSlots: Array<{ type: "link"; label: string; icon: React.ComponentType<{ className?: string }>; href: string; exact?: boolean } | { type: "app" }> = [
-    { type: "link", label: "Home", icon: LayoutDashboard, href: "/azienda", exact: true },
+  const navSlots: Array<
+    | { type: "link"; label: string; icon: React.ComponentType<{ className?: string }>; href: string; exact?: boolean; active?: boolean }
+    | { type: "app" }
+  > = [
+    { type: "link", label: "Home", icon: LayoutDashboard, href: homeHref, active: isHomeActive },
     ...(dynamicItems[0] ? [{ type: "link" as const, label: dynamicItems[0].label, icon: dynamicItems[0].icon, href: dynamicItems[0].href }] : []),
     { type: "link", label: "Chat", icon: MessagesSquare, href: "/azienda/chat" },
     ...(dynamicItems[1] ? [{ type: "link" as const, label: dynamicItems[1].label, icon: dynamicItems[1].icon, href: dynamicItems[1].href }] : []),
@@ -155,7 +220,7 @@ export function MobileBottomNav() {
             );
           }
 
-          const active = isActive(slot.href, slot.exact);
+          const active = slot.active !== undefined ? slot.active : isActive(slot.href, slot.exact);
           const Icon = slot.icon;
           return (
             <Link
