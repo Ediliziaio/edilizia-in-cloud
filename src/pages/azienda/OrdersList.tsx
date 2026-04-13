@@ -62,7 +62,7 @@ function OrdersListInner() {
     searchQuery: { key: "q", defaultValue: "" },
     statusFilter: { key: "status", defaultValue: "all" },
     paymentFilter: { key: "payment", defaultValue: "all" },
-    viewMode: { key: "view", defaultValue: (localStorage.getItem("orders-view-mode") || "table") },
+    viewMode: { key: "view", defaultValue: (() => { try { return localStorage.getItem("orders-view-mode") || "table"; } catch { return "table"; } })() },
     customerFilter: { key: "cliente", defaultValue: "all" },
     monthFilter: { key: "mese", defaultValue: "all" },
     salespersonFilter: { key: "venditore", defaultValue: "all" },
@@ -80,7 +80,7 @@ function OrdersListInner() {
   const setPaymentFilter = useCallback((v: "all" | "pending" | "paid") => setURLParam("paymentFilter", v), [setURLParam]);
   const viewMode = urlFilters.viewMode as "table" | "pipeline";
   const setViewMode = useCallback((v: "table" | "pipeline") => {
-    localStorage.setItem("orders-view-mode", v);
+    try { localStorage.setItem("orders-view-mode", v); } catch { /* Safari Private Browsing */ }
     setURLParam("viewMode", v);
   }, [setURLParam]);
   const customerFilter = urlFilters.customerFilter;
@@ -622,7 +622,7 @@ function OrdersListInner() {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...next]));
+      try { localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...next])); } catch { /* Safari Private Browsing */ }
       return next;
     });
   };

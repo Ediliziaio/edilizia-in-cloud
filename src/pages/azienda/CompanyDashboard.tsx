@@ -142,7 +142,7 @@ export default function CompanyDashboard() {
     setDismissedAlerts(prev => {
       const next = new Set(prev);
       next.add(alertKey);
-      localStorage.setItem("dismissed-dashboard-alerts", JSON.stringify([...next]));
+      try { localStorage.setItem("dismissed-dashboard-alerts", JSON.stringify([...next])); } catch { /* Safari Private Browsing */ }
       return next;
     });
   };

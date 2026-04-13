@@ -41,14 +41,16 @@ export function MarginTab() {
   // Threshold from localStorage
   const storageKey = companyId ? `margin-threshold-${companyId}` : "margin-threshold";
   const [threshold, setThreshold] = useState<number>(() => {
-    const saved = localStorage.getItem(storageKey);
-    return saved ? Number(saved) : 30;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      return saved ? Number(saved) : 30;
+    } catch { return 30; }
   });
 
   const handleThresholdChange = (val: string) => {
     const num = Math.max(0, Math.min(100, Number(val) || 0));
     setThreshold(num);
-    localStorage.setItem(storageKey, String(num));
+    try { localStorage.setItem(storageKey, String(num)); } catch { /* Safari Private Browsing */ }
   };
 
   // Simulator state

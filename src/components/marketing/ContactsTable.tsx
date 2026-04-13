@@ -105,7 +105,7 @@ export function loadVisibleColumns(storageKey?: string): Set<string> {
 }
 
 export function saveVisibleColumns(cols: Set<string>, storageKey?: string) {
-  localStorage.setItem(storageKey || STORAGE_KEY_PREFIX, JSON.stringify(Array.from(cols)));
+  try { localStorage.setItem(storageKey || STORAGE_KEY_PREFIX, JSON.stringify(Array.from(cols))); } catch { /* Safari Private Browsing */ }
 }
 
 interface ContactsTableProps {

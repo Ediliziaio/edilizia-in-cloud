@@ -71,7 +71,7 @@ export function useFormDraft<T extends Record<string, unknown>>(
   );
 
   const clearDraft = useCallback(() => {
-    localStorage.removeItem(storageKey);
+    try { localStorage.removeItem(storageKey); } catch { /* Safari Private Browsing */ }
     setDraft(initialValues);
     setHasSavedDraft(false);
     setLastSaved(null);
@@ -108,17 +108,19 @@ export function useFormDraft<T extends Record<string, unknown>>(
 
 /** List all saved draft keys */
 export function listDraftKeys(): string[] {
-  const keys: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k?.startsWith(PREFIX)) {
-      keys.push(k.slice(PREFIX.length));
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(PREFIX)) {
+        keys.push(k.slice(PREFIX.length));
+      }
     }
-  }
-  return keys;
+    return keys;
+  } catch { return []; }
 }
 
 /** Clear all saved drafts */
 export function clearAllDrafts(): void {
-  listDraftKeys().forEach((key) => localStorage.removeItem(PREFIX + key));
+  try { listDraftKeys().forEach((key) => localStorage.removeItem(PREFIX + key)); } catch { /* Safari Private Browsing */ }
 }

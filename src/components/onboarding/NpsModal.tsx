@@ -73,7 +73,7 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
       ).catch(() => {});
 
       // Mark as shown
-      localStorage.setItem(STORAGE_KEY, String(Date.now()));
+      try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch { /* Safari Private Browsing */ }
       setSubmitted(true);
       setTimeout(() => {
         onClose();
@@ -89,7 +89,7 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
   }, [score, comment, effectiveCompany?.id, user?.id, onClose]);
 
   const handleSkip = () => {
-    localStorage.setItem(STORAGE_KEY, String(Date.now()));
+    try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch { /* Safari Private Browsing */ }
     onClose();
   };
 

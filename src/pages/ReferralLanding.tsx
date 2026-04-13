@@ -44,7 +44,7 @@ export default function ReferralLanding() {
 
   const handleCta = () => {
     // Salva il codice referral in localStorage per la registrazione
-    if (code) localStorage.setItem('ref_code', code);
+    if (code) { try { localStorage.setItem('ref_code', code); } catch { /* Safari Private Browsing */ } }
     navigate('/register');
   };
 

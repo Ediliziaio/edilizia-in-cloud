@@ -129,8 +129,10 @@ export default function Warehouse() {
   const [transferOpen, setTransferOpen] = useState(false);
 
   const [showMap, setShowMap] = useState(() => {
-    const stored = localStorage.getItem("warehouse-show-map");
-    return stored !== null ? stored === "true" : true;
+    try {
+      const stored = localStorage.getItem("warehouse-show-map");
+      return stored !== null ? stored === "true" : true;
+    } catch { return true; }
   });
   const { data: fullStockItems = [] } = useQuery({
     queryKey: queryKeys.warehouse.stock(effectiveCompany?.id),
@@ -343,7 +345,7 @@ export default function Warehouse() {
               size="sm"
               onClick={() => {
                 setShowMap((v) => {
-                  localStorage.setItem("warehouse-show-map", String(!v));
+                  try { localStorage.setItem("warehouse-show-map", String(!v)); } catch { /* Safari Private Browsing */ }
                   return !v;
                 });
               }}

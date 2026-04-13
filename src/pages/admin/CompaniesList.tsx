@@ -136,7 +136,7 @@ export default function CompaniesList() {
   const toggleCol = useCallback((key: ColKey) => {
     setVisibleCols((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
-      localStorage.setItem("companies_visible_cols", JSON.stringify(next));
+      try { localStorage.setItem("companies_visible_cols", JSON.stringify(next)); } catch { /* Safari Private Browsing */ }
       return next;
     });
   }, []);
@@ -154,7 +154,7 @@ export default function CompaniesList() {
     const view: SavedView = { name: saveViewName.trim(), params: searchParams.toString() };
     setSavedViews((prev) => {
       const next = [...prev.filter((v) => v.name !== view.name), view];
-      localStorage.setItem("companies_saved_views", JSON.stringify(next));
+      try { localStorage.setItem("companies_saved_views", JSON.stringify(next)); } catch { /* Safari Private Browsing */ }
       return next;
     });
     setSaveViewName("");
@@ -170,7 +170,7 @@ export default function CompaniesList() {
   const deleteView = useCallback((name: string) => {
     setSavedViews((prev) => {
       const next = prev.filter((v) => v.name !== name);
-      localStorage.setItem("companies_saved_views", JSON.stringify(next));
+      try { localStorage.setItem("companies_saved_views", JSON.stringify(next)); } catch { /* Safari Private Browsing */ }
       return next;
     });
   }, []);

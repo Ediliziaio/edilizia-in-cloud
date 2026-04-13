@@ -7,12 +7,12 @@ const DISMISSED_KEY = "pwa_install_banner_dismissed";
 
 export function PWAInstallBanner() {
   const { canInstall, triggerInstall } = usePWAInstallPrompt();
-  const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem(DISMISSED_KEY) === "true"
-  );
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(DISMISSED_KEY) === "true"; } catch { return false; }
+  });
 
   const handleDismiss = () => {
-    localStorage.setItem(DISMISSED_KEY, "true");
+    try { localStorage.setItem(DISMISSED_KEY, "true"); } catch { /* Safari Private Browsing */ }
     setDismissed(true);
   };
 
