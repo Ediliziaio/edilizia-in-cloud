@@ -197,6 +197,10 @@ export function MobileBottomNav() {
     </nav>
   );
 
+  // Guardia contro document.body null (possibile su Safari WebKit reale
+  // durante restore da bfcache o service worker early mount)
+  if (typeof document === "undefined" || !document.body) return null;
+
   return (
     <>
       {/* Portal al body per garantire position:fixed funzioni sempre */}

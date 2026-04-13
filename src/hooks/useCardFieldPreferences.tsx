@@ -86,7 +86,7 @@ export function CardFieldPreferencesProvider({ children }: { children: ReactNode
     (fields: string[]) => {
       const withLocked = fields.includes("opp_name") ? fields : ["opp_name", ...fields];
       setActiveFieldsState(withLocked);
-      localStorage.setItem(getFieldsKey(companyId), JSON.stringify(withLocked));
+      try { localStorage.setItem(getFieldsKey(companyId), JSON.stringify(withLocked)); } catch { /* Safari Private Browsing */ }
     },
     [companyId],
   );
@@ -94,7 +94,7 @@ export function CardFieldPreferencesProvider({ children }: { children: ReactNode
   const setLayout = useCallback(
     (l: CardLayout) => {
       setLayoutState(l);
-      localStorage.setItem(getLayoutKey(companyId), l);
+      try { localStorage.setItem(getLayoutKey(companyId), l); } catch { /* Safari Private Browsing */ }
     },
     [companyId],
   );

@@ -75,7 +75,7 @@ export function useOrderDraft(companyId: string | undefined, orderId?: string) {
 
   const clearDraft = useCallback(() => {
     if (!companyId) return;
-    localStorage.removeItem(getDraftKey(companyId, orderId));
+    try { localStorage.removeItem(getDraftKey(companyId, orderId)); } catch { /* Safari Private Browsing */ }
     setDraftRestored(false);
   }, [companyId, orderId]);
 

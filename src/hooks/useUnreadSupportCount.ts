@@ -11,7 +11,12 @@ export function useUnreadSupportCount() {
 
   const getLastRead = useCallback(() => {
     if (!storageKey) return new Date(0).toISOString();
-    return localStorage.getItem(storageKey) || new Date(0).toISOString();
+    try {
+      return localStorage.getItem(storageKey) || new Date(0).toISOString();
+    } catch {
+      // Safari Private Browsing può lanciare SecurityError
+      return new Date(0).toISOString();
+    }
   }, [storageKey]);
 
   const fetchCount = useCallback(async () => {
@@ -60,7 +65,11 @@ export function useUnreadSupportCount() {
 
   const markAsRead = useCallback(() => {
     if (storageKey) {
-      localStorage.setItem(storageKey, new Date().toISOString());
+      try {
+        localStorage.setItem(storageKey, new Date().toISOString());
+      } catch {
+        // Safari Private Browsing — ignora errore di storage
+      }
       setUnreadCount(0);
     }
   }, [storageKey]);
