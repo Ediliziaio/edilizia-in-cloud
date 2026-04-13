@@ -37,6 +37,7 @@ export interface WizardUserFormData {
   password?: string;
   role_type: StaffRoleType;
   permissions?: StaffPermissions;
+  commission_percentage?: number;
 }
 
 interface CreateUserWizardProps {
@@ -143,6 +144,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [commissionPercentage, setCommissionPercentage] = useState<string>("");
 
   const showPermissions = ROLES_WITH_PERMISSIONS.includes(roleType);
   const totalSteps = showPermissions ? 4 : 3;
@@ -155,7 +157,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     setPermissions({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
     setTemporaryPassword(null); setCopied(false);
     setPassword(""); setShowPassword(false);
-    setShowConfirmClose(false);
+    setShowConfirmClose(false); setCommissionPercentage("");
   };
 
   // Considera "in corso" ogni stato con dati inseriti o step > 1 (tranne success).
@@ -242,6 +244,9 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const handleSubmit = async () => {
     try {
       const finalPerms = showPermissions ? syncLegacySettingsFlags(syncLegacyMarketingFlags(permissions)) : undefined;
+      const commission = roleType === "salesperson" && commissionPercentage
+        ? parseFloat(commissionPercentage)
+        : undefined;
       const result = await onSubmit({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -249,6 +254,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
         password: password.trim() || undefined,
         role_type: roleType,
         permissions: finalPerms,
+        commission_percentage: commission,
       });
       if (result.temporaryPassword) {
         setTemporaryPassword(result.temporaryPassword);
@@ -422,6 +428,30 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                     : "Verrà generata automaticamente una password sicura."}
                 </p>
               </div>
+
+              {/* Commission % for salespeople */}
+              {roleType === "salesperson" && (
+                <div className="space-y-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-emerald-600" />
+                    <Label htmlFor="wiz-commission" className="font-medium">Provvigione %</Label>
+                  </div>
+                  <Input
+                    id="wiz-commission"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={commissionPercentage}
+                    onChange={(e) => setCommissionPercentage(e.target.value)}
+                    placeholder="Es. 5"
+                    className="max-w-[120px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Percentuale di provvigione sulle vendite chiuse. Puoi modificarla in seguito dal profilo utente.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -547,6 +577,14 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                     </Badge>
                   )}
                 </div>
+                {roleType === "salesperson" && commissionPercentage && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Provvigione</span>
+                    <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
+                      {commissionPercentage}%
+                    </Badge>
+                  </div>
+                )}
                 {showPermissions && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Permessi attivi</span>

@@ -107,6 +107,28 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         return;
       }
 
+      // Check if account is blocked by admin
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_blocked")
+          .eq("email", email)
+          .maybeSingle();
+        if (profile?.is_blocked) {
+          await supabase.auth.signOut();
+          setFormError("Il tuo account è stato bloccato dall'amministratore. Contatta il supporto.");
+          toast({
+            variant: "destructive",
+            title: "Accesso bloccato",
+            description: "Il tuo account è stato bloccato. Contatta l'amministratore.",
+          });
+          setIsLoading(false);
+          return;
+        }
+      } catch {
+        // If blocked check fails, proceed normally
+      }
+
       try {
         const { data: totpStatus } = await supabase.functions.invoke("manage-totp", {
           body: { action: "status" },

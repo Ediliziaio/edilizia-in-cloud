@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Smartphone, Mail, MonitorSmartphone, AlertCircle } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Loader2, Smartphone, Mail, MonitorSmartphone, AlertCircle, BellOff, BellRing, Save } from "lucide-react";
 
 type Channel = "in_app" | "email" | "sms";
 
@@ -174,6 +175,51 @@ export function UserNotificationsTab() {
 
   return (
     <div className="space-y-6">
+      {/* Global toggle */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <BellRing className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Azioni rapide</p>
+                <p className="text-xs text-muted-foreground">Attiva o disattiva tutte le notifiche in un click</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => {
+                const updated = { ...prefs };
+                SECTIONS.forEach(section => {
+                  section.events.forEach(evt => {
+                    CHANNELS.forEach(ch => {
+                      if (ch.id !== "sms" || hasSmsPhone) {
+                        (updated as any)[prefKey(evt.key, ch.id)] = true;
+                      }
+                    });
+                  });
+                });
+                setPrefs(updated);
+              }}>
+                <BellRing className="h-3.5 w-3.5 mr-1.5" /> Attiva tutte
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                const updated = { ...prefs };
+                SECTIONS.forEach(section => {
+                  section.events.forEach(evt => {
+                    CHANNELS.forEach(ch => {
+                      (updated as any)[prefKey(evt.key, ch.id)] = false;
+                    });
+                  });
+                });
+                setPrefs(updated);
+              }}>
+                <BellOff className="h-3.5 w-3.5 mr-1.5" /> Disattiva tutte
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* SMS warning */}
       {!hasSmsPhone && (
         <Alert>
@@ -256,7 +302,7 @@ export function UserNotificationsTab() {
       {/* Save */}
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
-          {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+          {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
           Salva Preferenze
         </Button>
       </div>

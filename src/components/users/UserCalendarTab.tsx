@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -43,6 +44,8 @@ import {
   ArrowLeft,
   ExternalLink,
   Clock,
+  RefreshCw,
+  Apple,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/formatters";
 
@@ -87,6 +90,7 @@ export function UserCalendarTab() {
   const { data: prefsData, isLoading: prefsLoading } = useUserCalendarPrefs(userId);
   const saveMutation = useSaveUserCalendarPrefs(userId, companyId);
   const disconnectMutation = useDisconnectGoogleCalendar(userId, companyId);
+  const [syncing, setSyncing] = useState(false);
 
   const [prefs, setPrefs] = useState<UserCalendarPrefs>({
     sync_enabled: true,
@@ -105,6 +109,28 @@ export function UserCalendarTab() {
   const isOwnProfile = userId === authUser?.id;
   const isConnected = gcalConn?.status === "connected";
   const isLoading = connLoading || prefsLoading;
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke("sync-google-calendar", {
+        body: { userId, companyId },
+      });
+      if (error) throw error;
+      toast({
+        title: "Sincronizzazione avviata",
+        description: "Gli eventi verranno sincronizzati entro pochi secondi.",
+      });
+    } catch {
+      toast({
+        title: "Errore",
+        description: "Impossibile avviare la sincronizzazione.",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleConnect = () => {
     navigate(
@@ -179,6 +205,11 @@ export function UserCalendarTab() {
                   )}
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleSyncNow} disabled={syncing}>
+                  {syncing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
+                  Sincronizza Ora
+                </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10">
@@ -201,6 +232,7 @@ export function UserCalendarTab() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+              </div>
             </div>
           ) : (
             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -240,6 +272,22 @@ export function UserCalendarTab() {
           </div>
           <CardDescription>
             La sincronizzazione con Outlook Calendar sarà disponibile prossimamente.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {/* Apple Calendar — Coming Soon */}
+      <Card className="opacity-60">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Apple className="h-5 w-5" />
+              <CardTitle className="text-base">Apple Calendar</CardTitle>
+            </div>
+            <Badge variant="secondary" className="text-xs">In arrivo</Badge>
+          </div>
+          <CardDescription>
+            La sincronizzazione con Apple Calendar (iCal) sarà disponibile prossimamente.
           </CardDescription>
         </CardHeader>
       </Card>

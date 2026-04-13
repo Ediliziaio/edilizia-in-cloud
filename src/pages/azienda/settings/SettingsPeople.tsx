@@ -1,28 +1,28 @@
 /**
- * IMP3 — Pagina unificata "Persone & Accessi"
+ * Pagina unificata "Persone & Accessi"
  *
- * Riunisce Utenti, Venditori, Staff e Team in un'unica pagina con 4 tab.
- * Il tab attivo è mantenuto nel query param `?tab=utenti|venditori|staff|team`.
- *
- * Le 4 route precedenti (/utenti, /venditori, /staff, /team) ora reindirizzano
- * qui via <Navigate> in companyRoutes.tsx.
+ * 5 tab:
+ *  1. Utenti & Accessi  — gestione accessi, ruoli, permessi, sicurezza
+ *  2. Dipendenti        — operai + staff interno, stipendi, rapportini, ferie
+ *  3. Subappaltatori    — squadre esterne + accesso campo
+ *  4. Venditori         — gestione venditori con provvigioni
+ *  5. Team              — team con drag-and-drop
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Users, UserCheck, HardHat, UsersRound, Loader2, Building2 } from "lucide-react";
+import { Shield, TrendingUp, Users, UsersRound, Loader2, Building2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
-import { OperaiCampoList } from "@/components/settings/OperaiCampoList";
-import { SubappaltatoreCampoList } from "@/components/settings/SubappaltatoreCampoList";
+import { SubappaltatoriTab } from "@/components/settings/SubappaltatoriTab";
 import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
-type PeopleTab = "utenti" | "venditori" | "staff" | "team" | "operai" | "subappaltatori";
+type PeopleTab = "utenti" | "dipendenti" | "subappaltatori" | "venditori" | "team";
 
-const VALID_TABS: PeopleTab[] = ["utenti", "venditori", "staff", "team", "operai", "subappaltatori"];
+const VALID_TABS: PeopleTab[] = ["utenti", "dipendenti", "subappaltatori", "venditori", "team"];
 
 function isValidTab(tab: string | null): tab is PeopleTab {
   return VALID_TABS.includes(tab as PeopleTab);
@@ -54,13 +54,14 @@ export default function SettingsPeople() {
     );
   }
 
-  // Determina il tab attivo dall'URL, con fallback al primo tab accessibile
+  // Retrocompatibilità: mappa vecchi nomi tab ai nuovi
   const tabParam = searchParams.get("tab");
   const resolveDefaultTab = (): PeopleTab => {
+    if (tabParam === "staff" || tabParam === "operai") return "dipendenti";
     if (isValidTab(tabParam)) return tabParam;
     if (canViewUsers) return "utenti";
-    if (canViewPeople) return "venditori";
-    return "staff";
+    if (canViewPeople) return "dipendenti";
+    return "dipendenti";
   };
 
   const activeTab = resolveDefaultTab();
@@ -71,42 +72,36 @@ export default function SettingsPeople() {
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-      <TabsList className="mb-6 w-full sm:w-auto">
+      <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full sm:w-auto justify-start overflow-x-auto scrollbar-none">
         {canViewUsers && (
-          <TabsTrigger value="utenti" className="flex items-center gap-2">
+          <TabsTrigger value="utenti" className="gap-1.5 shrink-0">
+            <Shield className="h-4 w-4" />
+            Utenti & Accessi
+          </TabsTrigger>
+        )}
+        {canViewPeople && (
+          <TabsTrigger value="dipendenti" className="gap-1.5 shrink-0">
             <Users className="h-4 w-4" />
-            <span>Utenti</span>
+            Dipendenti
           </TabsTrigger>
         )}
         {canViewPeople && (
-          <TabsTrigger value="venditori" className="flex items-center gap-2">
-            <UserCheck className="h-4 w-4" />
-            <span>Venditori</span>
+          <TabsTrigger value="subappaltatori" className="gap-1.5 shrink-0">
+            <Building2 className="h-4 w-4" />
+            Subappaltatori
           </TabsTrigger>
         )}
         {canViewPeople && (
-          <TabsTrigger value="staff" className="flex items-center gap-2">
-            <HardHat className="h-4 w-4" />
-            <span>Staff / Operai</span>
+          <TabsTrigger value="venditori" className="gap-1.5 shrink-0">
+            <TrendingUp className="h-4 w-4" />
+            Venditori
           </TabsTrigger>
         )}
         {canViewPeople && (
-          <TabsTrigger value="team" className="flex items-center gap-2">
+          <TabsTrigger value="team" className="gap-1.5 shrink-0">
             <UsersRound className="h-4 w-4" />
-            <span>Team</span>
+            Team
           </TabsTrigger>
-        )}
-        {isAdmin && (
-          <>
-            <TabsTrigger value="operai" className="flex items-center gap-2">
-              <HardHat className="h-4 w-4" />
-              <span>Operai</span>
-            </TabsTrigger>
-            <TabsTrigger value="subappaltatori" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              <span>Subappaltatori campo</span>
-            </TabsTrigger>
-          </>
         )}
       </TabsList>
 
@@ -117,14 +112,20 @@ export default function SettingsPeople() {
       )}
 
       {canViewPeople && (
-        <TabsContent value="venditori">
-          <SalespeopleConfig />
+        <TabsContent value="dipendenti">
+          <Employees />
         </TabsContent>
       )}
 
       {canViewPeople && (
-        <TabsContent value="staff">
-          <Employees />
+        <TabsContent value="subappaltatori">
+          <SubappaltatoriTab />
+        </TabsContent>
+      )}
+
+      {canViewPeople && (
+        <TabsContent value="venditori">
+          <SalespeopleConfig />
         </TabsContent>
       )}
 
@@ -132,17 +133,6 @@ export default function SettingsPeople() {
         <TabsContent value="team">
           <SettingsTeams />
         </TabsContent>
-      )}
-
-      {isAdmin && (
-        <>
-          <TabsContent value="operai">
-            <OperaiCampoList />
-          </TabsContent>
-          <TabsContent value="subappaltatori">
-            <SubappaltatoreCampoList />
-          </TabsContent>
-        </>
       )}
     </Tabs>
   );

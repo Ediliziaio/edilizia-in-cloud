@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2, Wifi, FileText, Lock, HardHat } from "lucide-react";
+import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2, Wifi, FileText, Lock, HardHat, ShieldOff } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfileTab } from "@/components/users/UserProfileTab";
@@ -32,6 +33,10 @@ interface UserDetail {
   require_2fa: boolean;
   last_login_at: string | null;
   last_login_ip: string | null;
+  is_blocked: boolean;
+  blocked_at: string | null;
+  blocked_by: string | null;
+  block_reason: string | null;
   role: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor" | undefined;
   permissions: StaffPermissions | null;
 }
@@ -86,7 +91,7 @@ export default function SettingsUserDetail() {
     queryFn: async (): Promise<UserDetail> => {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, company_id, password_changed_at, failed_login_count, locked_until, require_2fa, last_login_at, last_login_ip")
+        .select("id, first_name, last_name, email, phone, company_id, password_changed_at, failed_login_count, locked_until, require_2fa, last_login_at, last_login_ip, is_blocked, blocked_at, blocked_by, block_reason")
         .eq("id", userId!)
         .single();
       if (error) throw error;
@@ -182,7 +187,7 @@ export default function SettingsUserDetail() {
   });
 
   const changeRoleMutation = useMutation({
-    mutationFn: async (newRole: "company_admin" | "company_staff" | "salesperson" | "call_center") => {
+    mutationFn: async (newRole: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor") => {
       const currentRole = userData?.role;
       if (currentRole === newRole) return;
 
@@ -190,14 +195,12 @@ export default function SettingsUserDetail() {
       if (!companyId) throw new Error("company_id mancante nel profilo utente");
 
       // Remove all company-level roles first
-      // Consolidate role deletion in a single query with error checking
       const { error: deleteError } = await supabase.from("user_roles").delete()
         .eq("user_id", userId!)
-        .in("role", ["company_admin", "company_staff", "salesperson", "call_center"]);
+        .in("role", ["company_admin", "company_staff", "salesperson", "call_center", "employee", "worker", "subcontractor"]);
       if (deleteError) throw deleteError;
 
       if (newRole === "company_admin") {
-        // Admin only gets company_admin role
         const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_admin" });
         if (error) throw error;
       } else if (newRole === "salesperson" || newRole === "call_center") {
@@ -206,6 +209,14 @@ export default function SettingsUserDetail() {
         if (e1) throw e1;
         const { error: e2 } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_staff" });
         if (e2) throw e2;
+      } else if (newRole === "employee") {
+        // Employee gets employee role
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "employee" });
+        if (error) throw error;
+      } else if (newRole === "subcontractor") {
+        // Subcontractor gets subcontractor role
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "subcontractor" });
+        if (error) throw error;
       } else {
         // Plain company_staff
         const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_staff" });
@@ -224,10 +235,19 @@ export default function SettingsUserDetail() {
       if (newRole === "salesperson") {
         const { data: existingSp } = await supabase.from("salespeople").select("id").eq("user_id", userId!).maybeSingle();
         if (!existingSp) {
-          // DB schema has more columns than generated types — cast is intentional
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const salespersonPayload = { user_id: userId!, company_id: companyId, first_name: userData?.first_name || "", last_name: userData?.last_name || "", email: userData?.email || "", is_active: true } as any;
           await supabase.from("salespeople").insert(salespersonPayload);
+        }
+      }
+
+      // If subcontractor, ensure subcontractors record exists
+      if (newRole === "subcontractor") {
+        const { data: existingSub } = await supabase.from("subcontractors").select("id").eq("user_id", userId!).maybeSingle();
+        if (!existingSub) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const subPayload = { user_id: userId!, company_id: companyId, company_name: `${userData?.first_name || ""} ${userData?.last_name || ""}`.trim(), contact_name: `${userData?.first_name || ""} ${userData?.last_name || ""}`.trim(), email: userData?.email || "", is_active: true } as any;
+          await supabase.from("subcontractors").insert(subPayload);
         }
       }
     },
@@ -285,7 +305,14 @@ export default function SettingsUserDetail() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h2 className="text-lg font-semibold">{userData.first_name} {userData.last_name}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">{userData.first_name} {userData.last_name}</h2>
+            {userData.is_blocked && (
+              <Badge variant="destructive" className="gap-1 text-xs">
+                <ShieldOff className="h-3 w-3" /> Bloccato
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">{userData.email}</p>
         </div>
       </div>
@@ -359,6 +386,8 @@ export default function SettingsUserDetail() {
             <UserProfileTab
               key={`profile-${userData.id}-${userData.role}`}
               user={userData}
+              role={userData.role}
+              isBlocked={userData.is_blocked}
               onSave={(data) => saveProfileMutation.mutate(data)}
               isLoading={saveProfileMutation.isPending}
             />
@@ -368,9 +397,7 @@ export default function SettingsUserDetail() {
               key={`perms-${userData.id}-${userData.role}`}
               user={{
                 ...userData,
-                role: (["company_admin", "company_staff", "salesperson", "call_center"] as const).includes(userData.role as any)
-                  ? (userData.role as "company_admin" | "company_staff" | "salesperson" | "call_center")
-                  : undefined,
+                role: userData.role,
               }}
               onSave={(perms) => savePermissionsMutation.mutate(perms)}
               onChangeRole={(role) => changeRoleMutation.mutate(role)}
@@ -390,7 +417,13 @@ export default function SettingsUserDetail() {
                 locked_until: userData.locked_until,
                 last_login_at: userData.last_login_at,
                 last_login_ip: userData.last_login_ip,
+                is_blocked: userData.is_blocked,
+                blocked_at: userData.blocked_at,
+                block_reason: userData.block_reason,
               }}
+              isAdmin={isAdmin}
+              isCurrentUser={userId === currentUser?.id}
+              isTargetAdmin={userData.role === "company_admin"}
             />
           )}
           {activeTab === "availability" && <UserAvailabilityTab />}

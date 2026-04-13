@@ -5,9 +5,21 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Save, KeyRound, Copy, Check, Eye, EyeOff } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Save, KeyRound, Copy, Check, Eye, EyeOff, ShieldCheck, UserCheck, TrendingUp, Phone, HardHat, Building2, ShieldOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
+
+const ROLE_CONFIG: Record<EffectiveRole, { label: string; icon: React.ElementType; color: string }> = {
+  company_admin: { label: "Amministratore", icon: ShieldCheck, color: "bg-primary/10 text-primary border-primary/20" },
+  company_staff: { label: "Operatore", icon: UserCheck, color: "bg-slate-100 text-slate-700 border-slate-200" },
+  salesperson: { label: "Venditore", icon: TrendingUp, color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  call_center: { label: "Call Center", icon: Phone, color: "bg-blue-50 text-blue-700 border-blue-200" },
+  employee: { label: "Operaio", icon: HardHat, color: "bg-amber-50 text-amber-700 border-amber-200" },
+  subcontractor: { label: "Subappaltatore", icon: Building2, color: "bg-purple-50 text-purple-700 border-purple-200" },
+};
 
 interface UserProfileTabProps {
   user: {
@@ -17,11 +29,13 @@ interface UserProfileTabProps {
     email: string;
     phone: string | null;
   };
+  role?: EffectiveRole;
+  isBlocked?: boolean;
   onSave: (data: { first_name: string; last_name: string; email: string; phone: string | null }) => void;
   isLoading?: boolean;
 }
 
-export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps) {
+export function UserProfileTab({ user, role, isBlocked, onSave, isLoading }: UserProfileTabProps) {
   const [firstName, setFirstName] = useState(user.first_name);
   const [lastName, setLastName] = useState(user.last_name);
   const [email, setEmail] = useState(user.email);
@@ -114,7 +128,7 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
             <CardDescription>Dati personali e di contatto dell'utente</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Avatar */}
+            {/* Avatar + Role */}
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
                 <AvatarFallback className="text-lg bg-primary/10 text-primary font-semibold">
@@ -122,7 +136,22 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
                 </AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-medium">{user.first_name} {user.last_name}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-medium">{user.first_name} {user.last_name}</p>
+                  {role && ROLE_CONFIG[role] && (() => {
+                    const { label, icon: RIcon, color } = ROLE_CONFIG[role];
+                    return (
+                      <Badge className={`${color} font-normal gap-1 text-xs`}>
+                        <RIcon className="h-3 w-3" /> {label}
+                      </Badge>
+                    );
+                  })()}
+                  {isBlocked && (
+                    <Badge variant="destructive" className="gap-1 text-xs">
+                      <ShieldOff className="h-3 w-3" /> Accesso bloccato
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
             </div>

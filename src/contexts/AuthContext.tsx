@@ -280,11 +280,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (profileError) {
         // Log but continue — roles are fetched independently so super_admin
         // role is not lost if the profile row is temporarily unreachable.
-        logger.error("Error fetching profile:", profileError);
+        logger.warn("Error fetching profile:", profileError);
       }
 
       if (roleError) {
-        logger.error("Error fetching roles:", roleError);
+        logger.warn("Error fetching roles:", roleError);
       }
 
       // Separate company from the joined profile row so the Profile type stays clean

@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { userId } = await req.json();
+    const { userId, reassignToUserId } = await req.json();
     if (!userId) {
       return new Response(JSON.stringify({ error: "userId richiesto" }), {
         status: 400,
@@ -88,8 +88,81 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Delete in order: staff_permissions, user_roles, profiles, then auth user
-    // company_id filter on staff_permissions for defense-in-depth
+    // --- Reassign or unlink related records in salespeople, employees, subappaltatori ---
+    const affected = { salespeople: 0, employees: 0, subappaltatori: 0 };
+
+    if (reassignToUserId) {
+      // Reassign records to the new user
+      const { data: spData, error: spError } = await adminClient
+        .from("salespeople")
+        .update({ user_id: reassignToUserId })
+        .eq("user_id", userId)
+        .select("id");
+      if (spError) console.error("Error reassigning salespeople:", spError);
+      affected.salespeople = spData?.length ?? 0;
+
+      const { data: empData, error: empError } = await adminClient
+        .from("employees")
+        .update({ user_id: reassignToUserId })
+        .eq("user_id", userId)
+        .select("id");
+      if (empError) console.error("Error reassigning employees:", empError);
+      affected.employees = empData?.length ?? 0;
+
+      const { data: subData, error: subError } = await adminClient
+        .from("subappaltatori")
+        .update({ user_id: reassignToUserId })
+        .eq("user_id", userId)
+        .select("id");
+      if (subError) console.error("Error reassigning subappaltatori:", subError);
+      affected.subappaltatori = subData?.length ?? 0;
+    } else {
+      // Unlink records (set user_id to null)
+      const { data: spData, error: spError } = await adminClient
+        .from("salespeople")
+        .update({ user_id: null })
+        .eq("user_id", userId)
+        .select("id");
+      if (spError) console.error("Error unlinking salespeople:", spError);
+      affected.salespeople = spData?.length ?? 0;
+
+      const { data: empData, error: empError } = await adminClient
+        .from("employees")
+        .update({ user_id: null })
+        .eq("user_id", userId)
+        .select("id");
+      if (empError) console.error("Error unlinking employees:", empError);
+      affected.employees = empData?.length ?? 0;
+
+      const { data: subData, error: subError } = await adminClient
+        .from("subappaltatori")
+        .update({ user_id: null })
+        .eq("user_id", userId)
+        .select("id");
+      if (subError) console.error("Error unlinking subappaltatori:", subError);
+      affected.subappaltatori = subData?.length ?? 0;
+    }
+
+    // --- Clean up auxiliary tables ---
+    const { error: sessionsError } = await adminClient
+      .from("user_sessions")
+      .delete()
+      .eq("user_id", userId);
+    if (sessionsError) console.error("Error deleting user_sessions:", sessionsError);
+
+    const { error: teamError } = await adminClient
+      .from("team_members")
+      .delete()
+      .eq("user_id", userId);
+    if (teamError) console.error("Error deleting team_members:", teamError);
+
+    const { error: auditError } = await adminClient
+      .from("user_audit_log")
+      .delete()
+      .eq("target_user_id", userId);
+    if (auditError) console.error("Error deleting user_audit_log:", auditError);
+
+    // --- Delete in order: staff_permissions, user_roles, profiles, then auth user ---
     const targetCompanyId = targetProfile?.company_id;
     const { error: permDeleteError } = await adminClient
       .from("staff_permissions")
@@ -130,7 +203,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, affected }), {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (error: any) {

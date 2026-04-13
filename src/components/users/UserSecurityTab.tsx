@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryKeys } from "@/lib/queryKeys";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
-import { Shield, Key, Lock, LockOpen, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Shield, Key, Lock, LockOpen, AlertTriangle, CheckCircle2, ShieldOff, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -25,14 +25,21 @@ interface UserSecurityTabProps {
     locked_until?: string | null;
     last_login_at?: string | null;
     last_login_ip?: string | null;
+    is_blocked?: boolean;
+    blocked_at?: string | null;
+    block_reason?: string | null;
   };
   passwordExpiryDays?: number;
+  isAdmin?: boolean;
+  isCurrentUser?: boolean;
+  isTargetAdmin?: boolean;
 }
 
-export function UserSecurityTab({ userId, user, passwordExpiryDays = 0 }: UserSecurityTabProps) {
+export function UserSecurityTab({ userId, user, passwordExpiryDays = 0, isAdmin, isCurrentUser, isTargetAdmin }: UserSecurityTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [require2fa, setRequire2fa] = useState(user.require_2fa || false);
+  const canBlockUser = isAdmin && !isCurrentUser && !isTargetAdmin;
 
   const isLocked = user.locked_until && new Date(user.locked_until) > new Date();
   const failedAttempts = user.failed_login_count || 0;
@@ -77,6 +84,29 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0 }: UserSe
     },
   });
 
+  const blockAccessMutation = useMutation({
+    mutationFn: async (block: boolean) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_blocked: block,
+          blocked_at: block ? new Date().toISOString() : null,
+          blocked_by: block ? userId : null, // will be overwritten by the caller's context
+          block_reason: block ? "Bloccato dall'amministratore" : null,
+        } as any)
+        .eq("id", userId);
+      if (error) throw error;
+    },
+    onSuccess: (_, block) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      toast({ title: block ? "Accesso bloccato" : "Accesso ripristinato", description: block ? "L'utente non potrà più effettuare il login." : "L'utente può di nuovo accedere al sistema." });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile modificare lo stato dell'accesso.", variant: "destructive" });
+    },
+  });
+
   const resetPasswordMutation = useMutation({
     mutationFn: async () => {
       // Send password reset email via edge function or Supabase auth admin
@@ -100,6 +130,79 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0 }: UserSe
 
   return (
     <div className="space-y-6">
+      {/* Blocco Accesso */}
+      {canBlockUser && (
+        <Card className={user.is_blocked ? "border-destructive/50 bg-destructive/5" : ""}>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              {user.is_blocked ? (
+                <ShieldOff className="h-4 w-4 text-destructive" />
+              ) : (
+                <ShieldCheck className="h-4 w-4 text-green-600" />
+              )}
+              Blocco Accesso
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                {user.is_blocked ? (
+                  <>
+                    <p className="text-sm font-medium text-destructive">Accesso bloccato</p>
+                    <p className="text-xs text-muted-foreground">
+                      L'utente non può effettuare il login.
+                      {user.blocked_at && ` Bloccato il ${format(new Date(user.blocked_at), "dd/MM/yyyy HH:mm", { locale: it })}.`}
+                    </p>
+                    {user.block_reason && (
+                      <p className="text-xs text-muted-foreground mt-1">Motivo: {user.block_reason}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-green-700">Accesso consentito</p>
+                    <p className="text-xs text-muted-foreground">L'utente può effettuare il login normalmente.</p>
+                  </>
+                )}
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  {user.is_blocked ? (
+                    <Button variant="outline" size="sm" className="shrink-0">
+                      <ShieldCheck className="h-4 w-4 mr-1.5 text-green-600" /> Ripristina Accesso
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" className="shrink-0 text-destructive border-destructive/30 hover:bg-destructive/10">
+                      <ShieldOff className="h-4 w-4 mr-1.5" /> Blocca Accesso
+                    </Button>
+                  )}
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {user.is_blocked ? "Ripristinare l'accesso?" : "Bloccare l'accesso?"}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {user.is_blocked
+                        ? "L'utente potrà di nuovo effettuare il login e accedere al sistema."
+                        : "L'utente non potrà più effettuare il login. L'account non verrà eliminato e potrà essere riattivato in qualsiasi momento."}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => blockAccessMutation.mutate(!user.is_blocked)}
+                      className={user.is_blocked ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
+                    >
+                      {user.is_blocked ? "Ripristina Accesso" : "Blocca Accesso"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Account Status */}
       <Card>
         <CardHeader>

@@ -138,6 +138,7 @@ interface UserRolesPermissionsTabProps {
   onChangeRole?: (newRole: CompanyRole) => void;
   isLoading?: boolean;
   isChangingRole?: boolean;
+  isCurrentUser?: boolean;
 }
 
 export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading, isChangingRole }: UserRolesPermissionsTabProps) {

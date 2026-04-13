@@ -161,8 +161,40 @@ export function UserAvailabilityTab() {
     }
   };
 
+  // Calculate total weekly hours
+  const totalWeeklyMinutes = slots.reduce((sum, slot) => {
+    const [sh, sm] = slot.start_time.split(":").map(Number);
+    const [eh, em] = slot.end_time.split(":").map(Number);
+    return sum + (eh * 60 + em) - (sh * 60 + sm);
+  }, 0);
+  const totalHours = Math.floor(totalWeeklyMinutes / 60);
+  const totalMins = totalWeeklyMinutes % 60;
+  const activeDaysCount = new Set(slots.map(s => s.day_of_week)).size;
+
   return (
     <div className="space-y-6">
+      {/* Weekly Summary */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-2xl font-bold text-primary">{totalHours}h{totalMins > 0 ? ` ${totalMins}m` : ""}</p>
+            <p className="text-xs text-muted-foreground mt-1">Ore settimanali</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-2xl font-bold text-primary">{activeDaysCount}/7</p>
+            <p className="text-xs text-muted-foreground mt-1">Giorni attivi</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-2xl font-bold text-primary">{exceptions.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">Eccezioni</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Timezone + Presets row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>

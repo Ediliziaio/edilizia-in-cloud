@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       .eq("id", callerId)
       .single();
 
-    const { first_name, last_name, email, company_id, role_type, password } = await req.json();
+    const { first_name, last_name, email, company_id, role_type, password, phone } = await req.json();
 
     const targetCompanyId = callerRole.role === "super_admin" && company_id
       ? company_id
@@ -170,6 +170,41 @@ Deno.serve(async (req) => {
         console.error("Error creating salesperson record:", spError);
         await cleanup();
         return errorResponse("Errore durante la creazione del profilo venditore", 500);
+      }
+    }
+
+    if (effectiveRoleType === "employee" && userId && targetCompanyId) {
+      const { error: empError } = await supabaseAdmin.from("employees").insert({
+        company_id: targetCompanyId,
+        user_id: userId,
+        first_name,
+        last_name,
+        email,
+        phone: phone || null,
+        role_type: "operaio",
+        is_active: true,
+      });
+
+      if (empError) {
+        console.error("Error creating employee record:", empError);
+        await cleanup();
+        return errorResponse("Errore durante la creazione del profilo dipendente", 500);
+      }
+    }
+
+    if (effectiveRoleType === "subcontractor" && userId && targetCompanyId) {
+      const { error: subError } = await supabaseAdmin.from("subappaltatori").insert({
+        company_id: targetCompanyId,
+        ragione_sociale: `${first_name} ${last_name}`,
+        responsabile: `${first_name} ${last_name}`,
+        user_id: userId,
+        user_email: email,
+      });
+
+      if (subError) {
+        console.error("Error creating subcontractor record:", subError);
+        await cleanup();
+        return errorResponse("Errore durante la creazione del profilo subappaltatore", 500);
       }
     }
 
