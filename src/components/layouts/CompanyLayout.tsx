@@ -1105,8 +1105,10 @@ export function CompanyLayout() {
       <PWAInstallBanner />
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
     </SidebarProvider>
-    {/* Bottom nav FUORI dal SidebarProvider per evitare interferenze CSS */}
-    <ErrorBoundary title="Errore navigazione mobile">
+    {/* Bottom nav FUORI dal SidebarProvider per evitare interferenze CSS.
+        key=pathname resetta l'ErrorBoundary su ogni cambio route, così se crasha
+        su una pagina prova a renderizzare di nuovo sulla prossima. */}
+    <ErrorBoundary key={location.pathname} title="Errore navigazione mobile">
       <MobileBottomNav />
     </ErrorBoundary>
     </>
