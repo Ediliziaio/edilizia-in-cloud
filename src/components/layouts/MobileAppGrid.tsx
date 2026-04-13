@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem } from "@/lib/sidebarConfig";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -22,7 +23,8 @@ interface MobileAppGridProps {
 
 export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
   const permissions = usePermissions();
-  const { isModuleEnabled, billingMode } = useSubscriptionLimits();
+  const { isModuleEnabled } = useSubscriptionLimits();
+  const { mode: billingMode } = useBillingMode();
   const { isFeatureEnabled } = useFeatureFlags();
   const { effectiveCompany } = useAuth();
   const location = useLocation();

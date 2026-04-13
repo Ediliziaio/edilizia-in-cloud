@@ -1106,7 +1106,9 @@ export function CompanyLayout() {
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
     </SidebarProvider>
     {/* Bottom nav FUORI dal SidebarProvider per evitare interferenze CSS */}
-    <MobileBottomNav />
+    <ErrorBoundary title="Errore navigazione mobile">
+      <MobileBottomNav />
+    </ErrorBoundary>
     </>
   );
 }
