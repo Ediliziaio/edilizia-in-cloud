@@ -1062,13 +1062,57 @@ function resolveRoute(pathname) {
 
 // ─── Main handler ────────────────────────────────────────────────────────────
 
+// ─── Private subdomains — block all bots/crawlers ───────────────────────────
+const PRIVATE_SUBDOMAINS = ["app", "lavori", "clienti", "admin"];
+
+function isPrivateSubdomain(hostname) {
+  const sub = hostname.split(".")[0].toLowerCase();
+  return PRIVATE_SUBDOMAINS.includes(sub);
+}
+
 export async function onRequest({ request, next }) {
   const ua = request.headers.get("user-agent") || "";
+  const url = new URL(request.url);
+
+  // ── Private subdomains: block all bots, serve noindex ──────────────────
+  if (isPrivateSubdomain(url.hostname)) {
+    // Serve robots.txt that blocks everything on private subdomains
+    if (url.pathname === "/robots.txt") {
+      return new Response(
+        "User-agent: *\nDisallow: /\n",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "public, max-age=86400",
+          },
+        }
+      );
+    }
+
+    // For bots: return 403 with noindex — don't reveal any content
+    if (isBot(ua)) {
+      return new Response("", {
+        status: 403,
+        headers: {
+          "X-Robots-Tag": "noindex, nofollow, noarchive, nosnippet",
+          "Content-Type": "text/html; charset=utf-8",
+        },
+      });
+    }
+
+    // Regular users on private subdomains: pass through to SPA, add noindex header
+    const response = await next();
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return newResponse;
+  }
+
+  // ── Public site (www / root): serve SEO content to bots ────────────────
   if (!isBot(ua)) {
     return next();
   }
 
-  const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/$/, "") || "/";
 
   // Skip asset requests even for bots
