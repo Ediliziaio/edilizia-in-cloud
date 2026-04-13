@@ -13,6 +13,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { useAuth } from "@/contexts/AuthContext";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
+import { SemaforoOperazioni } from "@/components/dashboard/SemaforoOperazioni";
+import { SaluteOperativa } from "@/components/dashboard/SaluteOperativa";
+import { AzioniOperative } from "@/components/dashboard/AzioniOperative";
+import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
 import { useDashboardWidgets } from "@/hooks/useDashboardWidgets";
@@ -260,11 +264,14 @@ export default function CompanyDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Tab di navigazione tra dashboard */}
+      <DashboardTabBar />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground">Benvenuto nel pannello di controllo</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard Gestione</h1>
+          <p className="text-muted-foreground">Ordini, cantieri, magazzino e scadenze operative</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5">
@@ -310,6 +317,41 @@ export default function CompanyDashboard() {
       {/* Filters */}
       <CompanyDashboardFilters filters={filters} onUpdate={updateFilters} />
 
+      {/* ═══ SEMAFORO OPERATIVO ═══ */}
+      <SemaforoOperazioni
+        totalOrders={stats.totalOrders}
+        openTickets={stats.openTickets}
+        netCashFlow={cashFlow.netCashFlow}
+        upcomingWorks={upcomingWorksCount}
+        urgentItemsCount={urgentItems.length}
+        financialAlertsCount={financialAlerts.length}
+      />
+
+      {/* ═══ SALUTE OPERATIVA + AZIONI DA FARE ═══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="lg:col-span-2">
+          <SaluteOperativa
+            totalOrders={stats.totalOrders}
+            openTickets={stats.openTickets}
+            netCashFlow={cashFlow.netCashFlow}
+            urgentItemsCount={urgentItems.length}
+            financialAlertsCount={financialAlerts.length}
+            upcomingWorks={upcomingWorksCount}
+          />
+        </div>
+        <div className="lg:col-span-3">
+          <AzioniOperative
+            netCashFlow={cashFlow.netCashFlow}
+            openTickets={stats.openTickets}
+            urgentItemsCount={urgentItems.length}
+            financialAlertsCount={financialAlerts.length}
+            upcomingWorks={upcomingWorksCount}
+            receivablesCount={weeklyDeadlines.receivables?.length ?? 0}
+            companyCostsCount={weeklyDeadlines.companyCosts?.length ?? 0}
+          />
+        </div>
+      </div>
+
       {/* YTD Revenue Sparkline */}
       {isWidgetVisible("ytd-revenue") && revenueYTD.length > 0 && (
         <Card className="border-primary/20">
@@ -349,15 +391,6 @@ export default function CompanyDashboard() {
         ordersThisMonth={ceoStrip.ordersThisMonth}
         ordersPrevMonth={ceoStrip.ordersPrevMonth}
       />}
-
-      {/* Link to Cruscotto */}
-      <div className="flex justify-end">
-        <Button variant="link" asChild className="text-sm gap-1">
-          <Link to="/azienda/cruscotto">
-            Vai al Cruscotto Aziendale →
-          </Link>
-        </Button>
-      </div>
 
       {/* Financial Alerts */}
       {cashFlow.netCashFlow < 0 && !dismissedAlerts.has("cashflow-negative") && (

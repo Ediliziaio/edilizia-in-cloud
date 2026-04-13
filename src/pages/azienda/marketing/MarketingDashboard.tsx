@@ -21,6 +21,10 @@ import { useMetaLeadNotifications } from "@/hooks/useMetaLeadNotifications";
 import { SedeFilterBar } from "@/components/sedi/SedeFilterBar";
 import { LeadPerSedeChart } from "@/components/sedi/LeadPerSedeChart";
 import { useSediList } from "@/hooks/useSediAnalytics";
+import { SemaforoMarketing } from "@/components/marketing/dashboard/SemaforoMarketing";
+import { SaluteCommerciale } from "@/components/marketing/dashboard/SaluteCommerciale";
+import { AzioniCommerciali } from "@/components/marketing/dashboard/AzioniCommerciali";
+import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
 
 const TAB_ICONS: Record<DashboardTab, React.ElementType> = {
   panoramica: LayoutDashboard,
@@ -85,26 +89,28 @@ export default function MarketingDashboard() {
 
   return (
     <div className="space-y-3">
+      {/* Tab di navigazione tra dashboard */}
+      <DashboardTabBar />
+
       <ApiHealthBanner filter={["meta", "email"]} />
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <LayoutDashboard className="h-5 w-5" />
-            Dashboard Marketing & Vendite
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight flex items-center gap-2">
+          <LayoutDashboard className="h-4 w-4 sm:h-5 sm:w-5" />
+          <span className="hidden sm:inline">Dashboard Marketing & Vendite</span>
+          <span className="sm:hidden">Marketing & Vendite</span>
+        </h1>
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {permissions.isAdmin && <SalesTargetsDialog />}
           <DashboardCustomizePanel tabs={tabs} onToggle={toggleTabVisibility} />
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1" />
-            Aggiorna
+            <RefreshCw className="h-3.5 w-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">Aggiorna</span>
           </Button>
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleExportKPI} disabled={!data?.kpi}>
-            <Download className="h-3.5 w-3.5 mr-1" />
-            Esporta
+            <Download className="h-3.5 w-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">Esporta</span>
           </Button>
         </div>
       </div>
@@ -114,6 +120,56 @@ export default function MarketingDashboard() {
 
       {/* Filters */}
       <DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />
+
+      {/* ═══ SEMAFORO COMMERCIALE ═══ */}
+      {data?.kpi && (
+        <SemaforoMarketing
+          leadsTotal={data.kpi.leads_total}
+          leadsNew={data.kpi.leads_new}
+          staleLeads={data.alerts?.stale_leads ?? 0}
+          pipelineValue={data.kpi.pipeline_active_value ?? 0}
+          pipelineDeclining={data.alerts?.pipeline_declining ?? false}
+          showRate={data.kpi.show_rate}
+          closeRate={data.kpi.close_rate}
+          contractsWon={data.kpi.contracts_won}
+        />
+      )}
+
+      {/* ═══ SALUTE COMMERCIALE + AZIONI DA FARE ═══ */}
+      {data?.kpi && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className="lg:col-span-2">
+            <SaluteCommerciale
+              leadsNew={data.kpi.leads_new}
+              staleLeads={data.alerts?.stale_leads ?? 0}
+              showRate={data.kpi.show_rate}
+              closeRate={data.kpi.close_rate}
+              pipelineValue={data.kpi.pipeline_active_value ?? 0}
+              pipelineDeclining={data.alerts?.pipeline_declining ?? false}
+              revenue={data.kpi.revenue}
+              contractsWon={data.kpi.contracts_won}
+              appointmentsDone={data.kpi.appointments_done}
+              appointmentsSet={data.kpi.appointments_set}
+              isLoading={isLoading}
+            />
+          </div>
+          <div className="lg:col-span-3">
+            <AzioniCommerciali
+              staleLeads={data.alerts?.stale_leads ?? 0}
+              staleLeads2h={data.alerts?.stale_leads_2h ?? 0}
+              showRate={data.kpi.show_rate}
+              showRateBelowThreshold={data.alerts?.show_rate_below_threshold ?? false}
+              pipelineDeclining={data.alerts?.pipeline_declining ?? false}
+              pipelineValue={data.kpi.pipeline_active_value ?? 0}
+              pendingAppointments={data.alerts?.pending_appointments ?? 0}
+              staleOpportunities={data.alerts?.stale_opportunities ?? 0}
+              contractsWon={data.kpi.contracts_won}
+              contractsLost={data.kpi.contracts_lost}
+              closeRate={data.kpi.close_rate}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── Filtro Sedi + Lead per Sede ─────────────────────── */}
       <SedeFilterBarMarketing />

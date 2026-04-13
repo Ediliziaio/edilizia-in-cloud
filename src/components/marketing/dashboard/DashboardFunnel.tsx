@@ -69,19 +69,19 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
                   <Tooltip key={stage.stage_id}>
                     <TooltipTrigger asChild>
                       <div className="group cursor-default">
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className={cn("font-medium truncate", isBottleneck && "text-red-600 dark:text-red-400")}>{stage.name}</span>
-                            {isBottleneck && <AlertTriangle className="h-3 w-3 text-red-500" />}
+                        <div className="flex items-center justify-between text-xs mb-1 gap-1">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className={cn("font-medium truncate text-[11px] sm:text-xs", isBottleneck && "text-red-600 dark:text-red-400")}>{stage.name}</span>
+                            {isBottleneck && <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />}
                           </div>
-                          <div className="flex items-center gap-3 text-muted-foreground shrink-0">
+                          <div className="flex items-center gap-1.5 sm:gap-3 text-muted-foreground shrink-0">
                             {stage.avg_days_in_stage > 0 && (
-                              <span className="text-[10px]">{stage.avg_days_in_stage}gg</span>
+                              <span className="text-[9px] sm:text-[10px] hidden sm:inline">{stage.avg_days_in_stage}gg</span>
                             )}
                             {convRate !== null && (
-                              <span className={cn("text-[10px]", isBottleneck && "text-red-600 dark:text-red-400 font-semibold")}>{convRate}% conv.</span>
+                              <span className={cn("text-[9px] sm:text-[10px]", isBottleneck && "text-red-600 dark:text-red-400 font-semibold")}>{convRate}%</span>
                             )}
-                            <span className="font-semibold text-foreground">{stage.count}</span>
+                            <span className="font-semibold text-foreground text-[11px] sm:text-xs">{stage.count}</span>
                           </div>
                         </div>
                         <div className={cn("bg-muted rounded-md overflow-hidden", compact ? "h-5" : "h-7")}>
@@ -90,12 +90,12 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
                               "h-full rounded-md transition-all duration-500 flex items-center px-2",
                               isBottleneck
                                 ? "bg-red-500/80 group-hover:bg-red-500"
-                                : "bg-primary/80 group-hover:bg-primary"
+                                : "bg-blue-500/80 group-hover:bg-blue-500"
                             )}
                             style={{ width: `${widthPct}%` }}
                           >
                             {stage.total_value > 0 && (
-                              <span className="text-[10px] text-primary-foreground font-medium truncate">
+                              <span className="text-[10px] text-white font-medium truncate">
                                 {fmtCur(stage.total_value)}
                               </span>
                             )}

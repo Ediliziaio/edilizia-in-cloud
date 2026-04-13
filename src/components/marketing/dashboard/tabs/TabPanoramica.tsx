@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardStrategicKPI } from "@/components/marketing/dashboard/DashboardStrategicKPI";
 import { DashboardFunnel } from "@/components/marketing/dashboard/DashboardFunnel";
 import { DashboardSalesTable } from "@/components/marketing/dashboard/DashboardSalesTable";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatValue, calcDelta } from "@/components/marketing/dashboard/utils";
 import type { DashboardStats } from "@/hooks/useMarketingDashboard";
@@ -59,12 +58,12 @@ function KpiChip({
   }[chipStatus];
 
   return (
-    <div className={`flex flex-col gap-0.5 rounded-md border px-3 py-1.5 min-w-[100px] ${statusBg}`}>
-      <span className="text-[10px] text-muted-foreground leading-tight truncate">{label}</span>
-      <div className="flex items-baseline gap-1.5">
-        <span className={`text-sm font-semibold leading-tight ${statusText}`}>{displayValue}</span>
+    <div className={`flex flex-col gap-0.5 rounded-md border px-2 sm:px-3 py-1.5 min-w-0 overflow-hidden ${statusBg}`}>
+      <span className="text-[9px] sm:text-[10px] text-muted-foreground leading-tight truncate">{label}</span>
+      <div className="flex items-baseline gap-1 sm:gap-1.5 min-w-0">
+        <span className={`text-xs sm:text-sm font-semibold leading-tight truncate ${statusText}`}>{displayValue}</span>
         {delta && delta.direction !== "flat" && (
-          <span className={`flex items-center text-[10px] ${delta.direction === "up" ? "text-green-600" : "text-red-600"}`}>
+          <span className={`flex items-center text-[9px] sm:text-[10px] flex-shrink-0 ${delta.direction === "up" ? "text-green-600" : "text-red-600"}`}>
             {delta.direction === "up" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />}
             {delta.value}%
           </span>
@@ -87,17 +86,14 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading }: Pr
       {isLoading ? (
         <Skeleton className="h-14 w-full rounded-md" />
       ) : kpi ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
           <KpiChip label="Lead Totali" value={kpi.leads_total} prevValue={kpiPrev?.leads_total} />
           <KpiChip label="Nuovi Lead" value={kpi.leads_new} prevValue={kpiPrev?.leads_new} />
           <KpiChip label="App. Fissati" value={kpi.appointments_set} prevValue={kpiPrev?.appointments_set} />
           <KpiChip label="Chiusura %" value={kpi.close_rate} prevValue={kpiPrev?.close_rate} format="percent" thresholds={{ warning: 20, critical: 10 }} />
           <KpiChip label="Show Rate" value={kpi.show_rate} prevValue={kpiPrev?.show_rate} format="percent" thresholds={{ warning: 60, critical: 40 }} />
           <KpiChip label="Ticket Medio" value={kpi.avg_ticket} prevValue={kpiPrev?.avg_ticket} format="currency" />
-
-          <Separator orientation="vertical" className="h-10 mx-1" />
-
-          <KpiChip label="📞 Chiamate" value={kpi.calls_total} prevValue={kpiPrev?.calls_total} />
+          <KpiChip label="Chiamate" value={kpi.calls_total} prevValue={kpiPrev?.calls_total} />
           <KpiChip label="Tasso Risp." value={kpi.contact_rate} prevValue={kpiPrev?.contact_rate} format="percent" thresholds={{ warning: 50, critical: 30 }} />
         </div>
       ) : null}

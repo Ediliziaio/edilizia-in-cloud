@@ -88,11 +88,11 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs">Commerciale</TableHead>
-                <TableHead className="text-xs text-right">App. Svolti</TableHead>
-                <TableHead className="text-xs text-right">Vinti</TableHead>
-                <TableHead className="text-xs text-right">Fatturato</TableHead>
-                <TableHead className="text-xs text-right">Chiusura %</TableHead>
+                <TableHead className="text-[10px] sm:text-xs">Commerciale</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right">App.</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right">Vinti</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right">Fatturato</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right">%</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -100,11 +100,11 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
                 const closeRate = r.appointments_done > 0 ? Math.round((r.contracts_won / r.appointments_done) * 100) : 0;
                 return (
                   <TableRow key={r.user_id}>
-                    <TableCell className="text-xs font-medium py-1.5">{r.name}</TableCell>
-                    <TableCell className="text-xs text-right py-1.5">{fmt(r.appointments_done)}</TableCell>
-                    <TableCell className="text-xs text-right font-semibold py-1.5">{fmt(r.contracts_won)}</TableCell>
-                    <TableCell className="text-xs text-right font-semibold py-1.5">{fmtCur(r.revenue)}</TableCell>
-                    <TableCell className="text-xs text-right py-1.5">{closeRate}%</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs font-medium py-1.5 max-w-[100px] truncate">{r.name}</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs text-right py-1.5">{fmt(r.appointments_done)}</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs text-right font-semibold py-1.5">{fmt(r.contracts_won)}</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs text-right font-semibold py-1.5">{fmtCur(r.revenue)}</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs text-right py-1.5">{closeRate}%</TableCell>
                   </TableRow>
                 );
               })}

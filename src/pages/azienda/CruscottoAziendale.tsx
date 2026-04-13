@@ -27,6 +27,10 @@ import { SedeIncidenzaTable } from "@/components/sedi/SedeIncidenzaTable";
 import { SedeIncidenceChart } from "@/components/sedi/SedeIncidenceChart";
 import { useSediAnalytics } from "@/hooks/useSediAnalytics";
 import { useSedeFilter } from "@/store/sedeFilterStore";
+import { SemaforoBar } from "@/components/cruscotto/SemaforoBar";
+import { SaluteAziendale } from "@/components/cruscotto/SaluteAziendale";
+import { AzioniUrgenti } from "@/components/cruscotto/AzioniUrgenti";
+import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
 import { AlertCircle, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -69,12 +73,15 @@ export default function CruscottoAziendale() {
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
+      {/* Tab di navigazione tra dashboard */}
+      <DashboardTabBar />
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 print:mb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
-          <p className="text-sm text-muted-foreground">Centro di comando — {todayCap}</p>
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Centro di comando — {todayCap}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap print:hidden">
           <CruscottoFilters filters={filters} onUpdate={updateFilters} />
@@ -103,6 +110,74 @@ export default function CruscottoAziendale() {
         <EmptyStateGuide hasOrders={hasOrders} hasLeads={hasLeads} hasCosts={hasCosts} />
       )}
 
+      {/* ═══════════════════════════════════════════════════════
+           LIVELLO 1: SEMAFORO — Cassa 🟢 | Lavoro 🟢 | Incassi 🟢
+           L'imprenditore capisce in 1 secondo lo stato dell'azienda
+           ═══════════════════════════════════════════════════════ */}
+      {!isDataEmpty && (
+        <SectionErrorBoundary sectionName="Semaforo">
+          <SemaforoBar
+            cashFlowNet={finance.cashFlowNet}
+            thisMonthIncome={finance.thisMonthIncome}
+            thisMonthOutflow={finance.thisMonthOutflow}
+            activeOrders={operations.activeOrders}
+            lateOrders={operations.lateOrders}
+            pendingRevenue={finance.pendingRevenue}
+            overdueAmount={operations.overdueAmount}
+            overduePayments={operations.overduePayments}
+            revenueThisMonth={finance.revenueThisMonth}
+            revenuePrevMonth={finance.revenuePrevMonth}
+          />
+        </SectionErrorBoundary>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════
+           LIVELLO 2: SALUTE AZIENDALE — Score 0-100 con gauge
+           + LIVELLO 3: AZIONI URGENTI — "3 cose da fare OGGI"
+           ═══════════════════════════════════════════════════════ */}
+      {!isDataEmpty && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
+          {/* Gauge salute — 2 colonne */}
+          <div className="lg:col-span-2">
+            <SectionErrorBoundary sectionName="Salute Aziendale">
+              <SaluteAziendale
+                revenueThisMonth={finance.revenueThisMonth}
+                revenuePrevMonth={finance.revenuePrevMonth}
+                marginThisMonth={finance.marginThisMonth}
+                cashFlowNet={finance.cashFlowNet}
+                thisMonthIncome={finance.thisMonthIncome}
+                thisMonthOutflow={finance.thisMonthOutflow}
+                activeOrders={operations.activeOrders}
+                lateOrders={operations.lateOrders}
+                overduePayments={operations.overduePayments}
+                overdueAmount={operations.overdueAmount}
+                pendingRevenue={finance.pendingRevenue}
+                supplierDebt={finance.supplierDebt}
+                isLoading={isLoading}
+              />
+            </SectionErrorBoundary>
+          </div>
+
+          {/* Azioni urgenti — 3 colonne */}
+          <div className="lg:col-span-3">
+            <SectionErrorBoundary sectionName="Azioni Urgenti">
+              <AzioniUrgenti
+                overduePayments={operations.overduePayments}
+                overdueAmount={operations.overdueAmount}
+                lateOrders={operations.lateOrders}
+                cashFlowNet={finance.cashFlowNet}
+                staleLeads={marketing?.alerts?.stale_leads}
+                fattureBozza={billingKPI?.fatture_in_bozza}
+                proformaAperti={billingKPI?.proforma_aperti}
+                fattureScadute={billingKPI?.fatture_scadute_count}
+                fattureScaduteAmount={billingKPI?.scaduto}
+                suppliersDueAmount={todayData?.suppliersDueAmount}
+              />
+            </SectionErrorBoundary>
+          </div>
+        </div>
+      )}
+
       {/* Target progress bar */}
       {companyTargets?.monthly_revenue_target && (
         <SectionErrorBoundary sectionName="Target Mensile">
@@ -113,6 +188,43 @@ export default function CruscottoAziendale() {
           />
         </SectionErrorBoundary>
       )}
+
+      {/* SEZIONE: HERO — 4 KPI grandi */}
+      <SectionErrorBoundary sectionName="Hero KPI">
+        <CruscottoHero
+          finance={finance}
+          operations={operations}
+          kpi={marketing?.kpi}
+          monthRevenue={cashFlowForecast?.monthRevenue ?? finance.revenueThisMonth}
+          quarterRevenue={cashFlowForecast?.quarterRevenue ?? 0}
+          ytdRevenue={cashFlowForecast?.ytdRevenue ?? 0}
+          isLoading={isLoading}
+        />
+      </SectionErrorBoundary>
+
+      {/* KPI FATTURAZIONE NATIVA */}
+      {showFinanza && (
+        <SectionErrorBoundary sectionName="Fatturazione KPI">
+          <BillingKPIWidget />
+        </SectionErrorBoundary>
+      )}
+
+      {/* ALERT PANEL */}
+      <SectionErrorBoundary sectionName="Alert Panel">
+        <AlertPanel
+          marketingAlerts={marketing?.alerts}
+          operations={operations}
+          finance={finance}
+          todayData={todayData}
+          billingKPI={billingKPI}
+          isLoading={isLoading}
+        />
+      </SectionErrorBoundary>
+
+      {/* FOCUS OGGI */}
+      <SectionErrorBoundary sectionName="Focus Oggi">
+        <TodayFocus todayData={todayData} isLoading={isLoading} dateFrom={todayDateFrom} dateTo={todayDateTo} onDateRangeChange={updateTodayDateRange} />
+      </SectionErrorBoundary>
 
       {/* ── Multi-Sede: P&L e Incidenza ────────────────────── */}
       {showFinanza && sediVisibili.length > 0 && (
@@ -137,43 +249,6 @@ export default function CruscottoAziendale() {
           </div>
         </SectionErrorBoundary>
       )}
-
-      {/* SEZIONE 1: HERO — 4 KPI grandi */}
-      <SectionErrorBoundary sectionName="Hero KPI">
-        <CruscottoHero
-          finance={finance}
-          operations={operations}
-          kpi={marketing?.kpi}
-          monthRevenue={cashFlowForecast?.monthRevenue ?? finance.revenueThisMonth}
-          quarterRevenue={cashFlowForecast?.quarterRevenue ?? 0}
-          ytdRevenue={cashFlowForecast?.ytdRevenue ?? 0}
-          isLoading={isLoading}
-        />
-      </SectionErrorBoundary>
-
-      {/* SEZIONE 1b: KPI FATTURAZIONE NATIVA */}
-      {showFinanza && (
-        <SectionErrorBoundary sectionName="Fatturazione KPI">
-          <BillingKPIWidget />
-        </SectionErrorBoundary>
-      )}
-
-      {/* SEZIONE 2: ALERT PANEL */}
-      <SectionErrorBoundary sectionName="Alert Panel">
-        <AlertPanel
-          marketingAlerts={marketing?.alerts}
-          operations={operations}
-          finance={finance}
-          todayData={todayData}
-          billingKPI={billingKPI}
-          isLoading={isLoading}
-        />
-      </SectionErrorBoundary>
-
-      {/* SEZIONE 3: FOCUS OGGI */}
-      <SectionErrorBoundary sectionName="Focus Oggi">
-        <TodayFocus todayData={todayData} isLoading={isLoading} dateFrom={todayDateFrom} dateTo={todayDateTo} onDateRangeChange={updateTodayDateRange} />
-      </SectionErrorBoundary>
 
       {/* SEZIONE 4: FINANZA & CASH FLOW */}
       {showFinanza && (
