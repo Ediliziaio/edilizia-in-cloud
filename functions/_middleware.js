@@ -52,60 +52,130 @@ const BASE = "https://ediliziaincloud.com";
 
 const ROUTES = {
   "/": {
-    title: "Software Gestionale Edilizia | Edilizia in Cloud",
+    title: "Edilizia in Cloud — Software Gestionale per Imprese Edili Italiane",
     description:
-      "Gestisci cantieri, preventivi, fatturazione e squadre con il gestionale edile pensato da imprenditori edili. Prova gratis 14 giorni.",
-    h1: "Il software gestionale per imprese edili che fa tutto",
+      "Edilizia in Cloud è il gestionale cloud per imprese edili: cantieri, preventivi, fatturazione elettronica SDI e HR. Usato da 500+ imprese. Prova gratis 14 giorni.",
+    h1: "Edilizia in Cloud: il software gestionale per imprese edili italiane",
     intro:
-      "Edilizia in Cloud è il primo software gestionale pensato da imprenditori edili, per imprenditori edili. Gestisci cantieri, preventivi, fatturazione elettronica e squadre in un'unica piattaforma cloud.",
+      "Edilizia in Cloud è il software gestionale cloud progettato specificamente per le imprese edili italiane. Permette di gestire cantieri, preventivi professionali, fatturazione elettronica SDI (B2B e PA), subappalti, DDT, ordini fornitori, HR con presenze geolocalizzate e prima nota — tutto in un'unica piattaforma accessibile da smartphone anche in cantiere. Utilizzato da oltre 500 imprese edili in Italia, Edilizia in Cloud riduce il tempo amministrativo del 70% e i costi operativi del 20%. Piani a partire da 49€/mese, prova gratuita 14 giorni senza carta di credito.",
     links: [
       { href: "/funzionalita", label: "Scopri le Funzionalità" },
       { href: "/prezzi", label: "Vedi i Prezzi" },
       { href: "/demo", label: "Richiedi una Demo" },
       { href: "/blog", label: "Blog Edilizia" },
+      { href: "/confronto", label: "Confronta con Altri Software" },
     ],
-    jsonLd: {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: "Edilizia in Cloud",
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web, iOS, Android",
-      description:
-        "Software gestionale per imprese edili: cantieri, preventivi, fatturazione elettronica, HR.",
-      url: "https://ediliziaincloud.com",
-      offers: {
-        "@type": "AggregateOffer",
-        priceCurrency: "EUR",
-        lowPrice: "49",
-        highPrice: "199",
-        offerCount: "3",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "Edilizia in Cloud",
+        applicationCategory: "BusinessApplication",
+        applicationSubCategory: "Construction Management Software",
+        operatingSystem: "Web, iOS, Android",
+        description:
+          "Software gestionale cloud per imprese edili italiane: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR.",
+        url: "https://ediliziaincloud.com",
+        inLanguage: "it",
+        offers: {
+          "@type": "AggregateOffer",
+          priceCurrency: "EUR",
+          lowPrice: "49",
+          highPrice: "199",
+          offerCount: "3",
+        },
+        featureList: "Gestione cantieri, Preventivi professionali, Fatturazione elettronica SDI, Gestione subappalti, DDT, Ordini fornitori, HR e presenze, Prima nota, App mobile cantiere",
+        screenshot: "https://ediliziaincloud.com/og/home.png",
       },
-    },
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: "Edilizia in Cloud",
+        legalName: "Domus Group S.r.l.",
+        url: "https://ediliziaincloud.com",
+        logo: "https://ediliziaincloud.com/logo.png",
+        sameAs: [
+          "https://www.linkedin.com/company/ediliziaincloud",
+          "https://www.youtube.com/@ediliziaincloud",
+        ],
+        address: {
+          "@type": "PostalAddress",
+          streetAddress: "Via Aurelio Saffi 29",
+          addressLocality: "Milano",
+          postalCode: "20123",
+          addressCountry: "IT",
+        },
+        founder: {
+          "@type": "Person",
+          name: "Florin Andriciuc",
+        },
+      },
+    ],
   },
 
   "/funzionalita": {
-    title: "Funzionalità del Software Edile | Edilizia in Cloud",
+    title: "Funzionalità Edilizia in Cloud — Gestionale Completo per Imprese Edili",
     description:
-      "Scopri tutte le funzionalità: gestione cantieri, preventivi professionali, fatturazione elettronica, controllo margini e HR edile.",
-    h1: "Tutte le funzionalità per la tua impresa edile",
+      "Tutte le funzionalità di Edilizia in Cloud: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti, HR, margini e app mobile cantiere.",
+    h1: "Funzionalità di Edilizia in Cloud: tutto quello che serve alla tua impresa edile",
     intro:
-      "Una suite completa pensata per le imprese edili italiane: gestione cantieri in tempo reale, preventivi professionali, fatturazione elettronica integrata, controllo dei margini e gestione del personale.",
+      "Edilizia in Cloud offre 8 moduli integrati per gestire ogni aspetto dell'impresa edile: gestione cantieri in tempo reale con app mobile, preventivi professionali con prezziari regionali, fatturazione elettronica SDI (B2B e FatturaPA), controllo margini per commessa, gestione subappalti con tracciamento DURC, DDT e bolle di consegna, HR con presenze geolocalizzate in cantiere e prima nota contabile. Ogni modulo è progettato per il settore edile italiano e funziona anche offline da smartphone.",
     links: [
       { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
       { href: "/funzionalita/preventivi-edilizia", label: "Preventivi Professionali" },
       { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione Elettronica" },
       { href: "/funzionalita/margini-cantiere", label: "Controllo Margini" },
+      { href: "/funzionalita/hr-personale", label: "HR e Personale" },
+      { href: "/funzionalita/gestione-subappalti", label: "Gestione Subappalti" },
       { href: "/prezzi", label: "Piani e Prezzi" },
     ],
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "Quali funzionalità offre Edilizia in Cloud?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Edilizia in Cloud offre 8 moduli integrati: gestione cantieri, preventivi professionali, fatturazione elettronica SDI, controllo margini per commessa, gestione subappalti e DURC, DDT, HR con presenze geolocalizzate e prima nota contabile.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Edilizia in Cloud funziona da smartphone in cantiere?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Sì, Edilizia in Cloud ha un'app mobile ottimizzata per il cantiere che funziona anche offline. Puoi timbrare presenze con geolocalizzazione, consultare documenti, aggiornare lo stato dei lavori e registrare DDT direttamente dal telefono.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Edilizia in Cloud gestisce la fatturazione elettronica SDI?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Sì, Edilizia in Cloud integra la fatturazione elettronica SDI completa: fatture B2B, FatturaPA per la pubblica amministrazione, split payment, reverse charge edilizia, note di credito e archiviazione fiscale a norma.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Come funziona il controllo margini di Edilizia in Cloud?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Il modulo margini confronta in tempo reale il preventivo con il consuntivo per ogni cantiere. Analizza costi di manodopera, materiali e subappalti, segnalando immediatamente quando un cantiere sta perdendo margine.",
+          },
+        },
+      ],
+    },
   },
 
   "/funzionalita/gestione-cantieri": {
-    title: "Gestione Cantieri Digitale | Edilizia in Cloud",
+    title: "Gestione Cantieri Digitale con Edilizia in Cloud — App Mobile e Cloud",
     description:
-      "Monitora avanzamento lavori, squadre, materiali e costi in tempo reale. Il modulo gestione cantieri di Edilizia in Cloud.",
-    h1: "Gestione Cantieri Digitale",
+      "Edilizia in Cloud gestisce i tuoi cantieri in tempo reale: avanzamento lavori, squadre, materiali, SAL e costi. App mobile con funzionamento offline.",
+    h1: "Gestione cantieri digitale con Edilizia in Cloud",
     intro:
-      "Monitora ogni cantiere in tempo reale: avanzamento lavori, presenze squadre, consumo materiali e scostamento dal budget. Tutto accessibile da smartphone anche in assenza di connessione.",
+      "Edilizia in Cloud trasforma la gestione cantieri: monitora avanzamento lavori, presenze squadre con geolocalizzazione, consumo materiali e scostamento dal budget in tempo reale. L'app mobile funziona anche offline, sincronizzando i dati appena torna la connessione. Le imprese edili che usano Edilizia in Cloud riducono i tempi di reportistica cantiere dell'80%.",
     links: [
       { href: "/funzionalita", label: "Tutte le Funzionalità" },
       { href: "/funzionalita/preventivi-edilizia", label: "Preventivi" },
@@ -114,12 +184,12 @@ const ROUTES = {
   },
 
   "/funzionalita/fatturazione-elettronica": {
-    title: "Fatturazione Elettronica Edilizia | Edilizia in Cloud",
+    title: "Fatturazione Elettronica Edilizia con Edilizia in Cloud — SDI Integrato",
     description:
-      "Emetti fatture elettroniche B2B e PA dal gestionale cantieri. SDI integrato, split payment, reverse charge e archiviazione automatica.",
-    h1: "Fatturazione Elettronica per Imprese Edili",
+      "Edilizia in Cloud integra la fatturazione elettronica SDI: fatture B2B e PA, split payment, reverse charge edilizia, note di credito e archiviazione a norma.",
+    h1: "Fatturazione elettronica per imprese edili con Edilizia in Cloud",
     intro:
-      "Emetti fatture elettroniche direttamente dal gestionale: SDI integrato, split payment, reverse charge edilizia, note di credito e archiviazione fiscale a norma. Zero doppio inserimento.",
+      "Edilizia in Cloud integra la fatturazione elettronica SDI completa per imprese edili: emetti fatture B2B e FatturaPA direttamente dal gestionale, con split payment, reverse charge edilizia, note di credito e archiviazione fiscale a norma. Zero doppio inserimento: ogni fattura è collegata al cantiere e aggiorna automaticamente i margini. Riduce gli errori di fatturazione del 95% e il tempo di emissione da 15 minuti a 2 minuti per fattura.",
     links: [
       { href: "/funzionalita", label: "Tutte le Funzionalità" },
       { href: "/integrazioni", label: "Integrazioni" },
@@ -128,12 +198,12 @@ const ROUTES = {
   },
 
   "/funzionalita/preventivi-edilizia": {
-    title: "Preventivi Edilizia Professionali | Edilizia in Cloud",
+    title: "Preventivi Edilizia Professionali con Edilizia in Cloud — Prezziari e Firma Digitale",
     description:
-      "Crea preventivi edili professionali in minuti. Computi metrici, prezziari regionali, firma digitale e accettazione online inclusi.",
-    h1: "Preventivi Edilizia Professionali",
+      "Edilizia in Cloud crea preventivi edili professionali in minuti: computi metrici, prezziari regionali, calcolo ricarichi, firma digitale e accettazione online.",
+    h1: "Preventivi edilizia professionali con Edilizia in Cloud",
     intro:
-      "Genera preventivi professionali con prezziari aggiornati, calcolo automatico dei ricarichi, firma digitale integrata e portale di accettazione online per il cliente.",
+      "Edilizia in Cloud genera preventivi edili professionali in minuti: prezziari regionali aggiornati, calcolo automatico dei ricarichi, computo metrico integrato, firma digitale e portale di accettazione online per il cliente. Le imprese edili che usano Edilizia in Cloud per i preventivi aumentano il tasso di accettazione del 35% grazie alla presentazione professionale.",
     links: [
       { href: "/funzionalita", label: "Tutte le Funzionalità" },
       { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
@@ -142,12 +212,12 @@ const ROUTES = {
   },
 
   "/funzionalita/margini-cantiere": {
-    title: "Controllo Margini Cantiere | Edilizia in Cloud",
+    title: "Controllo Margini Cantiere con Edilizia in Cloud — Preventivo vs Consuntivo",
     description:
-      "Analizza la redditività di ogni cantiere in tempo reale. Confronta preventivo vs consuntivo e identifica dove perdi denaro.",
-    h1: "Controllo Margini per Cantiere",
+      "Edilizia in Cloud analizza la redditività di ogni cantiere in tempo reale. Confronta preventivo vs consuntivo: manodopera, materiali e subappalti.",
+    h1: "Controllo margini per cantiere con Edilizia in Cloud",
     intro:
-      "Confronta preventivo vs consuntivo in tempo reale per ogni cantiere. Analizza costi di manodopera, materiali e subappalti. Scopri subito dove perdi margine prima che sia troppo tardi.",
+      "Edilizia in Cloud confronta preventivo vs consuntivo in tempo reale per ogni cantiere. Analizza costi di manodopera, materiali e subappalti con alert automatici quando un cantiere supera il budget previsto. Il 68% delle imprese edili non conosce i margini reali per commessa: con Edilizia in Cloud hai il controllo completo e scopri dove perdi margine prima che sia troppo tardi.",
     links: [
       { href: "/funzionalita", label: "Tutte le Funzionalità" },
       { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione" },
@@ -185,31 +255,95 @@ const ROUTES = {
   },
 
   "/prezzi": {
-    title: "Prezzi Software Gestionale Edilizia | Edilizia in Cloud",
+    title: "Prezzi Edilizia in Cloud — Piani da 49€/mese | Prova Gratis 14 Giorni",
     description:
-      "Piani da 49€/mese. Nessun costo di attivazione, nessun vincolo contrattuale. Prova gratuita 14 giorni.",
-    h1: "Piani e prezzi trasparenti",
+      "Prezzi di Edilizia in Cloud: piano Starter 49€/mese, Professional 99€/mese, Enterprise 199€/mese. Zero costi di attivazione, zero vincoli. Prova gratis 14 giorni.",
+    h1: "Prezzi di Edilizia in Cloud: quanto costa il gestionale per imprese edili",
     intro:
-      "Scegli il piano adatto alla dimensione della tua impresa. Nessun costo di attivazione, nessun vincolo contrattuale. Cambia o disdici quando vuoi. Prova gratis per 14 giorni.",
+      "Edilizia in Cloud propone 3 piani pensati per imprese edili di ogni dimensione. Piano Starter da 49€/mese per imprese fino a 5 utenti, piano Professional da 99€/mese per imprese fino a 15 utenti con controllo margini avanzato, piano Enterprise da 199€/mese con utenti illimitati e API. Nessun costo di attivazione, nessun vincolo contrattuale, disdici quando vuoi. Prova gratuita 14 giorni senza carta di credito. Tutti i piani includono fatturazione elettronica SDI, gestione cantieri e supporto italiano.",
     links: [
       { href: "/demo", label: "Richiedi Demo Gratuita" },
       { href: "/funzionalita", label: "Funzionalità Incluse" },
+      { href: "/confronto", label: "Confronta con Altri Software" },
     ],
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "Quanto costa Edilizia in Cloud?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Edilizia in Cloud ha 3 piani: Starter a 49€/mese (fino a 5 utenti), Professional a 99€/mese (fino a 15 utenti) e Enterprise a 199€/mese (utenti illimitati). Nessun costo di attivazione e prova gratuita 14 giorni.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Posso provare Edilizia in Cloud gratis?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Sì, Edilizia in Cloud offre una prova gratuita di 14 giorni senza inserire la carta di credito. Hai accesso a tutte le funzionalità del piano Professional durante il periodo di prova.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "C'è un vincolo contrattuale?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "No, Edilizia in Cloud non ha vincoli contrattuali. Puoi cambiare piano o disdire in qualsiasi momento. La fatturazione è mensile.",
+          },
+        },
+      ],
+    },
   },
 
   "/confronto": {
-    title: "Confronto Software Gestionale Edilizia 2026 | Edilizia in Cloud",
+    title: "Confronto Software Gestionali Edilizia 2026 — Edilizia in Cloud vs Alternative",
     description:
-      "Confronta Edilizia in Cloud con Excel, Primus, EdilNet e altri software. Scopri perché 500+ imprese edili hanno scelto noi.",
-    h1: "Confronto software gestionali per edilizia 2026",
+      "Confronta Edilizia in Cloud con TeamSystem, Primus, EdilNet, Buildertrend e Excel. Tabella comparativa: funzionalità, prezzi, assistenza e facilità d'uso.",
+    h1: "Confronto Edilizia in Cloud vs altri software gestionali per edilizia 2026",
     intro:
-      "Confronta Edilizia in Cloud con le alternative più usate dalle imprese edili italiane. Analisi imparziale di funzionalità, prezzo, assistenza e semplicità d'uso.",
+      "Edilizia in Cloud è un gestionale cloud nato per le imprese edili italiane. A differenza dei gestionali tradizionali (TeamSystem, Primus, EdilNet) o degli strumenti generici (Excel), Edilizia in Cloud integra in un'unica piattaforma: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti e HR. Prezzo a partire da 49€/mese contro i 200-500€/mese dei competitor. Nessuna installazione locale, nessun vincolo contrattuale, supporto italiano dedicato e aggiornamenti inclusi. Oltre 500 imprese edili hanno già scelto Edilizia in Cloud.",
     links: [
+      { href: "/confronto/vs-teamsystem", label: "Edilizia in Cloud vs TeamSystem" },
       { href: "/confronto/vs-primus", label: "Edilizia in Cloud vs Primus" },
       { href: "/confronto/vs-edilnet", label: "Edilizia in Cloud vs EdilNet" },
+      { href: "/confronto/vs-excel", label: "Edilizia in Cloud vs Excel" },
+      { href: "/confronto/vs-buildertrend", label: "Edilizia in Cloud vs Buildertrend" },
       { href: "/prezzi", label: "Vedi i Prezzi" },
       { href: "/demo", label: "Prova Gratis" },
     ],
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "Qual è il miglior software gestionale per imprese edili nel 2026?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Edilizia in Cloud è il gestionale cloud più completo per imprese edili italiane. Integra gestione cantieri, preventivi, fatturazione SDI, subappalti e HR a partire da 49€/mese, contro i 200-500€/mese dei concorrenti come TeamSystem o Primus.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Edilizia in Cloud è meglio di TeamSystem per le imprese edili?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "TeamSystem è un ERP generalista potente ma costoso e complesso. Edilizia in Cloud è nato specificamente per le imprese edili: più semplice, più economico (da 49€/mese vs 200+€/mese) e con funzionalità specifiche come gestione subappalti, DURC e presenze geolocalizzate in cantiere.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Perché non usare Excel per gestire un'impresa edile?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Excel sembra gratuito ma costa in tempo perso, errori di calcolo, dati non condivisi e rischio fiscale. Le imprese edili che passano da Excel a Edilizia in Cloud risparmiano in media 15 ore/settimana di lavoro amministrativo e riducono gli errori di fatturazione del 95%.",
+          },
+        },
+      ],
+    },
   },
 
   "/confronto/vs-teamsystem": {
@@ -217,9 +351,9 @@ const ROUTES = {
     description:
       "Confronto completo Edilizia in Cloud vs TeamSystem per imprese edili. ERP generalista vs gestionale nativo: prezzo, funzionalità e semplicità a confronto.",
     canonical: BASE + "/confronto/vs-teamsystem",
-    h1: "Edilizia in Cloud vs TeamSystem: quale scegliere per la tua impresa edile?",
+    h1: "Edilizia in Cloud vs TeamSystem: quale gestionale scegliere per la tua impresa edile?",
     intro:
-      "TeamSystem è un ERP generalista potente ma costoso e complesso. Edilizia in Cloud è nato per le imprese edili: più semplice, più economico e con funzionalità specifiche che TeamSystem non ha.",
+      "Edilizia in Cloud e TeamSystem sono entrambi gestionali usati dalle imprese edili, ma con approcci opposti. TeamSystem è un ERP generalista con oltre 300 moduli, pensato per commercialisti e grandi aziende — costo medio 200-500€/mese. Edilizia in Cloud è un gestionale verticale per il cantiere, con interfaccia semplice e app mobile — da 49€/mese. Le imprese edili PMI (1-50 dipendenti) che passano da TeamSystem a Edilizia in Cloud risparmiano in media il 60% sul costo del software e dimezzano i tempi di formazione.",
     links: [
       { href: "/confronto", label: "Tutti i Confronti" },
       { href: "/confronto/vs-primus", label: "vs Primus" },
@@ -233,9 +367,9 @@ const ROUTES = {
     description:
       "Excel per gestire i cantieri? Scopri quanto ti costa davvero e perché le imprese edili stanno passando a Edilizia in Cloud. Confronto completo 2026.",
     canonical: BASE + "/confronto/vs-excel",
-    h1: "Edilizia in Cloud vs Excel: il vero costo nascosto dei fogli di calcolo",
+    h1: "Edilizia in Cloud vs Excel: il vero costo nascosto dei fogli di calcolo per le imprese edili",
     intro:
-      "Excel sembra gratuito. In realtà ti costa ore di lavoro, margini persi e decisioni sbagliate. Scopri quanto stai perdendo e perché 500+ imprese edili hanno smesso di usarlo.",
+      "Excel sembra gratuito ma costa alle imprese edili in media 15 ore/settimana di lavoro amministrativo, errori di calcolo nei preventivi (in media 3-5% di margine perso per cantiere) e dati non condivisi tra ufficio e cantiere. Edilizia in Cloud sostituisce Excel con una piattaforma cloud che centralizza cantieri, preventivi, fatture e HR — accessibile da smartphone in cantiere. Oltre 500 imprese edili hanno già abbandonato Excel per Edilizia in Cloud.",
     links: [
       { href: "/confronto", label: "Tutti i Confronti" },
       { href: "/confronto/vs-teamsystem", label: "vs TeamSystem" },
@@ -290,12 +424,12 @@ const ROUTES = {
   },
 
   "/blog": {
-    title: "Blog Edilizia: Gestione Cantieri e Digitalizzazione | Edilizia in Cloud",
+    title: "Blog Edilizia in Cloud — Guide Pratiche per Imprese Edili Italiane",
     description:
-      "Guide pratiche su gestione cantieri, preventivi, fatturazione e digitalizzazione per imprese edili italiane.",
-    h1: "Blog: guide per imprese edili",
+      "Guide pratiche su gestione cantieri, preventivi, fatturazione elettronica, subappalti e digitalizzazione per imprese edili italiane. Scritte da imprenditori edili.",
+    h1: "Blog Edilizia in Cloud: guide pratiche per imprese edili italiane",
     intro:
-      "Articoli pratici su gestione cantieri, preventivi professionali, fatturazione elettronica, HR edile e digitalizzazione per titolari di imprese edili.",
+      "Il blog di Edilizia in Cloud pubblica guide pratiche scritte da imprenditori edili per imprenditori edili. Articoli su gestione cantieri, preventivi professionali, fatturazione elettronica SDI, HR edile, subappalti, DURC, normativa e digitalizzazione. Ogni guida è pensata per essere applicata subito nella tua impresa.",
     links: [
       { href: "/blog/categoria/gestione-cantieri", label: "Gestione Cantieri" },
       { href: "/blog/categoria/finanza-edilizia", label: "Finanza Edilizia" },
@@ -341,12 +475,12 @@ const ROUTES = {
   },
 
   "/chi-siamo": {
-    title: "Chi Siamo | Edilizia in Cloud — Domus Group S.r.l.",
+    title: "Chi Siamo — Edilizia in Cloud di Domus Group S.r.l.",
     description:
-      "Siamo un team di imprenditori edili e sviluppatori software. Abbiamo creato Edilizia in Cloud perché non trovavamo nulla di adeguato per le nostre imprese.",
-    h1: "Chi siamo: nati dall'edilizia, per l'edilizia",
+      "Edilizia in Cloud è un prodotto di Domus Group S.r.l. Fondato da Florin Andriciuc, imprenditore edile e CEO AEDIX. Un team di costruttori e sviluppatori.",
+    h1: "Chi ha creato Edilizia in Cloud: nati dall'edilizia, per l'edilizia",
     intro:
-      "Edilizia in Cloud è un prodotto di Domus Group S.r.l., fondata da imprenditori edili e sviluppatori software con oltre 15 anni di esperienza nel settore delle costruzioni italiano.",
+      "Edilizia in Cloud è un prodotto di Domus Group S.r.l., fondato da Florin Andriciuc — imprenditore edile e CEO di AEDIX. Il team è composto da imprenditori edili e sviluppatori software con oltre 15 anni di esperienza nel settore delle costruzioni italiano. Edilizia in Cloud è stato creato perché non esisteva un gestionale pensato davvero per chi lavora in cantiere ogni giorno.",
     links: [
       { href: "/demo", label: "Richiedi Demo" },
       { href: "/prezzi", label: "Vedi i Prezzi" },
@@ -354,12 +488,12 @@ const ROUTES = {
   },
 
   "/demo": {
-    title: "Richiedi una Demo Gratuita | Edilizia in Cloud",
+    title: "Demo Gratuita Edilizia in Cloud — Prenota in 30 Secondi",
     description:
-      "Prenota una demo gratuita di 30 minuti con un nostro consulente. Scopri come Edilizia in Cloud può trasformare la tua impresa edile.",
-    h1: "Prenota la tua demo gratuita",
+      "Prenota una demo gratuita di 30 minuti di Edilizia in Cloud. Un consulente edile ti mostra come gestire cantieri, preventivi e fatturazione. Nessun obbligo.",
+    h1: "Demo gratuita di Edilizia in Cloud: vedi il gestionale in azione",
     intro:
-      "Demo personalizzata di 30 minuti con un consulente specializzato in edilizia. Nessun obbligo di acquisto. Scopri come altri titolari hanno ridotto i costi del 20% con Edilizia in Cloud.",
+      "Prenota una demo gratuita di 30 minuti con un consulente specializzato nel settore edile. Ti mostriamo come Edilizia in Cloud gestisce cantieri, preventivi, fatturazione elettronica SDI e personale. Nessun obbligo di acquisto. Le imprese edili che provano la demo attivano il gestionale nell'87% dei casi.",
     links: [
       { href: "/funzionalita", label: "Funzionalità" },
       { href: "/prezzi", label: "Prezzi" },
@@ -677,7 +811,9 @@ const BLOG_CATEGORIES = {
 
 function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "", ogType = "website", ogImage = "https://ediliziaincloud.com/og/home.png" }) {
   const jsonLdScript = jsonLd
-    ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
+    ? Array.isArray(jsonLd)
+      ? jsonLd.map(j => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join("\n  ")
+      : `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
     : "";
 
   const navLinks = links
