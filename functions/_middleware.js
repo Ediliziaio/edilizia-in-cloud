@@ -266,36 +266,8 @@ const ROUTES = {
       { href: "/funzionalita", label: "Funzionalità Incluse" },
       { href: "/confronto", label: "Confronta con Altri Software" },
     ],
-    jsonLd: {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: [
-        {
-          "@type": "Question",
-          name: "Quanto costa Edilizia in Cloud?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Edilizia in Cloud ha 3 piani: Starter a 49€/mese (fino a 5 utenti), Professional a 99€/mese (fino a 15 utenti) e Enterprise a 199€/mese (utenti illimitati). Nessun costo di attivazione e prova gratuita 14 giorni.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "Posso provare Edilizia in Cloud gratis?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Sì, Edilizia in Cloud offre una prova gratuita di 14 giorni senza inserire la carta di credito. Hai accesso a tutte le funzionalità del piano Professional durante il periodo di prova.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "C'è un vincolo contrattuale?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "No, Edilizia in Cloud non ha vincoli contrattuali. Puoi cambiare piano o disdire in qualsiasi momento. La fatturazione è mensile.",
-          },
-        },
-      ],
-    },
+    // FAQPage JSON-LD gestito dal componente React Prezzi.tsx
+    // Non duplicare qui per evitare "Campo duplicato FAQPage" in GSC
   },
 
   "/confronto": {
