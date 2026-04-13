@@ -50,65 +50,52 @@ interface TableRow {
 }
 
 const tableRows: TableRow[] = [
-  // Cantieri
-  { label: "Commesse attive", starter: "50", professional: "Illimitate", enterprise: "Illimitate", category: "Cantieri" },
-  { label: "Marginalità per commessa", starter: "check", professional: "check", enterprise: "check" },
-  { label: "Marginalità avanzata comparata", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Avanzamento cantieri", starter: "check", professional: "check", enterprise: "check" },
-  { label: "Giornale dei lavori", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Ordini di acquisto", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Sicurezza cantiere", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Documenti allegati", starter: "check", professional: "check", enterprise: "check" },
-  // Finanziario
-  { label: "Previsionale di cassa", starter: "30 giorni", professional: "90 giorni", enterprise: "90+ giorni", category: "Finanziario" },
-  { label: "Tesoreria", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Scadenzario completo", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Prima nota", starter: "check", professional: "check", enterprise: "check" },
-  { label: "Fatturazione elettronica SDI", starter: "cross", professional: "cross", enterprise: "check" },
-  { label: "Integrazione contabilità esterna", starter: "cross", professional: "cross", enterprise: "check" },
-  // Marketing & CRM
-  { label: "CRM contatti", starter: "cross", professional: "Illimitati", enterprise: "Illimitati", category: "Marketing & CRM" },
-  { label: "Pipeline opportunità", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Preventivi digitali con firma online", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Email marketing", starter: "cross", professional: "Fino a 5.000", enterprise: "Illimitati" },
-  { label: "WhatsApp marketing", starter: "cross", professional: "Base", enterprise: "Avanzato + automazioni" },
-  { label: "Portale clienti branded", starter: "cross", professional: "cross", enterprise: "check" },
-  // HR & Personale
-  { label: "Gestione personale", starter: "cross", professional: "check", enterprise: "check", category: "HR & Personale" },
-  { label: "Timbrature kiosk", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Costi manodopera per cantiere", starter: "cross", professional: "check", enterprise: "check" },
-  // Magazzino
-  { label: "Gestione materiali", starter: "cross", professional: "check", enterprise: "check", category: "Magazzino" },
-  { label: "Tracking ordini acquisto", starter: "cross", professional: "check", enterprise: "check" },
-  // AI & Automazioni
-  { label: "Agenti AI", starter: "cross", professional: "cross", enterprise: "check", category: "AI & Automazioni" },
-  { label: "Automazioni avanzate", starter: "cross", professional: "cross", enterprise: "check" },
-  // Integrazioni
-  { label: "API access", starter: "cross", professional: "cross", enterprise: "check", category: "Integrazioni" },
-  { label: "Webhook personalizzati", starter: "cross", professional: "cross", enterprise: "check" },
-  { label: "Report e dashboard custom", starter: "cross", professional: "cross", enterprise: "check" },
-  // Team
-  { label: "Utenti inclusi", starter: "3", professional: "10", enterprise: "Illimitati", category: "Team" },
-  { label: "Ruoli e permessi", starter: "Base", professional: "Avanzati", enterprise: "Avanzati" },
-  // Supporto
-  { label: "Supporto", starter: "Email 24h", professional: "Tel/WhatsApp 2h", enterprise: "Dedicato 1h H12", category: "Supporto" },
-  { label: "Consulente del Controllo", starter: "cross", professional: "1 call/mese", enterprise: "2 call/mese" },
-  { label: "Onboarding", starter: "self-service", professional: "Dedicato", enterprise: "Premium 3 sessioni" },
-  { label: "SLA uptime garantito", starter: "cross", professional: "cross", enterprise: "99.9%" },
+  { label: "Commesse attive", starter: "Illimitate", professional: "Illimitate", enterprise: "Illimitate", category: "Cantieri" },
+  { label: "SAL + Marginalità commessa", starter: "check", professional: "check", enterprise: "check" },
+  { label: "Giornale Lavori + ODA + D.Lgs 81", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Subappalti + Gantt + Ritenute", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Multi-sede", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "Fatturazione SDI + DDT + NC + Proforma", starter: "check", professional: "check", enterprise: "check", category: "Finanza" },
+  { label: "Preventivi personalizzabili", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Fatture personalizzabili", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Scadenzario + Tesoreria + IVA", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Banca PSD2", starter: "cross", professional: "1 conto", enterprise: "3 conti" },
+  { label: "Previsionale cassa", starter: "60 giorni", professional: "90 giorni", enterprise: "365 giorni" },
+  { label: "Export XBRL · Archiviazione 10 anni", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "CRM + Pipeline opportunità", starter: "cross", professional: "check", enterprise: "check", category: "Marketing & CRM" },
+  { label: "Email marketing incluse", starter: "cross", professional: "5.000/mese", enterprise: "20.000/mese" },
+  { label: "Computo Metrico AI", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Portale cliente", starter: "cross", professional: "Standard", enterprise: "Branded WL" },
+  { label: "AI Preventivo (Claude API)", starter: "Add-on €39", professional: "Add-on €39", enterprise: "Add-on €39" },
+  { label: "App operai GPS + rapportino", starter: "check", professional: "check", enterprise: "check", category: "HR & Campo" },
+  { label: "HR + Cedolini strutturati", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Employees Area (4 aree)", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "GPS FleetTrack + Magazzino", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Render AI", starter: "Add-on", professional: "Add-on", enterprise: "20/mese inclusi", category: "AI & Automazioni" },
+  { label: "Verifica OdA AI", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "Agente Vocale AI", starter: "Add-on €89", professional: "Add-on €89", enterprise: "200 min inclusi" },
+  { label: "WhatsApp Bot AI", starter: "cross", professional: "Add-on €39", enterprise: "Incluso" },
+  { label: "Agenti AI personalizzati", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "Utenti inclusi", starter: "Illimitati", professional: "Illimitati", enterprise: "Illimitati", category: "Infrastruttura" },
+  { label: "Storage incluso", starter: "10 GB", professional: "30 GB", enterprise: "100 GB" },
+  { label: "API REST + Webhook", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "SLA uptime", starter: "99.5%", professional: "99.7%", enterprise: "99.9%" },
+  { label: "Supporto", starter: "Email 24h", professional: "Tel/WA 4h", enterprise: "Dedicato 1h" },
+  { label: "Call consulente mensile", starter: "cross", professional: "1/mese", enterprise: "2/mese" },
 ];
 
 const faqItems = [
   {
     q: "C'è un periodo di prova gratuita?",
-    a: "Sì, offriamo una demo gratuita personalizzata con il nostro team + 31 giorni di accesso completo al piano Professional. Cancella quando vuoi, nessun obbligo.",
+    a: "Sì, offriamo una demo gratuita personalizzata con il nostro team + 31 giorni di accesso completo al piano Professionista. Cancella quando vuoi, nessun obbligo.",
   },
   {
     q: "Posso cambiare piano in qualsiasi momento?",
     a: "Sì. L'upgrade è immediato: le nuove funzionalità sono disponibili subito. Il downgrade viene applicato a fine periodo di fatturazione corrente.",
   },
   {
-    q: "Cosa succede se supero i limiti del piano Starter?",
-    a: "Ti avvisiamo in anticipo — nessun blocco improvviso. Il nostro team ti contatterà per aiutarti a valutare l'upgrade nel momento giusto per la tua crescita.",
+    q: "Cosa succede se ho bisogno di più funzionalità del piano Gestionale?",
+    a: "Ti avvisiamo in anticipo — nessun blocco improvviso. Il nostro team ti contatterà per aiutarti a valutare l'upgrade al piano Professionista o Impresa AI nel momento giusto per la tua crescita.",
   },
   {
     q: "Il prezzo include IVA?",
@@ -147,28 +134,28 @@ export default function Prezzi() {
   const costoExcel = oreSettimana * compensoOrario * 52;
   const marginiRecuperabili = fatturato * 0.015;
   const valoreAnnuo = costoExcel + marginiRecuperabili;
-  const costoProfessionalAnno = 199 * 12;
+  const costoProfessionalAnno = 247 * 12;
   const roi = Math.round((valoreAnnuo / costoProfessionalAnno) * 100);
   const paybackMesi = costoProfessionalAnno / (valoreAnnuo / 12);
   const paybackLabel = paybackMesi < 1 ? "< 1 mese" : `${paybackMesi.toFixed(1)} mesi`;
 
   useSEO({
     title: "Prezzi Edilizia in Cloud — Piani e Tariffe 2026",
-    description: "Scopri i prezzi di Edilizia in Cloud: piano Starter €79/mese, Professional €159/mese, Enterprise €319/mese. 31 giorni gratis. ROI garantito o rimborso totale.",
+    description: "Scopri i prezzi di Edilizia in Cloud: piano Gestionale €99/mese, Professionista €197/mese, Impresa AI €437/mese. 31 giorni gratis. ROI garantito o rimborso totale.",
     canonical: "/prezzi",
     keywords: "prezzi software gestionale edilizia, costo gestionale cantieri, abbonamento edilizia in cloud, piano starter professional enterprise, prova gratuita software edilizia",
   });
 
   const prices = {
-    starter: billing === "monthly" ? 99 : 79,
-    professional: billing === "monthly" ? 199 : 159,
-    enterprise: billing === "monthly" ? 399 : 319,
+    starter: billing === "monthly" ? 127 : 99,
+    professional: billing === "monthly" ? 247 : 197,
+    enterprise: billing === "monthly" ? 547 : 437,
   };
 
   const savings = {
-    starter: (99 - 79) * 12,
-    professional: (199 - 159) * 12,
-    enterprise: (399 - 319) * 12,
+    starter: (127 - 99) * 12,
+    professional: (247 - 197) * 12,
+    enterprise: (547 - 437) * 12,
   };
 
   return (
@@ -187,7 +174,7 @@ export default function Prezzi() {
         "seller": { "@type": "Organization", "name": "Domus Group S.r.l.", "url": "https://ediliziaincloud.com" },
         "offers": [
           {
-            "@type": "Offer", "name": "Starter", "price": "79", "priceCurrency": "EUR",
+            "@type": "Offer", "name": "Gestionale", "price": "99", "priceCurrency": "EUR",
             "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
@@ -211,7 +198,7 @@ export default function Prezzi() {
             }
           },
           {
-            "@type": "Offer", "name": "Professional", "price": "159", "priceCurrency": "EUR",
+            "@type": "Offer", "name": "Professionista", "price": "197", "priceCurrency": "EUR",
             "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
@@ -235,7 +222,7 @@ export default function Prezzi() {
             }
           },
           {
-            "@type": "Offer", "name": "Enterprise", "price": "319", "priceCurrency": "EUR",
+            "@type": "Offer", "name": "Impresa AI", "price": "437", "priceCurrency": "EUR",
             "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
@@ -365,7 +352,7 @@ export default function Prezzi() {
           {/* ── STARTER ── */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 flex flex-col">
             <div className="mb-6">
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Starter</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Gestionale</p>
               <p className="text-sm text-gray-500 mb-4">Imprese fino a 500K € di fatturato</p>
               <div className="flex items-end gap-1 mb-1">
                 <span className="text-5xl font-extrabold text-[#111111]">€{prices.starter}</span>
@@ -373,7 +360,7 @@ export default function Prezzi() {
               </div>
               {billing === "annual" && (
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="line-through text-gray-400">€99/mese</span>
+                  <span className="line-through text-gray-400">€127/mese</span>
                   <span className="bg-[#F97415]/10 text-[#F97415] font-semibold px-2 py-0.5 rounded-full text-xs">
                     Risparmi €{savings.starter}/anno
                   </span>
@@ -387,37 +374,32 @@ export default function Prezzi() {
               to="/demo"
               className="block text-center border-2 border-[#111111] text-[#111111] font-bold py-3 rounded-xl hover:bg-[#111111] hover:text-white transition-colors mb-6"
             >
-              Inizia con Starter
+              Inizia con Gestionale
             </Link>
             <div className="space-y-5 flex-1">
-              <FeatureGroup title="Gestione Cantieri">
-                <Feature label="Fino a 50 commesse attive" />
-                <Feature label="Margine reale per commessa" />
-                <Feature label="Avanzamento cantieri" />
-                <Feature label="Documenti allegati" />
+              <FeatureGroup title="Cantieri">
+                <Feature label="Commesse illimitate" />
+                <Feature label="SAL + Marginalità commessa" />
               </FeatureGroup>
-              <FeatureGroup title="Finanziario">
-                <Feature label="Previsionale di cassa base (30 gg)" />
-                <Feature label="Costi aziendali" />
-                <Feature label="Prima nota" />
+              <FeatureGroup title="Finanza">
+                <Feature label="Fatturazione SDI + DDT + NC + Proforma" />
+                <Feature label="Previsionale cassa (60 gg)" />
               </FeatureGroup>
-              <FeatureGroup title="Team">
-                <Feature label="3 utenti inclusi" />
-                <Feature label="Ruoli e permessi base" />
+              <FeatureGroup title="HR & Campo">
+                <Feature label="App operai GPS + rapportino" />
               </FeatureGroup>
-              <FeatureGroup title="Supporto">
-                <Feature label="Supporto via email (risposta 24h)" />
-                <Feature label="Accesso alla knowledge base" />
-                <Feature label="Webinar formativi mensili" />
+              <FeatureGroup title="Infrastruttura">
+                <Feature label="Utenti illimitati" />
+                <Feature label="10 GB storage" />
+                <Feature label="SLA 99.5%" />
+                <Feature label="Supporto email (risposta 24h)" />
               </FeatureGroup>
               <FeatureGroup title="Non incluso" negative>
-                <Feature label="Magazzino avanzato" negative />
-                <Feature label="Previsionale 60/90 giorni" negative />
-                <Feature label="Marketing & CRM" negative />
-                <Feature label="HR & Personale avanzato" negative />
-                <Feature label="Fatturazione elettronica SDI" negative />
+                <Feature label="Giornale Lavori / ODA / Sicurezza" negative />
+                <Feature label="CRM + Pipeline" negative />
+                <Feature label="HR + Cedolini" negative />
                 <Feature label="Agenti AI" negative />
-                <Feature label="API access" negative />
+                <Feature label="API REST" negative />
               </FeatureGroup>
             </div>
           </div>
@@ -430,7 +412,7 @@ export default function Prezzi() {
               </span>
             </div>
             <div className="mb-6 mt-2">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-1">Professional</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-1">Professionista</p>
               <p className="text-sm text-gray-500 mb-4">Imprese da 500K a 2M € di fatturato</p>
               <div className="flex items-end gap-1 mb-1">
                 <span className="text-5xl font-extrabold text-[#111111]">€{prices.professional}</span>
@@ -438,7 +420,7 @@ export default function Prezzi() {
               </div>
               {billing === "annual" && (
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="line-through text-gray-400">€199/mese</span>
+                  <span className="line-through text-gray-400">€247/mese</span>
                   <span className="bg-[#F97415]/10 text-[#F97415] font-semibold px-2 py-0.5 rounded-full text-xs">
                     Risparmi €{savings.professional}/anno
                   </span>
@@ -452,53 +434,45 @@ export default function Prezzi() {
               to="/demo"
               className="block text-center bg-[#F97415] text-white font-bold py-3 rounded-xl hover:bg-[#e8650e] transition-colors mb-6 shadow-md"
             >
-              Scegli Professional
+              Scegli Professionista
             </Link>
             <div className="space-y-5 flex-1">
-              <FeatureGroup title="Gestione Cantieri">
+              <FeatureGroup title="Cantieri">
                 <Feature label="Commesse illimitate" />
-                <Feature label="Marginalità avanzata con analisi comparata" />
-                <Feature label="Giornale dei lavori" />
-                <Feature label="Ordini di acquisto" />
-                <Feature label="Sicurezza cantiere" />
+                <Feature label="SAL + Marginalità commessa" />
+                <Feature label="Giornale Lavori + ODA + D.Lgs 81" />
+                <Feature label="Subappalti + Gantt + Ritenute" />
               </FeatureGroup>
-              <FeatureGroup title="Finanziario">
-                <Feature label="Previsionale di cassa completo (90 gg)" />
-                <Feature label="Tesoreria" />
-                <Feature label="Costi aziendali avanzati" />
-                <Feature label="Scadenzario completo" />
-                <Feature label="Prima nota" />
+              <FeatureGroup title="Finanza">
+                <Feature label="Fatturazione SDI + DDT + NC + Proforma" />
+                <Feature label="Preventivi e fatture personalizzabili" />
+                <Feature label="Scadenzario + Tesoreria + IVA" />
+                <Feature label="Banca PSD2 (1 conto)" />
+                <Feature label="Previsionale cassa (90 gg)" />
               </FeatureGroup>
               <FeatureGroup title="Marketing & CRM">
-                <Feature label="CRM contatti illimitati" />
-                <Feature label="Pipeline opportunità" />
-                <Feature label="Preventivi digitali con firma online" />
-                <Feature label="Email marketing (fino a 5.000 contatti)" />
-                <Feature label="WhatsApp marketing base" />
+                <Feature label="CRM + Pipeline opportunità" />
+                <Feature label="5.000 email marketing/mese" />
+                <Feature label="Computo Metrico AI" />
+                <Feature label="Portale cliente standard" />
               </FeatureGroup>
-              <FeatureGroup title="HR & Personale">
-                <Feature label="Gestione personale" />
-                <Feature label="Timbrature kiosk" />
-                <Feature label="Costi manodopera per cantiere" />
+              <FeatureGroup title="HR & Campo">
+                <Feature label="App operai GPS + rapportino" />
+                <Feature label="HR + Cedolini strutturati" />
+                <Feature label="Employees Area (4 aree)" />
+                <Feature label="GPS FleetTrack + Magazzino" />
               </FeatureGroup>
-              <FeatureGroup title="Magazzino">
-                <Feature label="Gestione materiali" />
-                <Feature label="Tracking ordini acquisto" />
-              </FeatureGroup>
-              <FeatureGroup title="Team">
-                <Feature label="10 utenti inclusi" />
-                <Feature label="Ruoli avanzati" />
-              </FeatureGroup>
-              <FeatureGroup title="Supporto">
-                <Feature label="Telefono e WhatsApp (risposta 2h)" />
-                <Feature label="Consulente del Controllo dedicato (1 call/mese)" />
-                <Feature label="Onboarding dedicato incluso" />
+              <FeatureGroup title="Infrastruttura">
+                <Feature label="Utenti illimitati" />
+                <Feature label="30 GB storage" />
+                <Feature label="SLA 99.7%" />
+                <Feature label="Supporto Tel/WA (risposta 4h)" />
+                <Feature label="1 call consulente/mese" />
               </FeatureGroup>
               <FeatureGroup title="Non incluso" negative>
-                <Feature label="API access" negative />
-                <Feature label="Report custom avanzati" negative />
-                <Feature label="Email marketing oltre 5.000 contatti" negative />
-                <Feature label="Supporto dedicato H24" negative />
+                <Feature label="Multi-sede" negative />
+                <Feature label="API REST + Webhook" negative />
+                <Feature label="Agenti AI personalizzati" negative />
               </FeatureGroup>
             </div>
           </div>
@@ -506,7 +480,7 @@ export default function Prezzi() {
           {/* ── ENTERPRISE ── */}
           <div className="bg-white rounded-2xl border-2 border-[#111111] shadow-sm p-8 flex flex-col">
             <div className="mb-6">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#111111] mb-1">Enterprise</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#111111] mb-1">Impresa AI</p>
               <p className="text-sm text-gray-500 mb-4">Imprese oltre 2M € o multi-cantiere</p>
               <div className="flex items-end gap-1 mb-1">
                 <span className="text-5xl font-extrabold text-[#111111]">€{prices.enterprise}</span>
@@ -514,7 +488,7 @@ export default function Prezzi() {
               </div>
               {billing === "annual" && (
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="line-through text-gray-400">€399/mese</span>
+                  <span className="line-through text-gray-400">€547/mese</span>
                   <span className="bg-[#F97415]/10 text-[#F97415] font-semibold px-2 py-0.5 rounded-full text-xs">
                     Risparmi €{savings.enterprise}/anno
                   </span>
@@ -531,22 +505,24 @@ export default function Prezzi() {
               Contattaci
             </Link>
             <div className="space-y-5 flex-1">
-              <p className="text-xs text-gray-500 italic">Tutto di Professional, più:</p>
-              <FeatureGroup title="Extra Enterprise">
-                <Feature label="Utenti illimitati" />
-                <Feature label="API access completo" />
-                <Feature label="Webhook personalizzati" />
-                <Feature label="Report e dashboard custom" />
-                <Feature label="Email marketing: contatti illimitati" />
-                <Feature label="WhatsApp marketing avanzato con automazioni" />
-                <Feature label="Agenti AI personalizzabili" />
-                <Feature label="Fatturazione elettronica SDI nativa" />
-                <Feature label="Integrazione contabilità esterna" />
-                <Feature label="Portale clienti branded (custom domain)" />
-                <Feature label="Supporto dedicato (risposta 1h, H12)" />
-                <Feature label="Consulente del Controllo: 2 call/mese" />
-                <Feature label="Onboarding premium (3 sessioni dedicate)" />
-                <Feature label="SLA garantito 99.9% uptime" />
+              <p className="text-xs text-gray-500 italic">Tutto di Professionista, più:</p>
+              <FeatureGroup title="Extra Impresa AI">
+                <Feature label="Multi-sede" />
+                <Feature label="Banca PSD2 (3 conti)" />
+                <Feature label="Previsionale cassa (365 gg)" />
+                <Feature label="Export XBRL + Archiviazione 10 anni" />
+                <Feature label="20.000 email marketing/mese" />
+                <Feature label="Portale cliente Branded WL" />
+                <Feature label="Render AI (20/mese inclusi)" />
+                <Feature label="Verifica OdA AI" />
+                <Feature label="Agente Vocale AI (200 min inclusi)" />
+                <Feature label="WhatsApp Bot AI incluso" />
+                <Feature label="Agenti AI personalizzati" />
+                <Feature label="100 GB storage" />
+                <Feature label="API REST + Webhook" />
+                <Feature label="SLA 99.9% uptime" />
+                <Feature label="Supporto dedicato (risposta 1h)" />
+                <Feature label="2 call consulente/mese" />
               </FeatureGroup>
             </div>
           </div>
@@ -643,7 +619,7 @@ export default function Prezzi() {
                     <RoiLine label="Margini recuperabili (1.5%)" value={`${fmt(marginiRecuperabili)}/anno`} />
                     <div className="border-t border-[#F97415]/30 my-2" />
                     <RoiLine label="Valore totale annuo" value={`${fmt(valoreAnnuo)}/anno`} bold />
-                    <RoiLine label="Costo Professional/anno" value={fmt(costoProfessionalAnno)} />
+                    <RoiLine label="Costo Professionista/anno" value={fmt(costoProfessionalAnno)} />
                     <div className="border-t border-[#F97415]/30 my-2" />
                     <RoiLine label="ROI stimato" value={`${fmtNum(roi)}%`} highlight />
                     <RoiLine label="Si ripaga in" value={paybackLabel} highlight />
@@ -682,9 +658,9 @@ export default function Prezzi() {
               <thead>
                 <tr className="sticky top-0 z-10 bg-[#111111] text-white">
                   <th className="text-left px-5 py-4 font-semibold w-1/2">Funzionalità</th>
-                  <th className="text-center px-4 py-4 font-semibold">Starter</th>
-                  <th className="text-center px-4 py-4 font-semibold bg-[#F97415]">Professional</th>
-                  <th className="text-center px-4 py-4 font-semibold">Enterprise</th>
+                  <th className="text-center px-4 py-4 font-semibold">Gestionale</th>
+                  <th className="text-center px-4 py-4 font-semibold bg-[#F97415]">Professionista</th>
+                  <th className="text-center px-4 py-4 font-semibold">Impresa AI</th>
                 </tr>
               </thead>
               <tbody>
@@ -720,17 +696,17 @@ export default function Prezzi() {
                   <td className="px-5 py-4" />
                   <td className="px-4 py-4 text-center">
                     <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-4 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
-                      Starter
+                      Gestionale
                     </Link>
                   </td>
                   <td className="px-4 py-4 text-center bg-[#F97415]/5">
                     <Link to="/demo" className="text-xs bg-[#F97415] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#e8650e] transition-colors shadow">
-                      Professional
+                      Professionista
                     </Link>
                   </td>
                   <td className="px-4 py-4 text-center">
                     <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-4 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
-                      Enterprise
+                      Impresa AI
                     </Link>
                   </td>
                 </tr>
@@ -788,7 +764,7 @@ export default function Prezzi() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <TestimonialCard
-              quote="Pagavamo €800/mese per un ERP che non capiva il cantiere. Con Edilizia in Cloud paghiamo €199/mese e finalmente sappiamo quanto guadagniamo su ogni commessa."
+              quote="Pagavamo €800/mese per un ERP che non capiva il cantiere. Con Edilizia in Cloud paghiamo €247/mese e finalmente sappiamo quanto guadagniamo su ogni commessa."
               name="Giuseppe Conti"
               company="Fratelli Conti Costruzioni, Napoli"
             />
@@ -819,7 +795,7 @@ export default function Prezzi() {
               to="/demo"
               className="bg-white text-[#F97415] font-extrabold px-8 py-4 rounded-xl hover:bg-gray-50 transition-colors shadow-lg text-base"
             >
-              Inizia con il Professional
+              Inizia con il Professionista
             </Link>
             <a
               href="https://wa.me/393000000000"
@@ -851,15 +827,15 @@ export default function Prezzi() {
             "name": "Posso provare Edilizia in Cloud gratuitamente?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sì, offriamo una prova gratuita di 14 giorni con prova gratuita. Cancella quando vuoi. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
+              "text": "Sì, offriamo una prova gratuita di 31 giorni con accesso completo. Cancella quando vuoi. Puoi testare tutte le funzionalità del piano Professionista senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
             }
           },
           {
             "@type": "Question",
-            "name": "Cosa succede se supero il numero di cantieri inclusi nel piano Starter?",
+            "name": "Cosa succede se ho bisogno di funzionalità più avanzate del piano Gestionale?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Il piano Starter include fino a 50 commesse attive simultaneamente. Se hai bisogno di gestire più cantieri in parallelo puoi passare al piano Professional (cantieri illimitati) in qualsiasi momento. L'upgrade è immediato e paghi solo la differenza pro-rata del mese in corso."
+              "text": "Tutti i piani includono commesse illimitate. Se hai bisogno di funzionalità avanzate puoi passare al piano Professionista o Impresa AI in qualsiasi momento. L'upgrade è immediato e paghi solo la differenza pro-rata del mese in corso."
             }
           },
           {
@@ -875,7 +851,7 @@ export default function Prezzi() {
             "name": "Posso annullare l'abbonamento in qualsiasi momento?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sì, puoi disdire in qualsiasi momento senza penali. L'abbonamento rimane attivo fino alla fine del periodo già pagato. Offriamo anche una garanzia di rimborso di 30 giorni: se non sei soddisfatto nei primi 30 giorni ti restituiamo l'intero importo pagato, senza domande."
+              "text": "Sì, puoi disdire in qualsiasi momento senza penali. L'abbonamento rimane attivo fino alla fine del periodo già pagato. Offriamo anche una garanzia di rimborso di 31 giorni: se non sei soddisfatto nei primi 31 giorni ti restituiamo l'intero importo pagato, senza domande."
             }
           },
           {
@@ -883,7 +859,7 @@ export default function Prezzi() {
             "name": "È possibile avere un piano personalizzato per grandi aziende?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sì, il piano Enterprise è completamente personalizzabile. Possiamo configurare utenti illimitati, integrazioni custom con i tuoi sistemi esistenti (ERP, contabilità, gestione HR) e un SLA dedicato con tempi di risposta garantiti. Contattaci per un preventivo su misura."
+              "text": "Sì, il piano Impresa AI è completamente personalizzabile. Possiamo configurare utenti illimitati, integrazioni custom con i tuoi sistemi esistenti (ERP, contabilità, gestione HR) e un SLA dedicato con tempi di risposta garantiti. Contattaci per un preventivo su misura."
             }
           }
         ]
@@ -896,11 +872,11 @@ export default function Prezzi() {
             {[
               {
                 q: "Posso provare Edilizia in Cloud gratuitamente?",
-                a: "Sì, offriamo una prova gratuita di 14 giorni con prova gratuita. Puoi testare tutte le funzionalità del piano Professional senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
+                a: "Sì, offriamo una prova gratuita di 31 giorni con accesso completo. Puoi testare tutte le funzionalità del piano Professionista senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
               },
               {
-                q: "Cosa succede se supero il numero di cantieri inclusi nel piano Starter?",
-                a: "Il piano Starter include fino a 50 commesse attive simultaneamente. Se hai bisogno di gestire più cantieri puoi passare al piano Professional in qualsiasi momento. L'upgrade è immediato e paghi solo la differenza pro-rata del mese in corso."
+                q: "Cosa succede se ho bisogno di funzionalità più avanzate del piano Gestionale?",
+                a: "Tutti i piani includono commesse illimitate. Se hai bisogno di funzionalità avanzate puoi passare al piano Professionista o Impresa AI in qualsiasi momento. L'upgrade è immediato e paghi solo la differenza pro-rata del mese in corso."
               },
               {
                 q: "I prezzi includono l'IVA?",
@@ -908,11 +884,11 @@ export default function Prezzi() {
               },
               {
                 q: "Posso annullare l'abbonamento in qualsiasi momento?",
-                a: "Sì, puoi disdire in qualsiasi momento senza penali. L'abbonamento rimane attivo fino alla fine del periodo già pagato. Offriamo anche una garanzia di rimborso di 30 giorni se non sei soddisfatto."
+                a: "Sì, puoi disdire in qualsiasi momento senza penali. L'abbonamento rimane attivo fino alla fine del periodo già pagato. Offriamo anche una garanzia di rimborso di 31 giorni se non sei soddisfatto."
               },
               {
                 q: "È possibile avere un piano personalizzato per grandi aziende?",
-                a: "Sì, il piano Enterprise è completamente personalizzabile: utenti illimitati, integrazioni custom con ERP e sistemi esistenti, SLA dedicato con tempi di risposta garantiti. Contattaci per un preventivo su misura."
+                a: "Sì, il piano Impresa AI è completamente personalizzabile: utenti illimitati, integrazioni custom con ERP e sistemi esistenti, SLA dedicato con tempi di risposta garantiti. Contattaci per un preventivo su misura."
               }
             ].map(({ q, a }) => (
               <details key={q} className="bg-white rounded-xl border border-gray-200 group">

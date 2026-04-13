@@ -87,7 +87,7 @@ export default function ReferralLanding() {
         {/* Benefits */}
         <div className='space-y-3'>
           {[
-            'Prova gratuita di 14 giorni, cancella quando vuoi',
+            'Prova gratuita di 31 giorni, cancella quando vuoi',
             'Setup in meno di 10 minuti',
             'Assistenza in italiano inclusa',
             'Disdetta in qualsiasi momento',

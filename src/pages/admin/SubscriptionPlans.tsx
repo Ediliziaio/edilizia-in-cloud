@@ -44,9 +44,9 @@ const emptyForm: PlanForm = {
   price_monthly: 0,
   price_yearly: 0,
   max_orders: -1,
-  trial_days: 14,
+  trial_days: 31,
   max_users: -1,
-  max_storage_mb: 500,
+  max_storage_mb: 10240,
   features: [],
   is_active: true,
   position: 0,
@@ -210,6 +210,8 @@ export default function SubscriptionPlans() {
   };
 
   const formatLimit = (value: number) => (value === -1 ? "Illimitati" : value.toString());
+  const displayLimit = (val: number) => val === -1 ? '∞ Illimitati' : val.toString();
+  const displayStorage = (mb: number) => mb >= 1024 ? `${Math.round(mb / 1024)} GB` : `${mb} MB`;
 
   if (!saPermissions.can_manage_plans) return <AccessDenied />;
 
@@ -318,15 +320,15 @@ export default function SubscriptionPlans() {
                 <div className="space-y-2 pt-2 border-t">
                   <div className="flex items-center gap-2 text-sm">
                     <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                    <span>{formatLimit(plan.max_orders)} ordini</span>
+                    <span>{displayLimit(plan.max_orders)} ordini</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{formatLimit(plan.max_users)} utenti</span>
+                    <span>{displayLimit(plan.max_users)} utenti</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <HardDrive className="h-4 w-4 text-muted-foreground" />
-                    <span>{plan.max_storage_mb} MB storage</span>
+                    <span>{displayStorage(plan.max_storage_mb)} storage</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <RefreshCw className="h-4 w-4 text-muted-foreground" />

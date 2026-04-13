@@ -61,14 +61,14 @@ const excelRows: { feature: string; excel: TableCell; eic: TableCell }[] = [
   { feature: "Report per il commercialista", excel: { type: "cross" }, eic: { type: "text", text: "PDF e Excel pronti in 1 click" } },
   { feature: "Integrazione fatturazione", excel: { type: "cross" }, eic: { type: "text", text: "SDI nativo, completo" } },
   { feature: "Sicurezza dati", excel: { type: "cross" }, eic: { type: "text", text: "Cloud sicuro, backup automatici" } },
-  { feature: "Costo effettivo", excel: { type: "text", text: '"Gratis" ma 10+ ore/sett sprecate' }, eic: { type: "text", text: "Da 99€/mese, risparmio immediato" } },
+  { feature: "Costo effettivo", excel: { type: "text", text: '"Gratis" ma 10+ ore/sett sprecate' }, eic: { type: "text", text: "Da €127/mese (o €99/mese annuale)" } },
 ];
 
 const erpRows: { feature: string; erp: TableCell; eic: TableCell }[] = [
   { feature: "Costo setup", erp: { type: "text", text: "€5.000 – €50.000" }, eic: { type: "text", text: "Incluso nel piano" } },
   { feature: "Tempo implementazione", erp: { type: "text", text: "3-12 mesi" }, eic: { type: "text", text: "48 ore" } },
   { feature: "Formazione richiesta", erp: { type: "text", text: "2-8 settimane" }, eic: { type: "text", text: "1-2 giorni" } },
-  { feature: "Canone mensile", erp: { type: "text", text: "€500 – €5.000+" }, eic: { type: "text", text: "€99 – €399" } },
+  { feature: "Canone mensile", erp: { type: "text", text: "€500 – €5.000+" }, eic: { type: "text", text: "€127 – €547" } },
   { feature: "Moduli edilizia nativi", erp: { type: "partial" }, eic: { type: "text", text: "100% pensati per edilizia" } },
   { feature: "Supporto in italiano", erp: { type: "text", text: "Ticket, settimane di risposta" }, eic: { type: "text", text: "Telefono/WhatsApp, risposta 2h" } },
   { feature: "Aggiornamenti prodotto", erp: { type: "text", text: "1-2/anno con costi aggiuntivi" }, eic: { type: "text", text: "Mensili, inclusi nel piano" } },
@@ -97,7 +97,7 @@ const concorrentiRows: { feature: string; softA: TableCell; softB: TableCell; ei
   { feature: "Setup in 48h", softA: { type: "cross" }, softB: { type: "check" }, eic: { type: "check" } },
   { feature: "Supporto italiano WhatsApp", softA: { type: "cross" }, softB: { type: "cross" }, eic: { type: "check" } },
   { feature: "Garanzia rimborso", softA: { type: "cross" }, softB: { type: "cross" }, eic: { type: "check" } },
-  { feature: "Prezzo", softA: { type: "text", text: "Da €150/mese" }, softB: { type: "text", text: "Da €200/mese" }, eic: { type: "text", text: "Da €99/mese" } },
+  { feature: "Prezzo", softA: { type: "text", text: "Da €150/mese" }, softB: { type: "text", text: "Da €200/mese" }, eic: { type: "text", text: "Da €127/mese (o €99/mese annuale)" } },
 ];
 
 const faqItems = [
@@ -473,7 +473,7 @@ export default function Confronto() {
                   <p className="text-gray-600">Accesso continuo</p>
                 </li>
                 <li>
-                  <span className="font-semibold">Da €99/mese</span>
+                  <span className="font-semibold">Da €127/mese (o €99/mese annuale)</span>
                   <p className="text-gray-600">Tutto incluso</p>
                 </li>
                 <li>
@@ -550,7 +550,7 @@ export default function Confronto() {
                   </th>
                   <th className="text-center p-4 text-sm font-bold text-[#F97415] bg-[#F97415]/5 border-l-2 border-[#F97415]" style={{ minWidth: "160px" }}>
                     Edilizia in Cloud
-                    <span className="block text-xs font-normal text-[#F97415]/70">da €99/mese</span>
+                    <span className="block text-xs font-normal text-[#F97415]/70">da €127/mese</span>
                   </th>
                 </tr>
               </thead>

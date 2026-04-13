@@ -33,6 +33,7 @@ import { TabSupporto } from "@/components/admin/company/TabSupporto";
 import { TabOnboarding } from "@/components/admin/company/TabOnboarding";
 import { AuditLogTab } from "@/components/admin/company/AuditLogTab";
 import { TabWhiteLabel } from "@/components/admin/company/TabWhiteLabel";
+import { SuperAdminCompanyOverrides } from "@/components/admin/SuperAdminCompanyOverrides";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -46,6 +47,7 @@ export default function CompanyDetail() {
   const [activeTab, setActiveTab] = useState("panoramica");
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
@@ -180,6 +182,19 @@ export default function CompanyDetail() {
         onboardingPct={0}
         daysSinceLastOrder={h.daysSinceLastOrder}
         paymentMethod={h.company.payment_method || "none"}
+      />
+
+      {/* Override Funzionalità - SuperAdmin */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => setOverrideDialogOpen(true)}>
+          <Blocks className="h-4 w-4 mr-2" />
+          Override Funzionalità
+        </Button>
+      </div>
+      <SuperAdminCompanyOverrides
+        company={{ id: h.company.id, name: h.company.name }}
+        open={overrideDialogOpen}
+        onClose={() => setOverrideDialogOpen(false)}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
