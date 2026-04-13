@@ -710,6 +710,9 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
   <meta name="twitter:description" content="${escAttr(description)}"/>
   ${jsonLdScript}
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://ediliziaincloud.com/"}${breadcrumb ? `,${ buildBreadcrumbItems(canonical) }` : ""}]}</script>
+  <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt"/>
+  <link rel="alternate" type="text/plain" title="LLMs Full" href="/llms-full.txt"/>
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml"/>
 </head>
 <body>
   <header>
@@ -739,7 +742,8 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
       <a href="/privacy">Privacy Policy</a> |
       <a href="/termini">Termini di Servizio</a> |
       <a href="/cookie">Cookie Policy</a> |
-      <a href="/sitemap.xml">Sitemap</a>
+      <a href="/sitemap.xml">Sitemap</a> |
+      <a href="/llms.txt">LLMs.txt</a>
     </nav>
   </footer>
 </body>

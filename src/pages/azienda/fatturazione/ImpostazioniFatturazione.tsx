@@ -508,8 +508,8 @@ export default function ImpostazioniFatturazione() {
                   <div className="space-y-2">
                     <Label>Webhook URL (ricezione notifiche)</Label>
                     <div className="flex gap-2">
-                      <Input readOnly value={``${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sdi-webhook``} className="font-mono text-xs bg-muted" />
-                      <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(``${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sdi-webhook``); toast.success("URL copiato"); }}>
+                      <Input readOnly value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sdi-webhook`} className="font-mono text-xs bg-muted" />
+                      <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sdi-webhook`); toast.success("URL copiato"); }}>
                         Copia
                       </Button>
                     </div>
