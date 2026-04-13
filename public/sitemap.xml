@@ -3,12 +3,12 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornato: 2026-04-08 — 120+ URL, 32 articoli, 35 città, 6 confronti -->
+  <!-- Sitemap aggiornato: 2026-04-13 — 104 URL, 32 articoli, 35 città, 6 confronti (rimossi noindex: privacy, termini) -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/</loc>
-    <lastmod>2026-04-04</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/"/>
@@ -16,7 +16,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/funzionalita</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita"/>
@@ -24,7 +24,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/prezzi</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/prezzi"/>
@@ -32,7 +32,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/confronto</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto"/>
@@ -40,7 +40,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/chi-siamo</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/chi-siamo"/>
@@ -48,7 +48,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/demo</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/demo"/>
@@ -58,7 +58,7 @@
   <!-- ── Blog index ───────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/blog</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog"/>
@@ -68,7 +68,7 @@
   <!-- ── Blog category pages ────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/blog/categoria/gestione-cantieri</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/gestione-cantieri"/>
@@ -76,7 +76,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/categoria/finanza-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/finanza-edilizia"/>
@@ -84,7 +84,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/categoria/hr-personale</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/hr-personale"/>
@@ -92,7 +92,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/categoria/marketing-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/marketing-edilizia"/>
@@ -100,7 +100,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/categoria/commerciale-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/commerciale-edilizia"/>
@@ -108,7 +108,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/categoria/digitalizzazione-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/categoria/digitalizzazione-edilizia"/>
@@ -129,7 +129,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/documentazione-obbligatoria-cantiere-2025</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/documentazione-obbligatoria-cantiere-2025"/>
@@ -140,7 +140,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/come-fare-preventivo-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/come-fare-preventivo-edilizia"/>
@@ -151,7 +151,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/alternativa-excel-cantieri</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/alternativa-excel-cantieri"/>
@@ -251,7 +251,7 @@
 
   <url>
     <loc>https://ediliziaincloud.com/blog/sal-cantiere-come-funziona</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/sal-cantiere-come-funziona"/>
@@ -262,7 +262,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/durc-edilizia-guida-completa</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/durc-edilizia-guida-completa"/>
@@ -273,7 +273,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/giornale-dei-lavori-cantiere</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/giornale-dei-lavori-cantiere"/>
@@ -284,7 +284,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/subappalto-edilizia-guida</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/subappalto-edilizia-guida"/>
@@ -295,7 +295,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/acquisire-clienti-impresa-edile</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/acquisire-clienti-impresa-edile"/>
@@ -306,7 +306,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/gestione-operai-cantiere-presenze-ore</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/gestione-operai-cantiere-presenze-ore"/>
@@ -317,7 +317,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/sito-web-impresa-edile-guida</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/sito-web-impresa-edile-guida"/>
@@ -328,7 +328,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/digitalizzazione-impresa-edile-passo-passo</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/digitalizzazione-impresa-edile-passo-passo"/>
@@ -339,7 +339,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/computo-metrico-estimativo-guida</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/computo-metrico-estimativo-guida"/>
@@ -350,7 +350,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/bim-edilizia-guida-pratica</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/bim-edilizia-guida-pratica"/>
@@ -361,7 +361,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/cassa-edile-come-funziona</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/cassa-edile-come-funziona"/>
@@ -372,7 +372,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/appalti-pubblici-edilizia-guida</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/appalti-pubblici-edilizia-guida"/>
@@ -383,7 +383,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/sicurezza-cantieri-dlgs-81</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/sicurezza-cantieri-dlgs-81"/>
@@ -394,7 +394,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/ccnl-edilizia-guida</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/ccnl-edilizia-guida"/>
@@ -405,7 +405,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/attestazione-soa-imprese-edili</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/attestazione-soa-imprese-edili"/>
@@ -416,7 +416,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/superbonus-imprese-edili-2026</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/superbonus-imprese-edili-2026"/>
@@ -427,7 +427,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/gestione-liquidita-impresa-edile</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/gestione-liquidita-impresa-edile"/>
@@ -438,7 +438,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/pnrr-edilizia-imprese-2026</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/pnrr-edilizia-imprese-2026"/>
@@ -449,7 +449,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/come-scegliere-software-gestionale-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/come-scegliere-software-gestionale-edilizia"/>
@@ -460,7 +460,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/blog/gestione-subappaltatori-impresa-edile</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/blog/gestione-subappaltatori-impresa-edile"/>
@@ -473,7 +473,7 @@
   <!-- ── Dedicato a ─────────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/per/imprese-costruzione</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/imprese-costruzione"/>
@@ -481,7 +481,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/impiantisti</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/impiantisti"/>
@@ -489,7 +489,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/ristrutturatori</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/ristrutturatori"/>
@@ -497,7 +497,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/fotovoltaico</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/fotovoltaico"/>
@@ -505,7 +505,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/serramentisti</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/serramentisti"/>
@@ -513,7 +513,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/per/piccole-imprese</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/per/piccole-imprese"/>
@@ -523,7 +523,7 @@
   <!-- ── Funzionalità sub-pages ───────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/funzionalita/gestione-cantieri</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/gestione-cantieri"/>
@@ -531,7 +531,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/funzionalita/fatturazione-elettronica</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/fatturazione-elettronica"/>
@@ -539,7 +539,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/funzionalita/preventivi-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/preventivi-edilizia"/>
@@ -547,7 +547,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/funzionalita/margini-cantiere</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/margini-cantiere"/>
@@ -555,7 +555,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/funzionalita/hr-personale</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/hr-personale"/>
@@ -563,7 +563,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/funzionalita/gestione-subappalti</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/funzionalita/gestione-subappalti"/>
@@ -573,7 +573,7 @@
   <!-- ── Confronto sub-pages ───────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/confronto/vs-primus</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-primus"/>
@@ -581,7 +581,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/confronto/vs-edilnet</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-edilnet"/>
@@ -589,7 +589,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/confronto/vs-teamsystem</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-teamsystem"/>
@@ -597,7 +597,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/confronto/vs-excel</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-excel"/>
@@ -605,7 +605,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/confronto/vs-buildertrend</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/confronto/vs-buildertrend"/>
@@ -615,7 +615,7 @@
   <!-- ── City hub page ───────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia"/>
@@ -625,7 +625,7 @@
   <!-- ── City landing pages (Local SEO) ──────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-milano</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-milano"/>
@@ -633,7 +633,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-roma</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-roma"/>
@@ -641,7 +641,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-torino</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-torino"/>
@@ -649,7 +649,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-napoli</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-napoli"/>
@@ -657,7 +657,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-bologna</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-bologna"/>
@@ -665,7 +665,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-firenze</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-firenze"/>
@@ -673,7 +673,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-genova</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-genova"/>
@@ -681,7 +681,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-palermo</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-palermo"/>
@@ -690,7 +690,7 @@
 
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-bari</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-bari"/>
@@ -698,7 +698,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-verona</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-verona"/>
@@ -706,7 +706,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-brescia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-brescia"/>
@@ -714,7 +714,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-catania</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-catania"/>
@@ -722,7 +722,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-venezia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-venezia"/>
@@ -730,7 +730,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-padova</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-padova"/>
@@ -738,7 +738,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-bergamo</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-bergamo"/>
@@ -746,7 +746,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-modena</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-modena"/>
@@ -754,7 +754,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-reggio-emilia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-reggio-emilia"/>
@@ -762,7 +762,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-parma</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-parma"/>
@@ -770,7 +770,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-salerno</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-salerno"/>
@@ -778,7 +778,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-trieste</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-trieste"/>
@@ -786,7 +786,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-cagliari</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-cagliari"/>
@@ -794,7 +794,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-perugia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-perugia"/>
@@ -802,7 +802,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-ancona</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-ancona"/>
@@ -810,7 +810,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-udine</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-udine"/>
@@ -818,7 +818,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-messina</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-messina"/>
@@ -826,7 +826,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-livorno</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-livorno"/>
@@ -834,7 +834,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-prato</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-prato"/>
@@ -842,7 +842,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-vicenza</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-vicenza"/>
@@ -850,7 +850,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-reggio-calabria</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-reggio-calabria"/>
@@ -858,7 +858,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-foggia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-foggia"/>
@@ -866,7 +866,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-pescara</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-pescara"/>
@@ -874,7 +874,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-taranto</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-taranto"/>
@@ -882,7 +882,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-cosenza</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-cosenza"/>
@@ -890,7 +890,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-trento</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-trento"/>
@@ -898,7 +898,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-bolzano</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-bolzano"/>
@@ -906,7 +906,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/software-gestionale-edilizia-ferrara</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/software-gestionale-edilizia-ferrara"/>
@@ -916,7 +916,7 @@
   <!-- ── Hub pages ──────────────────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/integrazioni</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/integrazioni"/>
@@ -924,7 +924,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/glossario-edilizia</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/glossario-edilizia"/>
@@ -932,7 +932,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/formazione</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/formazione"/>
@@ -940,7 +940,7 @@
   </url>
   <url>
     <loc>https://ediliziaincloud.com/casi-studio</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/casi-studio"/>
@@ -950,25 +950,14 @@
   <!-- ── Partner & referral pages ─────────────────────────────────── -->
   <url>
     <loc>https://ediliziaincloud.com/diventa-partner</loc>
-    <lastmod>2026-04-08</lastmod>
+    <lastmod>2026-04-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://ediliziaincloud.com/diventa-partner"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://ediliziaincloud.com/diventa-partner"/>
   </url>
 
-  <!-- ── Legal pages ─────────────────────────────────────────────── -->
-  <url>
-    <loc>https://ediliziaincloud.com/privacy</loc>
-    <lastmod>2026-04-08</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://ediliziaincloud.com/termini</loc>
-    <lastmod>2026-04-08</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
+  <!-- Legal pages rimossi dalla sitemap: hanno noindex nel componente React -->
+  <!-- /privacy e /termini sono accessibili ma non devono essere indicizzati -->
 
 </urlset>

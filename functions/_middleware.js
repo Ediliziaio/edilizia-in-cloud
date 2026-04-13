@@ -155,6 +155,35 @@ const ROUTES = {
     ],
   },
 
+  "/funzionalita/hr-personale": {
+    title: "Gestione HR e Personale Edile | Edilizia in Cloud",
+    description:
+      "Gestisci presenze cantiere, buste paga, ferie e documentazione del personale edile. Tutto integrato nel gestionale.",
+    h1: "Gestione HR e Personale per Imprese Edili",
+    intro:
+      "Gestisci presenze in cantiere con geolocalizzazione, calcola ore lavorate per commessa, gestisci ferie, permessi e malattie. Tutto collegato alla contabilità cantiere.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
+      { href: "/demo", label: "Richiedi Demo" },
+    ],
+  },
+
+  "/funzionalita/gestione-subappalti": {
+    title: "Gestione Subappalti Edilizia | Edilizia in Cloud",
+    description:
+      "Gestisci contratti, DURC, pagamenti e scadenze dei subappaltatori. Tutto tracciato e sotto controllo nel gestionale.",
+    h1: "Gestione Subappalti per Imprese Edili",
+    intro:
+      "Tieni sotto controllo ogni subappaltatore: contratti, DURC, scadenze assicurative, SAL e pagamenti. Responsabilità solidale gestita senza rischi.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
+      { href: "/blog/subappalto-edilizia-guida", label: "Guida Subappalto" },
+      { href: "/demo", label: "Richiedi Demo" },
+    ],
+  },
+
   "/prezzi": {
     title: "Prezzi Software Gestionale Edilizia | Edilizia in Cloud",
     description:
@@ -213,20 +242,8 @@ const ROUTES = {
       { href: "/blog/alternativa-excel-cantieri", label: "Alternativa Excel per Cantieri" },
       { href: "/demo", label: "Prova Gratis" },
     ],
-    jsonLd: {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: [
-        {
-          "@type": "Question",
-          name: "Quanto costa davvero usare Excel per gestire i cantieri?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Il costo diretto è zero, ma il costo reale è stimato tra €1.500 e €3.000 al mese per un'impresa con 3-5 cantieri attivi, considerando le ore perse in aggiornamenti manuali e le decisioni prese su dati obsoleti.",
-          },
-        },
-      ],
-    },
+    // FAQPage rimosso dal middleware — gestito dal componente React VsExcel.tsx
+    // Evita "Campo duplicato FAQPage" in GSC (Googlebot esegue JS e vede entrambi)
   },
 
   "/confronto/vs-buildertrend": {
@@ -446,6 +463,22 @@ const ROUTES = {
     ],
   },
 
+  "/diventa-partner": {
+    title: "Diventa Partner | Edilizia in Cloud",
+    description:
+      "Diventa partner di Edilizia in Cloud: programma rivenditori, consulenti e studi tecnici. Guadagna ricorrente portando clienti.",
+    h1: "Diventa Partner di Edilizia in Cloud",
+    intro:
+      "Sei un consulente, uno studio tecnico o un rivenditore software? Entra nel programma partner di Edilizia in Cloud: commissioni ricorrenti, formazione gratuita e supporto dedicato.",
+    links: [
+      { href: "/prezzi", label: "Prezzi" },
+      { href: "/demo", label: "Richiedi Demo" },
+      { href: "/chi-siamo", label: "Chi Siamo" },
+    ],
+  },
+
+  // /privacy, /termini, /cookie — noindex nel React, non servire ai bot (passthrough alla SPA)
+
   "/formazione": {
     title: "Formazione e Tutorial | Edilizia in Cloud",
     description:
@@ -642,7 +675,7 @@ const BLOG_CATEGORIES = {
 
 // ─── HTML builder ────────────────────────────────────────────────────────────
 
-function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "" }) {
+function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "", ogType = "website", ogImage = "https://ediliziaincloud.com/og/home.png" }) {
   const jsonLdScript = jsonLd
     ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
     : "";
@@ -669,9 +702,9 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
   <meta property="og:title" content="${escAttr(title)}"/>
   <meta property="og:description" content="${escAttr(description)}"/>
   <meta property="og:url" content="${escAttr(canonical)}"/>
-  <meta property="og:type" content="website"/>
+  <meta property="og:type" content="${escAttr(ogType)}"/>
   <meta property="og:site_name" content="Edilizia in Cloud"/>
-  <meta property="og:image" content="https://ediliziaincloud.com/og/home.png"/>
+  <meta property="og:image" content="${escAttr(ogImage)}"/>
   <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:title" content="${escAttr(title)}"/>
   <meta name="twitter:description" content="${escAttr(description)}"/>
@@ -864,19 +897,51 @@ function resolveRoute(pathname) {
       "pnrr-edilizia-imprese-2026": { title: "PNRR per Imprese Edili 2025-2026: Bandi, Requisiti e Come Partecipare | Blog Edilizia in Cloud", description: "Guida completa al PNRR per le imprese edili: bandi disponibili, requisiti SOA, rendicontazione digitale, SAL asseverati e come organizzarsi per non perdere i pagamenti pubblici." },
       "come-scegliere-software-gestionale-edilizia": { title: "Come Scegliere il Software Gestionale per la Tua Impresa Edile: Guida 2026 | Blog Edilizia in Cloud", description: "Guida pratica alla scelta del software gestionale per imprese edili: funzionalità indispensabili, 10 domande ai vendor, costi reali e errori da evitare." },
       "gestione-subappaltatori-impresa-edile": { title: "Gestione Subappaltatori: Contratti, DURC, Pagamenti e Come Mantenere il Controllo | Blog Edilizia in Cloud", description: "Guida completa alla gestione dei subappaltatori: contratti obbligatori, DURC, responsabilità solidale, limiti subappalto appalti pubblici e software di gestione." },
+      "ridurre-costi-cantieri-edili": { title: "Come Ridurre i Costi Nei Cantieri Edili del 20% con il Digitale | Blog Edilizia in Cloud", description: "Strategie concrete per ridurre i costi di cantiere: digitalizzazione, controllo materiali, gestione squadre e analisi margini in tempo reale." },
+      "gestione-cantieri-digitale": { title: "Gestione Cantieri 2026: Dalla Carta al Cloud — Guida Completa | Blog Edilizia in Cloud", description: "Guida completa alla gestione digitale dei cantieri edili: strumenti, processi e software per passare dalla carta al cloud." },
+      "preventivi-edilizia-guida": { title: "Preventivi Vincenti in Edilizia: Come Strutturare un'Offerta che Converte | Blog Edilizia in Cloud", description: "Come creare preventivi edili professionali che convertono: struttura, margini, presentazione e strumenti digitali." },
+      "hr-edilizia-presenze-buste-paga": { title: "HR in Edilizia: Gestione Presenze, Buste Paga e Conformità CCNL | Blog Edilizia in Cloud", description: "La gestione del personale nelle imprese edili: presenze cantiere, buste paga, CCNL Edilizia e strumenti digitali." },
+      "analisi-margini-imprese-edili": { title: "Analisi dei Margini per Imprese Edili: La Guida Definitiva 2026 | Blog Edilizia in Cloud", description: "Come analizzare i margini per cantiere: confronto preventivo vs consuntivo, costi nascosti e strumenti di controllo." },
+      "marketing-digitale-imprese-edili": { title: "Marketing Digitale per Imprese Edili: Trovare Nuovi Clienti Online nel 2026 | Blog Edilizia in Cloud", description: "Strategie di marketing digitale per imprese edili: SEO locale, Google Ads, social media e preventivi online." },
+      "software-gestionale-vs-excel": { title: "Software Gestionale vs Excel: Il Vero Costo Nascosto per la Tua Impresa Edile | Blog Edilizia in Cloud", description: "Confronto tra software gestionale ed Excel per imprese edili: costi reali, rischi e quando fare il salto." },
+      "digitalizzare-impresa-edile": { title: "Come Digitalizzare la Tua Impresa Edile in 30 Giorni | Blog Edilizia in Cloud", description: "Piano d'azione pratico per digitalizzare un'impresa edile: da Excel al gestionale cloud in 30 giorni." },
+      "come-organizzare-cantiere-edile": { title: "Come Organizzare un Cantiere Edile: Guida Pratica per Titolari | Blog Edilizia in Cloud", description: "Guida pratica all'organizzazione del cantiere edile: pianificazione, squadre, materiali, sicurezza e strumenti digitali." },
+      "documentazione-obbligatoria-cantiere-2025": { title: "Documentazione Obbligatoria Cantiere 2026: Lista Completa | Blog Edilizia in Cloud", description: "Lista completa della documentazione obbligatoria di cantiere per imprese edili: POS, PSC, DVR, DURC e come gestirla digitalmente." },
+      "come-fare-preventivo-edilizia": { title: "Come Fare un Preventivo Edilizia Professionale (Senza Perdere Margine) | Blog Edilizia in Cloud", description: "Come creare un preventivo edilizia professionale: struttura, calcolo margini, errori da evitare e strumenti per velocizzare." },
+      "alternativa-excel-cantieri": { title: "Alternativa a Excel per Cantieri: Perché le Imprese Edili Lo Stanno Abbandonando | Blog Edilizia in Cloud", description: "Perché Excel non basta per gestire i cantieri: limiti, rischi e come passare a un gestionale edile cloud." },
     };
     const meta = POST_META[slug] || {};
+    const articleH1 = meta.h1 || (meta.title ? meta.title.split("|")[0].trim() : "Articolo del Blog");
+    const articleIntro = meta.description || "Guida pratica per titolari di imprese edili.";
+    const articleContent = ""; // Content rendered client-side by React
+    const articleJsonLd = meta.title ? {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: articleH1,
+      description: meta.description || "",
+      url: BASE + pathname,
+      datePublished: meta.publishedAt || "",
+      author: { "@type": "Person", name: "Florin Andriciuc" },
+      publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://ediliziaincloud.com" },
+      image: meta.coverImage || "https://ediliziaincloud.com/og/home.png",
+      keywords: meta.tags ? meta.tags.join(", ") : "",
+      inLanguage: "it",
+    } : null;
     return {
       title: meta.title || "Blog Edilizia | Edilizia in Cloud",
       description: meta.description || "Articoli e guide pratiche per imprese edili italiane.",
       canonical: BASE + pathname,
-      h1: meta.title ? meta.title.split("|")[0].trim() : "Articolo del Blog",
-      intro: meta.description || "Guida pratica per titolari di imprese edili.",
+      h1: articleH1,
+      intro: articleIntro,
+      extra: articleContent,
       links: [
         { href: "/blog", label: "Tutti gli Articoli" },
         { href: "/funzionalita", label: "Funzionalità" },
         { href: "/demo", label: "Richiedi Demo" },
       ],
+      jsonLd: articleJsonLd,
+      ogType: "article",
+      ogImage: meta.coverImage || "https://ediliziaincloud.com/og/home.png",
     };
   }
 

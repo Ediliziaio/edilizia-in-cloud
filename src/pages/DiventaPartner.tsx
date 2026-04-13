@@ -7,8 +7,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Loader2, Send, CheckCircle } from 'lucide-react';
+import { useSEO } from '@/hooks/useSEO';
 
 export default function DiventaPartner() {
+  useSEO({
+    title: "Diventa Partner — Edilizia in Cloud",
+    description: "Entra nel programma partner di Edilizia in Cloud: commissioni ricorrenti, formazione gratuita e supporto dedicato per consulenti, studi tecnici e rivenditori.",
+    canonical: "/diventa-partner",
+    keywords: "partner edilizia in cloud, rivenditore software edilizia, consulente gestionale edile",
+  });
   const [form, setForm] = useState({
     name: '', email: '', phone: '', partner_type: 'referrer',
     network_size: '', notes: '',
