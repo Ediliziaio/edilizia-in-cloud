@@ -180,7 +180,7 @@ function UsageRow({ row }: { row: AIUsageSummary }) {
       <span className="text-xs font-mono font-medium">{EUR.format(row.month_cost_eur)}</span>
       <span className="text-xs text-muted-foreground">{NUM.format(row.month_requests)}</span>
       <span>
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-xs">
           {row.top_provider}
         </Badge>
       </span>

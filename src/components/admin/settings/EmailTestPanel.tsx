@@ -54,7 +54,7 @@ function HistoryRow({ result }: { result: EmailTestResult }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-xs truncate">{result.to}</span>
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-xs">
             {TEMPLATE_LABELS[result.template]}
           </Badge>
         </div>

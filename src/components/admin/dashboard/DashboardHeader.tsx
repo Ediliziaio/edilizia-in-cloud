@@ -21,7 +21,7 @@ export function DashboardHeader({
   children,
 }: DashboardHeaderProps) {
   return (
-    <div className="flex items-start justify-between flex-wrap gap-3">
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
       <div>
         <h1 className="text-2xl font-bold text-foreground">{title}</h1>
         <div className="flex items-center gap-2 mt-0.5">
@@ -29,7 +29,7 @@ export function DashboardHeader({
           {lastUpdatedAt && (
             <Badge
               variant="outline"
-              className="text-[10px] gap-1 font-normal text-muted-foreground"
+              className="text-xs gap-1 font-normal text-muted-foreground"
             >
               <Clock className="h-2.5 w-2.5" />
               {lastUpdatedAt}

@@ -271,11 +271,11 @@ export default function Announcements() {
                     <div className="flex items-center gap-2">
                       <Megaphone className="h-4 w-4 text-muted-foreground" />
                       <h3 className="font-semibold">{a.title}</h3>
-                      <Badge variant={a.is_active ? "default" : "secondary"} className="text-[10px]">
+                      <Badge variant={a.is_active ? "default" : "secondary"} className="text-xs">
                         {a.is_active ? "Attivo" : "Disattivo"}
                       </Badge>
-                      <Badge variant="outline" className="text-[10px]">{typeLabels[a.type] || a.type}</Badge>
-                      <Badge variant="outline" className="text-[10px]">→ {targetLabels[a.target_status] || a.target_status}</Badge>
+                      <Badge variant="outline" className="text-xs">{typeLabels[a.type] || a.type}</Badge>
+                      <Badge variant="outline" className="text-xs">→ {targetLabels[a.target_status] || a.target_status}</Badge>
                     </div>
                     {a.content && <p className="text-sm text-muted-foreground">{a.content}</p>}
                     <p className="text-xs text-muted-foreground">

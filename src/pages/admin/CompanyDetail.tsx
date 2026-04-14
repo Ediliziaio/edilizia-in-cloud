@@ -198,7 +198,7 @@ export default function CompanyDetail() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="flex-wrap h-auto gap-1 p-1">
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1 overflow-x-auto">
           <TabsTrigger value="panoramica" className="gap-1.5">
             <Eye className="h-3.5 w-3.5" /> Panoramica
           </TabsTrigger>
@@ -208,7 +208,7 @@ export default function CompanyDetail() {
           <TabsTrigger value="team" className="gap-1.5">
             <Users className="h-3.5 w-3.5" /> Team
             {totalTeam > 0 && (
-              <span className="ml-0.5 text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded-full">{totalTeam}</span>
+              <span className="ml-0.5 text-xs font-bold bg-muted px-1.5 py-0.5 rounded-full">{totalTeam}</span>
             )}
           </TabsTrigger>
           <TabsTrigger value="saas" className="gap-1.5">

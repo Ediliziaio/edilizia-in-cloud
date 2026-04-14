@@ -231,7 +231,7 @@ export function EmailProviderConfig({ stream }: Props) {
           <div className="flex flex-col items-end gap-1">
             {statusBadge()}
             {connStatus.lastTest && (
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Ultimo test: {new Date(connStatus.lastTest).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
               </span>
             )}

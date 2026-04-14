@@ -260,7 +260,7 @@ export function QuickLoginPopover() {
             grouped.map((group) => (
               <div key={group.role}>
                 <div className="px-3 py-2">
-                  <p className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                  <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {group.label} ({group.users.length})
                   </p>
                 </div>
@@ -286,7 +286,7 @@ export function QuickLoginPopover() {
                             <span className="text-sm font-medium truncate">{fullName}</span>
                             <Badge
                               variant="secondary"
-                              className={`text-[10px] px-1.5 py-0 shrink-0 ${ROLE_COLORS[user.role]}`}
+                              className={`text-xs px-1.5 py-0 shrink-0 ${ROLE_COLORS[user.role]}`}
                             >
                               {ROLE_LABELS[user.role]}
                             </Badge>

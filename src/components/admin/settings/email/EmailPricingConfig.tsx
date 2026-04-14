@@ -214,7 +214,7 @@ export function EmailPricingConfig() {
                     <TableRow key={row.id}>
                       <TableCell>
                         <p className="font-medium text-sm">{row.label || row.provider}</p>
-                        <p className="text-[10px] font-mono text-muted-foreground">{row.provider}</p>
+                        <p className="text-xs font-mono text-muted-foreground">{row.provider}</p>
                       </TableCell>
                       <TableCell>
                         <Input type="number" step={0.00001} min={0} value={row.cost_real_per_email}
@@ -232,7 +232,7 @@ export function EmailPricingConfig() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-[10px]">{marginPct}%</Badge>
+                        <Badge variant="secondary" className="text-xs">{marginPct}%</Badge>
                       </TableCell>
                       <TableCell>
                         <Switch checked={row.is_active} onCheckedChange={(v) => updateRow(row.id, "is_active", v)} />

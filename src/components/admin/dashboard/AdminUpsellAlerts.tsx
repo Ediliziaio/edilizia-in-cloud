@@ -56,7 +56,7 @@ function ChurnRiskSection() {
         <CardTitle className="text-base flex items-center gap-2">
           <Flame className="h-4 w-4 text-destructive" />
           Aziende a Rischio Churn
-          <Badge variant="destructive" className="text-[10px]">{atRisk.length}</Badge>
+          <Badge variant="destructive" className="text-xs">{atRisk.length}</Badge>
         </CardTitle>
         <CardDescription className="text-xs">Health score &lt; 30 — ordinate per churn risk decrescente</CardDescription>
       </CardHeader>
@@ -70,13 +70,13 @@ function ChurnRiskSection() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium truncate">{c.company_name}</span>
-                {c.plan_name && <Badge variant="outline" className="text-[10px] h-4">{c.plan_name}</Badge>}
-                {c.mrr > 0 && <span className="text-[10px] text-muted-foreground">€{c.mrr}/mo</span>}
+                {c.plan_name && <Badge variant="outline" className="text-xs h-4">{c.plan_name}</Badge>}
+                {c.mrr > 0 && <span className="text-xs text-muted-foreground">€{c.mrr}/mo</span>}
               </div>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] text-destructive font-medium">Churn risk: {c.churn_risk}%</span>
+                <span className="text-xs text-destructive font-medium">Churn risk: {c.churn_risk}%</span>
                 {c.signals.length > 0 && (
-                  <span className="text-[10px] text-muted-foreground truncate">· {c.signals.slice(0, 2).join(", ")}</span>
+                  <span className="text-xs text-muted-foreground truncate">· {c.signals.slice(0, 2).join(", ")}</span>
                 )}
               </div>
             </div>
@@ -115,7 +115,7 @@ export function AdminUpsellAlerts({ alerts }: Props) {
         <CardTitle className="text-lg flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           Upsell Alerts
-          <Badge variant="secondary" className="text-[10px]">{alerts.length}</Badge>
+          <Badge variant="secondary" className="text-xs">{alerts.length}</Badge>
         </CardTitle>
         <CardDescription>Tenant che si avvicinano ai limiti del piano (≥70%)</CardDescription>
       </CardHeader>
@@ -132,7 +132,7 @@ export function AdminUpsellAlerts({ alerts }: Props) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium truncate">{alert.companyName}</p>
-                <Badge variant="outline" className="text-[10px] shrink-0">{alert.planName}</Badge>
+                <Badge variant="outline" className="text-xs shrink-0">{alert.planName}</Badge>
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <Progress

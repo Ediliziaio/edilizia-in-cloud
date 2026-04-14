@@ -656,7 +656,7 @@ export default function AdminCRM() {
                               <p className="font-medium text-sm">
                                 {c.first_name} {c.last_name ?? ""}
                                 {c.unsubscribed && (
-                                  <Badge variant="outline" className="ml-1 text-[10px]">disiscritto</Badge>
+                                  <Badge variant="outline" className="ml-1 text-xs">disiscritto</Badge>
                                 )}
                               </p>
                               {c.company_name && (
@@ -693,13 +693,13 @@ export default function AdminCRM() {
                           <TableCell>
                             <div className="flex gap-1 flex-wrap max-w-[150px]">
                               {(c.tags ?? []).slice(0, 3).map((t) => (
-                                <Badge key={t} variant="outline" className="text-[10px]">
+                                <Badge key={t} variant="outline" className="text-xs">
                                   <Tag className="h-2.5 w-2.5 mr-0.5" />
                                   {t}
                                 </Badge>
                               ))}
                               {(c.tags ?? []).length > 3 && (
-                                <Badge variant="outline" className="text-[10px]">+{c.tags.length - 3}</Badge>
+                                <Badge variant="outline" className="text-xs">+{c.tags.length - 3}</Badge>
                               )}
                             </div>
                           </TableCell>

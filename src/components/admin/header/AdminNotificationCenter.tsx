@@ -90,7 +90,7 @@ export function AdminNotificationCenter() {
         <Button variant="ghost" size="icon" className="relative h-8 w-8">
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-4 min-w-[16px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1">
+            <span className="absolute -top-0.5 -right-0.5 h-4 min-w-[16px] rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center px-1">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -134,7 +134,7 @@ export function AdminNotificationCenter() {
                         {!isRead && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
                       </div>
                       {meta.desc && <p className="text-xs text-muted-foreground truncate">{meta.desc}</p>}
-                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">
                         {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: it })}
                       </p>
                     </div>

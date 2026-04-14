@@ -76,7 +76,7 @@ export function CompanyNextActions(props: CompanyNextActionsProps) {
         <div className="flex items-center gap-2 mb-2">
           <Lightbulb className="h-4 w-4 text-amber-600" />
           <span className="text-sm font-semibold">Azioni suggerite</span>
-          <Badge variant="secondary" className="text-[10px]">{actions.length}</Badge>
+          <Badge variant="secondary" className="text-xs">{actions.length}</Badge>
         </div>
         <div className="space-y-1.5">
           {actions.map((action, i) => {

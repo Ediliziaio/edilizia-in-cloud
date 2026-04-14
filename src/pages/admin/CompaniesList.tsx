@@ -934,8 +934,8 @@ export default function CompaniesList() {
         />
       ) : (
         <Card>
-          <CardContent className="p-0">
-            <Table>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table className="min-w-[900px]">
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead className="w-10 px-2">
@@ -1030,7 +1030,7 @@ export default function CompaniesList() {
                             if (!hd) return <span className="text-xs text-muted-foreground">—</span>;
                             const colors: Record<string, string> = { healthy: "bg-green-500/10 text-green-700 border-green-500/30", at_risk: "bg-amber-500/10 text-amber-700 border-amber-500/30", critical: "bg-red-500/10 text-red-700 border-red-500/30" };
                             const labels: Record<string, string> = { healthy: "Healthy", at_risk: "At Risk", critical: "Critical" };
-                            return <Badge variant="outline" className={`text-[10px] ${colors[hd.health]}`}>{labels[hd.health]} {hd.score}</Badge>;
+                            return <Badge variant="outline" className={`text-xs ${colors[hd.health]}`}>{labels[hd.health]} {hd.score}</Badge>;
                           })()}
                         </TableCell>}
                         {col("tags") && <TableCell><CompanyTagsCell companyId={company.id} tags={companyTags[company.id] || []} /></TableCell>}

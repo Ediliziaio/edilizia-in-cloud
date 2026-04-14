@@ -93,12 +93,12 @@ function WebhookRow({
       <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-0 grid grid-cols-4 gap-2 items-center">
         <span className="text-xs text-muted-foreground truncate">{timeAgo}</span>
-        <Badge variant="outline" className="text-[10px] w-fit">
+        <Badge variant="outline" className="text-xs w-fit">
           {log.provider}
         </Badge>
         <span className="text-xs truncate font-mono">{log.event_type}</span>
         <div className="flex items-center gap-2">
-          <Badge variant={cfg.variant} className="text-[10px]">
+          <Badge variant={cfg.variant} className="text-xs">
             {cfg.label}
           </Badge>
           {log.attempts > 1 && (

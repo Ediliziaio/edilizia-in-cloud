@@ -349,7 +349,7 @@ export function SuperAdminCompanyOverrides({
                           : limitsOverride.custom_max_orders}
                         <Badge
                           variant="outline"
-                          className="ml-2 text-[10px] text-amber-600 border-amber-300"
+                          className="ml-2 text-xs text-amber-600 border-amber-300"
                         >
                           Override
                         </Badge>
@@ -415,7 +415,7 @@ export function SuperAdminCompanyOverrides({
                             {flag.is_beta && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300"
+                                className="text-xs px-1.5 py-0 text-amber-600 border-amber-300"
                               >
                                 BETA
                               </Badge>
@@ -424,7 +424,7 @@ export function SuperAdminCompanyOverrides({
                               flag.price_per_month > 0 && (
                                 <Badge
                                   variant="secondary"
-                                  className="text-[10px] px-1.5 py-0"
+                                  className="text-xs px-1.5 py-0"
                                 >
                                   {flag.price_per_month}€/mese
                                 </Badge>
@@ -449,7 +449,7 @@ export function SuperAdminCompanyOverrides({
                         {state.is_enabled && (
                           <div className="grid grid-cols-2 gap-2 pt-1">
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-muted-foreground">
+                              <Label className="text-xs text-muted-foreground">
                                 Scadenza (opzionale)
                               </Label>
                               <Input
@@ -470,7 +470,7 @@ export function SuperAdminCompanyOverrides({
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-muted-foreground">
+                              <Label className="text-xs text-muted-foreground">
                                 Nota override
                               </Label>
                               <Input
@@ -517,7 +517,7 @@ export function SuperAdminCompanyOverrides({
                     companyData.trial_extensions_count > 0 && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] text-amber-600 border-amber-300"
+                        className="text-xs text-amber-600 border-amber-300"
                       >
                         Esteso {companyData.trial_extensions_count} volt
                         {companyData.trial_extensions_count === 1 ? "a" : "e"}
@@ -565,7 +565,7 @@ export function SuperAdminCompanyOverrides({
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Questa nota viene salvata nel log degli audit.
               </p>
             </div>

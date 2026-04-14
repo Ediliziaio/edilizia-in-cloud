@@ -59,7 +59,7 @@ export function CompanyTagsCell({ companyId, tags }: CompanyTagsCellProps) {
         <Badge
           key={t.id}
           variant="outline"
-          className="text-[10px] px-1.5 py-0 gap-0.5 group"
+          className="text-xs px-1.5 py-0 gap-0.5 group"
           style={{ borderColor: t.color, color: t.color }}
         >
           {t.tag}

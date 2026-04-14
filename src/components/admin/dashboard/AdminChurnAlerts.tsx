@@ -88,7 +88,7 @@ export function AdminChurnAlerts() {
               <div className="flex items-center gap-2">
                 <Badge
                   variant={r.health_status === 'critical' ? 'destructive' : 'secondary'}
-                  className="text-[10px]"
+                  className="text-xs"
                 >
                   {r.health_status === 'critical' ? 'Critico' : 'A rischio'} {r.score}
                 </Badge>

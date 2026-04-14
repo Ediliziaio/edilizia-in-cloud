@@ -18,7 +18,7 @@ function MiniDelta({ current, previous, suffix = "" }: { current: number; previo
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${
+      className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
         isUp ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
       }`}
     >
@@ -58,11 +58,11 @@ export function AdminRevenueKPIs({ mrr, arr, nrr, avgLtv, previousMrr }: Props) 
         : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
       border: nrr >= 100 ? "border-l-emerald-500/50" : "border-l-amber-500/50",
       delta: nrr >= 100 ? (
-        <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Eccellente</span>
+        <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Eccellente</span>
       ) : nrr >= 90 ? (
-        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">Attenzione</span>
+        <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Attenzione</span>
       ) : (
-        <span className="text-[11px] font-medium text-destructive">Critico</span>
+        <span className="text-xs font-medium text-destructive">Critico</span>
       ),
     },
     {
@@ -77,7 +77,7 @@ export function AdminRevenueKPIs({ mrr, arr, nrr, avgLtv, previousMrr }: Props) 
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
       {kpis.map((kpi) => (
         <Card key={kpi.title} className={`border-l-[3px] ${kpi.border} overflow-hidden`}>
           <CardContent className="pt-4 pb-3.5">
@@ -91,7 +91,7 @@ export function AdminRevenueKPIs({ mrr, arr, nrr, avgLtv, previousMrr }: Props) 
             </div>
             <p className="text-2xl font-bold tracking-tight text-foreground">{kpi.value}</p>
             <div className="flex items-center justify-between mt-1.5">
-              <p className="text-[11px] text-muted-foreground">{kpi.description}</p>
+              <p className="text-xs text-muted-foreground">{kpi.description}</p>
               {kpi.delta}
             </div>
           </CardContent>

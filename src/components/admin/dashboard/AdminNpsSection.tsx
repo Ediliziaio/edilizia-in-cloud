@@ -40,7 +40,7 @@ function NpsScoreDisplay({ nps }: { nps: number }) {
       <span className={`text-4xl font-bold tabular-nums ${color}`}>{nps}</span>
       <div>
         <Icon className={`h-5 w-5 ${color}`} />
-        <p className="text-[10px] text-muted-foreground mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           {nps >= 50 ? "Eccellente" : nps >= 0 ? "Buono" : "Da migliorare"}
         </p>
       </div>
@@ -232,7 +232,7 @@ export function AdminNpsSection() {
             <div className="flex items-center gap-6">
               <NpsScoreDisplay nps={data!.totalNps} />
               <div className="flex-1 space-y-1.5">
-                <div className="flex gap-1 text-[10px]">
+                <div className="flex gap-1 text-xs">
                   <span className="text-emerald-600 font-medium">{data!.promoters} promotori</span>
                   <span className="text-muted-foreground">·</span>
                   <span className="text-amber-600 font-medium">{data!.passives} passivi</span>
@@ -252,7 +252,7 @@ export function AdminNpsSection() {
                     className="bg-emerald-500 flex-1"
                   />
                 </div>
-                <p className="text-[10px] text-muted-foreground">{data!.totalResponses} risposte totali (6 mesi)</p>
+                <p className="text-xs text-muted-foreground">{data!.totalResponses} risposte totali (6 mesi)</p>
               </div>
             </div>
 
@@ -283,13 +283,13 @@ export function AdminNpsSection() {
                   <div key={f.id} className="flex items-start gap-2 text-xs">
                     <Badge
                       variant="outline"
-                      className={`shrink-0 text-[10px] h-5 ${f.score >= 9 ? "border-emerald-500 text-emerald-600" : f.score >= 7 ? "border-yellow-500 text-yellow-600" : "border-destructive text-destructive"}`}
+                      className={`shrink-0 text-xs h-5 ${f.score >= 9 ? "border-emerald-500 text-emerald-600" : f.score >= 7 ? "border-yellow-500 text-yellow-600" : "border-destructive text-destructive"}`}
                     >
                       {f.score}
                     </Badge>
                     <div className="min-w-0">
                       <p className="text-muted-foreground truncate">{f.feedback_text}</p>
-                      <p className="text-[10px] text-muted-foreground/60">{f.company_name}</p>
+                      <p className="text-xs text-muted-foreground/60">{f.company_name}</p>
                     </div>
                   </div>
                 ))}

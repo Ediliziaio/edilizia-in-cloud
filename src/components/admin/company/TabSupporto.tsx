@@ -83,7 +83,7 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
           <h3 className="text-sm font-medium">
             Supporto
             {openCount > 0 && (
-              <span className="ml-2 inline-flex items-center justify-center h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+              <span className="ml-2 inline-flex items-center justify-center h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold px-1">
                 {openCount}
               </span>
             )}

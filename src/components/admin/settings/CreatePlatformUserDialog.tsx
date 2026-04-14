@@ -84,7 +84,7 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
           <div className="flex items-center gap-2">
             <Icon className={`h-4 w-4 ${iconColor}`} />
             <span className="text-sm font-medium">{label}</span>
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{activeCount}/{totalCount}</Badge>
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">{activeCount}/{totalCount}</Badge>
           </div>
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <Switch checked={allActive} onCheckedChange={handleToggleAll} />
@@ -550,7 +550,7 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
                         <Building className="h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-sm">{c.companyName}</span>
                       </div>
-                      <Badge variant={c.role === "company_admin" ? "default" : "secondary"} className="text-[10px]">
+                      <Badge variant={c.role === "company_admin" ? "default" : "secondary"} className="text-xs">
                         {COMPANY_ROLE_LABELS[c.role] || c.role}
                       </Badge>
                     </div>

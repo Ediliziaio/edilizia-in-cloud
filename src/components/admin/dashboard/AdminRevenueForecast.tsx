@@ -27,15 +27,15 @@ export function AdminRevenueForecast({ currentMrr, forecast, avgMonthlyGrowth, a
         <CardTitle className="text-lg flex items-center gap-2">
           Revenue Forecast
           {isGrowing ? (
-            <Badge variant="default" className="text-[10px] gap-1">
+            <Badge variant="default" className="text-xs gap-1">
               <TrendingUp className="h-3 w-3" /> +{growthPct}%/mese
             </Badge>
           ) : isFlat ? (
-            <Badge variant="secondary" className="text-[10px] gap-1">
+            <Badge variant="secondary" className="text-xs gap-1">
               <Minus className="h-3 w-3" /> Stabile
             </Badge>
           ) : (
-            <Badge variant="destructive" className="text-[10px] gap-1">
+            <Badge variant="destructive" className="text-xs gap-1">
               <TrendingDown className="h-3 w-3" /> {growthPct}%/mese
             </Badge>
           )}
@@ -67,7 +67,7 @@ export function AdminRevenueForecast({ currentMrr, forecast, avgMonthlyGrowth, a
                   </p>
                   <Badge
                     variant={delta >= 0 ? "default" : "destructive"}
-                    className="text-[10px]"
+                    className="text-xs"
                   >
                     {delta >= 0 ? "+" : ""}{deltaPct}%
                   </Badge>

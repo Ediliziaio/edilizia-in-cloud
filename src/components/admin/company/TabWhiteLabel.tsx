@@ -222,11 +222,11 @@ export function TabWhiteLabel({ companyId }: Props) {
                     <div className="font-semibold text-sm">{TIER_LABELS[tier.slug] || tier.slug}</div>
                     <div className="text-xs text-muted-foreground mt-1">€{tier.price_monthly}/mese</div>
                     <div className="flex flex-wrap gap-1 mt-2">
-                      {tier.can_change_logo && <Badge variant="outline" className="text-[10px]">Logo</Badge>}
-                      {tier.can_change_colors && <Badge variant="outline" className="text-[10px]">Colori</Badge>}
-                      {tier.can_custom_domain && <Badge variant="outline" className="text-[10px]">Dominio</Badge>}
-                      {tier.can_hide_powered_by && <Badge variant="outline" className="text-[10px]">No badge</Badge>}
-                      {tier.can_resell && <Badge variant="outline" className="text-[10px]">Resell</Badge>}
+                      {tier.can_change_logo && <Badge variant="outline" className="text-xs">Logo</Badge>}
+                      {tier.can_change_colors && <Badge variant="outline" className="text-xs">Colori</Badge>}
+                      {tier.can_custom_domain && <Badge variant="outline" className="text-xs">Dominio</Badge>}
+                      {tier.can_hide_powered_by && <Badge variant="outline" className="text-xs">No badge</Badge>}
+                      {tier.can_resell && <Badge variant="outline" className="text-xs">Resell</Badge>}
                     </div>
                   </button>
                 ))}
@@ -397,7 +397,7 @@ export function TabWhiteLabel({ companyId }: Props) {
             <div className="space-y-2">
               {auditLog.map((entry: any) => (
                 <div key={entry.id} className="flex items-center gap-3 text-sm py-1.5 border-b last:border-0">
-                  <Badge variant="outline" className="text-[10px] shrink-0">{entry.action}</Badge>
+                  <Badge variant="outline" className="text-xs shrink-0">{entry.action}</Badge>
                   <span className="text-muted-foreground">
                     {(entry.actor as any)?.first_name} {(entry.actor as any)?.last_name}
                   </span>

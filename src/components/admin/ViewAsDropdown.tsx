@@ -210,7 +210,7 @@ export function ViewAsDropdown() {
             {inAppUsers.length > 0 && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wider py-1">
+                <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider py-1">
                   Vista nel pannello
                 </DropdownMenuLabel>
                 {groupWithLimit(inAppUsers).map((item, idx) => {
@@ -232,7 +232,7 @@ export function ViewAsDropdown() {
                       <span className="flex-1 min-w-0">
                         <span className="block text-sm font-medium truncate">{fullName(u)}</span>
                       </span>
-                      <Badge variant="secondary" className="text-[10px] shrink-0">
+                      <Badge variant="secondary" className="text-xs shrink-0">
                         {ROLE_LABELS[u.role] ?? u.role}
                       </Badge>
                     </DropdownMenuItem>
@@ -245,7 +245,7 @@ export function ViewAsDropdown() {
             {portalUsers.length > 0 && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wider py-1 flex items-center gap-1.5">
+                <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider py-1 flex items-center gap-1.5">
                   Portali separati
                   <ExternalLink className="h-2.5 w-2.5" />
                 </DropdownMenuLabel>
@@ -270,7 +270,7 @@ export function ViewAsDropdown() {
                       <span className="flex-1 min-w-0">
                         <span className="block text-sm font-medium truncate">{fullName(u)}</span>
                       </span>
-                      <Badge variant="outline" className="text-[10px] shrink-0 flex items-center gap-1">
+                      <Badge variant="outline" className="text-xs shrink-0 flex items-center gap-1">
                         {isThisLoading ? (
                           <Loader2 className="h-2.5 w-2.5 animate-spin" />
                         ) : (

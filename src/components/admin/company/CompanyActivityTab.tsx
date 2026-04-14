@@ -135,7 +135,7 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium truncate">{event.action}</span>
-                      <Badge variant="outline" className="text-[10px] shrink-0">{typeLabels[event.type]}</Badge>
+                      <Badge variant="outline" className="text-xs shrink-0">{typeLabels[event.type]}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{event.details}</p>
                   </div>

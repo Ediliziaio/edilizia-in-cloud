@@ -160,7 +160,7 @@ function SmsPacchettiEditor() {
           <div key={p.id} className={`flex items-center justify-between border rounded-lg p-3 ${!p.attivo ? "opacity-50" : ""}`}>
             <div>
               <span className="font-medium">{p.nome}</span>
-              {p.evidenziato && <Badge className="ml-2 text-[10px]">Consigliato</Badge>}
+              {p.evidenziato && <Badge className="ml-2 text-xs">Consigliato</Badge>}
               <p className="text-xs text-muted-foreground">
                 €{p.importo_eur} · {p.crediti_eur} crediti
                 {p.bonus_percentuale > 0 && ` · +${p.bonus_percentuale}% bonus`}

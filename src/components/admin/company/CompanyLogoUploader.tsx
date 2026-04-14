@@ -270,8 +270,8 @@ export function CompanyLogoUploader({ company, onLogoUpdated }: CompanyLogoUploa
         >
           <Upload className="h-5 w-5 mx-auto mb-1" />
           <p className="text-xs font-medium">Trascina qui o clicca per selezionare</p>
-          <p className="text-[10px] mt-0.5">PNG · JPG · WEBP · GIF — max 10 MB</p>
-          <p className="text-[10px] text-primary/70 mt-0.5">Ridimensionato automaticamente a 400×400 WebP</p>
+          <p className="text-xs mt-0.5">PNG · JPG · WEBP · GIF — max 10 MB</p>
+          <p className="text-xs text-primary/70 mt-0.5">Ridimensionato automaticamente a 400×400 WebP</p>
         </div>
 
         <input

@@ -134,14 +134,14 @@ export default function AdminSettingsWebhooks() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{w.name}</span>
                     {w.failure_count > 3 && (
-                      <Badge variant="destructive" className="text-[10px]">
+                      <Badge variant="destructive" className="text-xs">
                         {w.failure_count} errori
                       </Badge>
                     )}
                     {w.last_status_code != null && (
                       <Badge
                         variant={w.last_status_code < 300 ? 'secondary' : 'destructive'}
-                        className="text-[10px]"
+                        className="text-xs"
                       >
                         HTTP {w.last_status_code}
                       </Badge>
@@ -150,7 +150,7 @@ export default function AdminSettingsWebhooks() {
                   <p className="text-xs text-muted-foreground font-mono">{w.url}</p>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {w.events.map((e) => (
-                      <Badge key={e} variant="outline" className="text-[10px]">
+                      <Badge key={e} variant="outline" className="text-xs">
                         {e}
                       </Badge>
                     ))}

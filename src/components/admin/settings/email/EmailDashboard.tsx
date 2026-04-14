@@ -187,7 +187,7 @@ export function EmailDashboard() {
                   <span className="text-xs text-muted-foreground">{kpi.label}</span>
                 </div>
                 <p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">{kpi.description}</p>
+                <p className="text-xs text-muted-foreground mt-1">{kpi.description}</p>
               </CardContent>
             </Card>
           ))}
@@ -216,9 +216,9 @@ export function EmailDashboard() {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-sm font-semibold">{formatEur(c.total_spent)}</p>
-                      <p className="text-[10px] text-muted-foreground">spesi</p>
+                      <p className="text-xs text-muted-foreground">spesi</p>
                     </div>
-                    <Badge variant={c.balance > 0 ? "default" : "destructive"} className="text-[10px]">
+                    <Badge variant={c.balance > 0 ? "default" : "destructive"} className="text-xs">
                       {formatEur(c.balance)} saldo
                     </Badge>
                   </div>

@@ -253,7 +253,7 @@ export function CompanyOverviewTab({
             </div>
             <div className="mt-1 flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Ticket aperti:</span>
-              <Badge variant={stats?.openTicketsCount ? "destructive" : "secondary"} className="text-[10px] h-4 px-1.5">
+              <Badge variant={stats?.openTicketsCount ? "destructive" : "secondary"} className="text-xs h-4 px-1.5">
                 {stats?.openTicketsCount || 0}
               </Badge>
             </div>
@@ -391,7 +391,7 @@ export function CompanyOverviewTab({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] h-4 px-1 shrink-0">{item.type}</Badge>
+                        <Badge variant="outline" className="text-xs h-4 px-1 shrink-0">{item.type}</Badge>
                         <span className="text-xs text-muted-foreground">
                           {formatDistanceToNow(new Date(item.date), { addSuffix: true, locale: it })}
                         </span>

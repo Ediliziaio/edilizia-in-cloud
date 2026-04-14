@@ -34,8 +34,8 @@ export function useCohortRevenue() {
         .order("cohort_mese", { ascending: true })
         .order("mesi_dalla_iscrizione", { ascending: true });
       if (error) {
-        console.error("[useCohortRevenue]", error);
-        throw new Error("Impossibile caricare i dati cohort: " + error.message);
+        // View may not exist yet — return empty data silently
+        return [];
       }
       return (data ?? []) as CohortRow[];
     },

@@ -228,7 +228,7 @@ export function CompanyAddonsSection({ company }: CompanyAddonsSectionProps) {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium">Messaggistica Beta</span>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300">BETA</Badge>
+                    <Badge variant="outline" className="text-xs px-1.5 py-0 text-amber-600 border-amber-300">BETA</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">Accesso anticipato alla messaggistica interna.</p>
                 </div>

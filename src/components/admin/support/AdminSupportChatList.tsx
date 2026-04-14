@@ -307,12 +307,12 @@ export function AdminSupportChatList() {
   const getAgingBadge = (hours: number, unanswered: boolean) => {
     if (!unanswered) return null;
     if (hours > 48) return (
-      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-500/10 text-red-700 border-red-500/30 dark:text-red-300 gap-0.5">
+      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-red-500/10 text-red-700 border-red-500/30 dark:text-red-300 gap-0.5">
         <Clock className="h-2.5 w-2.5" /> {Math.floor(hours)}h
       </Badge>
     );
     if (hours > 24) return (
-      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300 gap-0.5">
+      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300 gap-0.5">
         <Clock className="h-2.5 w-2.5" /> {Math.floor(hours)}h
       </Badge>
     );
@@ -415,21 +415,21 @@ export function AdminSupportChatList() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{conv.companyName}</p>
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusColors[conv.status]}`}>
+                    <Badge variant="outline" className={`text-xs px-1.5 py-0 ${statusColors[conv.status]}`}>
                       {statusLabels[conv.status]}
                     </Badge>
                     {conv.priority === "urgent" && (
-                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0 gap-0.5">
+                      <Badge variant="destructive" className="text-xs px-1.5 py-0 gap-0.5">
                         <Flame className="h-3 w-3" /> Urgente
                       </Badge>
                     )}
                     {conv.priority === "high" && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 border-orange-300 text-orange-700 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800">
+                      <Badge variant="outline" className="text-xs px-1.5 py-0 gap-0.5 border-orange-300 text-orange-700 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800">
                         <AlertTriangle className="h-3 w-3" /> Alta
                       </Badge>
                     )}
                     {conv.unansweredByAdmin && conv.status !== "resolved" && conv.status !== "closed" && (
-                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                      <Badge variant="destructive" className="text-xs px-1.5 py-0">
                         Da rispondere
                       </Badge>
                     )}
@@ -444,7 +444,7 @@ export function AdminSupportChatList() {
                       };
                       const sla = getSLAStatus(slaData);
                       return (
-                        <Badge variant={sla.variant} className="text-[10px]">
+                        <Badge variant={sla.variant} className="text-xs">
                           {sla.label}
                         </Badge>
                       );
@@ -493,7 +493,7 @@ export function AdminSupportChatList() {
                   <span className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(conv.lastMessageDate), { addSuffix: true, locale: it })}
                   </span>
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-xs">
                     {conv.totalMessages} msg
                   </Badge>
                 </div>

@@ -103,7 +103,7 @@ function StatusBadge({ status, expiresAt }: { status: BankingOverviewRow["connec
 
   if (isExpiringSoon) {
     return (
-      <Badge variant="outline" className="border-amber-500 text-amber-600 text-[10px]">
+      <Badge variant="outline" className="border-amber-500 text-amber-600 text-xs">
         <Clock className="h-3 w-3 mr-1" />
         In scadenza
       </Badge>
@@ -111,7 +111,7 @@ function StatusBadge({ status, expiresAt }: { status: BankingOverviewRow["connec
   }
 
   return (
-    <Badge variant={cfg.variant} className="text-[10px]">
+    <Badge variant={cfg.variant} className="text-xs">
       <cfg.icon className="h-3 w-3 mr-1" />
       {cfg.label}
     </Badge>
@@ -143,7 +143,7 @@ function BankingRow({ row }: { row: BankingOverviewRow }) {
       <span className="text-xs text-muted-foreground">{lastSyncFormatted}</span>
       <span className="text-xs text-center">
         {row.accounts_count > 0 ? (
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-xs">
             {row.accounts_count}
           </Badge>
         ) : (

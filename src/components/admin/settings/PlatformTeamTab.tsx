@@ -139,10 +139,10 @@ export default function PlatformTeamTab() {
     return (
       <div className="flex flex-wrap gap-1">
         {activePerms.slice(0, 3).map((p) => (
-          <Badge key={p} variant="outline" className="text-[10px] px-1.5 py-0">{p}</Badge>
+          <Badge key={p} variant="outline" className="text-xs px-1.5 py-0">{p}</Badge>
         ))}
         {activePerms.length > 3 && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">+{activePerms.length - 3}</Badge>
+          <Badge variant="secondary" className="text-xs px-1.5 py-0">+{activePerms.length - 3}</Badge>
         )}
       </div>
     );
@@ -166,7 +166,7 @@ export default function PlatformTeamTab() {
           <Card key={rc.role}>
             <CardContent className="pt-4 pb-3 px-4">
               <div className="text-2xl font-bold">{rc.count}</div>
-              <Badge className={`${rc.colorClass} text-[10px] mt-1`}>{rc.label}</Badge>
+              <Badge className={`${rc.colorClass} text-xs mt-1`}>{rc.label}</Badge>
             </CardContent>
           </Card>
         ))}
@@ -212,7 +212,7 @@ export default function PlatformTeamTab() {
                         </Avatar>
                         <div>
                           <span className="font-medium">{u.first_name} {u.last_name}</span>
-                          {u.id === user?.id && <Badge variant="secondary" className="ml-2 text-[10px]">Tu</Badge>}
+                          {u.id === user?.id && <Badge variant="secondary" className="ml-2 text-xs">Tu</Badge>}
                         </div>
                       </div>
                     </TableCell>

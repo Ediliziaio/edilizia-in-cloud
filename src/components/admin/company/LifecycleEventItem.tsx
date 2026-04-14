@@ -137,7 +137,7 @@ export function LifecycleEventItem({ event, isLast }: LifecycleEventItemProps) {
         {(event.old_status || event.new_status) && (
           <div className="flex items-center gap-1 mt-1.5 flex-wrap">
             {event.old_status && (
-              <Badge variant="outline" className="text-[11px] text-muted-foreground">
+              <Badge variant="outline" className="text-xs text-muted-foreground">
                 {event.old_status}
               </Badge>
             )}
@@ -145,7 +145,7 @@ export function LifecycleEventItem({ event, isLast }: LifecycleEventItemProps) {
               <span className="text-muted-foreground text-xs">→</span>
             )}
             {event.new_status && (
-              <Badge variant="outline" className={`text-[11px] ${cfg.className}`}>
+              <Badge variant="outline" className={`text-xs ${cfg.className}`}>
                 {event.new_status}
               </Badge>
             )}

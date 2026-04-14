@@ -153,7 +153,7 @@ export function AdminDunning({ healthScores }: AdminDunningProps) {
                   </span>
                   {c.dunning_status !== "none" && (
                     <Badge
-                      className={`text-[10px] shrink-0 border ${
+                      className={`text-xs shrink-0 border ${
                         DUNNING_BADGE_CLASS[c.dunning_status] ?? ""
                       }`}
                     >
@@ -179,7 +179,7 @@ export function AdminDunning({ healthScores }: AdminDunningProps) {
                   className="flex items-center justify-between text-sm"
                 >
                   <span className="truncate">{c.companyName}</span>
-                  <Badge variant="destructive" className="text-[10px]">
+                  <Badge variant="destructive" className="text-xs">
                     Score {c.score}
                   </Badge>
                 </div>

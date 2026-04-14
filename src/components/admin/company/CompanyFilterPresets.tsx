@@ -47,7 +47,7 @@ export function CompanyFilterPresets({ activePreset, onClearPreset, presets }: C
             <Badge
               variant="secondary"
               className={cn(
-                "ml-0.5 h-4 min-w-[16px] px-1 text-[10px] font-bold",
+                "ml-0.5 h-4 min-w-[16px] px-1 text-xs font-bold",
                 isActive ? "bg-primary-foreground/20 text-primary-foreground" : ""
               )}
             >

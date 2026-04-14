@@ -127,7 +127,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
             <p className="text-sm font-semibold">
               {planInfo ? formatCurrency(planInfo.price_monthly) + "/mese" : <span className="text-muted-foreground font-normal">Nessun piano</span>}
             </p>
-            {planInfo && <p className="text-[10px] text-muted-foreground">{planInfo.name}</p>}
+            {planInfo && <p className="text-xs text-muted-foreground">{planInfo.name}</p>}
           </div>
         </div>
 
@@ -138,7 +138,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Stato</p>
-            <Badge variant="outline" className={`text-[11px] mt-0.5 ${statusBadge.className}`}>{statusBadge.label}</Badge>
+            <Badge variant="outline" className={`text-xs mt-0.5 ${statusBadge.className}`}>{statusBadge.label}</Badge>
           </div>
         </div>
 
@@ -229,7 +229,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
           <div className="flex items-center gap-2 mb-2">
             <Activity className="h-4 w-4 text-amber-600" />
             <span className="text-xs font-semibold">Azioni suggerite</span>
-            <Badge variant="secondary" className="text-[10px]">{nextActions.length}</Badge>
+            <Badge variant="secondary" className="text-xs">{nextActions.length}</Badge>
           </div>
           <div className="flex flex-wrap gap-2">
             {nextActions.map((action, i) => {
@@ -252,7 +252,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">Health Score</span>
-              <Badge variant="outline" className="text-[10px]">{hd.score}/100</Badge>
+              <Badge variant="outline" className="text-xs">{hd.score}/100</Badge>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
@@ -277,7 +277,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
           </TooltipProvider>
           <div className="flex gap-3 mt-1.5">
             {healthBreakdown.map((f, i) => (
-              <span key={i} className="text-[10px] text-muted-foreground">{f.label}: {f.score}/{f.maxScore}</span>
+              <span key={i} className="text-xs text-muted-foreground">{f.label}: {f.score}/{f.maxScore}</span>
             ))}
           </div>
         </div>
@@ -292,7 +292,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-2 rounded-lg border bg-card p-3">
           {businessFields.map((f) => (
             <div key={f.label}>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{f.label}</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">{f.label}</p>
               <p className="text-xs font-medium truncate">{f.value}</p>
             </div>
           ))}
@@ -314,7 +314,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
           {latestNote ? (
             <div>
               <p className="text-xs text-foreground line-clamp-2">{latestNote.content}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {latestNote.authorName} · {format(new Date(latestNote.created_at), "dd MMM yyyy, HH:mm", { locale: it })}
               </p>
             </div>

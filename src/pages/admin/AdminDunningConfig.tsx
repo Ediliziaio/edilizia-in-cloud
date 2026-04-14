@@ -311,10 +311,10 @@ export default function AdminDunningConfig() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm">{step.label}</span>
                     {step.day === 0 && (
-                      <Badge variant="outline" className="text-[10px]">Trigger: payment_failed</Badge>
+                      <Badge variant="outline" className="text-xs">Trigger: payment_failed</Badge>
                     )}
                     {step.isAction && (
-                      <Badge variant="outline" className="text-[10px] border-red-300">Azione automatica</Badge>
+                      <Badge variant="outline" className="text-xs border-red-300">Azione automatica</Badge>
                     )}
                   </div>
                   <p className="text-xs opacity-75 mt-0.5">{step.description}</p>

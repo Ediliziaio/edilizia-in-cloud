@@ -49,7 +49,7 @@ function OnboardingProgress({ steps }: { steps: OnboardingStep[] }) {
       <Progress value={pct} className="h-2" />
       <div className="flex flex-wrap gap-1.5 mt-1">
         {steps.map((s) => (
-          <Badge key={s.key} variant={s.done ? "default" : "outline"} className="text-[10px] gap-1">
+          <Badge key={s.key} variant={s.done ? "default" : "outline"} className="text-xs gap-1">
             {s.done ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3 text-muted-foreground" />}
             {s.label}
           </Badge>
@@ -112,7 +112,7 @@ function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { 
           +{days}gg
         </Button>
         {extensionsCount > 0 && (
-          <Badge variant={extensionsCount >= 3 ? "destructive" : "secondary"} className="text-[10px]">
+          <Badge variant={extensionsCount >= 3 ? "destructive" : "secondary"} className="text-xs">
             {extensionsCount}x
           </Badge>
         )}
@@ -244,7 +244,7 @@ export default function CompanyLifecycle() {
                                   {daysLeft > 0 ? `${daysLeft}gg rimanenti` : "Scaduto"}
                                 </span>
                               )}
-                              <Badge variant={company.health === "healthy" ? "default" : company.health === "at_risk" ? "secondary" : "destructive"} className="text-[10px]">
+                              <Badge variant={company.health === "healthy" ? "default" : company.health === "at_risk" ? "secondary" : "destructive"} className="text-xs">
                                 Score: {company.score}
                               </Badge>
                             </div>
@@ -286,7 +286,7 @@ export default function CompanyLifecycle() {
                             {company.companyName}
                           </Link>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant={company.health === "healthy" ? "default" : company.health === "at_risk" ? "secondary" : "destructive"} className="text-[10px]">
+                            <Badge variant={company.health === "healthy" ? "default" : company.health === "at_risk" ? "secondary" : "destructive"} className="text-xs">
                               Score: {company.score}
                             </Badge>
                             <span>{company.orderCount} ordini</span>
@@ -324,7 +324,7 @@ export default function CompanyLifecycle() {
                             {company.companyName}
                           </Link>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant="destructive" className="text-[10px]">Sospeso</Badge>
+                            <Badge variant="destructive" className="text-xs">Sospeso</Badge>
                             <span>{company.orderCount} ordini</span>
                           </div>
                         </div>
@@ -370,7 +370,7 @@ export default function CompanyLifecycle() {
                               {company.trialEndsAt && (
                                 <span>Scaduto il {format(new Date(company.trialEndsAt), "d MMM yyyy", { locale: it })}</span>
                               )}
-                              <Badge variant="destructive" className="text-[10px]">Score: {company.score}</Badge>
+                              <Badge variant="destructive" className="text-xs">Score: {company.score}</Badge>
                             </div>
                           </div>
                         </div>

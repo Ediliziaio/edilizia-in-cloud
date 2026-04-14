@@ -23,7 +23,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${
+      className={`inline-flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-full ${
         isPositive
           ? "text-emerald-700 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-950/40"
           : isNeutral
@@ -118,7 +118,7 @@ export function AdminStatCards({ stats, previousStats }: Props) {
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+    <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
       {statCards.map((stat) => (
         <Card
           key={stat.title}
@@ -138,8 +138,8 @@ export function AdminStatCards({ stats, previousStats }: Props) {
               <p className="text-3xl font-bold tracking-tight text-foreground">
                 {typeof stat.value === "string" ? stat.value : stat.value.toLocaleString("it-IT")}
               </p>
-              <p className="text-xs font-medium text-muted-foreground">{stat.title}</p>
-              <p className="text-[11px] text-muted-foreground/70">{stat.description}</p>
+              <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+              <p className="text-xs text-muted-foreground/70">{stat.description}</p>
             </div>
           </CardContent>
         </Card>

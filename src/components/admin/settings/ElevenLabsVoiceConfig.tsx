@@ -76,16 +76,16 @@ function VoiceRow({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{voice.name}</span>
           {isDefault && (
-            <Badge className="gap-1 text-[10px]">
+            <Badge className="gap-1 text-xs">
               <Star className="h-3 w-3" /> Default
             </Badge>
           )}
           {voice.gender && (
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="text-xs">
               {GENDER_LABELS[voice.gender] ?? voice.gender}
             </Badge>
           )}
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-xs">
             {voice.language.toUpperCase()}
           </Badge>
         </div>

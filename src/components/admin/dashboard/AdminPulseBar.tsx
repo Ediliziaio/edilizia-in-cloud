@@ -89,24 +89,24 @@ export function AdminPulseBar() {
   ];
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
       <div className="flex items-center gap-1.5 mr-1">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
         </span>
-        <span className="text-[11px] font-medium text-muted-foreground">Live</span>
+        <span className="text-xs font-medium text-muted-foreground">Live</span>
       </div>
       {metrics.map((m) => (
         <Badge
           key={m.label}
-          variant="secondary"
-          className={`text-[11px] font-normal gap-1 px-2.5 py-1 ${
-            m.highlight ? "border-primary/20 bg-primary/5" : ""
+          variant="outline"
+          className={`text-xs font-normal gap-1.5 px-3 py-1.5 bg-background shadow-sm ${
+            m.highlight ? "border-primary/30 bg-primary/5" : "border-border"
           }`}
         >
-          <m.icon className="h-3 w-3 text-muted-foreground" />
-          <span className="text-muted-foreground">{m.label}:</span>
+          <m.icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className="text-muted-foreground whitespace-nowrap">{m.label}:</span>
           <span className="font-semibold text-foreground">
             {m.value}
             {"suffix" in m && m.suffix}

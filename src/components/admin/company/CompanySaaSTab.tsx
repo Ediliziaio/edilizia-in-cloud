@@ -275,11 +275,11 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{flag.name}</span>
                             {flag.is_beta && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300">
+                              <Badge variant="outline" className="text-xs px-1.5 py-0 text-amber-600 border-amber-300">
                                 BETA
                               </Badge>
                             )}
-                            <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${sourceBadgeClass}`}>
+                            <Badge variant="secondary" className={`text-xs px-1.5 py-0 ${sourceBadgeClass}`}>
                               {source}
                             </Badge>
                           </div>
@@ -329,7 +329,7 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
               <p className="text-muted-foreground">Storage usato</p>
               <p className="text-lg font-bold">{storageData?.storageMb ?? 0} MB</p>
               {(storageData?.storageMb ?? 0) > 400 && (
-                <Badge variant="destructive" className="text-[10px] mt-1">
+                <Badge variant="destructive" className="text-xs mt-1">
                   Vicino al limite (500 MB)
                 </Badge>
               )}

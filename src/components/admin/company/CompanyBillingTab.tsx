@@ -293,8 +293,8 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">{label}</span>
-                    {!isEnabled && <Badge variant="destructive" className="text-[10px]">Disabilitato</Badge>}
-                    {isFree && <Badge className="text-[10px] bg-emerald-100 text-emerald-700">Gratuito</Badge>}
+                    {!isEnabled && <Badge variant="destructive" className="text-xs">Disabilitato</Badge>}
+                    {isFree && <Badge className="text-xs bg-emerald-100 text-emerald-700">Gratuito</Badge>}
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
@@ -316,7 +316,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Prezzo unitario (€)</Label>
+                    <Label className="text-xs text-muted-foreground">Prezzo unitario (€)</Label>
                     <Input
                       type="number"
                       step="0.0001"
@@ -330,7 +330,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Markup (×)</Label>
+                    <Label className="text-xs text-muted-foreground">Markup (×)</Label>
                     <Input
                       type="number"
                       step="0.1"
@@ -344,7 +344,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Fee mensile (€)</Label>
+                    <Label className="text-xs text-muted-foreground">Fee mensile (€)</Label>
                     <Input
                       type="number"
                       step="1"
@@ -358,7 +358,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Note interne</Label>
+                    <Label className="text-xs text-muted-foreground">Note interne</Label>
                     <Input
                       placeholder="—"
                       defaultValue={override?.custom_notes ?? ""}
@@ -387,7 +387,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             <div className="flex-1 space-y-1.5">
               <Label className="text-xs text-muted-foreground">
                 Limite ordini personalizzato
-                <span className="ml-1 text-[10px] text-muted-foreground/60">(vuoto = usa il limite del piano)</span>
+                <span className="ml-1 text-xs text-muted-foreground/60">(vuoto = usa il limite del piano)</span>
               </Label>
               <Input
                 type="number"
@@ -423,7 +423,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
               </Button>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-2">
+          <p className="text-xs text-muted-foreground mt-2">
             Sovrascrive il limite ordini del piano per questa azienda. Impostare a -1 per illimitato.
           </p>
         </CardContent>
@@ -561,7 +561,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                         {format(new Date(adj.created_at), "dd/MM/yy HH:mm", { locale: it })}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-[10px]">{adj.service}</Badge>
+                        <Badge variant="secondary" className="text-xs">{adj.service}</Badge>
                       </TableCell>
                       <TableCell className={`font-mono font-semibold ${adj.amount_eur >= 0 ? "text-emerald-600" : "text-destructive"}`}>
                         {adj.amount_eur >= 0 ? "+" : ""}{formatCurrency(adj.amount_eur)}

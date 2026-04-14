@@ -176,7 +176,7 @@ export default function MultiCompanyUsersTab() {
                           <p className="font-medium text-sm truncate">{u.first_name} {u.last_name}</p>
                           <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                         </div>
-                        <Badge variant="secondary" className="text-[10px] shrink-0">{u.accesses.length} az.</Badge>
+                        <Badge variant="secondary" className="text-xs shrink-0">{u.accesses.length} az.</Badge>
                       </button>
                     ))}
                   </div>

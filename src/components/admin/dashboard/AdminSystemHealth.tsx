@@ -116,7 +116,7 @@ export function AdminSystemHealth() {
           <Activity className="h-4 w-4 text-muted-foreground" />
           System Health
           {!isLoading && (
-            <Badge variant={overallHealthy ? "default" : "destructive"} className="text-[10px] ml-auto">
+            <Badge variant={overallHealthy ? "default" : "destructive"} className="text-xs ml-auto">
               {overallHealthy ? "Operativo" : "Problemi"}
             </Badge>
           )}
@@ -143,28 +143,28 @@ export function AdminSystemHealth() {
                   )}
                 </div>
                 <p className="text-xl font-bold">{data?.successRate}%</p>
-                <p className="text-[10px] text-muted-foreground">API Success (24h)</p>
+                <p className="text-xs text-muted-foreground">API Success (24h)</p>
               </div>
               <div className="text-center p-2 rounded-lg bg-muted/50">
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <Zap className="h-4 w-4 text-primary" />
                 </div>
                 <p className="text-xl font-bold">{data?.avgLatency}ms</p>
-                <p className="text-[10px] text-muted-foreground">Avg Latency</p>
+                <p className="text-xs text-muted-foreground">Avg Latency</p>
               </div>
               <div className="text-center p-2 rounded-lg bg-muted/50">
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <p className="text-xl font-bold">{data?.p95Latency}ms</p>
-                <p className="text-[10px] text-muted-foreground">P95 Latency</p>
+                <p className="text-xs text-muted-foreground">P95 Latency</p>
               </div>
               <div className="text-center p-2 rounded-lg bg-muted/50">
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <ShieldAlert className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <p className="text-xl font-bold">{data?.rateLimitHits}</p>
-                <p className="text-[10px] text-muted-foreground">Rate Limits (24h)</p>
+                <p className="text-xs text-muted-foreground">Rate Limits (24h)</p>
               </div>
             </div>
 
@@ -261,24 +261,24 @@ function IntegrationBadge({ integration }: { integration: IntegrationResult }) {
     <div className={`rounded-lg border p-3 space-y-1.5 ${isDownLong ? "border-destructive/50 bg-destructive/5" : "border-border/50"}`}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold">{label}</span>
-        <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cfg.color}`}>
+        <span className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full ${cfg.color}`}>
           <Icon className="h-3 w-3" />
           {integration.status}
         </span>
       </div>
       {integration.response_ms !== null && (
-        <p className="text-[10px] text-muted-foreground">{integration.response_ms}ms</p>
+        <p className="text-xs text-muted-foreground">{integration.response_ms}ms</p>
       )}
       {integration.last_seen && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {formatDistanceToNow(new Date(integration.last_seen), { addSuffix: true, locale: it })}
         </p>
       )}
       {integration.error && (
-        <p className="text-[10px] text-destructive truncate" title={integration.error}>{integration.error}</p>
+        <p className="text-xs text-destructive truncate" title={integration.error}>{integration.error}</p>
       )}
       {isDownLong && (
-        <Badge variant="destructive" className="text-[9px] h-4">Down &gt;1h</Badge>
+        <Badge variant="destructive" className="text-xs h-4">Down &gt;1h</Badge>
       )}
     </div>
   );
@@ -318,7 +318,7 @@ export function IntegrationHealthSection() {
             {!isLoading && (
               <Badge
                 variant={downCount > 0 ? "destructive" : degradedCount > 0 ? "secondary" : "default"}
-                className="text-[10px] ml-1"
+                className="text-xs ml-1"
               >
                 {downCount > 0 ? `${downCount} DOWN` : degradedCount > 0 ? `${degradedCount} degraded` : "Tutte operative"}
               </Badge>
@@ -336,7 +336,7 @@ export function IntegrationHealthSection() {
           </Button>
         </div>
         {dataUpdatedAt > 0 && (
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Aggiornato {formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true, locale: it })}
           </p>
         )}

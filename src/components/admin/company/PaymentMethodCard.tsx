@@ -154,7 +154,7 @@ export function PaymentMethodCard({
             Metodo di Pagamento
           </CardTitle>
           {isConfigured && (
-            <Badge variant="default" className="text-[10px]">
+            <Badge variant="default" className="text-xs">
               {METHOD_LABELS[method]}
             </Badge>
           )}

@@ -80,12 +80,12 @@ export function RlsMonitorSection() {
           <ShieldAlert className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">RLS Monitor</span>
           {!isLoading && (
-            <Badge variant={isClean ? "default" : "destructive"} className="text-[10px]">
+            <Badge variant={isClean ? "default" : "destructive"} className="text-xs">
               {isClean ? "OK" : `${count} tabelle a rischio`}
             </Badge>
           )}
           {lastScan && lastScan.warnings > 0 && (
-            <Badge variant="outline" className="text-[10px] border-yellow-400 text-yellow-600">
+            <Badge variant="outline" className="text-xs border-yellow-400 text-yellow-600">
               {lastScan.warnings} senza policy
             </Badge>
           )}
@@ -151,7 +151,7 @@ export function RlsMonitorSection() {
                     <ShieldAlert className="h-3 w-3 text-destructive shrink-0" />
                     <span className="font-mono">{t.table_name}</span>
                   </div>
-                  <Badge variant="destructive" className="text-[9px] h-4">RLS OFF</Badge>
+                  <Badge variant="destructive" className="text-xs h-4">RLS OFF</Badge>
                 </div>
               ))}
             </div>
@@ -169,7 +169,7 @@ export function RlsMonitorSection() {
                     <AlertTriangle className="h-3 w-3 text-yellow-600 shrink-0" />
                     <span className="font-mono">{t.table_name}</span>
                   </div>
-                  <Badge variant="outline" className="text-[9px] h-4 border-yellow-400 text-yellow-600">0 policy</Badge>
+                  <Badge variant="outline" className="text-xs h-4 border-yellow-400 text-yellow-600">0 policy</Badge>
                 </div>
               ))}
             </div>
@@ -196,7 +196,7 @@ export function RlsMonitorSection() {
                         <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
                         <span className="font-mono">{t.table_name}</span>
                       </div>
-                      <span className="text-emerald-600 text-[10px]">{t.policy_count} policy</span>
+                      <span className="text-emerald-600 text-xs">{t.policy_count} policy</span>
                     </div>
                   ))}
                 </div>
@@ -204,7 +204,7 @@ export function RlsMonitorSection() {
             </div>
           )}
 
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Scansionato: {new Date(lastScan.scanned_at).toLocaleString("it-IT")}
           </p>
         </div>

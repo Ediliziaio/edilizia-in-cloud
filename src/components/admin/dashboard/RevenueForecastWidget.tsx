@@ -171,7 +171,7 @@ export function RevenueForecastWidget() {
         <ForecastChart data={chartData} />
 
         {/* Disclaimer */}
-        <p className="text-[10px] text-muted-foreground text-center">
+        <p className="text-xs text-muted-foreground text-center">
           Previsione basata su trend lineare. Non costituisce garanzia di
           risultato.
         </p>

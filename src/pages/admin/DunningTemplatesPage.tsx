@@ -173,7 +173,7 @@ function DunningTemplateEditor({ template }: DunningTemplateEditorProps) {
               className="min-h-[200px] rounded-md border border-input bg-white p-4 text-sm text-gray-900 overflow-auto prose prose-sm max-w-none"
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewBody) }}
             />
-            <p className="text-[10px] text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Valori esempio: company_name="{PREVIEW_VARS.company_name}", amount_due="{PREVIEW_VARS.amount_due}", due_date="{PREVIEW_VARS.due_date}"
             </p>
           </TabsContent>
@@ -209,7 +209,7 @@ function DunningTemplateEditor({ template }: DunningTemplateEditorProps) {
               >
                 <Badge
                   variant="outline"
-                  className="cursor-pointer font-mono text-[11px] hover:bg-primary/10 hover:border-primary transition-colors"
+                  className="cursor-pointer font-mono text-xs hover:bg-primary/10 hover:border-primary transition-colors"
                 >
                   {`{{${varName}}}`}
                 </Badge>

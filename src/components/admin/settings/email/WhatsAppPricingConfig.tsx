@@ -186,10 +186,10 @@ export function WhatsAppPricingConfig() {
                     <TableRow key={row.id}>
                       <TableCell>
                         <p className="font-medium text-sm">{row.label || row.provider}</p>
-                        <p className="text-[10px] font-mono text-muted-foreground">{row.provider}</p>
+                        <p className="text-xs font-mono text-muted-foreground">{row.provider}</p>
                       </TableCell>
                       <TableCell>
-                        <Badge className={`text-[10px] ${CATEGORY_COLORS[row.category] ?? "bg-gray-100 text-gray-800"}`}>
+                        <Badge className={`text-xs ${CATEGORY_COLORS[row.category] ?? "bg-gray-100 text-gray-800"}`}>
                           {CATEGORY_LABELS[row.category] ?? row.category}
                         </Badge>
                       </TableCell>
@@ -212,7 +212,7 @@ export function WhatsAppPricingConfig() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-[10px]">{marginPct}%</Badge>
+                        <Badge variant="secondary" className="text-xs">{marginPct}%</Badge>
                       </TableCell>
                       <TableCell>
                         <Switch checked={row.is_active} onCheckedChange={(v) => updateRow(row.id, "is_active", v)} />

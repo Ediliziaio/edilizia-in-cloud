@@ -98,12 +98,12 @@ export function HealthScoreBadge({ companyId, healthScore, className }: Props) {
             <div className="min-w-0">
               <Badge
                 variant="outline"
-                className={cn("text-[10px] h-5 border-current", cfg.color, cfg.bg)}
+                className={cn("text-xs h-5 border-current", cfg.color, cfg.bg)}
               >
                 {cfg.label}
               </Badge>
               {TrendIcon && (
-                <div className={cn("flex items-center gap-0.5 text-[10px] mt-0.5", trendColor)}>
+                <div className={cn("flex items-center gap-0.5 text-xs mt-0.5", trendColor)}>
                   <TrendIcon className="h-3 w-3" />
                   {delta !== null && Math.abs(delta) > 2 && (
                     <span>{delta > 0 ? "+" : ""}{delta} vs 30gg fa</span>
@@ -134,7 +134,7 @@ export function HealthScoreBadge({ companyId, healthScore, className }: Props) {
               ))}
               {healthScore?.churn_risk != null && (
                 <div className="border-t pt-1.5 mt-1.5">
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     Churn risk: <span className={healthScore.churn_risk > 60 ? "text-destructive font-semibold" : ""}>{healthScore.churn_risk}%</span>
                   </span>
                 </div>
