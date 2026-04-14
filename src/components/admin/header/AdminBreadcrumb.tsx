@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { ChevronRight, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface BreadcrumbSegment {
   label: string;
@@ -48,6 +49,7 @@ const ROUTE_MAP: Record<string, string> = {
 export function AdminBreadcrumb() {
   const location = useLocation();
   const params = useParams();
+  const isMobile = useIsMobile();
 
   const segments = useMemo(() => {
     const path = location.pathname;
@@ -99,6 +101,29 @@ export function AdminBreadcrumb() {
 
   if (segments.length === 0) return null;
 
+  // Mobile: show only the last segment as page title — clean and compact
+  if (isMobile) {
+    const lastSeg = segments[segments.length - 1];
+    const parentSeg = segments.length > 1 ? segments[segments.length - 2] : null;
+    return (
+      <nav className="flex items-center gap-1.5 min-w-0" aria-label="Breadcrumb">
+        {parentSeg?.href ? (
+          <Link to={parentSeg.href} className="text-muted-foreground shrink-0">
+            <ChevronRight className="h-3.5 w-3.5 rotate-180" />
+          </Link>
+        ) : (
+          <Link to="/admin" className="text-muted-foreground shrink-0">
+            <Home className="h-3.5 w-3.5" />
+          </Link>
+        )}
+        <span className="text-sm font-semibold text-foreground truncate">
+          {lastSeg.label}
+        </span>
+      </nav>
+    );
+  }
+
+  // Desktop: full breadcrumb trail
   return (
     <nav className="flex items-center gap-1 text-sm" aria-label="Breadcrumb">
       <Link to="/admin" className="text-muted-foreground hover:text-foreground transition-colors">

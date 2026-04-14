@@ -598,10 +598,12 @@ export function AdminLayout() {
   if (isMobile) {
     return (
       <div className="min-h-screen flex flex-col w-full">
-        {/* Mobile header — compact */}
-        <header className="flex h-12 border-b items-center px-3 gap-2 bg-background sticky top-0 z-40">
-          <AdminBreadcrumb />
-          <div className="ml-auto flex items-center gap-1.5">
+        {/* Mobile header — clean, native-style */}
+        <header className="flex h-11 border-b items-center px-3 bg-background sticky top-0 z-40">
+          <div className="flex-1 min-w-0">
+            <AdminBreadcrumb />
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
             <AdminNotificationCenter />
             <QuickLoginPopover />
           </div>
