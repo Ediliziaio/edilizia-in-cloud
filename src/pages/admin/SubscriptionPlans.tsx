@@ -173,7 +173,7 @@ export default function SubscriptionPlans() {
       price_monthly: plan.price_monthly,
       price_yearly: plan.price_yearly,
       max_orders: plan.max_orders,
-      trial_days: plan.trial_days ?? 14,
+      trial_days: plan.trial_days ?? 31,
       max_users: plan.max_users,
       max_storage_mb: plan.max_storage_mb,
       features,
@@ -332,7 +332,7 @@ export default function SubscriptionPlans() {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <RefreshCw className="h-4 w-4 text-muted-foreground" />
-                    <span>{plan.trial_days ?? 14} giorni trial</span>
+                    <span>{plan.trial_days ?? 31} giorni trial</span>
                   </div>
                 </div>
 

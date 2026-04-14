@@ -51,7 +51,7 @@ const rows: TableRow[] = [
   { feature: "Gestione SAL avanzamento lavori", eic: { type: "check" }, competitor: { type: "partial", text: "Schedule, non SAL italiano" } },
   { feature: "Appalti pubblici e PNRR", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "partial", text: "Settimane di onboarding" } },
-  { feature: "Prezzo mensile", eic: { type: "text", text: "da €79/mese" }, competitor: { type: "text", text: "da ~€460/mese (Core)" } },
+  { feature: "Prezzo mensile", eic: { type: "text", text: "da €99/mese" }, competitor: { type: "text", text: "da ~€460/mese (Core)" } },
 ];
 
 const relatedLinks = [
@@ -242,7 +242,7 @@ export default function VsBuildertrend() {
               {[
                 "Sei un'impresa edile italiana con obblighi SDI, Cassa Edile e CCNL",
                 "Vuoi un gestionale in italiano con supporto in italiano",
-                "Vuoi pagare da €79/mese invece di €460+ per un software non localizzato per l'Italia",
+                "Vuoi pagare da €99/mese invece di €460+ per un software non localizzato per l'Italia",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-white/70">
                   <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />

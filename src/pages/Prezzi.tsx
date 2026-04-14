@@ -141,9 +141,9 @@ export default function Prezzi() {
 
   useSEO({
     title: "Prezzi Edilizia in Cloud — Piani e Tariffe 2026",
-    description: "Scopri i prezzi di Edilizia in Cloud: piano Gestionale €99/mese, Professionista €197/mese, Impresa AI €437/mese. 31 giorni gratis. ROI garantito o rimborso totale.",
+    description: "Scopri i prezzi di Edilizia in Cloud: piano Gestionale da €127/mese, Professionista da €247/mese, Impresa AI da €547/mese. 31 giorni gratis. ROI garantito o rimborso totale.",
     canonical: "/prezzi",
-    keywords: "prezzi software gestionale edilizia, costo gestionale cantieri, abbonamento edilizia in cloud, piano starter professional enterprise, prova gratuita software edilizia",
+    keywords: "prezzi software gestionale edilizia, costo gestionale cantieri, abbonamento edilizia in cloud, piano gestionale professionista impresa ai, prova gratuita software edilizia",
   });
 
   const prices = {

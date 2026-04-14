@@ -51,7 +51,7 @@ const rows: TableRow[] = [
   { feature: "Preventivi con prezzari regionali", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "cross", text: "4-8 settimane" } },
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
-  { feature: "Prezzo mensile", eic: { type: "text", text: "da €79/mese" }, competitor: { type: "text", text: "da €400/mese" } },
+  { feature: "Prezzo mensile", eic: { type: "text", text: "da €99/mese" }, competitor: { type: "text", text: "da €400/mese" } },
 ];
 
 const relatedLinks = [

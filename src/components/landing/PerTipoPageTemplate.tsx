@@ -250,9 +250,9 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           "@type": "OfferCatalog",
           "name": "Piani Edilizia in Cloud",
           "itemListElement": [
-            { "@type": "Offer", "name": "Starter", "price": 79, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" },
-            { "@type": "Offer", "name": "Professional", "price": 179, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" },
-            { "@type": "Offer", "name": "Enterprise", "price": 319, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" }
+            { "@type": "Offer", "name": "Gestionale", "price": 99, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" },
+            { "@type": "Offer", "name": "Professionista", "price": 197, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" },
+            { "@type": "Offer", "name": "Impresa AI", "price": 437, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" }
           ]
         }
       }} />
@@ -481,7 +481,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               <div className="text-center md:text-left">
                 <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Edilizia in Cloud ti costa</p>
                 <p className="text-4xl md:text-5xl font-extrabold text-[#F97415]">{config.roi.softwareCost}</p>
-                <p className="text-white/30 text-xs mt-1">all'anno (piano Professional)</p>
+                <p className="text-white/30 text-xs mt-1">all'anno (piano Professionista)</p>
               </div>
               <div className="text-center">
                 <div className="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-2 border-[#F97415]/50 bg-[#F97415]/10">

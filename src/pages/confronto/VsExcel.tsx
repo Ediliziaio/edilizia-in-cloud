@@ -52,7 +52,7 @@ const rows: TableRow[] = [
   { feature: "Supporto dedicato", eic: { type: "check" }, competitor: { type: "cross" } },
   {
     feature: "Costo mensile",
-    eic: { type: "text", text: "da €79/mese" },
+    eic: { type: "text", text: "da €99/mese" },
     competitor: { type: "text", text: "€0 (ma costo reale: ~€2000/mese in ore perse)" },
   },
 ];

@@ -294,7 +294,7 @@ export default function Integrazioni() {
               name: "C'è un'API per integrazioni personalizzate?",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Sì. Edilizia in Cloud dispone di API REST documentata con autenticazione OAuth 2.0. Puoi collegare qualsiasi sistema esterno: ERP, CRM, software paghe, piattaforme e-commerce. La documentazione API è disponibile nel piano Enterprise.",
+                text: "Sì. Edilizia in Cloud dispone di API REST documentata con autenticazione OAuth 2.0. Puoi collegare qualsiasi sistema esterno: ERP, CRM, software paghe, piattaforme e-commerce. La documentazione API è disponibile nel piano Impresa AI.",
               },
             },
             {
@@ -302,7 +302,7 @@ export default function Integrazioni() {
               name: "Le integrazioni hanno costi aggiuntivi?",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Le integrazioni native (FattureInCloud, Aruba, Stripe, Google Calendar, ecc.) sono incluse nel piano senza costi aggiuntivi. L'accesso alle API REST è disponibile dal piano Professional in poi.",
+                text: "Le integrazioni native (FattureInCloud, Aruba, Stripe, Google Calendar, ecc.) sono incluse nel piano senza costi aggiuntivi. L'accesso alle API REST è disponibile dal piano Impresa AI in poi.",
               },
             },
           ],
@@ -318,7 +318,7 @@ export default function Integrazioni() {
               { q: "Edilizia in Cloud si integra con FattureInCloud?", a: "Sì. L'integrazione con FattureInCloud è nativa: le fatture vengono sincronizzate automaticamente. Nessun doppio inserimento." },
               { q: "Posso collegare Edilizia in Cloud al mio commercialista?", a: "Sì. Edilizia in Cloud esporta prima nota, registro IVA e movimenti in formato compatibile con TeamSystem, Zucchetti e Datev. Il commercialista riceve i dati già strutturati." },
               { q: "C'è un'API per integrazioni personalizzate?", a: "Sì. API REST documentata con autenticazione OAuth 2.0. Puoi collegare qualsiasi sistema esterno: ERP, CRM, software paghe, piattaforme e-commerce." },
-              { q: "Le integrazioni hanno costi aggiuntivi?", a: "Le integrazioni native sono incluse nel piano. L'accesso alle API REST è disponibile dal piano Professional in poi." },
+              { q: "Le integrazioni hanno costi aggiuntivi?", a: "Le integrazioni native sono incluse nel piano. L'accesso alle API REST è disponibile dal piano Impresa AI in poi." },
             ].map((item, i) => (
               <details key={i} className="py-5 group">
                 <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">

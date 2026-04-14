@@ -23,10 +23,10 @@ export default function PricingSection() {
         <div className={`transition-all duration-700 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
           <p className="text-white/50 text-lg mb-2">A partire da</p>
           <div className="flex items-end justify-center gap-2 mb-2">
-            <span className="text-7xl md:text-8xl font-extrabold text-white leading-none">€97</span>
+            <span className="text-7xl md:text-8xl font-extrabold text-white leading-none">€99</span>
             <span className="text-white/40 text-xl mb-3">/mese</span>
           </div>
-          <p className="text-white/40 text-base mb-8">Piano Starter · fatturazione mensile · disdici quando vuoi</p>
+          <p className="text-white/40 text-base mb-8">Piano Gestionale · fatturazione annuale · disdici quando vuoi</p>
         </div>
 
         {/* 3 quick features */}

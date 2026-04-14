@@ -1479,7 +1479,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Crea il tuo computo metrico in 10 minuti",
-        body: "Con Edilizia in Cloud importi il prezzario regionale, misuri le quantità dal progetto e generi il CME professionale in pochi clic. Prova gratis 14 giorni.",
+        body: "Con Edilizia in Cloud importi il prezzario regionale, misuri le quantità dal progetto e generi il CME professionale in pochi clic. Prova gratis 31 giorni.",
       },
     ],
   },

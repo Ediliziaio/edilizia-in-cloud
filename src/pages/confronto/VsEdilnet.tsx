@@ -53,7 +53,7 @@ const rows: TableRow[] = [
   { feature: "WhatsApp e Email marketing", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Timbrature GPS operai", eic: { type: "check" }, competitor: { type: "partial" } },
   { feature: "Previsione liquidità", eic: { type: "check" }, competitor: { type: "partial" } },
-  { feature: "Canone mensile", eic: { type: "text", text: "Da €79/mese" }, competitor: { type: "text", text: "On-demand (€3.000-€10.000 setup)" } },
+  { feature: "Canone mensile", eic: { type: "text", text: "Da €99/mese" }, competitor: { type: "text", text: "On-demand (€3.000-€10.000 setup)" } },
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
   { feature: "Aggiornamenti inclusi", eic: { type: "check" }, competitor: { type: "partial" } },
 ];

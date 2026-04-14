@@ -46,7 +46,7 @@ export default function PlatformSettingsPage() {
 
   // Load existing API key from platform_settings
   const [subscriptionPrice, setSubscriptionPrice] = useState("49");
-  const [trialDays, setTrialDays] = useState("14");
+  const [trialDays, setTrialDays] = useState("31");
   const [welcomeBonus, setWelcomeBonus] = useState("5");
 
   const { data: savedSettings } = useQuery({

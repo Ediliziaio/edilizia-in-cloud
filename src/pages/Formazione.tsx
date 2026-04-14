@@ -165,7 +165,7 @@ const faqs = [
   },
   {
     q: "Posso ricevere formazione personalizzata per la mia squadra?",
-    a: "Sì. Offriamo sessioni di formazione online personalizzate per team da 2 a 10 persone. Il costo è incluso nel piano Professional e Enterprise. Per il piano Starter è disponibile come add-on a €199 una tantum.",
+    a: "Sì. Offriamo sessioni di formazione online personalizzate per team da 2 a 10 persone. Il costo è incluso nel piano Professionista e Impresa AI. Per il piano Gestionale è disponibile come add-on.",
   },
   {
     q: "Le masterclass sono davvero gratis?",
@@ -414,7 +414,7 @@ export default function Formazione() {
                 Icon: TrendingUp,
                 title: "Consulenza Margini",
                 desc: "Sessione con un consulente per impostare il controllo di gestione sulla tua tipologia di impresa. Con i tuoi numeri reali.",
-                badge: "Incluso nel piano Professional",
+                badge: "Incluso nel piano Professionista",
               },
             ].map(({ Icon, title, desc, badge }, i) => (
               <div key={i} className="p-6 rounded-2xl border-2 border-gray-200 hover:border-[#F97415]/40 hover:shadow-md transition-all duration-300">
@@ -484,7 +484,7 @@ export default function Formazione() {
             "name": "La formazione è inclusa nel costo dell'abbonamento?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Sì, per tutti i piani è incluso l'onboarding guidato con il nostro team, accesso all'academy con video tutorial e documentazione scritta. Il piano Enterprise include sessioni live personalizzate illimitate con il proprio Customer Success Manager dedicato."
+              "text": "Sì, per tutti i piani è incluso l'onboarding guidato con il nostro team, accesso all'academy con video tutorial e documentazione scritta. Il piano Impresa AI include sessioni live personalizzate illimitate con il proprio Customer Success Manager dedicato."
             }
           },
           {
@@ -500,7 +500,7 @@ export default function Formazione() {
             "name": "La formazione è disponibile in presenza o solo online?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Offriamo formazione sia online (video call, webinar registrati, academy on-demand) sia in presenza per i clienti Enterprise che lo richiedono. Le sessioni online sono registrate e disponibili in replay per il team."
+              "text": "Offriamo formazione sia online (video call, webinar registrati, academy on-demand) sia in presenza per i clienti Impresa AI che lo richiedono. Le sessioni online sono registrate e disponibili in replay per il team."
             }
           },
           {
@@ -508,7 +508,7 @@ export default function Formazione() {
             "name": "Cosa succede se cambia il personale e devo formare nuovi dipendenti?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "L'accesso all'academy e ai video tutorial è permanente per tutta la durata dell'abbonamento. I nuovi dipendenti possono formarsi autonomamente con i materiali esistenti. Per i piani Professional ed Enterprise è possibile richiedere sessioni di re-onboarding aggiuntive."
+              "text": "L'accesso all'academy e ai video tutorial è permanente per tutta la durata dell'abbonamento. I nuovi dipendenti possono formarsi autonomamente con i materiali esistenti. Per i piani Professionista e Impresa AI è possibile richiedere sessioni di re-onboarding aggiuntive."
             }
           }
         ]
@@ -521,7 +521,7 @@ export default function Formazione() {
             {[
               {
                 q: "La formazione è inclusa nel costo dell'abbonamento?",
-                a: "Sì, per tutti i piani è incluso l'onboarding guidato, l'academy con video tutorial e documentazione scritta. Il piano Enterprise include sessioni live personalizzate con il proprio Customer Success Manager."
+                a: "Sì, per tutti i piani è incluso l'onboarding guidato, l'academy con video tutorial e documentazione scritta. Il piano Impresa AI include sessioni live personalizzate con il proprio Customer Success Manager."
               },
               {
                 q: "Quanto tempo ci vuole per formare il team?",

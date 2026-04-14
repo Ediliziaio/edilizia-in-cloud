@@ -109,7 +109,7 @@ export function AISubscriptionGate({ children }: AISubscriptionGateProps) {
           <div className="border rounded-lg p-4 bg-muted/30">
             <Badge variant="secondary" className="mb-2">Include trial gratuito</Badge>
             <p className="text-xs text-muted-foreground">
-              Prova gratuitamente per 14 giorni, poi attiva l'abbonamento mensile.
+              Prova gratuitamente per 31 giorni, poi attiva l'abbonamento mensile.
               I costi delle chiamate sono addebitati separatamente dal saldo crediti AI.
             </p>
           </div>

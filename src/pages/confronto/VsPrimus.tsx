@@ -61,7 +61,7 @@ const rows: TableRow[] = [
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
   {
     feature: "Prezzo base",
-    eic: { type: "text", text: "Da €79/mese" },
+    eic: { type: "text", text: "Da €99/mese" },
     competitor: { type: "text", text: "Da €299/anno (solo computo)" },
   },
 ];

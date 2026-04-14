@@ -66,8 +66,8 @@ export default function Home() {
         "offers": [
           {
             "@type": "Offer",
-            "name": "Piano Starter",
-            "price": "79",
+            "name": "Piano Gestionale",
+            "price": "99",
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
@@ -93,8 +93,8 @@ export default function Home() {
           },
           {
             "@type": "Offer",
-            "name": "Piano Professional",
-            "price": "159",
+            "name": "Piano Professionista",
+            "price": "197",
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
@@ -120,8 +120,8 @@ export default function Home() {
           },
           {
             "@type": "Offer",
-            "name": "Piano Enterprise",
-            "price": "319",
+            "name": "Piano Impresa AI",
+            "price": "437",
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
