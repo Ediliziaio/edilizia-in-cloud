@@ -133,7 +133,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             o tornare alla home.
           </p>
 
-          {import.meta.env.DEV && this.state.error && (
+          {this.state.error && (
             <p className="text-xs text-destructive/70 font-mono bg-destructive/5 border border-destructive/20 rounded px-3 py-2 mt-3 max-w-lg break-all">
               {this.state.error.message}
             </p>
