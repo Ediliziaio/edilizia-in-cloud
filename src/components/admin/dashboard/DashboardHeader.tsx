@@ -21,29 +21,29 @@ export function DashboardHeader({
   children,
 }: DashboardHeaderProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-        <div className="flex items-center gap-2 mt-0.5">
-          <p className="text-muted-foreground text-sm">{subtitle}</p>
-          {lastUpdatedAt && (
-            <Badge
-              variant="outline"
-              className="text-xs gap-1 font-normal text-muted-foreground"
-            >
-              <Clock className="h-2.5 w-2.5" />
-              {lastUpdatedAt}
-            </Badge>
-          )}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground truncate">{title}</h1>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-muted-foreground text-xs md:text-sm hidden sm:block">{subtitle}</p>
+            {lastUpdatedAt && (
+              <Badge
+                variant="outline"
+                className="text-xs gap-1 font-normal text-muted-foreground shrink-0"
+              >
+                <Clock className="h-2.5 w-2.5" />
+                {lastUpdatedAt}
+              </Badge>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-2 flex-wrap">
         <Button
           variant="outline"
           size="sm"
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="gap-2"
+          className="gap-2 shrink-0"
           aria-label="Aggiorna dati dashboard"
         >
           <RefreshCw
@@ -53,8 +53,12 @@ export function DashboardHeader({
             {isRefreshing ? "Aggiornamento..." : "Aggiorna"}
           </span>
         </Button>
-        {children}
       </div>
+      {children && (
+        <div className="flex items-center gap-2 flex-wrap overflow-x-auto scrollbar-hide">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

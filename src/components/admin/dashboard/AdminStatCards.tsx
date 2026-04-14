@@ -118,7 +118,7 @@ export function AdminStatCards({ stats, previousStats }: Props) {
   ];
 
   return (
-    <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+    <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
       {statCards.map((stat) => (
         <Card
           key={stat.title}
@@ -127,19 +127,19 @@ export function AdminStatCards({ stats, previousStats }: Props) {
         >
           {/* Gradient accent top bar */}
           <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${stat.accent}`} />
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-start justify-between mb-3">
-              <div className={`p-2.5 rounded-xl ${stat.iconBg} transition-transform group-hover:scale-110`}>
+          <CardContent className="pt-4 pb-3 md:pt-5 md:pb-4 px-3 md:px-4">
+            <div className="flex items-start justify-between mb-2 md:mb-3">
+              <div className={`p-2 md:p-2.5 rounded-xl ${stat.iconBg} transition-transform group-hover:scale-110`}>
                 <stat.icon className="h-4 w-4" />
               </div>
               <DeltaBadge delta={stat.delta} />
             </div>
-            <div className="space-y-1">
-              <p className="text-3xl font-bold tracking-tight text-foreground">
+            <div className="space-y-0.5 md:space-y-1">
+              <p className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
                 {typeof stat.value === "string" ? stat.value : stat.value.toLocaleString("it-IT")}
               </p>
-              <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-              <p className="text-xs text-muted-foreground/70">{stat.description}</p>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">{stat.title}</p>
+              <p className="text-[10px] md:text-xs text-muted-foreground/70 truncate">{stat.description}</p>
             </div>
           </CardContent>
         </Card>

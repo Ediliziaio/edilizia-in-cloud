@@ -77,6 +77,7 @@ import { QuickLoginPopover } from "@/components/admin/QuickLoginPopover";
 import { AdminBreadcrumb } from "@/components/admin/header/AdminBreadcrumb";
 import { AdminNotificationCenter } from "@/components/admin/header/AdminNotificationCenter";
 import { AdminQuickActions } from "@/components/admin/header/AdminQuickActions";
+import { AdminBottomNav } from "@/components/admin/AdminBottomNav";
 
 interface AdminNavItem {
   title: string;
@@ -594,8 +595,9 @@ export function AdminLayout() {
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         {isSettingsRoute ? <AdminSettingsSidebar /> : <AdminMainSidebar />}
-        <div className="flex-1 flex flex-col">
-          <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Desktop header — full controls */}
+          <header className="hidden md:flex h-14 border-b items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
             <Separator orientation="vertical" className="h-5" />
             <AdminBreadcrumb />
@@ -606,10 +608,25 @@ export function AdminLayout() {
               <QuickLoginPopover />
             </div>
           </header>
-          <main className="flex-1 p-4 md:p-6 bg-muted/30 overflow-x-hidden">
+
+          {/* Mobile header — compact with essential controls */}
+          <header className="md:hidden flex h-12 border-b items-center px-3 gap-2 bg-background sticky top-0 z-40">
+            <SidebarTrigger />
+            <Separator orientation="vertical" className="h-4" />
+            <AdminBreadcrumb />
+            <div className="ml-auto flex items-center gap-1.5">
+              <AdminNotificationCenter />
+              <QuickLoginPopover />
+            </div>
+          </header>
+
+          <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6 bg-muted/30 overflow-x-hidden">
             <Outlet />
           </main>
         </div>
+
+        {/* Mobile bottom navigation */}
+        <AdminBottomNav />
       </div>
     </SidebarProvider>
   );

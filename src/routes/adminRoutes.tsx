@@ -77,6 +77,8 @@ const FailureAlertsPage = lazy(() => import("@/pages/admin/FailureAlertsPage"));
 const CohortPage = lazy(() => import("@/pages/admin/CohortPage"));
 // Dunning Templates (Feature 4)
 const DunningTemplatesPage = lazy(() => import("@/pages/admin/DunningTemplatesPage"));
+// Mobile menu
+const AdminMobileMenu = lazy(() => import("@/pages/admin/AdminMobileMenu"));
 
 export function adminRoutes() {
   return (
@@ -147,6 +149,7 @@ export function adminRoutes() {
         }
       >
         <Route index element={<AdminDashboard />} />
+        <Route path="menu" element={<AdminMobileMenu />} />
         <Route path="aziende" element={<CompaniesList />} />
         <Route path="aziende/nuova" element={<CreateCompany />} />
         <Route path="aziende/:id" element={<CompanyDetail />} />

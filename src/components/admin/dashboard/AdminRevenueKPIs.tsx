@@ -77,21 +77,21 @@ export function AdminRevenueKPIs({ mrr, arr, nrr, avgLtv, previousMrr }: Props) 
   ];
 
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
       {kpis.map((kpi) => (
         <Card key={kpi.title} className={`border-l-[3px] ${kpi.border} overflow-hidden`}>
-          <CardContent className="pt-4 pb-3.5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <CardContent className="pt-3 pb-3 md:pt-4 md:pb-3.5 px-3 md:px-4">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <p className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {kpi.title}
               </p>
-              <div className={`p-2 rounded-lg ${kpi.iconBg}`}>
+              <div className={`p-1.5 md:p-2 rounded-lg ${kpi.iconBg}`}>
                 <kpi.icon className="h-3.5 w-3.5" />
               </div>
             </div>
-            <p className="text-2xl font-bold tracking-tight text-foreground">{kpi.value}</p>
-            <div className="flex items-center justify-between mt-1.5">
-              <p className="text-xs text-muted-foreground">{kpi.description}</p>
+            <p className="text-xl md:text-2xl font-bold tracking-tight text-foreground">{kpi.value}</p>
+            <div className="flex items-center justify-between mt-1 md:mt-1.5">
+              <p className="text-[10px] md:text-xs text-muted-foreground truncate mr-1">{kpi.description}</p>
               {kpi.delta}
             </div>
           </CardContent>
