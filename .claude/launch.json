@@ -2,11 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "edilizia-in-cloud",
-      "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "export PATH=/opt/homebrew/opt/node@22/bin:$PATH && npm run dev"],
-      "port": 8080,
-      "autoPort": true
+      "name": "edilizia-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 8080
     }
   ]
 }
