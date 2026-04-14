@@ -108,11 +108,11 @@ export function AdminBreadcrumb() {
     return (
       <nav className="flex items-center gap-1.5 min-w-0" aria-label="Breadcrumb">
         {parentSeg?.href ? (
-          <Link to={parentSeg.href} className="text-muted-foreground shrink-0">
+          <Link to={parentSeg.href} className="text-muted-foreground shrink-0 flex items-center">
             <ChevronRight className="h-3.5 w-3.5 rotate-180" />
           </Link>
         ) : (
-          <Link to="/admin" className="text-muted-foreground shrink-0">
+          <Link to="/admin" className="text-muted-foreground shrink-0 flex items-center">
             <Home className="h-3.5 w-3.5" />
           </Link>
         )}
