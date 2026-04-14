@@ -38,6 +38,8 @@ import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSumm
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { PendingFilesUpload, type PendingFile } from "@/components/orders/PendingFilesUpload";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -55,6 +57,7 @@ function CreateOrderInner() {
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const { onlyAssigned } = usePermissions();
+  const { canCreateOrder, isScopriPlan } = useSubscriptionLimits();
 
   // ── react-hook-form ──────────────────────────────────────────
   const form = useForm<OrderFormValues>({
@@ -510,6 +513,14 @@ function CreateOrderInner() {
       )}
     />
   );
+
+  if (!canCreateOrder && isScopriPlan) {
+    return (
+      <div className="max-w-lg mx-auto mt-12 px-4">
+        <UpgradeScopriWall type="max_orders" inline />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

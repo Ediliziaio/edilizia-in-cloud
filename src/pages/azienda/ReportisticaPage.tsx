@@ -7,6 +7,8 @@ import VenditoriPerformanceReport from "@/components/reporting/venditori/Vendito
 import CallCenterReport from "@/components/reporting/callcenter/CallCenterReport";
 import CantiereDashboard from "@/components/reporting/cantieri/CantiereDashboard";
 import GoogleAdsReport from "@/components/reporting/google-ads/GoogleAdsReport";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
 const TABS = [
   { key: "cantieri", label: "Dashboard Cantieri" },
@@ -22,6 +24,9 @@ const IMPLEMENTED_TABS = ["cantieri", "facebook-ads", "google-ads", "attribution
 const ReportisticaPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "cantieri";
+  const { isScopriPlan } = useSubscriptionLimits();
+
+  if (isScopriPlan) return <UpgradeScopriWall type="report" inline />;
 
   return (
     <div className="space-y-6">

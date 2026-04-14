@@ -43,6 +43,7 @@ type Cell = string | "check" | "cross";
 
 interface TableRow {
   label: string;
+  scopri: Cell;
   starter: Cell;
   professional: Cell;
   enterprise: Cell;
@@ -50,38 +51,38 @@ interface TableRow {
 }
 
 const tableRows: TableRow[] = [
-  { label: "Commesse attive", starter: "Illimitate", professional: "Illimitate", enterprise: "Illimitate", category: "Cantieri" },
-  { label: "SAL + Marginalità commessa", starter: "check", professional: "check", enterprise: "check" },
-  { label: "Giornale Lavori + ODA + D.Lgs 81", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Subappalti + Gantt + Ritenute", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Multi-sede", starter: "cross", professional: "cross", enterprise: "check" },
-  { label: "Fatturazione SDI + DDT + NC + Proforma", starter: "check", professional: "check", enterprise: "check", category: "Finanza" },
-  { label: "Preventivi personalizzabili", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Fatture personalizzabili", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Scadenzario + Tesoreria + IVA", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Banca PSD2", starter: "cross", professional: "1 conto", enterprise: "3 conti" },
-  { label: "Previsionale cassa", starter: "60 giorni", professional: "90 giorni", enterprise: "365 giorni" },
-  { label: "Export XBRL · Archiviazione 10 anni", starter: "cross", professional: "cross", enterprise: "check" },
-  { label: "CRM + Pipeline opportunità", starter: "cross", professional: "check", enterprise: "check", category: "Marketing & CRM" },
-  { label: "Email marketing incluse", starter: "cross", professional: "5.000/mese", enterprise: "20.000/mese" },
-  { label: "Computo Metrico AI", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Portale cliente", starter: "cross", professional: "Standard", enterprise: "Branded WL" },
-  { label: "AI Preventivo (Claude API)", starter: "Add-on €39", professional: "Add-on €39", enterprise: "Add-on €39" },
-  { label: "App operai GPS + rapportino", starter: "check", professional: "check", enterprise: "check", category: "HR & Campo" },
-  { label: "HR + Cedolini strutturati", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Employees Area (4 aree)", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "GPS FleetTrack + Magazzino", starter: "cross", professional: "check", enterprise: "check" },
-  { label: "Render AI", starter: "Add-on", professional: "Add-on", enterprise: "20/mese inclusi", category: "AI & Automazioni" },
-  { label: "Verifica OdA AI", starter: "cross", professional: "cross", enterprise: "check" },
-  { label: "Agente Vocale AI", starter: "Add-on €89", professional: "Add-on €89", enterprise: "200 min inclusi" },
-  { label: "WhatsApp Bot AI", starter: "cross", professional: "Add-on €39", enterprise: "Incluso" },
-  { label: "Agenti AI personalizzati", starter: "cross", professional: "cross", enterprise: "check" },
-  { label: "Utenti inclusi", starter: "Illimitati", professional: "Illimitati", enterprise: "Illimitati", category: "Infrastruttura" },
-  { label: "Storage incluso", starter: "10 GB", professional: "30 GB", enterprise: "100 GB" },
-  { label: "API REST + Webhook", starter: "cross", professional: "cross", enterprise: "check" },
-  { label: "SLA uptime", starter: "99.5%", professional: "99.7%", enterprise: "99.9%" },
-  { label: "Supporto", starter: "Email 24h", professional: "Tel/WA 4h", enterprise: "Dedicato 1h" },
-  { label: "Call consulente mensile", starter: "cross", professional: "1/mese", enterprise: "2/mese" },
+  { label: "Commesse attive", scopri: "3", starter: "Illimitate", professional: "Illimitate", enterprise: "Illimitate", category: "Cantieri" },
+  { label: "SAL + Marginalit\u00e0 commessa", scopri: "check", starter: "check", professional: "check", enterprise: "check" },
+  { label: "Giornale Lavori + ODA + D.Lgs 81", scopri: "cross", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Subappalti + Gantt + Ritenute", scopri: "cross", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Multi-sede", scopri: "cross", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "Fatturazione SDI + DDT + NC + Proforma", scopri: "cross", starter: "check", professional: "check", enterprise: "check", category: "Finanza" },
+  { label: "Preventivi personalizzabili", scopri: "1", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Fatture personalizzabili", scopri: "cross", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Scadenzario + Tesoreria + IVA", scopri: "cross", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Banca PSD2", scopri: "cross", starter: "cross", professional: "1 conto", enterprise: "3 conti" },
+  { label: "Previsionale cassa", scopri: "cross", starter: "60 giorni", professional: "90 giorni", enterprise: "365 giorni" },
+  { label: "Export XBRL \u00B7 Archiviazione 10 anni", scopri: "cross", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "CRM + Pipeline opportunit\u00e0", scopri: "cross", starter: "cross", professional: "check", enterprise: "check", category: "Marketing & CRM" },
+  { label: "Email marketing incluse", scopri: "cross", starter: "cross", professional: "5.000/mese", enterprise: "20.000/mese" },
+  { label: "Computo Metrico AI", scopri: "cross", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Portale cliente", scopri: "cross", starter: "cross", professional: "Standard", enterprise: "Branded WL" },
+  { label: "AI Preventivo (Claude API)", scopri: "cross", starter: "Add-on \u20AC39", professional: "Add-on \u20AC39", enterprise: "Add-on \u20AC39" },
+  { label: "App operai GPS + rapportino", scopri: "2 operai", starter: "check", professional: "check", enterprise: "check", category: "HR & Campo" },
+  { label: "HR + Cedolini strutturati", scopri: "cross", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Employees Area (4 aree)", scopri: "cross", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "GPS FleetTrack + Magazzino", scopri: "cross", starter: "cross", professional: "check", enterprise: "check" },
+  { label: "Render AI", scopri: "cross", starter: "Add-on", professional: "Add-on", enterprise: "20/mese inclusi", category: "AI & Automazioni" },
+  { label: "Verifica OdA AI", scopri: "cross", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "Agente Vocale AI", scopri: "cross", starter: "Add-on \u20AC89", professional: "Add-on \u20AC89", enterprise: "200 min inclusi" },
+  { label: "WhatsApp Bot AI", scopri: "cross", starter: "cross", professional: "Add-on \u20AC39", enterprise: "Incluso" },
+  { label: "Agenti AI personalizzati", scopri: "cross", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "Utenti inclusi", scopri: "Illimitati", starter: "Illimitati", professional: "Illimitati", enterprise: "Illimitati", category: "Infrastruttura" },
+  { label: "Storage incluso", scopri: "1 GB", starter: "10 GB", professional: "30 GB", enterprise: "100 GB" },
+  { label: "API REST + Webhook", scopri: "cross", starter: "cross", professional: "cross", enterprise: "check" },
+  { label: "SLA uptime", scopri: "cross", starter: "99.5%", professional: "99.7%", enterprise: "99.9%" },
+  { label: "Supporto", scopri: "Community", starter: "Email 24h", professional: "Tel/WA 4h", enterprise: "Dedicato 1h" },
+  { label: "Call consulente mensile", scopri: "cross", starter: "cross", professional: "1/mese", enterprise: "2/mese" },
 ];
 
 const faqItems = [
@@ -173,6 +174,12 @@ export default function Prezzi() {
         "brand": { "@type": "Brand", "name": "Edilizia in Cloud" },
         "seller": { "@type": "Organization", "name": "Domus Group S.r.l.", "url": "https://ediliziaincloud.com" },
         "offers": [
+          {
+            "@type": "Offer", "name": "Scopri", "price": "0", "priceCurrency": "EUR",
+            "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
+            "availability": "https://schema.org/InStock",
+            "url": "https://ediliziaincloud.com/prezzi"
+          },
           {
             "@type": "Offer", "name": "Gestionale", "price": "99", "priceCurrency": "EUR",
             "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
@@ -347,7 +354,49 @@ export default function Prezzi() {
 
       {/* ── 2. PIANI ────────────────────────────────────────────────────────── */}
       <section className="py-16 px-4 bg-[#f7f9fc]">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+
+          {/* ── SCOPRI (FREE) ── */}
+          <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-8 flex flex-col relative">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+              <span className="bg-gray-100 text-gray-600 text-xs font-medium px-3 py-1 rounded-full border border-gray-200">
+                Inizia gratis
+              </span>
+            </div>
+            <div className="mb-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Scopri</p>
+              <p className="text-sm text-gray-500 mb-4">Tocca con mano EiC senza impegno</p>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-5xl font-extrabold text-[#111111]">{"\u20AC"}0</span>
+                <span className="text-gray-400 text-base mb-2">{"\u00B7"} per sempre</span>
+              </div>
+              <p className="text-xs text-gray-400">Nessuna carta richiesta</p>
+            </div>
+            <a
+              href="/register?plan=scopri"
+              className="block text-center w-full border border-gray-300 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors mb-6"
+            >
+              Inizia gratis
+            </a>
+            <ul className="space-y-2 flex-1">
+              {[
+                "3 cantieri attivi con marginalit\u00e0 reale",
+                "Preventivo con firma online del cliente",
+                "App operai: timbratura GPS + rapportino",
+                "Dashboard operativa con salute cantieri",
+                "Utenti illimitati",
+                "1 GB storage",
+              ].map(f => (
+                <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+                  <span className="text-green-600 font-bold mt-0.5 flex-shrink-0">{"\u2713"}</span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-gray-400 text-center mt-4">
+              Aggiorna quando vuoi. I tuoi dati restano sempre al sicuro.
+            </p>
+          </div>
 
           {/* ── STARTER ── */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 flex flex-col">
@@ -657,10 +706,11 @@ export default function Prezzi() {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="sticky top-0 z-10 bg-[#111111] text-white">
-                  <th className="text-left px-5 py-4 font-semibold w-1/2">Funzionalità</th>
-                  <th className="text-center px-4 py-4 font-semibold">Gestionale</th>
-                  <th className="text-center px-4 py-4 font-semibold bg-[#F97415]">Professionista</th>
-                  <th className="text-center px-4 py-4 font-semibold">Impresa AI</th>
+                  <th className="text-left px-5 py-4 font-semibold w-2/5">Funzionalit{"\u00e0"}</th>
+                  <th className="text-center px-3 py-4 font-semibold text-gray-400">Scopri</th>
+                  <th className="text-center px-3 py-4 font-semibold">Gestionale</th>
+                  <th className="text-center px-3 py-4 font-semibold bg-[#F97415]">Professionista</th>
+                  <th className="text-center px-3 py-4 font-semibold">Impresa AI</th>
                 </tr>
               </thead>
               <tbody>
@@ -669,7 +719,7 @@ export default function Prezzi() {
                     {row.category && (
                       <tr key={`cat-${i}`} className="bg-gray-50">
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className="px-5 py-2 text-xs font-extrabold uppercase tracking-widest text-[#111111]/50"
                         >
                           {row.category}
@@ -678,13 +728,16 @@ export default function Prezzi() {
                     )}
                     <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                       <td className="px-5 py-3 text-gray-700">{row.label}</td>
-                      <td className="px-4 py-3 text-center text-gray-600">
+                      <td className="px-3 py-3 text-center text-gray-400">
+                        <TableCell value={row.scopri} />
+                      </td>
+                      <td className="px-3 py-3 text-center text-gray-600">
                         <TableCell value={row.starter} />
                       </td>
-                      <td className="px-4 py-3 text-center bg-[#F97415]/5 font-medium">
+                      <td className="px-3 py-3 text-center bg-[#F97415]/5 font-medium">
                         <TableCell value={row.professional} />
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-600">
+                      <td className="px-3 py-3 text-center text-gray-600">
                         <TableCell value={row.enterprise} />
                       </td>
                     </tr>
@@ -694,18 +747,23 @@ export default function Prezzi() {
               <tfoot>
                 <tr className="border-t-2 border-gray-200 bg-gray-50">
                   <td className="px-5 py-4" />
-                  <td className="px-4 py-4 text-center">
-                    <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-4 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
+                  <td className="px-3 py-4 text-center">
+                    <a href="/register?plan=scopri" className="text-xs border border-gray-300 text-gray-600 font-bold px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                      Gratis
+                    </a>
+                  </td>
+                  <td className="px-3 py-4 text-center">
+                    <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-3 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
                       Gestionale
                     </Link>
                   </td>
-                  <td className="px-4 py-4 text-center bg-[#F97415]/5">
-                    <Link to="/demo" className="text-xs bg-[#F97415] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#e8650e] transition-colors shadow">
+                  <td className="px-3 py-4 text-center bg-[#F97415]/5">
+                    <Link to="/demo" className="text-xs bg-[#F97415] text-white font-bold px-3 py-2 rounded-lg hover:bg-[#e8650e] transition-colors shadow">
                       Professionista
                     </Link>
                   </td>
-                  <td className="px-4 py-4 text-center">
-                    <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-4 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
+                  <td className="px-3 py-4 text-center">
+                    <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-3 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
                       Impresa AI
                     </Link>
                   </td>

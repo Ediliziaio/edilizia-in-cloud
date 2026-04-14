@@ -11,9 +11,14 @@ import { TabCedolini } from "./tabs/TabCedolini";
 import { TabGpsPercorsi } from "./tabs/TabGpsPercorsi";
 import { TabDocumenti } from "./tabs/TabDocumenti";
 import { useFleetTrackAccess } from "@/hooks/useFleetTrackAccess";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
 export default function PersonalePage() {
   const hasFleetTrack = useFleetTrackAccess();
+  const { isScopriPlan } = useSubscriptionLimits();
+
+  if (isScopriPlan) return <UpgradeScopriWall type="hr_completo" inline />;
 
   return (
     <div className="space-y-6">

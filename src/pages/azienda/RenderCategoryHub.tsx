@@ -1,4 +1,6 @@
 import { useNavigate } from "react-router-dom";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -91,6 +93,7 @@ export default function RenderCategoryHub() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const { isScopriPlan } = useSubscriptionLimits();
 
   interface RecentRender {
     id: string;
@@ -152,6 +155,8 @@ export default function RenderCategoryHub() {
       toast("Questa funzionalità sarà disponibile a breve!");
     }
   };
+
+  if (isScopriPlan) return <UpgradeScopriWall type="render_ai" inline />;
 
   return (
     <div className="space-y-8">

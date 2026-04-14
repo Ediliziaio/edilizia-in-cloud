@@ -33,6 +33,8 @@ import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImport
 import { useToast } from "@/hooks/use-toast";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
+import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 
 interface DateRange {
   from: Date | undefined;
@@ -57,6 +59,7 @@ const ORDER_IMPORT_FIELDS: ImportField[] = [
 function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
+  const { isScopriPlan, remainingOrders, currentPlan } = useSubscriptionLimits();
   const queryClient = useQueryClient();
   const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
     searchQuery: { key: "q", defaultValue: "" },
@@ -1131,6 +1134,13 @@ function OrdersListInner() {
       </div>
 
       <PlanLimitWarning resourceType="orders" />
+
+      {isScopriPlan && (
+        <ScopriProgressBanner
+          usedOrders={(currentPlan?.max_orders ?? 3) - remainingOrders}
+          maxOrders={3}
+        />
+      )}
 
       <OrdersStatsCards
         stats={stats}

@@ -83,6 +83,12 @@ export function useSubscriptionLimits() {
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;
 
+  // Determina se siamo nel piano Scopri
+  const isScopriPlan = currentPlan?.slug === "scopri";
+
+  // Limite operai campo: 2 nel piano Scopri, illimitati negli altri
+  const maxCampoOperai = isScopriPlan ? 2 : -1;
+
   const canCreateOrder = bypass || (maxOrders === -1 || orderCount < maxOrders);
   const canAddUser = bypass || (maxUsers === -1 || userCount < maxUsers);
 
@@ -94,7 +100,7 @@ export function useSubscriptionLimits() {
     return includedModules.includes(moduleKey);
   };
 
-  const isFullyOperational = bypass || companyStatus === "active" || (companyStatus === "trial" && !trialExpired);
+  const isFullyOperational = bypass || companyStatus === "active" || companyStatus === "free" || (companyStatus === "trial" && !trialExpired);
 
   return {
     companyStatus,
@@ -108,6 +114,8 @@ export function useSubscriptionLimits() {
     remainingOrders,
     remainingUsers,
     isFullyOperational,
+    isScopriPlan,
+    maxCampoOperai,
     isLoading: planLoading || ordersLoading || usersLoading,
   };
 }

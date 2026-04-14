@@ -1,5 +1,7 @@
 import { ExternalLink, Download, AlertTriangle,
-         CreditCard, FileText, RefreshCw, Clock, Info } from "lucide-react";
+         CreditCard, FileText, RefreshCw, Clock, Info, Sparkles, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -51,6 +53,7 @@ function companyStatusBadge(status: string) {
     active:    { label: "Attivo",           className: "bg-green-100 text-green-700 border-green-200" },
     suspended: { label: "Sospeso",          className: "bg-red-100 text-red-700 border-red-200" },
     expired:   { label: "Scaduto",          className: "bg-muted text-muted-foreground border-border" },
+    free:      { label: "Piano Scopri",    className: "bg-gray-100 text-gray-700 border-gray-200" },
   };
   const cfg = map[status] ?? { label: status, className: "" };
   return (
@@ -300,6 +303,63 @@ function InvoiceHistoryCard() {
 // ─── PAGINA PRINCIPALE ────────────────────────────────────────────────────────
 
 export default function SettingsSubscriptionBilling() {
+  const navigate = useNavigate();
+  const { isScopriPlan } = useSubscriptionLimits();
+
+  if (isScopriPlan) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold">Il tuo piano</h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Stai usando il piano Scopri — gratuito, senza limiti di tempo.
+          </p>
+        </div>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-xl">{"\uD83D\uDD0D"}</div>
+              <div>
+                <div className="font-semibold">Piano Scopri</div>
+                <div className="text-sm text-muted-foreground">Gratuito {"\u00B7"} Per sempre {"\u00B7"} Nessuna carta</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { label: "Cantieri", value: "3 max" },
+                { label: "Utenti", value: "\u221E Illimitati" },
+                { label: "Storage", value: "1 GB" },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3">
+                  <div className="text-sm font-medium">{value}</div>
+                  <div className="text-xs text-muted-foreground">{label}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#E8521A]/30 bg-orange-50/50 dark:bg-orange-950/20">
+          <CardContent className="pt-6">
+            <h3 className="font-semibold mb-1">Pronto a fare sul serio?</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Starter a {"\u20AC"}127/mese: commesse illimitate, fatturazione SDI, banca PSD2, HR, magazzino e molto altro. Trial 31 giorni gratuito.
+            </p>
+            <Button
+              className="gap-2 bg-[#E8521A] hover:bg-[#d44714] text-white"
+              onClick={() => navigate("/prezzi")}
+            >
+              <Sparkles className="h-4 w-4" />
+              Vedi tutti i piani
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>

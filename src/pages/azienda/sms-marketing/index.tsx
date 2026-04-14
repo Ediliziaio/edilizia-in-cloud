@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, Send, Users, FileText } from "lucide-react";
 import { SmsDashboard } from "./components/SmsDashboard";
@@ -19,6 +21,7 @@ interface SmsMarketingPageProps {
 const SmsMarketingPage = ({ defaultTab = "dashboard" }: SmsMarketingPageProps) => {
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [ricaricaOpen, setRicaricaOpen] = useState(false);
+  const { isScopriPlan } = useSubscriptionLimits();
 
   const { config, isLoading: isLoadingConfig } = useSmsProviderConfig();
   const { isOnboardingCompleto, isLoading: isLoadingTelnyx } = useTelnyxSetup();
@@ -39,6 +42,8 @@ const SmsMarketingPage = ({ defaultTab = "dashboard" }: SmsMarketingPageProps) =
       </div>
     );
   }
+
+  if (isScopriPlan) return <UpgradeScopriWall type="marketing" inline />;
 
   return (
     <div className="space-y-6">

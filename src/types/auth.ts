@@ -140,7 +140,7 @@ export type CompanySector =
   | "ristrutturazioni"
   | "altro";
 
-export type CompanyStatus = "trial" | "active" | "suspended" | "expired";
+export type CompanyStatus = "trial" | "active" | "suspended" | "expired" | "free";
 
 export interface Profile {
   id: string;

@@ -73,6 +73,8 @@ import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransferPanel";
 import { supabase } from "@/integrations/supabase/client";
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
 export default function Warehouse() {
   const navigate = useNavigate();
@@ -125,6 +127,7 @@ export default function Warehouse() {
   } = useWarehouseData();
 
   const { sections } = useWarehouseSections();
+  const { isScopriPlan } = useSubscriptionLimits();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
 
@@ -211,6 +214,8 @@ export default function Warehouse() {
   const handleSingleSectionChange = useCallback((itemId: string, sectionId: string | null) => {
     handleBatchSectionChange([itemId], sectionId);
   }, [handleBatchSectionChange]);
+
+  if (isScopriPlan) return <UpgradeScopriWall type="magazzino" inline />;
 
   if (!effectiveCompany) {
     return (

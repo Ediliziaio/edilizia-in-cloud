@@ -20,6 +20,7 @@ import {
   FolderOpen,
   LogOut,
   AlertTriangle,
+  Lock,
   ArrowLeft,
   Building2,
   Package,
@@ -167,12 +168,31 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
 });
 
 // Macro-area collapsible section component
-function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange }: {
+const SCOPRI_LOCKED_ROUTES = [
+  "/azienda/fatturazione",
+  "/azienda/documenti",
+  "/azienda/tesoreria",
+  "/azienda/scadenzario",
+  "/azienda/previsionale",
+  "/azienda/marketing",
+  "/azienda/sms-marketing",
+  "/azienda/personale",
+  "/azienda/magazzino",
+  "/azienda/giornale-lavori",
+  "/azienda/subappaltatori",
+  "/azienda/sicurezza-cantiere",
+  "/azienda/render",
+  "/azienda/agenti-ai",
+  "/azienda/automazioni",
+];
+
+function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false }: {
   area: MacroArea;
   visibleItems: NavItem[];
   pathname: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  isScopriPlan?: boolean;
 }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
@@ -334,6 +354,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                 const renderExpandedItems = (items: NavItem[]) => items.map((item) => {
                   const ItemIcon = item.icon;
                   const active = isActive(item.url);
+                  const isLocked = isScopriPlan && SCOPRI_LOCKED_ROUTES.some(r => item.url.startsWith(r));
                   return (
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild>
@@ -341,12 +362,16 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           to={item.url}
                           className={cn(
                             "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent",
-                            active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
+                            active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
+                            isLocked && "opacity-50"
                           )}
                         >
                           <ItemIcon className="h-4 w-4" />
                           <span>{item.title}</span>
-                          {item.isBeta && (
+                          {isLocked && (
+                            <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                          {!isLocked && item.isBeta && (
                             <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
                           )}
                         </NavLink>
@@ -637,7 +662,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   // Usa useViewAsPermissions: quando viewAsRole è attivo la sidebar mostra gli item del ruolo simulato
   const permissions = useViewAsPermissions();
-  const { isModuleEnabled } = useSubscriptionLimits();
+  const { isModuleEnabled, isScopriPlan } = useSubscriptionLimits();
   const { isFeatureEnabled } = useFeatureFlags();
   const { branding } = useBranding();
   const { effectiveBrand } = useBrandSettings();
@@ -830,6 +855,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                     visibleItems={visibleItems}
                     pathname={location.pathname}
                     open={openAreaId === area.id}
+                    isScopriPlan={isScopriPlan}
                     onOpenChange={(isOpen) => {
                       const newId = isOpen ? area.id : null;
                       setOpenAreaId(newId);

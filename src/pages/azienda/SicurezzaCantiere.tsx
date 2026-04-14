@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +39,7 @@ export default function SicurezzaCantiere() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const { isScopriPlan } = useSubscriptionLimits();
 
   const [posDialogOpen, setPosDialogOpen] = useState(false);
   const [duvriDialogOpen, setDuvriDialogOpen] = useState(false);
@@ -295,6 +298,8 @@ export default function SicurezzaCantiere() {
 </body>
 </html>`;
   };
+
+  if (isScopriPlan) return <UpgradeScopriWall type="generic" inline />;
 
   return (
     <div className="space-y-6">

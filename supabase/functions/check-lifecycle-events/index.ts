@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
     const { data: trialCompanies, error: trialErr } = await supabase
       .from("companies")
       .select("id, name, trial_ends_at, status")
+      .neq("status", "free")
       .eq("status", "trial")
       .not("trial_ends_at", "is", null);
 

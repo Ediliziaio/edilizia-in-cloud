@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +39,7 @@ export default function GiornaleLavori() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const { isScopriPlan } = useSubscriptionLimits();
   const [searchParams] = useSearchParams();
   const { lat: gpsLat, lng: gpsLng, status: gpsStatus, requestPosition } = useGPS(companyId || null);
 
@@ -291,6 +294,8 @@ export default function GiornaleLavori() {
       setIsExporting(false);
     }
   };
+
+  if (isScopriPlan) return <UpgradeScopriWall type="generic" inline />;
 
   return (
     <div className="space-y-6">

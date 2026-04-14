@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,6 +49,7 @@ export default function SubappaltatoriPage() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? '';
   const queryClient = useQueryClient();
+  const { isScopriPlan } = useSubscriptionLimits();
 
   const [search, setSearch] = useState('');
   const [filtroOrdine, setFiltroOrdine] = useState('__all__');
@@ -141,6 +144,8 @@ export default function SubappaltatoriPage() {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  if (isScopriPlan) return <UpgradeScopriWall type="generic" inline />;
 
   return (
     <div className="space-y-6">

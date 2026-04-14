@@ -40,6 +40,8 @@ import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/useDebounce";
 import { exportToXLSX, type CsvColumn } from "@/lib/csvExport";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento, AnagraficaAzienda } from "@/types/fatturazione";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
 const PER_PAGE = 25;
 
@@ -93,6 +95,7 @@ function DocumentiFiscaliListInner() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkPayOpen, setBulkPayOpen] = useState(false);
 
+  const { isScopriPlan } = useSubscriptionLimits();
   const { data: azienda } = useAnagraficaAzienda();
   const deleteMutation = useDeleteDocumento();
   const updateMutation = useUpdateDocumento();
@@ -339,6 +342,8 @@ function DocumentiFiscaliListInner() {
   const showColTipo = isTrash;
   const showColEliminazione = isTrash;
   const showColScadenza = !showColStorno && !showColFatturaCollegata && !isTrash;
+
+  if (isScopriPlan) return <UpgradeScopriWall type="sdi_invoice" inline />;
 
   return (
     <div className="space-y-4">

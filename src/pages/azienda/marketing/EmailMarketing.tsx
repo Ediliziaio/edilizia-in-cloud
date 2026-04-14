@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, Send, FileText } from "lucide-react";
 import { EmailStatsTab } from "@/components/email-marketing/EmailStatsTab";
@@ -9,6 +11,9 @@ import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 
 const EmailMarketing = () => {
   const [activeTab, setActiveTab] = useState("statistiche");
+  const { isScopriPlan } = useSubscriptionLimits();
+
+  if (isScopriPlan) return <UpgradeScopriWall type="marketing" inline />;
 
   return (
     <div className="space-y-6">

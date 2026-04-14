@@ -26,6 +26,8 @@ import { SemaforoMarketing } from "@/components/marketing/dashboard/SemaforoMark
 import { SaluteCommerciale } from "@/components/marketing/dashboard/SaluteCommerciale";
 import { AzioniCommerciali } from "@/components/marketing/dashboard/AzioniCommerciali";
 import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
 const TAB_ICONS: Record<DashboardTab, React.ElementType> = {
   panoramica: LayoutDashboard,
@@ -57,6 +59,9 @@ export default function MarketingDashboard() {
   const { activeTab, switchTab, tabs, visibleTabs, toggleTabVisibility } = useDashboardLayout();
   const { effectiveCompany } = useAuth();
   useMetaLeadNotifications();
+  const { isScopriPlan } = useSubscriptionLimits();
+
+  if (isScopriPlan) return <UpgradeScopriWall type="crm_pipeline" inline />;
 
   if (!effectiveCompany?.id) {
     return (

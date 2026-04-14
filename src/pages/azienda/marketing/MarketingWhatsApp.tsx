@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useConversations, useConversationsRealtime } from "@/hooks/useMessagingData";
 import { useAuth } from "@/contexts/AuthContext";
 import { ConversationList } from "@/components/messaging/ConversationList";
@@ -17,8 +19,11 @@ export default function MarketingWhatsApp() {
   const { effectiveCompany } = useAuth();
   const { data: conversations } = useConversations();
   useConversationsRealtime(effectiveCompany?.id);
+  const { isScopriPlan } = useSubscriptionLimits();
 
   const selectedConversation = conversations?.find((c: any) => c.id === selectedConvId);
+
+  if (isScopriPlan) return <UpgradeScopriWall type="marketing" inline />;
 
   return (
     <div className="space-y-4">

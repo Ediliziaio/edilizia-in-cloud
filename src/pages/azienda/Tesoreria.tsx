@@ -16,12 +16,15 @@ import CashFlowForecast from "@/components/tesoreria/CashFlowForecast";
 import BankAlertRules from "@/components/tesoreria/BankAlertRules";
 import CategorizationRules from "@/components/tesoreria/CategorizationRules";
 import ExpenseReports from "@/components/tesoreria/ExpenseReports";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
   const [searchParams] = useSearchParams();
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const { isScopriPlan } = useSubscriptionLimits();
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
 
   const bankCallback = searchParams.get("bank_callback");
@@ -68,6 +71,8 @@ export default function Tesoreria() {
     }
     setSyncing(false);
   }
+
+  if (isScopriPlan) return <UpgradeScopriWall type="banca_psd2" inline />;
 
   if (hasConnections === null) {
     return (

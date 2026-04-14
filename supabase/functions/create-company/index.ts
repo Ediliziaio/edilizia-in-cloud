@@ -150,6 +150,17 @@ Deno.serve(async (req) => {
     }
     const trialEndsAt = new Date(Date.now() + trialDays * 86400 * 1000).toISOString();
 
+    // Check if the selected plan is the free Scopri plan
+    let isScopriPlan = false;
+    if (planId) {
+      const { data: scopriCheck } = await supabaseAdmin
+        .from("subscription_plans")
+        .select("slug")
+        .eq("id", planId)
+        .maybeSingle();
+      isScopriPlan = scopriCheck?.slug === "scopri";
+    }
+
     // Create company
     const { data: companyData, error: companyError } = await supabaseAdmin
       .from("companies")
@@ -173,8 +184,8 @@ Deno.serve(async (req) => {
         operational_city: operationalCity || null,
         operational_province: operationalProvince || null,
         operational_postal_code: operationalPostalCode || null,
-        status: "trial",
-        trial_ends_at: trialEndsAt,
+        status: isScopriPlan ? "free" : "trial",
+        trial_ends_at: isScopriPlan ? null : trialEndsAt,
         subscription_plan_id: planId || null,
       })
       .select()
