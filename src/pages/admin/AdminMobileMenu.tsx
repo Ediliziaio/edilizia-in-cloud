@@ -4,7 +4,8 @@
  * Sostituisce la sidebar su mobile.
  */
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   LayoutDashboard, Building, MessageSquare, CreditCard, Gift, Blocks,
   RefreshCw, LifeBuoy, Megaphone, Mail, Bot, ListChecks, ClipboardCheck,
@@ -100,9 +101,13 @@ const allSections: AppSection[] = [
 
 export default function AdminMobileMenu() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { profile, signOut } = useAuth();
   const { permissions } = useSuperAdminPermissions();
   const [search, setSearch] = useState("");
+
+  // Desktop: redirect to dashboard — this page is mobile-only
+  if (!isMobile) return <Navigate to="/admin" replace />;
 
   const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
 
