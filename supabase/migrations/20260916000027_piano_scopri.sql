@@ -61,7 +61,7 @@ UPDATE public.subscription_plans SET position = 3 WHERE slug = 'enterprise';
 
 -- ─── 3. Moduli inclusi nel piano Scopri ──────────────────────
 UPDATE public.subscription_plans
-SET included_modules = ARRAY['orders', 'customers']
+SET included_modules = '["orders", "customers"]'::jsonb
 WHERE slug = 'scopri';
 
 -- ─── 4. Funzione helper: is_scopri_plan ──────────────────────
