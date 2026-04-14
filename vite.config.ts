@@ -4,6 +4,7 @@ import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
+const isMobile = process.env.VITE_APP_MODE === "mobile";
 export default defineConfig(() => ({
   server: {
     host: "::",
@@ -17,7 +18,7 @@ export default defineConfig(() => ({
   },
   plugins: [
     react(),
-    VitePWA({
+    ...(isMobile ? [] : [VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",
       includeAssets: ["favicon.ico", "robots.txt", "icons/apple-touch-icon.png"],
@@ -110,7 +111,7 @@ export default defineConfig(() => ({
           },
         ],
       },
-    }),
+    })]),
   ],
   resolve: {
     alias: {
