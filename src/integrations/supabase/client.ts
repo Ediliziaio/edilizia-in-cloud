@@ -16,26 +16,10 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-// navigator.locks can stall indefinitely on mobile Safari, Android WebViews,
-// and even desktop Chrome (especially with extensions), preventing
-// onAuthStateChange(INITIAL_SESSION) from firing and leaving the app
-// stuck on "Caricamento..." forever.
-// Fix: always use a no-op lock to bypass the Web Locks API entirely.
-// Trade-off: loses cross-tab session coordination, but avoids deadlocks.
-
-async function lockNoOp<R>(
-  _name: string,
-  _acquireTimeout: number,
-  fn: () => Promise<R>
-): Promise<R> {
-  return await fn();
-}
-
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    lock: lockNoOp,
   }
 });

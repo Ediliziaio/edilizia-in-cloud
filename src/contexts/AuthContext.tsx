@@ -668,25 +668,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // immediately with the current session (or null) without acquiring Supabase's
     // internal storage lock. We rely on it instead of calling getSession() directly,
     // which can hang for 10+ seconds when the lock is held by autoRefreshToken.
-    //
-    // SAFETY NET: on some mobile browsers (iOS Safari, older Android WebView),
-    // navigator.locks can stall and INITIAL_SESSION never fires, leaving the
-    // app stuck on "Caricamento..." forever. If isLoading is still true after
-    // 8 seconds, force a refreshAuth() fallback to unblock the UI.
-    const safetyTimeout = setTimeout(() => {
-      setState(prev => {
-        if (prev.isLoading) {
-          logger.warn("[auth] Safety timeout: INITIAL_SESSION did not fire within 8s — forcing refreshAuth()");
-          refreshAuth();
-        }
-        return prev;
-      });
-    }, 8_000);
+    // refreshAuth() is intentionally NOT called here — it is still available for
+    // programmatic use (e.g. after a setSession fallback failure).
 
     return () => {
       // Invalidate any in-flight fetch so setState is never called after unmount.
       authGenRef.current++;
-      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, [fetchUserData, refreshAuth]);

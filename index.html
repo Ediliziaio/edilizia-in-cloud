@@ -318,7 +318,7 @@
         // Unregisters ALL service workers + clears ALL caches once per deploy.
         // This breaks any stale-SW poison loop before it can corrupt JS loading.
         // Increment DEPLOY_KEY whenever a forced SW reset is needed.
-        var DEPLOY_KEY = 'sw_reset_v6';
+        var DEPLOY_KEY = 'sw_reset_v5';
         try {
           if (!localStorage.getItem(DEPLOY_KEY) && 'serviceWorker' in navigator) {
             localStorage.setItem(DEPLOY_KEY, '1');
