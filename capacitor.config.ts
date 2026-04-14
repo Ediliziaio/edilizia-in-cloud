@@ -5,10 +5,10 @@ const config: CapacitorConfig = {
   appName: "Edilizia in Cloud",
   webDir: "dist",
   server: {
-    // Use localhost instead of capacitor:// scheme so BrowserRouter works
+    // Use https + localhost so BrowserRouter works correctly on iOS/Android
     androidScheme: "https",
     iosScheme: "https",
-    hostname: "app.ediliziaincloud.com",
+    hostname: "localhost",
   },
   plugins: {
     SplashScreen: {
@@ -34,7 +34,6 @@ const config: CapacitorConfig = {
     },
   },
   ios: {
-    scheme: "EdiliziaInCloud",
     contentInset: "automatic",
     backgroundColor: "#0a0a0f",
     preferredContentMode: "mobile",
@@ -45,7 +44,7 @@ const config: CapacitorConfig = {
     backgroundColor: "#0a0a0f",
     allowMixedContent: false,
     captureInput: true,
-    webContentsDebuggingEnabled: false,
+    webContentsDebuggingEnabled: true,
     minSdkVersion: 24,
   },
 };
