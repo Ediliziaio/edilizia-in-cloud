@@ -86,13 +86,18 @@ export class ErrorBoundary extends React.Component<Props, State> {
         return <>{this.props.fallback}</>;
       }
 
-      // ChunkLoadError = new deploy, old chunk hashes gone → auto-reload once
+      // ChunkLoadError = new deploy, old chunk hashes gone → hard-reload with cache-bust
       if (this.isChunkError(this.state.error)) {
         const reloadKey = '_chunk_err_reload';
         if (!sessionStorage.getItem(reloadKey)) {
           sessionStorage.setItem(reloadKey, '1');
           // Clear SW caches then hard-reload so the fresh index.html is served
-          const doReload = () => window.location.reload();
+          const doReload = () => {
+            window.location.href =
+              window.location.pathname +
+              (window.location.search ? window.location.search + '&' : '?') +
+              '_r=' + Date.now();
+          };
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations()
               .then(regs => Promise.all(regs.map(r => r.unregister())))
@@ -105,6 +110,15 @@ export class ErrorBoundary extends React.Component<Props, State> {
             setTimeout(doReload, 50);
           }
         }
+
+        const forceReload = () => {
+          sessionStorage.removeItem(reloadKey);
+          sessionStorage.removeItem('_sw_rec');
+          sessionStorage.removeItem('_lazy_chunk_reload');
+          window.location.href =
+            window.location.pathname + '?_force=' + Date.now();
+        };
+
         return (
           <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
             <div className="p-4 rounded-full bg-blue-50 mb-4">
@@ -114,6 +128,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <p className="text-muted-foreground text-sm mb-6 max-w-md">
               La pagina si ricaricherà automaticamente.
             </p>
+            <Button onClick={forceReload} variant="outline" size="sm" className="mt-2">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Ricarica manualmente
+            </Button>
           </div>
         );
       }

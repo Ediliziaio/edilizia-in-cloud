@@ -2,7 +2,7 @@
  * Route area campo — operai interni e subappaltatori.
  * Accessibile da lavori.ediliziaincloud.com/campo.
  */
-import { lazy } from "react";
+import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
 import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";

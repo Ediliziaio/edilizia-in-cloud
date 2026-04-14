@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect } from "react";
+import { Suspense, useEffect } from "react";
+import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
 // Home is imported eagerly — it's the LCP page and must be in the critical JS bundle
 
 // Extend window type for GA4 gtag
