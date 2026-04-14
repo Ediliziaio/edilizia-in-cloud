@@ -49,10 +49,12 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function AdminDashboard() {
   const { permissions } = useSuperAdminPermissions();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const {
     data: dashboardData,
     isLoading,
@@ -196,8 +198,22 @@ export default function AdminDashboard() {
     }
   }
 
+  const widgetGrid = (
+    <div className="grid gap-3 md:gap-6 grid-cols-2">
+      {visibleWidgets.map((widget) => {
+        const content = renderWidget(widget.id);
+        if (!content) return null;
+        return (
+          <SortableWidget key={widget.id} id={widget.id} span={widget.span}>
+            {content}
+          </SortableWidget>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header with controls */}
       <div className="space-y-3">
         <DashboardHeader
@@ -239,22 +255,16 @@ export default function AdminDashboard() {
         <AdminPulseBar />
       </div>
 
-      {/* Draggable Widget Grid */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={visibleWidgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-          <div className="grid gap-6 lg:grid-cols-2">
-            {visibleWidgets.map((widget) => {
-              const content = renderWidget(widget.id);
-              if (!content) return null;
-              return (
-                <SortableWidget key={widget.id} id={widget.id} span={widget.span}>
-                  {content}
-                </SortableWidget>
-              );
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
+      {/* Widget Grid — drag disabled on mobile */}
+      {isMobile ? (
+        widgetGrid
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={visibleWidgets.map((w) => w.id)} strategy={rectSortingStrategy}>
+            {widgetGrid}
+          </SortableContext>
+        </DndContext>
+      )}
 
       {/* Churn Risk Alerts */}
       <AdminChurnAlerts />

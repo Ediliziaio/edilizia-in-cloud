@@ -2,7 +2,8 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { navigateToSubdomain, getSubdomainUrl } from "@/utils/subdomainNav";
 import { safeRedirect } from "@/utils/safeRedirect";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -109,6 +110,7 @@ export default function CompaniesList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { impersonateCompany, profile, role, company } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // URL-derived filter state
   const statusFilter = searchParams.get("status") || "all";
@@ -932,6 +934,72 @@ export default function CompaniesList() {
           }))}
           healthScores={healthData}
         />
+      ) : isMobile ? (
+        /* ─── Mobile Card View ─── */
+        <div className="space-y-2">
+          {pagedCompanies.map((company) => {
+            const status = (company.status || "trial") as CompanyStatus;
+            const cfg = statusConfig[status] || statusConfig.trial;
+            const plan = company.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+            const hd = healthData[company.id];
+            return (
+              <Card
+                key={company.id}
+                className="active:scale-[0.99] transition-transform cursor-pointer"
+                onClick={() => navigate(`/admin/aziende/${company.id}`)}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    {company.logo_url ? (
+                      <img src={company.logo_url} alt={company.name} className="h-10 w-10 rounded-xl object-cover shrink-0" />
+                    ) : (
+                      <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Building2 className="h-5 w-5 text-primary" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-sm truncate">{company.name}</p>
+                        <ChevronRightIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{company.email}</p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <Badge variant={cfg.variant} className="text-[10px] px-1.5 py-0">{cfg.label}</Badge>
+                        {plan && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{plan.name}</Badge>}
+                        {plan && <span className="text-xs font-semibold text-emerald-600">{formatCurrency(plan.price_monthly)}/m</span>}
+                        {hd && (
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
+                            hd.health === "healthy" ? "border-green-500/30 text-green-700 bg-green-50" :
+                            hd.health === "at_risk" ? "border-amber-500/30 text-amber-700 bg-amber-50" :
+                            "border-red-500/30 text-red-700 bg-red-50"
+                          }`}>
+                            {hd.score}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-3 text-sm text-muted-foreground">
+              <span className="text-xs">
+                {(currentPage - 1) * SERVER_PAGE_SIZE + 1}–{Math.min(currentPage * SERVER_PAGE_SIZE, serverTotalCount)} di {serverTotalCount}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="px-2 tabular-nums text-xs">{currentPage}/{totalPages}</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <Card>
           <CardContent className="p-0 overflow-x-auto">

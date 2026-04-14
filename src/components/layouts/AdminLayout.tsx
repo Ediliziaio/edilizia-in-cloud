@@ -78,6 +78,8 @@ import { AdminBreadcrumb } from "@/components/admin/header/AdminBreadcrumb";
 import { AdminNotificationCenter } from "@/components/admin/header/AdminNotificationCenter";
 import { AdminQuickActions } from "@/components/admin/header/AdminQuickActions";
 import { AdminBottomNav } from "@/components/admin/AdminBottomNav";
+import { AdminMobileSettingsNav } from "@/components/admin/AdminMobileSettingsNav";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AdminNavItem {
   title: string;
@@ -589,15 +591,41 @@ function AdminMainSidebar() {
 
 export function AdminLayout() {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const isSettingsRoute = location.pathname.startsWith("/admin/impostazioni");
 
+  // Mobile: no sidebar at all — bottom nav replaces it
+  if (isMobile) {
+    return (
+      <div className="min-h-screen flex flex-col w-full">
+        {/* Mobile header — compact */}
+        <header className="flex h-12 border-b items-center px-3 gap-2 bg-background sticky top-0 z-40">
+          <AdminBreadcrumb />
+          <div className="ml-auto flex items-center gap-1.5">
+            <AdminNotificationCenter />
+            <QuickLoginPopover />
+          </div>
+        </header>
+
+        {/* Settings sub-navigation on mobile */}
+        {isSettingsRoute && <AdminMobileSettingsNav />}
+
+        <main className="flex-1 p-3 pb-20 bg-muted/30 overflow-x-hidden">
+          <Outlet />
+        </main>
+
+        <AdminBottomNav />
+      </div>
+    );
+  }
+
+  // Desktop: full sidebar + header
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         {isSettingsRoute ? <AdminSettingsSidebar /> : <AdminMainSidebar />}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Desktop header — full controls */}
-          <header className="hidden md:flex h-14 border-b items-center px-4 gap-4 bg-background">
+          <header className="flex h-14 border-b items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
             <Separator orientation="vertical" className="h-5" />
             <AdminBreadcrumb />
@@ -608,25 +636,10 @@ export function AdminLayout() {
               <QuickLoginPopover />
             </div>
           </header>
-
-          {/* Mobile header — compact with essential controls */}
-          <header className="md:hidden flex h-12 border-b items-center px-3 gap-2 bg-background sticky top-0 z-40">
-            <SidebarTrigger />
-            <Separator orientation="vertical" className="h-4" />
-            <AdminBreadcrumb />
-            <div className="ml-auto flex items-center gap-1.5">
-              <AdminNotificationCenter />
-              <QuickLoginPopover />
-            </div>
-          </header>
-
-          <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6 bg-muted/30 overflow-x-hidden">
+          <main className="flex-1 p-6 bg-muted/30 overflow-x-hidden">
             <Outlet />
           </main>
         </div>
-
-        {/* Mobile bottom navigation */}
-        <AdminBottomNav />
       </div>
     </SidebarProvider>
   );

@@ -176,7 +176,7 @@ export function SortableWidget({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative group ${span === 2 ? "lg:col-span-2" : ""}`}
+      className={`relative group ${span === 2 ? "col-span-2" : ""}`}
     >
       <button
         {...attributes}
