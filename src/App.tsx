@@ -7,6 +7,15 @@ declare global {
     gtag?: (...args: unknown[]) => void;
   }
 }
+
+// ── Capacitor native-only bootstrap ──────────────────────────────────────────
+// On web `isNative` is false → MobileBootstrap is a no-op component and the
+// Capacitor-plugin imports (@capacitor/app, status-bar, keyboard…) are NEVER
+// loaded, so the web bundle is unaffected.
+import { isNative } from "@/lib/mobile/platform";
+const MobileBootstrap = isNative
+  ? lazy(() => import("@/components/mobile/MobileBootstrap"))
+  : (() => null) as React.FC;
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
@@ -175,6 +184,7 @@ const App = () => (
         <SubdomainTitleSetter />
         <GARouteTracker />
         <ScrollToTop />
+        <MobileBootstrap />
         <AuthProvider>
           <BillingModeProvider>
           <Suspense fallback={<PageLoader />}>

@@ -298,6 +298,10 @@
     <div id="root"></div>
     <!-- SW Emergency Recovery — runs inline before any module loads -->
     <script>
+      // Skip SW recovery entirely on Capacitor native — there are no service workers
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        /* native: no-op */
+      } else
       (function () {
         function nukeAndReload() {
           Promise.all([
