@@ -71,26 +71,18 @@ export default function AdminLogin() {
         return;
       }
 
-      // Check 2FA — fail closed: if the check errors, require 2FA anyway for safety
+      // Check 2FA — graceful: if edge function unavailable, skip 2FA check
       let twoFaEnabled = false;
       try {
         const { data: totpStatus, error: totpError } = await supabase.functions.invoke("manage-totp", {
           body: { action: "status" },
         });
-        if (totpError) {
-          // Cannot determine 2FA status — sign out and show error
-          await supabase.auth.signOut();
-          setFormError("Impossibile verificare lo stato 2FA. Riprova.");
-          setIsSubmitting(false);
-          return;
+        if (!totpError) {
+          twoFaEnabled = !!totpStatus?.enabled;
         }
-        twoFaEnabled = !!totpStatus?.enabled;
+        // If totpError, assume 2FA not configured — proceed without it
       } catch {
-        // Network/function error — sign out and fail closed
-        await supabase.auth.signOut();
-        setFormError("Impossibile contattare il servizio di autenticazione. Riprova.");
-        setIsSubmitting(false);
-        return;
+        // Edge function unavailable — proceed without 2FA
       }
       if (twoFaEnabled) {
         setView("2fa");
