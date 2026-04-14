@@ -4,6 +4,12 @@ const config: CapacitorConfig = {
   appId: "com.ediliziaincloud.app",
   appName: "Edilizia in Cloud",
   webDir: "dist",
+  server: {
+    // Use localhost instead of capacitor:// scheme so BrowserRouter works
+    androidScheme: "https",
+    iosScheme: "https",
+    hostname: "app.ediliziaincloud.com",
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
