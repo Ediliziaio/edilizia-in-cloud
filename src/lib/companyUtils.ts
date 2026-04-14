@@ -23,6 +23,7 @@ export const sectors: { value: CompanySector; label: string }[] = [
 ];
 
 export const statusConfig: Record<CompanyStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  free: { label: "Scopri", variant: "default" },
   trial: { label: "Trial", variant: "outline" },
   active: { label: "Attivo", variant: "default" },
   suspended: { label: "Sospeso", variant: "secondary" },

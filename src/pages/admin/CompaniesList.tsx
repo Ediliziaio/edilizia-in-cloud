@@ -39,6 +39,15 @@ import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
+    if (company.status === "free") {
+      return (
+        <div ref={ref} {...props} className="flex items-center gap-1.5">
+          <Badge variant="outline" className="border-teal-500 text-teal-700 bg-teal-50 text-xs">
+            Piano Scopri
+          </Badge>
+        </div>
+      );
+    }
     if (company.status === "trial" && company.trial_ends_at) {
       const daysLeft = differenceInDays(new Date(company.trial_ends_at), new Date());
       const color = daysLeft > 7 ? "text-green-600" : daysLeft >= 3 ? "text-yellow-600" : "text-red-600";

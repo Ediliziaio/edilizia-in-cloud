@@ -97,7 +97,7 @@ export default function SubscriptionPlans() {
     const activePlans = plans.filter((p) => p.is_active).length;
     const counts = companyCounts || {};
     const subscribedCompanies = Object.values(counts).reduce((s, n) => s + n, 0);
-    const estimatedMrr = plans.reduce((sum, p) => sum + p.price_monthly * (counts[p.id] || 0), 0);
+    const estimatedMrr = plans.reduce((sum, p) => sum + (p.price_monthly > 0 ? p.price_monthly * (counts[p.id] || 0) : 0), 0);
     return { activePlans, subscribedCompanies, estimatedMrr };
   }, [plans, companyCounts]);
 
@@ -296,6 +296,9 @@ export default function SubscriptionPlans() {
                   <Badge variant={plan.is_active ? "default" : "secondary"}>
                     {plan.is_active ? "Attivo" : "Disattivo"}
                   </Badge>
+                  {plan.price_monthly === 0 && (
+                    <Badge variant="outline" className="border-green-500 text-green-600">Gratis</Badge>
+                  )}
                 </div>
                 <CardDescription>{plan.description || plan.slug}</CardDescription>
                 {(companyCounts?.[plan.id] ?? 0) > 0 && (
@@ -332,7 +335,7 @@ export default function SubscriptionPlans() {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <RefreshCw className="h-4 w-4 text-muted-foreground" />
-                    <span>{plan.trial_days ?? 31} giorni trial</span>
+                    <span>{(plan.trial_days ?? 31) === 0 ? "Per sempre (no scadenza)" : `${plan.trial_days ?? 31} giorni trial`}</span>
                   </div>
                 </div>
 

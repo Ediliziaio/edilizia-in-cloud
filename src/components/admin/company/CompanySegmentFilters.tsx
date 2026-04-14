@@ -46,6 +46,7 @@ const DIMENSIONI: Array<{ value: "micro" | "piccola" | "media" | "grande"; label
 ];
 
 const STATI: Array<{ value: string; label: string }> = [
+  { value: "free", label: "Scopri" },
   { value: "active", label: "Attivo" },
   { value: "trial", label: "Trial" },
   { value: "suspended", label: "Sospeso" },
