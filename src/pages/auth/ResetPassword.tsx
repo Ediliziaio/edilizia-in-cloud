@@ -76,7 +76,10 @@ export default function ResetPassword() {
         });
       } else {
         setIsSuccess(true);
-        redirectTimerRef.current = setTimeout(() => navigate("/login", { replace: true }), 3000);
+        // Detect if we're on the admin subdomain and redirect accordingly
+        const isAdminDomain = window.location.hostname.startsWith("admin.");
+        const redirectPath = isAdminDomain ? "/admin-login" : "/login";
+        redirectTimerRef.current = setTimeout(() => navigate(redirectPath, { replace: true }), 3000);
       }
     } catch {
       toast({
@@ -106,7 +109,7 @@ export default function ResetPassword() {
           <p className="text-muted-foreground text-sm">
             Il link di reset è scaduto o non è valido. Richiedi un nuovo link dalla pagina di login.
           </p>
-          <Button onClick={() => navigate("/login")} className="mt-4">
+          <Button onClick={() => navigate(window.location.hostname.startsWith("admin.") ? "/admin-login" : "/login")} className="mt-4">
             Torna al login
           </Button>
         </div>

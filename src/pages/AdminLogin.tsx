@@ -5,12 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Lock, Shield, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Loader2, Lock, Shield, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
 import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
 
-type ViewMode = "login" | "2fa";
+type ViewMode = "login" | "2fa" | "forgot-password";
 
 export default function AdminLogin() {
   const { user, role, isLoading, signIn } = useAuth();
@@ -20,6 +20,9 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const { toast } = useToast();
 
   // If already logged in as an admin role, redirect to the panel
@@ -120,6 +123,92 @@ export default function AdminLogin() {
     }
     setIsSubmitting(false);
   };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsResetting(true);
+    try {
+      await supabase.functions.invoke("reset-password-branded", {
+        body: { email: resetEmail, redirect_to: window.location.origin },
+      });
+      setResetSent(true);
+    } catch {
+      toast({ variant: "destructive", title: "Errore", description: "Impossibile inviare l'email di reset." });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  if (view === "forgot-password") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] p-4">
+        <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-md space-y-6 bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl p-8">
+          <div className="text-center space-y-4">
+            <div className="flex justify-center">
+              <div className="rounded-full bg-[#F97415]/20 ring-4 ring-[#F97415]/30 p-5">
+                <Lock className="h-10 w-10 text-[#F97415]" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold text-white">Recupera Password</h1>
+              <p className="text-sm text-white/60">Admin Panel</p>
+            </div>
+          </div>
+          {resetSent ? (
+            <div className="text-center space-y-4 py-4">
+              <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto" />
+              <p className="text-white font-medium">Email inviata!</p>
+              <p className="text-sm text-white/60">
+                Controlla la tua casella email e clicca il link per reimpostare la password.
+              </p>
+              <Button
+                variant="outline"
+                className="border-white/20 text-white hover:bg-white/10 hover:text-white"
+                onClick={() => { setView("login"); setResetSent(false); setResetEmail(""); }}
+              >
+                Torna al login
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email" className="text-white/70 text-sm font-medium">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="admin@ediliziaincloud.it"
+                  required
+                  autoFocus
+                  disabled={isResetting}
+                  className="h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full h-11 bg-[#F97415] hover:bg-[#F97415]/90 text-white font-semibold"
+                disabled={isResetting}
+              >
+                {isResetting ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Invio in corso...</>
+                ) : (
+                  "Invia link di reset"
+                )}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setView("login")}
+                className="w-full text-center text-sm text-white/50 hover:text-white/80 transition-colors"
+              >
+                Torna al login
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (view === "2fa") {
     return (
@@ -315,9 +404,13 @@ export default function AdminLogin() {
               </Button>
             </form>
 
-            <p className="text-center text-xs text-white/40">
-              Per recuperare l'accesso contatta il supporto tecnico interno
-            </p>
+            <button
+              type="button"
+              onClick={() => { setView("forgot-password"); setFormError(null); }}
+              className="w-full text-center text-sm text-white/50 hover:text-[#F97415] transition-colors"
+            >
+              Password dimenticata?
+            </button>
           </div>
         </div>
       </div>
