@@ -19,6 +19,7 @@ import ScrollToTop from "@/components/ScrollToTop";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 import { useSubdomainRoute, getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
+import { useMobileInit } from "@/hooks/useMobileInit";
 
 // Route modules
 import { adminRoutes } from "@/routes/adminRoutes";
@@ -176,6 +177,7 @@ const App = () => (
         <SubdomainTitleSetter />
         <GARouteTracker />
         <ScrollToTop />
+        <MobileBootstrap />
         <AuthProvider>
           <BillingModeProvider>
           <Suspense fallback={<PageLoader />}>
