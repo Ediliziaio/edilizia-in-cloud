@@ -187,16 +187,16 @@ export default function ReferralDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden md:flex items-center gap-3">
           <Gift className="h-6 w-6 text-primary" />
           <div>
             <h1 className="text-2xl font-bold">Programma Referral</h1>
             <p className="text-muted-foreground">Gestisci affiliati, commissioni e payout · <span className="text-xs italic">Commissioni calcolate sul prezzo di listino</span></p>
           </div>
         </div>
-        <Button onClick={() => setReferrerDialogOpen(true)}>
+        <Button onClick={() => setReferrerDialogOpen(true)} className="self-end sm:self-auto">
           <Plus className="h-4 w-4 mr-2" /> Nuovo Referrer
         </Button>
       </div>

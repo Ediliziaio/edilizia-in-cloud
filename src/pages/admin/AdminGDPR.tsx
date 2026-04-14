@@ -67,8 +67,8 @@ export default function AdminGDPR() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="hidden md:block">
         <h1 className="text-2xl font-bold">GDPR & Compliance</h1>
         <p className="text-muted-foreground">Gestisci le richieste di privacy e monitora la conformità GDPR</p>
       </div>
@@ -96,8 +96,8 @@ export default function AdminGDPR() {
               <CardTitle className="text-base">Richieste GDPR</CardTitle>
               <CardDescription>{requests.length} richiest{requests.length === 1 ? "a" : "e"} totali</CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table className="min-w-[600px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Utente</TableHead>

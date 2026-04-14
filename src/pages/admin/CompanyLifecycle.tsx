@@ -183,8 +183,8 @@ export default function CompanyLifecycle() {
   const filteredSuspended = filterBySearch(suspendedCompanies);
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="hidden md:block">
         <h1 className="text-2xl font-bold text-foreground">Company Lifecycle</h1>
         <p className="text-muted-foreground">Gestisci onboarding, trial e win-back</p>
       </div>

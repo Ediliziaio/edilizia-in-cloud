@@ -493,18 +493,16 @@ export default function AdminCRM() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            CRM Proprietario AEDIX
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Database contatti marketing globale della piattaforma
-          </p>
-        </div>
+      <div className="hidden md:block">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Users className="h-6 w-6" />
+          CRM Proprietario AEDIX
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Database contatti marketing globale della piattaforma
+        </p>
       </div>
 
       <Tabs defaultValue="contatti">
@@ -602,13 +600,13 @@ export default function AdminCRM() {
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               {isLoading ? (
                 <div className="p-6 space-y-3">
                   {[1, 2, 3, 4, 5, 6, 7].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
                 </div>
               ) : (
-                <Table>
+                <Table className="min-w-[800px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead

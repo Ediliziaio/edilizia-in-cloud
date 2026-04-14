@@ -461,7 +461,7 @@ function TabEsecuzioni() {
 
   return (
     <div className="overflow-x-auto rounded-md border">
-      <Table>
+      <Table className="min-w-[550px]">
         <TableHeader>
           <TableRow>
             <TableHead>Azienda</TableHead>
@@ -508,9 +508,9 @@ export default function PlaybooksPage() {
   const { mutate: toggle } = useTogglePlaybook();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div>
+      <div className="hidden md:block">
         <h1 className="text-2xl font-bold">Playbook Automatici</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Configura sequenze di azioni automatiche scatenate da eventi del lifecycle

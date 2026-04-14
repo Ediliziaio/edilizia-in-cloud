@@ -296,24 +296,24 @@ export default function CampaignsPage() {
   const [dialogAperto, setDialogAperto] = useState(false);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 md:space-y-6 p-3 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Campagne Email/SMS</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Gestisci e monitora le campagne con AB test
           </p>
         </div>
-        <Button onClick={() => setDialogAperto(true)}>
+        <Button onClick={() => setDialogAperto(true)} className="self-end sm:self-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nuova Campagna
         </Button>
       </div>
 
       {/* Tabella campagne */}
-      <div className="rounded-md border bg-background">
-        <Table>
+      <div className="rounded-md border bg-background overflow-x-auto">
+        <Table className="min-w-[600px]">
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>

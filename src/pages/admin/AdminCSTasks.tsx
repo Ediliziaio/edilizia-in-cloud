@@ -17,6 +17,7 @@ import { Plus, CheckCircle, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CSTask {
   id: string;
@@ -35,6 +36,7 @@ interface CSTask {
 export default function AdminCSTasks() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [showNew, setShowNew] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("open");
   const [newTitle, setNewTitle] = useState("");
@@ -130,9 +132,9 @@ export default function AdminCSTasks() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold">CS Tasks</h1>
           <p className="text-muted-foreground">Attività Customer Success per le aziende</p>
         </div>
@@ -228,6 +230,36 @@ export default function AdminCSTasks() {
             </div>
           ) : tasks.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Nessun task trovato</p>
+          ) : isMobile ? (
+            <div className="divide-y">
+              {tasks.map((task) => (
+                <div key={task.id} className="p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5">{statusIcon(task.status)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{task.title}</p>
+                      {task.description && <p className="text-xs text-muted-foreground truncate">{task.description}</p>}
+                    </div>
+                    {priorityBadge(task.priority)}
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pl-6">
+                    <span>{companyMap.get(task.company_id) || "—"}</span>
+                    <span>{task.due_date ? format(new Date(task.due_date), "dd/MM/yy") : ""}</span>
+                  </div>
+                  <div className="pl-6">
+                    {task.status === "open" && (
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "in_progress" })}>Inizia</Button>
+                    )}
+                    {task.status === "in_progress" && (
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "completed" })}>Completa</Button>
+                    )}
+                    {task.status === "completed" && (
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "open" })}>Riapri</Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <Table>
               <TableHeader>

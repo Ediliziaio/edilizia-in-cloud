@@ -26,8 +26,8 @@ export default function GlobalTickets() {
   if (!permissions.can_manage_tickets) return <AccessDenied />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
+    <div className="space-y-4 md:space-y-6">
+      <div className="hidden md:flex items-center gap-3">
         <MessageSquare className="h-6 w-6 text-primary" />
         <div>
           <div className="flex items-center gap-2">

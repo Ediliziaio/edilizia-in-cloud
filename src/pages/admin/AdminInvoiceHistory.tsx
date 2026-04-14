@@ -90,15 +90,15 @@ export default function AdminInvoiceHistory() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" /> Storico Fatture Platform
           </h1>
           <p className="text-muted-foreground">Cronologia pagamenti ricevuti dalla piattaforma</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <Select value={monthFilter} onValueChange={setMonthFilter}>
             <SelectTrigger className="w-44">
               <SelectValue placeholder="Tutti i mesi" />
@@ -134,8 +134,8 @@ export default function AdminInvoiceHistory() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
-          <Table>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="min-w-[550px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Azienda</TableHead>

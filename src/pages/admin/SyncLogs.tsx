@@ -123,7 +123,7 @@ function SyncLogs() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Sync Logs</h1>
+          <h1 className="text-2xl font-bold hidden md:block">Sync Logs</h1>
           <p className="text-sm text-muted-foreground">Log di sincronizzazione Google Calendar</p>
         </div>
         <Alert variant="destructive">
@@ -152,8 +152,8 @@ function SyncLogs() {
   const successRate = stats.total > 0 ? Math.round(((stats.total - stats.failed) / stats.total) * 100) : 100;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Log di Sistema</h1>
+    <div className="space-y-4 md:space-y-6">
+      <h1 className="text-2xl font-bold hidden md:block">Log di Sistema</h1>
       <Tabs defaultValue="sync">
         <TabsList>
           <TabsTrigger value="sync">Sync Calendar</TabsTrigger>
@@ -229,8 +229,8 @@ function SyncLogs() {
             </Select>
           </div>
 
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-[700px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8" />

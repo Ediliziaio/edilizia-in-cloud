@@ -243,10 +243,10 @@ export default function AdminDunningConfig() {
   if (!permissions.billing_write) return <AccessDenied />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold">Dunning — Recupero Pagamenti</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Sequenza email automatica per abbonamenti scaduti e trial esauriti
@@ -442,7 +442,8 @@ export default function AdminDunningConfig() {
               <p className="text-muted-foreground text-sm">Nessun tentativo registrato</p>
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+            <Table className="min-w-[650px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Azienda</TableHead>
@@ -481,6 +482,7 @@ export default function AdminDunningConfig() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -625,8 +625,8 @@ export default function AdminRevenueDashboard() {
   if (!permissions.billing_read) return <AccessDenied />;
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="hidden md:block">
         <h1 className="text-2xl font-bold">Revenue Platform</h1>
         <p className="text-muted-foreground">Dati finanziari aggregati e riconciliazione Stripe</p>
       </div>

@@ -164,9 +164,9 @@ export default function AdminOnboardingConfig() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold">Customer Success — Onboarding</h1>
           <p className="text-muted-foreground">Configura i template di onboarding per le nuove aziende</p>
         </div>

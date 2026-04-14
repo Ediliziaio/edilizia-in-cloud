@@ -242,9 +242,9 @@ export default function Announcements() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold text-foreground">Annunci</h1>
           <p className="text-muted-foreground">Gestisci banner, changelog e avvisi di manutenzione</p>
         </div>
@@ -268,8 +268,8 @@ export default function Announcements() {
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Megaphone className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Megaphone className="h-4 w-4 text-muted-foreground shrink-0" />
                       <h3 className="font-semibold">{a.title}</h3>
                       <Badge variant={a.is_active ? "default" : "secondary"} className="text-xs">
                         {a.is_active ? "Attivo" : "Disattivo"}

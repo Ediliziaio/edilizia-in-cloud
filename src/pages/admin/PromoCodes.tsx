@@ -104,22 +104,22 @@ export default function PromoCodes() {
   if (!permissions.billing_write) return <AccessDenied />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Ticket className="h-6 w-6 text-primary" /> Codici Promo
           </h1>
           <p className="text-muted-foreground">Gestisci sconti e promozioni</p>
         </div>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => setOpen(true)} className="self-end sm:self-auto">
           <Plus className="h-4 w-4 mr-2" /> Nuovo Codice
         </Button>
       </div>
 
       <Card>
-        <CardContent className="p-0">
-          <Table>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="min-w-[500px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Codice</TableHead>

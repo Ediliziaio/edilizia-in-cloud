@@ -694,8 +694,8 @@ export default function CompaniesList() {
 
   if (isError) {
     return (
-      <div className="space-y-6">
-        <div>
+      <div className="space-y-4 md:space-y-6">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold">Aziende</h1>
           <p className="text-muted-foreground">Gestisci le aziende registrate</p>
         </div>
@@ -715,9 +715,9 @@ export default function CompaniesList() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold">Aziende</h1>
           <p className="text-muted-foreground">Gestisci le aziende registrate</p>
         </div>

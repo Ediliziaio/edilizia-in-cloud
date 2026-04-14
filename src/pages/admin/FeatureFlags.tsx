@@ -199,8 +199,8 @@ export default function FeatureFlags() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="hidden md:block">
         <h1 className="text-2xl font-bold">Feature Flags</h1>
         <p className="text-muted-foreground">Gestisci i moduli e le funzionalità disponibili per le aziende.</p>
       </div>
@@ -226,8 +226,8 @@ export default function FeatureFlags() {
 
           return (
             <Card key={flag.id}>
-              <div className="flex items-center justify-between px-6 py-3 border-b bg-muted/40 rounded-t-lg">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 md:px-6 py-3 border-b bg-muted/40 rounded-t-lg">
+                <div className="flex items-center gap-2 flex-wrap">
                   <IconComp className="h-4 w-4 text-primary" />
                   <span className="font-semibold text-sm">{flag.name}</span>
                   <Badge variant="outline" className={`text-xs ${catStyle.className}`}>
@@ -240,14 +240,14 @@ export default function FeatureFlags() {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <StatusIcon className="h-3.5 w-3.5" />
-                  <span>
+                  <StatusIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">
                     {activeCount > 0
-                      ? `Override attivo su ${activeCount}/${companies.length} aziende`
+                      ? `Override su ${activeCount}/${companies.length}`
                       : "Nessun override"}
                   </span>
                   {companies.length > 0 && activeCount > 0 && (
-                    <span className="flex items-center gap-0.5 font-medium text-primary">
+                    <span className="flex items-center gap-0.5 font-medium text-primary shrink-0">
                       <Percent className="h-3 w-3" />
                       {Math.round((activeCount / companies.length) * 100)}%
                     </span>
