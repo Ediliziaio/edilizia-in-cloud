@@ -91,7 +91,20 @@ export default function SettingsSedi() {
       const { data, error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action, company_id, sede_id: editSede?.id, ...values },
       })
-      if (error || data?.error) throw new Error(data?.message ?? error?.message ?? 'Errore')
+      if (error) {
+        // Edge function non-2xx: estraiamo il body JSON dalla response
+        let errBody: any = null
+        try {
+          const ctx = (error as any).context
+          if (ctx instanceof Response) errBody = await ctx.json()
+        } catch { /* ignore parse errors */ }
+        const code = errBody?.error ?? ''
+        const msg = code === 'LIMITE_PIANO'
+          ? 'LIMITE_PIANO'
+          : (errBody?.message ?? errBody?.error ?? error.message ?? 'Errore nel salvataggio')
+        throw new Error(msg)
+      }
+      if (data?.error) throw new Error(data.error === 'LIMITE_PIANO' ? 'LIMITE_PIANO' : (data.message ?? data.error))
       return data
     },
     onSuccess: () => {
