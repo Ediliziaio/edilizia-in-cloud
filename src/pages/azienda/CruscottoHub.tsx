@@ -71,6 +71,12 @@ import {
   CalendarCheck,
   HardHat,
   Sparkles,
+  Settings2,
+  Lock,
+  Globe,
+  Check,
+  UserPlus,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -782,72 +788,285 @@ function NameDialog({
   );
 }
 
+// ─── Dialog permessi dashboard ────────────────────────────────────────────────
+function DashboardPermissionsDialog({
+  dashboard,
+  roleMap,
+  open,
+  onClose,
+}: {
+  dashboard: DashboardListItem;
+  roleMap: Array<{ role: AppRole; dashboard_id: string }>;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const setRole   = useSetCompanyRoleDashboard();
+  const unsetRole = useUnsetCompanyRoleDashboard();
+
+  // Ruoli correntemente assegnati a questa dashboard
+  const assignedRoles = useMemo(
+    () => new Set(roleMap.filter((r) => r.dashboard_id === dashboard.id).map((r) => r.role)),
+    [roleMap, dashboard.id],
+  );
+
+  const toggleRole = (role: AppRole, current: boolean) => {
+    if (current) {
+      unsetRole.mutate(role, {
+        onSuccess: () => toast.success(`Accesso rimosso: ${ALL_ROLES.find((r) => r.role === role)?.label}`),
+        onError:   (e) => toast.error(String(e)),
+      });
+    } else {
+      setRole.mutate({ role, dashboardId: dashboard.id }, {
+        onSuccess: () => toast.success(`Accesso concesso: ${ALL_ROLES.find((r) => r.role === role)?.label}`),
+        onError:   (e) => toast.error(String(e)),
+      });
+    }
+  };
+
+  const style = getCardStyle(dashboard.id);
+  const Icon  = style.icon;
+  const isPending = setRole.isPending || unsetRole.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br shrink-0",
+              style.bg,
+            )}>
+              <Icon className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="text-base leading-snug truncate">{dashboard.name}</DialogTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Impostazioni accesso</p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          {/* Visibilità corrente */}
+          <div className="rounded-xl border overflow-hidden">
+            <div className="px-4 py-2.5 bg-muted/30 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Visibilità
+              </p>
+            </div>
+            <div className="divide-y">
+              {[
+                {
+                  scope: "personal" as const,
+                  label: "Privata",
+                  desc: "Solo il proprietario può vederla",
+                  icon: Lock,
+                  color: "text-slate-600",
+                },
+                {
+                  scope: "company" as const,
+                  label: "Aziendale",
+                  desc: "Tutti i membri del team possono vederla",
+                  icon: Globe,
+                  color: "text-blue-600",
+                },
+              ].map(({ scope, label, desc, icon: ScopeIcon, color }) => {
+                const active = dashboard.scope === scope;
+                return (
+                  <div
+                    key={scope}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3",
+                      active ? "bg-primary/5" : "opacity-60",
+                    )}
+                  >
+                    <ScopeIcon className={cn("h-4 w-4 shrink-0", color)} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{label}</p>
+                      <p className="text-xs text-muted-foreground">{desc}</p>
+                    </div>
+                    {active && (
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary shrink-0">
+                        <Check className="h-3 w-3 text-white" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Accesso per ruolo */}
+          <div className="rounded-xl border overflow-hidden">
+            <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Accesso per ruolo
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {assignedRoles.size > 0
+                  ? `${assignedRoles.size} ruol${assignedRoles.size === 1 ? "o" : "i"} assegnat${assignedRoles.size === 1 ? "o" : "i"}`
+                  : "Nessun ruolo assegnato"}
+              </p>
+            </div>
+            <div className="divide-y">
+              {ALL_ROLES.map(({ role, label, color }) => {
+                const assigned = assignedRoles.has(role);
+                return (
+                  <button
+                    key={role}
+                    onClick={() => toggleRole(role, assigned)}
+                    disabled={isPending}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors text-left disabled:opacity-60"
+                  >
+                    <span className={cn(
+                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold shrink-0",
+                      color,
+                    )}>
+                      {label}
+                    </span>
+                    <span className="text-xs text-muted-foreground flex-1 font-mono">{role}</span>
+                    {isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                    ) : assigned ? (
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary shrink-0">
+                        <Check className="h-3 w-3 text-white" />
+                      </div>
+                    ) : (
+                      <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Tip */}
+          <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
+            I ruoli assegnati vengono reindirizzati automaticamente a questa dashboard
+            quando accedono al cruscotto.
+          </p>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <Button variant="outline" size="sm" onClick={onClose}>Chiudi</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Dashboard card (griglia principale) ─────────────────────────────────────
 function DashboardCard({
   dashboard,
   roleLabels,
+  isAdmin,
+  rawRoleMap,
 }: {
   dashboard: DashboardListItem;
   roleLabels: Array<{ label: string; color: string }>;
+  isAdmin: boolean;
+  rawRoleMap: Array<{ role: AppRole; dashboard_id: string }>;
 }) {
+  const [permOpen, setPermOpen] = useState(false);
   const style = getCardStyle(dashboard.id);
   const Icon  = style.icon;
 
   return (
-    <div className="group rounded-xl border bg-white overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col">
-      {/* Thumbnail */}
-      <div className={cn("h-32 bg-gradient-to-br relative overflow-hidden", style.bg)}>
-        <div className="absolute inset-0">
-          <div className="absolute top-3 right-5 h-14 w-14 rounded-full bg-white/15 blur-md" />
-          <div className="absolute -bottom-2 -left-2 h-16 w-16 rounded-full bg-white/10 blur-md" />
-        </div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Icon className="h-10 w-10 text-white/90 drop-shadow-md" />
-        </div>
-        {/* Azioni overlay */}
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <Link to={`/azienda/dashboards/${dashboard.id}`}>
-            <Button size="sm" className="h-8 gap-1.5 bg-white text-foreground hover:bg-white/90 shadow-sm">
-              <ExternalLink className="h-3.5 w-3.5" />
-              Apri
-            </Button>
-          </Link>
-          {dashboard.can_edit && (
-            <Link to={`/azienda/dashboards/${dashboard.id}/modifica`}>
+    <>
+      <div className="group rounded-xl border bg-white overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col">
+        {/* Thumbnail */}
+        <div className={cn("h-32 bg-gradient-to-br relative overflow-hidden", style.bg)}>
+          <div className="absolute inset-0">
+            <div className="absolute top-3 right-5 h-14 w-14 rounded-full bg-white/15 blur-md" />
+            <div className="absolute -bottom-2 -left-2 h-16 w-16 rounded-full bg-white/10 blur-md" />
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Icon className="h-10 w-10 text-white/90 drop-shadow-md" />
+          </div>
+
+          {/* Pulsante permessi (admin) — sempre visibile in alto a destra */}
+          {isAdmin && (
+            <button
+              onClick={(e) => { e.preventDefault(); setPermOpen(true); }}
+              className="absolute top-2 right-2 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+              title="Permessi dashboard"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+
+          {/* Azioni overlay */}
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <Link to={`/azienda/dashboards/${dashboard.id}`}>
               <Button size="sm" className="h-8 gap-1.5 bg-white text-foreground hover:bg-white/90 shadow-sm">
-                <Pencil className="h-3.5 w-3.5" />
-                Modifica
+                <ExternalLink className="h-3.5 w-3.5" />
+                Apri
               </Button>
             </Link>
+            {dashboard.can_edit && (
+              <Link to={`/azienda/dashboards/${dashboard.id}/modifica`}>
+                <Button size="sm" className="h-8 gap-1.5 bg-white text-foreground hover:bg-white/90 shadow-sm">
+                  <Pencil className="h-3.5 w-3.5" />
+                  Modifica
+                </Button>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Info */}
+        <div className="p-3 flex flex-col gap-2 flex-1">
+          <p className="font-semibold text-sm leading-snug truncate">{dashboard.name}</p>
+          {dashboard.description && (
+            <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
+              {dashboard.description}
+            </p>
           )}
+          <div className="flex items-center justify-between mt-auto gap-2 pt-1">
+            <div className="flex flex-wrap gap-1 min-w-0">
+              {roleLabels.slice(0, 2).map((r) => (
+                <span key={r.label} className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-medium", r.color)}>
+                  {r.label}
+                </span>
+              ))}
+              {roleLabels.length > 2 && (
+                <span className="text-[10px] text-muted-foreground self-center">+{roleLabels.length - 2}</span>
+              )}
+              {roleLabels.length === 0 && isAdmin && (
+                <button
+                  onClick={() => setPermOpen(true)}
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <UserPlus className="h-3 w-3" />
+                  Assegna ruolo
+                </button>
+              )}
+            </div>
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[10px] shrink-0 px-1.5 py-0.5 gap-1 cursor-default",
+                dashboard.scope === "personal"
+                  ? "border-slate-200 text-slate-500"
+                  : "border-blue-200 text-blue-600 bg-blue-50",
+              )}
+            >
+              {dashboard.scope === "personal"
+                ? <><Lock className="h-2.5 w-2.5" />Privata</>
+                : <><Globe className="h-2.5 w-2.5" />Aziendale</>}
+            </Badge>
+          </div>
         </div>
       </div>
 
-      {/* Info */}
-      <div className="p-3 flex flex-col gap-2 flex-1">
-        <p className="font-semibold text-sm leading-snug truncate">{dashboard.name}</p>
-        {dashboard.description && (
-          <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
-            {dashboard.description}
-          </p>
-        )}
-        <div className="flex items-center justify-between mt-auto gap-2 pt-1">
-          <div className="flex flex-wrap gap-1">
-            {roleLabels.slice(0, 2).map((r) => (
-              <span key={r.label} className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-medium", r.color)}>
-                {r.label}
-              </span>
-            ))}
-            {roleLabels.length > 2 && (
-              <span className="text-[10px] text-muted-foreground self-center">+{roleLabels.length - 2}</span>
-            )}
-          </div>
-          <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0.5">
-            {dashboard.scope === "personal" ? "Privata" : "Aziendale"}
-          </Badge>
-        </div>
-      </div>
-    </div>
+      {/* Dialog permessi */}
+      <DashboardPermissionsDialog
+        dashboard={dashboard}
+        roleMap={rawRoleMap}
+        open={permOpen}
+        onClose={() => setPermOpen(false)}
+      />
+    </>
   );
 }
 
@@ -1050,7 +1269,7 @@ export default function CruscottoHub() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {myDashboards.map((d) => (
-              <DashboardCard key={d.id} dashboard={d} roleLabels={rolesByDashId[d.id] ?? []} />
+              <DashboardCard key={d.id} dashboard={d} roleLabels={rolesByDashId[d.id] ?? []} isAdmin={permissions.isAdmin} rawRoleMap={roleMap} />
             ))}
             <AddCard onClick={() => setCreate(true)} />
           </div>
@@ -1065,7 +1284,7 @@ export default function CruscottoHub() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {sharedDashboards.map((d) => (
-              <DashboardCard key={d.id} dashboard={d} roleLabels={rolesByDashId[d.id] ?? []} />
+              <DashboardCard key={d.id} dashboard={d} roleLabels={rolesByDashId[d.id] ?? []} isAdmin={permissions.isAdmin} rawRoleMap={roleMap} />
             ))}
           </div>
         </section>
