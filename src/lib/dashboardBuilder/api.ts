@@ -6,9 +6,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import type {
   Aggregation,
+  AppRole,
   BreakdownDim,
+  CompanyRoleDashboard,
   DashboardLayout,
   DashboardListItem,
+  DashboardTemplate,
   GetDashboardResult,
   MetricCatalogItem,
   MetricResult,
@@ -108,4 +111,79 @@ export async function resolveDashboard(args: {
   } as never);
   if (error) throw error;
   return data as unknown as ResolveDashboardResult;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Role-based cruscotto (Sprint 5)
+// ═══════════════════════════════════════════════════════════════
+
+/** Ritorna l'id della dashboard associata al ruolo dell'utente corrente. */
+export async function getMyCruscottoDashboard(): Promise<string | null> {
+  const { data, error } = await supabase.rpc(
+    "get_my_cruscotto_dashboard" as never,
+  );
+  if (error) throw error;
+  return (data as unknown as string | null) ?? null;
+}
+
+/** Lista la mappa ruolo→dashboard per la company corrente (solo admin). */
+export async function listCompanyRoleDashboards(): Promise<
+  CompanyRoleDashboard[]
+> {
+  const { data, error } = await supabase.rpc(
+    "list_company_role_dashboards" as never,
+  );
+  if (error) throw error;
+  return (data as unknown as CompanyRoleDashboard[]) ?? [];
+}
+
+/** Imposta (upsert) la dashboard per un ruolo (solo admin). */
+export async function setCompanyRoleDashboard(
+  role: AppRole,
+  dashboardId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    "set_company_role_dashboard" as never,
+    { p_role: role, p_dashboard_id: dashboardId } as never,
+  );
+  if (error) throw error;
+}
+
+/** Rimuove la mappatura per un ruolo (solo admin). */
+export async function unsetCompanyRoleDashboard(role: AppRole): Promise<void> {
+  const { error } = await supabase.rpc(
+    "unset_company_role_dashboard" as never,
+    { p_role: role } as never,
+  );
+  if (error) throw error;
+}
+
+/** Lista i template disponibili, opzionalmente filtrati per ruolo. */
+export async function listDashboardTemplates(
+  role?: AppRole | null,
+): Promise<DashboardTemplate[]> {
+  const { data, error } = await supabase.rpc(
+    "list_dashboard_templates" as never,
+    { p_role: role ?? null } as never,
+  );
+  if (error) throw error;
+  return (data as unknown as DashboardTemplate[]) ?? [];
+}
+
+/** Clona un template nella company corrente e ritorna il nuovo dashboard_id. */
+export async function cloneTemplateToCo(args: {
+  templateId: string;
+  scope?: "personal" | "company" | `role:${string}`;
+  name?: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc(
+    "clone_template_to_company" as never,
+    {
+      p_template_id: args.templateId,
+      p_scope: args.scope ?? "personal",
+      p_name: args.name ?? null,
+    } as never,
+  );
+  if (error) throw error;
+  return data as unknown as string;
 }

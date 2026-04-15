@@ -4,15 +4,22 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  cloneTemplateToCo,
   fetchMetricCatalog,
   getDashboard,
+  getMyCruscottoDashboard,
   getMetric,
+  listCompanyRoleDashboards,
+  listDashboardTemplates,
   listDashboards,
   resolveDashboard,
   saveDashboard,
+  setCompanyRoleDashboard,
+  unsetCompanyRoleDashboard,
 } from "./api";
 import type {
   Aggregation,
+  AppRole,
   BreakdownDim,
   DashboardLayout,
   WidgetFilter,
@@ -135,3 +142,82 @@ export function useSaveDashboard() {
  * 'dashboard_builder_v1' abilitato per la sua company.
  */
 export { useFeatureFlags as _useFeatureFlagsOrig } from "@/hooks/useFeatureFlags";
+
+// ═══════════════════════════════════════════════════════════════
+// Role-based cruscotto hooks (Sprint 5)
+// ═══════════════════════════════════════════════════════════════
+
+const ROLE_KEYS = {
+  myCruscotto: ["role-cruscotto", "mine"] as const,
+  roleMap: ["role-cruscotto", "map"] as const,
+  templates: (role?: AppRole | null) =>
+    ["role-cruscotto", "templates", role ?? "all"] as const,
+} as const;
+
+/** Ritorna il dashboard_id da mostrare all'utente corrente (basato sul suo ruolo). */
+export function useMyCruscottoDashboard() {
+  return useQuery({
+    queryKey: ROLE_KEYS.myCruscotto,
+    queryFn: getMyCruscottoDashboard,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Lista la mappa ruolo→dashboard per la company (solo admin). */
+export function useCompanyRoleDashboards() {
+  return useQuery({
+    queryKey: ROLE_KEYS.roleMap,
+    queryFn: listCompanyRoleDashboards,
+    staleTime: 30 * 1000,
+  });
+}
+
+/** Lista i template disponibili, opzionalmente filtrati per ruolo. */
+export function useDashboardTemplates(role?: AppRole | null) {
+  return useQuery({
+    queryKey: ROLE_KEYS.templates(role),
+    queryFn: () => listDashboardTemplates(role),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Imposta la dashboard per un ruolo (upsert). Invalida la mappa. */
+export function useSetCompanyRoleDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ role, dashboardId }: { role: AppRole; dashboardId: string }) =>
+      setCompanyRoleDashboard(role, dashboardId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ROLE_KEYS.roleMap });
+      qc.invalidateQueries({ queryKey: ROLE_KEYS.myCruscotto });
+    },
+  });
+}
+
+/** Rimuove la mappatura per un ruolo. */
+export function useUnsetCompanyRoleDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (role: AppRole) => unsetCompanyRoleDashboard(role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ROLE_KEYS.roleMap });
+      qc.invalidateQueries({ queryKey: ROLE_KEYS.myCruscotto });
+    },
+  });
+}
+
+/** Clona un template nella company e ritorna il nuovo dashboard_id. */
+export function useCloneTemplateToCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      templateId: string;
+      scope?: "personal" | "company" | `role:${string}`;
+      name?: string | null;
+    }) => cloneTemplateToCo(args),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.list });
+      qc.invalidateQueries({ queryKey: ROLE_KEYS.roleMap });
+    },
+  });
+}
