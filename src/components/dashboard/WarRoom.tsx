@@ -30,7 +30,14 @@ interface WarRoomProps {
 // COLUMN 1 — CASSA & LIQUIDITÀ
 // ────────────────────────────────────────────────────────────────
 function CashColumn({ cashFlow, agingReceivables }: { cashFlow: CashFlow; agingReceivables: WarRoomProps["agingReceivables"] }) {
-  const isHealthy = cashFlow.netCashFlow >= 0;
+  // Se l'azienda ha dati reali (invoice_payments o pagamenti), usa cashflow reale.
+  // Altrimenti fallback commerciale con label onesti.
+  const hasReal = Boolean(cashFlow.hasRealData);
+  const primaryValue = hasReal ? (cashFlow.realNet ?? 0) : cashFlow.netCashFlow;
+  const primaryIncome = hasReal ? (cashFlow.realIncome ?? 0) : cashFlow.thisMonthIncome;
+  const primaryOutflow = hasReal ? (cashFlow.realOutflow ?? 0) : cashFlow.thisMonthOutflow;
+  const forecast30 = cashFlow.forecastNext30d ?? 0;
+  const isHealthy = primaryValue >= 0;
   const totalReceivables = agingReceivables.overdue + agingReceivables.thisWeek + agingReceivables.thisMonth + agingReceivables.future;
   const overduePercent = totalReceivables > 0 ? (agingReceivables.overdue / totalReceivables) * 100 : 0;
 
@@ -44,7 +51,7 @@ function CashColumn({ cashFlow, agingReceivables }: { cashFlow: CashFlow; agingR
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <Wallet className="h-3.5 w-3.5" />
-              <span>Ordinato vs pianificato</span>
+              <span>{hasReal ? "Cassa del mese" : "Ordinato vs pianificato"}</span>
               <TooltipProvider delayDuration={150}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -52,22 +59,37 @@ function CashColumn({ cashFlow, agingReceivables }: { cashFlow: CashFlow; agingR
                       <Info className="h-3 w-3 text-muted-foreground/70 hover:text-foreground transition-colors" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[280px] text-xs leading-relaxed">
-                    <strong className="block mb-1">Non è un saldo di cassa reale.</strong>
-                    Valore ordini creati nel mese meno costi aziendali pianificati nel mese.
-                    Per il saldo di banca reale vai al Previsionale o ai Movimenti.
+                  <TooltipContent side="bottom" className="max-w-[300px] text-xs leading-relaxed">
+                    {hasReal ? (
+                      <>
+                        <strong className="block mb-1">Saldo di cassa reale del mese.</strong>
+                        Somma degli incassi registrati (pagamenti fatture) meno i costi aziendali marcati come pagati in questo mese.
+                      </>
+                    ) : (
+                      <>
+                        <strong className="block mb-1">Non è un saldo di cassa reale.</strong>
+                        Valore ordini creati nel mese meno costi aziendali pianificati. Registra pagamenti fatture e costi per vedere la cassa reale.
+                      </>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              {hasReal && (
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 ml-auto border-emerald-400/40 text-emerald-700 dark:text-emerald-400">
+                  reale
+                </Badge>
+              )}
             </div>
             <CardTitle className={cn(
               "text-2xl sm:text-3xl font-bold mt-1 tabular-nums",
               isHealthy ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
             )}>
-              {formatCurrency(cashFlow.netCashFlow)}
+              {formatCurrency(primaryValue)}
             </CardTitle>
             <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
-              Margine teorico del mese · dato commerciale, non cassa reale
+              {hasReal
+                ? "Incassi registrati − pagamenti registrati del mese"
+                : "Margine teorico del mese · dato commerciale, non cassa reale"}
             </p>
           </div>
           {isHealthy ? (
@@ -82,18 +104,49 @@ function CashColumn({ cashFlow, agingReceivables }: { cashFlow: CashFlow; agingR
         {/* Flusso mensile */}
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 p-2.5">
-            <div className="text-[10px] uppercase text-emerald-700 dark:text-emerald-400 font-medium">Ordinato mese</div>
+            <div className="text-[10px] uppercase text-emerald-700 dark:text-emerald-400 font-medium">
+              {hasReal ? "Incassato mese" : "Ordinato mese"}
+            </div>
             <div className="text-sm font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
-              {formatCurrencyCompact(cashFlow.thisMonthIncome)}
+              {formatCurrencyCompact(primaryIncome)}
             </div>
           </div>
           <div className="rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-800/40 p-2.5">
-            <div className="text-[10px] uppercase text-rose-700 dark:text-rose-400 font-medium">Costi pianificati</div>
+            <div className="text-[10px] uppercase text-rose-700 dark:text-rose-400 font-medium">
+              {hasReal ? "Pagato mese" : "Costi pianificati"}
+            </div>
             <div className="text-sm font-semibold tabular-nums text-rose-700 dark:text-rose-300">
-              {formatCurrencyCompact(cashFlow.thisMonthOutflow)}
+              {formatCurrencyCompact(primaryOutflow)}
             </div>
           </div>
         </div>
+
+        {/* Forecast 30 giorni (sempre presente) */}
+        {(cashFlow.forecastInflow ?? 0) + (cashFlow.forecastOutflow ?? 0) > 0 && (
+          <div className={cn(
+            "rounded-lg border p-2.5",
+            forecast30 >= 0
+              ? "bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200/40 dark:border-emerald-800/30"
+              : "bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/40 dark:border-amber-800/30"
+          )}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="text-[10px] uppercase font-medium text-muted-foreground flex items-center gap-1">
+                <Clock className="h-2.5 w-2.5" />
+                Forecast 30 giorni
+              </span>
+              <span className={cn(
+                "text-sm font-bold tabular-nums",
+                forecast30 >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+              )}>
+                {forecast30 >= 0 ? "+" : ""}{formatCurrencyCompact(forecast30)}
+              </span>
+            </div>
+            <div className="text-[10px] text-muted-foreground flex justify-between tabular-nums">
+              <span>In: {formatCurrencyCompact(cashFlow.forecastInflow ?? 0)}</span>
+              <span>Out: {formatCurrencyCompact(cashFlow.forecastOutflow ?? 0)}</span>
+            </div>
+          </div>
+        )}
 
         {/* Aging crediti */}
         {totalReceivables > 0 && (

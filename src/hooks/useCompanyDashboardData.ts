@@ -25,10 +25,19 @@ export interface UrgentItem {
 }
 
 export interface CashFlow {
+  // LEGACY — dato commerciale (ordinato vs pianificato)
   thisMonthIncome: number;
   thisMonthOutflow: number;
   netCashFlow: number;
   nextMonth: number;
+  // NUOVI — cashflow reale (incassi + pagamenti registrati)
+  realIncome?: number;       // invoice_payments del mese
+  realOutflow?: number;      // company_costs is_paid del mese
+  realNet?: number;          // realIncome - realOutflow
+  forecastNext30d?: number;  // incassi attesi - costi pianificati 30gg
+  forecastInflow?: number;
+  forecastOutflow?: number;
+  hasRealData?: boolean;     // true se l'azienda alimenta invoice_payments o pagamenti
 }
 
 export interface CeoStrip {
@@ -146,7 +155,11 @@ export function useCompanyDashboardData() {
     stats: dashboardData?.stats ?? { totalOrders: 0, totalCustomers: 0, openTickets: 0, pendingRevenue: 0, pendingOrdersCount: 0 },
     prevStats: dashboardData?.prevStats ?? { totalOrders: 0, totalCustomers: 0 },
     recentOrders: dashboardData?.recentOrders ?? [],
-    cashFlow: dashboardData?.cashFlow ?? { thisMonthIncome: 0, thisMonthOutflow: 0, netCashFlow: 0, nextMonth: 0 },
+    cashFlow: dashboardData?.cashFlow ?? {
+      thisMonthIncome: 0, thisMonthOutflow: 0, netCashFlow: 0, nextMonth: 0,
+      realIncome: 0, realOutflow: 0, realNet: 0, forecastNext30d: 0,
+      forecastInflow: 0, forecastOutflow: 0, hasRealData: false,
+    },
     ceoStrip: dashboardData?.ceoStrip ?? { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, ordersThisMonth: 0, ordersPrevMonth: 0 },
     urgentItems: dashboardData?.urgentItems ?? [],
     financialAlerts: dashboardData?.financialAlerts ?? [],
