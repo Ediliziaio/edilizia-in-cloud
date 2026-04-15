@@ -1,0 +1,168 @@
+-- ════════════════════════════════════════════════════════════════
+-- FIX: resolve_dashboard non espone SQLERRM al client
+--
+-- BUG: nel ramo EXCEPTION per-widget, SQLERRM (messaggio Postgres
+-- raw) veniva incluso nel payload restituito al frontend. Questo
+-- espone dettagli interni (nomi colonna, schema, RLS policy) utili
+-- a un attaccante e risulta incomprensibile all'utente finale.
+--
+-- Fix: mappa SQLSTATE note a messaggi brevi italiani e logga il
+-- dettaglio completo server-side via RAISE LOG. Il client riceve
+-- solo:
+--   - message: stringa breve human-friendly
+--   - code:    SQLSTATE (es. '22023', '42501', 'INTERNAL')
+-- ════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION public.resolve_dashboard(
+  p_dashboard_id    UUID,
+  p_override_filters JSONB DEFAULT '{}'::jsonb
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id      UUID := auth.uid();
+  v_company_id   UUID;
+  v_dashboard    public.dashboards%ROWTYPE;
+  v_version      public.dashboard_versions%ROWTYPE;
+  v_widgets      JSONB;
+  v_global       JSONB;
+  v_resolved     JSONB := '{}'::jsonb;
+  v_widget       JSONB;
+  v_widget_id    TEXT;
+  v_widget_type  TEXT;
+  v_metric_id    TEXT;
+  v_agg          TEXT;
+  v_breakdown    TEXT;
+  v_filters      JSONB;
+  v_result       JSONB;
+  v_err_state    TEXT;
+  v_err_raw      TEXT;
+  v_err_msg      TEXT;
+BEGIN
+  -- Auth & company
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized' USING ERRCODE = '42501';
+  END IF;
+
+  v_company_id := public.get_user_company_id(v_user_id);
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION 'No company context' USING ERRCODE = '42501';
+  END IF;
+
+  -- Carica dashboard + visibilità
+  SELECT * INTO v_dashboard FROM public.dashboards WHERE id = p_dashboard_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Dashboard % not found', p_dashboard_id USING ERRCODE = '22023';
+  END IF;
+
+  IF v_dashboard.company_id <> v_company_id THEN
+    RAISE EXCEPTION 'Dashboard not visible' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT (
+       v_dashboard.scope = 'company'
+    OR (v_dashboard.scope = 'personal' AND v_dashboard.owner_id = v_user_id)
+    OR (v_dashboard.scope LIKE 'role:%' AND public.has_role(v_user_id, SUBSTRING(v_dashboard.scope FROM 6)::app_role))
+  ) THEN
+    RAISE EXCEPTION 'Dashboard not visible' USING ERRCODE = '42501';
+  END IF;
+
+  -- Carica layout corrente
+  SELECT * INTO v_version FROM public.dashboard_versions
+  WHERE dashboard_id = p_dashboard_id AND is_current = true LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'dashboard_id', p_dashboard_id,
+      'version',      0,
+      'resolved_at',  NOW(),
+      'widgets',      '{}'::jsonb
+    );
+  END IF;
+
+  v_widgets := COALESCE(v_version.layout->'widgets', '[]'::jsonb);
+  v_global  := COALESCE(v_version.layout->'globalFilters', '{}'::jsonb);
+
+  FOR v_widget IN SELECT * FROM jsonb_array_elements(v_widgets)
+  LOOP
+    v_widget_id   := v_widget->>'id';
+    v_widget_type := v_widget->>'type';
+    v_metric_id   := v_widget->'config'->>'metric';
+    v_agg         := v_widget->'config'->>'aggregation';
+    v_breakdown   := COALESCE(v_widget->'config'->>'breakdown', 'none');
+
+    -- Widget statici: skip
+    IF v_widget_type IN ('text_markdown', 'divider') OR v_metric_id IS NULL THEN
+      v_resolved := v_resolved || jsonb_build_object(
+        v_widget_id,
+        jsonb_build_object('status', 'skipped', 'reason', 'no_metric')
+      );
+      CONTINUE;
+    END IF;
+
+    v_filters := v_global
+               || COALESCE(v_widget->'config'->'filter', '{}'::jsonb)
+               || COALESCE(p_override_filters, '{}'::jsonb);
+
+    -- Invoca get_metric con try/catch sanitizzato
+    BEGIN
+      v_result := public.get_metric(v_metric_id, v_filters, v_agg, v_breakdown);
+
+      v_resolved := v_resolved || jsonb_build_object(
+        v_widget_id,
+        jsonb_build_object(
+          'status',    'ok',
+          'value',     v_result->'value',
+          'breakdown', v_result->'breakdown',
+          'meta',      v_result->'meta'
+        )
+      );
+    EXCEPTION WHEN OTHERS THEN
+      -- Cattura stato e messaggio raw, logga server-side, NON esporre al client
+      GET STACKED DIAGNOSTICS v_err_state = RETURNED_SQLSTATE;
+      v_err_raw := SQLERRM;
+
+      RAISE LOG 'resolve_dashboard: widget=% metric=% sqlstate=% msg=%',
+        v_widget_id, v_metric_id, v_err_state, v_err_raw;
+
+      -- Mappa SQLSTATE → messaggio sicuro user-friendly (IT)
+      v_err_msg := CASE
+        WHEN v_err_state = '42501' THEN 'Permesso negato per questa metrica'
+        WHEN v_err_state = '22023' THEN 'Configurazione widget non valida'
+        WHEN v_err_state LIKE '08%' THEN 'Errore di connessione al database'
+        WHEN v_err_state LIKE '53%' THEN 'Servizio temporaneamente non disponibile'
+        ELSE 'Errore interno nel calcolo della metrica'
+      END;
+
+      v_resolved := v_resolved || jsonb_build_object(
+        v_widget_id,
+        jsonb_build_object(
+          'status', 'error',
+          'error',  v_err_msg,
+          'code',   v_err_state,
+          'metric', v_metric_id
+        )
+      );
+    END;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'dashboard_id', p_dashboard_id,
+    'version',      v_version.version,
+    'resolved_at',  NOW(),
+    'widgets',      v_resolved,
+    'applied_filters', jsonb_build_object(
+      'global',   v_global,
+      'override', COALESCE(p_override_filters, '{}'::jsonb)
+    )
+  );
+END $$;
+
+COMMENT ON FUNCTION public.resolve_dashboard(UUID, JSONB) IS
+  'Batch resolver: risolve tutti i widget della dashboard in un call. Widget in errore non bloccano gli altri; errori sanitizzati (SQLERRM solo nei log server).';
+
+REVOKE ALL ON FUNCTION public.resolve_dashboard(UUID, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.resolve_dashboard(UUID, JSONB) TO authenticated;
