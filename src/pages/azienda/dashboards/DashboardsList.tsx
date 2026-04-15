@@ -4,14 +4,19 @@
  * Elenca tutte le dashboard custom disponibili all'utente (mie + condivise dalla company).
  * Richiede feature flag `dashboard_builder_v1` attivo.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Plus, LayoutDashboard, Lock, Users, Clock } from "lucide-react";
+import { Plus, LayoutDashboard, Lock, Users, Clock, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
-import { useDashboards, useMetricCatalog } from "@/lib/dashboardBuilder/hooks";
+import {
+  useDashboards,
+  useDashboardTemplates,
+  useMetricCatalog,
+} from "@/lib/dashboardBuilder/hooks";
+import { NewDashboardDialog } from "@/components/dashboardBuilder/NewDashboardDialog";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -24,9 +29,11 @@ function prefetchBuilder() {
 export default function DashboardsList() {
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const { data, isLoading, error } = useDashboards();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Warm-up: catalog (richiesto dal builder) + chunk JS del builder.
+  // Warm-up: catalog + template + chunk JS del builder.
   useMetricCatalog();
+  useDashboardTemplates();
   useEffect(() => {
     // Defer al prossimo idle per non competere con il rendering iniziale.
     const id = typeof window !== "undefined" && "requestIdleCallback" in window
@@ -55,6 +62,8 @@ export default function DashboardsList() {
     return <Navigate to="/azienda" replace />;
   }
 
+  const openNewDialog = () => setDialogOpen(true);
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -67,11 +76,13 @@ export default function DashboardsList() {
             Le tue dashboard personalizzate con KPI, grafici e tabelle.
           </p>
         </div>
-        <Button asChild onMouseEnter={prefetchBuilder} onFocus={prefetchBuilder}>
-          <Link to="/azienda/dashboards/nuova">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuova dashboard
-          </Link>
+        <Button
+          onMouseEnter={prefetchBuilder}
+          onFocus={prefetchBuilder}
+          onClick={openNewDialog}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nuova dashboard
         </Button>
       </div>
 
@@ -89,18 +100,19 @@ export default function DashboardsList() {
         </Card>
       ) : !data || data.length === 0 ? (
         <Card>
-          <CardContent className="p-10 text-center space-y-3">
-            <LayoutDashboard className="h-10 w-10 mx-auto text-muted-foreground" />
-            <div>
-              <p className="font-medium">Nessuna dashboard</p>
+          <CardContent className="p-10 text-center space-y-4">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Sparkles className="h-7 w-7 text-primary" />
+            </div>
+            <div className="space-y-1 max-w-md mx-auto">
+              <p className="font-semibold text-base">Crea la tua prima dashboard</p>
               <p className="text-sm text-muted-foreground">
-                Crea la tua prima dashboard per iniziare a monitorare i KPI.
+                Scegli un template predefinito (Vendite, Finanza, Cantieri, Executive)
+                e personalizzalo, oppure parti da un canvas vuoto.
               </p>
             </div>
-            <Button asChild>
-              <Link to="/azienda/dashboards/nuova">
-                <Plus className="h-4 w-4 mr-2" /> Crea dashboard
-              </Link>
+            <Button onClick={openNewDialog} size="lg">
+              <Plus className="h-4 w-4 mr-2" /> Crea dashboard
             </Button>
           </CardContent>
         </Card>
@@ -143,6 +155,9 @@ export default function DashboardsList() {
           ))}
         </div>
       )}
+
+      {/* Template picker dialog */}
+      <NewDashboardDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }
