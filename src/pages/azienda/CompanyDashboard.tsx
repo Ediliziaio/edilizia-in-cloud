@@ -1,26 +1,44 @@
+/**
+ * CompanyDashboard — La "War Room" operativa dell'azienda.
+ *
+ * Layout:
+ *  1. Header sticky (titolo + azioni rapide + refresh)
+ *  2. Tab bar navigazione dashboard (cruscotto / marketing / gestione)
+ *  3. WarRoom: 3 colonne (Cassa / Salute operativa / Azioni 7gg)
+ *  4. Semaforo operativo + Bilancio mese + CEO strip (KPI)
+ *  5. Sezione "Dettagli operativi" collapsibile (ordini, magazzino, crediti, ecc.)
+ *
+ * Principi UX:
+ *  - Risponde in 5 secondi a: "come sto a cassa / cosa è a rischio / cosa devo fare"
+ *  - Mobile-first: tutto impila, FAB per azioni rapide
+ *  - Tastiera: Cmd+K per comandi globali
+ *  - Vista personalizzabile via DashboardWidgetCustomizer
+ */
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, RefreshCw, Settings2, X } from "lucide-react";
+import {
+  ClipboardList, Users, Plus, Euro, Package, TrendingUp, AlertTriangle,
+  ChevronDown, RefreshCw, Settings2, X, LayoutDashboard,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
-import { useAuth } from "@/contexts/AuthContext";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 import { SemaforoOperazioni } from "@/components/dashboard/SemaforoOperazioni";
-import { SaluteOperativa } from "@/components/dashboard/SaluteOperativa";
-import { AzioniOperative } from "@/components/dashboard/AzioniOperative";
 import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { YTDRevenueWidget } from "@/components/dashboard/YTDRevenueWidget";
 import { TopCustomersWidget } from "@/components/dashboard/TopCustomersWidget";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
+import { WarRoom } from "@/components/dashboard/WarRoom";
+import { DashboardQuickActions, DashboardKeyboardHint } from "@/components/dashboard/DashboardQuickActions";
 import { useDashboardWidgets } from "@/hooks/useDashboardWidgets";
 import { DashboardWidgetCustomizer } from "@/components/dashboard/DashboardWidgetCustomizer";
 import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboardFilters";
@@ -48,7 +66,7 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }
           <CollapsibleTrigger asChild>
             <div className="flex items-center justify-between gap-2 cursor-pointer">
               <div className="min-w-0">
-                <CardTitle className="flex items-center gap-1.5 flex-wrap">
+                <CardTitle className="flex items-center gap-1.5 flex-wrap text-base">
                   {urgentItems.length > 0 && <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />}
                   <Package className="h-4 w-4 text-primary shrink-0" />
                   <span>Alert Magazzino</span>
@@ -58,7 +76,7 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }
                     <Badge variant="secondary" className="shrink-0">0</Badge>
                   )}
                 </CardTitle>
-                <CardDescription>Articoli con posa imminente</CardDescription>
+                <CardDescription className="text-xs mt-0.5">Articoli con posa imminente</CardDescription>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <Button variant="ghost" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
@@ -78,17 +96,17 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }
                 <p className="text-xs mt-1">Tutti gli articoli sono pronti per le prossime installazioni</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {urgentItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                    <div className="space-y-1">
-                      <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.orderCode ? `#${item.orderCode} - ` : ""}{item.customerName}
+                  <div key={item.id} className="flex items-center justify-between p-2.5 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{item.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {item.orderCode ? `#${item.orderCode} · ` : ""}{item.customerName}
                       </p>
                     </div>
-                    <Badge variant="outline" className="text-destructive border-destructive/30">
-                      {item.daysLeft === 0 ? "Oggi" : item.daysLeft === 1 ? "Domani" : `${item.daysLeft} giorni`}
+                    <Badge variant="outline" className="text-destructive border-destructive/30 shrink-0 ml-2">
+                      {item.daysLeft === 0 ? "Oggi" : item.daysLeft === 1 ? "Domani" : `${item.daysLeft}gg`}
                     </Badge>
                   </div>
                 ))}
@@ -101,37 +119,22 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }
   );
 }
 
-function DeltaIndicator({ current, previous }: { current: number; previous: number }) {
-  if (previous === 0) return null; // no meaningful % comparison against zero baseline
-  const delta = ((current - previous) / previous) * 100;
-  if (delta === 0) return null;
-  const isPositive = delta > 0;
-  const Icon = isPositive ? TrendingUp : TrendingDown;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
-      isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
-    }`}>
-      <Icon className="h-3 w-3" />
-      {Math.abs(delta).toFixed(0)}%
-    </span>
-  );
-}
-
 export default function CompanyDashboard() {
   const queryClient = useQueryClient();
-  const { effectiveCompany } = useAuth();
-
 
   const {
     companyId, filters, updateFilters,
     isLoading, isError,
-    stats, prevStats, recentOrders, cashFlow, ceoStrip,
+    stats, recentOrders, cashFlow, ceoStrip,
     urgentItems, financialAlerts, weeklyDeadlines,
     monthlyBalance, revenueYTD, agingReceivables,
   } = useCompanyDashboardData();
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(() => {
+    try { return localStorage.getItem("dashboard-details-open") !== "false"; } catch { return true; }
+  });
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem("dismissed-dashboard-alerts");
@@ -147,6 +150,12 @@ export default function CompanyDashboard() {
       return next;
     });
   };
+
+  const toggleDetails = (open: boolean) => {
+    setDetailsOpen(open);
+    try { localStorage.setItem("dashboard-details-open", String(open)); } catch { /* noop */ }
+  };
+
   const { widgets, isCustomizing, setIsCustomizing, toggleWidget, moveWidget, resetToDefault, isWidgetVisible } = useDashboardWidgets();
 
   const handleRefresh = async () => {
@@ -165,61 +174,22 @@ export default function CompanyDashboard() {
 
   const upcomingWorksCount = weeklyDeadlines.upcomingWorks?.length ?? 0;
 
-  const statCards = [
-    {
-      title: "Ordini Totali",
-      value: stats.totalOrders,
-      prevValue: prevStats.totalOrders,
-      icon: ClipboardList,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
-      description: "Gestiti dalla tua azienda",
-      link: "/azienda/ordini",
-    },
-    {
-      title: "Clienti",
-      value: stats.totalCustomers,
-      prevValue: prevStats.totalCustomers,
-      icon: Users,
-      color: "text-purple-600",
-      bgColor: "bg-purple-100",
-      description: "Registrati in piattaforma",
-      link: "/azienda/clienti",
-    },
-    {
-      title: "Ticket Aperti",
-      value: stats.openTickets,
-      prevValue: null as number | null,
-      icon: HeadphonesIcon,
-      color: stats.openTickets > 0 ? "text-orange-600" : "text-green-600",
-      bgColor: stats.openTickets > 0 ? "bg-orange-100" : "bg-green-100",
-      description: stats.openTickets > 0 ? "In attesa di risposta" : "Tutto risolto!",
-      link: "/azienda/ticket",
-    },
-    {
-      title: "Prossimi Lavori",
-      value: upcomingWorksCount,
-      prevValue: null as number | null,
-      icon: Package,
-      color: upcomingWorksCount > 0 ? "text-blue-600" : "text-muted-foreground",
-      bgColor: upcomingWorksCount > 0 ? "bg-blue-100" : "bg-muted",
-      description: upcomingWorksCount > 0 ? "In programma questa settimana" : "Nessun lavoro in programma",
-      link: "/azienda/ordini",
-    },
-  ];
-
+  // ─────────────────────────────────────────────
+  // Guards
+  // ─────────────────────────────────────────────
   if (!companyId) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p>Seleziona un'azienda per visualizzare la dashboard</p>
+      <div className="flex flex-col items-center justify-center text-center py-16 text-muted-foreground">
+        <Users className="h-12 w-12 mb-4 opacity-50" />
+        <p className="font-medium text-foreground">Nessuna azienda selezionata</p>
+        <p className="text-sm mt-1">Scegli un'azienda dal menu in alto per visualizzare la dashboard</p>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <Skeleton className="h-8 w-48 mb-2" />
@@ -230,18 +200,9 @@ export default function CompanyDashboard() {
             <Skeleton className="h-9 w-24 sm:w-36" />
           </div>
         </div>
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-8 w-8 rounded-lg" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-16 mb-1" />
-                <Skeleton className="h-3 w-32" />
-              </CardContent>
-            </Card>
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-64 rounded-xl" />
           ))}
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -255,70 +216,95 @@ export default function CompanyDashboard() {
 
   if (isError) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-destructive opacity-70" />
+      <div className="flex flex-col items-center justify-center text-center py-16 text-muted-foreground">
+        <AlertTriangle className="h-12 w-12 mb-4 text-destructive opacity-70" />
         <p className="font-medium text-foreground">Errore nel caricamento della dashboard</p>
-        <p className="text-sm mt-1">Riprova aggiornando la pagina</p>
+        <p className="text-sm mt-1 mb-4">Si è verificato un problema durante il recupero dei dati</p>
+        <Button variant="outline" size="sm" onClick={handleRefresh}>
+          <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+        </Button>
       </div>
     );
   }
 
+  // ─────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────
   return (
-    <div className="space-y-6">
-      {/* Tab di navigazione tra dashboard */}
+    <div className="space-y-4 sm:space-y-6">
       <DashboardTabBar />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard Gestione</h1>
-          <p className="text-muted-foreground">Ordini, cantieri, magazzino e scadenze operative</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5">
+      {/* ─── HEADER STICKY ─── */}
+      <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 px-3 sm:px-4 py-2 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-2xl font-bold text-foreground flex items-center gap-2">
+                <LayoutDashboard className="h-5 w-5 text-primary hidden sm:inline" />
+                Dashboard Gestione
+              </h1>
+              <DashboardKeyboardHint />
+            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+              La tua sala operativa · aggiornata {lastRefresh.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <DashboardQuickActions />
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               onClick={() => setIsCustomizing(true)}
-              className="gap-1.5"
+              className="h-8 w-8"
+              aria-label="Personalizza widget"
+              title="Personalizza widget"
             >
-              <Settings2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Personalizza</span>
+              <Settings2 className="h-4 w-4" />
             </Button>
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="gap-1.5"
+              className="h-8 w-8"
+              aria-label="Aggiorna dati"
+              title="Aggiorna dati"
             >
-              <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-              <span className="hidden sm:inline">Aggiorna</span>
+              <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
             </Button>
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-              {lastRefresh.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-            </span>
           </div>
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/azienda/clienti/nuovo">
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Nuovo Cliente</span>
-            </Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link to="/azienda/ordini/nuovo">
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Nuovo Ordine</span>
-            </Link>
-          </Button>
         </div>
       </div>
 
-
-      {/* Filters */}
+      {/* Filtri */}
       <CompanyDashboardFilters filters={filters} onUpdate={updateFilters} />
 
-      {/* ═══ SEMAFORO OPERATIVO ═══ */}
+      {/* ─── WAR ROOM (la novità): 3 colonne risposta veloce ─── */}
+      <WarRoom
+        cashFlow={cashFlow}
+        weeklyDeadlines={weeklyDeadlines}
+        financialAlerts={financialAlerts}
+        urgentItems={urgentItems}
+        agingReceivables={agingReceivables}
+        openTickets={stats.openTickets}
+        recentOrders={recentOrders}
+      />
+
+      {/* Alert persistenti (cashflow negativo + alert finanziari) */}
+      {cashFlow.netCashFlow < 0 && !dismissedAlerts.has("cashflow-negative") && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-destructive/10 border-destructive/30 text-destructive animate-in slide-in-from-top-2">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-medium flex-1">
+            Cash flow negativo previsto: {formatCurrency(cashFlow.netCashFlow)}.{" "}
+            <Link to="/azienda/previsionale" className="underline font-semibold">Vai al previsionale →</Link>
+          </span>
+          <button onClick={() => dismissAlert("cashflow-negative")} className="shrink-0 p-1 rounded hover:bg-destructive/20 transition-colors" aria-label="Chiudi alert">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ─── SEMAFORO OPERATIVO (esistente, mantenuto) ─── */}
       <SemaforoOperazioni
         totalOrders={stats.totalOrders}
         openTickets={stats.openTickets}
@@ -328,296 +314,215 @@ export default function CompanyDashboard() {
         financialAlertsCount={financialAlerts.length}
       />
 
-      {/* ═══ SALUTE OPERATIVA + AZIONI DA FARE ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
-        <div className="lg:col-span-2">
-          <SaluteOperativa
-            totalOrders={stats.totalOrders}
-            openTickets={stats.openTickets}
-            netCashFlow={cashFlow.netCashFlow}
-            urgentItemsCount={urgentItems.length}
-            financialAlertsCount={financialAlerts.length}
-            upcomingWorks={upcomingWorksCount}
-          />
-        </div>
-        <div className="lg:col-span-3">
-          <AzioniOperative
-            netCashFlow={cashFlow.netCashFlow}
-            openTickets={stats.openTickets}
-            urgentItemsCount={urgentItems.length}
-            financialAlertsCount={financialAlerts.length}
-            upcomingWorks={upcomingWorksCount}
-            receivablesCount={weeklyDeadlines.receivables?.length ?? 0}
-            companyCostsCount={weeklyDeadlines.companyCosts?.length ?? 0}
-          />
-        </div>
-      </div>
+      {/* ─── CEO Strip (compatto) ─── */}
+      {isWidgetVisible("ceo-strip") && (
+        <DashboardCeoStrip
+          revenueThisMonth={ceoStrip.revenueThisMonth}
+          revenuePrevMonth={ceoStrip.revenuePrevMonth}
+          marginThisMonth={ceoStrip.marginThisMonth}
+          marginPrevMonth={ceoStrip.marginPrevMonth}
+          netCashFlow={cashFlow.netCashFlow}
+          ordersThisMonth={ceoStrip.ordersThisMonth}
+          ordersPrevMonth={ceoStrip.ordersPrevMonth}
+        />
+      )}
 
-      {/* YTD Revenue Widget */}
+      {/* ─── YTD ─── */}
       {isWidgetVisible("ytd-revenue") && (
         <YTDRevenueWidget data={revenueYTD} totalYTD={totalYTDRevenue} />
       )}
 
-      {/* CEO KPI Strip */}
-      {isWidgetVisible("ceo-strip") && <DashboardCeoStrip
-
-        revenueThisMonth={ceoStrip.revenueThisMonth}
-        revenuePrevMonth={ceoStrip.revenuePrevMonth}
-        marginThisMonth={ceoStrip.marginThisMonth}
-        marginPrevMonth={ceoStrip.marginPrevMonth}
-        netCashFlow={cashFlow.netCashFlow}
-        ordersThisMonth={ceoStrip.ordersThisMonth}
-        ordersPrevMonth={ceoStrip.ordersPrevMonth}
-      />}
-
-      {/* Financial Alerts */}
-      {cashFlow.netCashFlow < 0 && !dismissedAlerts.has("cashflow-negative") && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border bg-destructive/10 border-destructive/30 text-destructive">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium flex-1">
-            ⚠️ Cash flow negativo previsto: {formatCurrency(cashFlow.netCashFlow)}.{" "}
-            <Link to="/azienda/previsionale" className="underline">Vai al previsionale →</Link>
-          </span>
-          <button onClick={() => dismissAlert("cashflow-negative")} className="shrink-0 p-1 rounded hover:bg-destructive/20 transition-colors">
-            <X className="h-4 w-4" />
+      {/* ─── DETTAGLI OPERATIVI (collapsibile) ─── */}
+      <Collapsible open={detailsOpen} onOpenChange={toggleDetails}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="group w-full flex items-center justify-between gap-2 rounded-lg border bg-muted/30 hover:bg-muted/60 px-4 py-2.5 text-sm font-medium transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <LayoutDashboard className="h-4 w-4 text-primary" />
+              Dettagli operativi
+              <Badge variant="secondary" className="text-[10px]">
+                ordini · crediti · magazzino · costo lavoro
+              </Badge>
+            </span>
+            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", detailsOpen && "rotate-180")} />
           </button>
-        </div>
-      )}
-      {financialAlerts.length > 0 && (
-        <div className="space-y-2">
-          {financialAlerts.map((alert) => {
-            // Stable key based on alert content, not index
-            const alertKey = `fin-${alert.type}-${alert.message.slice(0, 60).replace(/\s+/g, "_")}`;
-            if (dismissedAlerts.has(alertKey)) return null;
-            return (
-              <div
-                key={alertKey}
-                className={`flex items-center gap-3 p-3 rounded-lg border ${
-                  alert.type === "error"
-                    ? "bg-destructive/10 border-destructive/30 text-destructive"
-                    : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400"
-                }`}
-              >
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span className="text-sm font-medium flex-1">{alert.message}</span>
-                <button
-                  onClick={() => dismissAlert(alertKey)}
-                  className={`shrink-0 p-1 rounded transition-colors ${
-                    alert.type === "error" ? "hover:bg-destructive/20" : "hover:bg-amber-200/50"
-                  }`}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 sm:space-y-6 mt-4">
 
-      {/* Stats Grid with delta % */}
-      {isWidgetVisible("stat-cards") && <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <Link key={stat.title} to={stat.link}>
-            <Card className="relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 gap-1">
-                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate min-w-0">
-                  {stat.title}
-                </CardTitle>
-                <div className={`p-1.5 sm:p-2 rounded-lg shrink-0 ${stat.bgColor}`}>
-                  <stat.icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${stat.color}`} />
+          {/* Ordini recenti · Bilancio mese · Costo lavoro */}
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {/* Ordini Recenti */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Ordini Recenti</CardTitle>
+                    <CardDescription className="text-xs">Gli ultimi ordini inseriti</CardDescription>
+                  </div>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/azienda/ordini">Tutti</Link>
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-baseline gap-2">
-                  <div className="text-xl sm:text-2xl font-bold">{stat.value}</div>
-                  {stat.prevValue !== null && typeof stat.value === "number" && (
-                    <DeltaIndicator current={stat.value} previous={stat.prevValue} />
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                {recentOrders.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Nessun ordine presente</p>
+                    <Button variant="link" asChild className="mt-1">
+                      <Link to="/azienda/ordini/nuovo">
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Crea il primo ordine
+                      </Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {recentOrders.slice(0, 5).map((order) => (
+                      <Link
+                        key={order.id}
+                        to={`/azienda/ordini/${order.id}`}
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                      >
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <p className="font-medium text-sm line-clamp-1">{order.description}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {order.customer?.first_name} {order.customer?.last_name}
+                          </p>
+                        </div>
+                        <div className="text-right space-y-1 ml-2 shrink-0">
+                          <p className="font-medium text-sm tabular-nums">{formatCurrencyCompact(Number(order.total_amount))}</p>
+                          {order.status && (
+                            <Badge
+                              variant="secondary"
+                              style={{ backgroundColor: order.status.color + "20", color: order.status.color }}
+                              className="text-[10px] h-4 px-1.5"
+                            >
+                              {order.status.name}
+                            </Badge>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </Link>
-        ))}
-      </div>}
 
-      {/* Main Content Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Recent Orders */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Ordini Recenti</CardTitle>
-                <CardDescription>Gli ultimi ordini inseriti</CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/azienda/ordini">Vedi tutti</Link>
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {recentOrders.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>Nessun ordine presente</p>
-                <Button variant="link" asChild className="mt-2">
-                  <Link to="/azienda/ordini/nuovo">Crea il primo ordine</Link>
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentOrders.map((order) => (
-                  <Link
-                    key={order.id}
-                    to={`/azienda/ordini/${order.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                  >
-                    <div className="space-y-1 min-w-0 flex-1">
-                      <p className="font-medium text-sm line-clamp-1">{order.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {order.customer?.first_name} {order.customer?.last_name}
-                      </p>
-                    </div>
-                    <div className="text-right space-y-1 ml-3 shrink-0">
-                      <p className="font-medium text-sm">{formatCurrency(Number(order.total_amount))}</p>
-                      {order.status && (
-                        <Badge
-                          variant="secondary"
-                          style={{ backgroundColor: order.status.color + "20", color: order.status.color }}
-                          className="text-xs"
-                        >
-                          {order.status.name}
-                        </Badge>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            {/* Bilancio Mese */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                      Bilancio Mese
+                    </CardTitle>
+                    <CardDescription className="text-xs">Entrate vs uscite (ultimi 6 mesi)</CardDescription>
+                  </div>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/azienda/previsionale">Dettaglio</Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="h-[180px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyBalance} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                      <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={formatCurrencyCompact} />
+                      <RechartsTooltip
+                        formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="entrate" name="Entrate" fill="hsl(142 76% 36%)" radius={[3, 3, 0, 0]} barSize={14} />
+                      <Bar dataKey="uscite" name="Uscite" fill="hsl(0 84% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
+                  <div>
+                    <p className="text-[10px] uppercase text-muted-foreground font-medium">Prossimo mese</p>
+                    <p className="text-base font-semibold tabular-nums">{formatCurrency(cashFlow.nextMonth)}</p>
+                  </div>
+                  <Euro className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Bilancio Mese — BarChart */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Bilancio Mese
+            {/* Costo Lavoro */}
+            <LaborCostsStats dateRange={dateRange} />
+          </div>
+
+          {/* Magazzino · Fornitori · Scadenze settimanali */}
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <WarehouseAlerts urgentItems={urgentItems} />
+            <SupplierPaymentsSummary dateRange={dateRange} />
+            <WeeklyDeadlines
+              receivables={weeklyDeadlines.receivables}
+              companyCosts={weeklyDeadlines.companyCosts}
+              upcomingWorks={weeklyDeadlines.upcomingWorks}
+            />
+          </div>
+
+          {/* Aging crediti (se presenti) */}
+          {isWidgetVisible("aging-receivables") && (agingReceivables.overdue > 0 || agingReceivables.thisWeek > 0 || agingReceivables.thisMonth > 0 || agingReceivables.future > 0) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Euro className="h-4 w-4 text-primary" />
+                  Aging Crediti
                 </CardTitle>
-                <CardDescription>Entrate vs uscite (ultimi 6 mesi)</CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/azienda/previsionale">Dettaglio</Link>
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyBalance} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={formatCurrencyCompact} />
-                  <RechartsTooltip
-                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
-                  />
-                  <Legend />
-                  <Bar dataKey="entrate" name="Entrate" fill="hsl(142 76% 36%)" radius={[3, 3, 0, 0]} barSize={14} />
-                  <Bar dataKey="uscite" name="Uscite" fill="hsl(0 84% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className={`flex items-center justify-between p-4 rounded-lg border ${
-              cashFlow.netCashFlow >= 0
-                ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800"
-                : "bg-destructive/10 border-destructive/30"
-            }`}>
-              <div>
-                <p className="text-sm text-muted-foreground">Saldo Netto</p>
-                <p className={`text-2xl font-bold ${cashFlow.netCashFlow >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                  {formatCurrency(cashFlow.netCashFlow)}
-                </p>
-              </div>
-              <Euro className={`h-6 w-6 ${cashFlow.netCashFlow >= 0 ? "text-emerald-500" : "text-destructive"}`} />
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <div>
-                <p className="text-xs text-muted-foreground">Prossimo mese (entrate)</p>
-                <p className="text-lg font-semibold">{formatCurrency(cashFlow.nextMonth)}</p>
-              </div>
-              <Euro className="h-5 w-5 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[50px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={[{
+                        name: "Crediti",
+                        Scaduto: agingReceivables.overdue,
+                        "Questa settimana": agingReceivables.thisWeek,
+                        "Questo mese": agingReceivables.thisMonth,
+                        Futuro: agingReceivables.future,
+                      }]}
+                      margin={{ top: 0, right: 4, left: 0, bottom: 0 }}
+                    >
+                      <XAxis type="number" hide />
+                      <YAxis type="category" dataKey="name" hide />
+                      <RechartsTooltip
+                        formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                      />
+                      <Bar dataKey="Scaduto" stackId="a" fill="hsl(0 84% 60%)" radius={[4, 0, 0, 4]} />
+                      <Bar dataKey="Questa settimana" stackId="a" fill="hsl(25 95% 53%)" />
+                      <Bar dataKey="Questo mese" stackId="a" fill="hsl(45 93% 47%)" />
+                      <Bar dataKey="Futuro" stackId="a" fill="hsl(142 76% 36%)" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 text-xs">
+                  <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(0,84%,60%)]" />Scaduto: <b className="tabular-nums">{formatCurrencyCompact(agingReceivables.overdue)}</b></span>
+                  <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(25,95%,53%)]" />Settim.: <b className="tabular-nums">{formatCurrencyCompact(agingReceivables.thisWeek)}</b></span>
+                  <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(45,93%,47%)]" />Mese: <b className="tabular-nums">{formatCurrencyCompact(agingReceivables.thisMonth)}</b></span>
+                  <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(142,76%,36%)]" />Futuro: <b className="tabular-nums">{formatCurrencyCompact(agingReceivables.future)}</b></span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-        {/* Labor Costs Stats */}
-        <LaborCostsStats dateRange={dateRange} />
-      </div>
+          {/* Top clienti */}
+          {isWidgetVisible("top-customers") && (
+            <TopCustomersWidget companyId={companyId} dateFrom={dateRange.from} dateTo={dateRange.to} />
+          )}
+        </CollapsibleContent>
+      </Collapsible>
 
-      {/* Aging Receivables */}
-      {isWidgetVisible("aging-receivables") && (agingReceivables.overdue > 0 || agingReceivables.thisWeek > 0 || agingReceivables.thisMonth > 0 || agingReceivables.future > 0) && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Aging Crediti</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[60px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  layout="vertical"
-                  data={[{
-                    name: "Crediti",
-                    Scaduto: agingReceivables.overdue,
-                    "Questa settimana": agingReceivables.thisWeek,
-                    "Questo mese": agingReceivables.thisMonth,
-                    Futuro: agingReceivables.future,
-                  }]}
-                  margin={{ top: 0, right: 4, left: 0, bottom: 0 }}
-                >
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" hide />
-                  <RechartsTooltip
-                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
-                  />
-                  <Bar dataKey="Scaduto" stackId="a" fill="hsl(0 84% 60%)" radius={[4, 0, 0, 4]} />
-                  <Bar dataKey="Questa settimana" stackId="a" fill="hsl(25 95% 53%)" />
-                  <Bar dataKey="Questo mese" stackId="a" fill="hsl(45 93% 47%)" />
-                  <Bar dataKey="Futuro" stackId="a" fill="hsl(142 76% 36%)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex flex-wrap gap-3 mt-2 text-xs">
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(0,84%,60%)]" />Scaduto: {formatCurrency(agingReceivables.overdue)}</span>
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(25,95%,53%)]" />Questa sett.: {formatCurrency(agingReceivables.thisWeek)}</span>
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(45,93%,47%)]" />Questo mese: {formatCurrency(agingReceivables.thisMonth)}</span>
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(142,76%,36%)]" />Futuro: {formatCurrency(agingReceivables.future)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <WarehouseAlerts urgentItems={urgentItems} />
-
-        <SupplierPaymentsSummary dateRange={dateRange} />
-
-        <WeeklyDeadlines
-          receivables={weeklyDeadlines.receivables}
-          companyCosts={weeklyDeadlines.companyCosts}
-          upcomingWorks={weeklyDeadlines.upcomingWorks}
-        />
-      </div>
-
-      {/* Top Clienti */}
-      {isWidgetVisible("top-customers") && (
-        <TopCustomersWidget companyId={companyId} dateFrom={dateRange.from} dateTo={dateRange.to} />
-      )}
-
-      {/* Widget Customizer Panel */}
+      {/* Customizer */}
       <DashboardWidgetCustomizer
         open={isCustomizing}
         onOpenChange={setIsCustomizing}
