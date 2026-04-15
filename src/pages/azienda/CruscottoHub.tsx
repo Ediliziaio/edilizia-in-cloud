@@ -69,6 +69,8 @@ import {
   UserCheck,
   Lightbulb,
   CalendarCheck,
+  HardHat,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -358,15 +360,49 @@ function CreationOverlay({
   );
 }
 
-// ─── Template library content ─────────────────────────────────────────────────
-const SIDEBAR_ITEMS = [
-  { label: "Tutti i modelli", key: "all",   icon: Layers },
-  { label: "I miei modelli",  key: "mine",  icon: Star },
+// ─── Dashboard standard (pre-costruite) ──────────────────────────────────────
+const STANDARD_DASHBOARDS = [
+  {
+    id: "std-aziendale",
+    title: "Cruscotto Aziendale",
+    description: "KPI strategici, cash flow, marketing e operazioni. La dashboard completa per il management.",
+    url: "/azienda/cruscotto/aziendale",
+    bg: "from-blue-500 via-blue-600 to-indigo-700",
+    icon: LayoutGrid,
+  },
+  {
+    id: "std-gestione",
+    title: "Dashboard Gestione",
+    description: "Ordini, cantieri, magazzino e scadenze operative. Il pannello operativo quotidiano.",
+    url: "/azienda",
+    bg: "from-orange-400 via-amber-500 to-orange-600",
+    icon: HardHat,
+  },
+  {
+    id: "std-marketing",
+    title: "Dashboard Marketing",
+    description: "Pipeline, lead, opportunità e performance commerciale. Per il team vendite.",
+    url: "/azienda/marketing",
+    bg: "from-emerald-400 via-teal-500 to-green-600",
+    icon: TrendingUp,
+  },
 ];
 
-function TemplateLibraryContent({ onSelect }: { onSelect: (t: DashboardTemplate) => void }) {
+// ─── Template library content ─────────────────────────────────────────────────
+const SIDEBAR_ITEMS = [
+  { label: "Tutti i modelli", key: "all",      icon: Layers   },
+  { label: "Standard",        key: "standard", icon: Sparkles },
+  { label: "I miei modelli",  key: "mine",     icon: Star     },
+];
+
+function TemplateLibraryContent({
+  onSelect,
+}: {
+  onSelect: (t: DashboardTemplate) => void;
+}) {
+  const navigate = useNavigate();
   const { data: templates = [], isLoading } = useDashboardTemplates();
-  const [search, setSearch]     = useState("");
+  const [search, setSearch]       = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
 
   const categories = useMemo(() => {
@@ -374,7 +410,17 @@ function TemplateLibraryContent({ onSelect }: { onSelect: (t: DashboardTemplate)
     return Array.from(cats);
   }, [templates]);
 
+  // Filtra standard
+  const showStandard = catFilter === "all" || catFilter === "standard";
+  const filteredStd  = showStandard
+    ? STANDARD_DASHBOARDS.filter(
+        (s) => !search || s.title.toLowerCase().includes(search.toLowerCase()),
+      )
+    : [];
+
+  // Filtra DB templates
   const filtered = useMemo(() => {
+    if (catFilter === "standard") return [];
     return templates.filter((t) => {
       const matchS = !search || t.name.toLowerCase().includes(search.toLowerCase());
       const matchC = catFilter === "all" || catFilter === "mine" || t.category === catFilter;
@@ -458,96 +504,120 @@ function TemplateLibraryContent({ onSelect }: { onSelect: (t: DashboardTemplate)
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-5">
-            {isLoading ? (
-              <div className="grid grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-60 rounded-xl bg-muted/50 animate-pulse" />
-                ))}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-                <Layers className="h-9 w-9 opacity-30" />
-                <p className="text-sm">Nessun template trovato</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs text-muted-foreground font-medium">
-                    Aggiunti di recente{" "}
-                    <span className="text-primary underline cursor-pointer hover:no-underline">
-                      Visualizza tutto
-                    </span>
+          <div className="p-5 space-y-8">
+
+            {/* ── Sezione Standard ──────────────────────────────────── */}
+            {filteredStd.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                    Standard
                   </p>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Incluse
+                  </span>
                 </div>
-                <div className="grid grid-cols-4 gap-4">
-                  {filtered.map((tpl, idx) => {
-                    const style = getTplStyle(idx);
-                    const Icon  = style.icon;
-                    const roleLabels = (tpl.target_roles ?? [])
-                      .map((r) => ALL_ROLES.find((x) => x.role === r)?.label ?? r)
-                      .join(", ");
+                <div className="grid grid-cols-3 gap-4">
+                  {filteredStd.map((s) => {
+                    const Icon = s.icon;
                     return (
                       <button
-                        key={tpl.id}
-                        onClick={() => onSelect(tpl)}
+                        key={s.id}
+                        onClick={() => navigate(s.url)}
                         className="group rounded-xl overflow-hidden border-2 border-transparent hover:border-primary hover:shadow-xl transition-all duration-200 text-left bg-white"
                       >
-                        {/* Thumbnail */}
                         <div className={cn(
-                          "h-44 bg-gradient-to-br relative overflow-hidden flex flex-col items-center justify-center",
-                          style.bg,
+                          "h-44 bg-gradient-to-br relative overflow-hidden flex items-center justify-center",
+                          s.bg,
                         )}>
-                          {/* Sfondo decorativo */}
                           <div className="absolute inset-0">
-                            <div className="absolute top-4 right-6 h-16 w-16 rounded-full bg-white/15 blur-sm" />
-                            <div className="absolute bottom-4 left-4 h-12 w-12 rounded-full bg-white/10 blur-sm" />
-                            <div className="absolute top-1/2 left-1/4 h-8 w-8 rounded-full bg-white/10" />
+                            <div className="absolute top-3 right-5 h-14 w-14 rounded-full bg-white/15 blur-md" />
+                            <div className="absolute -bottom-2 -left-2 h-16 w-16 rounded-full bg-white/10 blur-md" />
                           </div>
-                          {/* Icona principale */}
                           <Icon className="h-12 w-12 text-white drop-shadow-lg relative z-10" />
-                          {/* Nome sovrapposto in basso */}
-                          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/30 to-transparent">
+                          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/35 to-transparent">
                             <p className="text-white font-bold text-sm leading-tight drop-shadow">
-                              {tpl.name}
+                              {s.title}
                             </p>
                           </div>
                         </div>
-                        {/* Caption */}
                         <div className="p-3">
-                          <p className="text-sm font-medium text-foreground leading-snug truncate">
-                            {tpl.name}
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium leading-snug truncate">{s.title}</p>
+                            <Badge variant="outline" className="text-[10px] shrink-0 text-primary border-primary/30 bg-primary/5">
+                              Standard
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                            {s.description}
                           </p>
-                          {roleLabels && (
-                            <p className="text-[11px] text-muted-foreground mt-0.5">{roleLabels}</p>
-                          )}
                         </div>
                       </button>
                     );
                   })}
                 </div>
+              </div>
+            )}
 
-                {/* Trending */}
-                <div className="mt-8">
-                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mb-4">
-                    Tendenze principali di questa settimana
-                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full border text-[10px] text-muted-foreground cursor-help">?</span>
+            {/* ── Template dal DB ───────────────────────────────────── */}
+            {catFilter !== "standard" && (
+              isLoading ? (
+                <div className="grid grid-cols-4 gap-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-60 rounded-xl bg-muted/50 animate-pulse" />
+                  ))}
+                </div>
+              ) : filtered.length > 0 ? (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+                    Dalla libreria
                   </p>
-                  <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground/50">
-                    <div className="flex gap-2">
-                      <div className="h-8 w-6 rounded bg-muted/60" />
-                      <div className="h-10 w-6 rounded bg-muted/50 -mt-2" />
-                      <div className="h-6 w-6 rounded bg-muted/60 mt-1" />
-                      <div className="relative">
-                        <div className="h-9 w-6 rounded bg-muted/40" />
-                        <div className="absolute -top-2 -right-1 h-3 w-3 rounded-full border-2 border-muted/60 bg-white" />
-                      </div>
-                    </div>
-                    <p className="text-xs">Scopri i modelli di tendenza</p>
-                    <p className="text-[11px]">I modelli più scaricati di questa settimana compariranno qui.</p>
+                  <div className="grid grid-cols-4 gap-4">
+                    {filtered.map((tpl, idx) => {
+                      const style = getTplStyle(idx);
+                      const Icon  = style.icon;
+                      const roleLabels = (tpl.target_roles ?? [])
+                        .map((r) => ALL_ROLES.find((x) => x.role === r)?.label ?? r)
+                        .join(", ");
+                      return (
+                        <button
+                          key={tpl.id}
+                          onClick={() => onSelect(tpl)}
+                          className="group rounded-xl overflow-hidden border-2 border-transparent hover:border-primary hover:shadow-xl transition-all duration-200 text-left bg-white"
+                        >
+                          <div className={cn(
+                            "h-44 bg-gradient-to-br relative overflow-hidden flex items-center justify-center",
+                            style.bg,
+                          )}>
+                            <div className="absolute inset-0">
+                              <div className="absolute top-4 right-6 h-16 w-16 rounded-full bg-white/15 blur-sm" />
+                              <div className="absolute bottom-4 left-4 h-12 w-12 rounded-full bg-white/10 blur-sm" />
+                            </div>
+                            <Icon className="h-12 w-12 text-white drop-shadow-lg relative z-10" />
+                            <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/30 to-transparent">
+                              <p className="text-white font-bold text-sm leading-tight drop-shadow">
+                                {tpl.name}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="p-3">
+                            <p className="text-sm font-medium leading-snug truncate">{tpl.name}</p>
+                            {roleLabels && (
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{roleLabels}</p>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              </>
+              ) : filteredStd.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+                  <Layers className="h-9 w-9 opacity-30" />
+                  <p className="text-sm">Nessun template trovato</p>
+                </div>
+              ) : null
             )}
           </div>
         </ScrollArea>
