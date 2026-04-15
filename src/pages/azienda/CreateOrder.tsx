@@ -438,8 +438,10 @@ function CreateOrderInner() {
       navigate(`/azienda/ordini/${order.id}`);
     },
     onError: (error) => {
-      toast.error("Errore", { description: "Si è verificato un errore durante la creazione dell'ordine." });
-     logger.error("Create order error:", error);
+      toast.error("Errore", {
+        description: error instanceof Error ? error.message : "Si è verificato un errore durante la creazione dell'ordine.",
+      });
+      logger.error("Create order error:", error);
     },
   });
 

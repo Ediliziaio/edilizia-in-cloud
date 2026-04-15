@@ -136,7 +136,7 @@ export default function ManutenzioneList() {
       toast.success("Intervento pianificato e ticket creato");
       queryClient.invalidateQueries({ queryKey: ["piani-scadenza", effectiveCompany?.id] });
     },
-    onError: () => toast.error("Errore nella pianificazione"),
+    onError: (err: Error) => toast.error(err.message || "Errore nella pianificazione"),
   });
 
   const mrr = contratti

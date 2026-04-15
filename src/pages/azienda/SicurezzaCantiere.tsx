@@ -136,7 +136,7 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!verbaleForm.note.trim() && !verbaleForm.redatto_da.trim()) throw new Error("Inserisci almeno le note o il nome del redattore");
       const { error } = await supabase.from("verbali_sicurezza").insert({ company_id: companyId, order_id: verbaleForm.order_id || null, data: verbaleForm.data, tipo: verbaleForm.tipo, esito: verbaleForm.esito, note: verbaleForm.note.trim() || null, redatto_da: verbaleForm.redatto_da.trim() || null });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => { toast.success("Verbale salvato"); queryClient.invalidateQueries({ queryKey: ["verbali-sicurezza", companyId] }); setVerbaleDialogOpen(false); setVerbaleForm({ order_id: "", data: format(new Date(), "yyyy-MM-dd"), tipo: "sopralluogo", esito: "conforme", note: "", redatto_da: "" }); },
     onError: (err: Error) => toast.error(err.message),
@@ -146,7 +146,7 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!subappaltatoreForm.ragione_sociale.trim()) throw new Error("Ragione sociale obbligatoria");
       const { error } = await supabase.from("subappaltatori_sicurezza").insert({ company_id: companyId, order_id: subappaltatoreForm.order_id || null, ragione_sociale: subappaltatoreForm.ragione_sociale.trim(), tipo_lavori: subappaltatoreForm.tipo_lavori || null, responsabile: subappaltatoreForm.responsabile || null, telefono: subappaltatoreForm.telefono || null, data_inizio: subappaltatoreForm.data_inizio || null, data_fine: subappaltatoreForm.data_fine || null, durc_scadenza: subappaltatoreForm.durc_scadenza || null });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => { toast.success("Subappaltatore aggiunto"); queryClient.invalidateQueries({ queryKey: ["subappaltatori-sicurezza", companyId] }); setSubappaltatoreDialogOpen(false); setSubappaltatoreForm({ order_id: "", ragione_sociale: "", tipo_lavori: "", responsabile: "", telefono: "", data_inizio: "", data_fine: "", durc_scadenza: "" }); },
     onError: (err: Error) => toast.error(err.message),
@@ -156,7 +156,7 @@ export default function SicurezzaCantiere() {
     mutationFn: async () => {
       if (!adempimentoForm.titolo.trim()) throw new Error("Titolo obbligatorio");
       const { error } = await supabase.from("adempimenti_sicurezza").insert({ company_id: companyId, order_id: adempimentoForm.order_id || null, titolo: adempimentoForm.titolo.trim(), tipo: adempimentoForm.tipo, scadenza_data: adempimentoForm.scadenza_data || null, stato: "da_fare", note: adempimentoForm.note || null });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => { toast.success("Adempimento aggiunto"); queryClient.invalidateQueries({ queryKey: ["adempimenti-sicurezza", companyId] }); setAdempimentoDialogOpen(false); setAdempimentoForm({ order_id: "", titolo: "", tipo: "corso_formazione", scadenza_data: "", note: "" }); },
     onError: (err: Error) => toast.error(err.message),
@@ -165,7 +165,7 @@ export default function SicurezzaCantiere() {
   const toggleAdempimentoStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       const { error } = await supabase.from("adempimenti_sicurezza").update({ stato }).eq("id", id);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["adempimenti-sicurezza", companyId] }),
     onError: (err: Error) => toast.error(err.message),

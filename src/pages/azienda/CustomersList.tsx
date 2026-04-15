@@ -237,8 +237,10 @@ function CustomersListInner() {
       if (error) {
         let errorMessage = "Errore durante l'eliminazione";
         try {
-          const errorBody = await (error as any).context?.json?.();
-          if (errorBody?.error) errorMessage = errorBody.error;
+          const ctx = (error as any).context;
+          let errBody: any = null;
+          if (ctx instanceof Response) errBody = await ctx.json();
+          if (errBody?.error) errorMessage = errBody.error;
         } catch {
           if (error.message && !error.message.includes("non-2xx")) {
             errorMessage = error.message;
@@ -352,7 +354,11 @@ function CustomersListInner() {
             company_id: effectiveCompany.id,
           },
         });
-        if (fnError) throw fnError;
+        if (fnError) {
+          let errBody: any = null;
+          try { const ctx = (fnError as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+          throw new Error(errBody?.error ?? errBody?.message ?? fnError.message ?? "Errore");
+        }
         if (data?.error) throw new Error(data.error);
         success++;
       } catch (err: any) {

@@ -453,7 +453,10 @@ function EditOrderInner() {
       if (error) throw error;
 
       // Upsert installments: delete old, insert new
-      await supabase.from("order_installments").delete().eq("order_id", id!);
+      {
+        const { error: delInstErr } = await supabase.from("order_installments").delete().eq("order_id", id!);
+        if (delInstErr) throw delInstErr;
+      }
       if (installmentsForSave.length > 0) {
         const instRows = installmentsForSave.map(i => ({
           order_id: id!,
@@ -500,9 +503,12 @@ function EditOrderInner() {
       const itemsToInsert = orderItems.filter(i => !i.id || !existingDbIds.has(i.id));
 
       for (const removedId of removedIds) {
-        await supabase.from("warehouse_movements").delete().eq("order_item_id", removedId);
-        await supabase.from("order_item_attachments").delete().eq("order_item_id", removedId);
-        await supabase.from("order_items").delete().eq("id", removedId);
+        const { error: delMovErr } = await supabase.from("warehouse_movements").delete().eq("order_item_id", removedId);
+        if (delMovErr) throw delMovErr;
+        const { error: delAttErr } = await supabase.from("order_item_attachments").delete().eq("order_item_id", removedId);
+        if (delAttErr) throw delAttErr;
+        const { error: delItemErr } = await supabase.from("order_items").delete().eq("id", removedId);
+        if (delItemErr) throw delItemErr;
       }
 
       for (let index = 0; index < orderItems.length; index++) {
@@ -590,7 +596,8 @@ function EditOrderInner() {
           });
         }
       } else if (existingSalespersonRecordId && !salespersonId) {
-        await supabase.from("order_salespeople").delete().eq("id", existingSalespersonRecordId);
+        const { error: delSalesErr } = await supabase.from("order_salespeople").delete().eq("id", existingSalespersonRecordId);
+        if (delSalesErr) throw delSalesErr;
       }
     },
     onSuccess: () => {
@@ -609,7 +616,9 @@ function EditOrderInner() {
       navigate(`/azienda/ordini/${id}`);
     },
     onError: (error) => {
-      toast.error("Errore", { description: "Si è verificato un errore durante l'aggiornamento dell'ordine." });
+      toast.error("Errore", {
+        description: error instanceof Error ? error.message : "Si è verificato un errore durante l'aggiornamento dell'ordine.",
+      });
       logger.error("Update order error:", error);
     },
   });

@@ -537,7 +537,11 @@ function OrderDetailInner() {
       const { data, error } = await supabase.functions.invoke("duplicate-order", {
         body: { source_order_id: id },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       if (data?.error) throw new Error(data.error);
       return data as { id: string; order_code: string };
     },
@@ -614,7 +618,11 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success(paid ? `${installment.label} segnato come pagato` : `${installment.label} segnato come da pagare`);
     },
-    onError: () => { toast.error("Impossibile aggiornare lo stato del pagamento."); },
+    onError: (error) => {
+      toast.error("Errore", {
+        description: error instanceof Error ? error.message : "Impossibile aggiornare lo stato del pagamento.",
+      });
+    },
   });
 
   const handleInstallmentPaidToggle = (installment: Installment, paid: boolean) => {
@@ -650,7 +658,11 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
       toast.success("Articolo aggiornato");
     },
-    onError: () => { toast.error("Errore nell'aggiornamento dell'articolo."); },
+    onError: (error) => {
+      toast.error("Errore", {
+        description: error instanceof Error ? error.message : "Errore nell'aggiornamento dell'articolo.",
+      });
+    },
   });
 
   const handleItemUpdate = (item: OrderItem) => { updateSingleItemMutation.mutate(item); };
@@ -680,7 +692,11 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
       toast.success("Articolo aggiunto");
     },
-    onError: () => { toast.error("Impossibile aggiungere l'articolo."); },
+    onError: (error) => {
+      toast.error("Errore", {
+        description: error instanceof Error ? error.message : "Impossibile aggiungere l'articolo.",
+      });
+    },
   });
 
   const handleStatusChange = (statusId: string) => {

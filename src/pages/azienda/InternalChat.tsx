@@ -738,10 +738,14 @@ export default function InternalChat() {
   // Send to Lucia
   const sendToLucia = useCallback(async (messageText: string) => {
     if (!selectedChannelId || !companyId || !userId || !messageText.trim()) return;
-    await supabase.from("internal_chat_messages").insert({
+    const { error: insertErr } = await supabase.from("internal_chat_messages").insert({
       channel_id: selectedChannelId, sender_id: userId, company_id: companyId,
       content: messageText.trim(), message_type: "text",
     });
+    if (insertErr) {
+      toast.error(`Errore invio: ${insertErr.message || insertErr.details || insertErr.hint || "errore sconosciuto"}`);
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
     await supabase.from("internal_chat_members").update({ last_read_at: new Date().toISOString() }).eq("channel_id", selectedChannelId).eq("user_id", userId);
     setLuciaTyping(true);
@@ -759,7 +763,11 @@ export default function InternalChat() {
           },
         },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) {
+        let errBody: any = null;
+        try { const ctx = (res.error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? res.error.message ?? "Errore Lucia");
+      }
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
       refetchUnread();

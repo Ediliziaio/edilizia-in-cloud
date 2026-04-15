@@ -126,7 +126,7 @@ export default function InterventiDetail() {
       toast.success("Tecnico assegnato");
       queryClient.invalidateQueries({ queryKey: ["intervento", id] });
     },
-    onError: () => toast.error("Errore nell'assegnazione del tecnico"),
+    onError: (err: Error) => toast.error(err.message || "Errore nell'assegnazione del tecnico"),
   });
 
   const chiudiInterventoMutation = useMutation({
@@ -141,7 +141,7 @@ export default function InterventiDetail() {
       toast.success("Intervento chiuso");
       queryClient.invalidateQueries({ queryKey: ["intervento", id] });
     },
-    onError: () => toast.error("Errore nella chiusura dell'intervento"),
+    onError: (err: Error) => toast.error(err.message || "Errore nella chiusura dell'intervento"),
   });
 
   const generaCostoMutation = useMutation({

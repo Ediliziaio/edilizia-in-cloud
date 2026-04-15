@@ -122,8 +122,8 @@ function EmployeesInner() {
       toast.success(editingEmployee ? "Dipendente aggiornato" : "Dipendente creato", { description: "I dati sono stati salvati con successo." });
       setEmployeeDialogOpen(false); setEditingEmployee(null);
     },
-    onError: () => {
-      toast.error("Errore", { description: "Si è verificato un errore durante il salvataggio." });
+    onError: (err: Error) => {
+      toast.error("Errore", { description: err.message || "Si è verificato un errore durante il salvataggio." });
     },
   });
 
@@ -136,8 +136,8 @@ function EmployeesInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
       toast.success("Dipendente eliminato", { description: "Il dipendente è stato rimosso." });
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile eliminare il dipendente. Potrebbe essere assegnato a degli ordini." });
+    onError: (err: Error) => {
+      toast.error("Errore", { description: err.message || "Impossibile eliminare il dipendente. Potrebbe essere assegnato a degli ordini." });
     },
   });
 
@@ -165,8 +165,8 @@ function EmployeesInner() {
       toast.success(editingTeam ? "Squadra aggiornata" : "Squadra creata", { description: "I dati sono stati salvati con successo." });
       setTeamDialogOpen(false); setEditingTeam(null);
     },
-    onError: () => {
-      toast.error("Errore", { description: "Si è verificato un errore durante il salvataggio." });
+    onError: (err: Error) => {
+      toast.error("Errore", { description: err.message || "Si è verificato un errore durante il salvataggio." });
     },
   });
 
@@ -179,8 +179,8 @@ function EmployeesInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
       toast.success("Squadra eliminata", { description: "La squadra esterna è stata rimossa." });
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile eliminare la squadra. Potrebbe essere assegnata a degli ordini." });
+    onError: (err: Error) => {
+      toast.error("Errore", { description: err.message || "Impossibile eliminare la squadra. Potrebbe essere assegnata a degli ordini." });
     },
   });
 
@@ -191,7 +191,11 @@ function EmployeesInner() {
       const { data, error } = await supabase.functions.invoke("create-employee-user", {
         body: { employee_id: employeeId, email, password: password || undefined, phone: phone || undefined, permissions },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       if (!data.success) throw new Error(data.error);
       return data;
     },

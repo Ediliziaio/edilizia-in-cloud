@@ -148,7 +148,11 @@ export default function RenderPavimentoNew() {
             body: { action: "analyze", image_url: imageUrl, session_id: sid },
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
-          if (resp.error) throw new Error(resp.error.message);
+          if (resp.error) {
+            let errBody: any = null;
+            try { const ctx = (resp.error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+            throw new Error(errBody?.error ?? errBody?.message ?? resp.error.message ?? "Errore");
+          }
           if (resp.data?.analisi) {
             setAnalisi(resp.data.analisi as AnalisiPavimento);
           }

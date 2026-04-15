@@ -36,6 +36,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -475,6 +479,8 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
   const quickAddRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [compact, setCompact] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -813,7 +819,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
             <button onClick={() => openEdit(t)} className="p-0.5 text-muted-foreground hover:text-foreground" title="Modifica">
               <Pencil className="h-3 w-3" />
             </button>
-            <button onClick={() => deleteTask.mutate(t.id)} className="p-0.5 text-muted-foreground hover:text-red-500" title="Elimina">
+            <button onClick={() => setTaskToDelete(t.id)} className="p-0.5 text-muted-foreground hover:text-red-500" title="Elimina">
               <Trash2 className="h-3 w-3" />
             </button>
           </div>
@@ -874,7 +880,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
             {!isDone && <DropdownMenuItem onClick={() => markDone(t)}><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Segna come fatta</DropdownMenuItem>}
             {t.status === "da_fare" && <DropdownMenuItem onClick={() => updateTask.mutate({ id: t.id, status: "in_corso" })}><PlayCircle className="h-3.5 w-3.5 mr-2" />Inizia (In corso)</DropdownMenuItem>}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600" onClick={() => deleteTask.mutate(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" />Elimina</DropdownMenuItem>
+            <DropdownMenuItem className="text-red-600" onClick={() => setTaskToDelete(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" />Elimina</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -1009,7 +1015,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
                 <Circle className="h-3 w-3" />Da fare
               </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-red-600 hover:text-red-700" onClick={() => bulkDelete.mutate([...selectedIds])}>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-red-600 hover:text-red-700" onClick={() => setBulkConfirmOpen(true)}>
                 <Trash2 className="h-3 w-3" />Elimina
               </Button>
               <button onClick={() => setSelectedIds(new Set())} className="text-muted-foreground hover:text-foreground ml-1"><X className="h-3.5 w-3.5" /></button>
@@ -1172,6 +1178,52 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Conferma eliminazione singola ── */}
+      <AlertDialog open={!!taskToDelete} onOpenChange={(o) => !o && setTaskToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare questa attività?</AlertDialogTitle>
+            <AlertDialogDescription>L'azione è irreversibile.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (taskToDelete) deleteTask.mutate(taskToDelete);
+                setTaskToDelete(null);
+              }}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Conferma eliminazione multipla ── */}
+      <AlertDialog open={bulkConfirmOpen} onOpenChange={setBulkConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare {selectedIds.size} attività?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare {selectedIds.size} {selectedIds.size === 1 ? "attività" : "attività"}. L'azione è irreversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                bulkDelete.mutate([...selectedIds]);
+                setBulkConfirmOpen(false);
+              }}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

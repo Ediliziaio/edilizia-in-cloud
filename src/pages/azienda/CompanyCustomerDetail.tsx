@@ -266,9 +266,13 @@ export default function CompanyCustomerDetail() {
       });
 
       if (res.error) {
-        const body = typeof res.error === "object" && "context" in res.error
-          ? await (res.error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.()
-          : null;
+        let body: { error?: string } | null = null;
+        try {
+          const ctx = (res.error as { context?: unknown }).context;
+          if (ctx instanceof Response) body = await ctx.json();
+        } catch {
+          body = null;
+        }
         throw new Error(body?.error || res.error.message || "Errore eliminazione");
       }
       if (res.data?.error) throw new Error(res.data.error);

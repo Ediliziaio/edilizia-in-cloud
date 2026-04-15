@@ -148,7 +148,7 @@ export function TabCedolini() {
         stato: form.stato,
         note: form.note.trim() || null,
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
       toast.success("Cedolino creato");
@@ -162,7 +162,7 @@ export function TabCedolini() {
   const updateStatoMutation = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       const { error } = await supabase.from("cedolini").update({ stato }).eq("id", id);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cedolini", companyId] }),
     onError: (err: Error) => toast.error(err.message),

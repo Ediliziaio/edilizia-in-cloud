@@ -164,7 +164,11 @@ export default function RenderBagnoNew() {
             body: { image_url: imageUrl, session_id: sid, mode: "bathroom" },
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
-          if (resp.error) throw new Error(resp.error.message);
+          if (resp.error) {
+            let errBody: any = null;
+            try { const ctx = (resp.error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+            throw new Error(errBody?.error ?? errBody?.message ?? resp.error.message ?? "Errore");
+          }
 
           // The analyze function may return foto_analisi or analisi_bagno
           const analysisData = resp.data?.analisi_bagno || resp.data?.foto_analisi || resp.data;

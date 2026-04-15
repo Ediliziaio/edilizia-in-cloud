@@ -134,7 +134,7 @@ export default function SubappaltatoriPage() {
           telefono: form.telefono.trim() || null,
           durc_scadenza: form.durc_scadenza || null,
         });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
       toast.success('Subappaltatore aggiunto con successo');

@@ -182,12 +182,12 @@ export default function SubappaltatoreDetail() {
           .from('contratti_subappalto')
           .update(payload)
           .eq('id', contratto.id);
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(error.message || error.details || error.hint || "Errore");
       } else {
         const { error } = await (supabase as any)
           .from('contratti_subappalto')
           .insert(payload);
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(error.message || error.details || error.hint || "Errore");
       }
     },
     onSuccess: () => {
@@ -265,7 +265,7 @@ export default function SubappaltatoreDetail() {
         .from('ritenute_garanzia')
         .update({ stato: 'svincolata', data_svincolo_effettiva: format(new Date(), 'yyyy-MM-dd') })
         .eq('id', ritenutaId);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
       toast.success('Ritenuta svincolata');
@@ -290,7 +290,7 @@ export default function SubappaltatoreDetail() {
       toast.success("SAL approvato");
       queryClient.invalidateQueries({ queryKey: ["subappaltatore-detail"] });
     },
-    onError: () => toast.error("Errore durante l'approvazione"),
+    onError: (err: Error) => toast.error(err.message || "Errore durante l'approvazione"),
   });
 
   const contestaSALMutation = useMutation({
@@ -307,7 +307,7 @@ export default function SubappaltatoreDetail() {
       setContestaNote("");
       queryClient.invalidateQueries({ queryKey: ["subappaltatore-detail"] });
     },
-    onError: () => toast.error("Errore durante la contestazione"),
+    onError: (err: Error) => toast.error(err.message || "Errore durante la contestazione"),
   });
 
   // ─────────────────────────────────────────────────────────────────────────

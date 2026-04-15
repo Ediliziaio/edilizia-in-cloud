@@ -96,7 +96,7 @@ export default function PurchaseOrderDetail() {
         stato: ddtForm.stato,
         note: ddtForm.note.trim() || null,
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
       toast.success("DDT registrato");

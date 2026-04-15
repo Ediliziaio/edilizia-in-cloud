@@ -95,7 +95,11 @@ export default function CedoliniPersonali() {
       const { data, error } = await supabase.functions.invoke("generate-cedolino-pdf", {
         body: { cedolino_id: cedolino.id, company_id: companyId },
       });
-      if (error) throw new Error(error.message || "Errore PDF");
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore PDF");
+      }
       if (!data?.html) throw new Error("Nessun contenuto PDF");
       const blob = new Blob([data.html], { type: "text/html" });
       const url = URL.createObjectURL(blob);
