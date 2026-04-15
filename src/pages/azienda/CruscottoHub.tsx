@@ -1165,6 +1165,21 @@ function StandardPermissionsDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-auto space-y-4 pr-1">
+          {/* Banner informativo: dashboard di sistema, permessi non modificabili */}
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800/40 p-3 flex gap-3">
+            <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-1 text-xs">
+              <p className="font-semibold text-amber-900 dark:text-amber-200">
+                Permessi gestiti dal sistema
+              </p>
+              <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+                Questa è una dashboard predefinita. La visibilità segue i ruoli e i permessi utente
+                (Amministrazione → Utenti). Per creare una dashboard con permessi personalizzati
+                crea una dashboard personale.
+              </p>
+            </div>
+          </div>
+
           {/* Visibilità fissa */}
           <div className="rounded-xl border overflow-hidden">
             <div className="px-4 py-2.5 bg-muted/30 border-b">
@@ -1173,20 +1188,19 @@ function StandardPermissionsDialog({
             <div className="flex items-center gap-3 px-4 py-3 bg-primary/5">
               <Globe className="h-4 w-4 text-blue-600 shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium">Aziendale</p>
-                <p className="text-xs text-muted-foreground">Accessibile a tutto il team — non modificabile</p>
-              </div>
-              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary shrink-0">
-                <Check className="h-3 w-3 text-white" />
+                <p className="text-sm font-medium">Aziendale · sola lettura</p>
+                <p className="text-xs text-muted-foreground">
+                  Accessibile a tutti i membri del team autorizzati dal ruolo
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Elenco membri del team */}
+          {/* Elenco membri del team (puramente informativo) */}
           <div className="rounded-xl border overflow-hidden">
             <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Membri del team
+                Chi può vederla
               </p>
               {!isLoading && (
                 <p className="text-[10px] text-muted-foreground">{members.length} uten{members.length === 1 ? "te" : "ti"}</p>
@@ -1225,9 +1239,6 @@ function StandardPermissionsDialog({
                           {roleMeta.label}
                         </span>
                       )}
-                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 shrink-0">
-                        <Check className="h-3 w-3 text-primary" />
-                      </div>
                     </div>
                   );
                 })}
