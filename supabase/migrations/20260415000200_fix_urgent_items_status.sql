@@ -1,6 +1,14 @@
 -- ════════════════════════════════════════════════════════════════
--- Dashboard Real Cashflow — Push #2
+-- FIX: urgent items usa order_items.status (non la colonna inesistente in_stock)
 -- ════════════════════════════════════════════════════════════════
+-- Rimpiazza get_dashboard_kpis con la versione corretta: la query urgentItems
+-- filtrava per COALESCE(oi.in_stock, false) = false, ma quella colonna non
+-- esiste. Usa invece oi.status IN ('da_ordinare','ordinato','in_arrivo') che
+-- rappresenta articoli non ancora ricevuti (coerente con stock_reservation_trigger).
+--
+-- Per il resto la funzione è identica a 20260415000100_dashboard_real_cashflow.sql
+-- ════════════════════════════════════════════════════════════════
+-- Original header:
 -- Aggiorna get_dashboard_kpis aggiungendo metriche di cassa REALI
 -- calcolate da:
 --   • invoice_payments.payment_date  → incassi veri
