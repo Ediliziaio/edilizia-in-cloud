@@ -12,8 +12,8 @@
  *   • Menu azioni (duplica / rinomina / default / scope / elimina) — solo se canEdit
  *   • Modifica (link al builder)
  */
-import { useMemo, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo } from "react";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Pencil,
@@ -62,12 +62,57 @@ const PERIODS: Array<{ value: PeriodPreset; label: string }> = [
   { value: "custom", label: "Intervallo personalizzato" },
 ];
 
+const VALID_PERIODS = new Set<string>(PERIODS.map((p) => p.value));
+
 export default function DashboardView() {
   const { id } = useParams<{ id: string }>();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
-  const [period, setPeriod] = useState<PeriodPreset | "">("");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Persisted state via URL search params ──────────────────────
+  const rawPeriod = searchParams.get("period") ?? "";
+  const period = (VALID_PERIODS.has(rawPeriod) ? rawPeriod : "") as
+    | PeriodPreset
+    | "";
+  const customFrom = searchParams.get("from") ?? "";
+  const customTo = searchParams.get("to") ?? "";
+
+  const updateParam = useCallback(
+    (patch: Record<string, string | null>) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          Object.entries(patch).forEach(([k, v]) => {
+            if (v == null || v === "") next.delete(k);
+            else next.set(k, v);
+          });
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const setPeriod = useCallback(
+    (v: PeriodPreset | "") => {
+      // Quando il periodo cambia, svuotiamo le date custom se non è custom
+      if (v === "custom") {
+        updateParam({ period: v });
+      } else {
+        updateParam({ period: v || null, from: null, to: null });
+      }
+    },
+    [updateParam],
+  );
+  const setCustomFrom = useCallback(
+    (v: string) => updateParam({ from: v || null }),
+    [updateParam],
+  );
+  const setCustomTo = useCallback(
+    (v: string) => updateParam({ to: v || null }),
+    [updateParam],
+  );
 
   const override = useMemo<WidgetFilter | null>(() => {
     if (!period) return null;
@@ -80,6 +125,27 @@ export default function DashboardView() {
 
   const dash = useDashboard(id);
   const resolved = useResolveDashboard(id, override);
+
+  // ── Keyboard shortcuts: R refresh, P print, Esc clear filters ──
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // ignora se l'utente sta digitando in un input
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "r" || e.key === "R") {
+        e.preventDefault();
+        resolved.refetch();
+      } else if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        window.print();
+      } else if (e.key === "Escape" && period) {
+        setPeriod("");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [resolved, period, setPeriod]);
 
   if (flagsLoading) {
     return (
@@ -122,11 +188,7 @@ export default function DashboardView() {
   const periodLabel = PERIODS.find((p) => p.value === period)?.label;
   const hasCustomRange = period === "custom" && customFrom && customTo;
   const hasActiveFilters = Boolean(period);
-  const resetFilters = () => {
-    setPeriod("");
-    setCustomFrom("");
-    setCustomTo("");
-  };
+  const resetFilters = () => setPeriod("");
 
   return (
     <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-4 print:p-0 print:max-w-none">
@@ -159,6 +221,7 @@ export default function DashboardView() {
             size="sm"
             onClick={() => resolved.refetch()}
             disabled={resolved.isFetching}
+            title="Aggiorna dati (R)"
           >
             <RefreshCw
               className={`h-4 w-4 mr-1 ${resolved.isFetching ? "animate-spin" : ""}`}
@@ -170,7 +233,7 @@ export default function DashboardView() {
             variant="outline"
             size="sm"
             onClick={() => window.print()}
-            title="Stampa o salva come PDF"
+            title="Stampa o salva come PDF (P)"
           >
             <Printer className="h-4 w-4 mr-1" /> Stampa
           </Button>
@@ -198,13 +261,9 @@ export default function DashboardView() {
           value={period || "none"}
           onValueChange={(v) => {
             if (v === "none") {
-              resetFilters();
+              setPeriod("");
             } else {
               setPeriod(v as PeriodPreset);
-              if (v !== "custom") {
-                setCustomFrom("");
-                setCustomTo("");
-              }
             }
           }}
         >
