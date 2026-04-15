@@ -5,6 +5,7 @@
  */
 import {
   ArrowLeft,
+  Copy,
   Trash2,
   Hash,
   LineChart,
@@ -108,17 +109,32 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ── Compare-to labels ────────────────────────────────────────────
+const COMPARE_LABELS: Record<string, string> = {
+  none: "Nessun confronto",
+  prev_period: "Periodo precedente",
+  prev_year: "Anno precedente",
+};
+
 // ── Props ────────────────────────────────────────────────────────
 interface Props {
   widget: DashboardWidget;
   catalog: MetricCatalogItem[];
   onChange: (patch: Partial<DashboardWidget>) => void;
   onDelete: () => void;
+  onDuplicate?: () => void;
   onBack?: () => void;
 }
 
 // ── Component ────────────────────────────────────────────────────
-export function ConfigPanel({ widget, catalog, onChange, onDelete, onBack }: Props) {
+export function ConfigPanel({
+  widget,
+  catalog,
+  onChange,
+  onDelete,
+  onDuplicate,
+  onBack,
+}: Props) {
   const cfg = widget.config ?? {};
   const metric = catalog.find((m) => m.id === cfg.metric);
   const isMetricWidget = !["text_markdown", "divider"].includes(widget.type);
@@ -153,14 +169,28 @@ export function ConfigPanel({ widget, catalog, onChange, onDelete, onBack }: Pro
           ) : (
             <span />
           )}
-          <button
-            type="button"
-            onClick={onDelete}
-            className="flex items-center gap-1 text-xs text-destructive/70 hover:text-destructive transition-colors"
-          >
-            <Trash2 className="h-3 w-3" />
-            Elimina
-          </button>
+          <div className="flex items-center gap-3">
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={onDuplicate}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                title="Duplica widget (⌘D)"
+              >
+                <Copy className="h-3 w-3" />
+                Duplica
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onDelete}
+              className="flex items-center gap-1 text-xs text-destructive/70 hover:text-destructive transition-colors"
+              title="Elimina widget (Canc)"
+            >
+              <Trash2 className="h-3 w-3" />
+              Elimina
+            </button>
+          </div>
         </div>
 
         {/* Widget identity */}
@@ -468,14 +498,89 @@ export function ConfigPanel({ widget, catalog, onChange, onDelete, onBack }: Pro
             </section>
           )}
 
-          {/* Placeholder per widget senza impostazioni avanzate */}
-          {!isMetricWidget &&
-            widget.type !== "progress" &&
-            widget.type !== "gauge" && (
-              <div className="py-8 text-center text-xs text-muted-foreground">
-                Nessuna impostazione avanzata disponibile per questo widget.
+          {/* Confronto (solo widget KPI) */}
+          {widget.type === "kpi_card" && (
+            <section>
+              <SectionLabel>Confronto</SectionLabel>
+              <div className="space-y-1">
+                <Label className="text-xs">Mostra variazione rispetto a</Label>
+                <Select
+                  value={cfg.compareTo ?? "none"}
+                  onValueChange={(v) =>
+                    setCfg({ compareTo: v as "none" | "prev_period" | "prev_year" })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(COMPARE_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>
+                        {v}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground leading-snug mt-1">
+                  Quando disponibile, la scheda KPI mostrerà un badge con la
+                  variazione percentuale.
+                </p>
               </div>
-            )}
+            </section>
+          )}
+
+          {/* Colonne personalizzate (solo tabella) */}
+          {widget.type === "table" && (
+            <section>
+              <SectionLabel>Colonne tabella</SectionLabel>
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Intestazione categoria</Label>
+                    <Input
+                      value={cfg.columns?.[0]?.label ?? ""}
+                      onChange={(e) =>
+                        setCfg({
+                          columns: [
+                            { key: "label", label: e.target.value || "Categoria" },
+                            cfg.columns?.[1] ?? { key: "value", label: "Valore" },
+                          ],
+                        })
+                      }
+                      placeholder="Categoria"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Intestazione valore</Label>
+                    <Input
+                      value={cfg.columns?.[1]?.label ?? ""}
+                      onChange={(e) =>
+                        setCfg({
+                          columns: [
+                            cfg.columns?.[0] ?? { key: "label", label: "Categoria" },
+                            { key: "value", label: e.target.value || "Valore" },
+                          ],
+                        })
+                      }
+                      placeholder="Valore"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Personalizza le intestazioni delle due colonne della tabella.
+                </p>
+              </div>
+            </section>
+          )}
+
+          {/* Placeholder per widget senza impostazioni avanzate */}
+          {widget.type === "divider" && (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              Nessuna impostazione avanzata per il separatore.
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

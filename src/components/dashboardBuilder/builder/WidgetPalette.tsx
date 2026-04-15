@@ -25,7 +25,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import type { WidgetType } from "@/lib/dashboardBuilder/types";
+import type { WidgetConfig, WidgetType } from "@/lib/dashboardBuilder/types";
 
 export interface PaletteItem {
   type: WidgetType;
@@ -33,6 +33,7 @@ export interface PaletteItem {
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   defaultSize: { w: number; h: number };
+  defaultConfig?: Partial<WidgetConfig>;
 }
 
 const CATEGORIES: Array<{

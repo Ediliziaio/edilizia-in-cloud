@@ -22,10 +22,18 @@ import type {
   WidgetType,
 } from "@/lib/dashboardBuilder/types";
 import { formatShort, formatValue } from "../formatValue";
+import { widgetLabel } from "@/lib/dashboardBuilder/widgetLabels";
 
 interface Props {
   widget: DashboardWidget;
   resolved: ResolvedWidget | undefined;
+}
+
+function displayTitle(widget: DashboardWidget): string {
+  const cfg = widget.config ?? {};
+  if (cfg.title && cfg.title.trim()) return cfg.title.trim();
+  if (cfg.metric) return cfg.metric;
+  return widgetLabel(widget.type);
 }
 
 const PIE_COLORS = [
@@ -41,7 +49,7 @@ const PIE_COLORS = [
 
 export function ChartWidget({ widget, resolved }: Props) {
   const cfg = widget.config ?? {};
-  const title = cfg.title ?? cfg.metric ?? widget.id;
+  const title = displayTitle(widget);
   const data = resolved?.status === "ok" ? resolved.breakdown ?? [] : [];
   const error = resolved?.status === "error" ? resolved.error : null;
   const type = widget.type as WidgetType;

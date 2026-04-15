@@ -1,18 +1,7 @@
+import { Copy, Trash2 } from "lucide-react";
 import GridLayout, { type Layout } from "react-grid-layout";
-import type { DashboardWidget, ResolvedWidget, WidgetType } from "@/lib/dashboardBuilder/types";
-
-const WIDGET_LABELS: Record<WidgetType, string> = {
-  kpi_card: "Scheda KPI",
-  chart_line: "Grafico linea",
-  chart_bar: "Grafico barre",
-  chart_area: "Grafico area",
-  chart_pie: "Grafico torta",
-  table: "Tabella dati",
-  progress: "Barra progresso",
-  gauge: "Indicatore",
-  text_markdown: "Testo libero",
-  divider: "Separatore",
-};
+import type { DashboardWidget, ResolvedWidget } from "@/lib/dashboardBuilder/types";
+import { WIDGET_LABELS } from "@/lib/dashboardBuilder/widgetLabels";
 import { KpiCard } from "../widgets/KpiCard";
 import { ChartWidget } from "../widgets/ChartWidget";
 import { TableWidget } from "../widgets/TableWidget";
@@ -27,9 +16,12 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onLayoutChange: (next: DashboardWidget[]) => void;
+  onDuplicate?: (id: string) => void;
+  onDelete?: (id: string) => void;
   width: number;
   rowHeight?: number;
   columns?: number;
+  readonly?: boolean;
 }
 
 function renderWidget(widget: DashboardWidget, resolved: ResolvedWidget | undefined) {
@@ -62,9 +54,12 @@ export function BuilderGrid({
   selectedId,
   onSelect,
   onLayoutChange,
+  onDuplicate,
+  onDelete,
   width,
   rowHeight = 80,
   columns = 12,
+  readonly = false,
 }: Props) {
   const layout: Layout[] = widgets.map((w) => ({
     i: w.id,
@@ -74,9 +69,11 @@ export function BuilderGrid({
     h: w.h,
     minW: 1,
     minH: 1,
+    static: readonly,
   }));
 
   const handleLayoutChange = (next: Layout[]) => {
+    if (readonly) return;
     const byId = new Map(widgets.map((w) => [w.id, w]));
     const updated = next
       .map((l) => {
@@ -107,6 +104,8 @@ export function BuilderGrid({
         draggableCancel=".no-drag"
         compactType={null}
         preventCollision={false}
+        isDraggable={!readonly}
+        isResizable={!readonly}
       >
         {widgets.map((w) => {
           const isSelected = w.id === selectedId;
@@ -123,10 +122,47 @@ export function BuilderGrid({
                   : "hover:ring-1 hover:ring-primary/30 hover:shadow-sm"
               }`}
             >
-              <div className="absolute inset-0 pointer-events-none" />
+              {/* Type badge */}
               <div className="absolute top-1.5 left-1.5 z-10 text-[10px] px-2 py-0.5 rounded-full bg-primary/90 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none font-medium">
                 {WIDGET_LABELS[w.type] ?? w.type}
               </div>
+
+              {/* Hover action buttons (top-right) */}
+              {!readonly && (
+                <div className="no-drag absolute top-1.5 right-1.5 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {onDuplicate && (
+                    <button
+                      type="button"
+                      aria-label="Duplica widget"
+                      title="Duplica (⌘D)"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDuplicate(w.id);
+                      }}
+                      className="no-drag h-6 w-6 inline-flex items-center justify-center rounded-md bg-background/95 border border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      type="button"
+                      aria-label="Elimina widget"
+                      title="Elimina (Canc)"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(w.id);
+                      }}
+                      className="no-drag h-6 w-6 inline-flex items-center justify-center rounded-md bg-background/95 border border-border/60 text-destructive/80 hover:text-destructive hover:bg-destructive/10 shadow-sm"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="h-full w-full overflow-hidden">
                 {renderWidget(w, resolved?.[w.id])}
               </div>
