@@ -3,6 +3,7 @@
  * Mostra nome amichevole, icona colorata, tab Configura/Avanzate
  * e sezioni raggruppate per categoria.
  */
+import { useEffect } from "react";
 import {
   ArrowLeft,
   Copy,
@@ -151,6 +152,79 @@ export function ConfigPanel({
   const setCfg = (patch: Partial<typeof cfg>) =>
     onChange({ config: { ...cfg, ...patch } });
 
+  // ─── Guard rails: l'aggregazione / dimensione salvate in config possono
+  // NON essere ammesse dalla nuova metrica (bug tipico: cambi metric ma l'agg
+  // resta "sum"). In questi casi il Select mostra il default_aggregation della
+  // nuova metrica invece del valore invalido, e salviamo quel default così
+  // anche il resolver non rigetta la richiesta.
+  const allowedAggs = metric?.allowed_aggregations ?? [
+    "sum",
+    "avg",
+    "count",
+    "min",
+    "max",
+  ];
+  const allowedDims = metric?.allowed_dimensions ?? ["none", "month"];
+
+  const currentAgg =
+    cfg.aggregation && allowedAggs.includes(cfg.aggregation)
+      ? cfg.aggregation
+      : metric?.default_aggregation ?? allowedAggs[0] ?? "sum";
+
+  const currentBreakdown =
+    cfg.breakdown && allowedDims.includes(cfg.breakdown)
+      ? cfg.breakdown
+      : (allowedDims.includes("none" as BreakdownDim)
+          ? "none"
+          : allowedDims[0]) as BreakdownDim;
+
+  /** Self-healing: se il widget era stato salvato con agg/breakdown oggi
+   *  non più validi (p.es. la metrica ha cambiato catalogo, o il widget è
+   *  stato migrato da un template con agg=sum su una metrica che ora
+   *  accetta solo count), sovrascrivo silenziosamente la config con valori
+   *  ammessi così il resolver non rigetta la richiesta. */
+  useEffect(() => {
+    if (!metric || !isMetricWidget) return;
+    const patch: Partial<typeof cfg> = {};
+    if (cfg.aggregation && !allowedAggs.includes(cfg.aggregation)) {
+      patch.aggregation = metric.default_aggregation;
+    }
+    if (cfg.breakdown && !allowedDims.includes(cfg.breakdown)) {
+      patch.breakdown = allowedDims.includes("none") ? "none" : allowedDims[0];
+    }
+    if (Object.keys(patch).length > 0) {
+      setCfg(patch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg.metric]);
+
+  /** Quando cambia la metrica, se l'aggregation / breakdown salvati non
+   *  sono più validi per la nuova metrica li sovrascrivo con i default
+   *  della nuova metrica in un unico patch (no flash di valori invalidi). */
+  const handleMetricChange = (newMetricId: string) => {
+    const nextMetric = catalog.find((m) => m.id === newMetricId);
+    if (!nextMetric) {
+      setCfg({ metric: newMetricId });
+      return;
+    }
+    const patch: Partial<typeof cfg> = { metric: newMetricId };
+
+    // Aggregazione: se la corrente non è permessa → default della metrica
+    if (!cfg.aggregation || !nextMetric.allowed_aggregations.includes(cfg.aggregation)) {
+      patch.aggregation = nextMetric.default_aggregation;
+    }
+
+    // Breakdown: se la corrente non è nelle dimensioni permesse → "none"
+    // se permesso, altrimenti prima dimensione disponibile
+    if (cfg.breakdown && !nextMetric.allowed_dimensions.includes(cfg.breakdown)) {
+      patch.breakdown = nextMetric.allowed_dimensions.includes("none")
+        ? "none"
+        : nextMetric.allowed_dimensions[0];
+    }
+
+    setCfg(patch);
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* ── Panel header ──────────────────────────────────────── */}
@@ -271,7 +345,7 @@ export function ConfigPanel({
                   <Label className="text-xs">Metrica</Label>
                   <Select
                     value={cfg.metric ?? ""}
-                    onValueChange={(v) => setCfg({ metric: v })}
+                    onValueChange={handleMetricChange}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue placeholder="Seleziona metrica…" />
@@ -294,36 +368,45 @@ export function ConfigPanel({
                 <div className="space-y-1">
                   <Label className="text-xs">Aggregazione</Label>
                   <Select
-                    value={cfg.aggregation ?? metric?.default_aggregation ?? "sum"}
+                    value={currentAgg}
                     onValueChange={(v) => setCfg({ aggregation: v as Aggregation })}
+                    disabled={!metric}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(
-                        metric?.allowed_aggregations ?? ["sum", "avg", "count", "min", "max"]
-                      ).map((a) => (
+                      {allowedAggs.map((a) => (
                         <SelectItem key={a} value={a}>
                           {AGG_LABELS[a] ?? a}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {metric && allowedAggs.length === 1 && (
+                    <p className="text-[11px] text-muted-foreground/80 mt-1">
+                      Questa metrica supporta solo{" "}
+                      <span className="font-medium">
+                        {AGG_LABELS[allowedAggs[0]] ?? allowedAggs[0]}
+                      </span>
+                      .
+                    </p>
+                  )}
                 </div>
 
                 {supportsBreakdown && (
                   <div className="space-y-1">
                     <Label className="text-xs">Scomposizione</Label>
                     <Select
-                      value={cfg.breakdown ?? "none"}
+                      value={currentBreakdown}
                       onValueChange={(v) => setCfg({ breakdown: v as BreakdownDim })}
+                      disabled={!metric}
                     >
                       <SelectTrigger className="h-8 text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {(metric?.allowed_dimensions ?? ["none", "month"]).map((d) => (
+                        {allowedDims.map((d) => (
                           <SelectItem key={d} value={d}>
                             {DIM_LABELS[d] ?? d}
                           </SelectItem>
