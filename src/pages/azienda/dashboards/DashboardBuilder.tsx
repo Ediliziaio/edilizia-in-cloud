@@ -1,12 +1,21 @@
 /**
  * DashboardBuilder — /azienda/dashboards/nuova | /azienda/dashboards/:id/modifica
  *
- * Builder visuale: palette + grid drag&drop (react-grid-layout) + config panel.
- * Salva come nuova versione tramite RPC save_dashboard.
+ * Builder visuale: canvas drag&drop (react-grid-layout) + pannello destro contestuale.
+ * Pannello destro: palette widget quando nessun widget selezionato, config quando selezionato.
+ * Salva tramite RPC save_dashboard.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Loader2, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  AlertTriangle,
+  LayoutGrid,
+  ChevronDown,
+  Settings2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import {
   useDashboard,
@@ -43,8 +57,7 @@ function nextId(prefix: WidgetType) {
   return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function findFreeSlot(widgets: DashboardWidget[], w: number, h: number, cols = 12): { x: number; y: number } {
-  // Place at the bottom-most free row, left-aligned
+function findFreeSlot(widgets: DashboardWidget[]): { x: number; y: number } {
   const maxY = widgets.reduce((m, wd) => Math.max(m, wd.y + wd.h), 0);
   return { x: 0, y: maxY };
 }
@@ -66,16 +79,22 @@ export default function DashboardBuilder() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Hydrate from loaded dashboard
   useEffect(() => {
     if (!isEdit || !dash.data) return;
     setName(dash.data.dashboard.name);
     setDescription(dash.data.dashboard.description ?? "");
-    setScope((dash.data.dashboard.scope === "company" ? "company" : "personal"));
+    setScope(dash.data.dashboard.scope === "company" ? "company" : "personal");
     setLayout(dash.data.version.layout ?? emptyLayout());
     setDirty(false);
   }, [isEdit, dash.data?.dashboard?.id, dash.data?.version?.version]);
+
+  // When a widget is selected close settings collapsible to reveal config
+  useEffect(() => {
+    if (selectedId) setSettingsOpen(false);
+  }, [selectedId]);
 
   const resolved = useResolveDashboard(isEdit ? id : null);
 
@@ -101,7 +120,7 @@ export default function DashboardBuilder() {
   };
 
   const addWidget = (item: PaletteItem) => {
-    const slot = findFreeSlot(layout.widgets, item.defaultSize.w, item.defaultSize.h);
+    const slot = findFreeSlot(layout.widgets);
     const newW: DashboardWidget = {
       id: nextId(item.type),
       type: item.type,
@@ -157,7 +176,14 @@ export default function DashboardBuilder() {
     }
   };
 
-  if (flagsLoading) return <div className="p-6"><div className="h-7 w-48 bg-muted animate-pulse rounded" /></div>;
+  // ── Loading / gate states ────────────────────────────────────
+  if (flagsLoading) {
+    return (
+      <div className="p-6">
+        <div className="h-7 w-48 bg-muted animate-pulse rounded" />
+      </div>
+    );
+  }
   if (!isFeatureEnabled("dashboard_builder_v1")) return <Navigate to="/azienda" replace />;
   if (isEdit && dash.error) {
     return (
@@ -166,81 +192,106 @@ export default function DashboardBuilder() {
           <AlertTriangle className="h-4 w-4 mt-0.5" />
           <span>Errore: {(dash.error as Error).message}</span>
         </div>
-        <Button asChild variant="outline"><Link to="/azienda/dashboards">Torna</Link></Button>
+        <Button asChild variant="outline">
+          <Link to="/azienda/dashboards">Torna</Link>
+        </Button>
       </div>
     );
   }
   if (isEdit && dash.isLoading) {
-    return <div className="p-6"><div className="h-7 w-48 bg-muted animate-pulse rounded" /></div>;
+    return (
+      <div className="p-6">
+        <div className="h-7 w-48 bg-muted animate-pulse rounded" />
+      </div>
+    );
   }
   if (isEdit && dash.data && !dash.data.can_edit) {
     return <Navigate to={`/azienda/dashboards/${id}`} replace />;
   }
 
+  // ── Main render ──────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-[calc(100vh-0px)] min-h-0">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b bg-background px-3 py-2 flex-wrap">
-        <Button asChild variant="ghost" size="sm">
+    <div className="flex flex-col h-[calc(100vh-0px)] min-h-0 bg-background">
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <header className="flex items-center gap-2 border-b bg-background px-3 py-2 shrink-0 z-10">
+        {/* Back */}
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
+        >
           <Link to={isEdit ? `/azienda/dashboards/${id}` : "/azienda/dashboards"}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Esci
+            <ArrowLeft className="h-4 w-4" />
+            Esci
           </Link>
         </Button>
-        <Input
-          value={name}
-          onChange={(e) => { setName(e.target.value); setDirty(true); }}
-          className="w-64 h-9 font-medium"
-          placeholder="Nome dashboard"
-        />
-        <Select value={scope} onValueChange={(v) => { setScope(v as "personal" | "company"); setDirty(true); }}>
-          <SelectTrigger className="w-[140px] h-9">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="personal">Personale</SelectItem>
-            <SelectItem value="company">Condivisa</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex-1" />
-        <Input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          className="w-48 h-9 text-xs"
-          placeholder="Nota versione (opz.)"
-        />
-        <Button onClick={handleSave} disabled={save.isPending || !name.trim()}>
-          {save.isPending ? (
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4 mr-1" />
-          )}
-          Salva {dirty && <span className="ml-1 text-primary-foreground/70">•</span>}
-        </Button>
-      </div>
 
-      {/* Body */}
-      <div className="flex-1 flex min-h-0">
-        {/* Left: palette */}
-        <aside className="w-56 border-r overflow-auto bg-muted/20 shrink-0">
-          <WidgetPalette onAdd={addWidget} />
-          <div className="p-3 border-t space-y-2">
-            <Label className="text-xs">Descrizione dashboard</Label>
-            <Textarea
-              value={description}
-              onChange={(e) => { setDescription(e.target.value); setDirty(true); }}
-              rows={3}
-              placeholder="Opzionale"
-              className="text-xs"
+        <div className="h-5 w-px bg-border shrink-0" />
+
+        {/* Dashboard name — inline editable */}
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <Input
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setDirty(true);
+            }}
+            className="h-8 font-semibold text-sm border-transparent bg-transparent px-1.5 hover:border-border focus-visible:border-border focus-visible:ring-0 max-w-xs min-w-[120px]"
+            placeholder="Nome dashboard"
+          />
+          {dirty && (
+            <span
+              className="w-2 h-2 rounded-full bg-amber-400 shrink-0 ring-2 ring-amber-400/30"
+              title="Modifiche non salvate"
             />
-          </div>
-        </aside>
+          )}
+        </div>
 
-        {/* Center: grid */}
-        <main className="flex-1 overflow-auto bg-muted/5">
-          <div ref={canvasRef} className="p-4">
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Save */}
+        <Button
+          onClick={handleSave}
+          disabled={save.isPending || !name.trim()}
+          size="sm"
+          className="gap-1.5 shrink-0"
+        >
+          {save.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          Salva modifiche
+        </Button>
+      </header>
+
+      {/* ── Body ───────────────────────────────────────────────── */}
+      <div className="flex-1 flex min-h-0">
+        {/* Canvas */}
+        <main
+          className="flex-1 overflow-auto min-h-0"
+          style={{ background: "hsl(var(--muted) / 0.3)" }}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setSelectedId(null);
+          }}
+        >
+          <div ref={canvasRef} className="p-6 min-h-full">
             {layout.widgets.length === 0 ? (
-              <div className="flex items-center justify-center h-64 text-sm text-muted-foreground border border-dashed rounded-lg">
-                Aggiungi widget dalla palette a sinistra
+              <div
+                className="flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-border/50 text-center"
+                style={{ minHeight: "calc(100vh - 180px)" }}
+              >
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <LayoutGrid className="h-7 w-7 text-primary/60" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground/60">Nessun widget</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Seleziona un widget dal pannello di destra per aggiungerlo
+                  </p>
+                </div>
               </div>
             ) : (
               <BuilderGrid
@@ -248,26 +299,96 @@ export default function DashboardBuilder() {
                 resolved={resolved.data?.widgets}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
-                onLayoutChange={(next) => { setWidgets(() => next); }}
+                onLayoutChange={(next) => {
+                  setWidgets(() => next);
+                }}
                 width={canvasWidth}
               />
             )}
           </div>
         </main>
 
-        {/* Right: config */}
-        <aside className="w-72 border-l overflow-hidden bg-muted/10 shrink-0">
+        {/* ── Right Panel ────────────────────────────────────────── */}
+        <aside className="w-80 border-l flex flex-col bg-background shrink-0 min-h-0">
           {selected ? (
+            /* Config mode: widget selected */
             <ConfigPanel
               widget={selected}
               catalog={catalog.data ?? []}
               onChange={updateSelected}
               onDelete={deleteSelected}
+              onBack={() => setSelectedId(null)}
             />
           ) : (
-            <div className="p-4 text-xs text-muted-foreground">
-              Seleziona un widget per configurarlo.
-            </div>
+            /* Palette mode: no widget selected */
+            <>
+              {/* Dashboard settings — collapsible */}
+              <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors border-b"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Settings2 className="h-3.5 w-3.5" />
+                      Impostazioni dashboard
+                    </span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform ${settingsOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="p-4 space-y-3 border-b bg-muted/5">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Visibilità</Label>
+                      <Select
+                        value={scope}
+                        onValueChange={(v) => {
+                          setScope(v as "personal" | "company");
+                          setDirty(true);
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="personal">Personale</SelectItem>
+                          <SelectItem value="company">Condivisa (tutta l'azienda)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Descrizione</Label>
+                      <Textarea
+                        value={description}
+                        onChange={(e) => {
+                          setDescription(e.target.value);
+                          setDirty(true);
+                        }}
+                        rows={2}
+                        placeholder="Descrizione opzionale"
+                        className="text-sm resize-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Nota versione</Label>
+                      <Input
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder="Opzionale (es. v1.2 — aggiunto KPI vendite)"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Widget palette */}
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                <WidgetPalette onAdd={addWidget} />
+              </div>
+            </>
           )}
         </aside>
       </div>

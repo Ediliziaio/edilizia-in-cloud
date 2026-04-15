@@ -5,17 +5,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cloneTemplateToCo,
+  deleteDashboard,
   fetchMetricCatalog,
   getDashboard,
   getMyCruscottoDashboard,
   getMetric,
+  listCompanyMembers,
   listCompanyRoleDashboards,
   listDashboardTemplates,
   listDashboards,
   resolveDashboard,
   saveDashboard,
   setCompanyRoleDashboard,
+  setDashboardUserAccess,
+  setDefaultDashboard,
   unsetCompanyRoleDashboard,
+  unsetDashboardUserAccess,
+  updateDashboardScope,
 } from "./api";
 import type {
   Aggregation,
@@ -137,11 +143,26 @@ export function useSaveDashboard() {
   });
 }
 
-/**
- * Hook di convenienza: controlla se l'utente ha il flag
- * 'dashboard_builder_v1' abilitato per la sua company.
- */
-export { useFeatureFlags as _useFeatureFlagsOrig } from "@/hooks/useFeatureFlags";
+export function useDeleteDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dashboardId: string) => deleteDashboard(dashboardId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.list });
+    },
+  });
+}
+
+/** Imposta una dashboard come default per l'utente corrente. */
+export function useSetDefaultDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dashboardId: string) => setDefaultDashboard(dashboardId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.list });
+    },
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Role-based cruscotto hooks (Sprint 5)
@@ -203,6 +224,51 @@ export function useUnsetCompanyRoleDashboard() {
       qc.invalidateQueries({ queryKey: ROLE_KEYS.roleMap });
       qc.invalidateQueries({ queryKey: ROLE_KEYS.myCruscotto });
     },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// User access + scope hooks (Sprint 5.6)
+// ═══════════════════════════════════════════════════════════════
+
+const MEMBER_KEYS = {
+  members: ["company-members"] as const,
+} as const;
+
+/** Lista i membri della company dell'utente corrente. */
+export function useCompanyMembers() {
+  return useQuery({
+    queryKey: MEMBER_KEYS.members,
+    queryFn: listCompanyMembers,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Cambia la visibilità (scope) di una dashboard. */
+export function useUpdateDashboardScope() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ dashboardId, scope }: { dashboardId: string; scope: "personal" | "company" }) =>
+      updateDashboardScope(dashboardId, scope),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.list });
+    },
+  });
+}
+
+/** Concede accesso individuale ad un utente su una dashboard. */
+export function useSetDashboardUserAccess() {
+  return useMutation({
+    mutationFn: ({ dashboardId, userId }: { dashboardId: string; userId: string }) =>
+      setDashboardUserAccess(dashboardId, userId),
+  });
+}
+
+/** Revoca l'accesso individuale di un utente ad una dashboard. */
+export function useUnsetDashboardUserAccess() {
+  return useMutation({
+    mutationFn: ({ dashboardId, userId }: { dashboardId: string; userId: string }) =>
+      unsetDashboardUserAccess(dashboardId, userId),
   });
 }
 

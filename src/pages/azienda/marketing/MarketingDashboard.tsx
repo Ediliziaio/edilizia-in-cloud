@@ -25,7 +25,7 @@ import { useSediList } from "@/hooks/useSediAnalytics";
 import { SemaforoMarketing } from "@/components/marketing/dashboard/SemaforoMarketing";
 import { SaluteCommerciale } from "@/components/marketing/dashboard/SaluteCommerciale";
 import { AzioniCommerciali } from "@/components/marketing/dashboard/AzioniCommerciali";
-import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
+import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
@@ -96,8 +96,7 @@ export default function MarketingDashboard() {
 
   return (
     <div className="space-y-3">
-      {/* Tab di navigazione tra dashboard */}
-      <DashboardTabBar />
+      <DashboardSelectorBar title="Dashboard Marketing" />
 
       <ApiHealthBanner filter={["meta", "email"]} />
 

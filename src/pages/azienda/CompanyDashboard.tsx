@@ -32,7 +32,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 import { SemaforoOperazioni } from "@/components/dashboard/SemaforoOperazioni";
-import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
+import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { YTDRevenueWidget } from "@/components/dashboard/YTDRevenueWidget";
 import { TopCustomersWidget } from "@/components/dashboard/TopCustomersWidget";
@@ -232,7 +232,7 @@ export default function CompanyDashboard() {
   // ─────────────────────────────────────────────
   return (
     <div className="space-y-4 sm:space-y-6">
-      <DashboardTabBar />
+      <DashboardSelectorBar title="Dashboard Gestione" />
 
       {/* ─── HEADER STICKY ─── */}
       <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 px-3 sm:px-4 py-2 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">

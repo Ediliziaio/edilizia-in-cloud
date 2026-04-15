@@ -50,8 +50,6 @@ export function evaluateColorRule(
   value: number | null,
 ): boolean {
   if (value == null) return false;
-  return evalFormula(rule.if, { value, v: value }) !== null &&
-    (evalFormula(rule.if, { value, v: value }) as number) > 0
-    ? true
-    : false;
+  const result = evalFormula(rule.if, { value, v: value });
+  return result !== null && result > 0;
 }

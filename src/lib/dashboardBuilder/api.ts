@@ -8,6 +8,7 @@ import type {
   Aggregation,
   AppRole,
   BreakdownDim,
+  CompanyMember,
   CompanyRoleDashboard,
   DashboardLayout,
   DashboardListItem,
@@ -58,6 +59,13 @@ export async function getMetric(args: {
 // ═══════════════════════════════════════════════════════════════
 // Dashboards CRUD
 // ═══════════════════════════════════════════════════════════════
+
+export async function deleteDashboard(dashboardId: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_dashboard" as never, {
+    p_dashboard_id: dashboardId,
+  } as never);
+  if (error) throw error;
+}
 
 export async function listDashboards(): Promise<DashboardListItem[]> {
   const { data, error } = await supabase.rpc("list_dashboards" as never);
@@ -186,4 +194,117 @@ export async function cloneTemplateToCo(args: {
   );
   if (error) throw error;
   return data as unknown as string;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// User access + scope (Sprint 5.6)
+// ═══════════════════════════════════════════════════════════════
+
+/** Lista i membri della company dell'utente corrente.
+ *  Usa una query diretta su `profiles` — la RLS policy
+ *  "profiles_same_company_select" filtra automaticamente
+ *  alla stessa azienda dell'utente autenticato.
+ */
+export async function listCompanyMembers(): Promise<CompanyMember[]> {
+  // 1. Profili (stessa company via RLS)
+  const { data: profiles, error: pErr } = await supabase
+    .from("profiles" as never)
+    .select("id, first_name, last_name, email")
+    .order("first_name");
+  if (pErr) throw pErr;
+  if (!profiles || (profiles as unknown[]).length === 0) return [];
+
+  const rows = profiles as Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  }>;
+  const ids = rows.map((p) => p.id);
+
+  // 2. Ruoli (il file SECURITY DEFINER è disponibile, ma come fallback usiamo
+  //    una query diretta — se l'utente non ha accesso in lettura vedrà role=null)
+  let roleMap: Record<string, AppRole> = {};
+  try {
+    const { data: roleRows } = await supabase
+      .from("user_roles" as never)
+      .select("user_id, role")
+      .in("user_id" as never, ids);
+    const PRIORITY: Record<string, number> = {
+      super_admin: 1, company_admin: 2, company_staff: 3,
+      salesperson: 4, call_center: 5, employee: 6,
+    };
+    for (const r of ((roleRows ?? []) as Array<{ user_id: string; role: AppRole }>)) {
+      const prev = roleMap[r.user_id];
+      if (!prev || (PRIORITY[r.role] ?? 99) < (PRIORITY[prev] ?? 99)) {
+        roleMap[r.user_id] = r.role;
+      }
+    }
+  } catch {
+    // ruoli non disponibili — mostreremo solo nome e email
+  }
+
+  // 3. Restituisce solo utenti interni con ruolo app (esclude clienti=role null
+  //    e operai=employee)
+  const INTERNAL_ROLES: AppRole[] = [
+    "super_admin",
+    "company_admin",
+    "company_staff",
+    "salesperson",
+    "call_center",
+  ];
+
+  return rows
+    .map((p) => ({
+      user_id: p.id,
+      first_name: p.first_name,
+      last_name: p.last_name,
+      email: p.email,
+      role: roleMap[p.id] ?? null,
+    }))
+    .filter((m) => m.role !== null && INTERNAL_ROLES.includes(m.role as AppRole));
+}
+
+/** Imposta una dashboard come default per l'utente corrente. */
+export async function setDefaultDashboard(dashboardId: string): Promise<void> {
+  const { error } = await supabase.rpc("set_default_dashboard" as never, {
+    p_dashboard_id: dashboardId,
+  } as never);
+  if (error) throw error;
+}
+
+/** Cambia la visibilità (scope) di una dashboard. Solo il proprietario. */
+export async function updateDashboardScope(
+  dashboardId: string,
+  scope: "personal" | "company",
+): Promise<void> {
+  const { error } = await supabase.rpc("update_dashboard_scope" as never, {
+    p_dashboard_id: dashboardId,
+    p_scope: scope,
+  } as never);
+  if (error) throw error;
+}
+
+/** Concede accesso individuale ad un utente su una dashboard. */
+export async function setDashboardUserAccess(
+  dashboardId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("set_dashboard_user_access" as never, {
+    p_dashboard_id: dashboardId,
+    p_user_id: userId,
+  } as never);
+  if (error) throw error;
+}
+
+/** Revoca l'accesso individuale di un utente ad una dashboard. */
+export async function unsetDashboardUserAccess(
+  dashboardId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("unset_dashboard_user_access" as never, {
+    p_dashboard_id: dashboardId,
+    p_user_id: userId,
+  } as never);
+  if (error) throw error;
 }

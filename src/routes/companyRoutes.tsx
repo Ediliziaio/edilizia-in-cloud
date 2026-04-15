@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
 const CruscottoHub = lazy(() => import("@/pages/azienda/CruscottoHub"));
+const CruscottoDashboardPage = lazy(() => import("@/pages/azienda/CruscottoDashboardPage"));
 const DashboardsList = lazy(() => import("@/pages/azienda/dashboards/DashboardsList"));
 const DashboardView = lazy(() => import("@/pages/azienda/dashboards/DashboardView"));
 const DashboardBuilder = lazy(() => import("@/pages/azienda/dashboards/DashboardBuilder"));
@@ -218,7 +219,8 @@ export function companyRoutes() {
       >
         <Route index element={<CompanyDashboard />} />
         <Route path="onboarding" element={<OnboardingPage />} />
-        <Route path="cruscotto" element={<CruscottoHub />} />
+        <Route path="cruscotto" element={<CruscottoDashboardPage />} />
+        <Route path="cruscotto/gestisci" element={<CruscottoHub />} />
         <Route path="cruscotto/aziendale" element={<CruscottoAziendale />} />
         {/* Dashboard Builder v1 — custom dashboards */}
         <Route path="dashboards" element={<ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary>} />

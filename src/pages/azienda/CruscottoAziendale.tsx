@@ -30,7 +30,7 @@ import { useSedeFilter } from "@/store/sedeFilterStore";
 import { SemaforoBar } from "@/components/cruscotto/SemaforoBar";
 import { SaluteAziendale } from "@/components/cruscotto/SaluteAziendale";
 import { AzioniUrgenti } from "@/components/cruscotto/AzioniUrgenti";
-import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
+import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { AlertCircle, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -74,8 +74,7 @@ export default function CruscottoAziendale() {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {/* Tab di navigazione tra dashboard */}
-      <DashboardTabBar />
+      <DashboardSelectorBar title="Cruscotto Aziendale" />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 print:mb-4">

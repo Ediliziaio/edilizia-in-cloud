@@ -248,3 +248,11 @@ export interface DashboardTemplate {
   icon: string | null;
   sort_order: number;
 }
+
+export interface CompanyMember {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: AppRole | null;
+}

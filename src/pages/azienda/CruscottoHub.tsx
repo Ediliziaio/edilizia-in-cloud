@@ -3,17 +3,21 @@
  * Flusso: hub → [overlay full-page] fonte → library / clona → [dialog] nome → crea
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   useDashboards,
-  useCompanyRoleDashboards,
   useDashboardTemplates,
-  useSetCompanyRoleDashboard,
-  useUnsetCompanyRoleDashboard,
   useCloneTemplateToCompany,
   useSaveDashboard,
+  useDeleteDashboard,
+  useCompanyMembers,
+  useUpdateDashboardScope,
+  useSetDashboardUserAccess,
+  useUnsetDashboardUserAccess,
 } from "@/lib/dashboardBuilder/hooks";
 import type {
   AppRole,
@@ -34,26 +38,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Plus,
-  LayoutDashboard,
   Trash2,
   Pencil,
-  ChevronDown,
+  AlertTriangle,
   Loader2,
   LayoutGrid,
-  Users,
   ExternalLink,
   ArrowLeft,
   Copy,
@@ -75,7 +65,6 @@ import {
   Lock,
   Globe,
   Check,
-  UserPlus,
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -393,6 +382,77 @@ const STANDARD_DASHBOARDS = [
     icon: TrendingUp,
   },
 ];
+
+// ─── Standard dashboard card (pre-costruita, navigate diretta) ───────────────
+function StandardDashboardCard({ dash }: { dash: (typeof STANDARD_DASHBOARDS)[number] }) {
+  const navigate = useNavigate();
+  const [permOpen, setPermOpen] = useState(false);
+  const Icon = dash.icon;
+  return (
+    <>
+      <div className="group rounded-xl border bg-white overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col">
+        {/* Thumbnail */}
+        <div className={cn("h-32 bg-gradient-to-br relative overflow-hidden", dash.bg)}>
+          <div className="absolute inset-0">
+            <div className="absolute top-3 right-5 h-14 w-14 rounded-full bg-white/15 blur-md" />
+            <div className="absolute -bottom-2 -left-2 h-16 w-16 rounded-full bg-white/10 blur-md" />
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Icon className="h-10 w-10 text-white/90 drop-shadow-md" />
+          </div>
+
+          {/* Gear button top-right */}
+          <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setPermOpen(true); }}
+              className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-colors"
+              title="Permessi dashboard"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {/* Hover overlay */}
+          <button
+            type="button"
+            onClick={() => navigate(dash.url)}
+            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+          >
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-foreground text-xs font-medium shadow-sm pointer-events-none">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Apri
+            </span>
+          </button>
+        </div>
+        {/* Info */}
+        <button
+          type="button"
+          onClick={() => navigate(dash.url)}
+          className="p-3 flex flex-col gap-2 flex-1 text-left"
+        >
+          <p className="font-semibold text-sm leading-snug truncate">{dash.title}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{dash.description}</p>
+          <div className="mt-auto pt-1 flex justify-end">
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0.5 gap-1 text-primary border-primary/30 bg-primary/5"
+            >
+              <Sparkles className="h-2.5 w-2.5" />
+              Standard
+            </Badge>
+          </div>
+        </button>
+      </div>
+
+      <StandardPermissionsDialog
+        dash={dash}
+        open={permOpen}
+        onClose={() => setPermOpen(false)}
+      />
+    </>
+  );
+}
 
 // ─── Template library content ─────────────────────────────────────────────────
 const SIDEBAR_ITEMS = [
@@ -721,8 +781,8 @@ function NameDialog({
   const [name, setName]         = useState(defaultName ?? "");
   const [isPrivate, setPrivate] = useState(true);
 
-  // Sync defaultName when it changes
-  useMemo(() => { setName(defaultName ?? ""); }, [defaultName]);
+  // Sync defaultName when it changes (useEffect — useMemo non deve avere side-effect)
+  useEffect(() => { setName(defaultName ?? ""); }, [defaultName]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -788,55 +848,116 @@ function NameDialog({
   );
 }
 
+// ─── Helpers per il role label ────────────────────────────────────────────────
+const ROLE_META: Record<AppRole, { label: string; color: string }> = {
+  super_admin:   { label: "Super Admin",  color: "bg-gray-100 text-gray-700 border-gray-200" },
+  company_admin: { label: "Admin",        color: "bg-violet-100 text-violet-700 border-violet-200" },
+  company_staff: { label: "Staff",        color: "bg-blue-100 text-blue-700 border-blue-200" },
+  salesperson:   { label: "Commerciale",  color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  call_center:   { label: "Call Center",  color: "bg-amber-100 text-amber-700 border-amber-200" },
+  employee:      { label: "Dipendente",   color: "bg-orange-100 text-orange-700 border-orange-200" },
+};
+
 // ─── Dialog permessi dashboard ────────────────────────────────────────────────
 function DashboardPermissionsDialog({
   dashboard,
-  roleMap,
   open,
   onClose,
 }: {
   dashboard: DashboardListItem;
-  roleMap: Array<{ role: AppRole; dashboard_id: string }>;
   open: boolean;
   onClose: () => void;
 }) {
-  const setRole   = useSetCompanyRoleDashboard();
-  const unsetRole = useUnsetCompanyRoleDashboard();
+  const { data: allMembers = [], isLoading: membersLoading, isError: membersError } = useCompanyMembers();
+  const updateScope  = useUpdateDashboardScope();
+  const grantAccess  = useSetDashboardUserAccess();
+  const revokeAccess = useUnsetDashboardUserAccess();
 
-  // Ruoli correntemente assegnati a questa dashboard
-  const assignedRoles = useMemo(
-    () => new Set(roleMap.filter((r) => r.dashboard_id === dashboard.id).map((r) => r.role)),
-    [roleMap, dashboard.id],
+  // ID utente corrente — per escluderlo dalla lista (è già il proprietario)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
+  const members = useMemo(
+    () => allMembers.filter((m) => m.user_id !== currentUserId),
+    [allMembers, currentUserId],
   );
 
-  const toggleRole = (role: AppRole, current: boolean) => {
-    if (current) {
-      unsetRole.mutate(role, {
-        onSuccess: () => toast.success(`Accesso rimosso: ${ALL_ROLES.find((r) => r.role === role)?.label}`),
-        onError:   (e) => toast.error(String(e)),
-      });
+  // Scope ottimistico: sincronizzato con dashboard.scope
+  const [localScope, setLocalScope] = useState<"personal" | "company">(
+    dashboard.scope === "company" ? "company" : "personal",
+  );
+  useEffect(() => {
+    setLocalScope(dashboard.scope === "company" ? "company" : "personal");
+  }, [dashboard.scope, open]);
+
+  // Accesso utenti individuali — caricato dalla tabella tramite RQ
+  const { data: accessRows = [], refetch: refetchAccess } = useQuery({
+    queryKey: ["dashboard-user-access", dashboard.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("dashboard_user_access" as never)
+        .select("user_id")
+        .eq("dashboard_id", dashboard.id);
+      if (error) throw error;
+      return (data as Array<{ user_id: string }>) ?? [];
+    },
+    enabled: open,
+    staleTime: 30 * 1000,
+  });
+  const accessSet = useMemo(
+    () => new Set(accessRows.map((r) => r.user_id)),
+    [accessRows],
+  );
+
+  const handleScopeClick = (scope: "personal" | "company") => {
+    if (scope === localScope || updateScope.isPending) return;
+    setLocalScope(scope);
+    updateScope.mutate(
+      { dashboardId: dashboard.id, scope },
+      {
+        onError: (e) => {
+          setLocalScope(scope === "company" ? "personal" : "company"); // revert
+          toast.error(String(e));
+        },
+      },
+    );
+  };
+
+  const toggleUserAccess = (userId: string, hasAccess: boolean) => {
+    if (hasAccess) {
+      revokeAccess.mutate(
+        { dashboardId: dashboard.id, userId },
+        {
+          onSuccess: () => refetchAccess(),
+          onError: (e) => toast.error(String(e)),
+        },
+      );
     } else {
-      setRole.mutate({ role, dashboardId: dashboard.id }, {
-        onSuccess: () => toast.success(`Accesso concesso: ${ALL_ROLES.find((r) => r.role === role)?.label}`),
-        onError:   (e) => toast.error(String(e)),
-      });
+      grantAccess.mutate(
+        { dashboardId: dashboard.id, userId },
+        {
+          onSuccess: () => refetchAccess(),
+          onError: (e) => toast.error(String(e)),
+        },
+      );
     }
   };
 
   const style = getCardStyle(dashboard.id);
-  const Icon  = style.icon;
-  const isPending = setRole.isPending || unsetRole.isPending;
+  const CardIcon = style.icon;
+  const isUserPending = grantAccess.isPending || revokeAccess.isPending;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <div className="flex items-center gap-3 mb-1">
             <div className={cn(
               "flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br shrink-0",
               style.bg,
             )}>
-              <Icon className="h-5 w-5 text-white" />
+              <CardIcon className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
               <DialogTitle className="text-base leading-snug truncate">{dashboard.name}</DialogTitle>
@@ -845,38 +966,36 @@ function DashboardPermissionsDialog({
           </div>
         </DialogHeader>
 
-        <div className="space-y-5">
-          {/* Visibilità corrente */}
+        <div className="flex-1 overflow-auto space-y-5 pr-1">
+
+          {/* ── Visibilità (cliccabile) ──────────────────────────── */}
           <div className="rounded-xl border overflow-hidden">
-            <div className="px-4 py-2.5 bg-muted/30 border-b">
+            <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Visibilità
               </p>
+              {updateScope.isPending && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              )}
             </div>
             <div className="divide-y">
-              {[
-                {
-                  scope: "personal" as const,
-                  label: "Privata",
-                  desc: "Solo il proprietario può vederla",
-                  icon: Lock,
-                  color: "text-slate-600",
-                },
-                {
-                  scope: "company" as const,
-                  label: "Aziendale",
-                  desc: "Tutti i membri del team possono vederla",
-                  icon: Globe,
-                  color: "text-blue-600",
-                },
-              ].map(({ scope, label, desc, icon: ScopeIcon, color }) => {
-                const active = dashboard.scope === scope;
+              {([
+                { scope: "personal" as const, label: "Privata",    desc: "Solo tu puoi vederla",               icon: Lock,  color: "text-slate-600" },
+                { scope: "company"  as const, label: "Aziendale",  desc: "Visibile a tutto il team",            icon: Globe, color: "text-blue-600"  },
+              ] as const).map(({ scope, label, desc, icon: ScopeIcon, color }) => {
+                const active = localScope === scope;
                 return (
-                  <div
+                  <button
                     key={scope}
+                    type="button"
+                    onClick={() => handleScopeClick(scope)}
+                    disabled={updateScope.isPending}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-3",
-                      active ? "bg-primary/5" : "opacity-60",
+                      "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
+                      active
+                        ? "bg-primary/5"
+                        : "hover:bg-muted/40 opacity-60 hover:opacity-100",
+                      "disabled:cursor-not-allowed",
                     )}
                   >
                     <ScopeIcon className={cn("h-4 w-4 shrink-0", color)} />
@@ -884,54 +1003,12 @@ function DashboardPermissionsDialog({
                       <p className="text-sm font-medium">{label}</p>
                       <p className="text-xs text-muted-foreground">{desc}</p>
                     </div>
-                    {active && (
-                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary shrink-0">
-                        <Check className="h-3 w-3 text-white" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Accesso per ruolo */}
-          <div className="rounded-xl border overflow-hidden">
-            <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Accesso per ruolo
-              </p>
-              <p className="text-[10px] text-muted-foreground">
-                {assignedRoles.size > 0
-                  ? `${assignedRoles.size} ruol${assignedRoles.size === 1 ? "o" : "i"} assegnat${assignedRoles.size === 1 ? "o" : "i"}`
-                  : "Nessun ruolo assegnato"}
-              </p>
-            </div>
-            <div className="divide-y">
-              {ALL_ROLES.map(({ role, label, color }) => {
-                const assigned = assignedRoles.has(role);
-                return (
-                  <button
-                    key={role}
-                    onClick={() => toggleRole(role, assigned)}
-                    disabled={isPending}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors text-left disabled:opacity-60"
-                  >
-                    <span className={cn(
-                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold shrink-0",
-                      color,
-                    )}>
-                      {label}
-                    </span>
-                    <span className="text-xs text-muted-foreground flex-1 font-mono">{role}</span>
-                    {isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
-                    ) : assigned ? (
+                    {active ? (
                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary shrink-0">
                         <Check className="h-3 w-3 text-white" />
                       </div>
                     ) : (
-                      <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                      <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/25 shrink-0" />
                     )}
                   </button>
                 );
@@ -939,16 +1016,305 @@ function DashboardPermissionsDialog({
             </div>
           </div>
 
-          {/* Tip */}
-          <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-            I ruoli assegnati vengono reindirizzati automaticamente a questa dashboard
-            quando accedono al cruscotto.
-          </p>
+          {/* ── Accesso utenti (solo se Aziendale) ──────────────── */}
+          {localScope === "personal" && (
+            <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-4 flex items-center gap-3">
+              <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                La dashboard è <span className="font-medium text-foreground">privata</span>.
+                Imposta la visibilità su <span className="font-medium text-foreground">Aziendale</span> per
+                gestire l'accesso dei membri del team.
+              </p>
+            </div>
+          )}
+
+          {localScope === "company" && (
+          <div className="rounded-xl border overflow-hidden">
+            <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Accesso utenti
+              </p>
+              {membersLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  {accessSet.size > 0
+                    ? `${accessSet.size} uten${accessSet.size === 1 ? "te" : "ti"} con accesso`
+                    : "Nessun accesso aggiuntivo"}
+                </p>
+              )}
+            </div>
+
+            {membersLoading ? (
+              <div className="p-4 space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-10 rounded-lg bg-muted/50 animate-pulse" />
+                ))}
+              </div>
+            ) : membersError ? (
+              <div className="px-4 py-5 text-center space-y-2">
+                <p className="text-xs text-destructive font-medium">
+                  Impossibile caricare i membri
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Verifica di avere i permessi necessari.
+                </p>
+              </div>
+            ) : members.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                Nessun altro membro nell'azienda
+              </div>
+            ) : (
+              <div className="divide-y max-h-64 overflow-auto">
+                {members.map((member) => {
+                  const hasAccess = accessSet.has(member.user_id);
+                  const roleMeta  = member.role ? ROLE_META[member.role] : null;
+                  return (
+                    <button
+                      key={member.user_id}
+                      type="button"
+                      onClick={() => toggleUserAccess(member.user_id, hasAccess)}
+                      disabled={grantAccess.isPending || revokeAccess.isPending}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                        hasAccess
+                          ? "bg-primary/5 hover:bg-primary/10"
+                          : "hover:bg-muted/40",
+                        "disabled:opacity-60 disabled:cursor-not-allowed",
+                      )}
+                    >
+                      {/* Avatar iniziali */}
+                      <div className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold shrink-0 uppercase transition-colors",
+                        hasAccess
+                          ? "bg-primary text-white"
+                          : "bg-muted text-muted-foreground",
+                      )}>
+                        {member.first_name[0]}{member.last_name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate leading-tight">
+                          {member.first_name} {member.last_name}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+                      </div>
+                      {roleMeta && (
+                        <span className={cn(
+                          "rounded-full border px-1.5 py-0.5 text-[10px] font-semibold shrink-0",
+                          roleMeta.color,
+                        )}>
+                          {roleMeta.label}
+                        </span>
+                      )}
+                      {(grantAccess.isPending || revokeAccess.isPending) ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                      ) : hasAccess ? (
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary shrink-0">
+                          <Check className="h-3 w-3 text-white" />
+                        </div>
+                      ) : (
+                        <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/25 shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          )} {/* fine localScope === "company" */}
+
         </div>
 
-        <div className="flex justify-end pt-1">
+        <div className="flex justify-end pt-2 shrink-0 border-t mt-2">
           <Button variant="outline" size="sm" onClick={onClose}>Chiudi</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Dialog permessi dashboard standard (read-only visualmente, info team) ───
+function StandardPermissionsDialog({
+  dash,
+  open,
+  onClose,
+}: {
+  dash: (typeof STANDARD_DASHBOARDS)[number];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { data: members = [], isLoading } = useCompanyMembers();
+  const Icon = dash.icon;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader className="shrink-0">
+          <div className="flex items-center gap-3 mb-1">
+            <div className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br shrink-0",
+              dash.bg,
+            )}>
+              <Icon className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="text-base leading-snug truncate">{dash.title}</DialogTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Dashboard predefinita</p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-auto space-y-4 pr-1">
+          {/* Visibilità fissa */}
+          <div className="rounded-xl border overflow-hidden">
+            <div className="px-4 py-2.5 bg-muted/30 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Visibilità</p>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3 bg-primary/5">
+              <Globe className="h-4 w-4 text-blue-600 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Aziendale</p>
+                <p className="text-xs text-muted-foreground">Accessibile a tutto il team — non modificabile</p>
+              </div>
+              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary shrink-0">
+                <Check className="h-3 w-3 text-white" />
+              </div>
+            </div>
+          </div>
+
+          {/* Elenco membri del team */}
+          <div className="rounded-xl border overflow-hidden">
+            <div className="px-4 py-2.5 bg-muted/30 border-b flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Membri del team
+              </p>
+              {!isLoading && (
+                <p className="text-[10px] text-muted-foreground">{members.length} uten{members.length === 1 ? "te" : "ti"}</p>
+              )}
+            </div>
+            {isLoading ? (
+              <div className="p-4 space-y-2">
+                {[1,2,3].map((i) => (
+                  <div key={i} className="h-10 rounded-lg bg-muted/50 animate-pulse" />
+                ))}
+              </div>
+            ) : members.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                Nessun membro trovato
+              </div>
+            ) : (
+              <div className="divide-y max-h-64 overflow-auto">
+                {members.map((member) => {
+                  const roleMeta = member.role ? ROLE_META[member.role] : null;
+                  return (
+                    <div key={member.user_id} className="flex items-center gap-3 px-4 py-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground shrink-0 uppercase">
+                        {member.first_name[0]}{member.last_name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate leading-tight">
+                          {member.first_name} {member.last_name}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+                      </div>
+                      {roleMeta && (
+                        <span className={cn(
+                          "rounded-full border px-1.5 py-0.5 text-[10px] font-semibold shrink-0",
+                          roleMeta.color,
+                        )}>
+                          {roleMeta.label}
+                        </span>
+                      )}
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 shrink-0">
+                        <Check className="h-3 w-3 text-primary" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2 shrink-0 border-t mt-2">
+          <Button variant="outline" size="sm" onClick={onClose}>Chiudi</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Dialog conferma eliminazione ────────────────────────────────────────────
+function DeleteConfirmDialog({
+  dashboard,
+  open,
+  onClose,
+}: {
+  dashboard: DashboardListItem | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const deleteDash = useDeleteDashboard();
+
+  if (!dashboard) return null;
+
+  const handleDelete = () => {
+    deleteDash.mutate(dashboard.id, {
+      onSuccess: () => {
+        toast.success(`Dashboard "${dashboard.name}" eliminata`);
+        onClose();
+      },
+      onError: (e) => toast.error(String(e)),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !deleteDash.isPending) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 shrink-0">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
+            <DialogTitle className="text-base leading-snug">Elimina dashboard</DialogTitle>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-3 py-1">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Stai per eliminare definitivamente{" "}
+            <span className="font-semibold text-foreground">"{dashboard.name}"</span>.
+            Questa azione è irreversibile e non può essere annullata.
+          </p>
+          <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <p className="text-xs text-destructive leading-snug font-medium">
+              Tutti i widget, le configurazioni e la cronologia delle versioni
+              verranno eliminati definitivamente.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={onClose}
+            disabled={deleteDash.isPending}
+          >
+            Annulla
+          </Button>
+          <Button
+            variant="destructive"
+            className="flex-1 gap-1.5"
+            onClick={handleDelete}
+            disabled={deleteDash.isPending}
+          >
+            {deleteDash.isPending
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Trash2 className="h-4 w-4" />}
+            Elimina definitivamente
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -958,16 +1324,13 @@ function DashboardPermissionsDialog({
 // ─── Dashboard card (griglia principale) ─────────────────────────────────────
 function DashboardCard({
   dashboard,
-  roleLabels,
   isAdmin,
-  rawRoleMap,
 }: {
   dashboard: DashboardListItem;
-  roleLabels: Array<{ label: string; color: string }>;
   isAdmin: boolean;
-  rawRoleMap: Array<{ role: AppRole; dashboard_id: string }>;
 }) {
-  const [permOpen, setPermOpen] = useState(false);
+  const [permOpen, setPermOpen]     = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const style = getCardStyle(dashboard.id);
   const Icon  = style.icon;
 
@@ -984,16 +1347,29 @@ function DashboardCard({
             <Icon className="h-10 w-10 text-white/90 drop-shadow-md" />
           </div>
 
-          {/* Pulsante permessi (admin) — sempre visibile in alto a destra */}
-          {isAdmin && (
-            <button
-              onClick={(e) => { e.preventDefault(); setPermOpen(true); }}
-              className="absolute top-2 right-2 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-              title="Permessi dashboard"
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-            </button>
-          )}
+          {/* Pulsanti top-right: permessi (admin) + elimina (owner) */}
+          <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setPermOpen(true); }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-colors"
+                title="Permessi dashboard"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {dashboard.is_owner && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setDeleteOpen(true); }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-red-500 hover:text-white transition-colors"
+                title="Elimina dashboard"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
 
           {/* Azioni overlay */}
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -1022,30 +1398,11 @@ function DashboardCard({
               {dashboard.description}
             </p>
           )}
-          <div className="flex items-center justify-between mt-auto gap-2 pt-1">
-            <div className="flex flex-wrap gap-1 min-w-0">
-              {roleLabels.slice(0, 2).map((r) => (
-                <span key={r.label} className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-medium", r.color)}>
-                  {r.label}
-                </span>
-              ))}
-              {roleLabels.length > 2 && (
-                <span className="text-[10px] text-muted-foreground self-center">+{roleLabels.length - 2}</span>
-              )}
-              {roleLabels.length === 0 && isAdmin && (
-                <button
-                  onClick={() => setPermOpen(true)}
-                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <UserPlus className="h-3 w-3" />
-                  Assegna ruolo
-                </button>
-              )}
-            </div>
+          <div className="flex items-center justify-end mt-auto pt-1">
             <Badge
               variant="outline"
               className={cn(
-                "text-[10px] shrink-0 px-1.5 py-0.5 gap-1 cursor-default",
+                "text-[10px] px-1.5 py-0.5 gap-1 cursor-default",
                 dashboard.scope === "personal"
                   ? "border-slate-200 text-slate-500"
                   : "border-blue-200 text-blue-600 bg-blue-50",
@@ -1062,9 +1419,15 @@ function DashboardCard({
       {/* Dialog permessi */}
       <DashboardPermissionsDialog
         dashboard={dashboard}
-        roleMap={rawRoleMap}
         open={permOpen}
         onClose={() => setPermOpen(false)}
+      />
+
+      {/* Dialog conferma eliminazione */}
+      <DeleteConfirmDialog
+        dashboard={dashboard}
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
       />
     </>
   );
@@ -1085,133 +1448,12 @@ function AddCard({ onClick }: { onClick: () => void }) {
   );
 }
 
-// ─── Role map section (admin, collassabile) ───────────────────────────────────
-function RoleMapSection({ dashboards }: { dashboards: DashboardListItem[] }) {
-  const [open, setOpen] = useState(false);
-  const { data: roleMap = [], isLoading } = useCompanyRoleDashboards();
-  const setRole   = useSetCompanyRoleDashboard();
-  const unsetRole = useUnsetCompanyRoleDashboard();
-
-  const mapByRole = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const r of roleMap) m[r.role] = r.dashboard_id;
-    return m;
-  }, [roleMap]);
-
-  const handleSet = (role: AppRole, dashboardId: string) => {
-    if (dashboardId === "__none__") {
-      unsetRole.mutate(role, {
-        onSuccess: () => toast.success("Mappatura rimossa"),
-        onError:   (e) => toast.error(String(e)),
-      });
-    } else {
-      setRole.mutate({ role, dashboardId }, {
-        onSuccess: () => toast.success("Dashboard associata"),
-        onError:   (e) => toast.error(String(e)),
-      });
-    }
-  };
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Users className="h-4 w-4" />
-          Configurazione ruoli
-          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
-        </Button>
-      </CollapsibleTrigger>
-
-      <CollapsibleContent>
-        <div className="mt-3 rounded-2xl border bg-white overflow-hidden shadow-sm">
-          <div className="px-5 py-3.5 border-b bg-muted/20">
-            <p className="text-sm font-semibold">Mappa Ruolo → Dashboard</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Ogni ruolo viene reindirizzato automaticamente alla dashboard assegnata.
-            </p>
-          </div>
-
-          {isLoading ? (
-            <div className="p-4 space-y-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-11 rounded-lg bg-muted/40 animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <div className="divide-y">
-              {ALL_ROLES.map(({ role, label, color }) => {
-                const currentId   = mapByRole[role] ?? "__none__";
-                const currentDash = dashboards.find((d) => d.id === currentId);
-                return (
-                  <div key={role} className="flex items-center justify-between gap-4 px-5 py-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold shrink-0", color)}>
-                        {label}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono truncate hidden sm:block">{role}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Select
-                        value={currentId}
-                        onValueChange={(v) => handleSet(role, v)}
-                        disabled={setRole.isPending || unsetRole.isPending}
-                      >
-                        <SelectTrigger className="w-52 h-8 text-xs">
-                          <SelectValue placeholder="— Nessuna —" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— Nessuna —</SelectItem>
-                          {dashboards.map((d) => (
-                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {currentDash && (
-                        <Link to={`/azienda/dashboards/${currentId}`} target="_blank">
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Button>
-                        </Link>
-                      )}
-                      {currentId !== "__none__" && (
-                        <Button
-                          variant="ghost" size="icon" className="h-8 w-8"
-                          onClick={() => handleSet(role, "__none__")}
-                          disabled={unsetRole.isPending}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function CruscottoHub() {
   const permissions             = usePermissions();
   const [createOpen, setCreate] = useState(false);
 
   const { data: dashboards = [], isLoading: dashLoading } = useDashboards();
-  const { data: roleMap    = [] }                          = useCompanyRoleDashboards();
-
-  const rolesByDashId = useMemo(() => {
-    const m: Record<string, Array<{ label: string; color: string }>> = {};
-    for (const r of roleMap) {
-      const meta = ALL_ROLES.find((x) => x.role === r.role);
-      if (!meta) continue;
-      if (!m[r.dashboard_id]) m[r.dashboard_id] = [];
-      m[r.dashboard_id].push({ label: meta.label, color: meta.color });
-    }
-    return m;
-  }, [roleMap]);
 
   const myDashboards     = dashboards.filter((d) => d.is_owner);
   const sharedDashboards = dashboards.filter((d) => !d.is_owner);
@@ -1240,17 +1482,11 @@ export default function CruscottoHub() {
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {dashboards.length === 0
-              ? "Crea la tua prima dashboard"
-              : `${dashboards.length} dashboard disponibili`}
+              ? "Crea la tua prima dashboard personalizzata"
+              : `${dashboards.length} dashboard ${dashboards.length === 1 ? "personalizzata" : "personalizzate"}`}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Link to="/azienda/cruscotto/aziendale">
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <LayoutGrid className="h-4 w-4" />
-              Cruscotto classico
-            </Button>
-          </Link>
           <Button size="sm" className="gap-1.5" onClick={() => setCreate(true)}>
             <Plus className="h-4 w-4" />
             Aggiungi dashboard
@@ -1258,23 +1494,34 @@ export default function CruscottoHub() {
         </div>
       </div>
 
-      {/* ── Admin: configurazione ruoli ─────────────────────────────────────── */}
-      {permissions.isAdmin && <RoleMapSection dashboards={dashboards} />}
+      {/* ── Dashboard predefinite (sempre visibili) ─────────────────────────── */}
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+          Dashboard predefinite
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {STANDARD_DASHBOARDS.map((d) => (
+            <StandardDashboardCard key={d.id} dash={d} />
+          ))}
+        </div>
+      </section>
 
       {/* ── Le mie dashboard ────────────────────────────────────────────────── */}
-      {myDashboards.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-            Le mie dashboard
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {myDashboards.map((d) => (
-              <DashboardCard key={d.id} dashboard={d} roleLabels={rolesByDashId[d.id] ?? []} isAdmin={permissions.isAdmin} rawRoleMap={roleMap} />
-            ))}
-            <AddCard onClick={() => setCreate(true)} />
-          </div>
-        </section>
-      )}
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+          Le mie dashboard
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {myDashboards.map((d) => (
+            <DashboardCard
+              key={d.id}
+              dashboard={d}
+              isAdmin={permissions.isAdmin}
+            />
+          ))}
+          <AddCard onClick={() => setCreate(true)} />
+        </div>
+      </section>
 
       {/* ── Dashboard aziendali ─────────────────────────────────────────────── */}
       {sharedDashboards.length > 0 && (
@@ -1284,29 +1531,14 @@ export default function CruscottoHub() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {sharedDashboards.map((d) => (
-              <DashboardCard key={d.id} dashboard={d} roleLabels={rolesByDashId[d.id] ?? []} isAdmin={permissions.isAdmin} rawRoleMap={roleMap} />
+              <DashboardCard
+                key={d.id}
+                dashboard={d}
+                isAdmin={permissions.isAdmin}
+              />
             ))}
           </div>
         </section>
-      )}
-
-      {/* ── Empty state ─────────────────────────────────────────────────────── */}
-      {dashboards.length === 0 && (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-5">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-muted">
-            <LayoutDashboard className="h-9 w-9 text-muted-foreground/50" />
-          </div>
-          <div className="text-center">
-            <p className="font-semibold">Nessuna dashboard ancora</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-              Crea la tua prima dashboard o usa un template per iniziare subito.
-            </p>
-          </div>
-          <Button onClick={() => setCreate(true)} className="gap-2 h-10 px-6">
-            <Plus className="h-4 w-4" />
-            Aggiungi dashboard
-          </Button>
-        </div>
       )}
 
       {/* ── Overlay creazione ───────────────────────────────────────────────── */}

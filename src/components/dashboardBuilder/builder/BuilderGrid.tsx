@@ -1,5 +1,18 @@
 import GridLayout, { type Layout } from "react-grid-layout";
-import type { DashboardWidget, ResolvedWidget } from "@/lib/dashboardBuilder/types";
+import type { DashboardWidget, ResolvedWidget, WidgetType } from "@/lib/dashboardBuilder/types";
+
+const WIDGET_LABELS: Record<WidgetType, string> = {
+  kpi_card: "Scheda KPI",
+  chart_line: "Grafico linea",
+  chart_bar: "Grafico barre",
+  chart_area: "Grafico area",
+  chart_pie: "Grafico torta",
+  table: "Tabella dati",
+  progress: "Barra progresso",
+  gauge: "Indicatore",
+  text_markdown: "Testo libero",
+  divider: "Separatore",
+};
 import { KpiCard } from "../widgets/KpiCard";
 import { ChartWidget } from "../widgets/ChartWidget";
 import { TableWidget } from "../widgets/TableWidget";
@@ -104,13 +117,15 @@ export function BuilderGrid({
                 e.stopPropagation();
                 onSelect(w.id);
               }}
-              className={`group relative rounded-xl transition-shadow ${
-                isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "hover:ring-1 hover:ring-border"
+              className={`group relative rounded-xl transition-all ${
+                isSelected
+                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background shadow-md"
+                  : "hover:ring-1 hover:ring-primary/30 hover:shadow-sm"
               }`}
             >
               <div className="absolute inset-0 pointer-events-none" />
-              <div className="absolute top-1 left-1 z-10 text-[10px] px-1.5 py-0.5 rounded bg-muted/80 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                {w.type}
+              <div className="absolute top-1.5 left-1.5 z-10 text-[10px] px-2 py-0.5 rounded-full bg-primary/90 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none font-medium">
+                {WIDGET_LABELS[w.type] ?? w.type}
               </div>
               <div className="h-full w-full overflow-hidden">
                 {renderWidget(w, resolved?.[w.id])}
