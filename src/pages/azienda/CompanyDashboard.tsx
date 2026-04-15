@@ -18,6 +18,8 @@ import { SaluteOperativa } from "@/components/dashboard/SaluteOperativa";
 import { AzioniOperative } from "@/components/dashboard/AzioniOperative";
 import { DashboardTabBar } from "@/components/dashboard/DashboardTabBar";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
+import { YTDRevenueWidget } from "@/components/dashboard/YTDRevenueWidget";
+import { TopCustomersWidget } from "@/components/dashboard/TopCustomersWidget";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
 import { useDashboardWidgets } from "@/hooks/useDashboardWidgets";
 import { DashboardWidgetCustomizer } from "@/components/dashboard/DashboardWidgetCustomizer";
@@ -26,7 +28,6 @@ import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  AreaChart, Area,
 } from "recharts";
 
 interface UrgentWarehouseItem {
@@ -352,32 +353,9 @@ export default function CompanyDashboard() {
         </div>
       </div>
 
-      {/* YTD Revenue Sparkline */}
-      {isWidgetVisible("ytd-revenue") && revenueYTD.length > 0 && (
-        <Card className="border-primary/20">
-          <CardContent className="pt-4 pb-2">
-            <div className="flex items-center justify-between mb-1">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Fatturato Anno Corrente</p>
-                <p className="text-xl font-bold text-foreground tabular-nums">{formatCurrency(totalYTDRevenue)}</p>
-              </div>
-              <TrendingUp className="h-5 w-5 text-primary opacity-60" />
-            </div>
-            <div className="h-[80px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={revenueYTD} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="ytdGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#ytdGrad)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+      {/* YTD Revenue Widget */}
+      {isWidgetVisible("ytd-revenue") && (
+        <YTDRevenueWidget data={revenueYTD} totalYTD={totalYTDRevenue} />
       )}
 
       {/* CEO KPI Strip */}
@@ -633,6 +611,11 @@ export default function CompanyDashboard() {
           upcomingWorks={weeklyDeadlines.upcomingWorks}
         />
       </div>
+
+      {/* Top Clienti */}
+      {isWidgetVisible("top-customers") && (
+        <TopCustomersWidget companyId={companyId} dateFrom={dateRange.from} dateTo={dateRange.to} />
+      )}
 
       {/* Widget Customizer Panel */}
       <DashboardWidgetCustomizer

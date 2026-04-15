@@ -26,6 +26,7 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
   { id: "warehouse-alerts", label: "Alert Magazzino", visible: true, position: 7 },
   { id: "supplier-payments", label: "Pagamenti Fornitori", visible: true, position: 8 },
   { id: "weekly-deadlines", label: "Scadenze Settimanali", visible: true, position: 9 },
+  { id: "top-customers", label: "Top Clienti", visible: true, position: 10 },
 ];
 
 function getStorageKey(userId?: string): string {
