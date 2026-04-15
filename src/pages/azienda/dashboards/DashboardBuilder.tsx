@@ -165,6 +165,48 @@ function useLayoutHistory(initial: DashboardLayout) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Skeleton loader (match header + canvas + right panel)
+// ─────────────────────────────────────────────────────────────────
+
+function BuilderSkeleton() {
+  return (
+    <div className="flex flex-col h-[calc(100vh-0px)] min-h-0 bg-background">
+      <header className="flex items-center gap-2 border-b bg-background px-3 py-2 shrink-0">
+        <div className="h-7 w-16 rounded-md bg-muted animate-pulse" />
+        <div className="h-5 w-px bg-border" />
+        <div className="h-7 w-56 rounded-md bg-muted animate-pulse" />
+        <div className="flex-1" />
+        <div className="h-7 w-24 rounded-md bg-muted animate-pulse" />
+        <div className="h-7 w-20 rounded-md bg-primary/20 animate-pulse" />
+      </header>
+      <div className="flex-1 flex min-h-0">
+        <main
+          className="flex-1 overflow-auto min-h-0 p-6"
+          style={{ background: "hsl(var(--muted) / 0.3)" }}
+        >
+          <div className="grid grid-cols-4 gap-3 max-w-[1200px]">
+            <div className="h-24 rounded-xl bg-background border animate-pulse" />
+            <div className="h-24 rounded-xl bg-background border animate-pulse" />
+            <div className="h-24 rounded-xl bg-background border animate-pulse" />
+            <div className="h-24 rounded-xl bg-background border animate-pulse" />
+            <div className="col-span-2 h-56 rounded-xl bg-background border animate-pulse" />
+            <div className="col-span-2 h-56 rounded-xl bg-background border animate-pulse" />
+          </div>
+        </main>
+        <aside className="w-80 border-l bg-background shrink-0 p-4 space-y-3">
+          <div className="h-8 rounded-md bg-muted animate-pulse" />
+          <div className="h-8 rounded-md bg-muted animate-pulse w-3/4" />
+          <div className="h-6 rounded-md bg-muted animate-pulse w-1/2 mt-4" />
+          <div className="h-10 rounded-md bg-muted/60 animate-pulse" />
+          <div className="h-10 rounded-md bg-muted/60 animate-pulse" />
+          <div className="h-10 rounded-md bg-muted/60 animate-pulse" />
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────
 
@@ -434,11 +476,7 @@ export default function DashboardBuilder() {
 
   // ── Loading / gate states ────────────────────────────────────
   if (flagsLoading) {
-    return (
-      <div className="p-6">
-        <div className="h-7 w-48 bg-muted animate-pulse rounded" />
-      </div>
-    );
+    return <BuilderSkeleton />;
   }
   if (!isFeatureEnabled("dashboard_builder_v1")) return <Navigate to="/azienda" replace />;
   if (isEdit && dash.error) {
@@ -455,11 +493,7 @@ export default function DashboardBuilder() {
     );
   }
   if (isEdit && dash.isLoading) {
-    return (
-      <div className="p-6">
-        <div className="h-7 w-48 bg-muted animate-pulse rounded" />
-      </div>
-    );
+    return <BuilderSkeleton />;
   }
   if (isEdit && dash.data && !dash.data.can_edit) {
     return <Navigate to={`/azienda/dashboards/${id}`} replace />;

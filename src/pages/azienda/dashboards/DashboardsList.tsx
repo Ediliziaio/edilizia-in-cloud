@@ -4,19 +4,44 @@
  * Elenca tutte le dashboard custom disponibili all'utente (mie + condivise dalla company).
  * Richiede feature flag `dashboard_builder_v1` attivo.
  */
+import { useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Plus, LayoutDashboard, Lock, Users, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
-import { useDashboards } from "@/lib/dashboardBuilder/hooks";
+import { useDashboards, useMetricCatalog } from "@/lib/dashboardBuilder/hooks";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
+
+// Prefetch del bundle del builder: appena l'utente apre la lista iniziamo a
+// scaricare il chunk così quando clicca "Nuova" parte istantaneo.
+function prefetchBuilder() {
+  import("@/pages/azienda/dashboards/DashboardBuilder").catch(() => {});
+}
 
 export default function DashboardsList() {
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const { data, isLoading, error } = useDashboards();
+
+  // Warm-up: catalog (richiesto dal builder) + chunk JS del builder.
+  useMetricCatalog();
+  useEffect(() => {
+    // Defer al prossimo idle per non competere con il rendering iniziale.
+    const id = typeof window !== "undefined" && "requestIdleCallback" in window
+      ? (window as unknown as { requestIdleCallback: (cb: () => void) => number })
+          .requestIdleCallback(prefetchBuilder)
+      : window.setTimeout(prefetchBuilder, 300);
+    return () => {
+      if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        (window as unknown as { cancelIdleCallback: (id: number) => void })
+          .cancelIdleCallback(id as number);
+      } else {
+        window.clearTimeout(id as number);
+      }
+    };
+  }, []);
 
   if (flagsLoading) {
     return (
@@ -42,7 +67,7 @@ export default function DashboardsList() {
             Le tue dashboard personalizzate con KPI, grafici e tabelle.
           </p>
         </div>
-        <Button asChild>
+        <Button asChild onMouseEnter={prefetchBuilder} onFocus={prefetchBuilder}>
           <Link to="/azienda/dashboards/nuova">
             <Plus className="h-4 w-4 mr-2" />
             Nuova dashboard

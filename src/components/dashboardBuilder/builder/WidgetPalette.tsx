@@ -1,7 +1,13 @@
 /**
- * WidgetPalette — pannello di sinistra del builder.
- * Mostra i widget disponibili raggruppati per categoria,
- * con ricerca e accordion per espandere/chiudere i gruppi.
+ * WidgetPalette — pannello di destra del builder.
+ * Due tab:
+ *   1. "Template" — widget pre-configurati raggruppati per area di business
+ *      (Vendite, Ordini, Clienti, Finanza, Magazzino, Team).
+ *      Cliccando si aggiunge un widget con metric + aggregazione + titolo già
+ *      impostati: zero configurazione richiesta.
+ *   2. "Generici" — widget vuoti (KPI, grafici, tabella, testo) da configurare
+ *      manualmente con la metrica che si preferisce.
+ * Con search globale che cerca in entrambe le liste.
  */
 import { useState } from "react";
 import {
@@ -17,6 +23,8 @@ import {
   Type,
   Minus,
   Hash,
+  Sparkles,
+  LayoutGrid,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,7 +33,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { WidgetConfig, WidgetType } from "@/lib/dashboardBuilder/types";
+import { ALL_RECIPES, RECIPE_CATEGORIES } from "@/lib/dashboardBuilder/widgetRecipes";
 
 export interface PaletteItem {
   type: WidgetType;
@@ -36,7 +46,7 @@ export interface PaletteItem {
   defaultConfig?: Partial<WidgetConfig>;
 }
 
-const CATEGORIES: Array<{
+const GENERIC_CATEGORIES: Array<{
   id: string;
   label: string;
   items: PaletteItem[];
@@ -131,45 +141,84 @@ const CATEGORIES: Array<{
   },
 ];
 
-// Flat list for search across all categories
-const ALL_ITEMS: PaletteItem[] = CATEGORIES.flatMap((c) => c.items);
+const ALL_GENERIC: PaletteItem[] = GENERIC_CATEGORIES.flatMap((c) => c.items);
 
 interface Props {
   onAdd: (item: PaletteItem) => void;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Shared row renderer
+// ─────────────────────────────────────────────────────────────────
+
+function ItemRow({
+  item,
+  onClick,
+}: {
+  item: PaletteItem;
+  onClick: () => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-accent transition-colors group"
+    >
+      <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium leading-tight truncate">
+          {item.label}
+        </div>
+        <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+          {item.description}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────────
+
 export function WidgetPalette({ onAdd }: Props) {
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<"templates" | "generic">("templates");
 
   const query = search.trim().toLowerCase();
 
-  const filteredCategories = query
-    ? [
-        {
-          id: "search",
-          label: `Risultati per "${search}"`,
-          items: ALL_ITEMS.filter(
-            (item) =>
-              item.label.toLowerCase().includes(query) ||
-              item.description.toLowerCase().includes(query),
-          ),
-        },
-      ]
-    : CATEGORIES;
+  // Filtri search per tab
+  const filterItems = (items: PaletteItem[]) =>
+    query
+      ? items.filter(
+          (i) =>
+            i.label.toLowerCase().includes(query) ||
+            i.description.toLowerCase().includes(query),
+        )
+      : items;
+
+  // Durante la search mostriamo sempre tutti i risultati di ENTRAMBI i tab,
+  // ma raggruppati per provenienza.
+  const searchMode = query.length > 0;
+  const searchTemplates = searchMode ? filterItems(ALL_RECIPES) : [];
+  const searchGeneric = searchMode ? filterItems(ALL_GENERIC) : [];
+  const searchTotal = searchTemplates.length + searchGeneric.length;
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Panel title */}
-      <div className="px-4 pt-3 pb-2 shrink-0">
-        <p className="text-xs font-semibold text-foreground mb-2">Aggiungi widget</p>
+      {/* Panel title + search */}
+      <div className="px-4 pt-3 pb-2 shrink-0 space-y-2">
+        <p className="text-xs font-semibold text-foreground">Aggiungi widget</p>
 
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca widget…"
+            placeholder="Cerca in template e widget…"
             className="pl-8 h-8 text-sm pr-7"
           />
           {search && (
@@ -184,59 +233,134 @@ export function WidgetPalette({ onAdd }: Props) {
         </div>
       </div>
 
-      {/* Accordion categories */}
-      <div className="flex-1 overflow-auto min-h-0 px-2 pb-4">
-        {filteredCategories.length === 0 || filteredCategories[0]?.items.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground px-4">
-            Nessun widget trovato per "{search}"
-          </div>
-        ) : (
-          <Accordion
-            type="multiple"
-            defaultValue={["kpi", "charts", "tables", "search"]}
-            className="space-y-0"
-          >
-            {filteredCategories.map((cat) => (
-              <AccordionItem
-                key={cat.id}
-                value={cat.id}
-                className="border-none"
-              >
-                <AccordionTrigger className="py-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground hover:no-underline rounded-md hover:bg-accent/40 transition-colors">
-                  {cat.label}
-                </AccordionTrigger>
-                <AccordionContent className="pb-1 pt-0">
+      {/* Search mode: risultati piatti */}
+      {searchMode ? (
+        <div className="flex-1 overflow-auto min-h-0 px-2 pb-4">
+          {searchTotal === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground px-4">
+              Nessun widget trovato per "{search}"
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {searchTemplates.length > 0 && (
+                <section>
+                  <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> Template ({searchTemplates.length})
+                  </p>
                   <div className="space-y-0.5">
-                    {cat.items.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.type}
-                          type="button"
-                          onClick={() => onAdd(item)}
-                          className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-accent transition-colors group"
-                        >
-                          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                            <Icon className="h-4 w-4 text-primary" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium leading-tight truncate">
-                              {item.label}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-                              {item.description}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {searchTemplates.map((item, i) => (
+                      <ItemRow key={`t-${i}`} item={item} onClick={() => onAdd(item)} />
+                    ))}
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        )}
-      </div>
+                </section>
+              )}
+              {searchGeneric.length > 0 && (
+                <section>
+                  <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
+                    <LayoutGrid className="h-3 w-3" /> Widget generici ({searchGeneric.length})
+                  </p>
+                  <div className="space-y-0.5">
+                    {searchGeneric.map((item, i) => (
+                      <ItemRow key={`g-${i}`} item={item} onClick={() => onAdd(item)} />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as "templates" | "generic")}
+          className="flex-1 flex flex-col min-h-0"
+        >
+          <div className="px-4 pt-1 pb-0 shrink-0">
+            <TabsList className="w-full h-8 rounded-lg">
+              <TabsTrigger value="templates" className="flex-1 text-xs h-6 rounded-md gap-1">
+                <Sparkles className="h-3 w-3" />
+                Template
+              </TabsTrigger>
+              <TabsTrigger value="generic" className="flex-1 text-xs h-6 rounded-md gap-1">
+                <LayoutGrid className="h-3 w-3" />
+                Generici
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* Tab: Template per area ───────────────────────────── */}
+          <TabsContent
+            value="templates"
+            className="flex-1 overflow-auto min-h-0 px-2 pb-4 mt-2"
+          >
+            <p className="px-2 pb-2 text-[11px] text-muted-foreground leading-snug">
+              Widget pre-configurati pronti all'uso. Scegli per area e
+              personalizza dopo.
+            </p>
+            <Accordion
+              type="multiple"
+              defaultValue={RECIPE_CATEGORIES.map((c) => c.id)}
+              className="space-y-0"
+            >
+              {RECIPE_CATEGORIES.map((cat) => (
+                <AccordionItem key={cat.id} value={cat.id} className="border-none">
+                  <AccordionTrigger className="py-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground hover:no-underline rounded-md hover:bg-accent/40 transition-colors">
+                    {cat.label}
+                    <span className="ml-auto mr-2 text-[10px] text-muted-foreground/60 font-normal normal-case tracking-normal">
+                      {cat.items.length}
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-1 pt-0">
+                    <div className="space-y-0.5">
+                      {cat.items.map((item, i) => (
+                        <ItemRow
+                          key={`${cat.id}-${i}`}
+                          item={item}
+                          onClick={() => onAdd(item)}
+                        />
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </TabsContent>
+
+          {/* Tab: Generici ───────────────────────────────────────── */}
+          <TabsContent
+            value="generic"
+            className="flex-1 overflow-auto min-h-0 px-2 pb-4 mt-2"
+          >
+            <p className="px-2 pb-2 text-[11px] text-muted-foreground leading-snug">
+              Widget vuoti da configurare manualmente scegliendo la metrica.
+            </p>
+            <Accordion
+              type="multiple"
+              defaultValue={GENERIC_CATEGORIES.map((c) => c.id)}
+              className="space-y-0"
+            >
+              {GENERIC_CATEGORIES.map((cat) => (
+                <AccordionItem key={cat.id} value={cat.id} className="border-none">
+                  <AccordionTrigger className="py-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground hover:no-underline rounded-md hover:bg-accent/40 transition-colors">
+                    {cat.label}
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-1 pt-0">
+                    <div className="space-y-0.5">
+                      {cat.items.map((item) => (
+                        <ItemRow
+                          key={item.type}
+                          item={item}
+                          onClick={() => onAdd(item)}
+                        />
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
