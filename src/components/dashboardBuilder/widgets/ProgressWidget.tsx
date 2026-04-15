@@ -10,7 +10,7 @@ interface Props {
 
 export function ProgressWidget({ widget, resolved }: Props) {
   const cfg = widget.config ?? {};
-  const title = cfg.title ?? cfg.metric ?? widget.id;
+  const title = cfg.title ?? cfg.metric ?? "Progress";
   const value = resolved?.status === "ok" ? resolved.value ?? 0 : 0;
   const target = cfg.target ?? 100;
   const pct = target > 0 ? Math.min(100, Math.max(0, (value / target) * 100)) : 0;
@@ -37,7 +37,7 @@ export function ProgressWidget({ widget, resolved }: Props) {
 
 export function GaugeWidget({ widget, resolved }: Props) {
   const cfg = widget.config ?? {};
-  const title = cfg.title ?? cfg.metric ?? widget.id;
+  const title = cfg.title ?? cfg.metric ?? "Gauge";
   const value = resolved?.status === "ok" ? resolved.value ?? 0 : 0;
   const min = cfg.min ?? 0;
   const max = cfg.max ?? cfg.target ?? 100;

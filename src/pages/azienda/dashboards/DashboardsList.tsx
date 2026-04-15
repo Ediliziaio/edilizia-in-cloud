@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Plus, LayoutDashboard, Lock, Users, Clock, Sparkles } from "lucide-react";
+import { Plus, LayoutDashboard, Lock, Users, Clock, Sparkles, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import {
   useMetricCatalog,
 } from "@/lib/dashboardBuilder/hooks";
 import { NewDashboardDialog } from "@/components/dashboardBuilder/NewDashboardDialog";
+import { DashboardCardMenu } from "@/components/dashboardBuilder/DashboardCardMenu";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -119,39 +120,61 @@ export default function DashboardsList() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {data.map((d) => (
-            <Link
+            <div
               key={d.id}
-              to={`/azienda/dashboards/${d.id}`}
-              className="group rounded-xl border bg-card hover:border-primary/60 hover:shadow-sm transition-all p-4 flex flex-col gap-3"
+              className="group relative rounded-xl border bg-card hover:border-primary/60 hover:shadow-sm transition-all flex flex-col"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold truncate group-hover:text-primary transition-colors">
-                    {d.name}
-                  </h3>
-                  {d.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                      {d.description}
-                    </p>
-                  )}
+              {/* Menu azioni — posizionato in overlay sopra la card */}
+              <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                <DashboardCardMenu dashboard={d} canEdit={d.can_edit} />
+              </div>
+
+              <Link
+                to={`/azienda/dashboards/${d.id}`}
+                className="flex-1 flex flex-col gap-3 p-4"
+              >
+                <div className="flex items-start justify-between gap-2 pr-8">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold truncate group-hover:text-primary transition-colors flex items-center gap-1.5">
+                      {d.is_default && (
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400 shrink-0" />
+                      )}
+                      <span className="truncate">{d.name}</span>
+                    </h3>
+                    {d.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                        {d.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                {d.is_default && <Badge variant="secondary" className="shrink-0">Default</Badge>}
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap mt-auto">
-                {d.scope === "personal" ? (
-                  <span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" /> Personale</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> Condivisa</span>
-                )}
-                <span>·</span>
-                <span>v{d.current_version ?? 1}</span>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {formatDistanceToNow(new Date(d.updated_at), { addSuffix: true, locale: it })}
-                </span>
-              </div>
-            </Link>
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap mt-auto">
+                  {d.scope === "personal" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Lock className="h-3 w-3" /> Personale
+                    </span>
+                  ) : d.scope === "company" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Users className="h-3 w-3" /> Condivisa
+                    </span>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] h-4 px-1">
+                      {d.scope}
+                    </Badge>
+                  )}
+                  <span>·</span>
+                  <span>v{d.current_version ?? 1}</span>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatDistanceToNow(new Date(d.updated_at), {
+                      addSuffix: true,
+                      locale: it,
+                    })}
+                  </span>
+                </div>
+              </Link>
+            </div>
           ))}
         </div>
       )}
