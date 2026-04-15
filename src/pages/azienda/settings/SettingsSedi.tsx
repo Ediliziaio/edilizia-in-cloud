@@ -41,13 +41,15 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 
 // ── Schema Zod ──────────────────────────────────────────────
+const emptyToUndefined = (v: string | undefined) => (!v || v.trim() === '' ? undefined : v)
+
 const sedeSchema = z.object({
   nome:      z.string().min(2, 'Nome richiesto (min 2 caratteri)'),
   tipo:      z.enum(['showroom', 'magazzino', 'cantiere', 'ufficio', 'altro']),
-  indirizzo: z.string().optional(),
-  citta:     z.string().optional(),
-  cap:       z.string().regex(/^\d{5}$/, 'CAP non valido').optional().or(z.literal('')),
-  provincia: z.string().length(2, 'Inserisci 2 lettere').optional().or(z.literal('')),
+  indirizzo: z.preprocess(emptyToUndefined, z.string().optional()),
+  citta:     z.preprocess(emptyToUndefined, z.string().optional()),
+  cap:       z.preprocess(emptyToUndefined, z.string().regex(/^\d{5}$/, 'CAP non valido').optional()),
+  provincia: z.preprocess(emptyToUndefined, z.string().length(2, 'Inserisci 2 lettere').optional()),
   colore:    z.string().regex(/^#[0-9A-Fa-f]{6}$/).default('#1E3A5F'),
 })
 
