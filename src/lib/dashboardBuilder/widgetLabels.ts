@@ -7,6 +7,7 @@ import type { WidgetType } from "./types";
 
 export const WIDGET_LABELS: Record<WidgetType, string> = {
   kpi_card: "Scheda KPI",
+  stat_tile: "Tile di stato",
   chart_line: "Grafico linea",
   chart_bar: "Grafico barre",
   chart_area: "Grafico area",
@@ -14,6 +15,7 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
   table: "Tabella dati",
   progress: "Barra progresso",
   gauge: "Indicatore",
+  alert_list: "Lista alert",
   text_markdown: "Testo libero",
   divider: "Separatore",
 };

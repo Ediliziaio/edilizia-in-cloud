@@ -25,6 +25,8 @@ import {
   Hash,
   Sparkles,
   LayoutGrid,
+  Square,
+  AlertTriangle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -63,6 +65,14 @@ const GENERIC_CATEGORIES: Array<{
         defaultSize: { w: 3, h: 2 },
       },
       {
+        type: "stat_tile",
+        label: "Tile di stato",
+        description: "Tile colorato in stile cruscotto (CASSA / LAVORO)",
+        icon: Square,
+        defaultSize: { w: 3, h: 2 },
+        defaultConfig: { tone: "neutral" },
+      },
+      {
         type: "progress",
         label: "Barra progresso",
         description: "Avanzamento verso un obiettivo",
@@ -72,9 +82,9 @@ const GENERIC_CATEGORIES: Array<{
       {
         type: "gauge",
         label: "Indicatore",
-        description: "Misuratore circolare con range",
+        description: "Anello circolare con stato (98/100 Eccellente)",
         icon: Gauge,
-        defaultSize: { w: 3, h: 4 },
+        defaultSize: { w: 4, h: 3 },
       },
     ],
   },
@@ -124,6 +134,13 @@ const GENERIC_CATEGORIES: Array<{
         defaultSize: { w: 6, h: 4 },
       },
       {
+        type: "alert_list",
+        label: "Lista alert",
+        description: "Elenco voci con bordo colorato e azione",
+        icon: AlertTriangle,
+        defaultSize: { w: 4, h: 4 },
+      },
+      {
         type: "text_markdown",
         label: "Testo libero",
         description: "Contenuto testuale e note",
@@ -132,8 +149,8 @@ const GENERIC_CATEGORIES: Array<{
       },
       {
         type: "divider",
-        label: "Separatore",
-        description: "Linea divisoria tra sezioni",
+        label: "Intestazione sezione",
+        description: "Titolo + linea (es. \"SALES CONTROL\")",
         icon: Minus,
         defaultSize: { w: 12, h: 1 },
       },

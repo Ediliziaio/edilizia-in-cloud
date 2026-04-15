@@ -7,6 +7,8 @@ import { ChartWidget } from "../widgets/ChartWidget";
 import { TableWidget } from "../widgets/TableWidget";
 import { GaugeWidget, ProgressWidget } from "../widgets/ProgressWidget";
 import { DividerWidget, TextWidget } from "../widgets/TextWidget";
+import { StatTileWidget } from "../widgets/StatTileWidget";
+import { AlertListWidget } from "../widgets/AlertListWidget";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -28,6 +30,10 @@ function renderWidget(widget: DashboardWidget, resolved: ResolvedWidget | undefi
   switch (widget.type) {
     case "kpi_card":
       return <KpiCard widget={widget} resolved={resolved} />;
+    case "stat_tile":
+      return <StatTileWidget widget={widget} resolved={resolved} />;
+    case "alert_list":
+      return <AlertListWidget widget={widget} resolved={resolved} />;
     case "chart_line":
     case "chart_bar":
     case "chart_pie":

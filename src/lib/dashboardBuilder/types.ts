@@ -9,6 +9,7 @@
 
 export type WidgetType =
   | "kpi_card"
+  | "stat_tile"
   | "chart_line"
   | "chart_bar"
   | "chart_pie"
@@ -16,8 +17,12 @@ export type WidgetType =
   | "table"
   | "progress"
   | "gauge"
+  | "alert_list"
   | "text_markdown"
   | "divider";
+
+/** Tono cromatico semantico per widget con stato (stat_tile, kpi con soglie). */
+export type WidgetTone = "success" | "warning" | "danger" | "info" | "neutral";
 
 export type BreakdownDim =
   | "none"
@@ -90,6 +95,15 @@ export interface WidgetConfig {
   target?: number;
   min?: number;
   max?: number;
+  // Per widget stat_tile / alert_list: tono cromatico semantico.
+  tone?: WidgetTone;
+  // Per widget alert_list: etichetta fallback + link azione (opzionali).
+  actionLabel?: string;
+  actionHref?: string;
+  // Per widget gauge / stat_tile: label status ("Eccellente", "Attenzione").
+  statusLabel?: string;
+  // Descrizione breve mostrata sotto il valore nei tile / gauge.
+  description?: string;
 }
 
 export interface DashboardWidget {

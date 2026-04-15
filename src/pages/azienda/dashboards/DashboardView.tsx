@@ -21,6 +21,8 @@ import {
   AlertTriangle,
   Printer,
   CalendarRange,
+  Filter,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -116,6 +118,16 @@ export default function DashboardView() {
       }
     : null;
 
+  // ── FilterBar state derivati ────────────────────────────────────
+  const periodLabel = PERIODS.find((p) => p.value === period)?.label;
+  const hasCustomRange = period === "custom" && customFrom && customTo;
+  const hasActiveFilters = Boolean(period);
+  const resetFilters = () => {
+    setPeriod("");
+    setCustomFrom("");
+    setCustomTo("");
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-4 print:p-0 print:max-w-none">
       <div className="flex items-center justify-between gap-3 flex-wrap print:hidden">
@@ -142,69 +154,6 @@ export default function DashboardView() {
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select
-            value={period || "none"}
-            onValueChange={(v) => {
-              if (v === "none") {
-                setPeriod("");
-                setCustomFrom("");
-                setCustomTo("");
-              } else {
-                setPeriod(v as PeriodPreset);
-              }
-            }}
-          >
-            <SelectTrigger className="w-[200px] h-9">
-              <SelectValue placeholder="Periodo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Periodo widget</SelectItem>
-              {PERIODS.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {period === "custom" && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <CalendarRange className="h-4 w-4 mr-1" />
-                  {customFrom && customTo
-                    ? `${customFrom} → ${customTo}`
-                    : "Seleziona date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-3 space-y-2" align="end">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-muted-foreground">
-                    Dal
-                  </label>
-                  <Input
-                    type="date"
-                    value={customFrom}
-                    onChange={(e) => setCustomFrom(e.target.value)}
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-muted-foreground">
-                    Al
-                  </label>
-                  <Input
-                    type="date"
-                    value={customTo}
-                    onChange={(e) => setCustomTo(e.target.value)}
-                    min={customFrom || undefined}
-                    className="h-8 text-sm"
-                  />
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
-
           <Button
             variant="outline"
             size="sm"
@@ -236,6 +185,119 @@ export default function DashboardView() {
             </Button>
           )}
         </div>
+      </div>
+
+      {/* ── FilterBar ──────────────────────────────────────────── */}
+      <div className="rounded-xl border bg-card/40 backdrop-blur-sm px-3 py-2 flex items-center gap-2 flex-wrap print:hidden">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0 pl-1">
+          <Filter className="h-3.5 w-3.5" />
+          Filtri
+        </div>
+
+        <Select
+          value={period || "none"}
+          onValueChange={(v) => {
+            if (v === "none") {
+              resetFilters();
+            } else {
+              setPeriod(v as PeriodPreset);
+              if (v !== "custom") {
+                setCustomFrom("");
+                setCustomTo("");
+              }
+            }
+          }}
+        >
+          <SelectTrigger className="w-[200px] h-8 text-xs">
+            <SelectValue placeholder="Periodo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Periodo widget (default)</SelectItem>
+            {PERIODS.map((p) => (
+              <SelectItem key={p.value} value={p.value}>
+                {p.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {period === "custom" && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs">
+                <CalendarRange className="h-3.5 w-3.5 mr-1" />
+                {customFrom && customTo
+                  ? `${customFrom} → ${customTo}`
+                  : "Seleziona date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-3 space-y-2" align="start">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Dal
+                </label>
+                <Input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Al
+                </label>
+                <Input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  min={customFrom || undefined}
+                  className="h-8 text-sm"
+                />
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
+
+        {/* Chip "applicato" */}
+        {hasActiveFilters && (
+          <div className="flex items-center gap-1.5 ml-1">
+            <Badge
+              variant="secondary"
+              className="h-7 px-2 text-[11px] font-medium gap-1"
+            >
+              <span className="text-muted-foreground">Periodo:</span>
+              <span>
+                {period === "custom"
+                  ? hasCustomRange
+                    ? `${customFrom} → ${customTo}`
+                    : "Personalizzato"
+                  : periodLabel ?? period}
+              </span>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="ml-1 -mr-1 text-muted-foreground hover:text-foreground"
+                aria-label="Rimuovi filtro periodo"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          </div>
+        )}
+
+        <div className="flex-1" />
+
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetFilters}
+            className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            Reimposta
+          </Button>
+        )}
       </div>
 
       {/* Header ridotto visibile solo in stampa */}

@@ -18,6 +18,8 @@ import {
   Gauge,
   Type,
   Minus,
+  Square,
+  AlertTriangle,
 } from "lucide-react";
 import type {
   Aggregation,
@@ -25,6 +27,7 @@ import type {
   DashboardWidget,
   MetricCatalogItem,
   PeriodPreset,
+  WidgetTone,
 } from "@/lib/dashboardBuilder/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,7 +60,19 @@ const WIDGET_META: Record<
   progress: { label: "Barra progresso", icon: CircleDot, iconBg: "bg-green-100", iconColor: "text-green-600" },
   gauge: { label: "Indicatore", icon: Gauge, iconBg: "bg-amber-100", iconColor: "text-amber-600" },
   text_markdown: { label: "Testo libero", icon: Type, iconBg: "bg-zinc-100", iconColor: "text-zinc-600" },
-  divider: { label: "Separatore", icon: Minus, iconBg: "bg-zinc-100", iconColor: "text-zinc-400" },
+  divider: { label: "Intestazione sezione", icon: Minus, iconBg: "bg-zinc-100", iconColor: "text-zinc-400" },
+  stat_tile: { label: "Tile di stato", icon: Square, iconBg: "bg-emerald-100", iconColor: "text-emerald-600" },
+  alert_list: { label: "Lista alert", icon: AlertTriangle, iconBg: "bg-rose-100", iconColor: "text-rose-600" },
+};
+
+// ── Tone labels ──────────────────────────────────────────────────
+const TONE_LABELS: Record<string, string> = {
+  auto: "Automatico (in base ai dati)",
+  success: "Successo (verde)",
+  warning: "Attenzione (arancione)",
+  danger: "Critico (rosso)",
+  info: "Informativo (azzurro)",
+  neutral: "Neutro",
 };
 
 // ── Aggregation labels ───────────────────────────────────────────
@@ -139,7 +154,9 @@ export function ConfigPanel({
   const cfg = widget.config ?? {};
   const metric = catalog.find((m) => m.id === cfg.metric);
   const isMetricWidget = !["text_markdown", "divider"].includes(widget.type);
-  const supportsBreakdown = !["kpi_card", "progress", "gauge"].includes(widget.type);
+  const supportsBreakdown = !["kpi_card", "progress", "gauge", "stat_tile"].includes(widget.type);
+  // Widget con tono / descrizione / status label personalizzabili.
+  const supportsAppearance = ["stat_tile", "alert_list", "gauge", "progress"].includes(widget.type);
 
   const meta = WIDGET_META[widget.type] ?? {
     label: widget.type,
@@ -419,6 +436,69 @@ export function ConfigPanel({
             </section>
           )}
 
+          {/* Sezione: Aspetto (stat_tile / alert_list / progress / gauge) */}
+          {supportsAppearance && (
+            <section>
+              <SectionLabel>Aspetto</SectionLabel>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Tono cromatico</Label>
+                  <Select
+                    value={cfg.tone ?? "auto"}
+                    onValueChange={(v) =>
+                      setCfg({
+                        tone:
+                          v === "auto" ? undefined : (v as WidgetTone),
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TONE_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>
+                          {v}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground leading-snug mt-1">
+                    Lasciato su "Automatico" il colore deriva dal rapporto
+                    valore / target.
+                  </p>
+                </div>
+                {(widget.type === "stat_tile" ||
+                  widget.type === "gauge" ||
+                  widget.type === "progress") && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Etichetta stato</Label>
+                    <Input
+                      value={cfg.statusLabel ?? ""}
+                      onChange={(e) =>
+                        setCfg({ statusLabel: e.target.value || undefined })
+                      }
+                      placeholder='es. "Eccellente", "In linea"'
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label className="text-xs">Descrizione</Label>
+                  <Textarea
+                    value={cfg.description ?? ""}
+                    onChange={(e) =>
+                      setCfg({ description: e.target.value || undefined })
+                    }
+                    rows={2}
+                    placeholder="Breve nota mostrata sotto il valore"
+                    className="text-sm resize-none"
+                  />
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Sezione: Periodo */}
           {isMetricWidget && (
             <section>
@@ -658,10 +738,45 @@ export function ConfigPanel({
             </section>
           )}
 
+          {/* Azione (alert_list) ─────────────────────────────── */}
+          {widget.type === "alert_list" && (
+            <section>
+              <SectionLabel>Link azione</SectionLabel>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Etichetta link</Label>
+                  <Input
+                    value={cfg.actionLabel ?? ""}
+                    onChange={(e) =>
+                      setCfg({ actionLabel: e.target.value || undefined })
+                    }
+                    placeholder='es. "Vedi tutti gli alert"'
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">URL</Label>
+                  <Input
+                    value={cfg.actionHref ?? ""}
+                    onChange={(e) =>
+                      setCfg({ actionHref: e.target.value || undefined })
+                    }
+                    placeholder="/azienda/ordini"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Mostrato in fondo al widget. Lascia vuoto per nasconderlo.
+                </p>
+              </div>
+            </section>
+          )}
+
           {/* Placeholder per widget senza impostazioni avanzate */}
           {widget.type === "divider" && (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              Nessuna impostazione avanzata per il separatore.
+              Configura titolo e sottotitolo nella tab "Configura". Esempi
+              utili: "SALES CONTROL", "PIPELINE & FORECAST".
             </div>
           )}
         </TabsContent>

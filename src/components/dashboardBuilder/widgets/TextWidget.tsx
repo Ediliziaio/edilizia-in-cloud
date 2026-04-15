@@ -177,24 +177,42 @@ export function TextWidget({ widget }: Props) {
   );
 }
 
+/**
+ * DividerWidget — separatore / intestazione di sezione.
+ *
+ * In stile cruscotto Executive ("SALES CONTROL", "PIPELINE & FORECAST"):
+ *   • titolo uppercase tracking-widest piccolo grigio scuro
+ *   • sottotitolo opzionale 1 linea
+ *   • linea fine sotto come baseline
+ *
+ * Senza titolo è una semplice hr di separazione.
+ */
 export function DividerWidget({ widget }: Props) {
   const cfg = widget.config ?? {};
-  const label = cfg.title;
+  const label = cfg.title?.trim();
+  const subtitle = cfg.subtitle?.trim();
 
-  if (label) {
+  if (!label) {
     return (
-      <div className="h-full flex items-center gap-3">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
-          {label}
-        </span>
+      <div className="h-full flex items-center">
         <div className="flex-1 h-px bg-border" />
       </div>
     );
   }
 
   return (
-    <div className="h-full flex items-center">
-      <div className="flex-1 h-px bg-border" />
+    <div className="h-full flex flex-col justify-center">
+      <div className="flex items-baseline gap-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-foreground/80 shrink-0">
+          {label}
+        </h3>
+        {subtitle && (
+          <span className="text-[11px] text-muted-foreground truncate">
+            {subtitle}
+          </span>
+        )}
+        <div className="flex-1 h-px bg-border/80" />
+      </div>
     </div>
   );
 }
