@@ -147,12 +147,15 @@ Deno.serve(async (req) => {
     )
 
   } catch (err) {
-    // requireAuth / verifyCompanyAccess lanciano Response direttamente
+    // requireAuth lancia Response direttamente
     if (err instanceof Response) return err
-    console.error('[gestisci-sede] unexpected error:', err)
+    // verifyCompanyAccess lancia Error
+    const message = err instanceof Error ? err.message : 'Errore interno del server'
+    console.error('[gestisci-sede] error:', message)
+    const status = message.includes('Non autorizzato') ? 403 : 500
     return new Response(
-      JSON.stringify({ error: 'Errore interno del server' }),
-      { status: 500, headers: { ...corsH, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: message }),
+      { status, headers: { ...corsH, 'Content-Type': 'application/json' } }
     )
   }
 })
