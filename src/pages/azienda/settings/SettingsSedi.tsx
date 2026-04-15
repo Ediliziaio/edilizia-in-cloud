@@ -130,10 +130,14 @@ export default function SettingsSedi() {
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'aggiorna', company_id, sede_id: id, attiva },
       })
-      if (error) throw error
+      if (error) {
+        let errBody: any = null
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json() } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? 'Errore nell\'aggiornamento')
+      }
     },
     onSuccess: () => { invalidate() },
-    onError: () => toast.error('Errore nell\'aggiornamento'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const deleteMutation = useMutation({
@@ -141,14 +145,18 @@ export default function SettingsSedi() {
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'elimina', company_id, sede_id: id },
       })
-      if (error) throw error
+      if (error) {
+        let errBody: any = null
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json() } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? 'Errore nell\'eliminazione')
+      }
     },
     onSuccess: () => {
       toast.success('Sede eliminata')
       setDeleteId(null)
       invalidate()
     },
-    onError: () => toast.error('Errore nell\'eliminazione'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const setPrincipaleMutation = useMutation({
@@ -156,10 +164,14 @@ export default function SettingsSedi() {
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'aggiorna', company_id, sede_id: id, principale: true },
       })
-      if (error) throw error
+      if (error) {
+        let errBody: any = null
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json() } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? 'Errore')
+      }
     },
     onSuccess: () => { toast.success('Sede principale aggiornata'); invalidate() },
-    onError: () => toast.error('Errore'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   // ── Dialog ────────────────────────────────────────────────

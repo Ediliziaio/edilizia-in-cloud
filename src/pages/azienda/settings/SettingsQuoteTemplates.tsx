@@ -505,7 +505,11 @@ export default function SettingsQuoteTemplates() {
                       const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
                         body: { preview_mode: true, template_data: form, company_name: effectiveCompany?.name },
                       });
-                      if (error) throw error;
+                      if (error) {
+                        let errBody: any = null;
+                        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+                        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+                      }
                       if (!data?.pdf_base64) throw new Error("Nessun PDF ricevuto");
                       const binary = atob(data.pdf_base64);
                       const bytes = new Uint8Array(binary.length);

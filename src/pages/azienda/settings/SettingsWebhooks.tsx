@@ -97,7 +97,7 @@ function WebhookFormDialog({
     setTesting(true);
     setTestResult(null);
     try {
-      const { data } = await supabase.functions.invoke("send-webhook", {
+      const { data, error } = await supabase.functions.invoke("send-webhook", {
         body: {
           webhook_id: webhook?.id ?? null,
           event_type: "test.ping",
@@ -106,6 +106,11 @@ function WebhookFormDialog({
           test_url: webhook ? undefined : url,
         },
       });
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? error.message ?? "Errore invio webhook");
+      }
       setTestResult({ status: data?.status, http_status: data?.http_status });
     } catch {
       setTestResult({ status: "failed", http_status: null });

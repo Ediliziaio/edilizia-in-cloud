@@ -80,7 +80,11 @@ export default function SettingsSecurityDashboard() {
       const { data, error } = await supabase.functions.invoke("get-security-report", {
         body: { section: "overview" },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       return data?.overview;
     },
     enabled: !!companyId && isAdmin,
@@ -94,7 +98,11 @@ export default function SettingsSecurityDashboard() {
       const { data, error } = await supabase.functions.invoke("get-security-report", {
         body: { section: "sessions" },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       return data?.sessions || [];
     },
     enabled: !!companyId && isAdmin,
@@ -108,7 +116,11 @@ export default function SettingsSecurityDashboard() {
       const { data, error } = await supabase.functions.invoke("get-security-report", {
         body: { section: "audit_log" },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       return data?.audit_log || [];
     },
     enabled: !!companyId && isAdmin,
@@ -122,7 +134,11 @@ export default function SettingsSecurityDashboard() {
       const { data, error } = await supabase.functions.invoke("get-security-report", {
         body: { section: "login_attempts" },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       return data?.login_attempts || [];
     },
     enabled: !!companyId && isAdmin,
@@ -139,7 +155,11 @@ export default function SettingsSecurityDashboard() {
         body.session_id = params.sessionId;
       }
       const { data, error } = await supabase.functions.invoke("revoke-user-session", { body });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       if (data?.error) throw new Error(data.error);
       return data;
     },

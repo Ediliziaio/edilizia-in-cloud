@@ -247,7 +247,7 @@ export default function SettingsIntegrations() {
     return items.filter(
       (i) => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q)
     );
-  }, [search, metaIntegration, stats, gcalIntegrationLike]);
+  }, [search, metaIntegration, stats, gcalIntegrationLike, appleCalIntegrationLike, googleAdsIntegration]);
 
   const statusCards = useMemo(() => {
     const cards = [

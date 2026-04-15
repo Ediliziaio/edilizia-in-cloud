@@ -236,7 +236,11 @@ export default function SettingsBilling() {
       const { data, error } = await supabase.functions.invoke("billing-connect", {
         body: { action, ...bodyPayload },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
@@ -255,7 +259,11 @@ export default function SettingsBilling() {
       const { data, error } = await supabase.functions.invoke("billing-connect", {
         body: { action: "disconnect", provider },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
@@ -270,13 +278,18 @@ export default function SettingsBilling() {
       const { data, error } = await supabase.functions.invoke("billing-connect", {
         body: { action: "set_primary", provider },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       toast.success("Provider primario aggiornato");
       queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
     },
+    onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
   const toggleActiveMutation = useMutation({
@@ -295,7 +308,11 @@ export default function SettingsBilling() {
       const { data, error } = await supabase.functions.invoke("billing-connect", {
         body: { company_id: companyId, action: "test_connection", provider: integration.provider },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       if (data?.success) {
         toast.success("Connessione OK", { description: `Provider ${integration.provider} funzionante` });
       } else {

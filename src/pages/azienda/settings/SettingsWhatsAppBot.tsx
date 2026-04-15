@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,8 @@ export default function SettingsWhatsAppBot() {
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
   const [testNumber, setTestNumber] = useState("");
+  const [welcomeMsg, setWelcomeMsg] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["wa-bot-config", companyId],
@@ -102,7 +104,11 @@ export default function SettingsWhatsAppBot() {
         },
         headers: { Authorization: `Bearer ${session.data.session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) {
+        let errBody: any = null;
+        try { const ctx = (res.error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? res.error.message ?? "Errore invio messaggio");
+      }
       return res.data;
     },
     onSuccess: () => toast.success("Messaggio di test inviato!"),
@@ -272,8 +278,16 @@ export default function SettingsWhatsAppBot() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Textarea
-            value={config.welcome_message || ""}
-            onChange={(e) => updateConfig.mutate({ welcome_message: e.target.value })}
+            value={welcomeMsg ?? config.welcome_message ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              setWelcomeMsg(val);
+              if (debounceRef.current) clearTimeout(debounceRef.current);
+              debounceRef.current = setTimeout(() => {
+                updateConfig.mutate({ welcome_message: val });
+                setWelcomeMsg(null);
+              }, 800);
+            }}
             rows={3}
             placeholder="Ciao! Sono l'assistente di cantiere..."
           />

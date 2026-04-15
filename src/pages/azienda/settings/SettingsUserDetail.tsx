@@ -168,7 +168,7 @@ export default function SettingsUserDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
-      // Audit log
+      // Audit log (fire-and-forget, but log errors)
       if (currentUser && userData?.company_id) {
         supabase.from("user_audit_log").insert({
           company_id: userData.company_id,
@@ -177,7 +177,9 @@ export default function SettingsUserDetail() {
           action: "permissions_updated",
           details: {},
           is_impersonated: isImpersonating,
-        } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+        } as any).then(({ error: auditErr }) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          if (auditErr) console.error("[audit-log] insert failed:", auditErr.message);
+        });
       }
       toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
     },
@@ -259,7 +261,9 @@ export default function SettingsUserDetail() {
         // is_impersonated is a DB column not present in generated types — cast is intentional
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const auditPayload = { company_id: userData.company_id, actor_id: currentUser.id, target_user_id: userId!, action: "role_changed", details: { from: userData.role, to: newRole }, is_impersonated: isImpersonating } as any;
-        supabase.from("user_audit_log").insert(auditPayload);
+        supabase.from("user_audit_log").insert(auditPayload).then(({ error: auditErr }) => {
+          if (auditErr) console.error("[audit-log] insert failed:", auditErr.message);
+        });
       }
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },

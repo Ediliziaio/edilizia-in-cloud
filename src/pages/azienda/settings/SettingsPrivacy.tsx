@@ -45,7 +45,11 @@ export default function SettingsPrivacy() {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "get_consents" },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       return data as Array<{ consent_type: string; granted: boolean; granted_at: string | null; revoked_at: string | null }>;
     },
   });
@@ -57,7 +61,11 @@ export default function SettingsPrivacy() {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "get_requests" },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       return data as Array<{ id: string; request_type: string; status: string; download_url: string | null; expires_at: string | null; created_at: string; reason: string | null }>;
     },
   });
@@ -67,7 +75,11 @@ export default function SettingsPrivacy() {
       const { error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "update_consent", consent_type, granted },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.consents });
@@ -81,7 +93,11 @@ export default function SettingsPrivacy() {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "request_export" },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
       return data;
     },
     onSuccess: (data: any) => {
@@ -101,7 +117,11 @@ export default function SettingsPrivacy() {
       const { error } = await supabase.functions.invoke("gdpr-compliance", {
         body: { action: "request_deletion", reason: deletionReason },
       });
-      if (error) throw error;
+      if (error) {
+        let errBody: any = null;
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.gdpr.requests });
