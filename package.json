@@ -132,6 +132,9 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "serialize-javascript": ">=7.0.5"
+    "serialize-javascript": ">=7.0.5",
+    "@react-pdf/layout": "4.4.2",
+    "@react-pdf/image": "3.0.4",
+    "@react-pdf/render": "4.3.2"
   }
 }
