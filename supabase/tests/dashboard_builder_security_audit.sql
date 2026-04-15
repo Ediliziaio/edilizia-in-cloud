@@ -150,7 +150,9 @@ BEGIN
 
   -- Insert direttamente (bypass RLS come service_role) una ghost dashboard
   -- Serve la FK company → creiamo anche una ghost company
-  INSERT INTO public.companies (id, name) VALUES (v_ghost_company, '__security_test__') ON CONFLICT DO NOTHING;
+  INSERT INTO public.companies (id, name, email)
+  VALUES (v_ghost_company, '__security_test__', '__sec_test_' || v_ghost_company::text || '@test.local')
+  ON CONFLICT DO NOTHING;
   INSERT INTO public.dashboards (id, company_id, owner_id, name, scope)
   VALUES (gen_random_uuid(), v_ghost_company, v_real_user, 'Ghost Dashboard', 'company')
   RETURNING id INTO v_ghost_dash;
