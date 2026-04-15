@@ -133,14 +133,15 @@ DECLARE
   v_result        JSONB;
   v_err           TEXT;
 BEGIN
-  -- Prendi un utente reale (il primo disponibile in user_companies)
-  SELECT uc.user_id, uc.company_id
+  -- Prendi un utente reale (il primo disponibile in profiles)
+  SELECT p.id, p.company_id
     INTO v_real_user, v_real_company
-  FROM public.user_companies uc
+  FROM public.profiles p
+  WHERE p.company_id IS NOT NULL
   LIMIT 1;
 
   IF v_real_user IS NULL THEN
-    RAISE NOTICE '⚠ Skip test: nessun user_companies trovato';
+    RAISE NOTICE '⚠ Skip test: nessun profile con company trovato';
     RETURN;
   END IF;
 
