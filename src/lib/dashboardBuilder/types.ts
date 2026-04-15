@@ -217,3 +217,34 @@ export interface MetricCatalogItem {
   requires_role: string | null;
   is_active: boolean;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Role-based cruscotto types (Sprint 5)
+// ═══════════════════════════════════════════════════════════════
+
+export type AppRole =
+  | "super_admin"
+  | "company_admin"
+  | "company_staff"
+  | "salesperson"
+  | "call_center"
+  | "employee";
+
+export interface CompanyRoleDashboard {
+  role: AppRole;
+  dashboard_id: string;
+  dashboard_name: string;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface DashboardTemplate {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  target_roles: AppRole[];
+  category: string | null;
+  icon: string | null;
+  sort_order: number;
+}
