@@ -7,12 +7,13 @@
  * Layout: 3 colonne desktop, 1 colonna mobile. Tutto cliccabile = drill-down.
  */
 import { Link } from "react-router-dom";
-import { ArrowRight, Wallet, AlertTriangle, CalendarClock, TrendingUp, TrendingDown, Package, Euro, Receipt, Clock, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Wallet, AlertTriangle, CalendarClock, TrendingUp, TrendingDown, Package, Euro, Receipt, Clock, CheckCircle2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CashFlow, WeeklyDeadlinesData, FinancialAlert, UrgentItem, RecentOrder } from "@/hooks/useCompanyDashboardData";
 
 interface WarRoomProps {
@@ -40,10 +41,24 @@ function CashColumn({ cashFlow, agingReceivables }: { cashFlow: CashFlow; agingR
     )}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <Wallet className="h-3.5 w-3.5" />
-              Cassa oggi
+              <span>Ordinato vs pianificato</span>
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" aria-label="Cos'è questo dato">
+                      <Info className="h-3 w-3 text-muted-foreground/70 hover:text-foreground transition-colors" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[280px] text-xs leading-relaxed">
+                    <strong className="block mb-1">Non è un saldo di cassa reale.</strong>
+                    Valore ordini creati nel mese meno costi aziendali pianificati nel mese.
+                    Per il saldo di banca reale vai al Previsionale o ai Movimenti.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <CardTitle className={cn(
               "text-2xl sm:text-3xl font-bold mt-1 tabular-nums",
@@ -51,8 +66,8 @@ function CashColumn({ cashFlow, agingReceivables }: { cashFlow: CashFlow; agingR
             )}>
               {formatCurrency(cashFlow.netCashFlow)}
             </CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Saldo netto corrente · {isHealthy ? "situazione stabile" : "attenzione richiesta"}
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+              Margine teorico del mese · dato commerciale, non cassa reale
             </p>
           </div>
           {isHealthy ? (
@@ -67,13 +82,13 @@ function CashColumn({ cashFlow, agingReceivables }: { cashFlow: CashFlow; agingR
         {/* Flusso mensile */}
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 p-2.5">
-            <div className="text-[10px] uppercase text-emerald-700 dark:text-emerald-400 font-medium">Entrate mese</div>
+            <div className="text-[10px] uppercase text-emerald-700 dark:text-emerald-400 font-medium">Ordinato mese</div>
             <div className="text-sm font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
               {formatCurrencyCompact(cashFlow.thisMonthIncome)}
             </div>
           </div>
           <div className="rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-800/40 p-2.5">
-            <div className="text-[10px] uppercase text-rose-700 dark:text-rose-400 font-medium">Uscite mese</div>
+            <div className="text-[10px] uppercase text-rose-700 dark:text-rose-400 font-medium">Costi pianificati</div>
             <div className="text-sm font-semibold tabular-nums text-rose-700 dark:text-rose-300">
               {formatCurrencyCompact(cashFlow.thisMonthOutflow)}
             </div>
@@ -109,21 +124,21 @@ function CashColumn({ cashFlow, agingReceivables }: { cashFlow: CashFlow; agingR
           </div>
         )}
 
-        {/* Prossimo mese */}
-        <div className="mt-auto rounded-lg border bg-muted/40 p-2.5 flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase text-muted-foreground font-medium">Prev. prossimo mese</div>
-            <div className="text-sm font-semibold tabular-nums">
-              {formatCurrency(cashFlow.nextMonth)}
-            </div>
-          </div>
+        {/* Link al previsionale per il vero saldo di cassa */}
+        <div className="mt-auto rounded-lg border border-dashed bg-muted/30 p-2.5">
           <Link
             to="/azienda/previsionale"
-            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5 shrink-0"
+            className="flex items-center justify-between gap-2 text-xs font-medium text-primary hover:underline"
           >
-            Previsionale
+            <span className="flex items-center gap-1.5">
+              <Wallet className="h-3.5 w-3.5" />
+              Vedi saldo di cassa reale
+            </span>
             <ArrowRight className="h-3 w-3" />
           </Link>
+          <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
+            Previsionale con incassi reali, fatture fornitori e movimenti bancari
+          </p>
         </div>
       </CardContent>
     </Card>

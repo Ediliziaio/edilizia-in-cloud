@@ -292,13 +292,13 @@ export default function CompanyDashboard() {
 
       {/* Alert persistenti (cashflow negativo + alert finanziari) */}
       {cashFlow.netCashFlow < 0 && !dismissedAlerts.has("cashflow-negative") && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border bg-destructive/10 border-destructive/30 text-destructive animate-in slide-in-from-top-2">
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-800/50 dark:text-amber-300 animate-in slide-in-from-top-2">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="text-sm font-medium flex-1">
-            Cash flow negativo previsto: {formatCurrency(cashFlow.netCashFlow)}.{" "}
-            <Link to="/azienda/previsionale" className="underline font-semibold">Vai al previsionale →</Link>
+            Costi pianificati superano l'ordinato del mese: {formatCurrency(cashFlow.netCashFlow)} (dato commerciale).{" "}
+            <Link to="/azienda/previsionale" className="underline font-semibold">Verifica saldo reale →</Link>
           </span>
-          <button onClick={() => dismissAlert("cashflow-negative")} className="shrink-0 p-1 rounded hover:bg-destructive/20 transition-colors" aria-label="Chiudi alert">
+          <button onClick={() => dismissAlert("cashflow-negative")} className="shrink-0 p-1 rounded hover:bg-amber-200/50 dark:hover:bg-amber-900/30 transition-colors" aria-label="Chiudi alert">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -418,12 +418,17 @@ export default function CompanyDashboard() {
                   <div>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <TrendingUp className="h-4 w-4 text-primary" />
-                      Bilancio Mese
+                      Ordinato vs Costi Pianificati
                     </CardTitle>
-                    <CardDescription className="text-xs">Entrate vs uscite (ultimi 6 mesi)</CardDescription>
+                    <CardDescription className="text-xs">
+                      Valore ordini vs costi pianificati · ultimi 6 mesi
+                      <span className="block text-[10px] mt-0.5 italic">
+                        non include incassi reali o fatture fornitori
+                      </span>
+                    </CardDescription>
                   </div>
                   <Button variant="ghost" size="sm" asChild>
-                    <Link to="/azienda/previsionale">Dettaglio</Link>
+                    <Link to="/azienda/previsionale">Cassa reale</Link>
                   </Button>
                 </div>
               </CardHeader>
@@ -439,18 +444,18 @@ export default function CompanyDashboard() {
                         contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
                       />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="entrate" name="Entrate" fill="hsl(142 76% 36%)" radius={[3, 3, 0, 0]} barSize={14} />
-                      <Bar dataKey="uscite" name="Uscite" fill="hsl(0 84% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
+                      <Bar dataKey="entrate" name="Ordinato" fill="hsl(142 76% 36%)" radius={[3, 3, 0, 0]} barSize={14} />
+                      <Bar dataKey="uscite" name="Costi pianificati" fill="hsl(0 84% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
+                <Link to="/azienda/previsionale" className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border hover:bg-muted/60 transition-colors">
                   <div>
-                    <p className="text-[10px] uppercase text-muted-foreground font-medium">Prossimo mese</p>
-                    <p className="text-base font-semibold tabular-nums">{formatCurrency(cashFlow.nextMonth)}</p>
+                    <p className="text-[10px] uppercase text-muted-foreground font-medium">Saldo di cassa reale</p>
+                    <p className="text-sm font-semibold text-primary">Vai al Previsionale →</p>
                   </div>
-                  <Euro className="h-5 w-5 text-muted-foreground" />
-                </div>
+                  <Euro className="h-5 w-5 text-primary" />
+                </Link>
               </CardContent>
             </Card>
 
