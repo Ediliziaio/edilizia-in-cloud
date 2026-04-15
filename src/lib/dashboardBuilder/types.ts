@@ -83,6 +83,7 @@ export interface WidgetConfig {
   formula?: string; // es. "value / 1000"
   // Per widget testo
   markdown?: string;
+  text?: string;
   // Per widget table
   columns?: Array<{ key: string; label: string; format?: string }>;
   // Per widget progress/gauge

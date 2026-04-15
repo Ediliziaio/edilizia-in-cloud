@@ -10,6 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
 const CruscottoHub = lazy(() => import("@/pages/azienda/CruscottoHub"));
+const DashboardsList = lazy(() => import("@/pages/azienda/dashboards/DashboardsList"));
+const DashboardView = lazy(() => import("@/pages/azienda/dashboards/DashboardView"));
 const SettingsProfile = lazy(() => import("@/pages/azienda/settings/SettingsProfile"));
 const SettingsCatalog = lazy(() => import("@/pages/azienda/settings/SettingsCatalog"));
 const SettingsOrderStatus = lazy(() => import("@/pages/azienda/settings/SettingsOrderStatus"));
@@ -217,6 +219,9 @@ export function companyRoutes() {
         <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="cruscotto" element={<CruscottoHub />} />
         <Route path="cruscotto/aziendale" element={<CruscottoAziendale />} />
+        {/* Dashboard Builder v1 — custom dashboards */}
+        <Route path="dashboards" element={<ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary>} />
+        <Route path="dashboards/:id" element={<ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary>} />
         <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento ordini"><OrdersList /></ErrorBoundary>} />
         <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione ordine"><CreateOrder /></ErrorBoundary>} />
         <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio ordine"><OrderDetail /></ErrorBoundary>} />
