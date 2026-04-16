@@ -1,7 +1,12 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { initSentry } from "./lib/velocity/sentry";
 import { initWebVitalsReporter } from "./lib/velocity/webVitalsReporter";
+
+// Velocity — Sentry init PRIMA del mount per catturare errori early.
+// No-op se VITE_SENTRY_DSN non è definita.
+initSentry();
 
 // When a lazy-loaded chunk fails (e.g. after a new deploy the old hash no
 // longer exists on the server), Vite fires this event. Force a hard reload so

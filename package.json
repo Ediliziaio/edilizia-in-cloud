@@ -69,6 +69,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@react-pdf/renderer": "4.3.2",
     "@remix-run/router": "^1.23.2",
+    "@sentry/react": "^10.48.0",
     "@supabase/supabase-js": "^2.95.3",
     "@tanstack/react-query": "^5.83.0",
     "@tanstack/react-virtual": "^3.13.21",
