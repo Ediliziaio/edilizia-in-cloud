@@ -120,6 +120,24 @@ export default defineConfig(() => ({
   },
   build: {
     chunkSizeWarningLimit: 1500,
+    // ─────────────────────────────────────────────────────────────
+    // modulePreload filtrato (Velocity V3, Sprint 1.A)
+    // Senza questo, Rolldown mette nel <head> dell'index.html un
+    // `<link rel="modulepreload">` per OGNI dipendenza transitiva
+    // dei chunk lazy — incluso vendor-pdf (≈740 KB gzip!),
+    // vendor-charts (≈127 KB), vendor-flow (≈65 KB), vendor-excel
+    // (≈256 KB). Risultato: al primo paint il browser mobile
+    // scarica ~1 MB gzip EXTRA di JS che l'utente non userà mai
+    // al login. Qui escludiamo i vendor "di feature" dal preload:
+    // verranno comunque caricati on-demand quando la route che
+    // li importa viene montata (lazy(() => import(...))).
+    // ─────────────────────────────────────────────────────────────
+    modulePreload: {
+      resolveDependencies: (_filename, deps) => {
+        const HEAVY_OPTIONAL = /vendor-(pdf|charts|flow|maps|qr|excel)/;
+        return deps.filter((d) => !HEAVY_OPTIONAL.test(d));
+      },
+    },
     rollupOptions: {
       output: {
         // Consolidate date-fns and react-day-picker into a single named chunk.
