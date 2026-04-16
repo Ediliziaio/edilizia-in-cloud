@@ -79,6 +79,7 @@ import { Badge } from "@/components/ui/badge";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 import { ViewAsBanner } from "@/components/admin/ViewAsBanner";
 import { ViewAsDropdown } from "@/components/admin/ViewAsDropdown";
+import { SuperAdminCompanySwitcher } from "@/components/admin/SuperAdminCompanySwitcher";
 import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
@@ -146,23 +147,30 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
     navigateToSubdomain("/admin/aziende", "admin", navigate);
   };
 
+  // Fallback testuale quando la fetch di impersonatedCompany è ancora in corso
+  // (evita il flash con stringa vuota "Stai visualizzando come:  " che confondeva
+  // l'utente su "quale azienda sto impersonando?").
+  const label = impersonatedCompany?.name ?? "caricamento azienda…";
+
   return (
     <div className="bg-warning text-warning-foreground px-3 py-2 flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         <span className="font-medium text-sm truncate">
-          <span className="hidden sm:inline">Stai visualizzando come: </span><strong>{impersonatedCompany?.name}</strong>
+          <span className="hidden sm:inline">Stai visualizzando come: </span><strong>{label}</strong>
         </span>
       </div>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={handleExit}
-        className="shrink-0"
-      >
-        <ArrowLeft className="h-4 w-4 sm:mr-2" />
-        <span className="hidden sm:inline">Torna a Admin</span>
-      </Button>
+      <div className="flex items-center gap-2 shrink-0">
+        <SuperAdminCompanySwitcher />
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleExit}
+        >
+          <ArrowLeft className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Torna a Admin</span>
+        </Button>
+      </div>
     </div>
   );
 });

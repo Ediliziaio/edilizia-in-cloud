@@ -15,6 +15,7 @@
  *  - Vista personalizzabile via DashboardWidgetCustomizer
  */
 import { useState, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   ClipboardList, Users, Plus, Euro, Package, TrendingUp, AlertTriangle,
-  ChevronDown, RefreshCw, Settings2, X, LayoutDashboard,
+  ChevronDown, RefreshCw, Settings2, X, LayoutDashboard, Loader2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -121,6 +122,10 @@ function WarehouseAlerts({ urgentItems }: { urgentItems: UrgentWarehouseItem[] }
 
 export default function CompanyDashboard() {
   const queryClient = useQueryClient();
+  // isImpersonating + impersonatedCompanyId ci dicono se siamo in transizione:
+  // il super_admin ha cliccato "Accedi" ma fetchImpersonatedCompany deve ancora
+  // risolvere → mostriamo un loader invece di "Nessuna azienda selezionata".
+  const { isImpersonating, impersonatedCompanyId } = useAuth();
 
   const {
     companyId, filters, updateFilters,
@@ -178,6 +183,19 @@ export default function CompanyDashboard() {
   // Guards
   // ─────────────────────────────────────────────
   if (!companyId) {
+    // Durante l'impersonazione (super_admin → azienda) c'è una finestra breve
+    // in cui impersonatedCompanyId è già settato ma fetchImpersonatedCompany
+    // non ha ancora caricato l'oggetto Company. In quell'istante companyId è
+    // undefined: mostriamo un loader invece dell'empty state "Nessuna azienda".
+    if (isImpersonating || impersonatedCompanyId) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center py-16 text-muted-foreground">
+          <Loader2 className="h-8 w-8 mb-4 animate-spin" />
+          <p className="font-medium text-foreground">Caricamento azienda…</p>
+          <p className="text-sm mt-1">Stiamo aprendo il pannello dell'azienda selezionata</p>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center text-center py-16 text-muted-foreground">
         <Users className="h-12 w-12 mb-4 opacity-50" />

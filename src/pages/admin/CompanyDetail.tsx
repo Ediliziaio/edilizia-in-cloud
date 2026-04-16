@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { getSubdomainUrl, navigateToSubdomain } from "@/utils/subdomainNav";
+import { safeRedirect } from "@/utils/safeRedirect";
+import { useAuth, getCachedTokens } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -44,6 +47,7 @@ export default function CompanyDetail() {
   const navigate = useNavigate();
   const h = useCompanyDetail(id);
   const queryClient = useQueryClient();
+  const { profile, role, company: saCompany } = useAuth();
   const [activeTab, setActiveTab] = useState("panoramica");
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -109,9 +113,41 @@ export default function CompanyDetail() {
   const totalTeam = (h.teamData?.admins.length || 0) + (h.teamData?.staff.length || 0) + (h.teamData?.salespeople.length || 0) + (h.teamData?.employees.length || 0);
 
 
+  // Avvia impersonazione azienda con cross-subdomain handoff.
+  // Stesso pattern di CompaniesList/AdminLayout: ottiene il token secure,
+  // costruisce l'hash #_at=&_rt=&_it=&_ic=&_pr= e redireziona su app.*.
+  // In locale getSubdomainUrl restituisce solo il path → safeRedirect fa un
+  // same-origin navigation con i token in hash, che AuthContext riprende
+  // per sincronizzare sessione + impersonated company in ordine corretto
+  // (evita il flash "Nessuna azienda selezionata").
   const handleImpersonate = async () => {
-    await h.handleImpersonate();
-    navigate("/azienda");
+    if (!h.company) return;
+    const impToken = await h.handleImpersonate();
+    if (impToken) {
+      const { accessToken, refreshToken } = getCachedTokens();
+      if (accessToken && refreshToken) {
+        let pr: string | undefined;
+        if (profile && role) {
+          try {
+            const relay = JSON.stringify({ profile, role, company: saCompany ?? null });
+            pr = btoa(relay).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+          } catch {
+            // relay opzionale — graceful degradation
+          }
+        }
+        const params = new URLSearchParams({
+          _at: accessToken,
+          _rt: refreshToken,
+          _it: impToken,
+          _ic: h.company.id,
+          ...(pr ? { _pr: pr } : {}),
+        });
+        const url = getSubdomainUrl(`/azienda#${params.toString()}`, "app");
+        safeRedirect(url);
+        return;
+      }
+    }
+    navigateToSubdomain("/azienda", "app", navigate);
   };
 
   const handleDeleteCompany = async () => {

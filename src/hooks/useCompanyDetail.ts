@@ -379,10 +379,9 @@ export function useCompanyDetail(id: string | undefined) {
 
   // ========== HANDLERS ==========
 
-  const handleImpersonate = async () => {
-    if (company) {
-      await impersonateCompany(company.id, saPermissions);
-    }
+  const handleImpersonate = async (): Promise<string | null> => {
+    if (!company) return null;
+    return await impersonateCompany(company.id, saPermissions);
   };
 
   const handleCreateStaff = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
