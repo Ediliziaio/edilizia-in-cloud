@@ -122,10 +122,11 @@ export default function CampoCalendario() {
   const { data: employeeId } = useQuery({
     queryKey: ["campo-emp-id", user?.id, profile?.company_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("employees").select("id")
         .eq("user_id", user!.id).eq("company_id", profile!.company_id)
         .maybeSingle();
+      if (error) throw error;
       return data?.id ?? null;
     },
     enabled: !!user?.id && !!profile?.company_id,
@@ -135,10 +136,11 @@ export default function CampoCalendario() {
   const { data: allCantieri = [], isLoading: loadingCantieri } = useQuery({
     queryKey: ["campo-lavori-full", employeeId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("order_employees")
         .select(`id, order_id, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)`)
         .eq("employee_id", employeeId!);
+      if (error) throw error;
       const seen = new Set<string>();
       return (data ?? []).filter((a: any) => {
         if (!a.order?.id || seen.has(a.order.id)) return false;
@@ -154,13 +156,14 @@ export default function CampoCalendario() {
   const { data: allAppuntamenti = [], isLoading: loadingApp } = useQuery({
     queryKey: ["campo-appuntamenti", user?.id, profile?.company_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("appointments")
         .select("id, title, description, appointment_date, appointment_time, appointment_end_time, appointment_type, status, formatted_address, lat, lng, order_id, address_line, address_city")
         .eq("company_id", profile!.company_id)
         .eq("assigned_to", user!.id)
         .neq("status", "annullato")
         .neq("status", "cancelled");
+      if (error) throw error;
       return (data ?? []).map((a: any) => ({
         ...a,
         type: "appuntamento" as const,

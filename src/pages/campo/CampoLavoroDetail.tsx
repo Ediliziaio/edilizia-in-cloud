@@ -2,7 +2,7 @@
  * Dettaglio ordine/cantiere assegnato all'operaio o subappaltatore.
  * Verifica accesso tramite order_campo_assignments — sicurezza obbligatoria.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -78,10 +78,11 @@ export default function CampoLavoroDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("descrizione");
 
   // Verifica assegnazione — controlla order_campo_assignments e order_employees
-  const { data: assignment, isLoading } = useQuery({
+  const { data: assignment, isLoading, isError, error } = useQuery({
     queryKey: ["campo-lavoro", orderId, user?.id],
     queryFn: async () => {
       const orderSelect = `
@@ -94,57 +95,70 @@ export default function CampoLavoroDetail() {
       `;
 
       // 1. Prova order_campo_assignments
-      const { data: campoData } = await supabase
+      const { data: campoData, error: campoErr } = await supabase
         .from("order_campo_assignments")
         .select(`*, order:orders(${orderSelect})`)
         .eq("order_id", orderId!)
         .eq("user_id", user!.id)
         .maybeSingle();
+      if (campoErr) throw campoErr;
 
-      if (campoData) return campoData;
+      if (campoData?.order) return campoData;
 
       // 2. Fallback: controlla order_employees
-      const { data: emp } = await supabase
+      const { data: emp, error: empErr } = await supabase
         .from("employees")
         .select("id")
         .eq("user_id", user!.id)
         .maybeSingle();
+      if (empErr) throw empErr;
 
       if (emp?.id) {
-        const { data: empRows } = await supabase
+        const { data: empRows, error: rowsErr } = await supabase
           .from("order_employees")
           .select("id, order_id")
           .eq("order_id", orderId!)
           .eq("employee_id", emp.id)
           .limit(1);
+        if (rowsErr) throw rowsErr;
         const empAssign = empRows?.[0] ?? null;
 
         if (empAssign) {
-          const { data: orderData } = await supabase
+          const { data: orderData, error: ordErr } = await supabase
             .from("orders")
             .select(orderSelect)
             .eq("id", orderId!)
             .single();
+          if (ordErr) throw ordErr;
+          if (!orderData) return null;
 
           return { ...empAssign, order: orderData, is_capocantiere: false };
         }
       }
 
-      // Non assegnato → redirect sicuro
-      navigate("/campo");
+      // Non assegnato — ritorna null, la redirect la fa un useEffect
       return null;
     },
     enabled: !!orderId && !!user?.id,
+    retry: 1,
   });
+
+  // Redirect sicuro quando non c'è assegnazione (fuori dalla queryFn → no side-effect in render)
+  useEffect(() => {
+    if (!isLoading && !isError && assignment === null) {
+      navigate("/campo", { replace: true });
+    }
+  }, [isLoading, isError, assignment, navigate]);
 
   // Articoli ordine
   const { data: orderItems = [] } = useQuery({
     queryKey: ["campo-order-items", orderId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("order_items")
         .select("*")
         .eq("order_id", orderId!);
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!orderId && activeTab === "descrizione",
@@ -154,12 +168,13 @@ export default function CampoLavoroDetail() {
   const { data: rapportini = [] } = useQuery({
     queryKey: ["campo-rapportini-ordine", orderId, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("campo_rapportini")
         .select("*")
         .eq("order_id", orderId!)
         .eq("user_id", user!.id)
         .order("data_lavoro", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!orderId && !!user?.id && activeTab === "rapportini",
@@ -173,7 +188,35 @@ export default function CampoLavoroDetail() {
     );
   }
 
-  if (!assignment) return null;
+  // Errore di rete/RLS → mostra fallback visibile invece di pagina bianca
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-6 text-center">
+        <AlertCircle className="w-10 h-10 text-destructive mb-3" />
+        <p className="font-semibold text-foreground">Impossibile caricare il lavoro</p>
+        <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-xs">
+          {error instanceof Error ? error.message : "Errore di connessione"}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["campo-lavoro", orderId] })}
+            className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium"
+          >
+            Riprova
+          </button>
+          <button
+            onClick={() => navigate("/campo")}
+            className="px-4 py-2 rounded-xl border border-border text-sm font-medium"
+          >
+            Torna indietro
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // assignment === null → redirect già innescato dall'useEffect
+  if (!assignment || !assignment.order) return null;
 
   const order = assignment.order as any;
   const customer = order?.customer;
@@ -399,11 +442,12 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: a
   const { data: firmeRichieste = [], isLoading } = useQuery({
     queryKey: ["campo-firme-ordine", orderId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("signature_requests")
         .select("*")
         .eq("order_id", orderId)
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!orderId,
@@ -649,11 +693,12 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
     queryKey: ["campo-canale-cantiere", orderId, orderCode],
     queryFn: async () => {
       if (!orderCode) return null;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("internal_chat_channels")
         .select("id, name")
         .eq("name", channelName)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
     enabled: !!orderCode,

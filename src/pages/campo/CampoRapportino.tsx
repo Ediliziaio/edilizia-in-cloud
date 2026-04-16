@@ -23,6 +23,41 @@ import { useGPS } from "@/hooks/useGPS";
 
 const TOTAL_STEPS = 3;
 
+/**
+ * Compressione immagine lato client con gestione completa degli errori:
+ * - img.onerror rifiuta la Promise (prima restava pending → loader infinito)
+ * - toBlob può ritornare null → Promise rifiutata, il caller usa fallback
+ * - URL.revokeObjectURL per evitare memory leak dei blob URL temporanei
+ * - timeout 10s per evitare loader "Uploading…" bloccato se il browser non risponde
+ */
+async function compressImage(file: File, maxWidth = 1280, quality = 0.75): Promise<Blob> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      const t = setTimeout(() => reject(new Error("image load timeout")), 10000);
+      el.onload = () => { clearTimeout(t); resolve(el); };
+      el.onerror = () => { clearTimeout(t); reject(new Error("image load error")); };
+      el.src = objectUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.min(img.width || maxWidth, maxWidth);
+    canvas.height = Math.round((img.height || canvas.width) * (canvas.width / (img.width || canvas.width)));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas 2d context unavailable");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", quality);
+    });
+    if (!blob) throw new Error("toBlob returned null");
+    return blob;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export default function CampoRapportino() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
@@ -48,45 +83,65 @@ export default function CampoRapportino() {
   // Step 3
   const [lavoro_completato, setLavoroCompletato] = useState(false);
 
-  // Acquisisci GPS all'inizio
+  // Acquisisci GPS all'inizio — una sola volta al mount (requestPosition è useCallback
+  // con dep [companyId]; se companyId cambia da null a valore, l'effect rilancia una
+  // volta sola). Evitiamo comunque di ciclare includendo requestPosition nelle deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    requestPosition();
-  }, [requestPosition]);
+    if (profile?.company_id) requestPosition();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.company_id]);
 
   // ── Upload foto ──────────────────────────────────────────────────────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
+    if (!profile?.company_id || !orderId) {
+      toast.error("Sessione non pronta, riprova");
+      return;
+    }
     const files = Array.from(e.target.files).slice(0, 5);
     setUploadingFoto(true);
 
     const previews: string[] = [];
     const urls: string[] = [];
+    let failed = 0;
 
     for (const file of files) {
-      previews.push(URL.createObjectURL(file));
+      const previewUrl = URL.createObjectURL(file);
+      previews.push(previewUrl);
 
-      // Comprimi e carica
-      const canvas = document.createElement("canvas");
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-      await new Promise(res => { img.onload = res; });
-      canvas.width = Math.min(img.width, 1280);
-      canvas.height = img.height * (canvas.width / img.width);
-      const ctx2 = canvas.getContext("2d")!;
-      ctx2.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob>(res => canvas.toBlob(b => res(b!), "image/jpeg", 0.75));
+      try {
+        // Comprimi: se il browser fallisce qualsiasi step, carica il file originale
+        const compressed = await compressImage(file).catch(() => null);
+        const payload: Blob = compressed ?? file;
 
-      const path = `${profile!.company_id}/${orderId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-      const { data: up } = await supabase.storage.from("campo-rapportini").upload(path, blob);
-      if (up?.path) {
+        const path = `${profile.company_id}/${orderId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        const { data: up, error: upErr } = await supabase.storage
+          .from("campo-rapportini")
+          .upload(path, payload, { contentType: "image/jpeg", upsert: false });
+
+        if (upErr) throw upErr;
+        if (!up?.path) throw new Error("Upload senza path");
+
         const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
         urls.push(urlData.publicUrl);
+      } catch (err) {
+        failed++;
+        console.error("[CampoRapportino] upload foto:", err);
       }
     }
 
     setFotoPreviews(prev => [...prev, ...previews]);
     setFotoUrls(prev => [...prev, ...urls]);
     setUploadingFoto(false);
+
+    if (failed > 0) {
+      toast.error(
+        failed === files.length
+          ? "Impossibile caricare le foto — riprova"
+          : `Caricate ${files.length - failed}/${files.length} foto`,
+      );
+    }
   };
 
   // ── Salvataggio ──────────────────────────────────────────────────────

@@ -99,12 +99,13 @@ function TimbraturaCampo() {
   const { data: timbratureOggi = [], isLoading } = useQuery({
     queryKey: ["campo-timbrature-oggi", user?.id, today],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
         .gte("timestamp_evento", `${today}T00:00:00`)
         .order("timestamp_evento", { ascending: true });
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!user?.id,
@@ -279,12 +280,13 @@ function CantieriAssegnati() {
   const { data: employeeId } = useQuery({
     queryKey: ["campo-employee-id", user?.id, profile?.company_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("employees")
         .select("id")
         .eq("user_id", user!.id)
         .eq("company_id", profile!.company_id)
         .maybeSingle();
+      if (error) throw error;
       return data?.id ?? null;
     },
     enabled: !!user?.id && !!profile?.company_id,
@@ -294,7 +296,7 @@ function CantieriAssegnati() {
     queryKey: ["campo-lavori-assegnati", employeeId],
     queryFn: async () => {
       // Usa order_employees (sempre popolata) come fonte primaria
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("order_employees")
         .select(`
           id, order_id,
@@ -305,6 +307,7 @@ function CantieriAssegnati() {
           )
         `)
         .eq("employee_id", employeeId!);
+      if (error) throw error;
       // Deduplica per order_id (possono esserci più righe per lo stesso ordine)
       const seen = new Set<string>();
       return (data ?? []).filter((a: any) => {
@@ -401,13 +404,14 @@ function CantieriSub() {
     queryKey: ["campo-cantieri-sub", user?.id, profile?.company_id],
     queryFn: async () => {
       // Prima prova order_campo_assignments (assegnazioni dirette)
-      const { data: ocaData } = await supabase
+      const { data: ocaData, error: ocaErr } = await supabase
         .from("order_campo_assignments")
         .select(`
           id, order_id, role_type, note,
           order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento)
         `)
         .eq("user_id", user!.id);
+      if (ocaErr) throw ocaErr;
 
       if (ocaData && ocaData.length > 0) {
         // Deduplica per order_id e filtra completati
@@ -422,17 +426,19 @@ function CantieriSub() {
       }
 
       // Fallback: vecchia logica subappaltatori/contratti_subappalto
-      const { data: subData } = await supabase
+      const { data: subData, error: subErr } = await supabase
         .from("subappaltatori")
         .select("id")
         .eq("user_id", user!.id)
         .maybeSingle();
+      if (subErr) throw subErr;
       if (!subData?.id) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("contratti_subappalto")
         .select(`*, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento)`)
         .eq("subappaltatore_id", subData.id)
         .eq("stato", "attivo");
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!user?.id,
@@ -498,13 +504,14 @@ function RapportiniSospesi() {
   const { data: rapportini = [] } = useQuery({
     queryKey: ["campo-rapportini-sospesi", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("campo_rapportini")
         .select("id, order_id, data_lavoro, order:orders(order_code, description)")
         .eq("user_id", user!.id)
         .eq("lavoro_completato", false)
         .lt("data_lavoro", today)
         .order("data_lavoro", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!user?.id,
@@ -556,7 +563,7 @@ function MiniCalendarioCampo() {
   const { data: monthTasks = [] } = useQuery({
     queryKey: ["campo-calendar-tasks", user?.id, companyId, format(monthStart, "yyyy-MM")],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tasks")
         .select("id, title, due_date, priority, status")
         .eq("company_id", companyId!)
@@ -564,6 +571,7 @@ function MiniCalendarioCampo() {
         .gte("due_date", format(monthStart, "yyyy-MM-dd"))
         .lte("due_date", format(monthEnd, "yyyy-MM-dd"))
         .order("due_date", { ascending: true });
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!user?.id && !!companyId,
@@ -721,7 +729,7 @@ function MieAttivitaCampo() {
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["campo-my-tasks", user?.id, companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tasks")
         .select(`
           id, title, priority, due_date, status,
@@ -732,6 +740,7 @@ function MieAttivitaCampo() {
         .neq("status", "completata")
         .order("priority", { ascending: false })
         .limit(8);
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!user?.id && !!companyId,

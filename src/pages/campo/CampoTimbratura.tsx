@@ -39,10 +39,12 @@ export default function CampoTimbratura() {
   const { data: hrProfilo } = useMyHrProfilo();
   const profiloId = hrProfilo?.id ?? null;
 
-  // Request GPS on mount (requestPosition è stabile via useCallback)
+  // Request GPS on mount — requestPosition è useCallback con dep [companyId].
+  // Depend solo su companyId per evitare ri-chiamate a ogni re-render.
   useEffect(() => {
-    requestPosition();
-  }, [requestPosition]);
+    if (companyId) requestPosition();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   // Today's timbrature
   const today = format(new Date(), "yyyy-MM-dd");
@@ -50,13 +52,14 @@ export default function CampoTimbratura() {
   const { data: timbratureOggi = [], isLoading: loadingOggi } = useQuery({
     queryKey: ["campo-timbrature-oggi", user?.id, today],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
         .gte("timestamp_evento", `${today}T00:00:00`)
         .lte("timestamp_evento", `${today}T23:59:59`)
         .order("timestamp_evento", { ascending: true });
+      if (error) throw error;
       return (data ?? []) as Timbratura[];
     },
     enabled: !!user?.id,
@@ -68,12 +71,13 @@ export default function CampoTimbratura() {
     queryFn: async () => {
       const from = new Date();
       from.setDate(from.getDate() - 14);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
         .gte("timestamp_evento", from.toISOString())
         .order("timestamp_evento", { ascending: false });
+      if (error) throw error;
       return (data ?? []) as Timbratura[];
     },
     enabled: !!user?.id,
