@@ -366,30 +366,37 @@ export default function DashboardBuilder() {
     duplicateWidget(selectedId);
   }, [duplicateWidget, selectedId]);
 
-  const handleSave = useCallback(async () => {
-    try {
-      const result = await save.mutateAsync({
-        dashboardId: isEdit ? id : null,
-        name,
-        description: description || null,
-        scope,
-        icon: "layout-dashboard",
-        layout,
-        note: note || null,
-      });
-      setDirty(false);
-      toast({ title: "Dashboard salvata", description: `Versione v${result.version}` });
-      if (!isEdit) {
-        navigate(`/azienda/dashboards/${result.dashboard_id}/modifica`, { replace: true });
+  const handleSave = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      try {
+        const result = await save.mutateAsync({
+          dashboardId: isEdit ? id : null,
+          name,
+          description: description || null,
+          scope,
+          icon: "layout-dashboard",
+          layout,
+          note: note || null,
+        });
+        setDirty(false);
+        // In autosave non mostriamo il toast: il badge "Salvato" nell'header
+        // è già feedback sufficiente e il toast interrompeva il flusso.
+        if (!opts?.silent) {
+          toast({ title: "Dashboard salvata", description: `Versione v${result.version}` });
+        }
+        if (!isEdit) {
+          navigate(`/azienda/dashboards/${result.dashboard_id}/modifica`, { replace: true });
+        }
+      } catch (e) {
+        toast({
+          title: "Errore nel salvataggio",
+          description: (e as Error).message,
+          variant: "destructive",
+        });
       }
-    } catch (e) {
-      toast({
-        title: "Errore nel salvataggio",
-        description: (e as Error).message,
-        variant: "destructive",
-      });
-    }
-  }, [description, id, isEdit, layout, name, navigate, note, save, scope]);
+    },
+    [description, id, isEdit, layout, name, navigate, note, save, scope],
+  );
 
   // ── Auto-save (solo edit mode, debounce 3s) ─────────────────────
   const lastSavedRef = useRef<string>("");
@@ -403,7 +410,7 @@ export default function DashboardBuilder() {
 
     const timer = window.setTimeout(() => {
       lastSavedRef.current = payload;
-      handleSave();
+      handleSave({ silent: true });
     }, 3000);
     return () => window.clearTimeout(timer);
   }, [dirty, isEdit, name, description, scope, layout, handleSave]);

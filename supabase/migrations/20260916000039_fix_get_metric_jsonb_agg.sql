@@ -1,138 +1,34 @@
 -- ════════════════════════════════════════════════════════════════
--- Dashboard Builder — Estensione metriche (Marketing / Tesoreria /
--- Calendar / Magazzino / Pipeline)
+-- FIX CRITICO: get_metric — jsonb_agg(r ORDER BY r->>'key') non
+-- funziona su righe composite (il dispatcher era stato rotto dalla
+-- migration 20260916000037).
 --
--- Aggiunge 11 nuove metriche e relativi rami al dispatcher get_metric
--- riprendendo lo schema esistente. Tutte le metriche nuove sono is_active=true
--- perché poggiano su tabelle reali già verificate:
+-- Sintomo lato UI: widget chart_line/chart_area con
+--   revenue_total + breakdown=month (e molti altri con breakdown
+--   time-based o percentuale) ricevono dal resolver lo status
+--   "error" con messaggio generico "Errore interno nel calcolo
+--   della metrica" (SQLSTATE mapping ELSE branch).
 --
---  • marketing_contacts, marketing_opportunities, marketing_pipeline_stages
---  • appointments
---  • bank_accounts, bank_transactions
---  • warehouse_stock
---  • order_installments
+-- Causa: in PostgreSQL `r->>'key'` è l'operatore jsonb→text e NON
+-- accetta un composite row type come operando: la subquery ritorna
+-- record (columns key/label/value), non jsonb. La RAISE restituisce
+-- sqlstate 42883 ("operator does not exist: record ->> text") che
+-- la mapping di resolve_dashboard non conosce → cade nell'ELSE
+-- "Errore interno nel calcolo della metrica".
 --
--- ⚠ Importante: questo file riscrive integralmente public.get_metric per
--- includere i nuovi ELSIF accanto a quelli storici. Ogni modifica futura
--- alla dispatcher dovrà partire da QUESTO file (è il più recente).
+-- Questo bug era già stato corretto per il dispatcher base in
+-- 20260416000200_fix_get_metric_breakdown_order.sql con il pattern
+-- `jsonb_agg(jsonb_build_object('key', key, 'label', label,
+-- 'value', value) ORDER BY key)`. La migration 37 ha riscritto
+-- integralmente get_metric dimenticando di applicare lo stesso
+-- pattern.
+--
+-- FIX: CREATE OR REPLACE di get_metric con il pattern corretto in
+-- TUTTI i 34 punti dove c'era il bug. Nessuna modifica alla
+-- signature né alla semantica: solo la costruzione del jsonb
+-- aggregato è ora esplicita e tipizzata.
 -- ════════════════════════════════════════════════════════════════
 
--- ──────────────────────────────────────────────────────────────────
--- 1. Catalogo: nuove metriche
--- ──────────────────────────────────────────────────────────────────
-INSERT INTO public.metric_catalog
-  (id, name, description, category, value_type, default_aggregation,
-   allowed_aggregations, allowed_dimensions, sql_template, requires_role, is_active)
-VALUES
--- ═══ MARKETING (4) ═══
-('leads_new',
-  'Nuovi lead',
-  'Contatti marketing creati nel periodo',
-  'marketing', 'count', 'count',
-  ARRAY['count'],
-  ARRAY['none','month','week','day','source'],
-  'SEE get_metric dispatcher', NULL, true),
-
-('opportunities_open',
-  'Opportunità aperte',
-  'Opportunità di vendita con status = open',
-  'marketing', 'count', 'count',
-  ARRAY['count'],
-  ARRAY['none','assigned_to','bucket'],
-  'SEE get_metric dispatcher', NULL, true),
-
-('pipeline_value',
-  'Valore pipeline',
-  'Somma valori delle opportunità aperte',
-  'marketing', 'currency', 'sum',
-  ARRAY['sum','avg'],
-  ARRAY['none','assigned_to','bucket'],
-  'SEE get_metric dispatcher', NULL, true),
-
-('opportunities_won',
-  'Opportunità vinte',
-  'Opportunità chiuse vinte (status = closed_won) nel periodo',
-  'marketing', 'count', 'count',
-  ARRAY['count'],
-  ARRAY['none','month','assigned_to'],
-  'SEE get_metric dispatcher', NULL, true),
-
--- ═══ APPUNTAMENTI (2) ═══
-('appointments_count',
-  'Appuntamenti',
-  'Numero appuntamenti pianificati nel periodo',
-  'calendar', 'count', 'count',
-  ARRAY['count'],
-  ARRAY['none','day','week','month','assigned_to','category'],
-  'SEE get_metric dispatcher', NULL, true),
-
-('appointments_completed',
-  'Appuntamenti completati',
-  'Appuntamenti con is_completed = true nel periodo',
-  'calendar', 'count', 'count',
-  ARRAY['count'],
-  ARRAY['none','month','assigned_to'],
-  'SEE get_metric dispatcher', NULL, true),
-
--- ═══ TESORERIA (3) ═══
-('cash_balance',
-  'Saldo cassa attuale',
-  'Somma current_balance dei conti bancari attivi',
-  'tesoreria', 'currency', 'sum',
-  ARRAY['sum'],
-  ARRAY['none','category'],
-  'SEE get_metric dispatcher', NULL, true),
-
-('bank_inflows',
-  'Entrate bancarie',
-  'Somma transazioni in entrata (credit) nel periodo',
-  'tesoreria', 'currency', 'sum',
-  ARRAY['sum'],
-  ARRAY['none','month','category'],
-  'SEE get_metric dispatcher', NULL, true),
-
-('bank_outflows',
-  'Uscite bancarie',
-  'Somma transazioni in uscita (debit) nel periodo',
-  'tesoreria', 'currency', 'sum',
-  ARRAY['sum'],
-  ARRAY['none','month','category'],
-  'SEE get_metric dispatcher', NULL, true),
-
--- ═══ MAGAZZINO (1, attivata) ═══
-('stock_low',
-  'Articoli sotto scorta',
-  'Stock items con quantita <= soglia minima',
-  'magazzino', 'count', 'count',
-  ARRAY['count'],
-  ARRAY['none'],
-  'SEE get_metric dispatcher', NULL, true),
-
--- ═══ ORDINI/INCASSI (1) ═══
-('installments_overdue',
-  'Rate scadute',
-  'Somma importi rate non pagate con expected_date < oggi',
-  'finanza', 'currency', 'sum',
-  ARRAY['sum','count'],
-  ARRAY['none','customer'],
-  'SEE get_metric dispatcher', NULL, true)
-
-ON CONFLICT (id) DO UPDATE SET
-  name                 = EXCLUDED.name,
-  description          = EXCLUDED.description,
-  category             = EXCLUDED.category,
-  value_type           = EXCLUDED.value_type,
-  default_aggregation  = EXCLUDED.default_aggregation,
-  allowed_aggregations = EXCLUDED.allowed_aggregations,
-  allowed_dimensions   = EXCLUDED.allowed_dimensions,
-  sql_template         = EXCLUDED.sql_template,
-  requires_role        = EXCLUDED.requires_role,
-  is_active            = EXCLUDED.is_active;
-
--- ──────────────────────────────────────────────────────────────────
--- 2. Dispatcher esteso (sostituisce get_metric con i rami nuovi)
---    NOTA: include TUTTI i rami originali + i nuovi.
--- ──────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.get_metric(
   p_metric_id   TEXT,
   p_filters     JSONB   DEFAULT '{}'::jsonb,
@@ -739,73 +635,6 @@ BEGIN
 END $$;
 
 COMMENT ON FUNCTION public.get_metric(TEXT, JSONB, TEXT, TEXT) IS
-  'Dashboard Builder: dispatcher esteso v2 con metriche marketing/tesoreria/calendar/magazzino. Vedi 20260916000037_dashboard_builder_extended_metrics.sql.';
+  'Dashboard Builder dispatcher v3 (fix 39): pattern jsonb_agg(jsonb_build_object(...) ORDER BY col) per evitare record->>text. Base: 20260916000037_dashboard_builder_extended_metrics.sql.';
 
 GRANT EXECUTE ON FUNCTION public.get_metric(TEXT, JSONB, TEXT, TEXT) TO authenticated;
-
--- ──────────────────────────────────────────────────────────────────
--- 3. Validator esteso: whitelist nuovi widget types stat_tile, alert_list
--- ──────────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public._dashboard_validate_layout(p_layout JSONB)
-RETURNS VOID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_widget      JSONB;
-  v_widget_type TEXT;
-  v_metric_id   TEXT;
-  v_allowed_types TEXT[] := ARRAY[
-    'kpi_card', 'stat_tile', 'chart_line', 'chart_bar', 'chart_pie', 'chart_area',
-    'table', 'progress', 'gauge', 'alert_list', 'text_markdown', 'divider'
-  ];
-BEGIN
-  IF p_layout IS NULL OR jsonb_typeof(p_layout) <> 'object' THEN
-    RAISE EXCEPTION 'Layout must be a JSON object' USING ERRCODE = '22023';
-  END IF;
-
-  IF NOT (p_layout ? 'widgets') OR jsonb_typeof(p_layout->'widgets') <> 'array' THEN
-    RAISE EXCEPTION 'Layout.widgets must be an array' USING ERRCODE = '22023';
-  END IF;
-
-  IF jsonb_array_length(p_layout->'widgets') > 50 THEN
-    RAISE EXCEPTION 'Too many widgets (max 50)' USING ERRCODE = '22023';
-  END IF;
-
-  FOR v_widget IN SELECT * FROM jsonb_array_elements(p_layout->'widgets')
-  LOOP
-    IF NOT (v_widget ? 'id') OR jsonb_typeof(v_widget->'id') <> 'string' THEN
-      RAISE EXCEPTION 'Widget missing id (string)' USING ERRCODE = '22023';
-    END IF;
-
-    v_widget_type := v_widget->>'type';
-    IF v_widget_type IS NULL OR NOT (v_widget_type = ANY(v_allowed_types)) THEN
-      RAISE EXCEPTION 'Widget type % not allowed', COALESCE(v_widget_type, 'NULL') USING ERRCODE = '22023';
-    END IF;
-
-    IF (v_widget ? 'x' AND jsonb_typeof(v_widget->'x') <> 'number')
-       OR (v_widget ? 'y' AND jsonb_typeof(v_widget->'y') <> 'number')
-       OR (v_widget ? 'w' AND jsonb_typeof(v_widget->'w') <> 'number')
-       OR (v_widget ? 'h' AND jsonb_typeof(v_widget->'h') <> 'number') THEN
-      RAISE EXCEPTION 'Widget % coordinates must be numbers', v_widget->>'id' USING ERRCODE = '22023';
-    END IF;
-
-    v_metric_id := v_widget->'config'->>'metric';
-    IF v_metric_id IS NOT NULL AND v_widget_type NOT IN ('text_markdown', 'divider') THEN
-      IF NOT EXISTS (
-        SELECT 1 FROM public.metric_catalog
-        WHERE id = v_metric_id AND is_active = true
-      ) THEN
-        RAISE EXCEPTION 'Widget % references unknown or inactive metric %', v_widget->>'id', v_metric_id USING ERRCODE = '22023';
-      END IF;
-    END IF;
-  END LOOP;
-
-  IF (p_layout ? 'globalFilters') AND jsonb_typeof(p_layout->'globalFilters') <> 'object' THEN
-    RAISE EXCEPTION 'Layout.globalFilters must be an object' USING ERRCODE = '22023';
-  END IF;
-END $$;
-
-COMMENT ON FUNCTION public._dashboard_validate_layout(JSONB) IS
-  'Valida struttura layout dashboard: widgets whitelistati (incl. stat_tile/alert_list), metric_id esistenti nel catalogo.';

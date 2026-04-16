@@ -27,6 +27,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+// NOTE: il badge "vXX" accanto al titolo è stato rimosso per richiesta UX.
+// Manteniamo comunque l'import Badge perché usato nella FilterBar.
 import {
   Popover,
   PopoverContent,
@@ -209,11 +211,6 @@ export default function DashboardView() {
               </p>
             )}
           </div>
-          {dash.data?.version && (
-            <Badge variant="secondary" className="shrink-0">
-              v{dash.data.version.version}
-            </Badge>
-          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button
