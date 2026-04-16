@@ -4,6 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
 import { logger } from "@/utils/logger";
 import { toast } from "sonner";
+import { captureVelocityError } from "@/lib/velocity/sentry";
+
+/**
+ * Velocity Protocol — V1/V2
+ * Timeout sulla critical path di auth: se Supabase è in cold-start (free tier
+ * ibernato → 10-15s), preferiamo dare all'utente uno stato "non autenticato"
+ * ritentabile piuttosto che spinner infinito.
+ */
+const AUTH_CRITICAL_FETCH_TIMEOUT_MS = 10_000;
+const WARMUP_FETCH_TIMEOUT_MS = 8_000;
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -265,13 +275,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.role]);
 
   const fetchUserData = useCallback(async (userId: string) => {
+    // Velocity — V1: timeout sulla critical path di auth.
+    // Se Supabase è in cold-start (free tier ibernato) o la rete dell'utente in
+    // cantiere è pessima, l'attesa può essere >15s → spinner infinito. Con
+    // AbortController a 10s, in caso di timeout restituiamo "non autenticato"
+    // e i route guards mandano a /login (riprovabile) invece che bloccare.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AUTH_CRITICAL_FETCH_TIMEOUT_MS);
     try {
       // Fetch profile (with company JOIN) and roles in PARALLEL — 2 DB round-trips total.
       // Previously: profiles → wait → companies (sequential, +300-600ms per load).
       // Now: profiles+companies join and user_roles fire simultaneously.
       const [profileResult, rolesResult] = await Promise.all([
-        supabase.from("profiles").select("*, company:companies(*)").eq("id", userId).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", userId),
+        supabase
+          .from("profiles")
+          .select("*, company:companies(*)")
+          .eq("id", userId)
+          .abortSignal(controller.signal)
+          .maybeSingle(),
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .abortSignal(controller.signal),
       ]);
 
       const { data: rawProfile, error: profileError } = profileResult;
@@ -320,8 +346,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         company,
       };
     } catch (error) {
+      // Distinguiamo timeout (AbortError) dalle altre failure per triage:
+      // - timeout → "DB cold/slow", non allarmante ma tracciabile
+      // - altre → errori veri
+      const isTimeout =
+        controller.signal.aborted ||
+        (error as Error | undefined)?.name === "AbortError";
+      captureVelocityError(isTimeout ? "auth.fetchUserData.timeout" : "auth.fetchUserData", error, {
+        userId,
+        timeoutMs: AUTH_CRITICAL_FETCH_TIMEOUT_MS,
+      });
       logger.error("Error in fetchUserData:", error);
       return { profile: null, role: null, company: null };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }, []);
 
@@ -615,12 +653,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const supabaseUrl: string = (import.meta as any).env?.VITE_SUPABASE_URL ?? "";
         const supabaseKey: string = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
         if (supabaseUrl && supabaseKey) {
+          // Velocity — warm-up fire-and-forget con timeout 8s.
+          // Senza timeout, una request bloccata (tipo DNS fallito sulla rete
+          // del cantiere) potrebbe lasciare la connection aperta a tempo
+          // indefinito consumando slot socket.
           fetch(`${supabaseUrl}/rest/v1/subscription_plans?select=id&limit=1`, {
             headers: {
               apikey: supabaseKey,
               Authorization: `Bearer ${at}`,
             },
-          }).catch(() => {});
+            signal: AbortSignal.timeout(WARMUP_FETCH_TIMEOUT_MS),
+          }).catch((err) => {
+            // Warm-up è best-effort ma loggiamo per vedere se il cold-start è ricorrente.
+            captureVelocityError("auth.warmup.handoff", err, { timeoutMs: WARMUP_FETCH_TIMEOUT_MS });
+          });
           logger.info("DB warm-up query fired (cross-subdomain handoff)");
         }
 
