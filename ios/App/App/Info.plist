@@ -24,13 +24,27 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>L'app richiede l'accesso alla fotocamera per scattare foto dei cantieri, allegare immagini a rapportini e ticket di assistenza.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>L'app richiede l'accesso alle foto per allegare immagini esistenti a rapportini di cantiere, documenti e ticket di assistenza.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>L'app richiede il permesso di salvare foto nella libreria per conservare documenti scaricati e firme digitali.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>L'app richiede la posizione per registrare automaticamente la geolocalizzazione di timbrature e rapportini di cantiere.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>L'app richiede la posizione per registrare automaticamente la geolocalizzazione di timbrature e rapportini di cantiere.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>I tuoi dati non sono utilizzati per tracking pubblicitario.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
