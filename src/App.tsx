@@ -22,6 +22,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@ta
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { captureVelocityError } from "@/lib/velocity/sentry";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
 import ScrollToTop from "@/components/ScrollToTop";
@@ -115,13 +116,35 @@ const VsBuildertrend = lazy(() => import("@/pages/confronto/VsBuildertrend"));
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
-      if (query.state.data !== undefined) {
+      // Velocity — log ogni query-error in Sentry con contesto minimo ma utile.
+      // Se Sentry non è attivo, captureVelocityError fa console.warn in dev (no-op in prod).
+      try {
+        captureVelocityError("query", error, {
+          queryKey: JSON.stringify(query.queryKey).slice(0, 200),
+        });
+      } catch {
+        /* noop — il reporter di errori non deve sollevare errori */
+      }
+
+      // Toast solo su background-refresh (avevamo già data) e solo se la query
+      // non si è dichiarata silent (vedi useWeatherForecast → meta:{silent:true}).
+      const silent = (query.meta as { silent?: boolean } | undefined)?.silent;
+      if (query.state.data !== undefined && !silent) {
         toast.error(`Errore di aggiornamento dati: ${error.message}`);
       }
     },
   }),
   mutationCache: new MutationCache({
-    onError: (error) => {
+    onError: (error, _vars, _ctx, mutation) => {
+      try {
+        captureVelocityError("mutation", error, {
+          mutationKey: mutation.options.mutationKey
+            ? JSON.stringify(mutation.options.mutationKey).slice(0, 200)
+            : undefined,
+        });
+      } catch {
+        /* noop */
+      }
       toast.error(`Operazione non riuscita: ${error.message}`);
     },
   }),

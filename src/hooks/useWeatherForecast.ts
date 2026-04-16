@@ -1,4 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
+import { captureVelocityError } from "@/lib/velocity/sentry";
+
+/**
+ * Velocity Protocol — V2 (Affidabilità API esterne)
+ * TRCFO pattern per Open-Meteo:
+ *  • T imeout      → AbortSignal.timeout(5_000)
+ *  • R etry        → React Query defaults: retry 1 + backoff
+ *  • C ache        → staleTime 30' (+ React Query dedup)
+ *  • F allback UI  → data === undefined → il componente mostra il placeholder
+ *  • O sservabilità→ captureVelocityError + meta.silent:true (niente toast di rumore)
+ *
+ * Scelta: NON swallowiamo più l'errore. Lasciamo che React Query ritenti 1 volta;
+ * dopo il fallimento definitivo, `data` è undefined e i consumer già gestiscono
+ * questo caso via `weatherMap?.get(...)` / `if (!map) return`.
+ */
+
+const WEATHER_FETCH_TIMEOUT_MS = 5_000;
+const WEATHER_STALE_MS = 30 * 60 * 1_000;
 
 export interface WeatherDay {
   maxTemp: number;
@@ -48,34 +66,55 @@ export function weatherCodeToLabel(code: number): string {
 export function useWeatherForecast(lat = 45.4654, lng = 9.1859, forecastDays = 7) {
   return useQuery({
     queryKey: ["weather-forecast", lat, lng, forecastDays],
-    queryFn: async (): Promise<Map<string, WeatherDay>> => {
+    // Meteo = API esterna non critica → silent:true evita i toast rumorosi
+    // sulle stale refetch failures (vedi QueryCache onError in App.tsx).
+    meta: { silent: true },
+    queryFn: async ({ signal }): Promise<Map<string, WeatherDay>> => {
+      const days = Math.min(Math.max(forecastDays, 1), 16);
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=Europe%2FRome&forecast_days=${days}`;
+
+      // Merge del signal di React Query con il nostro timeout di 5s.
+      // Se lo user naviga via (signal React Query) o la rete è lenta (timeout),
+      // abortiamo in modo pulito senza tenere aperta la connection.
+      const timeoutSignal = AbortSignal.timeout(WEATHER_FETCH_TIMEOUT_MS);
+      const merged = AbortSignal.any ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+
+      let res: Response;
       try {
-        const days = Math.min(Math.max(forecastDays, 1), 16);
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=Europe%2FRome&forecast_days=${days}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Weather API error");
-        const data = await res.json();
-        const map = new Map<string, WeatherDay>();
-        const dates: string[] = data.daily.time;
-        const maxTemps: number[] = data.daily.temperature_2m_max;
-        const minTemps: number[] = data.daily.temperature_2m_min;
-        const precips: number[] = data.daily.precipitation_sum;
-        const codes: number[] = data.daily.weathercode;
-        dates.forEach((date, i) => {
-          map.set(date, {
-            maxTemp: Math.round(maxTemps[i]),
-            minTemp: Math.round(minTemps[i]),
-            precip: precips[i] ?? 0,
-            code: codes[i],
-          });
-        });
-        return map;
-      } catch {
-        // Weather is non-critical — return empty map on network failure
-        return new Map<string, WeatherDay>();
+        res = await fetch(url, { signal: merged });
+      } catch (err) {
+        // Timeout o errore di rete: log e rilancia per far partire il retry React Query.
+        if ((err as Error)?.name !== "AbortError" || timeoutSignal.aborted) {
+          captureVelocityError("weather.forecast.network", err, { lat, lng, forecastDays });
+        }
+        throw err;
       }
+      if (!res.ok) {
+        const httpErr = new Error(`Weather API HTTP ${res.status}`);
+        captureVelocityError("weather.forecast.http", httpErr, {
+          lat, lng, forecastDays, status: res.status,
+        });
+        throw httpErr;
+      }
+
+      const data = await res.json();
+      const map = new Map<string, WeatherDay>();
+      const dates: string[] = data?.daily?.time ?? [];
+      const maxTemps: number[] = data?.daily?.temperature_2m_max ?? [];
+      const minTemps: number[] = data?.daily?.temperature_2m_min ?? [];
+      const precips: number[] = data?.daily?.precipitation_sum ?? [];
+      const codes: number[] = data?.daily?.weathercode ?? [];
+      dates.forEach((date, i) => {
+        map.set(date, {
+          maxTemp: Math.round(maxTemps[i]),
+          minTemp: Math.round(minTemps[i]),
+          precip: precips[i] ?? 0,
+          code: codes[i],
+        });
+      });
+      return map;
     },
-    staleTime: 30 * 60 * 1000,
+    staleTime: WEATHER_STALE_MS,
     retry: 1,
   });
 }
@@ -149,7 +188,8 @@ export function useCalendarWeather(
 
   return useQuery({
     queryKey: ["calendar-weather-multi", locKeys, fallbackLat, fallbackLng],
-    queryFn: async (): Promise<MultiLocationWeather> => {
+    meta: { silent: true },
+    queryFn: async ({ signal }): Promise<MultiLocationWeather> => {
       const result: MultiLocationWeather = new Map();
 
       // Se nessuna location specifica, fetcha solo il fallback (sede)
@@ -157,20 +197,38 @@ export function useCalendarWeather(
         ? Array.from(uniqueLocations.values())
         : [{ lat: fallbackLat, lng: fallbackLng, city: fallbackCity, dates: [] as string[] }];
 
-      // Fetch in parallelo (max 10 locations per evitare rate limiting)
+      // Fetch in parallelo (max 10 locations per evitare rate limiting).
+      // Strategy: ogni location ha il proprio timeout di 5s. Se UNA fallisce,
+      // le ALTRE devono comunque arrivare (Promise.all non va bene → usiamo
+      // allSettled + catch per-location, così una rete flaky non azzera tutto).
+      const timeoutSignal = AbortSignal.timeout(WEATHER_FETCH_TIMEOUT_MS);
+      const merged = AbortSignal.any ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+
       const fetchPromises = locs.slice(0, 10).map(async (loc) => {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=Europe%2FRome&forecast_days=14`;
         try {
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=Europe%2FRome&forecast_days=14`;
-          const res = await fetch(url);
-          if (!res.ok) return null;
+          const res = await fetch(url, { signal: merged });
+          if (!res.ok) {
+            captureVelocityError("weather.calendar.http", new Error(`HTTP ${res.status}`), {
+              lat: loc.lat, lng: loc.lng, city: loc.city, status: res.status,
+            });
+            return null;
+          }
           const data = await res.json();
-          const dates: string[] = data.daily.time;
-          const maxTemps: number[] = data.daily.temperature_2m_max;
-          const minTemps: number[] = data.daily.temperature_2m_min;
-          const precips: number[] = data.daily.precipitation_sum;
-          const codes: number[] = data.daily.weathercode;
+          const dates: string[] = data?.daily?.time ?? [];
+          const maxTemps: number[] = data?.daily?.temperature_2m_max ?? [];
+          const minTemps: number[] = data?.daily?.temperature_2m_min ?? [];
+          const precips: number[] = data?.daily?.precipitation_sum ?? [];
+          const codes: number[] = data?.daily?.weathercode ?? [];
           return { loc, dates, maxTemps, minTemps, precips, codes };
-        } catch {
+        } catch (err) {
+          // Una singola location ko non deve piantare le altre.
+          // Logghiamo, ritorniamo null, i merge a valle ignorano null.
+          if ((err as Error)?.name !== "AbortError" || timeoutSignal.aborted) {
+            captureVelocityError("weather.calendar.network", err, {
+              lat: loc.lat, lng: loc.lng, city: loc.city,
+            });
+          }
           return null;
         }
       });
