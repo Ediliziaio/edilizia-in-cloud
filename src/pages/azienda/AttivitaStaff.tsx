@@ -150,7 +150,6 @@ function MeteoWidget() {
     location?.lat ?? 45.4654,
     location?.lng ?? 9.1859,
   );
-  const isLoading = loadingLoc || loadingWeather;
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayWeather = weatherMap?.get(todayStr);
 
@@ -161,7 +160,12 @@ function MeteoWidget() {
     return result.slice(0, 3);
   }, [weatherMap, todayStr]);
 
-  if (isLoading) return <Card><CardContent className="p-4"><Skeleton className="h-24 w-full" /></CardContent></Card>;
+  // Mostra skeleton solo quando non abbiamo ancora nessun dato (primo caricamento).
+  // Con keepPreviousData, weatherMap può avere dati placeholder anche quando
+  // loadingWeather=true (chiave cambiata) — non nasconderli dietro uno skeleton.
+  if (!weatherMap && (loadingLoc || loadingWeather)) {
+    return <Card><CardContent className="p-4"><Skeleton className="h-24 w-full" /></CardContent></Card>;
+  }
   if (!todayWeather) return <Card><CardContent className="p-4 text-center text-sm text-muted-foreground"><CloudSun className="h-8 w-8 mx-auto mb-1 opacity-40" />Meteo non disponibile</CardContent></Card>;
 
   return (
