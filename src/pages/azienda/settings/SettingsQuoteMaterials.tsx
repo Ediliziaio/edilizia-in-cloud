@@ -38,7 +38,7 @@ const categoryLabels: Record<string, string> = {
 };
 
 export default function SettingsQuoteMaterials() {
-  const { role, effectiveCompany } = useAuth();
+  const { role, effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const companyId = effectiveCompany?.id;
@@ -157,7 +157,7 @@ export default function SettingsQuoteMaterials() {
           name: file.name.replace(/\.pdf$/i, ""),
           storage_path: storagePath,
           file_size_bytes: file.size,
-          created_by: (await supabase.auth.getUser()).data.user!.id,
+          created_by: user?.id ?? (await supabase.auth.getUser()).data.user?.id ?? "",
           sort_order: sortIndex,
         });
       if (dbError) throw dbError;

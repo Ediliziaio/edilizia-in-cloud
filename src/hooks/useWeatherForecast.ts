@@ -15,7 +15,7 @@ import { captureVelocityError } from "@/lib/velocity/sentry";
  * questo caso via `weatherMap?.get(...)` / `if (!map) return`.
  */
 
-const WEATHER_FETCH_TIMEOUT_MS = 5_000;
+const WEATHER_FETCH_TIMEOUT_MS = 12_000; // 12s — Open-Meteo può essere lento sotto carico
 const WEATHER_STALE_MS = 30 * 60 * 1_000;
 
 export interface WeatherDay {

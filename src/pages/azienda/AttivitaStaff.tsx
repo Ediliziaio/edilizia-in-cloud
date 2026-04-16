@@ -146,10 +146,9 @@ function MeteoWidget() {
   const { data: location, isLoading: loadingLoc } = useCompanyLocation();
   // ?? garantisce coordinate stabili dal primo render, evita cambio query key
   // quando location carica (che causava il "meteo sparisce" durante il refetch)
-  const { data: weatherMap, isLoading: loadingWeather } = useWeatherForecast(
-    location?.lat ?? 45.4654,
-    location?.lng ?? 9.1859,
-  );
+  const lat = location?.lat ?? 45.4654;
+  const lng = location?.lng ?? 9.1859;
+  const { data: weatherMap, isLoading: loadingWeather, isError: weatherError, refetch: refetchWeather } = useWeatherForecast(lat, lng);
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayWeather = weatherMap?.get(todayStr);
 
@@ -166,7 +165,24 @@ function MeteoWidget() {
   if (!weatherMap && (loadingLoc || loadingWeather)) {
     return <Card><CardContent className="p-4"><Skeleton className="h-24 w-full" /></CardContent></Card>;
   }
-  if (!todayWeather) return <Card><CardContent className="p-4 text-center text-sm text-muted-foreground"><CloudSun className="h-8 w-8 mx-auto mb-1 opacity-40" />Meteo non disponibile</CardContent></Card>;
+  if (!todayWeather) {
+    return (
+      <Card>
+        <CardContent className="p-4 text-center text-sm text-muted-foreground">
+          <CloudSun className="h-8 w-8 mx-auto mb-1 opacity-40" />
+          <p>Meteo non disponibile</p>
+          {weatherError && (
+            <button
+              onClick={() => refetchWeather()}
+              className="mt-2 text-xs text-primary underline hover:no-underline"
+            >
+              Riprova
+            </button>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-hidden">
