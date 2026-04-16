@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { navigateToSubdomain } from "@/utils/subdomainNav";
+import { navigateToSubdomain, type TargetSubdomain } from "@/utils/subdomainNav";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import type { AppRole } from "@/types/auth";
+import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 import { useAuth } from "@/contexts/AuthContext";
 import { saveQuickLoginSession } from "@/components/admin/QuickLoginReturnBanner";
 
@@ -23,6 +24,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   company_staff: "Staff",
   customer: "Cliente",
   employee: "Dipendente",
+  subcontractor: "Subappaltatore",
   salesperson: "Venditore",
   call_center: "Call Center",
   referrer: "Partner",
@@ -40,6 +42,7 @@ const ROLE_COLORS: Record<AppRole, string> = {
   company_staff: "bg-purple-100 text-purple-800",
   customer: "bg-green-100 text-green-800",
   employee: "bg-amber-100 text-amber-800",
+  subcontractor: "bg-orange-100 text-orange-800",
   salesperson: "bg-cyan-100 text-cyan-800",
   call_center: "bg-indigo-100 text-indigo-800",
   referrer: "bg-orange-100 text-orange-800",
@@ -57,6 +60,7 @@ const ROLE_ORDER: AppRole[] = [
   "company_staff",
   "customer",
   "employee",
+  "subcontractor",
   "salesperson",
   "call_center",
 ];
@@ -72,13 +76,17 @@ function getAvatarColor(name: string) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+// Mappa ruolo → path di atterraggio.
+// IMPORTANTE: deve essere coerente con RoleBasedRedirect.tsx.
+// Employee/subcontractor atterrano su /campo (area lavori, non /dipendente legacy).
 const REDIRECT_MAP: Record<AppRole, string> = {
   super_admin: "/admin",
   company_admin: "/azienda",
   company_staff: "/azienda",
   call_center: "/azienda",
   customer: "/cliente",
-  employee: "/dipendente",
+  employee: "/campo",
+  subcontractor: "/campo",
   salesperson: "/venditore",
   referrer: "/partner",
   platform_manager: "/admin",
@@ -88,6 +96,19 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   platform_implementation: "/admin",
   multi_company_user: "/azienda",
 };
+
+// Mappa ruolo → subdomain di produzione.
+// - admin.ediliziaincloud.com       → super_admin + platform_*
+// - clienti.ediliziaincloud.com     → customer
+// - lavori.ediliziaincloud.com      → employee + subcontractor
+// - app.ediliziaincloud.com         → company_admin, company_staff, call_center,
+//                                     salesperson, referrer, multi_company_user
+function subdomainForRole(role: AppRole): TargetSubdomain {
+  if ((ADMIN_PLATFORM_ROLES as AppRole[]).includes(role)) return "admin";
+  if (role === "customer") return "clienti";
+  if (role === "employee" || role === "subcontractor") return "lavori";
+  return "app";
+}
 
 interface UserWithRole {
   id: string;
@@ -208,11 +229,7 @@ export function QuickLoginPopover() {
       toast.success(`Accesso effettuato come ${user.first_name} ${user.last_name}`);
 
       const target = REDIRECT_MAP[user.role] || "/";
-      const subdomain = (["super_admin", "platform_manager", "platform_sales", "platform_support", "platform_marketing", "platform_implementation"] as AppRole[]).includes(user.role)
-        ? "admin"
-        : user.role === "customer"
-        ? "clienti"
-        : "app";
+      const subdomain = subdomainForRole(user.role);
       navigateToSubdomain(target, subdomain, (path) => navigate(path, { replace: true }));
     } catch (err: any) {
       logger.error("Sign in as user error:", err);

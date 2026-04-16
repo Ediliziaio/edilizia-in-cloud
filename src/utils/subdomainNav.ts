@@ -4,7 +4,9 @@ import { safeRedirect } from "@/utils/safeRedirect";
  * Builds a full URL for a given path on a specific subdomain.
  * In local development (localhost), returns just the path (no subdomain switching).
  */
-export function getSubdomainUrl(path: string, subdomain: "app" | "admin" | "clienti"): string {
+export type TargetSubdomain = "app" | "admin" | "clienti" | "lavori";
+
+export function getSubdomainUrl(path: string, subdomain: TargetSubdomain): string {
   if (typeof window === "undefined") return path;
   const hostname = window.location.hostname;
 
@@ -14,8 +16,13 @@ export function getSubdomainUrl(path: string, subdomain: "app" | "admin" | "clie
   }
 
   // Extract root domain: "admin.ediliziaincloud.com" → "ediliziaincloud.com"
+  // Gestisce TLD multi-livello (.co.uk, .com.br, .com.au, etc.)
+  const MULTI_LEVEL_TLDS = ["co.uk", "com.br", "co.nz", "co.za", "com.au", "net.au", "org.uk", "me.uk"];
   const parts = hostname.split(".");
-  const rootDomain = parts.slice(-2).join(".");
+  const twoLastParts = parts.slice(-2).join(".");
+  const rootDomain = MULTI_LEVEL_TLDS.includes(twoLastParts) && parts.length >= 3
+    ? parts.slice(-3).join(".")
+    : twoLastParts;
   return `https://${subdomain}.${rootDomain}${path}`;
 }
 
@@ -26,7 +33,7 @@ export function getSubdomainUrl(path: string, subdomain: "app" | "admin" | "clie
  */
 export function navigateToSubdomain(
   path: string,
-  subdomain: "app" | "admin" | "clienti",
+  subdomain: TargetSubdomain,
   navigateFn?: (path: string) => void
 ): void {
   const url = getSubdomainUrl(path, subdomain);
