@@ -35,13 +35,35 @@
       })();
     </script>
     <!-- Preconnect per risorse critiche -->
-    <link rel="preconnect" href="https://images.unsplash.com">
     <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co">
     <link rel="dns-prefetch" href="https://rsbrguhkodgnqfomrevo.supabase.co">
-    <!-- Preload hero image — LCP element, must load before JS -->
-    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80" fetchpriority="high">
-    <link rel="dns-prefetch" href="https://images.unsplash.com">
     <link rel="dns-prefetch" href="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev">
+    <!--
+      Velocity — Preload hero Unsplash CONDIZIONALE.
+      L'immagine è LCP SOLO sulla landing pubblica e route marketing (city/per/blog).
+      Se l'utente è su /azienda, /admin, /portale-* non la vedrà mai: preloadarla
+      sarebbe uno spreco di 200+ KB di banda mobile in cantiere.
+      Iniettiamo preconnect+preload inline prima che il parser chieda chunks JS,
+      così non perdiamo l'head-start sul LCP dove conta davvero.
+    -->
+    <script>
+      (function () {
+        var path = window.location.pathname || '/';
+        var APP_PREFIXES = /^\/(azienda|admin|salesperson|partner|customer|employee|tecnico|campo|portale-cliente|login|auth-callback|reset-password)(\/|$)/;
+        if (APP_PREFIXES.test(path)) return; // no-op su route applicative
+        var head = document.head;
+        function add(rel, href, extra) {
+          var l = document.createElement('link');
+          l.rel = rel;
+          l.href = href;
+          if (extra) Object.keys(extra).forEach(function (k) { l.setAttribute(k, extra[k]); });
+          head.appendChild(l);
+        }
+        add('preconnect', 'https://images.unsplash.com');
+        add('dns-prefetch', 'https://images.unsplash.com');
+        add('preload', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80', { as: 'image', fetchpriority: 'high' });
+      })();
+    </script>
     <!-- Leaflet CSS loaded lazily by the FleetTrack component — do NOT put here -->
 
     <meta property="og:type" content="website" />
