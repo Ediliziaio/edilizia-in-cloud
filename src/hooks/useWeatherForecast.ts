@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 
 /**
@@ -116,6 +116,8 @@ export function useWeatherForecast(lat = 45.4654, lng = 9.1859, forecastDays = 7
     },
     staleTime: WEATHER_STALE_MS,
     retry: 1,
+    // Mantiene i dati precedenti visibili mentre la nuova query (key cambiata) carica
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -198,16 +200,17 @@ export function useCalendarWeather(
         : [{ lat: fallbackLat, lng: fallbackLng, city: fallbackCity, dates: [] as string[] }];
 
       // Fetch in parallelo (max 10 locations per evitare rate limiting).
-      // Strategy: ogni location ha il proprio timeout di 5s. Se UNA fallisce,
-      // le ALTRE devono comunque arrivare (Promise.all non va bene → usiamo
-      // allSettled + catch per-location, così una rete flaky non azzera tutto).
-      const timeoutSignal = AbortSignal.timeout(WEATHER_FETCH_TIMEOUT_MS);
-      const merged = AbortSignal.any ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+      // Ogni location ha il proprio AbortSignal indipendente (timeout 8s ciascuno)
+      // così una location lenta non abbatte le altre e non consuma il timeout globale.
+      const PER_LOCATION_TIMEOUT = 8_000;
 
       const fetchPromises = locs.slice(0, 10).map(async (loc) => {
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=Europe%2FRome&forecast_days=14`;
+        // Timeout per-location + signal di cancellazione React Query
+        const locTimeout = AbortSignal.timeout(PER_LOCATION_TIMEOUT);
+        const locSignal = AbortSignal.any ? AbortSignal.any([signal, locTimeout]) : locTimeout;
         try {
-          const res = await fetch(url, { signal: merged });
+          const res = await fetch(url, { signal: locSignal });
           if (!res.ok) {
             captureVelocityError("weather.calendar.http", new Error(`HTTP ${res.status}`), {
               lat: loc.lat, lng: loc.lng, city: loc.city, status: res.status,
@@ -224,7 +227,7 @@ export function useCalendarWeather(
         } catch (err) {
           // Una singola location ko non deve piantare le altre.
           // Logghiamo, ritorniamo null, i merge a valle ignorano null.
-          if ((err as Error)?.name !== "AbortError" || timeoutSignal.aborted) {
+          if ((err as Error)?.name !== "AbortError" || locTimeout.aborted) {
             captureVelocityError("weather.calendar.network", err, {
               lat: loc.lat, lng: loc.lng, city: loc.city,
             });
@@ -263,5 +266,8 @@ export function useCalendarWeather(
     staleTime: 30 * 60 * 1000,
     retry: 1,
     enabled: true,
+    // Mantiene i dati precedenti visibili mentre la nuova query (key cambiata) carica
+    // Evita il "meteo sparisce" quando cambiano le location o le coordinate
+    placeholderData: keepPreviousData,
   });
 }

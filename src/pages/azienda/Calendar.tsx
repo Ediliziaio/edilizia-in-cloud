@@ -258,11 +258,13 @@ function CalendarInner() {
   const companyLoc = companyLocationQuery.data;
 
   // Meteo multi-location a 14 giorni per ogni cantiere
+  // Usa ?? per avere valori stabili fin dal primo render (evita cambio query key
+  // quando companyLoc carica e causerebbe il "meteo sparisce" mentre refetcha)
   const { data: calendarWeatherMulti } = useCalendarWeather(
     appointmentLocations,
-    companyLoc?.lat,
-    companyLoc?.lng,
-    companyLoc?.city,
+    companyLoc?.lat ?? 45.4654,
+    companyLoc?.lng ?? 9.1859,
+    companyLoc?.city ?? "Milano",
   );
 
   // Converti in formato compatibile (worst-case per giorno)

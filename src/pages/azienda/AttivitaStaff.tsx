@@ -144,8 +144,11 @@ function AttivitaHeader() {
 // ─────────────────────────────────────────────────────────────────────────────
 function MeteoWidget() {
   const { data: location, isLoading: loadingLoc } = useCompanyLocation();
+  // ?? garantisce coordinate stabili dal primo render, evita cambio query key
+  // quando location carica (che causava il "meteo sparisce" durante il refetch)
   const { data: weatherMap, isLoading: loadingWeather } = useWeatherForecast(
-    location?.lat, location?.lng,
+    location?.lat ?? 45.4654,
+    location?.lng ?? 9.1859,
   );
   const isLoading = loadingLoc || loadingWeather;
   const todayStr = format(new Date(), "yyyy-MM-dd");
