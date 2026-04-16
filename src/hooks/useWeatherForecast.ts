@@ -265,7 +265,6 @@ export function useCalendarWeather(
     },
     staleTime: 30 * 60 * 1000,
     retry: 1,
-    enabled: true,
     // Mantiene i dati precedenti visibili mentre la nuova query (key cambiata) carica
     // Evita il "meteo sparisce" quando cambiano le location o le coordinate
     placeholderData: keepPreviousData,

@@ -72,7 +72,11 @@ export default function RenderHub() {
       }[];
     },
     enabled: !!companyId,
-    refetchInterval: 12_000, // poll per sessioni in processing
+    // Poll solo se ci sono sessioni in elaborazione — evita 1 req/12s quando la pagina è idle
+    refetchInterval: (query) =>
+      (query.state.data as Array<{ status: string }> | undefined)?.some(s => s.status === "processing")
+        ? 12_000
+        : false,
   });
 
   // ── Galleria recente (ultime 6) ──────────────────────────────────────────────

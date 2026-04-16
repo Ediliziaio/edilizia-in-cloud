@@ -74,7 +74,10 @@ export default function RenderBagnoHub() {
       }[];
     },
     enabled: !!companyId,
-    refetchInterval: 12_000,
+    refetchInterval: (query) =>
+      (query.state.data as Array<{ status: string }> | undefined)?.some(s => s.status === "processing")
+        ? 12_000
+        : false,
   });
 
   // ── Galleria recente (ultime 6) ───────────────────────────────────

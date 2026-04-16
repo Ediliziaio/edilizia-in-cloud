@@ -876,7 +876,11 @@ function DashboardPermissionsDialog({
   // ID utente corrente — per escluderlo dalla lista (è già il proprietario)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+    let alive = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (alive) setCurrentUserId(data.user?.id ?? null);
+    });
+    return () => { alive = false; };
   }, []);
   const members = useMemo(
     () => allMembers.filter((m) => m.user_id !== currentUserId),

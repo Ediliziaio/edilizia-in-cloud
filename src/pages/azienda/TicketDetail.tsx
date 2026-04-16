@@ -76,16 +76,20 @@ export default function TicketDetail() {
         .eq("company_id", effectiveCompany!.id)
         .single();
       if (error) throw error;
-      const t = data as unknown as TicketDetailType;
-      if (!notesLoaded) {
-        setInternalNotes(t.internal_notes || "");
-        setNotesLoaded(true);
-      }
-      return t;
+      return data as unknown as TicketDetailType;
     },
     enabled: !!id && !!effectiveCompany?.id,
     staleTime: 30 * 1000,
   });
+
+  // Inizializza le note interne dalla query solo al primo caricamento.
+  // Separato dalla queryFn per evitare setState durante render di React Query.
+  useEffect(() => {
+    if (ticket && !notesLoaded) {
+      setInternalNotes(ticket.internal_notes || "");
+      setNotesLoaded(true);
+    }
+  }, [ticket, notesLoaded]);
 
   const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
     queryKey: queryKeys.adminTicketMessages.byTicket(id),

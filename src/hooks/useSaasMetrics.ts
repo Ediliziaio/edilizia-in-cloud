@@ -27,6 +27,7 @@ export function useSaasMetrics() {
 
   const { data: cacInputs, isLoading: isLoadingCac } = useQuery({
     queryKey: ["cac-inputs"],
+    staleTime: 5 * 60 * 1_000, // dati finanziari: 5 min di cache — cambiano raramente
     queryFn: async (): Promise<CacInput[]> => {
       const { data, error } = await supabase
         .from("cac_input")
@@ -41,6 +42,7 @@ export function useSaasMetrics() {
 
   const { data: latestSnapshot, isLoading: isLoadingMrr } = useQuery({
     queryKey: ["mrr-snapshots-latest"],
+    staleTime: 5 * 60 * 1_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mrr_snapshots")
@@ -55,6 +57,7 @@ export function useSaasMetrics() {
 
   const { data: churnData } = useQuery({
     queryKey: ["churn-data"],
+    staleTime: 5 * 60 * 1_000,
     queryFn: async () => {
       // Count cancellazioni nell'ultimo mese
       const thirtyDaysAgo = new Date();

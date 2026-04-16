@@ -71,7 +71,10 @@ export default function RenderPavimentoHub() {
       }[];
     },
     enabled: !!companyId,
-    refetchInterval: 12_000,
+    refetchInterval: (query) =>
+      (query.state.data as Array<{ status: string }> | undefined)?.some(s => s.status === "processing")
+        ? 12_000
+        : false,
   });
 
   const hasProcessing = sessions.some((s) => s.status === "processing");

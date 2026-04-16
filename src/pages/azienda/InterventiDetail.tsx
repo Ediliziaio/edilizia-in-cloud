@@ -65,7 +65,7 @@ export default function InterventiDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rapportini_intervento")
-        .select("id, ticket_id, company_id, tecnico_id, data_intervento, ora_inizio, ora_fine, descrizione_lavoro, materiali_usati, foto_urls, firma_cliente, stato, note, created_at, updated_at, costo_materiali, costo_manodopera, ore_lavorate")
+        .select("id, ticket_id, company_id, tecnico_id, data_intervento, ora_inizio, ora_fine, descrizione_lavoro, materiali_usati, foto_urls, firma_cliente, stato, note, created_at, updated_at, costo_materiali, costo_manodopera, ore_lavoro:ore_lavorate")
         .eq("ticket_id", id!)
         .order("created_at", { ascending: false })
         .limit(100);
@@ -170,9 +170,11 @@ export default function InterventiDetail() {
         .update({ stato: "fatturato" })
         .eq("id", rapportino.id);
     },
-    onSuccess: () => {
+    onSuccess: (_data, rapportino) => {
+      const tariffaH = tariffaOraria ?? 50;
+      const totale = Math.round((rapportino.ore_lavoro ?? 0) * tariffaH * 100) / 100;
       toast.success(
-        `Costo registrato: ${rapportino.ore_lavoro}h × €${tariffaOraria ?? 50}/h = €${totale.toFixed(2)}`
+        `Costo registrato: ${rapportino.ore_lavoro}h × €${tariffaH}/h = €${totale.toFixed(2)}`
       );
       queryClient.invalidateQueries({ queryKey: ["rapportini", id] });
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
