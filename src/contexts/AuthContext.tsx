@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
 import { logger } from "@/utils/logger";
 import { toast } from "sonner";
-import { captureVelocityError } from "@/lib/velocity/sentry";
+import { captureVelocityError, setSentryUserContext } from "@/lib/velocity/sentry";
 
 /**
  * Velocity Protocol — V1/V2
@@ -828,6 +828,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const id = setInterval(ping, 4 * 60 * 1000);
     return () => clearInterval(id);
   }, [state.user?.id]);
+
+  // ── Velocity — Sentry user/tenant context ────────────────────────────────
+  // Tagga ogni evento Sentry con user_id + role + tenant_id (company).
+  // Serve a raggruppare error reports per tenant, per ruolo, e per capire
+  // quale utente è impattato senza dover loggare PII nei singoli eventi.
+  // No-op quando Sentry non è inizializzato (VITE_SENTRY_DSN vuota).
+  useEffect(() => {
+    if (!state.user) {
+      setSentryUserContext(null);
+      return;
+    }
+    setSentryUserContext({
+      id: state.user.id,
+      role: state.role ?? null,
+      tenantId: state.company?.id ?? null,
+      // Niente email di default: la decisione di sharare l'email con Sentry
+      // è una scelta di policy (GDPR/privacy). Se vuoi attivarla, scommenta:
+      // email: state.user.email,
+    });
+  }, [state.user?.id, state.role, state.company?.id]);
 
   // Fetch multi-company accesses for multi_company_user and platform roles
   useEffect(() => {

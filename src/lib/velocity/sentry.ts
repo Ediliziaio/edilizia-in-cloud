@@ -103,3 +103,36 @@ export function captureVelocityError(
     /* noop — non si propaga un errore sul reporter di errori */
   }
 }
+
+/**
+ * Imposta user context + tag per tutti gli eventi Sentry successivi.
+ *
+ * Chiamato da AuthContext quando l'utente è autenticato:
+ *   setSentryUserContext({ id, role, tenantId, email })
+ *
+ * Quando l'utente si sloga passa `null` per pulire.
+ *
+ * In compliance GDPR: non passiamo l'email se non già normalizzata a livello
+ * di consent. Qui accettiamo email solo se esplicitamente fornita dal caller.
+ */
+export function setSentryUserContext(
+  ctx: { id: string; role?: string | null; tenantId?: string | null; email?: string } | null,
+): void {
+  if (!initialized) return;
+  try {
+    if (ctx === null) {
+      Sentry.setUser(null);
+      Sentry.setTag("role", undefined);
+      Sentry.setTag("tenant_id", undefined);
+      return;
+    }
+    Sentry.setUser({
+      id: ctx.id,
+      ...(ctx.email ? { email: ctx.email } : {}),
+    });
+    if (ctx.role) Sentry.setTag("role", ctx.role);
+    if (ctx.tenantId) Sentry.setTag("tenant_id", ctx.tenantId);
+  } catch {
+    /* noop */
+  }
+}

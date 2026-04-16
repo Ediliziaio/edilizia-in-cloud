@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
+import { captureVelocityError } from "@/lib/velocity/sentry";
 
 interface Props {
   children: React.ReactNode;
@@ -34,6 +35,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     logger.error("[ErrorBoundary] Errore catturato:", error.message);
+
+    // Velocity — Sentry con velocity_area="error_boundary" + componentStack.
+    // captureVelocityError è no-op se Sentry non è inizializzato (DSN vuota).
+    captureVelocityError("error_boundary", error, {
+      componentStack: errorInfo.componentStack?.slice(0, 2000) ?? null,
+      url: typeof window !== "undefined" ? window.location.href : null,
+    });
 
     // Report to system_health_metrics for centralized observability
     this.reportError(error, errorInfo).catch(() => {
