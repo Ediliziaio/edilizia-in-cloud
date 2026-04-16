@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,18 +20,22 @@ export default function CustomerProfile() {
   const [address, setAddress] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
-  // Initialize form fields from profile
+
+  // Popola il form SOLO alla prima comparsa del profilo per evitare di
+  // sovrascrivere quanto l'utente sta digitando se AuthContext refetcha.
+  const initializedForUser = useRef<string | null>(null);
   useEffect(() => {
-    if (profile) {
-      setFirstName(profile.first_name || "");
-      setLastName(profile.last_name || "");
-      setPhone(profile.phone || "");
-      setFiscalCode(profile.fiscal_code || "");
-      setAddress(profile.address || "");
-      setSiteAddress(profile.site_address || "");
-      setNotes(profile.notes || "");
-    }
-  }, [profile]);
+    if (!profile?.id) return;
+    if (initializedForUser.current === profile.id) return;
+    initializedForUser.current = profile.id;
+    setFirstName(profile.first_name || "");
+    setLastName(profile.last_name || "");
+    setPhone(profile.phone || "");
+    setFiscalCode(profile.fiscal_code || "");
+    setAddress(profile.address || "");
+    setSiteAddress(profile.site_address || "");
+    setNotes(profile.notes || "");
+  }, [profile?.id, profile]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {

@@ -40,7 +40,7 @@ export default function CustomerOrderDetail() {
         `)
         .eq("id", id!)
         .eq("customer_id", user!.id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },

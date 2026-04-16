@@ -88,10 +88,12 @@ export default function CustomerFirma() {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("signatures").getPublicUrl(fileName);
+      // Get public URL — safe destructuring (bucket privato → data può essere null)
+      const urlResult = supabase.storage.from("signatures").getPublicUrl(fileName);
+      const publicUrl = urlResult?.data?.publicUrl;
+      if (!publicUrl) {
+        throw new Error("Impossibile ottenere l'URL della firma. Contatta l'assistenza.");
+      }
 
       // Update request status
       const { error: updateError } = await supabase

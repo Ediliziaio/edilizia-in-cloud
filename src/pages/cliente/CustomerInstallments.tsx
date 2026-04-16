@@ -76,10 +76,11 @@ export default function CustomerInstallments() {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Group by order
+  // Group by order — filtra difensivamente rate con order null/mancante
   const orderGroups = useMemo(() => {
     const map = new Map<string, { order: Installment["order"]; installments: Installment[] }>();
     installments.forEach((inst) => {
+      if (!inst.order || !inst.order_id) return;
       const key = inst.order_id;
       if (!map.has(key)) {
         map.set(key, { order: inst.order, installments: [] });

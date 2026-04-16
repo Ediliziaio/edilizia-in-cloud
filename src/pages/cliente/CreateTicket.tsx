@@ -101,23 +101,22 @@ export default function CreateTicket() {
 
       if (messageError) throw messageError;
 
-      // Upload pending files
+      // Upload pending files — salviamo il PATH (non la signed URL che scade 24h).
+      // La signed URL verrà creata on-demand al momento del download nel detail.
       for (const file of pendingFiles) {
         const path = `${ticket.id}/${crypto.randomUUID()}-${file.name}`;
         const { error: upErr } = await supabase.storage
           .from("ticket-attachments")
           .upload(path, file, { contentType: file.type });
         if (upErr) throw upErr;
-        const { data: signedData } = await supabase.storage
-          .from("ticket-attachments")
-          .createSignedUrl(path, 60 * 60 * 24);
+
         const { error: msgErr } = await supabase
           .from("ticket_messages")
           .insert({
             ticket_id: ticket.id,
             sender_id: user!.id,
             message: `📎 ${file.name}`,
-            attachment_url: signedData?.signedUrl || path,
+            attachment_url: path,
           });
         if (msgErr) throw msgErr;
       }
@@ -145,6 +144,14 @@ export default function CreateTicket() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !message.trim()) return;
+    if (!user || !profile?.company_id) {
+      toast({
+        title: "Attendere",
+        description: "Dati utente in caricamento. Riprova tra un momento.",
+        variant: "destructive",
+      });
+      return;
+    }
     createTicketMutation.mutate();
   };
 
@@ -258,7 +265,7 @@ export default function CreateTicket() {
           <div className="flex flex-col gap-3 pt-2">
             <Button
               type="submit"
-              disabled={!subject.trim() || !message.trim() || createTicketMutation.isPending}
+              disabled={!subject.trim() || !message.trim() || !profile?.company_id || createTicketMutation.isPending}
               className="w-full rounded-2xl py-3.5 h-auto text-base font-semibold"
             >
               {createTicketMutation.isPending ? (

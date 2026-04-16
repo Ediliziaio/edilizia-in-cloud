@@ -54,7 +54,7 @@ export default function CustomerDocuments() {
 
   const isLoading = loadingAtt || loadingInv;
 
-  async function handleDownloadAttachment(fileUrl: string, fileName: string) {
+  async function handleDownloadAttachment(fileUrl: string, _fileName: string) {
     try {
       // If it's a storage path, create signed URL
       if (fileUrl.startsWith("order-attachments/")) {
@@ -62,11 +62,23 @@ export default function CustomerDocuments() {
           .from("order-attachments")
           .createSignedUrl(fileUrl.replace("order-attachments/", ""), 3600);
         if (error) throw error;
+        if (!data?.signedUrl) throw new Error("URL firmato non disponibile");
         window.open(data.signedUrl, "_blank");
-      } else {
+      } else if (/^https?:\/\//.test(fileUrl)) {
         window.open(fileUrl, "_blank");
+      } else {
+        // Path relativo senza prefisso noto — prova come signed URL su bucket generico
+        const bucketMatch = fileUrl.match(/^([^/]+)\/(.*)/);
+        if (!bucketMatch) throw new Error("Formato file non supportato");
+        const { data, error } = await supabase.storage
+          .from(bucketMatch[1])
+          .createSignedUrl(bucketMatch[2], 3600);
+        if (error) throw error;
+        if (!data?.signedUrl) throw new Error("URL firmato non disponibile");
+        window.open(data.signedUrl, "_blank");
       }
-    } catch {
+    } catch (err) {
+      console.error("[CustomerDocuments] download attachment:", err);
       toast.error("Errore nel download del file");
     }
   }
@@ -78,15 +90,16 @@ export default function CustomerDocuments() {
       } else {
         // storage path
         const bucketMatch = pdfUrl.match(/^([^/]+)\/(.*)/);
-        if (bucketMatch) {
-          const { data, error } = await supabase.storage
-            .from(bucketMatch[1])
-            .createSignedUrl(bucketMatch[2], 3600);
-          if (error) throw error;
-          window.open(data.signedUrl, "_blank");
-        }
+        if (!bucketMatch) throw new Error("Formato URL fattura non supportato");
+        const { data, error } = await supabase.storage
+          .from(bucketMatch[1])
+          .createSignedUrl(bucketMatch[2], 3600);
+        if (error) throw error;
+        if (!data?.signedUrl) throw new Error("URL firmato non disponibile");
+        window.open(data.signedUrl, "_blank");
       }
-    } catch {
+    } catch (err) {
+      console.error("[CustomerDocuments] download invoice:", err);
       toast.error("Errore nel download della fattura");
     }
   }

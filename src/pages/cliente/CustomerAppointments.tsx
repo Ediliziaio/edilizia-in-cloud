@@ -90,12 +90,13 @@ export default function CustomerAppointments() {
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ["customer-appointments", user?.id],
     queryFn: async () => {
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("email")
         .eq("id", user!.id)
-        .single();
+        .maybeSingle();
 
+      if (profileError) throw profileError;
       if (!profile?.email) return [];
 
       const { data, error } = await supabase

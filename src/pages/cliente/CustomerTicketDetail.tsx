@@ -35,9 +35,9 @@ export default function CustomerTicketDetail() {
         .select(`id, subject, status, priority, created_at, order_id, order:orders(id, description)`)
         .eq("id", id!)
         .eq("customer_id", user!.id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as unknown as CustomerTicketDetailType;
+      return data as unknown as CustomerTicketDetailType | null;
     },
     enabled: !!id && !!user?.id,
     staleTime: 30 * 1000,
@@ -75,10 +75,11 @@ export default function CustomerTicketDetail() {
       const senderIds = [...new Set((data || []).map((m) => m.sender_id).filter(Boolean))];
       const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
       if (senderIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("id, first_name, last_name")
           .in("id", senderIds);
+        if (profilesError) throw profilesError;
         for (const p of profiles || []) {
           profilesMap[p.id] = { first_name: p.first_name, last_name: p.last_name };
         }
@@ -89,7 +90,7 @@ export default function CustomerTicketDetail() {
         sender: profilesMap[m.sender_id] || null,
       })) as TicketMessage[];
     },
-    enabled: !!id,
+    enabled: !!id && !!user?.id,
     staleTime: 30 * 1000,
   });
 
