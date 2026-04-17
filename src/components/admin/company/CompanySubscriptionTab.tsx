@@ -15,6 +15,8 @@ import { eventTypeLabels, eventTypeIcons } from "@/lib/adminConstants";
 import { PaymentMethodCard } from "./PaymentMethodCard";
 import { CreditTransactionsTable } from "./CreditTransactionsTable";
 import { CreditManagerCard } from "./CreditManagerCard";
+import { CompanyFeatureOverridesCard } from "./CompanyFeatureOverridesCard";
+import { CompanyOverrideAuditLogCard } from "./CompanyOverrideAuditLogCard";
 
 interface CompanySubscriptionTabProps {
   company: Company;
@@ -148,6 +150,17 @@ export function CompanySubscriptionTab({
         isGeneratingCheckout={isGeneratingCheckout}
         checkoutUrl={checkoutUrl}
       />
+
+      {/* Override feature inline (sblocco/blocco + limiti + scadenze + prezzi custom) */}
+      <CompanyFeatureOverridesCard
+        companyId={company.id}
+        companyName={company.name}
+        planId={currentPlan?.id ?? null}
+        planSlug={currentPlan?.slug ?? null}
+      />
+
+      {/* Storico modifiche override (audit log) */}
+      <CompanyOverrideAuditLogCard companyId={company.id} />
 
       {/* Gestione crediti multi-wallet (SuperAdmin) */}
       <CreditManagerCard companyId={company.id} />
