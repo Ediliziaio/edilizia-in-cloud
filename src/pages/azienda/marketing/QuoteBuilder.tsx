@@ -24,8 +24,8 @@ import {
   calcolaScontoQuantita,
 } from "@/hooks/usePreventivoCosti";
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
-import BundleSelector from "@/components/marketing/preventivi/BundleSelector";
 import QuoteWizardSerramenti from "@/components/marketing/preventivi/QuoteWizardSerramenti";
+import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { useFamilies } from "@/hooks/useFamilies";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1113,23 +1113,6 @@ export default function QuoteBuilder() {
     setItems(newItems);
     if (impostazioni.chiedi_smaltimento) setSmaltimentoAsk({ parentIdx: prodIdx });
     setSearchOpen(false);
-  };
-
-  // IMP09: Add bundle items
-  const handleSelectBundle = (bundle: BundleConVoci, voci: BundleConVoci["bundle_voci"]) => {
-    const newItems = espondiBundle(
-      bundle,
-      voci,
-      impostazioni.overhead_percentuale ?? 0
-    );
-    setItems((prev) => {
-      const base = [...(prev as typeof prev)];
-      newItems.forEach((item, idx) => {
-        base.push({ ...item, sort_order: base.length + idx });
-      });
-      return base;
-    });
-    setBundleOpen(false);
   };
 
   const updateItem = (index: number, field: keyof QuoteItemPro, value: QuoteItemPro[keyof QuoteItemPro]) => {
@@ -2826,20 +2809,22 @@ export default function QuoteBuilder() {
         </Dialog>
       )}
 
-      {/* IMP09: Bundle dialog */}
-      <Dialog open={bundleOpen} onOpenChange={setBundleOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Aggiungi Bundle</DialogTitle>
-          </DialogHeader>
-          {companyId && (
-            <BundleSelector
-              companyId={companyId}
-              onSelectBundle={handleSelectBundle}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* FASE 10.4: Apply bundle dialog (famiglie + prodotti + tariffe) */}
+      <ApplyBundleDialog
+        open={bundleOpen}
+        onClose={() => setBundleOpen(false)}
+        currentSortOrder={items.length}
+        tariffe={tariffe}
+        onAddItems={(newItems) => {
+          setItems((prev) => {
+            const base = [...prev];
+            newItems.forEach((item, idx) => {
+              base.push({ ...item, sort_order: base.length + idx });
+            });
+            return base;
+          });
+        }}
+      />
 
       {/* FASE 9: Wizard Serramentista */}
       <QuoteWizardSerramenti
