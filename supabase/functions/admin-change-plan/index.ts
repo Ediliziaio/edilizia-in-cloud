@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
 
     const { company_id, new_plan_id } = await req.json();
     if (!company_id || !new_plan_id) {
-      return errorResponse("company_id e new_plan_id sono obbligatori");
+      return errorResponse("company_id e new_plan_id sono obbligatori", 400, corsH);
     }
 
     // Load company and new plan
@@ -24,14 +24,14 @@ Deno.serve(async (req) => {
       .select("id, name, subscription_plan_id, stripe_customer_id, status")
       .eq("id", company_id)
       .single();
-    if (compErr || !company) return errorResponse("Azienda non trovata", 404);
+    if (compErr || !company) return errorResponse("Azienda non trovata", 404, corsH);
 
     const { data: newPlan, error: planErr } = await supabaseAdmin
       .from("subscription_plans")
       .select("id, name, stripe_price_id_monthly")
       .eq("id", new_plan_id)
       .single();
-    if (planErr || !newPlan) return errorResponse("Piano non trovato", 404);
+    if (planErr || !newPlan) return errorResponse("Piano non trovato", 404, corsH);
 
     const oldPlanId = company.subscription_plan_id;
     let oldPlanName = "Nessuno";
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       .from("companies")
       .update({ subscription_plan_id: new_plan_id })
       .eq("id", company_id);
-    if (updateErr) return errorResponse("Errore aggiornamento piano: " + updateErr.message, 500);
+    if (updateErr) return errorResponse("Errore aggiornamento piano: " + updateErr.message, 500, corsH);
 
     // Stripe sync (if configured)
     let stripeSynced = false;
@@ -104,10 +104,10 @@ Deno.serve(async (req) => {
       },
     });
 
-    return jsonResponse({ success: true, stripe_synced: stripeSynced });
+    return jsonResponse({ success: true, stripe_synced: stripeSynced }, 200, corsH);
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("[admin-change-plan] Error:", err);
-    return errorResponse("Errore interno", 500);
+    return errorResponse("Errore interno", 500, corsH);
   }
 });

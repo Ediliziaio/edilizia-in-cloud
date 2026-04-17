@@ -435,10 +435,8 @@ export function CompanyFeatureOverridesCard({
             <CardDescription>
               Sblocco/blocco per ogni feature, limiti numerici, scadenza, prezzo custom per{" "}
               <span className="font-medium">{companyName}</span>. Gli override hanno priorità su{" "}
-              <Badge variant="secondary" className="text-[0.65rem] px-1">
-                plan_default
-              </Badge>{" "}
-              e sul legacy <code>plans_included[]</code>.
+              <code className="text-[0.65rem] bg-muted px-1 rounded">plan_default</code>{" "}
+              e sul legacy <code className="text-[0.65rem] bg-muted px-1 rounded">plans_included[]</code>.
             </CardDescription>
           </div>
           <Badge variant="outline" className="gap-1">

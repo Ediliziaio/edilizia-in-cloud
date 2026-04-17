@@ -284,3 +284,23 @@ verify_jwt = false
 
 [functions.gestisci-sede]
 verify_jwt = false
+
+# ───────────────────────────────────────────────────────────────
+# Funzioni admin: fanno auth check lato codice tramite requireAuth
+# + requireRole. Disabilitiamo verify_jwt per bypassare il JWT
+# verification platform-level che rifiuta ES256 asymmetric tokens.
+# ───────────────────────────────────────────────────────────────
+[functions.admin-adjust-credits]
+verify_jwt = false
+
+[functions.admin-change-plan]
+verify_jwt = false
+
+[functions.admin-dashboard-data]
+verify_jwt = false
+
+[functions.admin-export-financials]
+verify_jwt = false
+
+[functions.admin-mrr-data]
+verify_jwt = false

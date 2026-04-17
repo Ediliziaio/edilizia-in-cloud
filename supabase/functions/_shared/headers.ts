@@ -139,18 +139,28 @@ export const secureHeaders: Record<string, string> = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
 
-/** Helper: restituisce una risposta JSON di errore con header di sicurezza. */
+/**
+ * Helper: restituisce una risposta JSON di errore con header di sicurezza.
+ *
+ * corsOverride (tipicamente `getCorsHeaders(req)`) se passato sovrascrive le
+ * chiavi CORS di `secureHeaders` senza perdere gli header di sicurezza (CSP,
+ * X-Frame-Options, ecc.). Se non passato usa le CORS statiche come fallback.
+ */
 export function errorResponse(message: string, status = 400, corsOverride?: Record<string, string>): Response {
   return new Response(
     JSON.stringify({ error: message }),
-    { status, headers: { ...(corsOverride ?? secureHeaders), "Content-Type": "application/json" } }
+    { status, headers: { ...secureHeaders, ...(corsOverride ?? {}), "Content-Type": "application/json" } }
   );
 }
 
-/** Helper: restituisce una risposta JSON di successo con header di sicurezza. */
+/**
+ * Helper: restituisce una risposta JSON di successo con header di sicurezza.
+ *
+ * Vedi errorResponse per semantica di corsOverride.
+ */
 export function jsonResponse(data: unknown, status = 200, corsOverride?: Record<string, string>): Response {
   return new Response(
     JSON.stringify(data),
-    { status, headers: { ...(corsOverride ?? secureHeaders), "Content-Type": "application/json" } }
+    { status, headers: { ...secureHeaders, ...(corsOverride ?? {}), "Content-Type": "application/json" } }
   );
 }

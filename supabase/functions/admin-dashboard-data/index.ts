@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!roleData) {
-      return errorResponse("Accesso riservato ai super admin", 403);
+      return errorResponse("Accesso riservato ai super admin", 403, corsH);
     }
 
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
@@ -181,6 +181,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("admin-dashboard-data error:", err);
-    return errorResponse((err as Error).message, 500);
+    const corsH = getCorsHeaders(req);
+    return errorResponse((err as Error).message, 500, corsH);
   }
 });

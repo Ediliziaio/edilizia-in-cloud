@@ -30,7 +30,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .maybeSingle();
 
     if (!roleData) {
-      return errorResponse("Accesso riservato ai super admin", 403);
+      return errorResponse("Accesso riservato ai super admin", 403, corsH);
     }
 
     // Calcola data 6 mesi fa (primo giorno del mese)
@@ -47,7 +47,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (error) {
       console.error("Errore lettura mrr_monthly_snapshot:", error.message);
-      return errorResponse("Errore nel recupero dei dati MRR", 500);
+      return errorResponse("Errore nel recupero dei dati MRR", 500, corsH);
     }
 
     const rows = (data ?? []).map((row: {
@@ -74,6 +74,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Errore interno";
     console.error("admin-mrr-data error:", msg);
-    return errorResponse("Errore interno del server", 500);
+    const corsH = getCorsHeaders(req);
+    return errorResponse("Errore interno del server", 500, corsH);
   }
 });

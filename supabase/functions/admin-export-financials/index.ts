@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     const format = url.searchParams.get("format") ?? "csv";
 
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-      return errorResponse("Parametro month richiesto nel formato YYYY-MM", 400);
+      return errorResponse("Parametro month richiesto nel formato YYYY-MM", 400, corsH);
     }
 
     const [year, mon] = month.split("-").map(Number);
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
 
     if (format === "json") {
       return new Response(JSON.stringify({ month, rows }), {
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        headers: { ...corsH, "Content-Type": "application/json" },
       });
     }
 
@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
 
     return new Response(csv, {
       headers: {
-        ...getCorsHeaders(req),
+        ...corsH,
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="export-financials-${month}.csv"`,
       },
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("[admin-export-financials] error:", err);
-    return errorResponse((err as Error).message, 500);
+    return errorResponse((err as Error).message, 500, corsH);
   }
 });
 
