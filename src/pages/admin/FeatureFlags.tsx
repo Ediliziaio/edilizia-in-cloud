@@ -6,11 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Search, Eye, EyeOff, Bot, MessageCircle, BarChart3, MessageSquare, Cpu, Mail, Zap, Percent } from "lucide-react";
+import { Loader2, Search, Eye, EyeOff, Bot, MessageCircle, BarChart3, MessageSquare, Cpu, Mail, Zap, Percent, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -25,6 +28,36 @@ const CATEGORY_STYLES: Record<string, { label: string; variant: string; classNam
   enterprise: { label: "Enterprise", variant: "outline", className: "text-indigo-600 border-indigo-300 bg-indigo-50 dark:bg-indigo-950 dark:text-indigo-400 dark:border-indigo-700" },
 };
 
+const ICON_OPTIONS = ["Bot", "MessageCircle", "BarChart3", "MessageSquare", "Cpu", "Mail", "Zap"] as const;
+const CATEGORY_OPTIONS = ["core", "addon", "beta", "enterprise"] as const;
+
+interface FlagForm {
+  id?: string;
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  icon: string;
+  is_beta: boolean;
+  default_value: boolean;
+  plans_included: string[];
+  price_per_month: string;
+  sort_order: number;
+}
+
+const EMPTY_FLAG_FORM: FlagForm = {
+  key: "",
+  name: "",
+  description: "",
+  category: "core",
+  icon: "Zap",
+  is_beta: false,
+  default_value: false,
+  plans_included: [],
+  price_per_month: "",
+  sort_order: 0,
+};
+
 export default function FeatureFlags() {
   const queryClient = useQueryClient();
   const [dialogFlagKey, setDialogFlagKey] = useState<string | null>(null);
@@ -33,6 +66,11 @@ export default function FeatureFlags() {
   const [bulkConfirm, setBulkConfirm] = useState<{ flagKey: string; value: boolean; count: number } | null>(null);
   const [rolloutPct, setRolloutPct] = useState<number>(0);
   const [rolloutConfirm, setRolloutConfirm] = useState<{ flagKey: string; pct: number } | null>(null);
+
+  // CRUD state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingFlag, setEditingFlag] = useState<FlagForm>(EMPTY_FLAG_FORM);
+  const [deleteConfirmFlag, setDeleteConfirmFlag] = useState<{ id: string; key: string; name: string } | null>(null);
 
   // Fetch flags
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
@@ -56,6 +94,20 @@ export default function FeatureFlags() {
         .from("companies")
         .select("id, name")
         .order("name");
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Fetch plans for plans_included selector
+  const { data: plans = [] } = useQuery({
+    queryKey: ["admin-plans-slugs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subscription_plans")
+        .select("id, name, slug")
+        .order("position");
       if (error) throw error;
       return data;
     },
@@ -186,6 +238,84 @@ export default function FeatureFlags() {
     onError: () => toast.error("Errore nel rollout"),
   });
 
+  // Save flag (insert/update)
+  const saveFlagMutation = useMutation({
+    mutationFn: async (form: FlagForm) => {
+      const payload = {
+        key: form.key.trim().toLowerCase().replace(/\s+/g, "_"),
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        category: form.category,
+        icon: form.icon || null,
+        is_beta: form.is_beta,
+        default_value: form.default_value,
+        plans_included: form.plans_included,
+        price_per_month: form.price_per_month === "" ? null : Number(form.price_per_month),
+        sort_order: form.sort_order,
+      };
+      if (form.id) {
+        const { error } = await supabase
+          .from("platform_feature_flags")
+          .update(payload)
+          .eq("id", form.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("platform_feature_flags")
+          .insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, form) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureFlags });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.platform });
+      setEditDialogOpen(false);
+      toast.success(form.id ? "Feature flag aggiornata" : "Feature flag creata");
+    },
+    onError: (err: Error) => toast.error(`Errore: ${err.message}`),
+  });
+
+  // Delete flag
+  const deleteFlagMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("platform_feature_flags")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureFlags });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.platform });
+      setDeleteConfirmFlag(null);
+      toast.success("Feature flag eliminata");
+    },
+    onError: (err: Error) => toast.error(`Errore: ${err.message}`),
+  });
+
+  const openCreateFlag = () => {
+    setEditingFlag({ ...EMPTY_FLAG_FORM, sort_order: (flags?.length || 0) + 1 });
+    setEditDialogOpen(true);
+  };
+
+  const openEditFlag = (flag: any) => {
+    setEditingFlag({
+      id: flag.id,
+      key: flag.key,
+      name: flag.name,
+      description: flag.description || "",
+      category: flag.category || "core",
+      icon: flag.icon || "Zap",
+      is_beta: !!flag.is_beta,
+      default_value: !!flag.default_value,
+      plans_included: Array.isArray(flag.plans_included) ? flag.plans_included : [],
+      price_per_month: flag.price_per_month != null ? String(flag.price_per_month) : "",
+      sort_order: flag.sort_order ?? 0,
+    });
+    setEditDialogOpen(true);
+  };
+
   const filteredFlags = flags.filter((f: any) =>
     categoryFilter === "all" || f.category === categoryFilter
   );
@@ -200,9 +330,15 @@ export default function FeatureFlags() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="hidden md:block">
-        <h1 className="text-2xl font-bold">Feature Flags</h1>
-        <p className="text-muted-foreground">Gestisci i moduli e le funzionalità disponibili per le aziende.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="hidden md:block">
+          <h1 className="text-2xl font-bold">Feature Flags</h1>
+          <p className="text-muted-foreground">Gestisci i moduli e le funzionalità disponibili per le aziende.</p>
+        </div>
+        <Button onClick={openCreateFlag} className="self-end sm:self-auto">
+          <Plus className="h-4 w-4 mr-2" />
+          Nuova feature
+        </Button>
       </div>
 
       <Tabs value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -282,7 +418,24 @@ export default function FeatureFlags() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEditFlag(flag)}
+                      title="Modifica feature"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeleteConfirmFlag({ id: flag.id, key: flag.key, name: flag.name })}
+                      title="Elimina feature"
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -424,6 +577,205 @@ export default function FeatureFlags() {
               onClick={() => rolloutConfirm && rolloutMutation.mutate({ flagKey: rolloutConfirm.flagKey, pct: rolloutConfirm.pct })}
             >
               Applica rollout {rolloutConfirm?.pct}%
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Create/Edit Flag dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingFlag.id ? "Modifica feature" : "Nuova feature"}</DialogTitle>
+            <DialogDescription>
+              Configura la definizione della feature nel catalogo piattaforma.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="ff-key">Chiave (key) *</Label>
+                <Input
+                  id="ff-key"
+                  placeholder="es. ai_assistant"
+                  value={editingFlag.key}
+                  onChange={(e) => setEditingFlag({ ...editingFlag, key: e.target.value })}
+                  disabled={!!editingFlag.id}
+                />
+                <p className="text-xs text-muted-foreground">snake_case, immutabile dopo la creazione</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ff-name">Nome *</Label>
+                <Input
+                  id="ff-name"
+                  placeholder="es. Assistente AI"
+                  value={editingFlag.name}
+                  onChange={(e) => setEditingFlag({ ...editingFlag, name: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="ff-desc">Descrizione</Label>
+              <Textarea
+                id="ff-desc"
+                rows={2}
+                placeholder="Descrizione della feature"
+                value={editingFlag.description}
+                onChange={(e) => setEditingFlag({ ...editingFlag, description: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label>Categoria</Label>
+                <Select
+                  value={editingFlag.category}
+                  onValueChange={(v) => setEditingFlag({ ...editingFlag, category: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c}>{CATEGORY_STYLES[c]?.label ?? c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Icona</Label>
+                <Select
+                  value={editingFlag.icon}
+                  onValueChange={(v) => setEditingFlag({ ...editingFlag, icon: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ICON_OPTIONS.map((i) => (
+                      <SelectItem key={i} value={i}>{i}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ff-price">Prezzo (€/mese)</Label>
+                <Input
+                  id="ff-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="vuoto = nessun prezzo"
+                  value={editingFlag.price_per_month}
+                  onChange={(e) => setEditingFlag({ ...editingFlag, price_per_month: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="ff-sort">Ordine</Label>
+                <Input
+                  id="ff-sort"
+                  type="number"
+                  min="0"
+                  value={editingFlag.sort_order}
+                  onChange={(e) => setEditingFlag({ ...editingFlag, sort_order: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+              <div className="flex items-center justify-between pt-6 rounded-md border px-3">
+                <Label htmlFor="ff-beta" className="cursor-pointer">Beta</Label>
+                <Switch
+                  id="ff-beta"
+                  checked={editingFlag.is_beta}
+                  onCheckedChange={(v) => setEditingFlag({ ...editingFlag, is_beta: v })}
+                />
+              </div>
+              <div className="flex items-center justify-between pt-6 rounded-md border px-3">
+                <Label htmlFor="ff-default" className="cursor-pointer">Default on</Label>
+                <Switch
+                  id="ff-default"
+                  checked={editingFlag.default_value}
+                  onCheckedChange={(v) => setEditingFlag({ ...editingFlag, default_value: v })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-base font-semibold">Piani inclusi</Label>
+              <p className="text-xs text-muted-foreground">
+                Seleziona i piani che includono automaticamente questa feature.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {plans.map((p: any) => {
+                  const checked = editingFlag.plans_included.includes(p.slug);
+                  return (
+                    <label
+                      key={p.id}
+                      className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          setEditingFlag({
+                            ...editingFlag,
+                            plans_included: v
+                              ? [...editingFlag.plans_included, p.slug]
+                              : editingFlag.plans_included.filter((s) => s !== p.slug),
+                          })
+                        }
+                      />
+                      <span className="text-sm font-medium">{p.name}</span>
+                      <code className="text-xs text-muted-foreground ml-auto">{p.slug}</code>
+                    </label>
+                  );
+                })}
+                {plans.length === 0 && (
+                  <p className="text-sm text-muted-foreground col-span-2 text-center py-4">
+                    Nessun piano configurato.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Annulla</Button>
+            <Button
+              onClick={() => saveFlagMutation.mutate(editingFlag)}
+              disabled={
+                !editingFlag.key.trim() ||
+                !editingFlag.name.trim() ||
+                saveFlagMutation.isPending
+              }
+            >
+              {saveFlagMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingFlag.id ? "Salva modifiche" : "Crea feature"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm dialog */}
+      <AlertDialog open={!!deleteConfirmFlag} onOpenChange={(open) => { if (!open) setDeleteConfirmFlag(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare feature "{deleteConfirmFlag?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione rimuove permanentemente la definizione della feature
+              <code className="mx-1">{deleteConfirmFlag?.key}</code>
+              dal catalogo e tutti gli override aziendali collegati (cascade). Operazione irreversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirmFlag && deleteFlagMutation.mutate(deleteConfirmFlag.id)}
+            >
+              Elimina feature
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
