@@ -11,8 +11,8 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 
 | Fase | Stato | Sotto-fasi | Commit | Note |
 |---|---|---|---|---|
-| FASE 0 — Analisi preliminare | 🟡 IN CORSO | Analisi + 2 MD | *(pending `chore: phase 0 analysis preventivatore verticalizzato serramenti`)* | Commit gate |
-| FASE 1 — Vertical + onboarding | ⚪ TODO | — | — | Valutare `ALTER TYPE ... ADD VALUE 'serramentisti'` o riuso `'serramenti'` |
+| FASE 0 — Analisi preliminare | 🟢 DONE | Analisi + 2 MD | `325c94db` | Commit gate rispettato |
+| FASE 1 — Vertical + onboarding | 🟡 IN CORSO | 1.1 migration + 1.2 hook + 1.3 page + 1.4 routing/guard | *(pending `feat(serramenti): fase 1 vertical + onboarding azienda`)* | Decisione: nuova colonna TEXT `vertical` coesistente con `sector` (9 valori vs 8, dominio differente). Masterprompt spec prevale su FASE 0 |
 | FASE 2 — Data model famiglie/assi | ⚪ TODO | 2.1–2.x | — | 3 nuove tabelle + 3 ALTER |
 | FASE 3 — Seed categorie | ⚪ TODO | — | — | INSERT idempotenti |
 | FASE 4 — Editor UI famiglie/assi | ⚪ TODO | — | — | Tocca ArticleCatalog 1137L |
@@ -58,7 +58,32 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
   - P0.3 `src/pages/azienda/marketing/QuoteBuilder.tsx` (0 uso `calcolaScontoQuantita` / 0 suggerimenti bundle)
 - ✅ 2 conflitti UX da tenere sotto osservazione: `MargineSemaforo` duplicato, ENUM `company_sector`
 - ✅ pgvector: confermata assenza (da installare in FASE 8)
-- ⏳ **Next:** commit gate `chore: phase 0 analysis preventivatore verticalizzato serramenti` → FASE 1.
+- ✅ Commit gate `chore: phase 0 analysis preventivatore verticalizzato serramenti` (`325c94db`)
+
+### FASE 1 — 2026-04-17
+- ✅ 1.1 Migration `20260917000001_serramenti_01_vertical_companies.sql`:
+  - `vertical TEXT NULL` + CHECK constraint 9 valori ammessi
+  - `verticals_secondari TEXT[] NOT NULL DEFAULT '{}'` (multi-vertical futuro)
+  - `onboarding_vertical_completed BOOLEAN NOT NULL DEFAULT false`
+  - UPDATE aziende esistenti → `generico` + onboarding completato (non forzare tenant live)
+  - Indice parziale `idx_companies_vertical` per filtri dashboards/stats
+- ✅ 1.2 Hook `useVertical()` in `src/hooks/useVertical.ts`:
+  - Type `Vertical` (9 valori), `VERTICAL_META` (label/icon/enabled/description), `VERTICAL_ORDER` 3x3
+  - Fallback `"generico"` con narrowing `unknown → Vertical` via type guard `isVertical`
+  - Fonte dati: `effectiveCompany` (impersonation + multi-company aware)
+- ✅ 1.3 Page `src/pages/azienda/onboarding/OnboardingVertical.tsx`:
+  - Griglia 3x3 Cards con icone lucide, aria-pressed, keyboard nav (Enter/Space)
+  - 2 card attive (serramentista, generico) + 7 "Prossimamente" disabled
+  - Mutation update `companies.vertical` + `onboarding_vertical_completed=true` → `refreshAuth()` + `navigate("/azienda", { replace: true })`
+  - "Salta per ora" di default salva `generico`
+  - `captureVelocityError` su fallimento save
+- ✅ 1.4 Routing + guard:
+  - `companyRoutes.tsx`: lazy import + `<Route path="onboarding/vertical" />` dentro CompanyLayout
+  - `CompanyLayout.tsx`: `useEffect` redirect se `onboarding_vertical_completed === false` (escluso impersonation + la stessa pagina onboarding)
+- ✅ Decisione architettonica documentata nell'header della migration: coesistenza `sector` (enum legacy) + `vertical` (text nuovo). NO riuso `company_sector` perché dominio differente (9 valori incluso `tende_da_sole`/`caldaie`/`clima`).
+- ✅ Types estesi in `src/types/auth.ts`: `CompanyVertical` type + 3 campi in `Company` interface.
+- ✅ `tsc --noEmit` → 0 errori.
+- ⏳ **Next:** commit `feat(serramenti): fase 1 vertical + onboarding azienda` → FASE 2.
 
 ---
 

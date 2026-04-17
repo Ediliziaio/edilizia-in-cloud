@@ -142,6 +142,22 @@ export type CompanySector =
 
 export type CompanyStatus = "trial" | "active" | "suspended" | "expired" | "free";
 
+/**
+ * Verticali di settore supportati dal Preventivatore Verticalizzato (FASE 1.1).
+ * Coesiste con `CompanySector`: `sector` è meta-dato storico, `vertical` guida
+ * la verticalizzazione UI/AI/listini.
+ */
+export type CompanyVertical =
+  | "serramentista"
+  | "tetti"
+  | "bagno"
+  | "ristrutturazione"
+  | "tende_da_sole"
+  | "vetrate"
+  | "caldaie"
+  | "clima"
+  | "generico";
+
 export interface Profile {
   id: string;
   company_id: string | null;
@@ -218,6 +234,10 @@ export interface Company {
   white_label_monthly_price: number;
   // GPS FleetTrack addon
   fleet_track_enabled: boolean;
+  // Preventivatore Verticalizzato (FASE 1.1)
+  vertical: CompanyVertical | null;
+  verticals_secondari: CompanyVertical[];
+  onboarding_vertical_completed: boolean;
 }
 
 export interface AuthState {

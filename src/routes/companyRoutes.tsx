@@ -173,6 +173,7 @@ const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/Marketing
 const SmsMarketingPage = lazy(() => import("@/pages/azienda/sms-marketing/index"));
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
 const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
+const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
@@ -224,6 +225,7 @@ export function companyRoutes() {
       >
         <Route index element={<CompanyDashboard />} />
         <Route path="onboarding" element={<OnboardingPage />} />
+        <Route path="onboarding/vertical" element={<ErrorBoundary title="Errore nel caricamento onboarding settore"><OnboardingVertical /></ErrorBoundary>} />
         <Route path="cruscotto" element={<CruscottoDashboardPage />} />
         <Route path="cruscotto/gestisci" element={<CruscottoHub />} />
         <Route path="cruscotto/aziendale" element={<CruscottoAziendale />} />
