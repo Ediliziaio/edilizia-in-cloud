@@ -17,7 +17,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 3 — Seed categorie + installer | 🟢 DONE | 3.1 tables + 3.2 seed + 3.3 edge fn + 3.4 dialog UI | `cccd5f5c` | 11 cat + 38 famiglie template, idempotent Edge Function |
 | FASE 4 — Editor UI famiglie/assi | 🟢 DONE | 4.1–4.7 hook + catalogo + editor + routing | `674015fc` | 5-step editor, assi+valori CRUD, griglia L×H, price preview live |
 | FASE 5 — Motore calcolo prezzo | 🟢 DONE | 5.1 useFamilyPricing hook + 5.2 unit tests | `0b8d4af7` | 16 test vitest, funzione pura + nearestGrid Manhattan |
-| FASE 6 — Manodopera UM flessibili | ⚪ TODO | — | — | DB già supporta UM |
+| FASE 6 — Manodopera UM flessibili | 🟢 DONE | 6.1 migration + 6.2 edge fn + 6.3 UI + 6.4 calcolo | `a228d0a4` | 10 UM canoniche, costo_interno separato, semaforo live |
 | FASE 7 — Fix 3 P0 bug | ⚪ TODO | 7.1 unit_price, 7.2 LIMIT 60, 7.3 sconti/bundle | — | Copertura regressione aziende live |
 | FASE 8 — AI + pgvector | ⚪ TODO | migration + embeddings + RPC + edge fn | — | Verifica disponibilità `vector` ext Supabase |
 | FASE 9 — Wizard serramentista | ⚪ TODO | — | — | Single source of truth = `items[]` QB |
@@ -202,6 +202,39 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
 - ✅ `vitest run` → **158/158 test verdi** (9 file, nessuna regressione sugli altri moduli).
 - ✅ `tsc --noEmit` → 0 errori.
 - ⏳ **Next:** FASE 6 (tariffe UM flessibili + edge function installa-tariffe-vertical).
+
+### FASE 6 — 2026-04-17
+- ✅ 6.1 Migration `20260917000006_serramenti_06_tariffe_extension.sql`:
+  - ADD `unita_fatturazione TEXT` CHECK in (`pz,mq,ml,mc,kg,gg,h,a_corpo,km,piano`) — le 10 UM canoniche masterprompt 6.1.
+  - ADD `costo_interno NUMERIC(12,4)`, `vertical_associato TEXT`, `attivo BOOLEAN`. La descrizione era già presente.
+  - Backfill: `unita_fatturazione` da legacy `unita` (fisso→a_corpo, cad→pz, giornata/ora→gg/h, default pz); `costo_interno` = `prezzo_costo` dove >0; `attivo = COALESCE(attiva,true)`.
+  - Amplia CHECK `tipo` con: manodopera, sopralluogo, progettazione, ponteggio, lattoneria, sigillatura, contorno, falso_telaio (mantiene posa/trasporto/smaltimento/nolo/tiro_piano/pratica/altro).
+  - Indice parziale `idx_tariffe_aziendali_vertical (company_id, vertical_associato) WHERE attivo=true`.
+- ✅ 6.2 Edge Function `supabase/functions/installa-tariffe-vertical/index.ts`:
+  - Input `{company_id, vertical}`; output `{ok, tariffe_create, tariffe_skippate}`.
+  - Seed per vertical `serramentista`: 17 tariffe da masterprompt 6.2 (Posa standard/grande/persiana/zanzariera, Smontaggio, Smaltimento, Trasporto a_corpo, Sovrapprezzo km, Tiro piano, Ponteggio, Lattoneria ml, Sigillatura ml, Manodopera gg, Manodopera h, Contorno ml, Falso telaio pz, Sopralluogo).
+  - Idempotente (dedup per `nome`), prezzi=0 (azienda compila post-install).
+  - Auth: super_admin OR profiles.company_id OR multi_company_access OR active_impersonations (struttura speculare a `installa-template-vertical`).
+  - Popola sia `unita` legacy (mapping via `legacyUnitaFrom`) che `unita_fatturazione` canonica.
+- ✅ 6.3 `SettingsTariffe.tsx`:
+  - TIPO_TABS esteso a 15 categorie (tutte le tipologie della migration) + badge colorati dedicati per ognuna.
+  - UM_FATTURAZIONE con 10 voci + hint descrittivo in dropdown.
+  - Dialog nuovi campi: `descrizione`, `unita_fatturazione` (fissa alla creazione, warning "non modificabile per preventivi" in edit), `vertical_associato` (Globale / serramentista / generico / edile / impiantistica), `costo_interno` (admin-only).
+  - **Semaforo margine live** sotto i prezzi (verde ≥25%, giallo ≥15%, rosso altrimenti) con delta €/unit.
+  - Filtro vertical in header: "Tutte" / "Solo vertical corrente" / "Solo globali".
+  - Retrocompat: insert/update popola anche legacy `unita` + `prezzo_costo` per non rompere letture da codice vecchio.
+- ✅ 6.4 `usePreventivoCosti.ts`:
+  - `TariffaPro` esteso con `costo_interno` e `unita_fatturazione`.
+  - Query map: se `costo_interno` presente lo usa come prezzo_costo (fallback a legacy).
+  - `calcolaTariffaAutomatica(tariffa, qty, piano?, kmCantiere?)` nuovo parametro `kmCantiere`:
+    - `tiro_piano` legacy → logica scaglioni invariata
+    - `a_corpo`/`fisso` → importo fisso totale (ignora qty)
+    - `km` → × kmCantiere
+    - `piano` (non tiro_piano) → × numero piani
+    - resto (pz/mq/ml/mc/kg/gg/h) → × qty
+  - Nessun breaking change: i 4 call site in QuoteBuilder (righe 891/921/991/1074) continuano a funzionare con firma 2-3 args.
+- ✅ `tsc --noEmit` → 0 errori. `vitest run` → 158/158 verdi (nessuna regressione).
+- ⏳ **Next:** FASE 7 (fix P0 bug unit_price mq/griglia + LIMIT 60 + sconti/bundle in QuoteBuilder).
 
 ---
 
