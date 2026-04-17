@@ -27,6 +27,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
 import { useState } from "react";
+import { PlanFeatureDefaultsCard } from "@/components/admin/plan/PlanFeatureDefaultsCard";
 
 export default function PlanDetail() {
   const { id } = useParams<{ id: string }>();
@@ -349,23 +350,28 @@ export default function PlanDetail() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Zap className="h-4 w-4 text-primary" />
-            Feature flags incluse
-          </CardTitle>
-          <CardDescription>
-            Feature automaticamente abilitate per chi sottoscrive il piano
-            {" "}<code>{plan.slug}</code>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {features.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              Nessuna feature flag associata a questo piano.
-            </p>
-          ) : (
+      {/* Editor default per-piano (plan_feature_defaults): toggle/limit/credits per ogni feature */}
+      <PlanFeatureDefaultsCard
+        planId={plan.id}
+        planSlug={plan.slug}
+        planName={plan.name}
+      />
+
+      {/* Legacy: elenco feature legacy da plans_included[] — mantenuto per compat, mostrato solo se ci sono righe */}
+      {features.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Zap className="h-4 w-4 text-muted-foreground" />
+              Feature flags legacy (plans_included[])
+            </CardTitle>
+            <CardDescription>
+              Lista derivata dall'array <code>plans_included</code> su
+              <code> platform_feature_flags</code>. La tabella sopra è la sorgente
+              autoritativa; questa vista serve solo per riferimento.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="divide-y">
               {features.map((f: any) => (
                 <div key={f.id} className="flex items-start justify-between gap-4 py-3">
@@ -396,15 +402,15 @@ export default function PlanDetail() {
                       size="sm"
                       onClick={() => navigate(`/admin/feature-flags`)}
                     >
-                      Gestisci
+                      Catalogo
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <AlertDialog open={duplicateConfirmOpen} onOpenChange={setDuplicateConfirmOpen}>
         <AlertDialogContent>

@@ -447,6 +447,7 @@ export const queryKeys = {
     supportConversations: ["admin-support-conversations"] as const,
     featureFlags: ["admin-feature-flags"] as const,
     featureOverrides: ["admin-all-overrides"] as const,
+    planFeatureDefaults: (planId: string) => ["admin-plan-feature-defaults", planId] as const,
     ffCompanies: ["admin-ff-companies"] as const,
     gdprRequests: ["admin-gdpr-requests"] as const,
     gdprAuditLog: ["gdpr-audit-log"] as const,
