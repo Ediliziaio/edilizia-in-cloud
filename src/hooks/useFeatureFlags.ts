@@ -16,54 +16,55 @@ interface FeatureFlag {
   price_per_month: number | null;
 }
 
-interface FeatureOverride {
+type FlagSource = "override" | "plan" | "default" | "bypass";
+
+interface ResolvedFlag {
+  key: string;
+  enabled: boolean;
+  source: FlagSource;
+  flag?: FeatureFlag;
+}
+
+interface FeatureOverrideRow {
   feature_key: string;
   is_enabled: boolean;
   expires_at: string | null;
   override_reason: string | null;
 }
 
-type FlagSource = "override" | "plan" | "default";
-
-interface ResolvedFlag {
-  key: string;
-  enabled: boolean;
-  source: FlagSource;
-  flag: FeatureFlag;
+interface ResolvedRow {
+  feature_key: string;
+  is_enabled: boolean;
+  source: string;
+  limit_value: number | null;
+  price_override: number | null;
+  expires_at: string | null;
 }
 
+/**
+ * Centralized feature gating hook.
+ *
+ * Delegates resolution to the DB RPC `resolve_company_features` so sidebar,
+ * FeatureRoute guards and FeatureGate all agree on the same truth:
+ *   override > plan.slug membership > default_value
+ *
+ * History: prior to 2026-04-17 this hook resolved client-side by comparing
+ * `plan.name.toLowerCase()` against `plans_included`, while the RPC (used by
+ * `useFeatureAccess` and `FeatureRoute`) compared against `plan.slug`. When
+ * slug ≠ lowercase(name) the sidebar could hide a voice while the route was
+ * open (or vice versa). Moving resolution server-side eliminates that drift.
+ */
 export function useFeatureFlags(companyIdOverride?: string) {
   const { effectiveCompany, role, isImpersonating, impersonatedCompanyId, impersonationToken } = useAuth();
   const companyId = companyIdOverride || effectiveCompany?.id;
 
-  // BUG FIX: AuthContext.fetchUserData non fa il join su subscription_plans, quindi
-  // `effectiveCompany.subscription_plan.name` è SEMPRE undefined → il branch "plan"
-  // del resolver non matcha mai e ogni feature cade sempre su `default_value`.
-  // Risolviamo con una query secondaria dedicata sul piano, tenuto separato per
-  // non costringere AuthContext a rifetchare il join su ogni cambio profilo.
-  const planId = (effectiveCompany as any)?.subscription_plan_id as string | null | undefined;
-  const { data: plan } = useQuery({
-    queryKey: ["subscription-plan-name", planId],
-    queryFn: async () => {
-      if (!planId) return null;
-      const { data, error } = await supabase
-        .from("subscription_plans")
-        .select("name")
-        .eq("id", planId)
-        .maybeSingle();
-      if (error) throw error;
-      return data as { name: string } | null;
-    },
-    enabled: !!planId,
-    staleTime: 5 * 60 * 1000,
-  });
-  // Ordine dei fallback: plan fetchato > join legacy embedded > stringa vuota
-  const planName =
-    plan?.name?.toLowerCase?.() ??
-    (effectiveCompany as any)?.subscription_plan?.name?.toLowerCase?.() ??
-    "";
+  // Super admin bypass: covers the initial impersonation race where `role` has
+  // not resolved yet but the impersonation session tokens are already present.
+  const isSuperAdmin = role === "super_admin";
+  const bypass = isSuperAdmin && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken));
 
-  // Fetch all feature flags
+  // Catalog: needed for display metadata (icon, category, name, description)
+  // in consumers that introspect the flag list. No longer used for resolution.
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
     queryKey: queryKeys.featureFlags.platform,
     queryFn: async () => {
@@ -77,48 +78,46 @@ export function useFeatureFlags(companyIdOverride?: string) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch company overrides
-  const { data: overrides = [], isLoading: overridesLoading } = useQuery({
-    queryKey: queryKeys.featureFlags.companyOverrides(companyId),
+  // Authoritative resolution via RPC (override > plan.slug > default_value).
+  // staleTime 60s mirrors useFeatureAccess so both consumers invalidate in sync.
+  const { data: resolved = [], isLoading: resolvedLoading } = useQuery({
+    queryKey: queryKeys.featureFlags.companyResolved(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("company_feature_overrides")
-        .select("feature_key, is_enabled, expires_at, override_reason")
-        .eq("company_id", companyId!);
+      if (!companyId) return [] as ResolvedRow[];
+      const { data, error } = await supabase.rpc("resolve_company_features", {
+        p_company_id: companyId,
+      });
       if (error) throw error;
-      return data as FeatureOverride[];
+      return (data ?? []) as ResolvedRow[];
     },
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
   });
 
-  // Super admin bypass: also active when impersonation session exists but role
-  // has not yet been resolved (e.g. fetchUserData racing setSession on page load).
-  const isSuperAdmin = role === "super_admin";
-  const bypass = isSuperAdmin && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken));
-
-  // Resolve flags
+  // Build the legacy `resolvedFlags` shape so any future consumer that reads
+  // `{ key, enabled, source, flag }` keeps working.
   const resolvedFlags: Record<string, ResolvedFlag> = {};
+  const flagByKey = new Map(flags.map((f) => [f.key, f] as const));
+  for (const row of resolved) {
+    resolvedFlags[row.feature_key] = {
+      key: row.feature_key,
+      enabled: row.is_enabled,
+      source: (row.source as FlagSource) ?? "default",
+      flag: flagByKey.get(row.feature_key),
+    };
+  }
+  // Catalog entries the RPC didn't emit (company with no plan, or flag added
+  // after cache warmed up): fall back to the catalog's default_value so the
+  // sidebar stays coherent instead of blanking out on a cold company record.
   for (const flag of flags) {
-    const override = overrides.find((o) => o.feature_key === flag.key);
-    const overrideValid =
-      override && (!override.expires_at || new Date(override.expires_at) > new Date());
-
-    let enabled: boolean;
-    let source: FlagSource;
-
-    if (overrideValid) {
-      enabled = override.is_enabled;
-      source = "override";
-    } else if (flag.plans_included.length > 0 && planName && flag.plans_included.includes(planName)) {
-      enabled = true;
-      source = "plan";
-    } else {
-      enabled = flag.default_value;
-      source = "default";
+    if (!resolvedFlags[flag.key]) {
+      resolvedFlags[flag.key] = {
+        key: flag.key,
+        enabled: flag.default_value ?? false,
+        source: "default",
+        flag,
+      };
     }
-
-    resolvedFlags[flag.key] = { key: flag.key, enabled, source, flag };
   }
 
   const isFeatureEnabled = (key: string): boolean => {
@@ -126,11 +125,22 @@ export function useFeatureFlags(companyIdOverride?: string) {
     return resolvedFlags[key]?.enabled ?? false;
   };
 
+  // Derive the legacy `overrides` array from the RPC output for any pre-rewrite
+  // consumer. `override_reason` is not emitted by the resolver; left as null.
+  const overrides: FeatureOverrideRow[] = resolved
+    .filter((r) => r.source === "override")
+    .map((r) => ({
+      feature_key: r.feature_key,
+      is_enabled: r.is_enabled,
+      expires_at: r.expires_at,
+      override_reason: null,
+    }));
+
   return {
     flags,
     overrides,
     resolvedFlags,
     isFeatureEnabled,
-    isLoading: flagsLoading || overridesLoading,
+    isLoading: flagsLoading || resolvedLoading,
   };
 }

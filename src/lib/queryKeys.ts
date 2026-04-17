@@ -514,6 +514,7 @@ export const queryKeys = {
     all: ["feature-flags"] as const,
     platform: ["platform-feature-flags"] as const,
     companyOverrides: (companyId: string | undefined) => ["company-feature-overrides", companyId] as const,
+    companyResolved: (companyId: string | undefined) => ["company-features-resolved", companyId] as const,
     list: (companyId: string | undefined) => ["feature-flags", "list", companyId] as const,
   },
 
