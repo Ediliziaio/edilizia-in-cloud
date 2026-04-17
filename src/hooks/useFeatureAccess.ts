@@ -20,7 +20,15 @@ import { useAuth } from "@/contexts/AuthContext";
  */
 export interface FeatureAccess {
   isEnabled: boolean;
-  source: "override" | "plan" | "default" | "bypass";
+  /**
+   * Origine della decisione di gating:
+   *   - override:     company_feature_overrides attivo
+   *   - plan_default: plan_feature_defaults (tabella esplicita per-piano)
+   *   - plan:         fallback legacy platform_feature_flags.plans_included[]
+   *   - default:      default_value globale / feature sconosciuta
+   *   - bypass:       super_admin in sessione di impersonation
+   */
+  source: "override" | "plan_default" | "plan" | "default" | "bypass";
   limit: number | null;
   priceOverride: number | null;
   expiresAt: string | null;

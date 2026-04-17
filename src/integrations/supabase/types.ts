@@ -20218,6 +20218,60 @@ export type Database = {
           },
         ]
       }
+      plan_feature_defaults: {
+        Row: {
+          created_at: string
+          credit_type: string | null
+          credits_included: number | null
+          feature_key: string
+          id: string
+          is_enabled: boolean
+          limit_value: number | null
+          notes: string | null
+          plan_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credit_type?: string | null
+          credits_included?: number | null
+          feature_key: string
+          id?: string
+          is_enabled?: boolean
+          limit_value?: number | null
+          notes?: string | null
+          plan_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credit_type?: string | null
+          credits_included?: number | null
+          feature_key?: string
+          id?: string
+          is_enabled?: boolean
+          limit_value?: number | null
+          notes?: string | null
+          plan_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_feature_defaults_feature_key_fkey"
+            columns: ["feature_key"]
+            isOneToOne: false
+            referencedRelation: "platform_feature_flags"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "plan_feature_defaults_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_announcements: {
         Row: {
           content: string

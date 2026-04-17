@@ -16,7 +16,7 @@ interface FeatureFlag {
   price_per_month: number | null;
 }
 
-type FlagSource = "override" | "plan" | "default" | "bypass";
+type FlagSource = "override" | "plan_default" | "plan" | "default" | "bypass";
 
 interface ResolvedFlag {
   key: string;
