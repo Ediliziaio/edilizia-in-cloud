@@ -7,9 +7,9 @@
  */
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Copy, Package, Box, Wrench, Home } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Package, Box, Wrench, Home, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -132,6 +132,28 @@ export default function SettingsBundle() {
   const upsertMut = useUpsertBundle();
   const deleteMut = useDeleteBundle();
   const toggleMut = useToggleBundleAttivo();
+
+  const installTemplatesMut = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Company non identificata");
+      const { data, error } = await supabase.functions.invoke(
+        "installa-bundle-template",
+        { body: { company_id: companyId, vertical } },
+      );
+      if (error) throw new Error(error.message);
+      return data as { bundles_creati: number; voci_create: number; saltati: string[] };
+    },
+    onSuccess: (res) => {
+      toast.success(
+        `${res.bundles_creati} bundle installati, ${res.voci_create} voci. ${res.saltati.length} saltati.`,
+      );
+      refetch();
+    },
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Errore sconosciuto";
+      toast.error(`Installazione fallita: ${msg}`);
+    },
+  });
 
   // Articoli e tariffe per i dropdown delle voci
   const { data: articoli = [] } = useQuery({
@@ -310,10 +332,21 @@ export default function SettingsBundle() {
             Pacchetti chiavi-in-mano pre-configurati applicabili a un preventivo con un click.
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo bundle
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => installTemplatesMut.mutate()}
+            disabled={installTemplatesMut.isPending || vertical !== "serramentista"}
+            title={vertical !== "serramentista" ? "Template disponibili solo per vertical serramentista" : undefined}
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {installTemplatesMut.isPending ? "Installazione…" : "Installa 5 template"}
+          </Button>
+          <Button onClick={openNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo bundle
+          </Button>
+        </div>
       </div>
 
       <Card>
