@@ -43,18 +43,65 @@ Deno.serve(async (req) => {
       return errorResponse("Accesso negato a questa azienda", 403);
     }
 
-    // Query prodotti (limit 60 — ordiniamo per nome per avere consistenza)
-    const PRODUCT_LIMIT = 60;
-    const { data: prodotti, error: prodottiErr } = await supabaseAdmin
-      .from("article_templates")
-      .select(
-        "id,name,sku,modalita_prezzo,prezzo_vendita,prezzo_acquisto_netto,unit_of_measure,ha_montaggio,montaggio_tipo,categoria_id"
-      )
-      .eq("company_id", company_id)
-      .order("name")
-      .limit(PRODUCT_LIMIT);
+    // FASE 8.3: Query prodotti con retrieval semantico pgvector quando possibile,
+    // fallback a ORDER BY name LIMIT se embedding assente o OpenAI non configurato.
+    const PRODUCT_LIMIT = 60; // fallback legacy
+    const MATCH_COUNT = 40;   // top-K retrieval quando pgvector attivo
+    const MATCH_THRESHOLD = 0.25;
 
-    if (prodottiErr) throw new Error(`Prodotti query error: ${prodottiErr.message}`);
+    let prodotti: any[] | null = null;
+    let retrievalMode: "semantic" | "fallback" = "fallback";
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+
+    if (openaiKey) {
+      // Prova retrieval semantico: embed la descrizione lavori e chiama match_articles RPC
+      try {
+        const embedRes = await fetch("https://api.openai.com/v1/embeddings", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openaiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "text-embedding-3-small",
+            input: `${descrizione ?? ""} | tipo lavoro: ${tipo_lavoro ?? "generico"}`.slice(0, 8000),
+            dimensions: 1536,
+          }),
+        });
+        if (embedRes.ok) {
+          const embedData = await embedRes.json();
+          const queryEmbedding = embedData?.data?.[0]?.embedding;
+          if (Array.isArray(queryEmbedding) && queryEmbedding.length === 1536) {
+            const { data: matches, error: rpcErr } = await supabaseAdmin.rpc("match_articles", {
+              p_query_embedding: JSON.stringify(queryEmbedding),
+              p_company_id: company_id,
+              p_match_threshold: MATCH_THRESHOLD,
+              p_match_count: MATCH_COUNT,
+            });
+            if (!rpcErr && Array.isArray(matches) && matches.length > 0) {
+              prodotti = matches as any[];
+              retrievalMode = "semantic";
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Retrieval semantico fallito, fallback:", e);
+      }
+    }
+
+    if (!prodotti) {
+      // Fallback legacy: ORDER BY name LIMIT 60
+      const { data, error: prodottiErr } = await supabaseAdmin
+        .from("article_templates")
+        .select(
+          "id,name,sku,modalita_prezzo,prezzo_vendita,prezzo_acquisto_netto,unit_of_measure,ha_montaggio,montaggio_tipo,categoria_id"
+        )
+        .eq("company_id", company_id)
+        .order("name")
+        .limit(PRODUCT_LIMIT);
+      if (prodottiErr) throw new Error(`Prodotti query error: ${prodottiErr.message}`);
+      prodotti = data ?? [];
+    }
 
     // FASE 7.1: batch-fetch griglia listini per tutti i prodotti con modalita='griglia'
     const prodottiGrigliaIds = (prodotti ?? [])
@@ -283,9 +330,13 @@ OUTPUT JSON:
 
     // Warn if catalog was truncated
     const avvertenze: string[] = parsedData.avvertenze ?? [];
-    if ((prodotti ?? []).length >= PRODUCT_LIMIT) {
+    if (retrievalMode === "fallback" && (prodotti ?? []).length >= PRODUCT_LIMIT) {
       avvertenze.push(
-        `Il catalogo è stato limitato ai primi ${PRODUCT_LIMIT} prodotti. Se un articolo non è stato trovato, aggiungilo manualmente al preventivo.`
+        `Catalogo limitato ai primi ${PRODUCT_LIMIT} prodotti (retrieval semantico non disponibile). Per risultati migliori, genera gli embedding dal catalogo: sezione Impostazioni → Prodotti.`
+      );
+    } else if (retrievalMode === "semantic") {
+      avvertenze.push(
+        `Retrieval semantico: selezionati i ${(prodotti ?? []).length} prodotti più rilevanti su pgvector (soglia similarità ${MATCH_THRESHOLD}).`
       );
     }
     // Append enrichment warnings (FASE 7.1)

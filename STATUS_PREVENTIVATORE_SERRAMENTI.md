@@ -19,7 +19,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 5 — Motore calcolo prezzo | 🟢 DONE | 5.1 useFamilyPricing hook + 5.2 unit tests | `0b8d4af7` | 16 test vitest, funzione pura + nearestGrid Manhattan |
 | FASE 6 — Manodopera UM flessibili | 🟢 DONE | 6.1 migration + 6.2 edge fn + 6.3 UI + 6.4 calcolo | `a228d0a4` | 10 UM canoniche, costo_interno separato, semaforo live |
 | FASE 7 — Fix 3 P0 bug | 🟢 DONE | 7.1 unit_price mq/griglia + 7.3 sconti/bundle banner + 7.4 tests | `34dbb86f` | 7.2 LIMIT 60 skip: delegato a FASE 8 (pgvector retrieval) |
-| FASE 8 — AI + pgvector | ⚪ TODO | migration + embeddings + RPC + edge fn | — | Verifica disponibilità `vector` ext Supabase |
+| FASE 8 — AI + pgvector | 🟢 DONE | 8.1 migration vector+RPC + 8.2 edge fn genera-embeddings + 8.3 ai-v2 retrieval + 8.4 UI btn | *(pending commit)* | pgvector 0.8.0 disponibile, migration da applicare. Fallback se OPENAI_API_KEY assente |
 | FASE 9 — Wizard serramentista | ⚪ TODO | — | — | Single source of truth = `items[]` QB |
 | FASE 10 — Bundle + suggerimenti | ⚪ TODO | — | — | Reuse `bundle_prodotti` |
 | FASE 11 — Testing E2E + QA | ⚪ TODO | 3 scenari E2E | — | Playwright |
@@ -259,6 +259,37 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
   - Copertura: griglia vuota / esatta / nearest, mq con/senza misure, pz flat, misura_libera flat, griglia senza misure.
 - ✅ `tsc --noEmit` → 0 errori. `vitest run` → **171/171 verdi** (10 file, +13 nuovi test).
 - ⏳ **Next:** FASE 8 (pgvector + embeddings + RPC + retrieval AI).
+
+### 2026-04-17 — FASE 8: pgvector + retrieval semantico AI
+
+- ✅ 8.1 `supabase/migrations/20260917000007_serramenti_08_pgvector_embeddings.sql`:
+  - `CREATE EXTENSION IF NOT EXISTS vector;` (pgvector 0.8.0 disponibile, verificato via MCP)
+  - `ALTER TABLE article_templates ADD COLUMN embedding vector(1536), embedding_updated_at TIMESTAMPTZ`
+  - Indice HNSW cosine `idx_article_templates_embedding_hnsw` (partial `WHERE embedding IS NOT NULL`)
+  - RPC `match_articles(p_query_embedding, p_company_id, p_match_threshold, p_match_count)`:
+    - Cosine similarity via `1 - (embedding <=> query)`
+    - Filtro `company_id = p_company_id` + `similarity >= p_match_threshold`
+    - ORDER BY distanza, LIMIT match_count
+    - SECURITY INVOKER (RLS ereditata)
+- ✅ 8.2 `supabase/functions/genera-embeddings-catalogo/index.ts`:
+  - Input `{company_id, mode?: "all"|"missing"|"single", article_id?}`
+  - Output `{ok, processed, skipped, errors}`
+  - OpenAI `text-embedding-3-small` 1536 dim, batch 50
+  - Composizione testo: nome + SKU + descrizione + modalità + UM + categoria
+  - Auth tiered (super_admin / profiles / multi_company_access / active_impersonations)
+  - Guard `OPENAI_API_KEY` mancante → 500 con messaggio chiaro
+- ✅ 8.3 `supabase/functions/ai-genera-preventivo-v2/index.ts`:
+  - Retrieval semantico quando `OPENAI_API_KEY` presente: embed descrizione lavori + tipo_lavoro → RPC match_articles (top 40, soglia 0.25)
+  - Fallback legacy `ORDER BY name LIMIT 60` se no API key o no risultati
+  - Avvertenza dinamica: "Retrieval semantico: X prodotti rilevanti" vs "Catalogo limitato... genera embeddings"
+- ✅ 8.4 `src/components/settings/ArticleCatalog.tsx`:
+  - Bottone "Embeddings AI" (icona Sparkles) nella toolbar
+  - Mutation `generaEmbeddingsMutation` invoca edge fn con `mode: "missing"` (solo prodotti senza embedding)
+  - Toast con contatori (processed/skipped/errors)
+  - Disabled se non isAdmin
+- ✅ `tsc --noEmit` → 0 errori. `vitest run` → 171/171 verdi.
+- ⚠️ **Deploy TODO**: migration + edge fn `genera-embeddings-catalogo` vanno deployate su Supabase prima che l'UI funzioni. Senza `OPENAI_API_KEY` il retrieval semantico è silenziosamente by-passed (fallback legacy).
+- ⏳ **Next:** FASE 9 (Wizard serramentista — 5 step UI per creare preventivo verticalizzato).
 
 ---
 
