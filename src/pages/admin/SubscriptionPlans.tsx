@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, RefreshCw, AlertCircle, Building2, TrendingUp } from "lucide-react";
+import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, RefreshCw, AlertCircle, Building2, TrendingUp, ExternalLink } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
@@ -59,6 +60,8 @@ const emptyForm: PlanForm = {
 export default function SubscriptionPlans() {
   const { permissions: saPermissions } = useSuperAdminPermissions();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -162,6 +165,23 @@ export default function SubscriptionPlans() {
     setFeaturesText("");
     setDialogOpen(true);
   };
+
+  // Auto-open edit dialog from ?edit=<id>
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && plans?.length && !dialogOpen) {
+      const target = plans.find((p) => p.id === editId);
+      if (target) {
+        openEdit(target);
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("edit");
+          return next;
+        }, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plans, searchParams]);
 
   const openEdit = (plan: NonNullable<typeof plans>[0]) => {
     setEditingId(plan.id);
@@ -365,15 +385,19 @@ export default function SubscriptionPlans() {
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-2 border-t">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(plan)}>
+                <div className="flex gap-2 pt-2 border-t flex-wrap">
+                  <Button variant="default" size="sm" className="flex-1 min-w-[110px]" onClick={() => navigate(`/admin/piani/${plan.id}`)}>
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Dettaglio
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1 min-w-[110px]" onClick={() => openEdit(plan)}>
                     <Edit className="h-3 w-3 mr-1" />
                     Modifica
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1"
+                    className="flex-1 min-w-[110px]"
                     onClick={() => toggleActiveMutation.mutate({ id: plan.id, is_active: !plan.is_active })}
                   >
                     {plan.is_active ? "Disattiva" : "Attiva"}
