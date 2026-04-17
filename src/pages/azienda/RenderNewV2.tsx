@@ -173,6 +173,10 @@ export default function RenderNewV2() {
       return;
     }
 
+    // Clear any previous timers (avoids double-run on retry)
+    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+
     setGenerating(true);
     setGenerateError(null);
     setResultUrl(null);
@@ -238,6 +242,7 @@ export default function RenderNewV2() {
   }, [sessionId, companyId, state, photoPreview, queryClient]);
 
   const startPolling = useCallback((sid: string) => {
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
     let intervalIdx = 0;
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
@@ -292,9 +297,14 @@ export default function RenderNewV2() {
     })();
   }, [photoPath, originalSignedUrl]);
 
-  // ── Persist CRM link onto render_sessions ──────────────────────────────────
+  // ── Persist CRM link onto render_sessions (only when user actually selects) ─
+  const crmPersistedRef = useRef(false);
   useEffect(() => {
     if (!sessionId) return;
+    // Skip the initial run with null/null — only write when the user picks something,
+    // or when clearing a previously written value.
+    if (!contactId && !opportunityId && !crmPersistedRef.current) return;
+    crmPersistedRef.current = true;
     void supabase
       .from("render_sessions" as never)
       .update({ contact_id: contactId, opportunity_id: opportunityId } as never)
@@ -303,18 +313,22 @@ export default function RenderNewV2() {
 
   // ── Reset wizard ───────────────────────────────────────────────────────────
   const reset = () => {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    if (tickRef.current) clearInterval(tickRef.current);
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+    crmPersistedRef.current = false;
     setStep(1);
     setPhoto(null);
     setPhotoPreview(null);
     setPhotoPath(null);
     setSessionId(null);
+    setOriginalSignedUrl(null);
     setState(INITIAL_STATE);
     setResultUrl(null);
     setGenerateError(null);
     setGenerating(false);
     setElapsedSec(0);
+    setContactId(null);
+    setOpportunityId(null);
   };
 
   // ── Step navigation ────────────────────────────────────────────────────────
