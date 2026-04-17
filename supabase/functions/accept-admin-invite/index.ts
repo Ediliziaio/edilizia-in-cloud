@@ -37,7 +37,32 @@ Deno.serve(async (req) => {
     const { data: existingUserData } = await supabaseAdmin.auth.admin.getUserByEmail(invite.email);
 
     if (existingUserData?.user) {
-      // User already exists — just assign the role
+      // SECURITY FIX: se esiste già un account con questa email, non possiamo
+      // accettare l'invito solo con il token — chiunque abbia intercettato il
+      // link dell'invito avrebbe potuto elevare i privilegi dell'account
+      // esistente senza dimostrare di essere il proprietario. Richiediamo che
+      // il chiamante sia autenticato con quell'account.
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({
+            error: "Esiste già un account con questa email. Accedi prima, poi accetta l'invito.",
+            requires_login: true,
+          }),
+          { status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const anonClient = createClient(supabaseUrl, anonKey);
+      const { data: { user: callerUser } } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
+      if (!callerUser || callerUser.id !== existingUserData.user.id) {
+        return new Response(
+          JSON.stringify({ error: "Non autorizzato: devi essere loggato con l'account destinatario dell'invito." }),
+          { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+
+      // User already exists AND auth verified — assign the role
       userId = existingUserData.user.id;
       hadExistingAccount = true;
     } else {
@@ -86,11 +111,22 @@ Deno.serve(async (req) => {
         can_manage_marketing: perms.can_manage_marketing ?? false,
       }, { onConflict: "user_id" });
 
-    // 5. Mark invite as accepted
-    await supabaseAdmin
+    // 5. Mark invite as accepted — con guard atomico su accepted_at IS NULL
+    // per evitare che due richieste concorrenti con lo stesso token riescano
+    // entrambe (doppio audit log, doppia assegnazione ruolo già idempotente
+    // via upsert ma l'audit no).
+    const { data: acceptedRows, error: acceptErr } = await supabaseAdmin
       .from("admin_invites")
       .update({ accepted_at: new Date().toISOString() })
-      .eq("id", invite.id);
+      .eq("id", invite.id)
+      .is("accepted_at", null)
+      .select("id");
+    if (acceptErr || !acceptedRows || acceptedRows.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Invito già accettato." }),
+        { status: 409, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
 
     // 6. Audit log
     await supabaseAdmin.from("admin_audit_log").insert({

@@ -24,9 +24,13 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // --- HMAC Signature Verification ---
+    // --- HMAC Signature Verification (HARDENED) ---
     const webhookSecret = Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
-    if (webhookSecret) {
+    if (!webhookSecret) {
+      console.error("[INTERNAL-WEBHOOK] ELEVENLABS_WEBHOOK_SECRET non configurato — reject all");
+      return json({ error: "Webhook secret not configured on server" }, 503);
+    }
+    {
       const signature = req.headers.get("xi-signature");
       if (!signature) {
         console.warn("[INTERNAL-WEBHOOK] Missing xi-signature header");
@@ -47,7 +51,15 @@ Deno.serve(async (req) => {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
 
-      if (signature !== expectedSig) {
+      // Timing-safe comparison
+      const sigBytes = new TextEncoder().encode(signature);
+      const expBytes = new TextEncoder().encode(expectedSig);
+      if (sigBytes.length !== expBytes.length) {
+        return json({ error: "Invalid signature" }, 401);
+      }
+      let diff = 0;
+      for (let i = 0; i < sigBytes.length; i++) diff |= sigBytes[i] ^ expBytes[i];
+      if (diff !== 0) {
         console.warn("[INTERNAL-WEBHOOK] Invalid signature");
         return json({ error: "Invalid signature" }, 401);
       }
@@ -78,6 +90,20 @@ Deno.serve(async (req) => {
 
     if (!elevenlabsAgentId || !conversationId) {
       return json({ error: "Missing agent_id or conversation_id" }, 400);
+    }
+
+    // ── Idempotency guard ──
+    // I webhook ElevenLabs possono essere riconsegnati. Senza questo controllo
+    // una doppia delivery causerebbe doppia detrazione crediti, doppio trigger
+    // automazioni, ecc. Ritorniamo 200 con flag per impedire nuovi retry.
+    const { data: existingCall } = await adminClient
+      .from("internal_call_logs")
+      .select("id")
+      .eq("elevenlabs_conversation_id", conversationId)
+      .maybeSingle();
+    if (existingCall) {
+      console.log(`[INTERNAL-WEBHOOK] Conversation ${conversationId} already processed — skip`);
+      return json({ success: true, already_processed: true, call_id: existingCall.id });
     }
 
     // Look up internal agent by elevenlabs_agent_id
@@ -201,8 +227,10 @@ Deno.serve(async (req) => {
       .eq("tts_model", ttsModel)
       .maybeSingle();
 
-    const costRealPerMin = pricing?.cost_real_per_min || 0.0200;
-    let costBilledPerMin = pricing?.cost_billed_per_min || 0.0400;
+    // FIX: ?? invece di || — un piano con cost_real_per_min=0 veniva
+    // sovrascritto con 0.02 e gonfiava i costi reportati.
+    const costRealPerMin = pricing?.cost_real_per_min ?? 0.0200;
+    let costBilledPerMin = pricing?.cost_billed_per_min ?? 0.0400;
 
     if (billingConfig.isFree) {
       costBilledPerMin = 0;
@@ -226,38 +254,17 @@ Deno.serve(async (req) => {
     let balanceAfter = 0;
 
     if (deductErr) {
-      console.error("[INTERNAL-WEBHOOK] deduct_ai_credits error, manual fallback:", deductErr);
-      const { data: credits } = await adminClient
-        .from("ai_credits")
-        .select("balance_eur, total_spent_eur")
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-      balanceBefore = credits?.balance_eur ?? 0;
-      balanceAfter = Number((balanceBefore - costBilledTotal).toFixed(4));
-
-      if (credits) {
-        await adminClient
-          .from("ai_credits")
-          .update({
-            balance_eur: balanceAfter,
-            total_spent_eur: Number(((credits.total_spent_eur ?? 0) + costBilledTotal).toFixed(4)),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("company_id", companyId);
-      } else {
-        await adminClient.from("ai_credits").insert({
-          company_id: companyId,
-          balance_eur: -costBilledTotal,
-          total_spent_eur: costBilledTotal,
-        });
-        balanceAfter = -costBilledTotal;
-      }
-    } else {
-      const result = updatedCredits as unknown as { balance_before: number; balance_after: number } | null;
-      balanceBefore = result?.balance_before ?? 0;
-      balanceAfter = result?.balance_after ?? 0;
+      // FIX: rimosso manual fallback SELECT-then-UPDATE che causava lost-update
+      // sotto concorrenza. Se la RPC atomica fallisce, ritorniamo errore e
+      // lasciamo che ElevenLabs ritenti il webhook (che troverà l'idempotency
+      // guard e non duplicherà nulla).
+      console.error("[INTERNAL-WEBHOOK] deduct_ai_credits RPC failed:", deductErr);
+      return json({ error: "Credit deduction failed", details: deductErr.message }, 500);
     }
+
+    const result = updatedCredits as unknown as { balance_before: number; balance_after: number } | null;
+    balanceBefore = result?.balance_before ?? 0;
+    balanceAfter = result?.balance_after ?? 0;
 
     // Record usage (reuses same ai_credit_usage table)
     await adminClient.from("ai_credit_usage").insert({
@@ -290,41 +297,36 @@ Deno.serve(async (req) => {
         .eq("company_id", companyId);
       console.log(`[INTERNAL-WEBHOOK] BLOCKED company ${companyId} — balance: €${balanceAfter}`);
     } else {
-      const { data: creditSettings } = await adminClient
-        .from("ai_credits")
-        .select("auto_recharge_enabled, auto_recharge_threshold, auto_recharge_amount, auto_recharge_method, alert_threshold_eur, total_recharged_eur")
-        .eq("company_id", companyId)
-        .maybeSingle();
+      // FIX: rimpiazzato SELECT-then-UPDATE con RPC atomica che fa lock sulla
+      // row di ai_credits ed esegue UPDATE condizionale. Evita doppie ricariche
+      // sotto webhook concorrenti.
+      const { data: rechargeResult, error: rechargeErr } = await adminClient.rpc(
+        "maybe_auto_recharge" as never,
+        { p_company_id: companyId }
+      );
 
-      if (creditSettings?.auto_recharge_enabled && balanceAfter <= (creditSettings.auto_recharge_threshold ?? 5)) {
-        const rechargeAmount = creditSettings.auto_recharge_amount ?? 20;
-        const newBalance = Number((balanceAfter + rechargeAmount).toFixed(4));
-
-        await adminClient
-          .from("ai_credits")
-          .update({
-            balance_eur: newBalance,
-            total_recharged_eur: Number(((creditSettings.total_recharged_eur ?? 0) + rechargeAmount).toFixed(4)),
-          })
-          .eq("company_id", companyId);
-
-        await adminClient.from("ai_credit_topups").insert({
-          company_id: companyId,
-          amount_eur: rechargeAmount,
-          type: "auto",
-          status: "completed",
-          payment_method: creditSettings.auto_recharge_method ?? "card",
-          notes: `Ricarica automatica (interno) — saldo era €${balanceAfter.toFixed(2)}`,
-          processed_at: new Date().toISOString(),
-        });
-
-        console.log(`[INTERNAL-WEBHOOK] Auto-recharge €${rechargeAmount} for company ${companyId}`);
-      } else if (balanceAfter <= (creditSettings?.alert_threshold_eur ?? 5)) {
-        await adminClient
-          .from("ai_credits")
-          .update({ alert_email_sent_at: new Date().toISOString() })
-          .eq("company_id", companyId);
-        console.log(`[INTERNAL-WEBHOOK] LOW balance alert for company ${companyId}`);
+      if (rechargeErr) {
+        console.error("[INTERNAL-WEBHOOK] maybe_auto_recharge error:", rechargeErr);
+      } else {
+        const rows = rechargeResult as unknown as Array<{ recharged: boolean; amount_recharged: number; new_balance: number }> | null;
+        const r = rows?.[0];
+        if (r?.recharged) {
+          console.log(`[INTERNAL-WEBHOOK] Auto-recharge €${r.amount_recharged} for company ${companyId} — new balance: €${r.new_balance}`);
+        } else {
+          // Controlla alert_threshold solo se non abbiamo ricaricato
+          const { data: alertCfg } = await adminClient
+            .from("ai_credits")
+            .select("alert_threshold_eur, alert_email_sent_at")
+            .eq("company_id", companyId)
+            .maybeSingle();
+          if (balanceAfter <= (alertCfg?.alert_threshold_eur ?? 5)) {
+            await adminClient
+              .from("ai_credits")
+              .update({ alert_email_sent_at: new Date().toISOString() })
+              .eq("company_id", companyId);
+            console.log(`[INTERNAL-WEBHOOK] LOW balance alert for company ${companyId}`);
+          }
+        }
       }
     }
 

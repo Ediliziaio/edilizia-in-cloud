@@ -66,14 +66,41 @@ export function EmailProviderConfig({ stream }: Props) {
   const [testEmail, setTestEmail] = useState("");
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // SICUREZZA: NON scarichiamo mai il value della API key nel browser.
+  // Per apiKeyKey selezioniamo solo l'esistenza della riga (has_value) e
+  // mostriamo un placeholder bullet. Sul save, se l'input è uguale al
+  // placeholder non trasmettiamo nulla (la key esistente resta).
+  const API_KEY_PLACEHOLDER = "••••••••••••";
+  const nonSecretKeys = [providerKey, fromAddressKey, fromNameKey, domainKey, lastTestKey, lastTestStatusKey];
+  const secretKeys = [apiKeyKey];
+
   const { data: settings } = useQuery({
     queryKey: queryKeys.admin.platformSettingsEmail(stream),
     queryFn: async () => {
-      const { data } = await supabase
+      // 1) Valori non-segreti
+      const { data: rows } = await supabase
         .from("platform_settings" as never)
         .select("key, value")
-        .in("key" as never, allKeys as never);
-      return (data as unknown as { key: string; value: string }[]) ?? [];
+        .in("key" as never, nonSecretKeys as never);
+
+      // 2) Solo esistenza per le chiavi segrete (no value)
+      const { data: secretRows } = await supabase
+        .from("platform_settings" as never)
+        .select("key")
+        .in("key" as never, secretKeys as never);
+
+      const nonSecret = (rows as unknown as { key: string; value: string }[]) ?? [];
+      const secretsExist = new Set(
+        ((secretRows as unknown as { key: string }[]) ?? []).map((r) => r.key)
+      );
+
+      // Normalizziamo nel formato atteso dal resto del componente: per le chiavi
+      // segrete emettiamo value=placeholder se la riga esiste, altrimenti niente.
+      const full: { key: string; value: string }[] = [...nonSecret];
+      for (const k of secretKeys) {
+        if (secretsExist.has(k)) full.push({ key: k, value: API_KEY_PLACEHOLDER });
+      }
+      return full;
     },
   });
 
@@ -134,9 +161,14 @@ export function EmailProviderConfig({ stream }: Props) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      const trimmedKey = apiKey.trim();
       const pairs = [
         { key: providerKey, value: provider },
-        { key: apiKeyKey, value: apiKey.trim() },
+        // API key: non sovrascrive se è ancora il placeholder (= la chiave
+        // esistente è valida e non è stata modificata)
+        ...(trimmedKey && trimmedKey !== API_KEY_PLACEHOLDER
+          ? [{ key: apiKeyKey, value: trimmedKey }]
+          : []),
         { key: fromAddressKey, value: fromAddress.trim() },
         { key: fromNameKey, value: fromName.trim() },
         { key: domainKey, value: domain.trim() },
@@ -153,7 +185,8 @@ export function EmailProviderConfig({ stream }: Props) {
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
       toast.success(`Provider ${STREAM_LABELS[stream].title} salvato`);
-    } catch {
+    } catch (err) {
+      logger.error("save email provider failed", err);
       toast.error("Errore nel salvataggio");
     } finally {
       setIsSaving(false);

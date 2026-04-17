@@ -50,6 +50,12 @@ Deno.serve(async (req) => {
     const signature = req.headers.get("x-hub-signature-256") || "";
 
     const { metaAppSecret } = await getMetaCredentials();
+    // SICUREZZA: se META_APP_SECRET è vuoto, verifyHmac calcolerebbe HMAC
+    // con chiave vuota → firma forgiabile. Rifiutiamo sempre.
+    if (!metaAppSecret || metaAppSecret.trim() === "") {
+      console.error("META_APP_SECRET non configurato — reject all");
+      return new Response("Webhook secret not configured on server", { status: 503 });
+    }
     if (!(await verifyHmac(bodyText, signature, metaAppSecret))) {
       console.error("Invalid HMAC signature");
       return new Response("Unauthorized", { status: 401 });
@@ -128,6 +134,22 @@ Deno.serve(async (req) => {
           }
 
           for (const msg of value.messages) {
+            // IDEMPOTENCY: Meta può ritrasmettere lo stesso webhook se non
+            // riceve 200 rapidamente. Guard su whatsapp_messages.wa_message_id
+            // (unique) evita doppia insert, doppio trigger automation e bot AI
+            // invocato due volte.
+            if (msg.id) {
+              const { data: seen } = await supabase
+                .from("whatsapp_messages")
+                .select("id")
+                .eq("wa_message_id", msg.id)
+                .maybeSingle();
+              if (seen) {
+                console.log(`[WHATSAPP-WEBHOOK] Skip duplicate message ${msg.id}`);
+                continue;
+              }
+            }
+
             const senderPhone = msg.from;
             const senderName = contactMap[senderPhone] || senderPhone;
             const content =

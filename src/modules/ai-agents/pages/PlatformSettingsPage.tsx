@@ -49,35 +49,62 @@ export default function PlatformSettingsPage() {
   const [trialDays, setTrialDays] = useState("31");
   const [welcomeBonus, setWelcomeBonus] = useState("5");
 
+  // SECURITY: i secret plaintext non devono mai finire nello stato React (rischio
+  // di esfiltrazione via devtools, cache React Query, error reporting, screenshot
+  // di supporto). Dividiamo in due query: non-secret letto con `value`, secret
+  // letto solo con `key` (esistenza).
+  const API_KEY_PLACEHOLDER = "••••••••••••";
+  const NON_SECRET_KEYS = [
+    "default_llm_model",
+    "domain_whitelist",
+    "ai_subscription_price_eur",
+    "ai_subscription_trial_days",
+    "ai_welcome_bonus_eur",
+  ];
+  const SECRET_KEYS = ["elevenlabs_api_key"];
+
   const { data: savedSettings } = useQuery({
     queryKey: queryKeys.platformSettingsAI.elevenlabs,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("platform_settings" as never)
-        .select("key, value")
-        .in("key" as never, ["elevenlabs_api_key", "default_llm_model", "domain_whitelist", "ai_subscription_price_eur", "ai_subscription_trial_days", "ai_welcome_bonus_eur"] as never);
-      return (data as unknown as { key: string; value: string }[]) ?? [];
+      const [nonSecretRes, secretRes] = await Promise.all([
+        supabase
+          .from("platform_settings" as never)
+          .select("key, value")
+          .in("key" as never, NON_SECRET_KEYS as never),
+        supabase
+          .from("platform_settings" as never)
+          .select("key")
+          .in("key" as never, SECRET_KEYS as never),
+      ]);
+      return {
+        nonSecret: (nonSecretRes.data as unknown as { key: string; value: string }[]) ?? [],
+        secretExists: new Set(
+          ((secretRes.data as unknown as { key: string }[]) ?? []).map(r => r.key)
+        ),
+      };
     },
   });
 
   useEffect(() => {
     if (savedSettings) {
-      const keyVal = savedSettings.find(s => s.key === "elevenlabs_api_key")?.value;
-      const llmVal = savedSettings.find(s => s.key === "default_llm_model")?.value;
-      const domainVal = savedSettings.find(s => s.key === "domain_whitelist")?.value;
-      const priceVal = savedSettings.find(s => s.key === "ai_subscription_price_eur")?.value;
-      const trialVal = savedSettings.find(s => s.key === "ai_subscription_trial_days")?.value;
-      const bonusVal = savedSettings.find(s => s.key === "ai_welcome_bonus_eur")?.value;
-      if (keyVal) setApiKey(keyVal);
+      const llmVal = savedSettings.nonSecret.find(s => s.key === "default_llm_model")?.value;
+      const domainVal = savedSettings.nonSecret.find(s => s.key === "domain_whitelist")?.value;
+      const priceVal = savedSettings.nonSecret.find(s => s.key === "ai_subscription_price_eur")?.value;
+      const trialVal = savedSettings.nonSecret.find(s => s.key === "ai_subscription_trial_days")?.value;
+      const bonusVal = savedSettings.nonSecret.find(s => s.key === "ai_welcome_bonus_eur")?.value;
       if (llmVal) setDefaultLlm(llmVal);
       if (domainVal) setDomainWhitelist(domainVal);
       if (priceVal) setSubscriptionPrice(priceVal);
       if (trialVal) setTrialDays(trialVal);
       if (bonusVal) setWelcomeBonus(bonusVal);
+      // API key: mostriamo placeholder opaco, mai il vero secret
+      if (savedSettings.secretExists.has("elevenlabs_api_key")) {
+        setApiKey(API_KEY_PLACEHOLDER);
+      }
     }
   }, [savedSettings]);
 
-  const hasApiKey = !!(savedSettings?.find(s => s.key === "elevenlabs_api_key")?.value);
+  const hasApiKey = !!savedSettings?.secretExists.has("elevenlabs_api_key");
 
   // Fetch pricing
   const { data: pricing, isLoading: pricingLoading } = useQuery({
@@ -120,8 +147,12 @@ export default function PlatformSettingsPage() {
     try {
       // NB: i valori possono essere stringhe vuote → la colonna è TEXT NOT NULL,
       // stringa vuota è valida e serve per "cancellare" un campo (es. rimuovere API key).
+      // SECURITY: se l'apiKey è ancora il placeholder opaco, non riscriviamo (il
+      // server non ci ha mai dato il valore reale, scriverei il placeholder).
       const settings = [
-        { key: "elevenlabs_api_key", value: apiKey.trim() },
+        ...(apiKey === API_KEY_PLACEHOLDER
+          ? []
+          : [{ key: "elevenlabs_api_key", value: apiKey.trim() }]),
         { key: "default_llm_model", value: defaultLlm },
         { key: "domain_whitelist", value: domainWhitelist.trim() },
         { key: "ai_subscription_price_eur", value: subscriptionPrice },
@@ -241,26 +272,36 @@ export default function PlatformSettingsPage() {
   const { data: renderSettings } = useQuery({
     queryKey: ["platform-settings-render"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("platform_settings" as never)
-        .select("key, value")
-        .in("key" as never, [
-          "render_default_provider",
-          "render_openai_api_key",
-          "render_gemini_api_key",
-        ] as never);
-      return (data as unknown as { key: string; value: string }[]) ?? [];
+      // SECURITY: secret keys fetched as existence-only; provider value è non-secret
+      const [provRes, secretRes] = await Promise.all([
+        supabase
+          .from("platform_settings" as never)
+          .select("key, value")
+          .in("key" as never, ["render_default_provider"] as never),
+        supabase
+          .from("platform_settings" as never)
+          .select("key")
+          .in("key" as never, ["render_openai_api_key", "render_gemini_api_key"] as never),
+      ]);
+      return {
+        nonSecret: (provRes.data as unknown as { key: string; value: string }[]) ?? [],
+        secretExists: new Set(
+          ((secretRes.data as unknown as { key: string }[]) ?? []).map(r => r.key)
+        ),
+      };
     },
   });
 
   useEffect(() => {
     if (renderSettings) {
-      const provVal = renderSettings.find(s => s.key === "render_default_provider")?.value;
-      const oaiVal = renderSettings.find(s => s.key === "render_openai_api_key")?.value;
-      const gemVal = renderSettings.find(s => s.key === "render_gemini_api_key")?.value;
+      const provVal = renderSettings.nonSecret.find(s => s.key === "render_default_provider")?.value;
       if (provVal) setRenderDefaultProvider(provVal);
-      if (oaiVal) setRenderOpenaiKey(oaiVal);
-      if (gemVal) setRenderGeminiKey(gemVal);
+      if (renderSettings.secretExists.has("render_openai_api_key")) {
+        setRenderOpenaiKey(API_KEY_PLACEHOLDER);
+      }
+      if (renderSettings.secretExists.has("render_gemini_api_key")) {
+        setRenderGeminiKey(API_KEY_PLACEHOLDER);
+      }
     }
   }, [renderSettings]);
 
@@ -288,10 +329,15 @@ export default function PlatformSettingsPage() {
   const handleSaveRenderSettings = async () => {
     setRenderSaving(true);
     try {
+      // SECURITY: skip writing secret keys if still showing placeholder
       const upserts = [
         { key: "render_default_provider", value: renderDefaultProvider },
-        { key: "render_openai_api_key", value: renderOpenaiKey },
-        { key: "render_gemini_api_key", value: renderGeminiKey },
+        ...(renderOpenaiKey === API_KEY_PLACEHOLDER
+          ? []
+          : [{ key: "render_openai_api_key", value: renderOpenaiKey }]),
+        ...(renderGeminiKey === API_KEY_PLACEHOLDER
+          ? []
+          : [{ key: "render_gemini_api_key", value: renderGeminiKey }]),
       ];
 
       // Upsert con select + controllo errori + verifica scrittura effettiva (RLS-safe)

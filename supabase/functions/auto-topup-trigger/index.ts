@@ -158,7 +158,8 @@ Deno.serve(async (req) => {
                 .from(wallet.table as never)
                 .update({
                   balance_eur: after,
-                  total_recharged_eur: Number(((credits as any)?.total_recharged_eur ?? 0) + topupAmount).toFixed(4),
+                  // FIX: parentesi — prima `Number(...).toFixed(4)` restituiva stringa
+                  total_recharged_eur: Number((((credits as any)?.total_recharged_eur ?? 0) + topupAmount).toFixed(4)),
                   calls_blocked: false,
                   updated_at: new Date().toISOString(),
                 } as never)

@@ -92,6 +92,27 @@ Deno.serve(async (req) => {
     const affected = { salespeople: 0, employees: 0, subappaltatori: 0 };
 
     if (reassignToUserId) {
+      // SECURITY FIX: valida che il destinatario del reassign sia nella stessa
+      // azienda del target. Senza questo check, un admin poteva riassegnare
+      // record (es. salespeople, employees) a un utente di un'altra company,
+      // bypassando l'isolamento dei dati tenant.
+      if (reassignToUserId === userId) {
+        return new Response(JSON.stringify({ error: "Il destinatario non può essere lo stesso utente" }), {
+          status: 400,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      const { data: reassignProfile } = await adminClient
+        .from("profiles")
+        .select("company_id")
+        .eq("id", reassignToUserId)
+        .single();
+      if (!reassignProfile || reassignProfile.company_id !== targetProfile?.company_id) {
+        return new Response(JSON.stringify({ error: "Il destinatario del reassign deve appartenere alla stessa azienda" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
       // Reassign records to the new user
       const { data: spData, error: spError } = await adminClient
         .from("salespeople")

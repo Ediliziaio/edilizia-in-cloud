@@ -5,6 +5,20 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 // ─── Helpers ───────────────────────────────────────────────
 
+/**
+ * Stripe API 2024-12-18+ sposta current_period_start/end su items[0].
+ * Fallback su top-level per compatibilità con versioni precedenti.
+ */
+function getSubscriptionPeriod(sub: any): { start: string | null; end: string | null } {
+  const item = sub?.items?.data?.[0];
+  const startEpoch = item?.current_period_start ?? sub?.current_period_start ?? null;
+  const endEpoch   = item?.current_period_end   ?? sub?.current_period_end   ?? null;
+  return {
+    start: startEpoch ? new Date(startEpoch * 1000).toISOString() : null,
+    end:   endEpoch   ? new Date(endEpoch   * 1000).toISOString() : null,
+  };
+}
+
 async function logStripeEvent(
   supabase: ReturnType<typeof createClient>,
   eventId: string,
@@ -147,25 +161,52 @@ async function handleCheckoutCompleted(
       { onConflict: "company_id" }
     );
 
-    const { data: bonusSetting } = await supabase
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "ai_welcome_bonus_eur")
+    // Bonus benvenuto — idempotente: controlliamo se già erogato
+    const { data: existingBonus } = await supabase
+      .from("ai_credit_topups")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("type", "bonus")
+      .eq("notes", "Bonus benvenuto AI")
       .maybeSingle();
-    const bonusEur = parseFloat(bonusSetting?.value || "5");
-    if (bonusEur > 0) {
-      await supabase.rpc("deduct_ai_credits" as never, {
-        p_company_id: companyId,
-        p_cost: -bonusEur,
-      });
-      await supabase.from("ai_credit_topups").insert({
-        company_id: companyId,
-        amount_eur: bonusEur,
-        type: "bonus",
-        status: "completed",
-        notes: "Bonus benvenuto AI",
-        processed_at: new Date().toISOString(),
-      });
+
+    if (!existingBonus) {
+      const { data: bonusSetting } = await supabase
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "ai_welcome_bonus_eur")
+        .maybeSingle();
+      const bonusEur = parseFloat(bonusSetting?.value || "5");
+      if (bonusEur > 0) {
+        // Accredito diretto via update atomico
+        const { data: credits } = await supabase
+          .from("ai_credits")
+          .select("balance_eur, total_recharged_eur")
+          .eq("company_id", companyId)
+          .maybeSingle();
+        const newBalance = Number(((credits?.balance_eur ?? 0) + bonusEur).toFixed(4));
+        const newRecharged = Number(((credits?.total_recharged_eur ?? 0) + bonusEur).toFixed(4));
+        if (credits) {
+          await supabase
+            .from("ai_credits")
+            .update({ balance_eur: newBalance, total_recharged_eur: newRecharged })
+            .eq("company_id", companyId);
+        } else {
+          await supabase.from("ai_credits").insert({
+            company_id: companyId,
+            balance_eur: bonusEur,
+            total_recharged_eur: bonusEur,
+          });
+        }
+        await supabase.from("ai_credit_topups").insert({
+          company_id: companyId,
+          amount_eur: bonusEur,
+          type: "bonus",
+          status: "completed",
+          notes: "Bonus benvenuto AI",
+          processed_at: new Date().toISOString(),
+        });
+      }
     }
     console.log(`[STRIPE] AI subscription activated for company ${companyId}`);
     return;
@@ -195,6 +236,7 @@ async function handleCheckoutCompleted(
     );
     const sub = await subRes.json();
 
+    const period = getSubscriptionPeriod(sub);
     await supabase.from("company_subscriptions").upsert(
       {
         company_id: companyId,
@@ -202,12 +244,8 @@ async function handleCheckoutCompleted(
         status: "active",
         stripe_subscription_id: stripeSubscriptionId,
         billing_period: sub.items?.data?.[0]?.price?.recurring?.interval === "year" ? "yearly" : "monthly",
-        current_period_start: sub.current_period_start
-          ? new Date(sub.current_period_start * 1000).toISOString()
-          : null,
-        current_period_end: sub.current_period_end
-          ? new Date(sub.current_period_end * 1000).toISOString()
-          : null,
+        current_period_start: period.start,
+        current_period_end: period.end,
       },
       { onConflict: "company_id" }
     );
@@ -242,22 +280,27 @@ async function handleInvoicePaid(
   // Sync invoice to subscription_invoices
   await upsertSubscriptionInvoice(supabase, company.id, invoice, stripeCustomerId);
 
+  // Non riattivare company churned/expired: l'invoice potrebbe essere un credit note
+  // tardivo o un rimborso parziale. Lasciamo traccia in subscription_invoices ma
+  // non tocchiamo lo stato della company.
+  if (company.status === "expired" || company.status === "churned") {
+    console.log(`[STRIPE] invoice.paid ignored for ${company.status} company ${company.id}`);
+    return;
+  }
+
   const subRes = await fetch(
     `https://api.stripe.com/v1/subscriptions/${stripeSubscriptionId}`,
     { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
   );
   const sub = await subRes.json();
 
+  const period = getSubscriptionPeriod(sub);
   await supabase
     .from("company_subscriptions")
     .update({
       status: "active",
-      current_period_start: sub.current_period_start
-        ? new Date(sub.current_period_start * 1000).toISOString()
-        : null,
-      current_period_end: sub.current_period_end
-        ? new Date(sub.current_period_end * 1000).toISOString()
-        : null,
+      current_period_start: period.start,
+      current_period_end: period.end,
     })
     .eq("company_id", company.id);
 
@@ -386,12 +429,14 @@ async function handleSubscriptionUpdated(
     .update({ stripe_subscription_status: stripeStatus })
     .eq("id", company.id);
 
-  if (subscription.current_period_end) {
+  const period = getSubscriptionPeriod(subscription);
+  if (period.end || period.start) {
     await supabase
       .from("company_subscriptions")
       .update({
         status: stripeStatus === "active" ? "active" : stripeStatus,
-        current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        current_period_start: period.start,
+        current_period_end: period.end,
       })
       .eq("company_id", company.id);
   }
@@ -441,7 +486,7 @@ async function handleReferralAttribution(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-cron-secret': Deno.env.get('CRON_SECRET') || '',
+          'x-cron-secret': Deno.env.get('INTERNAL_CRON_SECRET') || Deno.env.get('CRON_SECRET') || '',
         },
         body: JSON.stringify({
           type:        'conversion',
@@ -476,32 +521,36 @@ Deno.serve(async (req) => {
     const body = await req.text();
 
     // ── Signature verification ──
+    // SICUREZZA: rifiutiamo SEMPRE se il secret non è configurato. Prima il
+    // webhook faceva JSON.parse del body non firmato → un attaccante poteva
+    // forgiare `checkout.session.completed` e attivarsi un abbonamento gratis.
     const webhookSecret = await getPlatformSetting("stripe_webhook_secret", "STRIPE_WEBHOOK_SECRET");
+    if (!webhookSecret) {
+      console.error("[STRIPE] STRIPE_WEBHOOK_SECRET non configurato — reject all");
+      return new Response(JSON.stringify({ error: "Webhook secret not configured on server" }), {
+        status: 503,
+        headers: secureHeaders,
+      });
+    }
+
+    const signature = req.headers.get("stripe-signature");
+    if (!signature) {
+      return new Response(JSON.stringify({ error: "Missing stripe-signature header" }), {
+        status: 400,
+        headers: secureHeaders,
+      });
+    }
+
     let event: Stripe.Event;
-
-    if (webhookSecret) {
-      const signature = req.headers.get("stripe-signature");
-      if (!signature) {
-        return new Response(JSON.stringify({ error: "Missing stripe-signature header" }), {
-          status: 400,
-          headers: secureHeaders,
-        });
-      }
-
-      const stripe = new Stripe(stripeSecretKey, { apiVersion: "2024-12-18.acacia" });
-      try {
-        event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-      } catch (err) {
-        console.error("Stripe webhook signature verification failed:", err);
-        return new Response(JSON.stringify({ error: "Invalid webhook signature" }), {
-          status: 400,
-          headers: secureHeaders,
-        });
-      }
-    } else {
-      // Fallback: no webhook secret configured — parse raw JSON (insecure, log warning)
-      console.warn("[STRIPE] STRIPE_WEBHOOK_SECRET not set — skipping signature verification. Configure it for production!");
-      event = JSON.parse(body) as Stripe.Event;
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2024-12-18.acacia" });
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    } catch (err) {
+      console.error("Stripe webhook signature verification failed:", err);
+      return new Response(JSON.stringify({ error: "Invalid webhook signature" }), {
+        status: 400,
+        headers: secureHeaders,
+      });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

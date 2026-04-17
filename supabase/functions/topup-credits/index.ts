@@ -74,8 +74,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!credits) {
-      // Auto-create if missing
-      await adminClient.from(creditsTable as never).insert({ company_id: companyId } as never);
+      // Auto-create if missing — upsert per evitare duplicati su concorrenti
+      await adminClient
+        .from(creditsTable as never)
+        .upsert({ company_id: companyId } as never, { onConflict: "company_id" } as never);
     }
 
     const currentBalance = (credits as any)?.balance_eur || 0;
@@ -84,7 +86,7 @@ Deno.serve(async (req) => {
     // Update balance
     const updateData: Record<string, unknown> = {
       balance_eur: newBalance,
-      total_recharged_eur: Number(((credits as any)?.total_recharged_eur || 0) + amountEur).toFixed(4),
+      total_recharged_eur: Number((((credits as any)?.total_recharged_eur || 0) + amountEur).toFixed(4)),
       updated_at: new Date().toISOString(),
     };
 

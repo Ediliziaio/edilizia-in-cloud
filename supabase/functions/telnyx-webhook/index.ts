@@ -25,35 +25,36 @@ Deno.serve(async (req) => {
     const telnyxTimestamp = req.headers.get("telnyx-timestamp");
     const telnyxPublicKey = Deno.env.get("TELNYX_PUBLIC_KEY");
 
-    if (telnyxPublicKey) {
-      if (!sigEd25519 || !telnyxTimestamp) {
-        console.error("telnyx-webhook: intestazioni firma mancanti");
-        return new Response("Unauthorized", { status: 401 });
-      }
-      // Prevenzione replay attack: rifiuta se timestamp > 5 minuti
-      const tsSeconds = parseInt(telnyxTimestamp, 10);
-      if (isNaN(tsSeconds) || Math.abs(Date.now() / 1000 - tsSeconds) > 300) {
-        console.error("telnyx-webhook: timestamp non valido o replay attack");
-        return new Response("Unauthorized", { status: 401 });
-      }
-      // Payload firmato da Telnyx: "timestamp|rawBody"
-      const msgBuffer = new TextEncoder().encode(`${telnyxTimestamp}|${rawBody}`);
-      const pubKeyBuffer = Uint8Array.from(atob(telnyxPublicKey), (c) => c.charCodeAt(0));
-      const cryptoKey = await crypto.subtle.importKey(
-        "raw",
-        pubKeyBuffer,
-        { name: "Ed25519" },
-        false,
-        ["verify"],
-      );
-      const sigBuffer = Uint8Array.from(atob(sigEd25519), (c) => c.charCodeAt(0));
-      const isValid = await crypto.subtle.verify("Ed25519", cryptoKey, sigBuffer, msgBuffer);
-      if (!isValid) {
-        console.error("telnyx-webhook: firma Ed25519 non valida");
-        return new Response("Unauthorized", { status: 401 });
-      }
-    } else {
-      console.warn("telnyx-webhook: TELNYX_PUBLIC_KEY non configurata, verifica firma saltata");
+    // SICUREZZA: rifiutiamo SEMPRE se TELNYX_PUBLIC_KEY non è settato.
+    if (!telnyxPublicKey) {
+      console.error("telnyx-webhook: TELNYX_PUBLIC_KEY non configurata — reject all");
+      return new Response("Webhook public key not configured on server", { status: 503 });
+    }
+    if (!sigEd25519 || !telnyxTimestamp) {
+      console.error("telnyx-webhook: intestazioni firma mancanti");
+      return new Response("Unauthorized", { status: 401 });
+    }
+    // Prevenzione replay attack: rifiuta se timestamp > 5 minuti
+    const tsSeconds = parseInt(telnyxTimestamp, 10);
+    if (isNaN(tsSeconds) || Math.abs(Date.now() / 1000 - tsSeconds) > 300) {
+      console.error("telnyx-webhook: timestamp non valido o replay attack");
+      return new Response("Unauthorized", { status: 401 });
+    }
+    // Payload firmato da Telnyx: "timestamp|rawBody"
+    const msgBuffer = new TextEncoder().encode(`${telnyxTimestamp}|${rawBody}`);
+    const pubKeyBuffer = Uint8Array.from(atob(telnyxPublicKey), (c) => c.charCodeAt(0));
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      pubKeyBuffer,
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    const sigBuffer = Uint8Array.from(atob(sigEd25519), (c) => c.charCodeAt(0));
+    const isValid = await crypto.subtle.verify("Ed25519", cryptoKey, sigBuffer, msgBuffer);
+    if (!isValid) {
+      console.error("telnyx-webhook: firma Ed25519 non valida");
+      return new Response("Unauthorized", { status: 401 });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

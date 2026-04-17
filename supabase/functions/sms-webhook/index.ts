@@ -65,14 +65,16 @@ Deno.serve(async (req: Request) => {
 
     const rawBody = await req.text();
 
-    // Verifica firma HMAC se secret configurato
-    if (webhookSecret) {
-      const signature = req.headers.get("X-Brevo-Signature") ?? "";
-      const isValid = await verifyBrevoSignature(rawBody, signature, webhookSecret);
-      if (!isValid) {
-        console.error("[sms-webhook] Firma HMAC non valida, richiesta rifiutata");
-        return okResponse; // 200 per evitare retry, ma senza processare
-      }
+    // SICUREZZA: rifiutiamo sempre se BREVO_SMS_WEBHOOK_SECRET non è configurato.
+    if (!webhookSecret) {
+      console.error("[sms-webhook] BREVO_SMS_WEBHOOK_SECRET non configurato — reject all");
+      return new Response("Webhook secret not configured on server", { status: 503 });
+    }
+    const signature = req.headers.get("X-Brevo-Signature") ?? "";
+    const isValid = await verifyBrevoSignature(rawBody, signature, webhookSecret);
+    if (!isValid) {
+      console.error("[sms-webhook] Firma HMAC non valida, richiesta rifiutata");
+      return new Response("Unauthorized", { status: 401 });
     }
 
     const payload = JSON.parse(rawBody) as BrevoWebhookPayload;

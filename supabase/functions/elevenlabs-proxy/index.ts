@@ -74,9 +74,16 @@ function buildElevenLabsToolsFromConfig(toolsConfig: ToolsConfig | null | undefi
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: getCorsHeaders(req) });
+    return new Response(null, { headers: corsHeaders });
   }
+
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   try {
     // --- Auth ---
@@ -186,7 +193,19 @@ Deno.serve(async (req) => {
           .select("id")
           .single();
 
-        if (insertErr) throw insertErr;
+        if (insertErr) {
+          // ROLLBACK: se l'insert DB fallisce, elimina l'agente appena creato su ElevenLabs
+          // per non lasciare orfani remoti che continuano a consumare crediti.
+          if (elAgentId) {
+            try {
+              await elFetch(`/convai/agents/${elAgentId}`, "DELETE", apiKey);
+              console.log(`[PROXY] Rollback ElevenLabs agent ${elAgentId} dopo fallimento DB`);
+            } catch (rbErr) {
+              console.error(`[PROXY] Rollback ElevenLabs fallito per ${elAgentId}:`, rbErr);
+            }
+          }
+          throw insertErr;
+        }
 
         await auditLog(adminClient, companyId, newAgent?.id, userId, "create_agent", { name: payload?.name });
 
@@ -196,6 +215,18 @@ Deno.serve(async (req) => {
 
       case "update_agent": {
         if (!agent_id) throw new Error("agent_id richiesto");
+
+        // SICUREZZA: verifica che l'elevenlabs_agent_id appartenga alla company del chiamante.
+        // Senza questo check, un utente autenticato poteva modificare l'agente di un'altra azienda.
+        const { data: ownership } = await adminClient
+          .from("ai_agents")
+          .select("id, company_id")
+          .eq("elevenlabs_agent_id", agent_id)
+          .eq("company_id", companyId)
+          .maybeSingle();
+        if (!ownership) {
+          return json({ error: "Agente non trovato o non autorizzato" }, 403);
+        }
 
         // FIX BUG #1 + BUG #2: costruisci il body ElevenLabs con merge corretto
         const agentPatch: Record<string, unknown> = {};
@@ -256,6 +287,18 @@ Deno.serve(async (req) => {
 
       case "delete_agent": {
         if (!agent_id) throw new Error("agent_id richiesto");
+
+        // SICUREZZA: verifica ownership prima di cancellare su ElevenLabs
+        const { data: ownership } = await adminClient
+          .from("ai_agents")
+          .select("id, company_id")
+          .eq("elevenlabs_agent_id", agent_id)
+          .eq("company_id", companyId)
+          .maybeSingle();
+        if (!ownership) {
+          return json({ error: "Agente non trovato o non autorizzato" }, 403);
+        }
+
         try {
           await elFetch(`/convai/agents/${agent_id}`, "DELETE", apiKey);
         } catch {
@@ -281,6 +324,12 @@ Deno.serve(async (req) => {
       // --- KB Sync Actions (FIX 8) ---
       case "add_kb_doc": {
         if (!agent_id) throw new Error("agent_id richiesto");
+        if (!payload?.source_url && !payload?.name) throw new Error("source_url o name richiesti");
+        // Ownership check
+        const { data: own } = await adminClient
+          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
+
         const docResult = await elFetch(`/convai/agents/${agent_id}/add-to-knowledge-base`, "POST", apiKey, {
           url: payload?.source_url,
           name: payload?.name,
@@ -291,6 +340,10 @@ Deno.serve(async (req) => {
 
       case "remove_kb_doc": {
         if (!agent_id || !payload?.doc_id) throw new Error("agent_id e doc_id richiesti");
+        const { data: own } = await adminClient
+          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
+
         try {
           await elFetch(`/convai/agents/${agent_id}/remove-from-knowledge-base`, "POST", apiKey, {
             document_id: payload.doc_id,
@@ -304,6 +357,10 @@ Deno.serve(async (req) => {
 
       case "list_kb_docs": {
         if (!agent_id) throw new Error("agent_id richiesto");
+        const { data: own } = await adminClient
+          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
+
         try {
           const docs = await elFetch(`/convai/agents/${agent_id}/knowledge-base`, "GET", apiKey);
           result = docs;
@@ -315,6 +372,10 @@ Deno.serve(async (req) => {
 
       case "get_conversations": {
         if (!agent_id) throw new Error("agent_id richiesto");
+        const { data: own } = await adminClient
+          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
+
         const convRes = await elFetch(
           `/convai/conversations?agent_id=${agent_id}&page_size=${payload?.page_size || 20}${payload?.cursor ? `&cursor=${payload.cursor}` : ""}`,
           "GET",
@@ -402,6 +463,11 @@ Deno.serve(async (req) => {
         if (!agent_id) throw new Error("agent_id richiesto (elevenlabs_agent_id)");
         if (!payload?.phone_number) throw new Error("phone_number richiesto");
 
+        // Ownership check
+        const { data: own } = await adminClient
+          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
+
         // Get Telnyx settings for API key and connection_id
         const { data: telnyxSettings } = await adminClient
           .from("telnyx_settings")
@@ -459,13 +525,6 @@ Deno.serve(async (req) => {
 });
 
 // --- Helpers ---
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-  });
-}
 
 async function elFetch(path: string, method: string, apiKey: string, body?: unknown) {
   const opts: RequestInit = {

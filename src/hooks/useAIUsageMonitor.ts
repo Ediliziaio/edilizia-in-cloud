@@ -38,14 +38,20 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
     queryKey: ["admin", "ai-usage-monitor", filters],
     queryFn: async (): Promise<{ summaries: AIUsageSummary[]; kpis: AIUsageKPIs }> => {
       const now = new Date();
+      // todayStart e monthStart in local time dell'utente — coerenti con l'UI
       const todayStart = new Date(now);
       todayStart.setHours(0, 0, 0, 0);
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
       const dateFrom = filters.dateFrom
-        ? new Date(filters.dateFrom)
+        ? new Date(filters.dateFrom + "T00:00:00")
         : monthStart;
-      const dateTo = filters.dateTo ? new Date(filters.dateTo) : now;
+      // FIX: dateTo inclusivo — se l'utente seleziona un giorno, include
+      // l'intera giornata fino a 23:59:59.999 (prima lte con 00:00 escludeva
+      // tutto il giorno stesso).
+      const dateTo = filters.dateTo
+        ? new Date(filters.dateTo + "T23:59:59.999")
+        : now;
 
       // Build query
       let query = supabase
@@ -96,7 +102,10 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         };
 
         const isToday = new Date(row.created_at) >= todayStart;
-        const cost = Number(row.cost_eur) || 0;
+        // FIX: ?? invece di || per preservare 0 (piani free con cost_eur=0
+        // venivano sovrascritti a 0.02 dal fallback e gonfiavano i KPI)
+        const rawCost = row.cost_eur;
+        const cost = rawCost == null || Number.isNaN(Number(rawCost)) ? 0 : Number(rawCost);
 
         if (isToday) {
           entry.today_cost += cost;

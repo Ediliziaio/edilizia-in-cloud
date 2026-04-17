@@ -17,9 +17,16 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: getCorsHeaders(req) });
+    return new Response(null, { headers: corsHeaders });
   }
+
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -82,6 +89,29 @@ Deno.serve(async (req) => {
 
     // Handle save_settings before loading telnyx settings (chicken-egg)
     if (action === "save_settings") {
+      // SICUREZZA: solo super_admin può sovrascrivere le credenziali Telnyx
+      // platform-wide. Prima mancava il check → qualunque utente autenticato
+      // poteva ribaltare le chiavi della piattaforma.
+      if (!isServiceCall) {
+        // Serve user.id per verificare il ruolo
+        const authHeader = req.headers.get("Authorization");
+        if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+        const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user } } = await userClient.auth.getUser();
+        if (!user) return json({ error: "Unauthorized" }, 401);
+        const { data: roleRow } = await adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "super_admin")
+          .maybeSingle();
+        if (!roleRow) {
+          return json({ error: "Solo super_admin può modificare le impostazioni Telnyx" }, 403);
+        }
+      }
+
       const upsertData: Record<string, unknown> = {
         messaging_profile_id: payload.messaging_profile_id || null,
         connection_id: payload.connection_id || null,
@@ -96,12 +126,17 @@ Deno.serve(async (req) => {
       }
 
       if (payload.existing_id) {
-        await adminClient.from("telnyx_settings").update(upsertData).eq("id", payload.existing_id);
+        const { error: updErr } = await adminClient
+          .from("telnyx_settings")
+          .update(upsertData)
+          .eq("id", payload.existing_id);
+        if (updErr) return json({ error: `Update Telnyx: ${updErr.message}` }, 500);
       } else {
         if (!upsertData.api_key_encrypted) {
           return json({ error: "API Key obbligatoria per la prima configurazione" }, 400);
         }
-        await adminClient.from("telnyx_settings").insert(upsertData);
+        const { error: insErr } = await adminClient.from("telnyx_settings").insert(upsertData);
+        if (insErr) return json({ error: `Insert Telnyx: ${insErr.message}` }, 500);
       }
       return json({ success: true });
     }
@@ -276,13 +311,6 @@ Deno.serve(async (req) => {
 });
 
 // --- Helpers ---
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-  });
-}
 
 async function telnyxFetch(path: string, method: string, apiKey: string, body?: unknown) {
   const opts: RequestInit = {

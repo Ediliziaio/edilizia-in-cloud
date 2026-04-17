@@ -28,8 +28,11 @@ Deno.serve(async (req) => {
     if (odvErr || !odv) return errorResponse("OdV non trovato o token non valido", 404);
     if (odv.status !== "in_attesa") return errorResponse("OdV già processato", 409);
 
-    // Aggiorna OdV: firma + approvato
-    const { error: updateErr } = await supabaseAdmin
+    // Aggiorna OdV: firma + approvato — atomico via guard status=in_attesa.
+    // FIX: selezioniamo l'id per verificare che l'UPDATE abbia effettivamente
+    // cambiato una riga; se un'altra richiesta concorrente ha già firmato,
+    // l'UPDATE fa 0 righe e NON dobbiamo incrementare il totale dell'ordine.
+    const { data: updatedRows, error: updateErr } = await supabaseAdmin
       .from("ordini_variazione")
       .update({
         firma_cliente: firma_data_base64,
@@ -38,24 +41,23 @@ Deno.serve(async (req) => {
         status: "approvata",
       })
       .eq("firma_token", token)
-      .eq("status", "in_attesa");
+      .eq("status", "in_attesa")
+      .select("id");
 
     if (updateErr) throw new Error(updateErr.message);
+    if (!updatedRows || updatedRows.length === 0) {
+      return errorResponse("OdV già processato (concorrenza)", 409);
+    }
 
-    // Aggiorna importo totale ordine se impatto_economico > 0
+    // Aggiorna importo totale ordine se impatto_economico > 0 — atomico via RPC
+    // (rimpiazzato SELECT-then-UPDATE che perdeva increment sotto concorrenza)
     if (odv.impatto_economico > 0) {
-      const { data: order } = await supabaseAdmin
-        .from("orders")
-        .select("total_amount")
-        .eq("id", odv.order_id)
-        .single();
-
-      if (order) {
-        const nuovoTotale = (order.total_amount ?? 0) + odv.impatto_economico;
-        await supabaseAdmin
-          .from("orders")
-          .update({ total_amount: nuovoTotale })
-          .eq("id", odv.order_id);
+      const { error: incErr } = await supabaseAdmin.rpc(
+        "increment_order_total" as never,
+        { p_order_id: odv.order_id, p_delta: odv.impatto_economico }
+      );
+      if (incErr) {
+        console.error("[firma-odv-webhook] increment_order_total error:", incErr);
       }
     }
 

@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
       if (waCredits) {
         await adminClient
           .from("whatsapp_credits")
-          .update({ balance_eur: balanceAfter, total_spent_eur: Number(((waCredits as any).total_spent_eur ?? 0) + pricePerMsg).toFixed(4), updated_at: new Date().toISOString() })
+          .update({ balance_eur: balanceAfter, total_spent_eur: Number((((waCredits as any).total_spent_eur ?? 0) + pricePerMsg).toFixed(4)), updated_at: new Date().toISOString() })
           .eq("company_id", conv.company_id);
       } else {
         await adminClient.from("whatsapp_credits").insert({

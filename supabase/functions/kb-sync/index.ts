@@ -4,9 +4,16 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 const EL_BASE = "https://api.elevenlabs.io/v1";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: getCorsHeaders(req) });
+    return new Response(null, { headers: corsHeaders });
   }
+
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -238,13 +245,6 @@ Deno.serve(async (req) => {
     return json({ error: message }, 500);
   }
 });
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-  });
-}
 
 async function elFetch(path: string, method: string, apiKey: string, body?: unknown) {
   const opts: RequestInit = {

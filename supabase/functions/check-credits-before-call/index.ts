@@ -3,9 +3,16 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: getCorsHeaders(req) });
+    return new Response(null, { headers: corsHeaders });
   }
+
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -57,7 +64,11 @@ Deno.serve(async (req) => {
       .eq("is_active", true)
       .maybeSingle();
 
-    const minCostPerCall = pricing?.cost_billed_per_min || 0.04;
+    // Richiediamo almeno 1 minuto di chiamata come saldo minimo (non solo €0.04
+    // che è il costo al minuto). Così evitiamo che una chiamata parta con saldo
+    // sufficiente per 5 secondi e vada subito in negativo.
+    const costPerMin = pricing?.cost_billed_per_min || 0.04;
+    const minCostPerCall = Math.max(costPerMin * 1, 0.10);
 
     // Get credits
     const { data: credits } = await adminClient
@@ -66,7 +77,7 @@ Deno.serve(async (req) => {
       .eq("company_id", profile.company_id)
       .maybeSingle();
 
-    const balance = credits?.balance_eur || 0;
+    const balance = credits?.balance_eur ?? 0;
 
     if (credits?.calls_blocked || balance < minCostPerCall) {
       return json({
@@ -89,9 +100,3 @@ Deno.serve(async (req) => {
   }
 });
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-  });
-}

@@ -23,32 +23,44 @@ export function TelnyxSettingsCard() {
   const [isSaving, setIsSaving] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
+  // SICUREZZA: non leggiamo mai il ciphertext della API key dal client.
+  // Selezioniamo solo colonne non-segrete + boolean "has_*" derivato.
   const { data: settings } = useQuery({
     queryKey: queryKeys.telnyxSettings.all,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("telnyx_settings" as never)
-        .select("*")
+        .select("id, messaging_profile_id, connection_id, is_active, api_key_encrypted, webhook_signing_secret_encrypted")
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data as unknown as {
+      if (!data) return null;
+      const row = data as unknown as {
         id: string;
-        api_key_encrypted: string;
+        api_key_encrypted: string | null;
         messaging_profile_id: string | null;
         connection_id: string | null;
         webhook_signing_secret_encrypted: string | null;
         is_active: boolean;
-      } | null;
+      };
+      // Riduciamo i ciphertext a semplici boolean prima di mettere in cache
+      return {
+        id: row.id,
+        has_api_key: !!row.api_key_encrypted,
+        has_webhook_secret: !!row.webhook_signing_secret_encrypted,
+        messaging_profile_id: row.messaging_profile_id,
+        connection_id: row.connection_id,
+        is_active: row.is_active,
+      };
     },
   });
 
   useEffect(() => {
     if (settings) {
-      setApiKey(settings.api_key_encrypted ? "••••••••••••" : "");
+      setApiKey(settings.has_api_key ? "••••••••••••" : "");
       setMessagingProfileId(settings.messaging_profile_id || "");
       setConnectionId(settings.connection_id || "");
-      setWebhookKey(settings.webhook_signing_secret_encrypted ? "••••••••••••" : "");
+      setWebhookKey(settings.has_webhook_secret ? "••••••••••••" : "");
       setIsActive(settings.is_active);
     }
   }, [settings]);
