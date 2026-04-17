@@ -19,7 +19,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 5 — Motore calcolo prezzo | 🟢 DONE | 5.1 useFamilyPricing hook + 5.2 unit tests | `0b8d4af7` | 16 test vitest, funzione pura + nearestGrid Manhattan |
 | FASE 6 — Manodopera UM flessibili | 🟢 DONE | 6.1 migration + 6.2 edge fn + 6.3 UI + 6.4 calcolo | `a228d0a4` | 10 UM canoniche, costo_interno separato, semaforo live |
 | FASE 7 — Fix 3 P0 bug | 🟢 DONE | 7.1 unit_price mq/griglia + 7.3 sconti/bundle banner + 7.4 tests | `34dbb86f` | 7.2 LIMIT 60 skip: delegato a FASE 8 (pgvector retrieval) |
-| FASE 8 — AI + pgvector | 🟢 DONE | 8.1 migration vector+RPC + 8.2 edge fn genera-embeddings + 8.3 ai-v2 retrieval + 8.4 UI btn | *(pending commit)* | pgvector 0.8.0 disponibile, migration da applicare. Fallback se OPENAI_API_KEY assente |
+| FASE 8 — AI + pgvector | 🟢 DONE | 8.1 migration vector+RPC + 8.2 edge fn genera-embeddings + 8.3 ai-v2 retrieval + 8.4 UI btn | `00b6f702` | pgvector 0.8.0 disponibile, migration da applicare. Fallback se OPENAI_API_KEY assente |
 | FASE 9 — Wizard serramentista | ⚪ TODO | — | — | Single source of truth = `items[]` QB |
 | FASE 10 — Bundle + suggerimenti | ⚪ TODO | — | — | Reuse `bundle_prodotti` |
 | FASE 11 — Testing E2E + QA | ⚪ TODO | 3 scenari E2E | — | Playwright |
