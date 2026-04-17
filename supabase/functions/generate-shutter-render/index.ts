@@ -356,12 +356,17 @@ Deno.serve(async (req) => {
       .from("platform_settings")
       .select("value")
       .eq("key", platformKeyName)
-      .single();
+      .maybeSingle();
 
-    const apiKey = (keyRow as { value: string } | null)?.value?.trim();
+    // Fallback: DB → Supabase edge secret (OPENAI_API_KEY, GEMINI_API_KEY, ...)
+    const envName = `${providerConfig.provider_key.toUpperCase()}_API_KEY`;
+    const apiKey =
+      (keyRow as { value: string } | null)?.value?.trim() ||
+      Deno.env.get(envName)?.trim() ||
+      "";
     if (!apiKey) {
       throw new Error(
-        `API key mancante per provider '${providerConfig.provider_key}'.`,
+        `API key mancante per provider '${providerConfig.provider_key}'. Configurarla in Admin > Impostazioni AI > Render o come Supabase secret ${envName}.`,
       );
     }
 

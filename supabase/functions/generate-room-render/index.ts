@@ -107,14 +107,20 @@ Deno.serve(async (req: Request) => {
       .single();
     if (!provider) throw new Error("No active render provider configured");
 
-    // Get API key from platform_settings
-    const keyField = provider.provider_key === "openai" ? "openai_api_key" : "google_ai_api_key";
-    const { data: platformSettings } = await supabase
+    // Get API key from platform_settings (schema: key TEXT PK, value TEXT NOT NULL)
+    // Fallback chain: DB → Supabase edge secret (OPENAI_API_KEY / GEMINI_API_KEY).
+    const platformKeyName = `render_${provider.provider_key}_api_key`;
+    const { data: keyRow } = await supabase
       .from("platform_settings")
-      .select(keyField)
-      .single();
-    const apiKey = platformSettings?.[keyField];
-    if (!apiKey) throw new Error(`API key not configured for ${provider.provider_key}`);
+      .select("value")
+      .eq("key", platformKeyName)
+      .maybeSingle();
+    const envName = `${provider.provider_key.toUpperCase()}_API_KEY`;
+    const apiKey =
+      (keyRow as { value: string } | null)?.value?.trim() ||
+      Deno.env.get(envName)?.trim() ||
+      "";
+    if (!apiKey) throw new Error(`API key not configured for ${provider.provider_key}. Configurarla in Admin > Impostazioni AI > Render o come Supabase secret ${envName}.`);
 
     // Update session status
     await supabase

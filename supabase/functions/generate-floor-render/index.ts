@@ -277,17 +277,20 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get Gemini API key
+      // Get Gemini API key (DB → Supabase edge secret GEMINI_API_KEY)
       const { data: keyRow } = await supabase
         .from("platform_settings")
         .select("value")
         .eq("key", "render_gemini_api_key")
-        .single();
+        .maybeSingle();
 
-      const apiKey = (keyRow as { value: string } | null)?.value?.trim();
+      const apiKey =
+        (keyRow as { value: string } | null)?.value?.trim() ||
+        Deno.env.get("GEMINI_API_KEY")?.trim() ||
+        "";
       if (!apiKey) {
         return new Response(
-          JSON.stringify({ error: "config_error", message: "Gemini API key not configured" }),
+          JSON.stringify({ error: "config_error", message: "Gemini API key not configured (né in platform_settings.render_gemini_api_key né in env GEMINI_API_KEY)" }),
           { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
         );
       }
@@ -436,16 +439,19 @@ Return ONLY the JSON, no other text.`;
 
     const { systemPrompt, userPrompt, promptVersion } = buildFloorPrompt(sessionForPrompt);
 
-    // ── Get Gemini API key ──────────────────────────────────────────────
+    // ── Get Gemini API key (DB → Supabase edge secret GEMINI_API_KEY) ────
     const { data: keyRow } = await supabase
       .from("platform_settings")
       .select("value")
       .eq("key", "render_gemini_api_key")
-      .single();
+      .maybeSingle();
 
-    const apiKey = (keyRow as { value: string } | null)?.value?.trim();
+    const apiKey =
+      (keyRow as { value: string } | null)?.value?.trim() ||
+      Deno.env.get("GEMINI_API_KEY")?.trim() ||
+      "";
     if (!apiKey) {
-      throw new Error("Gemini API key non configurata. Configurarla in Admin > Impostazioni AI.");
+      throw new Error("Gemini API key non configurata. Configurarla in Admin > Impostazioni AI o come Supabase secret GEMINI_API_KEY.");
     }
 
     // ── Download image and call Gemini ──────────────────────────────────

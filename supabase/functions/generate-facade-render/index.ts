@@ -324,6 +324,11 @@ Deno.serve(async (req) => {
     const { systemPrompt, userPrompt, promptVersion, blocks } = buildFacadePrompt(sessionLike);
 
     // ── Call AI via Lovable Gateway (Gemini) ─────────────────────────────
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")?.trim();
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY non configurata come Supabase edge secret.");
+    }
+
     const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
     const imgBuffer = await imgResp.arrayBuffer();
     const imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
@@ -350,7 +355,10 @@ Deno.serve(async (req) => {
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        },
         body: JSON.stringify(gatewayBody),
       },
     );
