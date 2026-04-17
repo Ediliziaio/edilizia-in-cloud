@@ -20,7 +20,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 6 — Manodopera UM flessibili | 🟢 DONE | 6.1 migration + 6.2 edge fn + 6.3 UI + 6.4 calcolo | `a228d0a4` | 10 UM canoniche, costo_interno separato, semaforo live |
 | FASE 7 — Fix 3 P0 bug | 🟢 DONE | 7.1 unit_price mq/griglia + 7.3 sconti/bundle banner + 7.4 tests | `34dbb86f` | 7.2 LIMIT 60 skip: delegato a FASE 8 (pgvector retrieval) |
 | FASE 8 — AI + pgvector | 🟢 DONE | 8.1 migration vector+RPC + 8.2 edge fn genera-embeddings + 8.3 ai-v2 retrieval + 8.4 UI btn | `00b6f702` | pgvector 0.8.0 disponibile, migration da applicare. Fallback se OPENAI_API_KEY assente |
-| FASE 9 — Wizard serramentista | ⚪ TODO | — | — | Single source of truth = `items[]` QB |
+| FASE 9 — Wizard serramentista | 🟢 DONE | 4-step wizard dialog + integrazione QuoteBuilder | *(pending commit)* | Single source of truth = `items[]` QB. Bottone visibile solo se ci sono famiglie |
 | FASE 10 — Bundle + suggerimenti | ⚪ TODO | — | — | Reuse `bundle_prodotti` |
 | FASE 11 — Testing E2E + QA | ⚪ TODO | 3 scenari E2E | — | Playwright |
 
@@ -290,6 +290,24 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
 - ✅ `tsc --noEmit` → 0 errori. `vitest run` → 171/171 verdi.
 - ⚠️ **Deploy TODO**: migration + edge fn `genera-embeddings-catalogo` vanno deployate su Supabase prima che l'UI funzioni. Senza `OPENAI_API_KEY` il retrieval semantico è silenziosamente by-passed (fallback legacy).
 - ⏳ **Next:** FASE 9 (Wizard serramentista — 5 step UI per creare preventivo verticalizzato).
+
+### 2026-04-17 — FASE 9: Wizard Serramentista
+
+- ✅ `src/components/marketing/preventivi/QuoteWizardSerramenti.tsx` (new, ~350 righe):
+  - Dialog 4-step: 1) scelta famiglia con search e grid di card, 2) misure L×H + qty (skippato se modalità=pz), 3) configurazione assi con dropdown + hint maggiorazione, 4) riepilogo prezzo con breakdown maggiorazioni applicate.
+  - Progress bar top con 4 segmenti colorati.
+  - Validazione step-by-step: `canAdvance()` blocca "Avanti" se famiglia non scelta / qty≤0 / asse obbligatorio non selezionato.
+  - Calcolo live via `calcolaPrezzoFamiglia` (FASE 5) + `useFamilyGrid` (griglia cachata 5 min).
+  - Riepilogo include: prezzo_griglia_base, mq calcolati, maggiorazioni_applicate con delta €, prezzo unitario + totale, warnings dalla funzione pura.
+  - `onAddItems` emette 1-2 `QuoteItemPro`: prodotto + eventuale posa collegata (se `family.posa_tariffa_default_id`).
+  - Description auto-generata: "1200×1400mm — Colore: Bianco · Apertura: 1 anta · Vetro: Doppio".
+- ✅ `QuoteBuilder.tsx` integrazione:
+  - Import `useFamilies` + `QuoteWizardSerramenti`.
+  - `hasSerramentiFamilies` flag: bottone "Serramento" appare solo se ci sono famiglie configurate.
+  - State `wizardSerramentiOpen` + dialog render.
+  - `onAddItems` callback: push multiplo in `items[]` con sort_order sequenziale.
+- ✅ `tsc --noEmit` → 0 errori. `vitest run` → 171/171 verdi (wizard UI non testabile unit: la logica è già in familyPricing.test.ts FASE 5).
+- ⏳ **Next:** FASE 10 (Bundle/pacchetti — già esistente via `bundle_prodotti` + BundleSelector. Verifica feature completeness + UX.).
 
 ---
 

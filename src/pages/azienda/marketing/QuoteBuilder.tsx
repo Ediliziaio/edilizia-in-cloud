@@ -25,6 +25,8 @@ import {
 } from "@/hooks/usePreventivoCosti";
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
 import BundleSelector from "@/components/marketing/preventivi/BundleSelector";
+import QuoteWizardSerramenti from "@/components/marketing/preventivi/QuoteWizardSerramenti";
+import { useFamilies } from "@/hooks/useFamilies";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -624,6 +626,8 @@ export default function QuoteBuilder() {
 
   // IMP09: Bundle dialog
   const [bundleOpen, setBundleOpen] = useState(false);
+  // FASE 9: Wizard Serramentista dialog
+  const [wizardSerramentiOpen, setWizardSerramentiOpen] = useState(false);
 
   // Step 2: Documents + PDF settings
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
@@ -665,6 +669,10 @@ export default function QuoteBuilder() {
   const { data: scontiQuantita = [] } = useScontiQuantita(companyId);
   const { data: bundles = [] } = useBundleProdotti(companyId);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
+
+  // FASE 9: families disponibili → abilita bottone Wizard Serramentista solo se configurate
+  const { families: articleFamilies } = useFamilies();
+  const hasSerramentiFamilies = articleFamilies.length > 0;
 
   // Sync PDF impostazioni for new quote
   useEffect(() => {
@@ -1774,6 +1782,15 @@ export default function QuoteBuilder() {
                     >
                       <Layers className="h-4 w-4 mr-1" /> Bundle
                     </Button>
+                    {hasSerramentiFamilies && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWizardSerramentiOpen(true)}
+                      >
+                        <Package className="h-4 w-4 mr-1" /> Serramento
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -2823,6 +2840,23 @@ export default function QuoteBuilder() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* FASE 9: Wizard Serramentista */}
+      <QuoteWizardSerramenti
+        open={wizardSerramentiOpen}
+        onClose={() => setWizardSerramentiOpen(false)}
+        currentSortOrder={items.length}
+        tariffe={tariffe}
+        onAddItems={(newItems) => {
+          setItems((prev) => {
+            const base = [...prev];
+            newItems.forEach((item, idx) => {
+              base.push({ ...item, sort_order: base.length + idx });
+            });
+            return base;
+          });
+        }}
+      />
     </div>
   );
 }
