@@ -16,7 +16,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 2 — Data model famiglie/assi | 🟡 IN CORSO | 2.1 migration + 2.2 types | *(pending `feat(serramenti): fase 2 data model famiglie assi maggiorazioni`)* | 3 tabelle + ALTER listino_griglia (drop NOT NULL prodotto_id) + ALTER article_templates |
 | FASE 3 — Seed categorie + installer | 🟢 DONE | 3.1 tables + 3.2 seed + 3.3 edge fn + 3.4 dialog UI | `cccd5f5c` | 11 cat + 38 famiglie template, idempotent Edge Function |
 | FASE 4 — Editor UI famiglie/assi | 🟢 DONE | 4.1–4.7 hook + catalogo + editor + routing | `674015fc` | 5-step editor, assi+valori CRUD, griglia L×H, price preview live |
-| FASE 5 — Motore calcolo prezzo | ⚪ TODO | — | — | Test unitari obbligatori |
+| FASE 5 — Motore calcolo prezzo | 🟢 DONE | 5.1 useFamilyPricing hook + 5.2 unit tests | `0b8d4af7` | 16 test vitest, funzione pura + nearestGrid Manhattan |
 | FASE 6 — Manodopera UM flessibili | ⚪ TODO | — | — | DB già supporta UM |
 | FASE 7 — Fix 3 P0 bug | ⚪ TODO | 7.1 unit_price, 7.2 LIMIT 60, 7.3 sconti/bundle | — | Copertura regressione aziende live |
 | FASE 8 — AI + pgvector | ⚪ TODO | migration + embeddings + RPC + edge fn | — | Verifica disponibilità `vector` ext Supabase |
@@ -183,6 +183,25 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
   - ✅ Duplicazione famiglia (nel catalogo e nel riepilogo)
 - ✅ `tsc --noEmit` → 0 errori.
 - ⏳ **Next:** FASE 5 (Motore calcolo prezzo puro + unit tests) + applicazione migration 005 + deploy edge function su ambiente target.
+
+### FASE 5 — 2026-04-17
+- ✅ 5.1 `src/hooks/useFamilyPricing.ts`:
+  - Funzioni pure esportate: `nearestGrid(punti, x, y)` (Manhattan distance, short-circuit exact match) + `calcolaPrezzoFamiglia(input, griglia?)` (algoritmo masterprompt 5.1).
+  - Hook wrapper `useFamilyGrid(familyId)`: carica i punti griglia da `listino_griglia`, cache 5min, invalidato via `queryKeys.articleFamilies.grid(id)`.
+  - Algoritmo: (1) base da `modalita_prezzo_base` (pz/mq/griglia/misura_libera) → (2) maggiorazioni **percentuali** in ordine `sort_order` degli assi → (3) maggiorazioni **fisse** (fisso_pz/fisso_mq/fisso_ml/fisso_mc) → (4) `totale = unit × quantita`.
+  - Stessa logica per `prezzo_acquisto` usando `maggiorazione_acquisto`.
+  - Warnings accumulati: misure mancanti, griglia vuota, asse obbligatorio non selezionato, fisso_ml senza ml, fisso_mc ancora non supportato.
+- ✅ 5.2 `src/test/logic/familyPricing.test.ts` — 16 test Vitest:
+  - `nearestGrid`: lista vuota, exact match, nearest-neighbor, `prezzo_acquisto_netto null → 0`.
+  - Base pz 100 × Q=3 → 300; mq 1.2×1.4 @ 200 → 336; mq senza misure → warning.
+  - Griglia: exact match 1200×1400 @ 420; nearest 1250×1420 → 420 + warning; griglia vuota → warning.
+  - Caso complesso: griglia 420 + 15% apertura + €40/mq vetro + €80/pz ferramenta su 1200×1400 (1.68mq) → **630.20** (matches masterprompt 5.3).
+  - Asse obbligatorio senza selezione → warning; asse opzionale senza selezione → zero warnings.
+  - `fisso_ml` senza lunghezza → warning; `fisso_mc` → warning "non ancora supportata".
+  - Ordinamento: percentuali applicate per `sort_order` crescente, non per ordine di inserzione nell'array `axes`.
+- ✅ `vitest run` → **158/158 test verdi** (9 file, nessuna regressione sugli altri moduli).
+- ✅ `tsc --noEmit` → 0 errori.
+- ⏳ **Next:** FASE 6 (tariffe UM flessibili + edge function installa-tariffe-vertical).
 
 ---
 
