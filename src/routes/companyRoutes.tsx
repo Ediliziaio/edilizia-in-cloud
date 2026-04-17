@@ -250,12 +250,13 @@ export function companyRoutes() {
         <Route path="assistenza" element={<TicketsList />} />
         <Route path="assistenza/nuovo" element={<CreateCompanyTicket />} />
         <Route path="assistenza/:id" element={<TicketDetail />} />
-        <Route path="interventi" element={<InterventiList />} />
-        <Route path="interventi/:id" element={<InterventiDetail />} />
-        <Route path="interventi/:id/chiudi" element={<ChiusuraIntervento />} />
-        <Route path="manutenzione" element={<ManutenzioneList />} />
-        <Route path="manutenzione/impianto/:id" element={<ImpiantoDetail />} />
-        <Route path="impianti/:impiantoId/storico" element={<StoricoImpianto />} />
+        {/* Interventi & manutenzione — gated: cantieri_avanzati (core) */}
+        <Route path="interventi" element={<FeatureRoute featureKey="cantieri_avanzati"><InterventiList /></FeatureRoute>} />
+        <Route path="interventi/:id" element={<FeatureRoute featureKey="cantieri_avanzati"><InterventiDetail /></FeatureRoute>} />
+        <Route path="interventi/:id/chiudi" element={<FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>} />
+        <Route path="manutenzione" element={<FeatureRoute featureKey="cantieri_avanzati"><ManutenzioneList /></FeatureRoute>} />
+        <Route path="manutenzione/impianto/:id" element={<FeatureRoute featureKey="cantieri_avanzati"><ImpiantoDetail /></FeatureRoute>} />
+        <Route path="impianti/:impiantoId/storico" element={<FeatureRoute featureKey="cantieri_avanzati"><StoricoImpianto /></FeatureRoute>} />
         <Route path="previsionale" element={<CashFlowForecast />} />
         <Route path="costi" element={<CompanyCosts />} />
         
@@ -269,37 +270,42 @@ export function companyRoutes() {
         <Route path="messaggistica-beta" element={<FeatureRoute featureKey="messaging_beta"><MessagingBeta /></FeatureRoute>} />
         <Route path="chat" element={<InternalChat />} />
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
-        <Route path="personale" element={<PersonalePage />} />
-        <Route path="personale/timbratura" element={<TimbraturaKiosk />} />
-        <Route path="tesoreria" element={<Tesoreria />} />
-        <Route path="fatturazione" element={<BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard>} />
-        <Route path="fatturazione/:id" element={<BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard>} />
-        <Route path="scadenzario" element={<ErrorBoundary title="Errore nel caricamento scadenzario"><BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard></ErrorBoundary>} />
-        
-        {/* Native billing routes */}
-        <Route path="documenti" element={<BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard>} />
-        <Route path="documenti/nuovo" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
-        <Route path="documenti/cassetto-sdi" element={<BillingModeGuard requiredMode="native"><CassettoSDI /></BillingModeGuard>} />
-        <Route path="documenti/fatture-ricevute" element={<BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard>} />
+        {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
+        <Route path="personale" element={<FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>} />
+        <Route path="personale/timbratura" element={<FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>} />
+        {/* Tesoreria — gated: tesoreria (core, default abilitato su tutti i piani) */}
+        <Route path="tesoreria" element={<FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>} />
+        {/* Fatturazione esterna — doppio guard: feature-level + billing mode */}
+        <Route path="fatturazione" element={<FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard></FeatureRoute>} />
+        <Route path="fatturazione/:id" element={<FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard></FeatureRoute>} />
+        <Route path="scadenzario" element={<ErrorBoundary title="Errore nel caricamento scadenzario"><FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard></FeatureRoute></ErrorBoundary>} />
+
+        {/* Native billing routes — gated: documenti (core) + billing mode native */}
+        <Route path="documenti" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/nuovo" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/cassetto-sdi" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><CassettoSDI /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/fatture-ricevute" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard></FeatureRoute>} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
-        <Route path="documenti/incassi" element={<BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard>} />
-        <Route path="documenti/registro-iva" element={<BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard>} />
-        <Route path="documenti/anagrafiche" element={<BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard>} />
-        <Route path="documenti/anagrafiche/:id" element={<BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard>} />
+        <Route path="documenti/incassi" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/registro-iva" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/anagrafiche" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/anagrafiche/:id" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard></FeatureRoute>} />
         <Route path="documenti/proforma" element={<Navigate to="/azienda/documenti?tipo=proforma" replace />} />
         <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti?tipo=preventivo" replace />} />
         <Route path="documenti/note-credito" element={<Navigate to="/azienda/documenti?tipo=nota_credito" replace />} />
-        <Route path="documenti/report" element={<BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard>} />
-        <Route path="documenti/:id/dettaglio" element={<BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard>} />
-        <Route path="documenti/:id" element={<BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard>} />
-        
-        <Route path="prima-nota" element={<ErrorBoundary title="Errore nel caricamento prima nota"><PrimaNota /></ErrorBoundary>} />
+        <Route path="documenti/report" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/:id/dettaglio" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/:id" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>} />
+
+        {/* Prima nota — gated: tesoreria (stesso dominio finanziario) */}
+        <Route path="prima-nota" element={<ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>} />
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
-        <Route path="sicurezza-cantiere" element={<SicurezzaCantiere />} />
-        <Route path="giornale-lavori" element={<GiornaleLavori />} />
-        <Route path="subappaltatori" element={<SubappaltatoriPage />} />
-        <Route path="subappaltatori/:id" element={<SubappaltatoreDetail />} />
+        {/* Cantieri avanzati — gated: cantieri_avanzati (core, default su tutti i piani) */}
+        <Route path="sicurezza-cantiere" element={<FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>} />
+        <Route path="giornale-lavori" element={<FeatureRoute featureKey="cantieri_avanzati"><GiornaleLavori /></FeatureRoute>} />
+        <Route path="subappaltatori" element={<FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoriPage /></FeatureRoute>} />
+        <Route path="subappaltatori/:id" element={<FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoreDetail /></FeatureRoute>} />
         <Route path="marginalita" element={<Navigate to="/azienda/ordini?tab=marginalita" replace />} />
         {/* Unified Automazioni page — flow builder visuale + template gallery */}
         <Route path="automazioni" element={<AutomazioniUnified />} />
