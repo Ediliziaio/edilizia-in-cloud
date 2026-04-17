@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
+import { logEmailDelivery } from "../_shared/email-log.ts";
 
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
@@ -1425,7 +1426,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       html,
     }, { domain: settings.domain });
 
-    // Log the send
+    // Log the send (email_logs tracks automation open/click)
     await supabase.from("email_logs").insert({
       contact_id: contact.id,
       company_id: companyId,
@@ -1435,6 +1436,22 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       stream,
       event_timestamp: new Date().toISOString(),
       error_message: result.ok ? null : JSON.stringify(result.body),
+    });
+
+    // Mirror to unified email_delivery_log for SuperAdmin P&L/audit
+    await logEmailDelivery(supabase, {
+      company_id: companyId,
+      recipient: contact.email,
+      subject,
+      template_name: "automation_send",
+      status: result.ok ? "sent" : "failed",
+      provider: settings.provider,
+      stream,
+      provider_id: result.providerMessageId ?? null,
+      error_message: result.ok ? null : JSON.stringify(result.body),
+      cost_eur: 0,
+      charged_eur: 0,
+      metadata: { contact_id: contact.id, automation: true },
     });
 
     // Fire-and-forget auto-topup check after marketing send

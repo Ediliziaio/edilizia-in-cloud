@@ -1,4 +1,4 @@
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -98,24 +98,20 @@ Deno.serve(async (req) => {
       return errorResponse("Failed to assign role", 500);
     }
 
-    // Send welcome email via transactional provider
+    // Send welcome email via unified pipeline
     try {
-      let settings = await loadProviderSettings("transactional");
-      if (!settings.apiKey) settings = await loadProviderSettings("marketing");
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("name")
+        .eq("id", company_id)
+        .single();
 
-      if (settings.apiKey) {
-        const { data: company } = await supabaseAdmin
-          .from("companies")
-          .select("name")
-          .eq("id", company_id)
-          .single();
-
-        await sendViaProvider(settings.provider, settings.apiKey, {
-          from: settings.fromDefault,
-          fromName: settings.fromName,
-          to: [trimmedEmail],
-          subject: `Benvenuto su ${company?.name || "la piattaforma"}`,
-          html: `<html><body>
+      await sendEmailUnified({
+        companyId:    company_id,
+        stream:       "transactional",
+        to:           [trimmedEmail],
+        subject:      `Benvenuto su ${company?.name || "la piattaforma"}`,
+        html: `<html><body>
             <p>Ciao ${trimmedFirstName},</p>
             <p>Il tuo account è stato creato su <strong>${company?.name || "la piattaforma"}</strong>.</p>
             <p>Ecco le tue credenziali di accesso:</p>
@@ -125,8 +121,11 @@ Deno.serve(async (req) => {
             </ul>
             <p>Ti consigliamo di cambiare la password al primo accesso.</p>
           </body></html>`,
-        });
-      }
+        templateName: "customer_welcome",
+        skipCredits:  false,
+        adminClient:  supabaseAdmin,
+        metadata:     { customer_id: newUserId },
+      });
     } catch (emailErr) {
       console.error("Failed to send welcome email:", emailErr);
     }

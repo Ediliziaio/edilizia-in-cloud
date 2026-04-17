@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, secureHeaders, jsonResponse } from "../_shared/headers.ts";
 
@@ -79,24 +79,40 @@ Deno.serve(async (req) => {
     );
     if (updateError) throw new Error(`Failed to update password: ${updateError.message}`);
 
-    // Send password reset email via transactional provider
+    // Send password reset email via unified pipeline
     if (targetProfile.email) {
       try {
-        let settings = await loadProviderSettings("transactional");
-        if (!settings.apiKey) settings = await loadProviderSettings("marketing");
-
-        if (settings.apiKey) {
-          await sendViaProvider(settings.provider, settings.apiKey, {
-            from: settings.fromDefault,
-            fromName: settings.fromName,
-            to: [targetProfile.email],
-            subject: "Password reimpostata",
-            html: `<html><body>
+        const subject = "Password reimpostata";
+        const html = `<html><body>
               <p>Ciao ${targetProfile.first_name || ""},</p>
               <p>La tua password è stata reimpostata dall'amministratore.</p>
               <p>La tua nuova password temporanea è: <strong>${finalPassword}</strong></p>
               <p>Ti consigliamo di cambiarla al primo accesso.</p>
-            </body></html>`,
+            </body></html>`;
+
+        let result = await sendEmailUnified({
+          companyId:    targetProfile.company_id,
+          stream:       "transactional",
+          to:           [targetProfile.email],
+          subject,
+          html,
+          templateName: "password_reset",
+          skipCredits:  true,
+          adminClient:  supabaseAdmin,
+          metadata:     { target_user_id: targetUserId },
+        });
+
+        if (!result.ok && /no provider configured/i.test(String((result.body as any)?.error ?? ""))) {
+          result = await sendEmailUnified({
+            companyId:    targetProfile.company_id,
+            stream:       "marketing",
+            to:           [targetProfile.email],
+            subject,
+            html,
+            templateName: "password_reset",
+            skipCredits:  true,
+            adminClient:  supabaseAdmin,
+            metadata:     { target_user_id: targetUserId, fallback_stream: true },
           });
         }
       } catch (emailErr) {

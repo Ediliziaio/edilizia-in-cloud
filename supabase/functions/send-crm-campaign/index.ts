@@ -6,7 +6,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 interface ContactFilter {
   contact_type?: string;
@@ -148,25 +148,6 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Carica provider email
-  let providerSettings;
-  try {
-    providerSettings = await loadProviderSettings("marketing");
-    if (!providerSettings) providerSettings = await loadProviderSettings("transactional");
-  } catch (_e) {
-    // fallback
-  }
-
-  if (!providerSettings) {
-    await (supabase
-      .from("crm_campaigns" as never)
-      .update({ status: "failed", error_message: "Provider email non configurato" } as never)
-      .eq("id" as never, campaign_id) as unknown as Promise<void>);
-    return new Response(JSON.stringify({ error: "Provider email non configurato" }), {
-      status: 500, headers: { ...corsH, "Content-Type": "application/json" },
-    });
-  }
-
   let sentCount = 0;
   let errorCount = 0;
 
@@ -183,13 +164,22 @@ Deno.serve(async (req) => {
             .replace(/\{\{cognome\}\}/gi, c.last_name ?? "")
             .replace(/\{\{email\}\}/gi, c.email);
 
-          await sendViaProvider(providerSettings!.provider, providerSettings!.apiKey, {
-            from: providerSettings!.fromDefault,
-            to: [c.email],
-            subject: campaign.subject,
-            html: personalizedHtml,
+          const result = await sendEmailUnified({
+            companyId:    null,
+            stream:       "marketing",
+            to:           [c.email],
+            subject:      campaign.subject,
+            html:         personalizedHtml,
+            templateName: "crm_campaign",
+            skipCredits:  true,
+            adminClient:  supabase,
+            metadata:     { campaign_id, contact_id: c.id },
           });
-          sentCount++;
+          if (result.ok) {
+            sentCount++;
+          } else {
+            errorCount++;
+          }
         } catch (err) {
           errorCount++;
           console.error(`[send-crm-campaign] Errore per ${c.email}:`, (err as Error).message);

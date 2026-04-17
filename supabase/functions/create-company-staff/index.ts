@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
@@ -255,16 +255,17 @@ Deno.serve(async (req) => {
 </table></td></tr></table>
 </body></html>`;
 
-      const settings = await loadProviderSettings("transactional");
-      if (settings.apiKey) {
-        const from = settings.fromDefault || settings.fromEmail;
-        await sendViaProvider(settings.provider, settings.apiKey, {
-          from,
-          to: [email],
-          subject: `Benvenuto in ${platformName} — Le tue credenziali di accesso`,
-          html: emailHtml,
-        }, { domain: settings.domain || undefined });
-      }
+      await sendEmailUnified({
+        companyId:    targetCompanyId,
+        stream:       "transactional",
+        to:           [email],
+        subject:      `Benvenuto in ${platformName} — Le tue credenziali di accesso`,
+        html:         emailHtml,
+        templateName: "staff_invite",
+        skipCredits:  true,
+        adminClient:  supabaseAdmin,
+        metadata:     { user_id: userId, role_type: effectiveRoleType },
+      });
     } catch (emailErr) {
       // Email failure is non-blocking — user was already created successfully
       console.error("Failed to send welcome email:", emailErr);

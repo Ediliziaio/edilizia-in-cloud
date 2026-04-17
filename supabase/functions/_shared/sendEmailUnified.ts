@@ -168,17 +168,44 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
     }
   }
 
+  // ── 3b. Resolve custom sender domain (Sprint 7) ──────────────────────────
+  // If the company has a verified + active custom domain in
+  // public.company_email_domains, override the default `from:` so emails
+  // leave from noreply@<dominio-azienda> instead of the platform domain.
+  let fromAddress = settings.fromDefault;
+  let customDomain: string | null = null;
+  if (args.companyId) {
+    try {
+      const { data: domainRow } = await admin
+        .from("company_email_domains")
+        .select("domain, from_email, from_name, is_verified, is_active")
+        .eq("company_id", args.companyId)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (domainRow?.is_verified && domainRow?.is_active) {
+        const localPart = (domainRow.from_email || "noreply").trim();
+        const email = `${localPart}@${domainRow.domain}`;
+        fromAddress = domainRow.from_name
+          ? `${domainRow.from_name} <${email}>`
+          : email;
+        customDomain = domainRow.domain;
+      }
+    } catch {
+      /* best-effort: fall back to platform default */
+    }
+  }
+
   // ── 4. Send via provider ─────────────────────────────────────────────────
   let result: EmailSendResult;
   try {
     result = await sendViaProvider(settings.provider, settings.apiKey, {
-      from:    settings.fromDefault,
+      from:    fromAddress,
       to:      recipients,
       subject: args.subject,
       html:    args.html,
       replyTo: args.replyTo,
       attachments: args.attachments,
-    }, { domain: settings.domain ?? undefined });
+    }, { domain: customDomain ?? settings.domain ?? undefined });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     for (const r of recipients) {
@@ -234,6 +261,8 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
         over_quota: overQuota,
         is_free: isFree,
         template_name: args.templateName ?? null,
+        custom_domain: customDomain,
+        from_address: fromAddress,
         ...args.metadata,
       },
     });

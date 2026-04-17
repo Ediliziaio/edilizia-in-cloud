@@ -41,6 +41,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   crediti:                { title: "Crediti & saldo",          description: "Gestisci i crediti e il saldo del tuo account" },
   api:                    { title: "API platform",             description: "Gestisci le chiavi API per integrazioni avanzate" },
   webhook:                { title: "Webhook",                  description: "Configura i webhook per eventi in tempo reale" },
+  "dominio-email":        { title: "Dominio email",            description: "Invia email dal tuo dominio aziendale per deliverability e branding" },
   "numeri-telefono":      { title: "Numeri virtuali",          description: "Gestisci i numeri telefonici virtuali" },
   abbonamento:            { title: "Piano abbonamento",        description: "Gestisci il tuo piano e i dettagli dell'abbonamento" },
   fatturazione:           { title: "Fatturazione",             description: "Gestisci le informazioni di fatturazione" },

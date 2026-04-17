@@ -14,6 +14,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { logEmailDelivery } from "../_shared/email-log.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 // How many hours after campaign completion to re-send to non-openers
@@ -190,6 +191,23 @@ Deno.serve(async (req) => {
             stream: "marketing",
             event_timestamp: new Date().toISOString(),
             error_message: result.ok ? null : JSON.stringify(result.body),
+          });
+
+          // Mirror to unified email_delivery_log for SuperAdmin P&L/audit
+          await logEmailDelivery(adminClient, {
+            company_id: campaign.company_id,
+            recipient: contact.email,
+            subject: resendSubject,
+            template_name: "campaign_resend",
+            status: result.ok ? "sent" : "failed",
+            provider: settings.provider,
+            stream: "marketing",
+            campaign_id: resendCampaignId,
+            provider_id: result.providerMessageId ?? null,
+            error_message: result.ok ? null : JSON.stringify(result.body),
+            cost_eur: 0,
+            charged_eur: 0,
+            metadata: { contact_id: contact.id, resend: true, original_campaign: campaign.id },
           });
 
           if (result.ok) sentCount++;

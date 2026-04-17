@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 function buildOTPEmail(otp: string, nome: string, azienda: string, link: string): string {
@@ -114,12 +114,16 @@ Deno.serve(async (req: Request) => {
 
     // Invia email OTP
     try {
-      const emailSettings = await loadProviderSettings("transactional");
-      await sendViaProvider(emailSettings.provider, emailSettings.apiKey, {
-        from: emailSettings.fromDefault,
-        to: [sigReq.signer_email],
-        subject: `Codice OTP per la firma — ${brandName}`,
-        html: buildOTPEmail(otp, sigReq.signer_name, brandName, firmaLink),
+      await sendEmailUnified({
+        companyId:    sigReq.company_id,
+        stream:       "transactional",
+        to:           [sigReq.signer_email],
+        subject:      `Codice OTP per la firma — ${brandName}`,
+        html:         buildOTPEmail(otp, sigReq.signer_name, brandName, firmaLink),
+        templateName: "fea_otp",
+        skipCredits:  true,
+        adminClient:  supabaseAdmin,
+        metadata:     { request_id: sigReq.id, signer_email: sigReq.signer_email },
       });
     } catch (emailErr) {
       console.error("Email send error:", emailErr);

@@ -1,6 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 Deno.serve(async (req) => {
@@ -70,9 +70,6 @@ Deno.serve(async (req) => {
     const firmaUrl = `${domain}/firma-odv/${firmaToken}`;
     const aziendaNome = company?.name || branding.platformName;
 
-    // Carica configurazione email provider
-    const providerSettings = await loadProviderSettings("transactional");
-
     const htmlBody = `
 <!DOCTYPE html>
 <html lang="it">
@@ -108,11 +105,16 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-    await sendViaProvider(providerSettings.provider, providerSettings.apiKey, {
-      from: providerSettings.fromDefault,
-      to: [customerEmail],
-      subject: `Approvazione richiesta: OdV #${odv.numero_odv} — ${odv.titolo} | ${aziendaNome}`,
-      html: htmlBody,
+    await sendEmailUnified({
+      companyId:    odv.company_id,
+      stream:       "transactional",
+      to:           [customerEmail],
+      subject:      `Approvazione richiesta: OdV #${odv.numero_odv} — ${odv.titolo} | ${aziendaNome}`,
+      html:         htmlBody,
+      templateName: "odv_send",
+      skipCredits:  false,
+      adminClient:  supabaseAdmin,
+      metadata:     { odv_id: odv.id, numero_odv: odv.numero_odv },
     });
 
     return jsonResponse({ success: true, token: firmaToken, email_inviata_a: customerEmail });

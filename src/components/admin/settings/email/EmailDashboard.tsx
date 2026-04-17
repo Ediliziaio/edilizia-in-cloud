@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, Mail, TrendingUp, Users, MousePointerClick, AlertTriangle, Calendar, DollarSign, Percent } from "lucide-react";
+import { BarChart3, Mail, TrendingUp, Users, MousePointerClick, AlertTriangle, Calendar, DollarSign, Percent, Send, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
@@ -106,6 +106,42 @@ export function EmailDashboard() {
     },
   });
 
+  // Real volumes per stream from the unified email_delivery_log — this is the
+  // SOURCE OF TRUTH for transactional emails (which never touch email_logs).
+  const { data: streamBreakdown } = useQuery({
+    queryKey: ["email-stream-breakdown", period],
+    queryFn: async () => {
+      const { from, to } = getPeriodDates(period);
+      let q = supabase
+        .from("email_delivery_log")
+        .select("stream, status, charged_eur, cost_eur");
+      if (from) q = q.gte("sent_at", from);
+      if (to) q = q.lte("sent_at", to);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        stream: string | null;
+        status: string;
+        charged_eur: number | null;
+        cost_eur: number | null;
+      }>;
+      const mktg = { sent: 0, delivered: 0, failed: 0, revenue: 0, cost: 0 };
+      const trans = { sent: 0, delivered: 0, failed: 0, revenue: 0, cost: 0, unbilled: 0 };
+      for (const r of rows) {
+        const bucket = r.stream === "marketing" ? mktg : trans;
+        if (r.status === "sent" || r.status === "delivered") bucket.sent++;
+        if (r.status === "delivered") bucket.delivered++;
+        if (r.status === "failed" || r.status === "bounced" || r.status === "dropped") bucket.failed++;
+        bucket.revenue += Number(r.charged_eur ?? 0);
+        bucket.cost += Number(r.cost_eur ?? 0);
+        if (r.stream === "transactional" && (r.status === "sent" || r.status === "delivered") && Number(r.charged_eur ?? 0) === 0) {
+          trans.unbilled++;
+        }
+      }
+      return { mktg, trans };
+    },
+  });
+
   if (statsLoading) return <Skeleton className="h-[400px]" />;
 
   const s = stats ?? {
@@ -174,6 +210,63 @@ export function EmailDashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Stream breakdown — real volumes from email_delivery_log */}
+      {streamBreakdown && (
+        <div>
+          <h3 className="text-sm font-semibold text-muted-foreground mb-3">📬 Volumi reali per stream (email_delivery_log)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Send className="h-4 w-4 text-blue-600" />
+                  <CardTitle className="text-sm">Marketing — Elastic Email</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Inviate</p>
+                  <p className="text-xl font-bold">{streamBreakdown.mktg.sent.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Fallite</p>
+                  <p className="text-xl font-bold text-red-600">{streamBreakdown.mktg.failed.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Ricavi</p>
+                  <p className="text-xl font-bold text-green-700">{formatEur(streamBreakdown.mktg.revenue)}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-600" />
+                  <CardTitle className="text-sm">Transazionali — SendGrid</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="grid grid-cols-4 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Inviate</p>
+                  <p className="text-xl font-bold">{streamBreakdown.trans.sent.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Fallite</p>
+                  <p className="text-xl font-bold text-red-600">{streamBreakdown.trans.failed.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Ricavi</p>
+                  <p className="text-xl font-bold text-green-700">{formatEur(streamBreakdown.trans.revenue)}</p>
+                </div>
+                <div title="Email transazionali entro quota di piano — ricavo 0 ma costo provider a carico piattaforma">
+                  <p className="text-xs text-muted-foreground">Non fatturate</p>
+                  <p className="text-xl font-bold text-amber-600">{streamBreakdown.trans.unbilled.toLocaleString()}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* Financial KPIs */}
       <div>

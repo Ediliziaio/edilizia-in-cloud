@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 /**
@@ -42,12 +42,6 @@ Deno.serve(async (req) => {
     const now = new Date();
     const results: { quote_id: string; days_left: number; reminders_sent: number }[] = [];
     let totalSent = 0;
-
-    // Carica email provider (transactional > marketing come fallback)
-    let emailSettings = await loadProviderSettings("transactional");
-    if (!emailSettings.apiKey) {
-      emailSettings = await loadProviderSettings("marketing");
-    }
 
     for (const giorniAnticipo of GIORNI_PREAVVISO) {
       // Trova preventivi che scadono esattamente tra giorniAnticipo giorni (±30 minuti)
@@ -102,7 +96,7 @@ Deno.serve(async (req) => {
         }
 
         // ── Email reminder al cliente (solo se ha email + signature_token) ──
-        if (quote.client_email && quote.signature_token && emailSettings.apiKey) {
+        if (quote.client_email && quote.signature_token) {
           const quoteBranding = await getBrandingForCompany(supabase, quote.company_id);
           const siteUrl = quoteBranding.siteUrl || defaultSiteUrl;
           const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${quote.signature_token}`;
@@ -134,14 +128,16 @@ Deno.serve(async (req) => {
             </div>
           `;
 
-          const fromAddress = emailSettings.fromEmail || companyEmail || `noreply@${siteUrl.replace(/https?:\/\//, "")}`;
-          const fromName = emailSettings.fromName || companyName;
-
-          const result = await sendViaProvider(emailSettings.provider, emailSettings.apiKey, {
-            from: `${fromName} <${fromAddress}>`,
-            to: [quote.client_email],
-            subject: `⏰ Promemoria offerta ${quote.quote_number} — scade tra ${giorniAnticipo} giorn${giorniAnticipo === 1 ? "o" : "i"}`,
+          const result = await sendEmailUnified({
+            companyId:    quote.company_id,
+            stream:       "transactional",
+            to:           [quote.client_email],
+            subject:      `⏰ Promemoria offerta ${quote.quote_number} — scade tra ${giorniAnticipo} giorn${giorniAnticipo === 1 ? "o" : "i"}`,
             html,
+            templateName: "quote_expiry",
+            skipCredits:  false,
+            adminClient:  supabase,
+            metadata:     { quote_id: quote.id, days_left: giorniAnticipo },
           });
 
           if (result.ok) {

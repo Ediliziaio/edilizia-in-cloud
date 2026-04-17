@@ -1,6 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
@@ -161,24 +161,18 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-    // Send email via configured provider (transactional stream)
-    const settings = await loadProviderSettings("transactional");
-
-    if (!settings.apiKey) {
-      return errorResponse("Provider email transazionale non configurato. Configura le impostazioni email.");
-    }
-
-    const result = await sendViaProvider(
-      settings.provider,
-      settings.apiKey,
-      {
-        from: settings.fromDefault,
-        to: [finalEmail],
-        subject: `Offerta ${quote.quote_number} — ${companyName}`,
-        html: emailHtml,
-      },
-      { domain: settings.domain }
-    );
+    // Send email via unified pipeline (transactional stream)
+    const result = await sendEmailUnified({
+      companyId:    quote.company_id,
+      stream:       "transactional",
+      to:           [finalEmail],
+      subject:      `Offerta ${quote.quote_number} — ${companyName}`,
+      html:         emailHtml,
+      templateName: "quote_signature",
+      skipCredits:  false,
+      adminClient:  supabaseAdmin,
+      metadata:     { quote_id: quote.id, quote_number: quote.quote_number },
+    });
 
     if (!result.ok) {
       console.error("Email send failed:", result);

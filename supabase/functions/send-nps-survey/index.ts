@@ -2,6 +2,7 @@
 // Sends NPS survey emails to eligible company admin users.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 const SURVEY_COOLDOWN_DAYS = 90; // min days between surveys
 const TOKEN_EXPIRY_DAYS = 7;
@@ -103,13 +104,14 @@ Deno.serve(async (req) => {
       const surveyUrl = `${appUrl}/feedback/nps?token=${token}`;
       const firstName = adminProfile.first_name || "Admin";
 
-      // Send email via edge function
+      // Send email via unified pipeline
       try {
-        await supabase.functions.invoke("send-email", {
-          body: {
-            to: adminProfile.email,
-            subject: `Come valuti Edilizia in Cloud? (2 minuti)`,
-            html: `
+        await sendEmailUnified({
+          companyId:    company.id,
+          stream:       "transactional",
+          to:           adminProfile.email,
+          subject:      `Come valuti Edilizia in Cloud? (2 minuti)`,
+          html: `
               <p>Ciao ${firstName},</p>
               <p>Usi Edilizia in Cloud da un po' di tempo e vorremmo sapere la tua opinione.</p>
               <p>In soli 2 minuti puoi aiutarci a migliorare il servizio:</p>
@@ -120,7 +122,10 @@ Deno.serve(async (req) => {
               </p>
               <p style="color:#6B7280;font-size:12px;">Il link scade il ${new Date(expiresAt).toLocaleDateString("it-IT")}.</p>
             `,
-          },
+          templateName: "nps_survey",
+          skipCredits:  true,
+          adminClient:  supabase,
+          metadata:     { trigger_event: triggerEvent, token },
         });
         sent++;
 

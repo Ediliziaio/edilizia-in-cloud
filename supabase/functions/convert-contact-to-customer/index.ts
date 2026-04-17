@@ -1,4 +1,4 @@
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -130,30 +130,29 @@ Deno.serve(async (req) => {
 
     // Step E — Email di benvenuto
     try {
-      let settings = await loadProviderSettings("transactional");
-      if (!settings.apiKey) settings = await loadProviderSettings("marketing");
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("name")
+        .eq("id", company_id)
+        .single();
 
-      if (settings.apiKey) {
-        const { data: company } = await supabaseAdmin
-          .from("companies")
-          .select("name")
-          .eq("id", company_id)
-          .single();
-
-        await sendViaProvider(settings.provider, settings.apiKey, {
-          from: settings.fromDefault,
-          fromName: settings.fromName,
-          to: [trimEmail],
-          subject: `Benvenuto su ${company?.name || "la piattaforma"}`,
-          html: `<html><body>
+      await sendEmailUnified({
+        companyId:    company_id,
+        stream:       "transactional",
+        to:           [trimEmail],
+        subject:      `Benvenuto su ${company?.name || "la piattaforma"}`,
+        html: `<html><body>
             <p>Ciao ${trimFirst},</p>
             <p>Il tuo account è stato attivato.</p>
             <p><strong>Email:</strong> ${trimEmail}</p>
             <p><strong>Password:</strong> ${password}</p>
             <p>Cambia la password al primo accesso.</p>
           </body></html>`,
-        });
-      }
+        templateName: "contact_converted",
+        skipCredits:  false,
+        adminClient:  supabaseAdmin,
+        metadata:     { contact_id, customer_id: newUserId },
+      });
     } catch (e) {
       console.error("Email benvenuto fallita:", e);
     }

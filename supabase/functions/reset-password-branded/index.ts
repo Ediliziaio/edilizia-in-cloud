@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
@@ -111,18 +111,17 @@ Deno.serve(async (req) => {
 </table></td></tr></table>
 </body></html>`;
 
-    const settings = await loadProviderSettings("transactional");
-    if (settings.apiKey) {
-      await sendViaProvider(settings.provider, settings.apiKey, {
-        from: settings.fromDefault || settings.fromEmail,
-        to: [email],
-        subject: `Reimposta la password di ${platformName}`,
-        html: emailHtml,
-      }, { domain: settings.domain || undefined });
-    } else {
-      // Fallback: use Supabase native reset (just trigger the link, email already sent by generateLink)
-      console.warn("No transactional email provider configured, reset link generated but not sent via custom email");
-    }
+    await sendEmailUnified({
+      companyId:    profile?.company_id ?? null,
+      stream:       "transactional",
+      to:           [email],
+      subject:      `Reimposta la password di ${platformName}`,
+      html:         emailHtml,
+      templateName: "password_reset_branded",
+      skipCredits:  true,
+      adminClient:  supabaseAdmin,
+      metadata:     { email },
+    });
 
     return jsonResponse({ success: true });
   } catch (err) {

@@ -50,6 +50,7 @@ import {
   MapPin,
   ClipboardList,
   Loader2,
+  AtSign,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { Button } from "@/components/ui/button";
@@ -545,6 +546,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         { to: "/azienda/impostazioni/crediti",        label: "Crediti & Saldo",icon: <Wallet className="h-4 w-4" />, visible: isAdmin },
         { to: "/azienda/impostazioni/api",            label: "API Platform",   icon: <Key className="h-4 w-4" />,    visible: isAdmin },
         { to: "/azienda/impostazioni/webhook",        label: "Webhook",        icon: <Globe className="h-4 w-4" />,  visible: isAdmin },
+        { to: "/azienda/impostazioni/dominio-email",  label: "Dominio Email",  icon: <AtSign className="h-4 w-4" />, visible: isAdmin },
         { to: "/azienda/impostazioni/numeri-telefono",label: "Numeri Virtuali",icon: <Phone className="h-4 w-4" />,  visible: isAdmin },
       ],
     },

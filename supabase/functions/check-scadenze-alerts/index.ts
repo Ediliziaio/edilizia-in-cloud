@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 Deno.serve(async (req) => {
@@ -32,12 +32,6 @@ Deno.serve(async (req) => {
 
     if (prefsErr) throw prefsErr;
 
-    // Load email provider settings once (transactional stream, fallback to marketing)
-    let emailSettings = await loadProviderSettings("transactional");
-    if (!emailSettings.apiKey) {
-      emailSettings = await loadProviderSettings("marketing");
-    }
-
     const results: { company_id: string; overdue: number; upcoming: number; alerts_sent: number; email_sent: boolean }[] = [];
 
     for (const pref of (prefs || [])) {
@@ -67,7 +61,7 @@ Deno.serve(async (req) => {
       }
 
       // Send email notification if configured and there are alerts
-      if (pref.alert_email && emailSettings.apiKey && (result.overdue_count > 0 || alertsSent > 0)) {
+      if (pref.alert_email && (result.overdue_count > 0 || alertsSent > 0)) {
         try {
           const overdueCount: number = result.overdue_count || 0;
           const upcomingItems: any[] = result.upcoming || [];
@@ -121,11 +115,16 @@ Deno.serve(async (req) => {
             ? `⚠️ ${overdueCount} scadenz${overdueCount === 1 ? "a scaduta" : "e scadute"} — azione richiesta`
             : `📅 ${alertsSent} scadenz${alertsSent === 1 ? "a in arrivo" : "e in arrivo"} — promemoria`;
 
-          const sendResult = await sendViaProvider(emailSettings.provider, emailSettings.apiKey, {
-            from: emailSettings.fromDefault,
-            to: [pref.alert_email],
-            subject: emailSubject,
-            html: emailHtml,
+          const sendResult = await sendEmailUnified({
+            companyId:    pref.company_id,
+            stream:       "transactional",
+            to:           [pref.alert_email],
+            subject:      emailSubject,
+            html:         emailHtml,
+            templateName: "scadenza_alert",
+            skipCredits:  false,
+            adminClient:  supabase,
+            metadata:     { overdue_count: overdueCount, upcoming_count: alertsSent },
           });
 
           if (sendResult.ok) {
@@ -137,11 +136,6 @@ Deno.serve(async (req) => {
         } catch (emailErr) {
           console.error(`Email sending error for company ${pref.company_id}:`, emailErr);
         }
-      } else if (pref.alert_email && (result.overdue_count > 0 || alertsSent > 0)) {
-        // No email provider configured — just log
-        console.log(
-          `Company ${pref.company_id}: ${result.overdue_count} overdue, ${alertsSent} upcoming alerts — email provider not configured`
-        );
       }
 
       results.push({

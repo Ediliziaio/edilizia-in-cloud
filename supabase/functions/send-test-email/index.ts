@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -41,24 +41,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Determine stream and load settings
-    const providerStream = stream || "marketing";
-    const settings = await loadProviderSettings(providerStream);
-
-    if (!settings.apiKey) {
-      return new Response(
-        JSON.stringify({ error: `API Key non configurata per stream "${providerStream}". Vai in Impostazioni → Email Provider.` }),
-        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-      );
-    }
+    // Determine stream
+    const providerStream: "marketing" | "transactional" = stream === "transactional" ? "transactional" : "marketing";
 
     // If testMode (Super Admin panel), send directly without campaign lookup
     if (testMode) {
-      const result = await sendViaProvider(settings.provider, settings.apiKey, {
-        from: settings.fromDefault,
-        to: [to],
-        subject: subject || `[TEST] Email di verifica`,
-        html: html || `<html><body><p>Test email</p></body></html>`,
+      const result = await sendEmailUnified({
+        companyId:    null,
+        stream:       providerStream,
+        to:           [to],
+        subject:      subject || `[TEST] Email di verifica`,
+        html:         html || `<html><body><p>Test email</p></body></html>`,
+        templateName: "test_email",
+        skipCredits:  true,
+        metadata:     { test_mode: true },
       });
 
       return new Response(JSON.stringify(result.body), {
@@ -92,12 +88,6 @@ Deno.serve(async (req) => {
         { status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
-
-    const fromAddress = campaign.sender_email
-      ? campaign.sender_name
-        ? `${campaign.sender_name} <${campaign.sender_email}>`
-        : campaign.sender_email
-      : settings.fromDefault;
 
     let htmlBody = campaign.html_content ||
       `<html><body><p>Nessun contenuto HTML disponibile.</p></body></html>`;
@@ -135,11 +125,16 @@ Deno.serve(async (req) => {
       .replace(/\{\{contact_company\}\}/g, previewContact.company_name || "")
       .replace(/\{\{unsubscribe_url\}\}/g, "#"); // placeholder for test
 
-    const result = await sendViaProvider(settings.provider, settings.apiKey, {
-      from: fromAddress,
-      to: [to],
-      subject: `[TEST] ${campaign.subject || "Senza oggetto"}`,
-      html: htmlBody,
+    const result = await sendEmailUnified({
+      companyId:    null,
+      stream:       providerStream,
+      to:           [to],
+      subject:      `[TEST] ${campaign.subject || "Senza oggetto"}`,
+      html:         htmlBody,
+      templateName: "test_email",
+      skipCredits:  true,
+      adminClient:  adminClient,
+      metadata:     { campaign_id: campaignId, preview_contact_id: previewContactId ?? null },
     });
 
     return new Response(JSON.stringify(result.body), {

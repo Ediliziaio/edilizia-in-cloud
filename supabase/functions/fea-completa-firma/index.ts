@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 function buildEmailCopiaB2C(nome: string, data: string): string {
   return `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
@@ -117,7 +117,6 @@ Deno.serve(async (req: Request) => {
     // Per B2C: invia email copia
     if (sigReq.tipo_firmatario === "b2c") {
       try {
-        const emailSettings = await loadProviderSettings("transactional");
         const dataFormattata = new Date(ora).toLocaleDateString("it-IT", {
           day: "2-digit",
           month: "long",
@@ -126,11 +125,16 @@ Deno.serve(async (req: Request) => {
           minute: "2-digit",
         });
 
-        await sendViaProvider(emailSettings.provider, emailSettings.apiKey, {
-          from: emailSettings.fromDefault,
-          to: [sigReq.signer_email],
-          subject: "Copia del documento firmato",
-          html: buildEmailCopiaB2C(sigReq.signer_name, dataFormattata),
+        await sendEmailUnified({
+          companyId:    sigReq.company_id,
+          stream:       "transactional",
+          to:           [sigReq.signer_email],
+          subject:      "Copia del documento firmato",
+          html:         buildEmailCopiaB2C(sigReq.signer_name, dataFormattata),
+          templateName: "fea_firma_completata",
+          skipCredits:  true,
+          adminClient:  supabaseAdmin,
+          metadata:     { request_id: sigReq.id, signer_email: sigReq.signer_email },
         });
 
         // Aggiorna b2c_email_copia=true

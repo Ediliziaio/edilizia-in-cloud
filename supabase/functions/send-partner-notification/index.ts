@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -122,21 +123,18 @@ Deno.serve(async (req) => {
     });
 
     if (settings.smtp_host && settings.smtp_user && settings.smtp_pass) {
-      // Send email via platform SMTP (simplified — reuse existing send logic)
       console.log(`[partner-notification] Sending ${type} email to ${referrer.email}: ${subject}`);
-      
-      // Use the send-test-email pattern or direct SMTP
-      const emailPayload = {
-        to: referrer.email,
-        subject,
-        html: htmlBody,
-        from_email: settings.smtp_from_email || settings.smtp_user,
-        from_name: settings.smtp_from_name || "Partner Program",
-      };
 
-      // Invoke the existing email sending function
-      await supabase.functions.invoke("send-test-email", {
-        body: emailPayload,
+      await sendEmailUnified({
+        companyId:    null,
+        stream:       "transactional",
+        to:           referrer.email,
+        subject,
+        html:         htmlBody,
+        templateName: "partner_notification",
+        skipCredits:  true,
+        adminClient:  supabase,
+        metadata:     { type, referrer_id },
       });
     } else {
       console.log(`[partner-notification] SMTP not configured, skipping email for ${type} to ${referrer.email}`);

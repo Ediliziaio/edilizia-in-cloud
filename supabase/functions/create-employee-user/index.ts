@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -134,19 +134,15 @@ Deno.serve(async (req) => {
       throw new Error("Errore nel collegamento dipendente");
     }
 
-    // Send welcome email via transactional provider
+    // Send welcome email via unified pipeline
     try {
-      let settings = await loadProviderSettings("transactional");
-      if (!settings.apiKey) settings = await loadProviderSettings("marketing");
-
-      if (settings.apiKey) {
-        const companyName = (employee as any).company?.name || "la piattaforma";
-        await sendViaProvider(settings.provider, settings.apiKey, {
-          from: settings.fromDefault,
-          fromName: settings.fromName,
-          to: [email],
-          subject: `Il tuo account su ${companyName}`,
-          html: `<html><body>
+      const companyName = (employee as any).company?.name || "la piattaforma";
+      await sendEmailUnified({
+        companyId:    employee.company_id,
+        stream:       "transactional",
+        to:           [email],
+        subject:      `Il tuo account su ${companyName}`,
+        html: `<html><body>
             <p>Ciao ${employee.first_name},</p>
             <p>È stato creato un account per te su <strong>${companyName}</strong>.</p>
             <p>Ecco le tue credenziali di accesso:</p>
@@ -156,8 +152,11 @@ Deno.serve(async (req) => {
             </ul>
             ${isManualPassword ? "<p>La password è stata impostata dall'amministratore.</p>" : "<p>Ti consigliamo di cambiare la password al primo accesso.</p>"}
           </body></html>`,
-        });
-      }
+        templateName: "employee_invite",
+        skipCredits:  true,
+        adminClient:  supabaseAdmin,
+        metadata:     { employee_id, user_id: newUser.user.id },
+      });
     } catch (emailErr) {
       console.error("Failed to send welcome email:", emailErr);
     }

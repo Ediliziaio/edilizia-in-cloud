@@ -11,7 +11,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const TOKEN_EXPIRY_HOURS = 48;
@@ -125,16 +125,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Load provider settings (transactional stream for system emails)
-    let settings = await loadProviderSettings("transactional");
-    if (!settings.apiKey) settings = await loadProviderSettings("marketing");
-    if (!settings.apiKey) {
-      return new Response(JSON.stringify({ error: "Nessun provider email configurato" }), {
-        status: 500,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
     // Create token (upsert: invalidate previous pending tokens for same contact)
     const token = generateToken();
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 3600 * 1000).toISOString();
@@ -173,12 +163,31 @@ Deno.serve(async (req) => {
   </div>
 </div></body></html>`;
 
-    const result = await sendViaProvider(settings.provider, settings.apiKey, {
-      from: settings.fromDefault,
-      to: [contact.email],
-      subject: "Conferma la tua iscrizione alla newsletter",
+    let result = await sendEmailUnified({
+      companyId:    contact.company_id,
+      stream:       "transactional",
+      to:           [contact.email],
+      subject:      "Conferma la tua iscrizione alla newsletter",
       html,
-    }, { domain: settings.domain });
+      templateName: "optin_confirmation",
+      skipCredits:  false,
+      adminClient:  adminClient,
+      metadata:     { contact_id: contact.id },
+    });
+
+    if (!result.ok && /no provider configured/i.test(String((result.body as any)?.error ?? ""))) {
+      result = await sendEmailUnified({
+        companyId:    contact.company_id,
+        stream:       "marketing",
+        to:           [contact.email],
+        subject:      "Conferma la tua iscrizione alla newsletter",
+        html,
+        templateName: "optin_confirmation",
+        skipCredits:  false,
+        adminClient:  adminClient,
+        metadata:     { contact_id: contact.id, fallback_stream: true },
+      });
+    }
 
     if (!result.ok) {
       return new Response(

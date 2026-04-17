@@ -56,6 +56,9 @@ import {
   Shield,
   Save,
   Info,
+  AtSign,
+  RefreshCw,
+  Trash2,
 } from "lucide-react";
 
 type EmailQuota = {
@@ -167,6 +170,89 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
       return (data ?? { per_month: [], per_stream_current_month: [] }) as UsageBreakdown;
     },
     staleTime: 60_000,
+  });
+
+  // ── Custom sender domain (Sprint 7) ──────────────────────────────────────
+  const { data: domainData, refetch: refetchDomain } = useQuery({
+    queryKey: ["company-email-domain", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("manage-email-domain", {
+        body: { action: "get_status", company_id: companyId },
+      });
+      if (error) throw error;
+      return data as {
+        domain: null | {
+          id: string;
+          domain: string;
+          from_email: string;
+          from_name: string | null;
+          ee_spf_verified: boolean;
+          ee_dkim_verified: boolean;
+          ee_tracking_verified: boolean;
+          sg_cname_1_valid: boolean;
+          sg_cname_2_valid: boolean;
+          sg_cname_3_valid: boolean;
+          is_verified: boolean;
+          is_active: boolean;
+          verified_at: string | null;
+        };
+      };
+    },
+    staleTime: 30_000,
+  });
+
+  const reverifyDomainMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("manage-email-domain", {
+        body: { action: "verify_domain", company_id: companyId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Verifica DNS rilanciata");
+      refetchDomain();
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore verifica dominio", { description: msg });
+    },
+  });
+
+  const toggleDomainActiveMutation = useMutation({
+    mutationFn: async (active: boolean) => {
+      const { error } = await supabase
+        .from("company_email_domains")
+        .update({ is_active: active })
+        .eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: (_, active) => {
+      toast.success(active ? "Dominio custom riattivato" : "Dominio custom disattivato");
+      refetchDomain();
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore aggiornamento stato", { description: msg });
+    },
+  });
+
+  const removeDomainMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("manage-email-domain", {
+        body: { action: "remove_domain", company_id: companyId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Dominio custom rimosso");
+      refetchDomain();
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore rimozione dominio", { description: msg });
+    },
   });
 
   // ── Delivery log (last 20 for this company) ──────────────────────────────
@@ -569,6 +655,126 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
               )}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Custom sender domain (Sprint 7) ──────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <AtSign className="h-4 w-4" />
+                Dominio email custom
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Il cliente invia email dal proprio dominio (es. <code className="text-[11px]">noreply@tuaazienda.it</code>)
+                una volta verificati i record DNS su Elastic Email + SendGrid.
+              </CardDescription>
+            </div>
+            {domainData?.domain && (
+              domainData.domain.is_verified && domainData.domain.is_active ? (
+                <Badge className="bg-green-600 hover:bg-green-700 gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Attivo
+                </Badge>
+              ) : domainData.domain.is_verified ? (
+                <Badge variant="outline">Verificato, disattivato</Badge>
+              ) : (
+                <Badge variant="outline" className="text-amber-700 border-amber-400">
+                  <Clock className="h-3 w-3 mr-1" /> Verifica DNS pendente
+                </Badge>
+              )
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!domainData?.domain ? (
+            <div className="text-xs text-muted-foreground">
+              Nessun dominio custom configurato. L'azienda può registrarne uno dalla sezione{" "}
+              <em>Impostazioni → Dominio Email</em> del proprio portale.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-lg border p-3 bg-muted/20 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div className="text-muted-foreground mb-0.5">Dominio</div>
+                  <div className="font-mono font-semibold">{domainData.domain.domain}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground mb-0.5">Mittente</div>
+                  <div className="font-mono">
+                    {domainData.domain.from_name
+                      ? `${domainData.domain.from_name} <${domainData.domain.from_email}@${domainData.domain.domain}>`
+                      : `${domainData.domain.from_email}@${domainData.domain.domain}`}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                {([
+                  ["EE SPF", domainData.domain.ee_spf_verified],
+                  ["EE DKIM", domainData.domain.ee_dkim_verified],
+                  ["EE Track", domainData.domain.ee_tracking_verified],
+                  ["SG CNAME 1", domainData.domain.sg_cname_1_valid],
+                  ["SG CNAME 2", domainData.domain.sg_cname_2_valid],
+                  ["SG CNAME 3", domainData.domain.sg_cname_3_valid],
+                ] as Array<[string, boolean]>).map(([label, ok]) => (
+                  <div
+                    key={label}
+                    className={`rounded border px-2 py-1.5 flex items-center gap-1.5 ${
+                      ok ? "bg-green-50 border-green-200 text-green-900" : "bg-amber-50 border-amber-200 text-amber-900"
+                    }`}
+                  >
+                    {ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                    <span className="text-[11px]">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 flex-wrap pt-2">
+                <div className="flex items-center gap-3">
+                  <Label className="text-xs flex items-center gap-2">
+                    <Switch
+                      checked={domainData.domain.is_active}
+                      onCheckedChange={(v) => toggleDomainActiveMutation.mutate(v)}
+                      disabled={!domainData.domain.is_verified || toggleDomainActiveMutation.isPending}
+                    />
+                    Dominio attivo
+                  </Label>
+                  {!domainData.domain.is_verified && (
+                    <span className="text-[11px] text-muted-foreground">
+                      (attivabile solo dopo la verifica DNS completa)
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => reverifyDomainMutation.mutate()}
+                    disabled={reverifyDomainMutation.isPending}
+                  >
+                    {reverifyDomainMutation.isPending ? (
+                      <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3 mr-2" />
+                    )}
+                    Re-verifica DNS
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeDomainMutation.mutate()}
+                    disabled={removeDomainMutation.isPending}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-3 w-3 mr-2" />
+                    Rimuovi
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

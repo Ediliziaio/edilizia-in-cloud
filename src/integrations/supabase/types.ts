@@ -9231,38 +9231,53 @@ export type Database = {
       }
       email_delivery_log: {
         Row: {
+          campaign_id: string | null
+          charged_eur: number
           company_id: string | null
+          cost_eur: number
           error_message: string | null
           id: string
+          metadata: Json | null
           provider: string | null
           provider_id: string | null
           recipient: string
           sent_at: string
           status: string
+          stream: string | null
           subject: string | null
           template_type: string | null
         }
         Insert: {
+          campaign_id?: string | null
+          charged_eur?: number
           company_id?: string | null
+          cost_eur?: number
           error_message?: string | null
           id?: string
+          metadata?: Json | null
           provider?: string | null
           provider_id?: string | null
           recipient: string
           sent_at?: string
           status?: string
+          stream?: string | null
           subject?: string | null
           template_type?: string | null
         }
         Update: {
+          campaign_id?: string | null
+          charged_eur?: number
           company_id?: string | null
+          cost_eur?: number
           error_message?: string | null
           id?: string
+          metadata?: Json | null
           provider?: string | null
           provider_id?: string | null
           recipient?: string
           sent_at?: string
           status?: string
+          stream?: string | null
           subject?: string | null
           template_type?: string | null
         }

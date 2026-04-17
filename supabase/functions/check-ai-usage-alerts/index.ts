@@ -5,7 +5,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
@@ -134,14 +134,13 @@ Deno.serve(async (req) => {
 
   // Invia email al super_admin
   try {
-    const providerSettings = await loadProviderSettings("transactional");
     const { data: admins } = await supabase
       .from("user_roles")
       .select("user_id")
       .eq("role", "super_admin")
       .limit(3);
 
-    if (admins?.length && providerSettings) {
+    if (admins?.length) {
       const { data: profiles } = await supabase
         .from("profiles")
         .select("email")
@@ -158,16 +157,21 @@ Deno.serve(async (req) => {
           return `<li><strong>${name}</strong> — ${a.threshold_type === "daily" ? "giornaliero" : "mensile"}: €${a.usage_eur.toFixed(2)} / soglia €${a.limit_eur.toFixed(2)}</li>`;
         });
 
-        await sendViaProvider(providerSettings.provider, providerSettings.apiKey, {
-          from: providerSettings.fromDefault,
-          to: adminEmails,
-          subject: `⚠️ ${alertsToInsert.length} alert AI usage — soglie superate`,
+        await sendEmailUnified({
+          companyId:    null,
+          stream:       "transactional",
+          to:           adminEmails,
+          subject:      `⚠️ ${alertsToInsert.length} alert AI usage — soglie superate`,
           html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
             <h2 style="color:#dc2626;">Alert Utilizzo AI — Soglie Superate</h2>
             <p>Le seguenti aziende hanno superato la soglia AI configurata:</p>
             <ul>${alertLines.join("")}</ul>
             <p>Vai al <a href="${Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com"}/admin/impostazioni/ai-usage">Monitor AI Usage</a> per i dettagli.</p>
           </div>`,
+          templateName: "ai_usage_alert",
+          skipCredits:  true,
+          adminClient:  supabase,
+          metadata:     { alerts_count: alertsToInsert.length },
         });
       }
     }

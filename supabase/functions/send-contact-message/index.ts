@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -199,28 +199,35 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Use shared provider - prefer transactional stream, fallback to marketing
-      let settings = await loadProviderSettings("transactional");
-      if (!settings.apiKey) {
-        settings = await loadProviderSettings("marketing");
-      }
-
-      if (!settings.apiKey) {
-        return new Response(
-          JSON.stringify({ error: "API Key del provider email non configurata" }),
-          { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-        );
-      }
-
       const emailSubject = subject || "Messaggio";
       const html = `<html><body><p>${content.replace(/\n/g, "<br>")}</p></body></html>`;
 
-      const result = await sendViaProvider(settings.provider, settings.apiKey, {
-        from: settings.fromDefault,
-        to: [contact.email],
-        subject: emailSubject,
+      let result = await sendEmailUnified({
+        companyId:    contact.company_id,
+        stream:       "transactional",
+        to:           [contact.email],
+        subject:      emailSubject,
         html,
-      }, { domain: settings.domain });
+        templateName: "contact_message",
+        skipCredits:  false,
+        adminClient:  adminClient,
+        metadata:     { contact_id: contact.id },
+      });
+
+      if (!result.ok && /no provider configured/i.test(String((result.body as any)?.error ?? ""))) {
+        result = await sendEmailUnified({
+          companyId:    contact.company_id,
+          stream:       "marketing",
+          to:           [contact.email],
+          subject:      emailSubject,
+          html,
+          templateName: "contact_message",
+          skipCredits:  false,
+          adminClient:  adminClient,
+          metadata:     { contact_id: contact.id, fallback_stream: true },
+        });
+      }
+
       if (!result.ok) {
         status = "failed";
         errorDetail = JSON.stringify(result.body);

@@ -4,7 +4,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 interface SendMessagePayload {
   order_id: string;
@@ -137,14 +137,18 @@ Deno.serve(async (req) => {
 
   try {
     if (channel === "email") {
-      const settings = await loadProviderSettings("transactional");
-      const result = await sendViaProvider(settings.provider, settings.apiKey, {
-        from: settings.fromDefault,
+      const result = await sendEmailUnified({
+        companyId: profile.company_id,
+        stream: "transactional",
         to: [to_email!],
         subject: subject || "(nessun oggetto)",
         html: body.replace(/\n/g, "<br>"),
+        templateName: "order_message",
+        adminClient: supabase,
+        metadata: { order_id, message_id: msgRecord.id, channel: "email" },
       });
-      externalId = (result as any)?.messageId || null;
+      if (!result.ok) throw new Error(`Email send failed (${result.status})`);
+      externalId = result.providerMessageId || null;
 
     } else if (channel === "sms") {
       const { data: telnyxCfg } = await supabase

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(
@@ -77,18 +77,17 @@ Deno.serve(async (req: Request) => {
     const corpo = interpolate(milestone.corpo_template, vars);
 
     // Invia email
-    const providerSettings = await loadProviderSettings("transactional");
-    await sendViaProvider(
-      providerSettings.provider,
-      providerSettings.apiKey!,
-      {
-        from: providerSettings.fromDefault,
-        to: [milestone.email_destinatario],
-        subject: soggetto,
-        html: `<p>${corpo.replace(/\n/g, "<br>")}</p>`,
-      },
-      { domain: providerSettings.domain ?? undefined }
-    );
+    await sendEmailUnified({
+      companyId:    company_id,
+      stream:       "transactional",
+      to:           [milestone.email_destinatario],
+      subject:      soggetto,
+      html:         `<p>${corpo.replace(/\n/g, "<br>")}</p>`,
+      templateName: `milestone_${milestone_key}`,
+      skipCredits:  false,
+      adminClient:  supabase,
+      metadata:     { milestone_key, ...metadata },
+    });
 
     // Logga in superadmin_comunicazioni
     await supabase.from("superadmin_comunicazioni").insert({

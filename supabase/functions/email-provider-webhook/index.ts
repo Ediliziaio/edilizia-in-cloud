@@ -117,6 +117,37 @@ Deno.serve(async (req) => {
               .eq("id", log.id);
           }
         }
+
+        // Mirror status updates on the unified email_delivery_log so the
+        // SuperAdmin dashboard, audit log and P&L all reflect provider events
+        // for transactional sends (which don't live in email_logs).
+        const deliveryUpdate: Record<string, unknown> = {};
+        switch (event.type) {
+          case "delivered":
+            deliveryUpdate.status = "delivered";
+            break;
+          case "bounced":
+            deliveryUpdate.status = "bounced";
+            if (event.reason) deliveryUpdate.error_message = event.reason;
+            break;
+          case "spam":
+            deliveryUpdate.status = "spam";
+            break;
+          case "dropped":
+          case "deferred":
+            deliveryUpdate.status = event.type;
+            if (event.reason) deliveryUpdate.error_message = event.reason;
+            break;
+          case "unsubscribed":
+            deliveryUpdate.status = "unsubscribed";
+            break;
+        }
+        if (Object.keys(deliveryUpdate).length > 0) {
+          await adminClient
+            .from("email_delivery_log")
+            .update(deliveryUpdate)
+            .eq("provider_id", event.providerMessageId);
+        }
       }
 
       // BUG-03: Hard bounce or spam → mark contact as unsubscribed to prevent future sends

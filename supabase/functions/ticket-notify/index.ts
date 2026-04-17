@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 
@@ -68,34 +68,27 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, no_recipients: true });
     }
 
-    // Load transactional provider, fallback to marketing
-    let settings = await loadProviderSettings("transactional");
-    if (!settings.apiKey) {
-      settings = await loadProviderSettings("marketing");
-    }
-
     const sent: string[] = [];
 
-    if (settings.apiKey) {
-      for (const recipient of recipients) {
-        if (!recipient.email) continue;
-        try {
-          await sendViaProvider(settings.provider, settings.apiKey, {
-            from: settings.fromDefault,
-            fromName: settings.fromName,
-            to: [recipient.email],
-            subject: emailSubject,
-            html: `<html><body>${emailBody}</body></html>`,
-          });
+    for (const recipient of recipients) {
+      if (!recipient.email) continue;
+      try {
+        const result = await sendEmailUnified({
+          companyId:    ticket.company_id,
+          stream:       "transactional",
+          to:           [recipient.email],
+          subject:      emailSubject,
+          html:         `<html><body>${emailBody}</body></html>`,
+          templateName: "ticket_notify",
+          skipCredits:  false,
+          adminClient:  admin,
+          metadata:     { ticket_id: ticket.id, type },
+        });
+        if (result.ok) {
           sent.push(recipient.email);
-        } catch (err) {
-          console.error(`Failed to send to ${recipient.email}:`, err);
         }
-      }
-    } else {
-      // Fallback: log only
-      for (const recipient of recipients) {
-        console.log(`[ticket-notify] Would send to ${recipient.email}: "${emailSubject}"`);
+      } catch (err) {
+        console.error(`Failed to send to ${recipient.email}:`, err);
       }
     }
 

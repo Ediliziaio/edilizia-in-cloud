@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { logEmailDelivery } from "../_shared/email-log.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -203,12 +204,39 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Build from address
-    const fromAddress = campaign.sender_email
-      ? campaign.sender_name
+    // Build from address — priority chain:
+    //   1. campaign.sender_email (explicit override set on the campaign itself)
+    //   2. company_email_domains (verified + active custom domain)  ← Sprint 7
+    //   3. settings.fromDefault (platform default noreply@…)
+    let customDomainForCampaign: string | null = null;
+    let fromAddress: string;
+    if (campaign.sender_email) {
+      fromAddress = campaign.sender_name
         ? `${campaign.sender_name} <${campaign.sender_email}>`
-        : campaign.sender_email
-      : settings.fromDefault;
+        : campaign.sender_email;
+    } else {
+      // Try company custom domain
+      let domainFrom: string | null = null;
+      try {
+        const { data: domainRow } = await adminClient
+          .from("company_email_domains")
+          .select("domain, from_email, from_name, is_verified, is_active")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (domainRow?.is_verified && domainRow?.is_active) {
+          const localPart = (domainRow.from_email || "noreply").trim();
+          const email = `${localPart}@${domainRow.domain}`;
+          domainFrom = domainRow.from_name
+            ? `${domainRow.from_name} <${email}>`
+            : email;
+          customDomainForCampaign = domainRow.domain;
+        }
+      } catch {
+        /* best-effort: fall back to platform default */
+      }
+      fromAddress = domainFrom ?? settings.fromDefault;
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     let sentCount = 0;
@@ -299,9 +327,9 @@ Deno.serve(async (req) => {
             "List-Unsubscribe": unsubHeader,
             "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
           },
-        }, { domain: settings.domain });
+        }, { domain: customDomainForCampaign ?? settings.domain });
 
-        // Log the send with A/B variant
+        // Log the send with A/B variant (email_logs tracks campaign open/click)
         await adminClient.from("email_logs").insert({
           campaign_id: campaignId,
           contact_id: contact.id,
@@ -313,6 +341,24 @@ Deno.serve(async (req) => {
           event_timestamp: new Date().toISOString(),
           error_message: result.ok ? null : JSON.stringify(result.body),
           ...(abVariant ? { ab_variant: abVariant } : {}),
+        });
+
+        // Also mirror into the unified email_delivery_log for SuperAdmin
+        // dashboards, audit trail and P&L reporting.
+        await logEmailDelivery(adminClient, {
+          company_id: companyId,
+          recipient: contact.email,
+          subject: emailSubject,
+          template_name: "campaign_send",
+          status: result.ok ? "sent" : "failed",
+          provider: settings.provider,
+          stream: "marketing",
+          campaign_id: campaignId,
+          provider_id: result.providerMessageId ?? null,
+          error_message: result.ok ? null : JSON.stringify(result.body),
+          cost_eur: 0,
+          charged_eur: 0,
+          metadata: { ab_variant: abVariant ?? null, contact_id: contact.id },
         });
 
         return result.ok;

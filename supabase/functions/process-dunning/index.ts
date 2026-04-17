@@ -20,7 +20,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
@@ -172,17 +172,23 @@ async function logDunningEvent(companyId: string, eventType: string, notes: stri
   await supabase.from("subscription_logs").insert({ company_id: companyId, event_type: eventType, notes, performed_by: null });
 }
 
-async function notifySuperAdmin(providerSettings: any, companyId: string, companyName: string, dunningDay: string, errorMessage: string) {
+async function notifySuperAdmin(companyId: string, companyName: string, dunningDay: string, errorMessage: string) {
   try {
     const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "super_admin").limit(3);
     if (!admins?.length) return;
     const { data: profiles } = await supabase.from("profiles").select("email").in("id", admins.map((a: any) => a.user_id));
     const adminEmails = (profiles || []).map((p: any) => p.email).filter(Boolean);
     if (!adminEmails.length) return;
-    await sendViaProvider(providerSettings.provider, providerSettings.apiKey, {
-      from: providerSettings.fromDefault, to: adminEmails,
-      subject: `Dunning fallita permanentemente — ${companyName}`,
-      html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2 style="color:#dc2626;">Email Dunning Fallita</h2><p>Dopo ${MAX_RETRIES} tentativi, la email dunning per <strong>${companyName}</strong> (${dunningDay}) non e' stata inviata.</p><p>Errore: <code>${errorMessage}</code></p><p><a href="${APP_URL}/admin/aziende/${companyId}">Vai all'azienda</a></p></div>`,
+    await sendEmailUnified({
+      companyId:    null,
+      stream:       "transactional",
+      to:           adminEmails,
+      subject:      `Dunning fallita permanentemente — ${companyName}`,
+      html:         `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2 style="color:#dc2626;">Email Dunning Fallita</h2><p>Dopo ${MAX_RETRIES} tentativi, la email dunning per <strong>${companyName}</strong> (${dunningDay}) non e' stata inviata.</p><p>Errore: <code>${errorMessage}</code></p><p><a href="${APP_URL}/admin/aziende/${companyId}">Vai all'azienda</a></p></div>`,
+      templateName: "dunning_admin_alert",
+      skipCredits:  true,
+      adminClient:  supabase,
+      metadata:     { company_id: companyId, dunning_day: dunningDay },
     });
   } catch (err) {
     console.error("[dunning] Failed to notify super admin:", err);
@@ -235,10 +241,8 @@ Deno.serve(async (req) => {
   const results = { processed: 0, emails_sent: 0, suspended: 0, errors: 0, retries_processed: 0 };
 
   try {
-    const providerSettings = await loadProviderSettings("transactional").catch(() => null);
-
     // ── Process pending retries first ──────────────────────────────────────
-    if (providerSettings) {
+    {
       const pendingRetries = await getPendingRetries();
       for (const attempt of pendingRetries) {
         results.retries_processed++;
@@ -273,7 +277,20 @@ Deno.serve(async (req) => {
             subject = subjects[attempt.dunning_day] || "Abbonamento — azione richiesta";
           }
 
-          await sendViaProvider(providerSettings.provider, providerSettings.apiKey, { from: providerSettings.fromDefault, to: [company.email], subject, html });
+          const retryResult = await sendEmailUnified({
+            companyId:    company.id,
+            stream:       "transactional",
+            to:           [company.email],
+            subject,
+            html,
+            templateName: `dunning_${attempt.dunning_day}`,
+            skipCredits:  false,
+            adminClient:  supabase,
+            metadata:     { dunning_day: attempt.dunning_day, retry_count: attempt.retry_count },
+          });
+          if (!retryResult.ok) {
+            throw new Error(String((retryResult.body as any)?.error ?? `status ${retryResult.status}`));
+          }
           await updateDunningAttempt(attempt.id, "sent", undefined, attempt.retry_count);
           results.emails_sent++;
         } catch (retryErr) {
@@ -283,7 +300,7 @@ Deno.serve(async (req) => {
           results.errors++;
           if (newRetryCount >= MAX_RETRIES) {
             const { data: co } = await supabase.from("companies").select("id, name").eq("id", attempt.company_id).maybeSingle();
-            await notifySuperAdmin(providerSettings, attempt.company_id, co?.name || "Sconosciuto", attempt.dunning_day, errMsg);
+            await notifySuperAdmin(attempt.company_id, co?.name || "Sconosciuto", attempt.dunning_day, errMsg);
           }
         }
       }
@@ -312,10 +329,8 @@ Deno.serve(async (req) => {
           await supabase.from("companies").update({ status: "suspended" }).eq("id", company.id);
           await logDunningEvent(company.id, "dunning_suspended", "Account sospeso automaticamente dopo 14 giorni di mancato pagamento");
           results.suspended++;
-          if (providerSettings) {
-            await notifySuperAdmin(providerSettings, company.id, company.name, "auto_suspension",
-              "Account sospeso automaticamente dopo 14 giorni di mancato pagamento");
-          }
+          await notifySuperAdmin(company.id, company.name, "auto_suspension",
+            "Account sospeso automaticamente dopo 14 giorni di mancato pagamento");
           continue;
         }
 
@@ -327,7 +342,7 @@ Deno.serve(async (req) => {
         if (!emailType) continue;
         if (await hasAlreadySent(company.id, emailType)) continue;
 
-        if (providerSettings && company.email) {
+        if (company.email) {
           const html = buildExpiredEmail(company, daysExpired, emailType);
           const subjects: Record<string, string> = {
             dunning_day0: "Il tuo abbonamento e' scaduto",
@@ -335,7 +350,20 @@ Deno.serve(async (req) => {
             dunning_day7: "Ultimo avviso: account verra' sospeso tra 7 giorni",
           };
           try {
-            await sendViaProvider(providerSettings.provider, providerSettings.apiKey, { from: providerSettings.fromDefault, to: [company.email], subject: subjects[emailType], html });
+            const sendResult = await sendEmailUnified({
+              companyId:    company.id,
+              stream:       "transactional",
+              to:           [company.email],
+              subject:      subjects[emailType],
+              html,
+              templateName: `dunning_${emailType}`,
+              skipCredits:  false,
+              adminClient:  supabase,
+              metadata:     { dunning_day: emailType, days_expired: daysExpired },
+            });
+            if (!sendResult.ok) {
+              throw new Error(String((sendResult.body as any)?.error ?? `status ${sendResult.status}`));
+            }
             await logDunningAttempt(company.id, emailType, "sent");
             results.emails_sent++;
           } catch (emailErr) {
@@ -367,14 +395,23 @@ Deno.serve(async (req) => {
         const emailType = daysLeft <= 0 ? "trial_expired_email" : "trial_expiring_3d";
         if (await hasAlreadySent(company.id, emailType)) continue;
 
-        if (providerSettings && company.email) {
+        if (company.email) {
           const html = buildTrialEmail(company, daysLeft);
           try {
-            await sendViaProvider(providerSettings.provider, providerSettings.apiKey, {
-              from: providerSettings.fromDefault, to: [company.email],
-              subject: daysLeft <= 0 ? "Il tuo periodo di prova e' terminato" : `Il tuo trial scade tra ${daysLeft} giorni`,
+            const sendResult = await sendEmailUnified({
+              companyId:    company.id,
+              stream:       "transactional",
+              to:           [company.email],
+              subject:      daysLeft <= 0 ? "Il tuo periodo di prova e' terminato" : `Il tuo trial scade tra ${daysLeft} giorni`,
               html,
+              templateName: `dunning_${emailType}`,
+              skipCredits:  false,
+              adminClient:  supabase,
+              metadata:     { dunning_day: emailType, days_left: daysLeft },
             });
+            if (!sendResult.ok) {
+              throw new Error(String((sendResult.body as any)?.error ?? `status ${sendResult.status}`));
+            }
             await logDunningAttempt(company.id, emailType, "sent");
             results.emails_sent++;
           } catch (emailErr) {
