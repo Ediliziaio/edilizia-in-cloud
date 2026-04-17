@@ -1,6 +1,7 @@
 import { lazy } from "react";
 import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { FeatureRoute } from "@/components/auth/FeatureRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
@@ -8,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 // Company pages
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
+const UpgradePage = lazy(() => import("@/pages/azienda/UpgradePage"));
 const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
 const CruscottoHub = lazy(() => import("@/pages/azienda/CruscottoHub"));
 const CruscottoDashboardPage = lazy(() => import("@/pages/azienda/CruscottoDashboardPage"));
@@ -225,11 +227,13 @@ export function companyRoutes() {
         <Route path="cruscotto" element={<CruscottoDashboardPage />} />
         <Route path="cruscotto/gestisci" element={<CruscottoHub />} />
         <Route path="cruscotto/aziendale" element={<CruscottoAziendale />} />
-        {/* Dashboard Builder v1 — custom dashboards */}
-        <Route path="dashboards" element={<ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary>} />
-        <Route path="dashboards/nuova" element={<ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary>} />
-        <Route path="dashboards/:id" element={<ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary>} />
-        <Route path="dashboards/:id/modifica" element={<ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary>} />
+        {/* Upgrade fallback — mostrata da FeatureRoute quando una feature è negata */}
+        <Route path="upgrade" element={<UpgradePage />} />
+        {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1) */}
+        <Route path="dashboards" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary></FeatureRoute>} />
+        <Route path="dashboards/nuova" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
+        <Route path="dashboards/:id" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>} />
+        <Route path="dashboards/:id/modifica" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
         <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento ordini"><OrdersList /></ErrorBoundary>} />
         <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione ordine"><CreateOrder /></ErrorBoundary>} />
         <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio ordine"><OrderDetail /></ErrorBoundary>} />
@@ -262,7 +266,7 @@ export function companyRoutes() {
         <Route path="ferie-personali" element={<Navigate to="/azienda/attivita?tab=ferie" replace />} />
         <Route path="cedolini-personali" element={<Navigate to="/azienda/attivita?tab=cedolini" replace />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
-        <Route path="messaggistica-beta" element={<MessagingBeta />} />
+        <Route path="messaggistica-beta" element={<FeatureRoute featureKey="messaging_beta"><MessagingBeta /></FeatureRoute>} />
         <Route path="chat" element={<InternalChat />} />
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         <Route path="personale" element={<PersonalePage />} />
@@ -303,46 +307,46 @@ export function companyRoutes() {
         {/* Backward-compatible redirects */}
         <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni" replace />} />
 
-        {/* Unified Agenti AI page (2 tabs: custom, platform) */}
-        <Route path="agenti-ai" element={<AgentiAIPage />} />
-        <Route path="agenti-ai/:agentId" element={<AgentDetailPage />} />
+        {/* Unified Agenti AI page (2 tabs: custom, platform) — gated: ai_agents */}
+        <Route path="agenti-ai" element={<FeatureRoute featureKey="ai_agents"><AgentiAIPage /></FeatureRoute>} />
+        <Route path="agenti-ai/:agentId" element={<FeatureRoute featureKey="ai_agents"><AgentDetailPage /></FeatureRoute>} />
 
-        {/* Render AI Routes */}
-        <Route path="render" element={<RenderCategoryHub />} />
+        {/* Render AI Routes — gated: render_ai */}
+        <Route path="render" element={<FeatureRoute featureKey="render_ai"><RenderCategoryHub /></FeatureRoute>} />
         {/* Render Infissi */}
-        <Route path="render/infissi" element={<RenderHub />} />
-        <Route path="render/infissi/new" element={<RenderNew />} />
-        <Route path="render/infissi/gallery" element={<RenderGallery />} />
-        <Route path="render/infissi/gallery/:id" element={<RenderGalleryDetail />} />
+        <Route path="render/infissi" element={<FeatureRoute featureKey="render_ai"><RenderHub /></FeatureRoute>} />
+        <Route path="render/infissi/new" element={<FeatureRoute featureKey="render_ai"><RenderNew /></FeatureRoute>} />
+        <Route path="render/infissi/gallery" element={<FeatureRoute featureKey="render_ai"><RenderGallery /></FeatureRoute>} />
+        <Route path="render/infissi/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderGalleryDetail /></FeatureRoute>} />
         {/* Render Bagno */}
-        <Route path="render/bagno" element={<RenderBagnoHub />} />
-        <Route path="render/bagno/new" element={<RenderBagnoNew />} />
-        <Route path="render/bagno/gallery" element={<RenderBagnoGallery />} />
-        <Route path="render/bagno/gallery/:id" element={<RenderBagnoGalleryDetail />} />
+        <Route path="render/bagno" element={<FeatureRoute featureKey="render_ai"><RenderBagnoHub /></FeatureRoute>} />
+        <Route path="render/bagno/new" element={<FeatureRoute featureKey="render_ai"><RenderBagnoNew /></FeatureRoute>} />
+        <Route path="render/bagno/gallery" element={<FeatureRoute featureKey="render_ai"><RenderBagnoGallery /></FeatureRoute>} />
+        <Route path="render/bagno/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderBagnoGalleryDetail /></FeatureRoute>} />
         {/* Render Pavimento */}
-        <Route path="render/pavimento" element={<RenderPavimentoHub />} />
-        <Route path="render/pavimento/new" element={<RenderPavimentoNew />} />
-        <Route path="render/pavimento/gallery" element={<RenderPavimentoGallery />} />
-        <Route path="render/pavimento/gallery/:id" element={<RenderPavimentoGalleryDetail />} />
-        <Route path="render/facciata" element={<RenderFacciataHub />} />
-        <Route path="render/facciata/new" element={<RenderFacciataNew />} />
-        <Route path="render/facciata/gallery" element={<RenderFacciataGallery />} />
-        <Route path="render/facciata/gallery/:id" element={<RenderFacciataGalleryDetail />} />
+        <Route path="render/pavimento" element={<FeatureRoute featureKey="render_ai"><RenderPavimentoHub /></FeatureRoute>} />
+        <Route path="render/pavimento/new" element={<FeatureRoute featureKey="render_ai"><RenderPavimentoNew /></FeatureRoute>} />
+        <Route path="render/pavimento/gallery" element={<FeatureRoute featureKey="render_ai"><RenderPavimentoGallery /></FeatureRoute>} />
+        <Route path="render/pavimento/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderPavimentoGalleryDetail /></FeatureRoute>} />
+        <Route path="render/facciata" element={<FeatureRoute featureKey="render_ai"><RenderFacciataHub /></FeatureRoute>} />
+        <Route path="render/facciata/new" element={<FeatureRoute featureKey="render_ai"><RenderFacciataNew /></FeatureRoute>} />
+        <Route path="render/facciata/gallery" element={<FeatureRoute featureKey="render_ai"><RenderFacciataGallery /></FeatureRoute>} />
+        <Route path="render/facciata/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderFacciataGalleryDetail /></FeatureRoute>} />
         {/* Render Persiane */}
-        <Route path="render/persiane" element={<RenderPersianeHub />} />
-        <Route path="render/persiane/new" element={<RenderPersianeNew />} />
-        <Route path="render/persiane/gallery" element={<RenderPersianeGallery />} />
-        <Route path="render/persiane/gallery/:id" element={<RenderPersianeGalleryDetail />} />
+        <Route path="render/persiane" element={<FeatureRoute featureKey="render_ai"><RenderPersianeHub /></FeatureRoute>} />
+        <Route path="render/persiane/new" element={<FeatureRoute featureKey="render_ai"><RenderPersianeNew /></FeatureRoute>} />
+        <Route path="render/persiane/gallery" element={<FeatureRoute featureKey="render_ai"><RenderPersianeGallery /></FeatureRoute>} />
+        <Route path="render/persiane/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderPersianeGalleryDetail /></FeatureRoute>} />
         {/* Render Tetto */}
-        <Route path="render/tetto" element={<RenderTettoHub />} />
-        <Route path="render/tetto/new" element={<RenderTettoNew />} />
-        <Route path="render/tetto/gallery" element={<RenderTettoGallery />} />
-        <Route path="render/tetto/gallery/:id" element={<RenderTettoGalleryDetail />} />
+        <Route path="render/tetto" element={<FeatureRoute featureKey="render_ai"><RenderTettoHub /></FeatureRoute>} />
+        <Route path="render/tetto/new" element={<FeatureRoute featureKey="render_ai"><RenderTettoNew /></FeatureRoute>} />
+        <Route path="render/tetto/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTettoGallery /></FeatureRoute>} />
+        <Route path="render/tetto/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTettoGalleryDetail /></FeatureRoute>} />
         {/* Render Stanza */}
-        <Route path="render/stanza" element={<RenderStanzaHub />} />
-        <Route path="render/stanza/new" element={<RenderStanzaNew />} />
-        <Route path="render/stanza/gallery" element={<RenderStanzaGallery />} />
-        <Route path="render/stanza/gallery/:id" element={<RenderStanzaGalleryDetail />} />
+        <Route path="render/stanza" element={<FeatureRoute featureKey="render_ai"><RenderStanzaHub /></FeatureRoute>} />
+        <Route path="render/stanza/new" element={<FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>} />
+        <Route path="render/stanza/gallery" element={<FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>} />
+        <Route path="render/stanza/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderStanzaGalleryDetail /></FeatureRoute>} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />
@@ -356,21 +360,21 @@ export function companyRoutes() {
         <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />
         <Route path="marketing/agente-ai/*" element={<Navigate to="/azienda/agenti-ai" replace />} />
         <Route path="agente-interno/*" element={<Navigate to="/azienda/agenti-ai" replace />} />
-        <Route path="marketing/email" element={<EmailMarketing />} />
-        <Route path="marketing/email/campagna/:id/editor" element={<CampaignEditor />} />
-        <Route path="marketing/email/campagna/:id/builder" element={<DragDropEmailBuilder />} />
-        <Route path="marketing/email/campagna/:id/impostazioni" element={<CampaignSendSettings />} />
-        <Route path="marketing/whatsapp" element={<MarketingWhatsApp />} />
+        <Route path="marketing/email" element={<FeatureRoute featureKey="email_marketing"><EmailMarketing /></FeatureRoute>} />
+        <Route path="marketing/email/campagna/:id/editor" element={<FeatureRoute featureKey="email_marketing"><CampaignEditor /></FeatureRoute>} />
+        <Route path="marketing/email/campagna/:id/builder" element={<FeatureRoute featureKey="email_marketing"><DragDropEmailBuilder /></FeatureRoute>} />
+        <Route path="marketing/email/campagna/:id/impostazioni" element={<FeatureRoute featureKey="email_marketing"><CampaignSendSettings /></FeatureRoute>} />
+        <Route path="marketing/whatsapp" element={<FeatureRoute featureKey="whatsapp"><MarketingWhatsApp /></FeatureRoute>} />
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
         <Route path="marketing/sms" element={<Navigate to="/azienda/sms-marketing" replace />} />
-        {/* Portale SMS Marketing — route principale con sub-path */}
-        <Route path="sms-marketing" element={<SmsMarketingPage />} />
-        <Route path="sms-marketing/campagne" element={<SmsMarketingPage defaultTab="campagne" />} />
-        <Route path="sms-marketing/contatti" element={<SmsMarketingPage defaultTab="contatti" />} />
-        <Route path="sms-marketing/template" element={<SmsMarketingPage defaultTab="template" />} />
+        {/* Portale SMS Marketing — route principale con sub-path (gated: sms_marketing) */}
+        <Route path="sms-marketing" element={<FeatureRoute featureKey="sms_marketing"><SmsMarketingPage /></FeatureRoute>} />
+        <Route path="sms-marketing/campagne" element={<FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="campagne" /></FeatureRoute>} />
+        <Route path="sms-marketing/contatti" element={<FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="contatti" /></FeatureRoute>} />
+        <Route path="sms-marketing/template" element={<FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="template" /></FeatureRoute>} />
         {/* SMS Transazionale — messaggi individuali + automazioni */}
         <Route path="sms" element={<SmsPage />} />
         <Route path="sms/invio" element={<SmsPage defaultTab="invio" />} />
@@ -441,9 +445,9 @@ export function companyRoutes() {
         <Route path="contabilita-fiscale" element={<ErrorBoundary title="Errore nella contabilità fiscale"><ContabilitaFiscale /></ErrorBoundary>} />
         <Route path="archivio-sostitutivo" element={<ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary>} />
 
-        {/* FEA — Firma Elettronica Avanzata + Documenti */}
-        <Route path="firma-elettronica" element={<FirmaElettronicaHub />} />
-        <Route path="firma-elettronica/nuovo-template" element={<NuovoTemplate />} />
+        {/* FEA — Firma Elettronica Avanzata + Documenti (gated: firma_fea) */}
+        <Route path="firma-elettronica" element={<FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>} />
+        <Route path="firma-elettronica/nuovo-template" element={<FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>} />
       </Route>
     </>
   );

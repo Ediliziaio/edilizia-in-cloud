@@ -76,6 +76,7 @@ import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 import { ViewAsBanner } from "@/components/admin/ViewAsBanner";
 import { ViewAsDropdown } from "@/components/admin/ViewAsDropdown";
@@ -673,8 +674,11 @@ const CompanySidebar = memo(function CompanySidebar() {
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
   const permissions = usePermissions();
-  const { isModuleEnabled, isScopriPlan } = useSubscriptionLimits();
-  const { isFeatureEnabled } = useFeatureFlags();
+  const { isModuleEnabled, isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits();
+  const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
+  // Mostriamo skeleton finché plan + feature flags non sono risolti: con
+  // `isModuleEnabled` fail-closed, altrimenti la sidebar flickererebbe a vuoto.
+  const gatingLoading = limitsLoading || flagsLoading;
   const { branding } = useBranding();
   const { effectiveBrand } = useBrandSettings();
   const { mode: billingMode } = useBillingMode();
@@ -853,28 +857,39 @@ const CompanySidebar = memo(function CompanySidebar() {
             {/* Separator: divide top-level items from collapsible sections */}
             <div className="mx-4 border-t border-sidebar-border/60" />
 
-            {/* Collapsible macro-areas — exclusive accordion */}
-            {macroAreas
-              .filter(a => a.id !== "area_cruscotto")
-              .map(area => {
-                const visibleItems = filterNavItems(area.items);
-                if (visibleItems.length === 0) return null;
-                return (
-                  <MacroAreaCollapsible
-                    key={area.id}
-                    area={area}
-                    visibleItems={visibleItems}
-                    pathname={location.pathname}
-                    open={openAreaId === area.id}
-                    isScopriPlan={isScopriPlan}
-                    onOpenChange={(isOpen) => {
-                      const newId = isOpen ? area.id : null;
-                      setOpenAreaId(newId);
-                      try { localStorage.setItem("sidebar_open_area", newId ?? ""); } catch { /* storage non disponibile — silenzioso */ }
-                    }}
-                  />
-                );
-              })}
+            {/* Collapsible macro-areas — exclusive accordion.
+                Durante il loading di plan/feature-flags mostriamo skeleton
+                rows invece di nascondere voci (evita flicker e mancanza
+                momentanea di sezioni a pagamento). */}
+            {gatingLoading ? (
+              <div className="px-3 py-2 space-y-2" aria-label="Caricamento menu">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-7 w-full" />
+                ))}
+              </div>
+            ) : (
+              macroAreas
+                .filter(a => a.id !== "area_cruscotto")
+                .map(area => {
+                  const visibleItems = filterNavItems(area.items);
+                  if (visibleItems.length === 0) return null;
+                  return (
+                    <MacroAreaCollapsible
+                      key={area.id}
+                      area={area}
+                      visibleItems={visibleItems}
+                      pathname={location.pathname}
+                      open={openAreaId === area.id}
+                      isScopriPlan={isScopriPlan}
+                      onOpenChange={(isOpen) => {
+                        const newId = isOpen ? area.id : null;
+                        setOpenAreaId(newId);
+                        try { localStorage.setItem("sidebar_open_area", newId ?? ""); } catch { /* storage non disponibile — silenzioso */ }
+                      }}
+                    />
+                  );
+                })
+            )}
             
             <div className="mt-auto border-t border-sidebar-border">
               <div className={cn("p-3", isCollapsed && "p-2 flex flex-col items-center gap-2")}>
