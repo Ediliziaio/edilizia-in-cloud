@@ -18,7 +18,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 4 — Editor UI famiglie/assi | 🟢 DONE | 4.1–4.7 hook + catalogo + editor + routing | `674015fc` | 5-step editor, assi+valori CRUD, griglia L×H, price preview live |
 | FASE 5 — Motore calcolo prezzo | 🟢 DONE | 5.1 useFamilyPricing hook + 5.2 unit tests | `0b8d4af7` | 16 test vitest, funzione pura + nearestGrid Manhattan |
 | FASE 6 — Manodopera UM flessibili | 🟢 DONE | 6.1 migration + 6.2 edge fn + 6.3 UI + 6.4 calcolo | `a228d0a4` | 10 UM canoniche, costo_interno separato, semaforo live |
-| FASE 7 — Fix 3 P0 bug | 🟢 DONE | 7.1 unit_price mq/griglia + 7.3 sconti/bundle banner + 7.4 tests | *(pending commit)* | 7.2 LIMIT 60 skip: delegato a FASE 8 (pgvector retrieval) |
+| FASE 7 — Fix 3 P0 bug | 🟢 DONE | 7.1 unit_price mq/griglia + 7.3 sconti/bundle banner + 7.4 tests | `34dbb86f` | 7.2 LIMIT 60 skip: delegato a FASE 8 (pgvector retrieval) |
 | FASE 8 — AI + pgvector | ⚪ TODO | migration + embeddings + RPC + edge fn | — | Verifica disponibilità `vector` ext Supabase |
 | FASE 9 — Wizard serramentista | ⚪ TODO | — | — | Single source of truth = `items[]` QB |
 | FASE 10 — Bundle + suggerimenti | ⚪ TODO | — | — | Reuse `bundle_prodotti` |
