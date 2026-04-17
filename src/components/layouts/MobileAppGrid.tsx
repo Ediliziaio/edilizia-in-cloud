@@ -14,6 +14,7 @@ import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 
 interface MobileAppGridProps {
@@ -23,9 +24,10 @@ interface MobileAppGridProps {
 
 export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
   const permissions = usePermissions();
-  const { isModuleEnabled } = useSubscriptionLimits();
+  const { isModuleEnabled, isLoading: limitsLoading } = useSubscriptionLimits();
   const { mode: billingMode } = useBillingMode();
-  const { isFeatureEnabled } = useFeatureFlags();
+  const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
+  const gatingLoading = limitsLoading || flagsLoading;
   const { effectiveCompany } = useAuth();
   const location = useLocation();
   const [search, setSearch] = useState("");
@@ -108,7 +110,24 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
 
           {/* Grid content */}
           <div className="flex-1 overflow-y-auto px-5 pb-8">
-            {filteredAreas.map((area) => (
+            {gatingLoading && (
+              <div className="space-y-5" aria-label="Caricamento menu">
+                {Array.from({ length: 3 }).map((_, areaIdx) => (
+                  <div key={areaIdx} className="bg-background border border-border/60 rounded-2xl p-4">
+                    <Skeleton className="h-3 w-24 mb-3" />
+                    <div className="grid grid-cols-4 gap-3">
+                      {Array.from({ length: 8 }).map((_, itemIdx) => (
+                        <div key={itemIdx} className="flex flex-col items-center gap-1.5">
+                          <Skeleton className="w-12 h-12 rounded-2xl" />
+                          <Skeleton className="h-3 w-10" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!gatingLoading && filteredAreas.map((area) => (
               <div key={area.id} className="mb-5">
                 <div className="bg-background border border-border/60 rounded-2xl p-4">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
