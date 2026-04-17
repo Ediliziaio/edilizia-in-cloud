@@ -18,7 +18,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 4 — Editor UI famiglie/assi | 🟢 DONE | 4.1–4.7 hook + catalogo + editor + routing | `674015fc` | 5-step editor, assi+valori CRUD, griglia L×H, price preview live |
 | FASE 5 — Motore calcolo prezzo | 🟢 DONE | 5.1 useFamilyPricing hook + 5.2 unit tests | `0b8d4af7` | 16 test vitest, funzione pura + nearestGrid Manhattan |
 | FASE 6 — Manodopera UM flessibili | 🟢 DONE | 6.1 migration + 6.2 edge fn + 6.3 UI + 6.4 calcolo | `a228d0a4` | 10 UM canoniche, costo_interno separato, semaforo live |
-| FASE 7 — Fix 3 P0 bug | ⚪ TODO | 7.1 unit_price, 7.2 LIMIT 60, 7.3 sconti/bundle | — | Copertura regressione aziende live |
+| FASE 7 — Fix 3 P0 bug | 🟢 DONE | 7.1 unit_price mq/griglia + 7.3 sconti/bundle banner + 7.4 tests | *(pending commit)* | 7.2 LIMIT 60 skip: delegato a FASE 8 (pgvector retrieval) |
 | FASE 8 — AI + pgvector | ⚪ TODO | migration + embeddings + RPC + edge fn | — | Verifica disponibilità `vector` ext Supabase |
 | FASE 9 — Wizard serramentista | ⚪ TODO | — | — | Single source of truth = `items[]` QB |
 | FASE 10 — Bundle + suggerimenti | ⚪ TODO | — | — | Reuse `bundle_prodotti` |
@@ -234,7 +234,31 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
     - resto (pz/mq/ml/mc/kg/gg/h) → × qty
   - Nessun breaking change: i 4 call site in QuoteBuilder (righe 891/921/991/1074) continuano a funzionare con firma 2-3 args.
 - ✅ `tsc --noEmit` → 0 errori. `vitest run` → 158/158 verdi (nessuna regressione).
-- ⏳ **Next:** FASE 7 (fix P0 bug unit_price mq/griglia + LIMIT 60 + sconti/bundle in QuoteBuilder).
+
+### 2026-04-17 — FASE 7: Fix 3 P0 bug (unit_price + sconti/bundle UI + tests)
+
+- ✅ 7.1 `supabase/functions/ai-genera-preventivo-v2/index.ts`:
+  - **Bug fix P0.1 unit_price sbagliato**: prima tutti i prodotti ricevevano `prezzo_vendita` flat indipendentemente dalla modalità. Ora:
+    - `modalita='pz' | 'misura_libera'` → flat (invariato)
+    - `modalita='mq'` → `prezzo_vendita × (x/1000 × y/1000)` con arrotondamento a 2 decimali. Se misure mancanti → fallback flat + warning
+    - `modalita='griglia'` → batch-fetch `listino_griglia` a monte + `nearestInGriglia()` (Manhattan) + warning se nearest ≠ exact. Griglia vuota → fallback flat + warning; misure mancanti → null + warning
+  - Query tariffe aggiornata con nuovi campi FASE 6 (`costo_interno`, `unita_fatturazione`, `vertical_associato`).
+  - `enrichmentWarnings[]` accumulate e appeso a `avvertenze[]` nella risposta.
+- ⏭️ 7.2 `LIMIT 60 hardcoded` — **SKIPPATO** per design del masterprompt: sostituirlo con limite più alto senza retrieval sarebbe un pezzotto; la vera soluzione è FASE 8 (pgvector + top-K retrieval).
+- ✅ 7.3 `src/pages/azienda/marketing/QuoteBuilder.tsx`:
+  - Import `useScontiQuantita`, `useBundleProdotti`, `calcolaScontoQuantita` (già disponibili nel hook).
+  - `useMemo<Suggestion[]>` che calcola 2 tipi di suggerimento:
+    - **Sconto quantità**: per ogni riga prodotto con `article_template_id` → se `calcolaScontoQuantita` restituisce un % > `discount_percent` attuale, banner "Sconto quantità applicabile: -X% su <nome> (da Y pz)".
+    - **Bundle suggerito**: per ogni bundle con ≥2 voci, se ALMENO 1 voce è già nel quote ma NON tutte → banner "Bundle suggerito: X (-Y%) (Z/W prodotti già presenti)".
+  - `dismissedSuggestions: Set<string>` per persistenza del click "Ignora".
+  - Banner ambra in testa al CardContent "Prodotti & Servizi" con bottoni `Applica` / `Ignora`.
+  - Applica sconto → `setItems` aggiorna `discount_percent` della riga.
+  - Applica bundle → espande SOLO le voci non già presenti tramite `espondiBundle` esistente.
+- ✅ 7.4 `src/test/logic/aiEnrichment.test.ts`:
+  - 13 unit tests vitest su funzioni pure `nearestInGriglia` + `computeUnitPrice`.
+  - Copertura: griglia vuota / esatta / nearest, mq con/senza misure, pz flat, misura_libera flat, griglia senza misure.
+- ✅ `tsc --noEmit` → 0 errori. `vitest run` → **171/171 verdi** (10 file, +13 nuovi test).
+- ⏳ **Next:** FASE 8 (pgvector + embeddings + RPC + retrieval AI).
 
 ---
 

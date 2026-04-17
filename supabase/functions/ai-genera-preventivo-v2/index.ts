@@ -56,11 +56,34 @@ Deno.serve(async (req) => {
 
     if (prodottiErr) throw new Error(`Prodotti query error: ${prodottiErr.message}`);
 
-    // Query tariffe
+    // FASE 7.1: batch-fetch griglia listini per tutti i prodotti con modalita='griglia'
+    const prodottiGrigliaIds = (prodotti ?? [])
+      .filter((p: any) => p.modalita_prezzo === "griglia")
+      .map((p: any) => p.id);
+    let griglieMap = new Map<string, Array<{ x_mm: number; y_mm: number; prezzo_vendita: number; prezzo_acquisto: number | null }>>();
+    if (prodottiGrigliaIds.length > 0) {
+      const { data: listini, error: listErr } = await supabaseAdmin
+        .from("listino_griglia")
+        .select("article_template_id,x_mm,y_mm,prezzo_vendita,prezzo_acquisto")
+        .in("article_template_id", prodottiGrigliaIds);
+      if (listErr) throw new Error(`Listino griglia query error: ${listErr.message}`);
+      for (const punto of (listini ?? []) as any[]) {
+        const arr = griglieMap.get(punto.article_template_id) ?? [];
+        arr.push({
+          x_mm: punto.x_mm,
+          y_mm: punto.y_mm,
+          prezzo_vendita: Number(punto.prezzo_vendita) || 0,
+          prezzo_acquisto: punto.prezzo_acquisto != null ? Number(punto.prezzo_acquisto) : null,
+        });
+        griglieMap.set(punto.article_template_id, arr);
+      }
+    }
+
+    // Query tariffe (FASE 6: include costo_interno, unita_fatturazione, vertical_associato)
     const { data: tariffe, error: tariffeErr } = await supabaseAdmin
       .from("tariffe_aziendali")
       .select(
-        "id,nome,tipo,prezzo_vendita,prezzo_costo,unita,piano_base,prezzo_piano_aggiuntivo"
+        "id,nome,tipo,prezzo_vendita,prezzo_costo,costo_interno,unita,unita_fatturazione,vertical_associato,piano_base,prezzo_piano_aggiuntivo"
       )
       .eq("company_id", company_id);
 
@@ -158,15 +181,86 @@ OUTPUT JSON:
       throw new Error(`Claude ha restituito un JSON non valido: ${text.slice(0, 200)}`);
     }
 
-    // Enrich righe with unit_price
+    // Enrich righe with unit_price (FASE 7.1: corretto per modalità mq / griglia)
     const prodottiMap = new Map((prodotti ?? []).map((p: any) => [p.id, p]));
     const tariffeMap = new Map((tariffe ?? []).map((t: any) => [t.id, t]));
+
+    /** Nearest-neighbor (Manhattan) per listino_griglia. */
+    function nearestInGriglia(
+      punti: Array<{ x_mm: number; y_mm: number; prezzo_vendita: number }>,
+      x: number,
+      y: number,
+    ): number | null {
+      if (!punti || punti.length === 0) return null;
+      // exact match short-circuit
+      for (const p of punti) {
+        if (p.x_mm === x && p.y_mm === y) return p.prezzo_vendita;
+      }
+      let best = punti[0];
+      let bestDist = Math.abs(best.x_mm - x) + Math.abs(best.y_mm - y);
+      for (let i = 1; i < punti.length; i++) {
+        const d = Math.abs(punti[i].x_mm - x) + Math.abs(punti[i].y_mm - y);
+        if (d < bestDist) {
+          best = punti[i];
+          bestDist = d;
+        }
+      }
+      return best.prezzo_vendita;
+    }
+
+    const enrichmentWarnings: string[] = [];
 
     for (const sezione of parsedData.sezioni ?? []) {
       for (const riga of sezione.righe ?? []) {
         if (riga.article_template_id) {
           const prod = prodottiMap.get(riga.article_template_id) as any;
-          riga.unit_price = prod?.prezzo_vendita ?? null;
+          if (!prod) {
+            riga.unit_price = null;
+            continue;
+          }
+          const modalita = prod.modalita_prezzo ?? "pz";
+          const xMm = typeof riga.misure_x_mm === "number" ? riga.misure_x_mm : null;
+          const yMm = typeof riga.misure_y_mm === "number" ? riga.misure_y_mm : null;
+
+          if (modalita === "mq") {
+            // prezzo_vendita è €/mq → unit_price = prezzo × (x*y / 1_000_000)
+            if (xMm != null && yMm != null && xMm > 0 && yMm > 0) {
+              const mq = (xMm / 1000) * (yMm / 1000);
+              const pv = Number(prod.prezzo_vendita) || 0;
+              riga.unit_price = Math.round(pv * mq * 100) / 100;
+            } else {
+              riga.unit_price = Number(prod.prezzo_vendita) || null;
+              enrichmentWarnings.push(
+                `Prodotto '${prod.name}' è modalità mq ma mancano misure x/y — prezzo mostrato è €/mq.`,
+              );
+            }
+          } else if (modalita === "griglia") {
+            const punti = griglieMap.get(prod.id) ?? [];
+            if (punti.length === 0) {
+              riga.unit_price = Number(prod.prezzo_vendita) || null;
+              enrichmentWarnings.push(
+                `Prodotto '${prod.name}' è modalità griglia ma il listino è vuoto — prezzo di fallback.`,
+              );
+            } else if (xMm != null && yMm != null && xMm > 0 && yMm > 0) {
+              const pv = nearestInGriglia(punti, xMm, yMm);
+              riga.unit_price = pv;
+              // Nota: il matching è nearest-neighbor — non per forza esatto
+              const exact = punti.some((p) => p.x_mm === xMm && p.y_mm === yMm);
+              if (!exact) {
+                enrichmentWarnings.push(
+                  `Prodotto '${prod.name}': misura ${xMm}×${yMm}mm non in griglia, usato nearest-neighbor.`,
+                );
+              }
+            } else {
+              riga.unit_price = null;
+              enrichmentWarnings.push(
+                `Prodotto '${prod.name}' è modalità griglia ma mancano misure x/y — prezzo non calcolabile.`,
+              );
+            }
+          } else {
+            // pz | misura_libera | altro → prezzo flat
+            riga.unit_price = Number(prod.prezzo_vendita) || null;
+          }
         } else if (riga.tariffa_id) {
           const tar = tariffeMap.get(riga.tariffa_id) as any;
           if (tar) {
@@ -193,6 +287,10 @@ OUTPUT JSON:
       avvertenze.push(
         `Il catalogo è stato limitato ai primi ${PRODUCT_LIMIT} prodotti. Se un articolo non è stato trovato, aggiungilo manualmente al preventivo.`
       );
+    }
+    // Append enrichment warnings (FASE 7.1)
+    if (enrichmentWarnings.length > 0) {
+      avvertenze.push(...enrichmentWarnings);
     }
 
     return jsonResponse({

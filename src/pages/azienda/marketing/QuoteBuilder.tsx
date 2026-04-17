@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,9 @@ import {
   calcolaTotaliPreventivo,
   round2,
   espondiBundle,
+  useScontiQuantita,
+  useBundleProdotti,
+  calcolaScontoQuantita,
 } from "@/hooks/usePreventivoCosti";
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
 import BundleSelector from "@/components/marketing/preventivi/BundleSelector";
@@ -658,6 +661,11 @@ export default function QuoteBuilder() {
     calcolaTariffaAutomatica,
   } = usePreventivoCosti(companyId);
 
+  // FASE 7.3: sconti quantità e bundle suggestions
+  const { data: scontiQuantita = [] } = useScontiQuantita(companyId);
+  const { data: bundles = [] } = useBundleProdotti(companyId);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
+
   // Sync PDF impostazioni for new quote
   useEffect(() => {
     if (impostazioni && Object.keys(impostazioni).length > 0 && !isEdit) {
@@ -1122,6 +1130,151 @@ export default function QuoteBuilder() {
 
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+  };
+
+  // FASE 7.3: compute suggestions (sconti quantità applicabili + bundle che contengono prodotti già presenti)
+  type ScontoSuggestion = {
+    key: string;
+    kind: "sconto";
+    itemIdx: number;
+    productName: string;
+    scontoPct: number;
+    daQuantita: number;
+  };
+  type BundleSuggestion = {
+    key: string;
+    kind: "bundle";
+    bundle: BundleConVoci;
+    matchedCount: number;
+    totalCount: number;
+  };
+  type Suggestion = ScontoSuggestion | BundleSuggestion;
+
+  const suggestions = useMemo<Suggestion[]>(() => {
+    const out: Suggestion[] = [];
+
+    // Sconti quantità: per ogni riga prodotto con article_template_id verifica se c'è una regola applicabile
+    // e se lo sconto suggerito è maggiore di quello già sulla riga.
+    if (scontiQuantita.length > 0) {
+      items.forEach((it, idx) => {
+        if (it.item_category !== "prodotto") return;
+        if (!it.article_template_id) return;
+        const scontoPct = calcolaScontoQuantita(
+          it.article_template_id,
+          it.quantity,
+          scontiQuantita,
+        );
+        if (scontoPct > (it.discount_percent ?? 0)) {
+          // trova la regola migliore per mostrare da_quantita
+          const applic = scontiQuantita.filter(
+            (r) =>
+              r.attivo &&
+              r.da_quantita <= it.quantity &&
+              (r.prodotto_id === it.article_template_id || r.prodotto_id === null),
+          );
+          const specific = applic.filter((r) => r.prodotto_id === it.article_template_id);
+          const toUse = specific.length > 0 ? specific : applic;
+          const best = toUse.reduce((a, b) => (a.sconto_pct >= b.sconto_pct ? a : b));
+          const key = `sconto-${idx}-${it.article_template_id}-${scontoPct}`;
+          if (!dismissedSuggestions.has(key)) {
+            out.push({
+              key,
+              kind: "sconto",
+              itemIdx: idx,
+              productName: it.name,
+              scontoPct,
+              daQuantita: best.da_quantita,
+            });
+          }
+        }
+      });
+    }
+
+    // Bundle: se ALMENO un prodotto del quote è in un bundle, suggerisci l'intero bundle.
+    // Mostra solo se il bundle ha ≥2 voci e non sono tutte già presenti.
+    if (bundles.length > 0) {
+      const quoteArticleIds = new Set(
+        items.map((it) => it.article_template_id).filter((x): x is string => !!x),
+      );
+      if (quoteArticleIds.size > 0) {
+        for (const bundle of bundles) {
+          if (!bundle.bundle_voci || bundle.bundle_voci.length < 2) continue;
+          const bundleArticleIds = bundle.bundle_voci
+            .map((v) => v.prodotto_id)
+            .filter((x): x is string => !!x);
+          if (bundleArticleIds.length === 0) continue;
+          const matched = bundleArticleIds.filter((id) => quoteArticleIds.has(id)).length;
+          if (matched >= 1 && matched < bundleArticleIds.length) {
+            const key = `bundle-${bundle.id}-${matched}`;
+            if (!dismissedSuggestions.has(key)) {
+              out.push({
+                key,
+                kind: "bundle",
+                bundle,
+                matchedCount: matched,
+                totalCount: bundleArticleIds.length,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return out;
+  }, [items, scontiQuantita, bundles, dismissedSuggestions]);
+
+  const applicaScontoSuggestion = (s: ScontoSuggestion) => {
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === s.itemIdx ? { ...it, discount_percent: s.scontoPct } : it,
+      ),
+    );
+    setDismissedSuggestions((prev) => {
+      const next = new Set(prev);
+      next.add(s.key);
+      return next;
+    });
+    toast.success(`Sconto -${s.scontoPct}% applicato a ${s.productName}`);
+  };
+
+  const applicaBundleSuggestion = (s: BundleSuggestion) => {
+    // Aggiungi SOLO le voci non ancora presenti nel quote
+    const quoteArticleIds = new Set(
+      items.map((it) => it.article_template_id).filter((x): x is string => !!x),
+    );
+    const vociDaAggiungere = s.bundle.bundle_voci.filter(
+      (v) => v.prodotto_id && !quoteArticleIds.has(v.prodotto_id),
+    );
+    if (vociDaAggiungere.length === 0) {
+      toast.info("Tutte le voci del bundle sono già presenti");
+      return;
+    }
+    const newItems = espondiBundle(
+      { id: s.bundle.id, nome: s.bundle.nome, sconto_bundle_pct: s.bundle.sconto_bundle_pct },
+      vociDaAggiungere,
+      impostazioni.overhead_percentuale ?? 0,
+    );
+    setItems((prev) => {
+      const base = [...prev];
+      newItems.forEach((item, idx) => {
+        base.push({ ...item, sort_order: base.length + idx });
+      });
+      return base;
+    });
+    setDismissedSuggestions((prev) => {
+      const next = new Set(prev);
+      next.add(s.key);
+      return next;
+    });
+    toast.success(`Bundle '${s.bundle.nome}' applicato (-${s.bundle.sconto_bundle_pct}%)`);
+  };
+
+  const ignoraSuggestion = (key: string) => {
+    setDismissedSuggestions((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
   };
 
   // DnD sensors
@@ -1676,6 +1829,59 @@ export default function QuoteBuilder() {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* FASE 7.3: banner suggerimenti sconti quantità + bundle */}
+                {suggestions.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    {suggestions.map((s) => (
+                      <div
+                        key={s.key}
+                        className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/50 dark:bg-amber-950/30"
+                      >
+                        <div className="flex-1">
+                          {s.kind === "sconto" ? (
+                            <>
+                              <span className="font-medium text-amber-900 dark:text-amber-200">
+                                Sconto quantità applicabile: -{s.scontoPct}%
+                              </span>
+                              <span className="text-amber-800 dark:text-amber-300">
+                                {" "}su <b>{s.productName}</b> (da {s.daQuantita} pz)
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-medium text-amber-900 dark:text-amber-200">
+                                Bundle suggerito: {s.bundle.nome} (-{s.bundle.sconto_bundle_pct}%)
+                              </span>
+                              <span className="text-amber-800 dark:text-amber-300">
+                                {" "}({s.matchedCount}/{s.totalCount} prodotti già presenti)
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() =>
+                              s.kind === "sconto"
+                                ? applicaScontoSuggestion(s)
+                                : applicaBundleSuggestion(s)
+                            }
+                          >
+                            Applica
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => ignoraSuggestion(s.key)}
+                          >
+                            Ignora
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {items.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
