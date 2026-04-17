@@ -12,8 +12,8 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | Fase | Stato | Sotto-fasi | Commit | Note |
 |---|---|---|---|---|
 | FASE 0 — Analisi preliminare | 🟢 DONE | Analisi + 2 MD | `325c94db` | Commit gate rispettato |
-| FASE 1 — Vertical + onboarding | 🟡 IN CORSO | 1.1 migration + 1.2 hook + 1.3 page + 1.4 routing/guard | *(pending `feat(serramenti): fase 1 vertical + onboarding azienda`)* | Decisione: nuova colonna TEXT `vertical` coesistente con `sector` (9 valori vs 8, dominio differente). Masterprompt spec prevale su FASE 0 |
-| FASE 2 — Data model famiglie/assi | ⚪ TODO | 2.1–2.x | — | 3 nuove tabelle + 3 ALTER |
+| FASE 1 — Vertical + onboarding | 🟢 DONE | 1.1 migration + 1.2 hook + 1.3 page + 1.4 routing/guard | `146f54df` | Decisione: nuova colonna TEXT `vertical` coesistente con `sector` (9 valori vs 8, dominio differente). Masterprompt spec prevale su FASE 0 |
+| FASE 2 — Data model famiglie/assi | 🟡 IN CORSO | 2.1 migration + 2.2 types | *(pending `feat(serramenti): fase 2 data model famiglie assi maggiorazioni`)* | 3 tabelle + ALTER listino_griglia (drop NOT NULL prodotto_id) + ALTER article_templates |
 | FASE 3 — Seed categorie | ⚪ TODO | — | — | INSERT idempotenti |
 | FASE 4 — Editor UI famiglie/assi | ⚪ TODO | — | — | Tocca ArticleCatalog 1137L |
 | FASE 5 — Motore calcolo prezzo | ⚪ TODO | — | — | Test unitari obbligatori |
@@ -83,7 +83,25 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
 - ✅ Decisione architettonica documentata nell'header della migration: coesistenza `sector` (enum legacy) + `vertical` (text nuovo). NO riuso `company_sector` perché dominio differente (9 valori incluso `tende_da_sole`/`caldaie`/`clima`).
 - ✅ Types estesi in `src/types/auth.ts`: `CompanyVertical` type + 3 campi in `Company` interface.
 - ✅ `tsc --noEmit` → 0 errori.
-- ⏳ **Next:** commit `feat(serramenti): fase 1 vertical + onboarding azienda` → FASE 2.
+- ✅ Commit `feat(serramenti): fase 1 vertical + onboarding azienda` (`146f54df`)
+
+### FASE 2 — 2026-04-17
+- ✅ 2.1 Migration `20260917000002_serramenti_02_families_axes.sql`:
+  - `article_families` (PK + company_id + vertical + categoria_id FK listino_categorie + modalità prezzo + griglia labels + posa default + sort/attivo + trigger updated_at)
+  - `article_family_axes` (PK + family_id FK + codice UNIQUE(family_id,codice) + tipo discrete/boolean)
+  - `article_family_axis_values` (PK + axis_id FK + valore UNIQUE(axis_id,valore) + maggiorazione_tipo 6 valori)
+  - ALTER `listino_griglia` ADD family_id + DROP NOT NULL prodotto_id + CHECK prodotto_or_family
+  - ALTER `article_templates` ADD family_id (ON DELETE SET NULL per preservare catalogo legacy)
+  - RLS: policy company (`get_my_company_id()`) + super_admin (`has_role`) coerenti con pattern esistente
+  - Tutte le DDL idempotenti (`IF NOT EXISTS` / `DO blocks` sui constraint/policy)
+- ✅ 2.2 Types TypeScript `src/types/articleFamily.ts`:
+  - `ModalitaPrezzoBase`, `MaggiorazioneTipo`, `AxisTipo`
+  - Interfaces `ArticleFamily`, `FamilyAxis`, `AxisValue`, `FamilyWithAxes`
+  - `AxisSelection = Record<string, string>` per JSONB `valori_assi` lato quote_item
+  - JSONB tipizzati come `Record<string, unknown>` (no `any`)
+- ✅ Decisione documentata: drop NOT NULL su `listino_griglia.prodotto_id` necessario per rispettare DoD "griglia può avere righe con solo family_id". Il CHECK `prodotto_or_family` preserva l'invariante.
+- ✅ `tsc --noEmit` → 0 errori.
+- ⏳ **Next:** commit `feat(serramenti): fase 2 data model famiglie assi maggiorazioni` → FASE 3 (seed).
 
 ---
 
