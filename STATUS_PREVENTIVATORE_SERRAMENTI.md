@@ -22,7 +22,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 8 — AI + pgvector | 🟢 DONE | 8.1 migration vector+RPC + 8.2 edge fn genera-embeddings + 8.3 ai-v2 retrieval + 8.4 UI btn | `00b6f702` | pgvector 0.8.0 disponibile, migration da applicare. Fallback se OPENAI_API_KEY assente |
 | FASE 9 — Wizard serramentista | 🟢 DONE | 4-step wizard dialog + integrazione QuoteBuilder | `ce82ebe8` | Single source of truth = `items[]` QB. Bottone visibile solo se ci sono famiglie |
 | FASE 10 — Bundle + pacchetti | 🟢 DONE | 10.1 migration + 10.2 UI CRUD + 10.3 seed 5 template + 10.4 ApplyBundleDialog integrazione | `6b7b72e1` → `c247bdde` → `edcadef5` | Sostituito BundleSelector legacy con ApplyBundleDialog family-aware. 5 template idempotenti. |
-| FASE 11 — Testing E2E + QA | ⚪ TODO | 3 scenari E2E | — | Playwright |
+| FASE 11 — Testing E2E + QA | 🟡 PARZIALE | Checklist manuale 3 scenari + ESLint cleanup FASE 10 | *(pending)* | Playwright non installato nel repo: scenari A/B/C documentati in `FASE11_QA_CHECKLIST.md` per esecuzione manuale. tsc 0 + vitest 171/171 + eslint clean |
 
 Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
 

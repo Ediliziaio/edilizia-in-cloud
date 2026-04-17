@@ -49,7 +49,7 @@ function useBundleGrids(familyIds: string[]) {
     queryKey: ["bundle-grids", companyId, familyIds.sort().join(",")],
     enabled: !!companyId && familyIds.length > 0,
     queryFn: async () => {
-      const { data } = await (supabase.from("listino_griglia") as any)
+      const { data } = await supabase.from("listino_griglia" as never)
         .select("family_id, asse_x, asse_y, prezzo_vendita, prezzo_acquisto")
         .in("family_id", familyIds);
       const byFamily = new Map<string, Array<{

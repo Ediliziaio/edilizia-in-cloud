@@ -181,7 +181,7 @@ export default function SettingsBundle() {
     queryKey: ["bundle-editor-tariffe", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("tariffe_aziendali") as any)
+      const { data } = await supabase.from("tariffe_aziendali" as never)
         .select("id, nome, prezzo_vendita, unita")
         .eq("company_id", companyId!)
         .eq("attivo", true)

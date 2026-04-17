@@ -86,7 +86,7 @@ export function useBundlesList(filters?: { vertical?: string; tipoLavoro?: Bundl
     queryKey: queryKeys.bundles.list(companyId ?? undefined, filters),
     enabled: !!companyId,
     queryFn: async (): Promise<Bundle[]> => {
-      let q = (supabase.from("bundle_prodotti") as any)
+      let q = supabase.from("bundle_prodotti" as never)
         .select(
           `*,
            voci:bundle_voci(
@@ -124,7 +124,7 @@ export function useBundle(bundleId: string | null | undefined) {
     queryKey: queryKeys.bundles.detail(bundleId ?? undefined),
     enabled: !!bundleId,
     queryFn: async (): Promise<Bundle | null> => {
-      const { data, error } = await (supabase.from("bundle_prodotti") as any)
+      const { data, error } = await supabase.from("bundle_prodotti" as never)
         .select(
           `*,
            voci:bundle_voci(
@@ -172,12 +172,12 @@ export function useUpsertBundle() {
 
       let bundleId = input.id;
       if (bundleId) {
-        const { error } = await (supabase.from("bundle_prodotti") as any)
+        const { error } = await supabase.from("bundle_prodotti" as never)
           .update(masterPayload)
           .eq("id", bundleId);
         if (error) throw new Error(error.message);
       } else {
-        const { data, error } = await (supabase.from("bundle_prodotti") as any)
+        const { data, error } = await supabase.from("bundle_prodotti" as never)
           .insert(masterPayload)
           .select("id")
           .single();
@@ -186,7 +186,7 @@ export function useUpsertBundle() {
       }
 
       // 2) Replace voci (cleaner than diffing — small lists).
-      const { error: delErr } = await (supabase.from("bundle_voci") as any)
+      const { error: delErr } = await supabase.from("bundle_voci" as never)
         .delete()
         .eq("bundle_id", bundleId!);
       if (delErr) throw new Error(delErr.message);
@@ -204,7 +204,7 @@ export function useUpsertBundle() {
           quantita: v.quantita,
           sort_order: v.sort_order ?? idx,
         }));
-        const { error: insErr } = await (supabase.from("bundle_voci") as any)
+        const { error: insErr } = await supabase.from("bundle_voci" as never)
           .insert(voceRows);
         if (insErr) throw new Error(insErr.message);
       }
@@ -223,7 +223,7 @@ export function useDeleteBundle() {
 
   return useMutation({
     mutationFn: async (bundleId: string) => {
-      const { error } = await (supabase.from("bundle_prodotti") as any)
+      const { error } = await supabase.from("bundle_prodotti" as never)
         .delete()
         .eq("id", bundleId);
       if (error) throw new Error(error.message);
@@ -241,7 +241,7 @@ export function useToggleBundleAttivo() {
 
   return useMutation({
     mutationFn: async ({ id, attivo }: { id: string; attivo: boolean }) => {
-      const { error } = await (supabase.from("bundle_prodotti") as any)
+      const { error } = await supabase.from("bundle_prodotti" as never)
         .update({ attivo })
         .eq("id", id);
       if (error) throw new Error(error.message);
