@@ -14,7 +14,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 0 — Analisi preliminare | 🟢 DONE | Analisi + 2 MD | `325c94db` | Commit gate rispettato |
 | FASE 1 — Vertical + onboarding | 🟢 DONE | 1.1 migration + 1.2 hook + 1.3 page + 1.4 routing/guard | `146f54df` | Decisione: nuova colonna TEXT `vertical` coesistente con `sector` (9 valori vs 8, dominio differente). Masterprompt spec prevale su FASE 0 |
 | FASE 2 — Data model famiglie/assi | 🟡 IN CORSO | 2.1 migration + 2.2 types | *(pending `feat(serramenti): fase 2 data model famiglie assi maggiorazioni`)* | 3 tabelle + ALTER listino_griglia (drop NOT NULL prodotto_id) + ALTER article_templates |
-| FASE 3 — Seed categorie + installer | 🟢 DONE | 3.1 tables + 3.2 seed + 3.3 edge fn + 3.4 dialog UI | *(pending `feat(serramenti): fase 3 seed catalogo serramentista`)* | 11 cat + 38 famiglie template, idempotent Edge Function |
+| FASE 3 — Seed categorie + installer | 🟢 DONE | 3.1 tables + 3.2 seed + 3.3 edge fn + 3.4 dialog UI | `cccd5f5c` | 11 cat + 38 famiglie template, idempotent Edge Function |
 | FASE 4 — Editor UI famiglie/assi | ⚪ TODO | — | — | Tocca ArticleCatalog 1137L |
 | FASE 5 — Motore calcolo prezzo | ⚪ TODO | — | — | Test unitari obbligatori |
 | FASE 6 — Manodopera UM flessibili | ⚪ TODO | — | — | DB già supporta UM |
@@ -135,7 +135,8 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
   - ✅ Edge Function idempotente (re-run 0 righe create)
   - ✅ Listino post-install: strutturato ma prezzi a zero (espliciti 0 in `article_families.prezzo_base_*` + `article_family_axis_values.maggiorazione_valore=0`)
 - ✅ `tsc --noEmit` → 0 errori.
-- ⏳ **Next:** commit `feat(serramenti): fase 3 seed catalogo serramentista` → FASE 4 (Editor UI famiglie).
+- ✅ Commit `feat(serramenti): fase 3 seed catalogo serramentista` (`cccd5f5c`)
+- ⏳ **Next:** FASE 4 (Editor UI famiglie/assi/griglia).
 
 ---
 
