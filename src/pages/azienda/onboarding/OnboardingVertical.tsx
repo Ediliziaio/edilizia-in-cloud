@@ -23,6 +23,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 
@@ -56,6 +64,9 @@ export default function OnboardingVertical() {
   const { effectiveCompany, refreshAuth } = useAuth();
   const { order, meta } = useVertical();
   const [selected, setSelected] = useState<Vertical | null>(null);
+  // FASE 3.4 — dopo save di 'serramentista' proponiamo l'installazione catalogo.
+  const [installDialogOpen, setInstallDialogOpen] = useState(false);
+  const [savedVertical, setSavedVertical] = useState<Vertical | null>(null);
 
   const companyId = effectiveCompany?.id ?? null;
 
@@ -72,17 +83,60 @@ export default function OnboardingVertical() {
         })
         .eq("id", companyId);
       if (error) throw new Error(error.message);
+      return vertical;
     },
-    onSuccess: async () => {
+    onSuccess: async (vertical) => {
       toast.success("Settore salvato");
-      // Ricarica effectiveCompany nel context cosi' il redirect forzato del layout
-      // non ci manda di nuovo qui in loop.
       await refreshAuth();
-      navigate("/azienda", { replace: true });
+      // Se serramentista, mostra dialog per installazione catalogo esempio.
+      // Altrimenti vai subito in dashboard.
+      if (vertical === "serramentista") {
+        setSavedVertical(vertical);
+        setInstallDialogOpen(true);
+      } else {
+        navigate("/azienda", { replace: true });
+      }
     },
     onError: (err: Error) => {
       captureVelocityError("onboarding.vertical.save", err, { companyId });
       toast.error("Errore salvataggio settore", { description: err.message });
+    },
+  });
+
+  // FASE 3.4 — installazione template catalogo serramenti
+  const installCatalog = useMutation({
+    mutationFn: async () => {
+      if (!companyId || !savedVertical) {
+        throw new Error("Dati azienda mancanti");
+      }
+      const { data, error } = await supabase.functions.invoke<{
+        ok?: boolean;
+        categorie_create?: number;
+        famiglie_create?: number;
+        assi_create?: number;
+        valori_create?: number;
+        error?: string;
+      }>("installa-template-vertical", {
+        body: { company_id: companyId, vertical: savedVertical },
+      });
+      if (error) throw new Error(error.message);
+      if (!data || data.ok !== true) {
+        throw new Error(data?.error ?? "Installazione non riuscita");
+      }
+      return data;
+    },
+    onSuccess: (data) => {
+      const cats = data.categorie_create ?? 0;
+      const fams = data.famiglie_create ?? 0;
+      toast.success("Catalogo installato", {
+        description: `${cats} categorie, ${fams} famiglie create.`,
+      });
+      setInstallDialogOpen(false);
+      navigate("/azienda", { replace: true });
+    },
+    onError: (err: Error) => {
+      captureVelocityError("onboarding.vertical.install_catalog", err, { companyId });
+      toast.error("Errore installazione catalogo", { description: err.message });
     },
   });
 
@@ -185,6 +239,52 @@ export default function OnboardingVertical() {
           </Button>
         </footer>
       </div>
+
+      {/* FASE 3.4 — Dialog post-save: proposta installazione catalogo serramenti */}
+      <Dialog
+        open={installDialogOpen}
+        onOpenChange={(open) => {
+          // Non chiudibile durante l'installazione in corso
+          if (installCatalog.isPending) return;
+          setInstallDialogOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Installa il catalogo di esempio</DialogTitle>
+            <DialogDescription>
+              Vuoi installare il catalogo di esempio serramenti? Troverai 11 categorie e oltre 30 famiglie
+              (finestre, porte finestre, scorrevoli, persiane, tapparelle, zanzariere…) già strutturate
+              con assi e varianti — <strong>senza prezzi</strong>. Potrai modificarlo liberamente.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setInstallDialogOpen(false);
+                navigate("/azienda", { replace: true });
+              }}
+              disabled={installCatalog.isPending}
+            >
+              Parti da zero
+            </Button>
+            <Button
+              onClick={() => installCatalog.mutate()}
+              disabled={installCatalog.isPending}
+            >
+              {installCatalog.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
+                  Installazione…
+                </>
+              ) : (
+                "Installa catalogo"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

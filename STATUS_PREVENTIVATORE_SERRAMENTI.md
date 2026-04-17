@@ -14,7 +14,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 0 — Analisi preliminare | 🟢 DONE | Analisi + 2 MD | `325c94db` | Commit gate rispettato |
 | FASE 1 — Vertical + onboarding | 🟢 DONE | 1.1 migration + 1.2 hook + 1.3 page + 1.4 routing/guard | `146f54df` | Decisione: nuova colonna TEXT `vertical` coesistente con `sector` (9 valori vs 8, dominio differente). Masterprompt spec prevale su FASE 0 |
 | FASE 2 — Data model famiglie/assi | 🟡 IN CORSO | 2.1 migration + 2.2 types | *(pending `feat(serramenti): fase 2 data model famiglie assi maggiorazioni`)* | 3 tabelle + ALTER listino_griglia (drop NOT NULL prodotto_id) + ALTER article_templates |
-| FASE 3 — Seed categorie | ⚪ TODO | — | — | INSERT idempotenti |
+| FASE 3 — Seed categorie + installer | 🟢 DONE | 3.1 tables + 3.2 seed + 3.3 edge fn + 3.4 dialog UI | *(pending `feat(serramenti): fase 3 seed catalogo serramentista`)* | 11 cat + 38 famiglie template, idempotent Edge Function |
 | FASE 4 — Editor UI famiglie/assi | ⚪ TODO | — | — | Tocca ArticleCatalog 1137L |
 | FASE 5 — Motore calcolo prezzo | ⚪ TODO | — | — | Test unitari obbligatori |
 | FASE 6 — Manodopera UM flessibili | ⚪ TODO | — | — | DB già supporta UM |
@@ -101,7 +101,41 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
   - JSONB tipizzati come `Record<string, unknown>` (no `any`)
 - ✅ Decisione documentata: drop NOT NULL su `listino_griglia.prodotto_id` necessario per rispettare DoD "griglia può avere righe con solo family_id". Il CHECK `prodotto_or_family` preserva l'invariante.
 - ✅ `tsc --noEmit` → 0 errori.
-- ⏳ **Next:** commit `feat(serramenti): fase 2 data model famiglie assi maggiorazioni` → FASE 3 (seed).
+- ✅ Commit `feat(serramenti): fase 2 data model famiglie assi maggiorazioni` (`2eb437b4`)
+
+### FASE 3 — 2026-04-17
+- ✅ 3.1 Migration `20260917000003_serramenti_03_seed_tables.sql`:
+  - `vertical_category_templates` (id, vertical, nome, descrizione, icona, modalita_prezzo_suggerita CHECK, margine_target_percentuale, sort_order, attivo, UNIQUE(vertical,nome) per idempotenza seed)
+  - `vertical_family_templates` (id, vertical, categoria_template_id FK ON DELETE SET NULL, nome, descrizione, modalita_prezzo_base CHECK, unit_of_measure, griglia labels, `assi_default JSONB`, UNIQUE(vertical,nome))
+  - RLS: `*_read` per authenticated con `attivo=true`; `*_admin` gate via `public.has_role(auth.uid(),'super_admin')` (spec originale usava `current_user_role()` che non esiste nel codebase)
+  - Policy create via `DO` blocks idempotenti
+- ✅ 3.2 Migration `20260917000004_serramenti_04_seed_data_serramentista.sql`:
+  - 11 categorie (Finestre, Porte finestre, Scorrevoli, Persiane, Tapparelle, Zanzariere, Cassonetti, Portoncini blindati, Vetrate, Inferriate, Accessori) con icone lucide + modalità suggerita + margine target
+  - 38 famiglie template da Appendice A (Finestre 6, Porte finestre 3, Scorrevoli 4, Persiane 5, Tapparelle 3, Zanzariere 4, Cassonetti 4, Portoncini 3, Vetrate 3, Inferriate 3) — copre e supera DoD "30+ famiglie"
+  - Ogni famiglia ha 3-6 assi con 2-5 valori; un valore per asse marcato `is_default`
+  - Dollar-quoting `$json$...$json$::jsonb` per assi_default (76 tag = 38 pair)
+  - Tutte le INSERT con `ON CONFLICT (vertical, nome) DO NOTHING` → rieseguibile in qualsiasi ambiente
+- ✅ 3.3 Edge Function `supabase/functions/installa-template-vertical/index.ts`:
+  - Input: `{ company_id, vertical }`; auth via JWT Bearer; verifica permessi (super_admin via `user_roles` OR `profiles.company_id` match OR `multi_company_access` OR `active_impersonations`)
+  - Client service-role per bypassare RLS durante il copy
+  - Dedup per nome: categorie (`listino_categorie` UNIQUE(company_id,nome)) + famiglie (`article_families.nome`) → re-run = 0 righe create
+  - Espansione `assi_default` JSONB → `article_family_axes` + `article_family_axis_values` (`maggiorazione_tipo='none'`, `valore=0`)
+  - Type guard `isAxisTemplateArray(unknown)` per narrowing JSONB (no `any`)
+  - Return counts: `{ categorie_create, famiglie_create, assi_create, valori_create }`
+- ✅ 3.4 Dialog UI in `OnboardingVertical.tsx`:
+  - Dopo save di vertical `serramentista`: apre `<Dialog>` "Vuoi installare il catalogo di esempio serramenti?" con bottoni "Installa" / "Parti da zero"
+  - Mutation `installCatalog` → `supabase.functions.invoke('installa-template-vertical')` → toast success con counts + navigate a `/azienda`
+  - "Parti da zero" chiude dialog + navigate senza installare
+  - Dialog non chiudibile durante `installCatalog.isPending`
+  - `captureVelocityError` su fallimento
+  - Non-serramentista (generico) → nessun dialog, navigate diretto
+- ✅ 3.5 DoD verification:
+  - ✅ 2 tabelle template create
+  - ✅ 11 categorie + 38 famiglie seed (supera target 30+)
+  - ✅ Edge Function idempotente (re-run 0 righe create)
+  - ✅ Listino post-install: strutturato ma prezzi a zero (espliciti 0 in `article_families.prezzo_base_*` + `article_family_axis_values.maggiorazione_valore=0`)
+- ✅ `tsc --noEmit` → 0 errori.
+- ⏳ **Next:** commit `feat(serramenti): fase 3 seed catalogo serramentista` → FASE 4 (Editor UI famiglie).
 
 ---
 
