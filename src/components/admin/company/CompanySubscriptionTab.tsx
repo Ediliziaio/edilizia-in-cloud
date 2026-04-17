@@ -14,6 +14,7 @@ import { statusConfig } from "@/lib/companyUtils";
 import { eventTypeLabels, eventTypeIcons } from "@/lib/adminConstants";
 import { PaymentMethodCard } from "./PaymentMethodCard";
 import { CreditTransactionsTable } from "./CreditTransactionsTable";
+import { CreditManagerCard } from "./CreditManagerCard";
 
 interface CompanySubscriptionTabProps {
   company: Company;
@@ -147,6 +148,9 @@ export function CompanySubscriptionTab({
         isGeneratingCheckout={isGeneratingCheckout}
         checkoutUrl={checkoutUrl}
       />
+
+      {/* Gestione crediti multi-wallet (SuperAdmin) */}
+      <CreditManagerCard companyId={company.id} />
 
       {/* Storico transazioni crediti (ai/email/whatsapp/render) — view unificata */}
       <CreditTransactionsTable companyId={company.id} />
