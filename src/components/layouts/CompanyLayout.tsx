@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
-import { useViewAsPermissions } from "@/hooks/useViewAsPermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
@@ -668,8 +667,10 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
 const CompanySidebar = memo(function CompanySidebar() {
   const isMobile = useIsMobile();
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
-  // Usa useViewAsPermissions: quando viewAsRole è attivo la sidebar mostra gli item del ruolo simulato
-  const permissions = useViewAsPermissions();
+  // usePermissions è già "viewAs-aware": quando `viewAsRole` è attivo
+  // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
+  // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
+  const permissions = usePermissions();
   const { isModuleEnabled, isScopriPlan } = useSubscriptionLimits();
   const { isFeatureEnabled } = useFeatureFlags();
   const { branding } = useBranding();

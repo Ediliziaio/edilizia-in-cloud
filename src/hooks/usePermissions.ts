@@ -131,8 +131,91 @@ const NO_PERMISSIONS: Permissions = {
   isAdmin: false, isLoading: false, onlyAssigned: false, visibleAreas: [],
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: mappa la riga DB `staff_permissions` → oggetto Permissions.
+// Estratto per essere riusato sia per l'utente loggato sia per "Visualizza come"
+// (quando un super_admin vuole vedere esattamente quello che vede un suo utente).
+// ─────────────────────────────────────────────────────────────────────────────
+function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined): Permissions {
+  const r = (row ?? {}) as Record<string, unknown>;
+  const g = (key: string): boolean => r[key] === true;
+
+  return {
+    canViewDashboard:  g("can_view_dashboard"),
+    canViewOrders:     g("can_view_orders"),
+    canEditOrders:     g("can_edit_orders"),
+    canViewWarehouse:  g("can_view_warehouse"),
+    canEditWarehouse:  g("can_edit_warehouse"),
+    canViewCalendar:   g("can_view_calendar"),
+    canViewCustomers:  g("can_view_customers"),
+    canEditCustomers:  g("can_edit_customers"),
+    canViewEmployees:  g("can_view_employees"),
+    canViewTickets:    g("can_view_tickets"),
+    canEditTickets:    g("can_edit_tickets"),
+    canViewForecast:   g("can_view_forecast"),
+    canViewUsers:      g("can_view_users"),
+    canViewSettingsProfile:       g("can_view_settings_profile"),
+    canEditSettingsProfile:       g("can_edit_settings_profile"),
+    canViewSettingsOrders:        g("can_view_settings_orders"),
+    canEditSettingsOrders:        g("can_edit_settings_orders"),
+    canViewSettingsCustomization: g("can_view_settings_customization"),
+    canEditSettingsCustomization: g("can_edit_settings_customization"),
+    canViewSettingsPeople:        g("can_view_settings_people"),
+    canEditSettingsPeople:        g("can_edit_settings_people"),
+    canViewSettingsSecurity:      g("can_view_settings_security"),
+    canViewSettings:
+      g("can_view_settings") || g("can_view_settings_profile") || g("can_view_settings_orders") ||
+      g("can_view_settings_customization") || g("can_view_settings_people") || g("can_view_settings_security"),
+    canViewMarketing:
+      g("can_view_marketing") || g("can_view_marketing_dashboard") || g("can_view_marketing_contacts") ||
+      g("can_view_marketing_opportunities") || g("can_view_marketing_activities") || g("can_view_marketing_appointments") ||
+      g("can_view_marketing_automations") || g("can_view_marketing_ai_agent") || g("can_view_marketing_email") ||
+      g("can_view_marketing_whatsapp") || g("can_view_marketing_reports"),
+    canEditMarketing:
+      g("can_edit_marketing") || g("can_edit_marketing_contacts") || g("can_edit_marketing_opportunities"),
+    canViewCruscotto:   g("can_view_cruscotto"),
+    canViewBilling:     g("can_view_billing"),
+    canViewScadenzario: g("can_view_scadenzario"),
+    canViewPrimaNota:   g("can_view_prima_nota"),
+    canViewCosts:       g("can_view_costs"),
+    canViewPrevisionale: g("can_view_forecast"),
+    canViewTesoreria:   g("can_view_tesoreria"),
+    canViewPersone:     g("can_view_persone"),
+    canViewMarketingDashboard:     g("can_view_marketing_dashboard"),
+    canViewMarketingContacts:      g("can_view_marketing_contacts"),
+    canEditMarketingContacts:      g("can_edit_marketing_contacts"),
+    canViewMarketingOpportunities: g("can_view_marketing_opportunities"),
+    canEditMarketingOpportunities: g("can_edit_marketing_opportunities"),
+    canViewMarketingActivities:    g("can_view_marketing_activities"),
+    canViewMarketingAppointments:  g("can_view_marketing_appointments"),
+    canViewMarketingAutomations:   g("can_view_marketing_automations"),
+    canViewMarketingAiAgent:       g("can_view_marketing_ai_agent"),
+    canViewMarketingEmail:         g("can_view_marketing_email"),
+    canViewMarketingWhatsapp:      g("can_view_marketing_whatsapp"),
+    canViewMarketingReports:       g("can_view_marketing_reports"),
+    canViewInterventi:        g("can_view_interventi"),
+    canViewManutenzione:      g("can_view_manutenzione"),
+    canViewSicurezzaCantiere: g("can_view_sicurezza_cantiere"),
+    canViewSubappaltatori:    g("can_view_subappaltatori"),
+    canViewGiornaleLavori:    g("can_view_giornale_lavori"),
+    canViewMessaggiEsterni:   g("can_view_messaggi_esterni"),
+    canViewAutomazioni:       g("can_view_automazioni"),
+    canViewRenderAi:          g("can_view_render_ai"),
+    canViewSalesOs:           g("can_view_sales_os"),
+    canViewSmsMarketing:      g("can_view_sms_marketing"),
+    isAdmin: false,
+    isLoading: false,
+    onlyAssigned:  r["only_assigned"] === true,
+    visibleAreas:  Array.isArray(r["visible_areas"]) ? (r["visible_areas"] as string[]) : [],
+  };
+}
+
 export function usePermissions(): Permissions {
-  const { role, user, isImpersonating, isImpersonationReady, impersonatedCompanyId, impersonationToken } = useAuth();
+  const {
+    role, user, isImpersonating, isImpersonationReady,
+    impersonatedCompanyId, impersonationToken,
+    viewAsRole, viewAsUserId,
+  } = useAuth();
   const queryClient = useQueryClient();
 
   const isStaffRole = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "");
@@ -155,6 +238,33 @@ export function usePermissions(): Permissions {
     enabled: isStaffRole && !!user?.id,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+  });
+
+  // ─── "Visualizza come" — simula i permessi dell'utente scelto ───────────
+  // Solo durante impersonation di un super_admin: se viewAsRole è settato,
+  // carichiamo i permessi REALI dell'utente scelto (viewAsUserId) e restituiamo
+  // quelli. Così il super_admin vede esattamente quello che vede quell'utente.
+  const viewAsActive = role === "super_admin" && isImpersonating && !!viewAsRole;
+  const viewAsNeedsDbFetch = viewAsActive &&
+    !!viewAsUserId &&
+    ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(viewAsRole || "");
+
+  const { data: viewAsPermsRow, isLoading: viewAsLoading } = useQuery({
+    queryKey: ["staff-permissions", "view-as", viewAsUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_permissions")
+        .select("*")
+        .eq("user_id", viewAsUserId!)
+        .maybeSingle();
+      if (error) {
+        logger.error("Error fetching view-as permissions:", error);
+        return null;
+      }
+      return data;
+    },
+    enabled: viewAsNeedsDbFetch,
+    staleTime: 60 * 1000,
   });
 
   // Item 10: Realtime invalidation — if an admin updates this user's permissions,
@@ -182,6 +292,22 @@ export function usePermissions(): Permissions {
       supabase.removeChannel(channel);
     };
   }, [user?.id, isStaffRole, queryClient]);
+
+  // ─── View-as mode: il super_admin sta simulando un utente specifico ────
+  // NB: valutato PRIMA dello shortcut super_admin → ALL_PERMISSIONS, altrimenti
+  // il menu/pagine continuerebbero a mostrare tutto ignorando la simulazione.
+  if (viewAsActive) {
+    if (viewAsRole === "company_admin") return ALL_PERMISSIONS;
+    if (viewAsNeedsDbFetch) {
+      if (viewAsLoading) return { ...NO_PERMISSIONS, isLoading: true };
+      // viewAsPermsRow può essere null se l'utente non ha una riga in staff_permissions:
+      // in quel caso ricadiamo su NO_PERMISSIONS (fail-safe) ma non blocchiamo l'UI.
+      return mapDbRowToPermissions(viewAsPermsRow);
+    }
+    // Ruolo senza mapping DB (es. employee/subcontractor non ha staff_permissions):
+    // ricadiamo su permessi di sola lettura minimi.
+    return NO_PERMISSIONS;
+  }
 
   // Super admin and company admin have all permissions
   if (role === "super_admin" || role === "company_admin") {
