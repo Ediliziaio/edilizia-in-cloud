@@ -7,6 +7,7 @@ import { EmailStatsTab } from "@/components/email-marketing/EmailStatsTab";
 import { EmailCampaignsTab } from "@/components/email-marketing/EmailCampaignsTab";
 import { EmailTemplatesTab } from "@/components/email-marketing/EmailTemplatesTab";
 import { EmailCreditsWidget } from "@/components/email-marketing/EmailCreditsWidget";
+import { EmailQuotaWidget } from "@/components/email-marketing/EmailQuotaWidget";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 
 const EmailMarketing = () => {
@@ -24,7 +25,10 @@ const EmailMarketing = () => {
         <p className="text-muted-foreground">Gestisci campagne, template e monitora le performance</p>
       </div>
 
-      <EmailCreditsWidget />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <EmailCreditsWidget />
+        <EmailQuotaWidget />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

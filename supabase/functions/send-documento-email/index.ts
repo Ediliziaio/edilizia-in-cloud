@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -172,32 +172,41 @@ Deno.serve(async (req) => {
     const emailSubject = subject || `${docLabel} N° ${doc.numero || "—"} — ${companyData.ragione_sociale || ""}`;
     const emailHtml = buildEmailHtml(doc, companyData, message);
 
-    // Load email provider
-    let settings;
-    try {
-      settings = await loadProviderSettings("transactional");
-      if (!settings.apiKey) throw new Error("No transactional key");
-    } catch {
-      settings = await loadProviderSettings("marketing");
-    }
-
-    if (!settings.apiKey) {
-      return json({ error: "Nessun provider email configurato. Configura un provider nelle Impostazioni." }, 400);
-    }
-
-    const result = await sendViaProvider(settings.provider, settings.apiKey, {
-      from: settings.fromDefault,
-      to: [to_email],
-      subject: emailSubject,
-      html: emailHtml,
+    // Send via unified pipeline (quota-aware + auto-logged).
+    let result = await sendEmailUnified({
+      companyId:    doc.company_id,
+      stream:       "transactional",
+      to:           [to_email],
+      subject:      emailSubject,
+      html:         emailHtml,
+      templateName: "documento_send",
+      adminClient:  supabase,
+      metadata:     { documento_id: doc.id, tipo: doc.tipo },
     });
+
+    if (!result.ok && String((result.body as any)?.error ?? "").toLowerCase().includes("no provider configured")) {
+      result = await sendEmailUnified({
+        companyId:    doc.company_id,
+        stream:       "marketing",
+        to:           [to_email],
+        subject:      emailSubject,
+        html:         emailHtml,
+        templateName: "documento_send",
+        adminClient:  supabase,
+        metadata:     { documento_id: doc.id, tipo: doc.tipo, fallback_stream: true },
+      });
+    }
 
     if (!result.ok) {
       console.error("Email send failed:", result);
-      return json({ error: `Invio email fallito (status ${result.status})` }, 500);
+      const msg =
+        result.status === 402
+          ? "Crediti email insufficienti — ricarica il wallet per continuare."
+          : `Invio email fallito (status ${result.status})`;
+      return json({ error: msg }, result.status === 402 ? 402 : 500);
     }
 
-    // Log
+    // Legacy billing_sync_log entry (indexed by document id)
     await supabase.from("billing_sync_log").insert({
       company_id: doc.company_id,
       invoice_id: doc.id,
@@ -205,10 +214,21 @@ Deno.serve(async (req) => {
       direction: "push",
       action: "send_documento_email",
       status: "success",
-      response_payload: { to: to_email, subject: emailSubject } as any,
+      response_payload: {
+        to: to_email,
+        subject: emailSubject,
+        provider_message_id: result.providerMessageId ?? null,
+        over_quota: result.overQuota ?? false,
+        charged_eur: result.chargedEur ?? 0,
+      } as any,
     }).catch(() => {});
 
-    return json({ success: true });
+    return json({
+      success:     true,
+      over_quota:  result.overQuota ?? false,
+      charged_eur: result.chargedEur ?? 0,
+      is_free:     result.isFree ?? false,
+    });
   } catch (e) {
     console.error("send-documento-email error:", e);
     return json({ error: String(e) }, 500);

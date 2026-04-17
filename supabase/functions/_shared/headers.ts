@@ -29,6 +29,9 @@ const STATIC_ORIGINS = [
 // Pattern matching per subdomain *.ediliziaincloud.*
 const PLATFORM_SUFFIXES = [".ediliziaincloud.it", ".ediliziaincloud.com"];
 
+// In dev qualsiasi porta di localhost / 127.0.0.1 è accettata (Vite/Claude Preview/etc.)
+const DEV_HOSTS = new Set(["localhost", "127.0.0.1"]);
+
 const ALLOW_HEADERS =
   "authorization, x-client-info, apikey, content-type, x-api-key, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version";
 
@@ -73,15 +76,18 @@ function isAllowedOriginSync(origin: string): boolean {
     return false;
   }
 
-  // 2. Subdomain matching *.ediliziaincloud.it / *.ediliziaincloud.com
+  // 2. Dev: qualunque porta su localhost / 127.0.0.1
+  if (DEV_HOSTS.has(hostname)) return true;
+
+  // 3. Subdomain matching *.ediliziaincloud.it / *.ediliziaincloud.com
   for (const suffix of PLATFORM_SUFFIXES) {
     if (hostname.endsWith(suffix)) return true;
   }
 
-  // 3. Custom domain — check in-memory cache
+  // 4. Custom domain — check in-memory cache
   if (verifiedDomainCache.has(hostname)) return true;
 
-  // 4. Trigger background refresh se cache è scaduta
+  // 5. Trigger background refresh se cache è scaduta
   if (Date.now() - cacheLoadedAt > CACHE_TTL_MS) {
     refreshDomainCacheInBackground();
   }
@@ -101,6 +107,8 @@ export function getCorsHeaders(req: Request): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": ALLOW_HEADERS,
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   };
 }

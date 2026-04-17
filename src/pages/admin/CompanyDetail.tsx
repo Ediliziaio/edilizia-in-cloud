@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw, Eye, FileText, CreditCard, Activity, StickyNote, Blocks, History, Mail, Ticket, ListChecks, ShieldAlert, Palette } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw, Eye, FileText, CreditCard, Activity, StickyNote, Blocks, History, Mail, MailCheck, Ticket, ListChecks, ShieldAlert, Palette } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
@@ -36,6 +36,7 @@ import { TabSupporto } from "@/components/admin/company/TabSupporto";
 import { TabOnboarding } from "@/components/admin/company/TabOnboarding";
 import { AuditLogTab } from "@/components/admin/company/AuditLogTab";
 import { TabWhiteLabel } from "@/components/admin/company/TabWhiteLabel";
+import { CompanyEmailTab } from "@/components/admin/company/CompanyEmailTab";
 import { SuperAdminCompanyOverrides } from "@/components/admin/SuperAdminCompanyOverrides";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
@@ -268,6 +269,9 @@ export default function CompanyDetail() {
           <TabsTrigger value="comunicazioni" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" /> Comunicazioni
           </TabsTrigger>
+          <TabsTrigger value="email" className="gap-1.5">
+            <MailCheck className="h-3.5 w-3.5" /> Email
+          </TabsTrigger>
           <TabsTrigger value="supporto" className="gap-1.5">
             <Ticket className="h-3.5 w-3.5" /> Supporto
           </TabsTrigger>
@@ -366,6 +370,10 @@ export default function CompanyDetail() {
 
         <TabsContent value="comunicazioni">
           <TabComunicazioni companyId={h.company.id} />
+        </TabsContent>
+
+        <TabsContent value="email">
+          <CompanyEmailTab companyId={h.company.id} companyName={h.company.name} />
         </TabsContent>
 
         <TabsContent value="supporto">

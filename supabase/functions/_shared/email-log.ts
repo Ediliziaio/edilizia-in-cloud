@@ -3,32 +3,60 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 /**
  * Shared helper to log email delivery attempts to `email_delivery_log`.
  * Call after sending (or attempting to send) an email.
+ *
+ * NOTE: historical bug fixed — helper previously inserted `to_email` which
+ * does not exist in the schema (column is `recipient`). Helper now writes
+ * to the canonical column and accepts all Sprint-1C fields:
+ *   stream, campaign_id, provider_id, cost_eur, charged_eur, metadata.
  */
 export async function logEmailDelivery(
   supabaseAdmin: ReturnType<typeof createClient>,
   params: {
     company_id?: string | null;
-    to_email: string;
+    /** Recipient email address. Preferred name. */
+    recipient?: string;
+    /** Back-compat alias for `recipient` — do not remove. */
+    to_email?: string;
     subject: string;
+    /** Semantic template identifier (e.g. "invoice_send"). Stored in `template_type`. */
     template_name?: string;
-    status: "sent" | "failed" | "queued";
+    /** Raw DB column if caller wants to set template_type directly. */
+    template_type?: string;
+    status: "sent" | "failed" | "queued" | "delivered" | "bounced";
     provider?: string;
+    stream?: "marketing" | "transactional";
+    campaign_id?: string | null;
+    provider_id?: string | null;
     error_message?: string;
-    metadata?: Record<string, unknown>;
+    cost_eur?: number;
+    charged_eur?: number;
+    metadata?: Record<string, unknown> | null;
   }
-): Promise<void> {
+): Promise<{ id?: string }> {
   try {
-    await supabaseAdmin.from("email_delivery_log").insert({
-      company_id: params.company_id ?? null,
-      to_email: params.to_email,
-      subject: params.subject,
-      template_name: params.template_name ?? null,
-      status: params.status,
-      provider: params.provider ?? "internal",
-      error_message: params.error_message ?? null,
-      metadata: params.metadata ?? null,
-    });
+    const recipient = params.recipient ?? params.to_email ?? "";
+    const { data } = await supabaseAdmin
+      .from("email_delivery_log")
+      .insert({
+        company_id:    params.company_id ?? null,
+        recipient,
+        subject:       params.subject,
+        template_type: params.template_type ?? params.template_name ?? null,
+        provider:      params.provider ?? "internal",
+        status:        params.status,
+        provider_id:   params.provider_id ?? null,
+        error_message: params.error_message ?? null,
+        stream:        params.stream ?? null,
+        campaign_id:   params.campaign_id ?? null,
+        cost_eur:      params.cost_eur ?? 0,
+        charged_eur:   params.charged_eur ?? 0,
+        metadata:      params.metadata ?? null,
+      })
+      .select("id")
+      .single();
+    return { id: (data as { id?: string } | null)?.id };
   } catch {
     // Non-blocking — don't let logging failures break email operations
+    return {};
   }
 }

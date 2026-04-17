@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -148,32 +148,44 @@ Deno.serve(async (req) => {
     const emailSubject = subject || `${docLabel} N° ${invoice.invoice_number || "—"} — ${companyData.name}`;
     const emailHtml = buildEmailHtml(invoice, invoice.invoice_lines || [], companyData, message);
 
-    // Try transactional stream first, fallback to marketing
-    let settings;
-    try {
-      settings = await loadProviderSettings("transactional");
-      if (!settings.apiKey) throw new Error("No transactional key");
-    } catch {
-      settings = await loadProviderSettings("marketing");
-    }
-
-    if (!settings.apiKey) {
-      return json({ error: "Nessun provider email configurato. Configura un provider nelle impostazioni della piattaforma." }, 400);
-    }
-
-    const result = await sendViaProvider(settings.provider, settings.apiKey, {
-      from: settings.fromDefault,
-      to: [to_email],
-      subject: emailSubject,
-      html: emailHtml,
+    // Send via unified pipeline (tracks delivery, enforces per-plan quota,
+    // deducts wallet on overage). Falls back automatically from transactional
+    // to marketing provider if the transactional stream has no key configured.
+    let result = await sendEmailUnified({
+      companyId:    invoice.company_id,
+      stream:       "transactional",
+      to:           [to_email],
+      subject:      emailSubject,
+      html:         emailHtml,
+      templateName: "invoice_send",
+      adminClient:  supabase,
+      metadata:     { invoice_id: invoice.id, document_type: invoice.document_type },
     });
+
+    if (!result.ok && String((result.body as any)?.error ?? "").toLowerCase().includes("no provider configured")) {
+      // No transactional provider → retry via marketing stream
+      result = await sendEmailUnified({
+        companyId:    invoice.company_id,
+        stream:       "marketing",
+        to:           [to_email],
+        subject:      emailSubject,
+        html:         emailHtml,
+        templateName: "invoice_send",
+        adminClient:  supabase,
+        metadata:     { invoice_id: invoice.id, document_type: invoice.document_type, fallback_stream: true },
+      });
+    }
 
     if (!result.ok) {
       console.error("Email send failed:", result);
-      return json({ error: `Invio email fallito (status ${result.status})` }, 500);
+      const msg =
+        result.status === 402
+          ? "Crediti email insufficienti — ricarica il wallet per continuare a inviare fatture via email."
+          : `Invio email fallito (status ${result.status})`;
+      return json({ error: msg }, result.status === 402 ? 402 : 500);
     }
 
-    // Log the send
+    // Log the send in billing_sync_log (legacy index for this invoice)
     await supabase.from("billing_sync_log").insert({
       company_id: invoice.company_id,
       invoice_id: invoice.id,
@@ -181,10 +193,25 @@ Deno.serve(async (req) => {
       direction: "push",
       action: "send_email",
       status: "success",
-      response_payload: { to: to_email, subject: emailSubject } as any,
+      response_payload: {
+        to: to_email,
+        subject: emailSubject,
+        provider_message_id: result.providerMessageId ?? null,
+        over_quota: result.overQuota ?? false,
+        charged_eur: result.chargedEur ?? 0,
+      } as any,
     });
 
-    return json({ success: true });
+    return json({
+      success:      true,
+      over_quota:   result.overQuota ?? false,
+      charged_eur:  result.chargedEur ?? 0,
+      is_free:      result.isFree ?? false,
+      remaining:
+        result.effectiveLimit === -1
+          ? -1
+          : Math.max(0, (result.effectiveLimit ?? 0) - (result.sentThisMonth ?? 0) - 1),
+    });
   } catch (e) {
     console.error("send-invoice-email error:", e);
     return json({ error: String(e) }, 500);
