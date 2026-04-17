@@ -507,6 +507,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         { to: "/azienda/impostazioni/margini",              label: "Preventivi & Margini",icon: <TrendingUp className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/materiali-preventivi",label: "Materiali preventivi",icon: <FileStack className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte",    icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canEditSettingsCustomization },
+        { to: "/azienda/impostazioni/bundle",              label: "Bundle & Pacchetti",   icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsOrders },
       ],
     },
     {

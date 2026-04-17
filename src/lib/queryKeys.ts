@@ -1056,4 +1056,13 @@ export const queryKeys = {
     grid: (familyId: string | undefined) =>
       ["article-families", "grid", familyId] as const,
   },
+
+  // ── Bundle Prodotti (Preventivatore Verticalizzato FASE 10) ────────────
+  bundles: {
+    all: ["bundles"] as const,
+    list: (companyId: string | undefined, filters?: { vertical?: string; tipoLavoro?: string }) =>
+      ["bundles", "list", companyId, filters] as const,
+    detail: (bundleId: string | undefined) =>
+      ["bundles", "detail", bundleId] as const,
+  },
 } as const;
