@@ -1045,4 +1045,15 @@ export const queryKeys = {
     all: ["f24"] as const,
     list: (companyId: string | undefined, anno: number) => ["f24", "list", companyId, anno] as const,
   },
+
+  // ── Article Families (Preventivatore Verticalizzato FASE 4) ─────────────
+  articleFamilies: {
+    all: ["article-families"] as const,
+    list: (companyId: string | undefined) =>
+      ["article-families", "list", companyId] as const,
+    detail: (familyId: string | undefined) =>
+      ["article-families", "detail", familyId] as const,
+    grid: (familyId: string | undefined) =>
+      ["article-families", "grid", familyId] as const,
+  },
 } as const;

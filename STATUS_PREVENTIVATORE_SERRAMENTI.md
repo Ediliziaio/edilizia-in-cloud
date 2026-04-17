@@ -15,7 +15,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 1 — Vertical + onboarding | 🟢 DONE | 1.1 migration + 1.2 hook + 1.3 page + 1.4 routing/guard | `146f54df` | Decisione: nuova colonna TEXT `vertical` coesistente con `sector` (9 valori vs 8, dominio differente). Masterprompt spec prevale su FASE 0 |
 | FASE 2 — Data model famiglie/assi | 🟡 IN CORSO | 2.1 migration + 2.2 types | *(pending `feat(serramenti): fase 2 data model famiglie assi maggiorazioni`)* | 3 tabelle + ALTER listino_griglia (drop NOT NULL prodotto_id) + ALTER article_templates |
 | FASE 3 — Seed categorie + installer | 🟢 DONE | 3.1 tables + 3.2 seed + 3.3 edge fn + 3.4 dialog UI | `cccd5f5c` | 11 cat + 38 famiglie template, idempotent Edge Function |
-| FASE 4 — Editor UI famiglie/assi | ⚪ TODO | — | — | Tocca ArticleCatalog 1137L |
+| FASE 4 — Editor UI famiglie/assi | 🟢 DONE | 4.1–4.7 hook + catalogo + editor + routing | (tbd) | 5-step editor, assi+valori CRUD, griglia L×H, price preview live |
 | FASE 5 — Motore calcolo prezzo | ⚪ TODO | — | — | Test unitari obbligatori |
 | FASE 6 — Manodopera UM flessibili | ⚪ TODO | — | — | DB già supporta UM |
 | FASE 7 — Fix 3 P0 bug | ⚪ TODO | 7.1 unit_price, 7.2 LIMIT 60, 7.3 sconti/bundle | — | Copertura regressione aziende live |
@@ -136,7 +136,53 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
   - ✅ Listino post-install: strutturato ma prezzi a zero (espliciti 0 in `article_families.prezzo_base_*` + `article_family_axis_values.maggiorazione_valore=0`)
 - ✅ `tsc --noEmit` → 0 errori.
 - ✅ Commit `feat(serramenti): fase 3 seed catalogo serramentista` (`cccd5f5c`)
-- ⏳ **Next:** FASE 4 (Editor UI famiglie/assi/griglia).
+
+### FASE 4 — 2026-04-17
+- ✅ 4.1 Hooks:
+  - `src/hooks/useFamilies.ts`: `useFamilies()` → lista famiglie con nested select `axes:article_family_axes(*, values:article_family_axis_values(*))`, ordinamento client-side per sort_order. `useFamily(id)` per il dettaglio.
+  - `src/hooks/useFamilyMutations.ts`: CRUD completo su famiglia/assi/valori + `duplicateFamily` (clone profondo). `deleteFamily` è soft-delete (`attivo=false`) per preservare quote_items storici. Ogni mutazione invalida `queryKeys.articleFamilies` e log errori via `captureVelocityError`.
+  - `queryKeys.ts` esteso con `articleFamilies { all, list, detail, grid }`.
+- ✅ 4.2 `src/components/listino/FamilyCatalog.tsx`:
+  - Lista card raggruppate per categoria, ricerca per nome/descrizione, CTA "Nuova famiglia"
+  - Duplica via Dialog (prompt nuovo nome) + Soft-delete via AlertDialog
+- ✅ 4.3 `src/components/listino/FamilyEditor.tsx`: 5-step Tabs
+  - Step 1 Dati base (nome, categoria, descrizione, modalità prezzo 4 card radio, UM, IVA 4/5/10/22, griglia labels)
+  - Step 2 Prezzo: se `griglia` monta `FamilyGridEditor`; altrimenti input prezzo vendita/acquisto
+  - Step 3 Assi: delega a `FamilyAxesEditor`
+  - Step 4 Posa: select `tariffe_aziendali` + quantità default
+  - Step 5 Riepilogo con pulsanti "Torna al catalogo" / "Salva e crea copia"
+  - Sidebar sticky con `FamilyPricePreview` live
+  - Modalità new: crea al "Salva dati base" poi redirect a `/:id` per continuare
+- ✅ 4.4 `FamilyAxesEditor.tsx`:
+  - Lista assi con riordino up/down (non dnd-kit per evitare complessità)
+  - Dialog crea/modifica asse: codice auto-suggerito via slug del nome, codice read-only in edit
+  - Editor valori per asse: label, valore, default (UNIQUE enforced client-side: toglie default agli altri prima di salvare), maggiorazione (6 tipi), valore vendita + acquisto
+  - Warning `⚠ nessun default` se obbligatorio e nessun valore default
+  - AlertDialog su eliminazione
+- ✅ 4.5 `FamilyGridEditor.tsx` + migration `20260917000005_serramenti_05_griglia_family_unique.sql`:
+  - Partial unique index `idx_griglia_family_xy_unique` su `(family_id, valore_x, valore_y) WHERE family_id IS NOT NULL` per non collidere con righe legacy prodotto_id
+  - Editor matrice: badge editabili per valori X (larghezze) e Y (altezze), tabella N×M con prezzo vendita + acquisto + cestino per celle vuote
+  - Salvataggio: `DELETE WHERE family_id = X` + bulk `INSERT`. Non transazionale (MVP), ma idempotente al retry (lo stato UI è sempre la source-of-truth)
+- ✅ 4.6 `FamilyPricePreview.tsx`:
+  - Query live su `listino_griglia` se modalità=griglia
+  - Formula interim: base (griglia lookup ∨ `prezzo_base_vendita` ∨ mq×base) → pass1 % maggiorazioni → pass2 fisse (pz/mq/ml/mc) → × quantità
+  - Warning se cella griglia non trovata (fallback a prezzo_base)
+  - Mostra margine € + %, superficie m²
+  - **NB:** è una preview, la formula pura definitiva sarà in FASE 5 `useFamilyPricing.ts` con unit tests
+- ✅ 4.7 Routing + tab switcher:
+  - `SettingsCatalog.tsx` ora ha Tabs `Famiglie` (default) / `Articoli singoli` via `?tab=` query string
+  - Nuove route in `companyRoutes.tsx`:
+    - `/azienda/impostazioni/listino/famiglie` → redirect a `?tab=famiglie`
+    - `/azienda/impostazioni/listino/famiglie/nuova` → `SettingsFamilyEditor` (create mode)
+    - `/azienda/impostazioni/listino/famiglie/:id` → `SettingsFamilyEditor` (edit mode)
+- ✅ DoD verification FASE 4:
+  - ✅ FamilyEditor per 4 modalità prezzo (pz/mq/griglia/misura_libera)
+  - ✅ Matrice griglia L×H editabile con salvataggio batch
+  - ✅ CRUD completo assi + valori con validazione (default unique per asse, warning obbligatorio senza default)
+  - ✅ Preview prezzo live con maggiorazioni applicate
+  - ✅ Duplicazione famiglia (nel catalogo e nel riepilogo)
+- ✅ `tsc --noEmit` → 0 errori.
+- ⏳ **Next:** FASE 5 (Motore calcolo prezzo puro + unit tests) + applicazione migration 005 + deploy edge function su ambiente target.
 
 ---
 
