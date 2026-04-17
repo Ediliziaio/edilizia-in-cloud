@@ -98,15 +98,21 @@ export function AiAgentPricingConfig() {
   const applyGlobalMarkup = async () => {
     const markup = parseFloat(globalMarkup);
     if (isNaN(markup) || markup < 1) { toast.error("Markup deve essere almeno 1.0"); return; }
-    for (const row of editedPricing) {
-      const newBilled = Number((row.cost_real_per_unit * markup).toFixed(6));
-      await supabase
-        .from("ai_agent_pricing" as never)
-        .update({ markup_multiplier: markup, cost_billed_per_unit: newBilled, updated_at: new Date().toISOString() } as never)
-        .eq("id" as never, row.id as never);
+    try {
+      for (const row of editedPricing) {
+        const newBilled = Number((row.cost_real_per_unit * markup).toFixed(6));
+        const { error } = await supabase
+          .from("ai_agent_pricing" as never)
+          .update({ markup_multiplier: markup, cost_billed_per_unit: newBilled, updated_at: new Date().toISOString() } as never)
+          .eq("id" as never, row.id as never);
+        if (error) throw new Error(`Update tariffa "${row.label || row.model_tier}": ${error.message}`);
+      }
+      toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
+      queryClient.invalidateQueries({ queryKey: ["ai-agent-pricing"] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Errore nell'applicazione del markup";
+      toast.error(msg);
     }
-    toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
-    queryClient.invalidateQueries({ queryKey: ["ai-agent-pricing"] });
   };
 
   const previewReal = 0.003;

@@ -118,6 +118,8 @@ export default function PlatformSettingsPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // NB: i valori possono essere stringhe vuote → la colonna è TEXT NOT NULL,
+      // stringa vuota è valida e serve per "cancellare" un campo (es. rimuovere API key).
       const settings = [
         { key: "elevenlabs_api_key", value: apiKey.trim() },
         { key: "default_llm_model", value: defaultLlm },
@@ -128,18 +130,27 @@ export default function PlatformSettingsPage() {
       ];
 
       for (const setting of settings) {
-        if (!setting.value) continue;
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("platform_settings" as never)
-          .upsert({ key: setting.key, value: setting.value, updated_at: new Date().toISOString() } as never, { onConflict: "key" as never });
-        if (error) throw error;
+          .upsert(
+            { key: setting.key, value: setting.value, updated_at: new Date().toISOString() } as never,
+            { onConflict: "key" as never }
+          )
+          .select("key" as never);
+        if (error) throw new Error(`Upsert ${setting.key}: ${error.message}`);
+        if (!data || (data as unknown as unknown[]).length === 0) {
+          throw new Error(
+            `Salvataggio "${setting.key}" bloccato (0 righe scritte). Probabile RLS: verifica di essere super_admin.`
+          );
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.elevenlabs });
       toast.success("Configurazione salvata con successo");
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Errore nel salvataggio della configurazione";
       logger.error("Errore salvataggio configurazione", err);
-      toast.error("Errore nel salvataggio della configurazione");
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }
@@ -193,20 +204,25 @@ export default function PlatformSettingsPage() {
       return;
     }
 
-    for (const row of editedPricing) {
-      const newBilled = Number((row.cost_real_per_min * markup).toFixed(6));
-      await supabase
-        .from("platform_pricing" as never)
-        .update({
-          markup_multiplier: markup,
-          cost_billed_per_min: newBilled,
-          updated_at: new Date().toISOString(),
-        } as never)
-        .eq("id" as never, row.id as never);
+    try {
+      for (const row of editedPricing) {
+        const newBilled = Number((row.cost_real_per_min * markup).toFixed(6));
+        const { error } = await supabase
+          .from("platform_pricing" as never)
+          .update({
+            markup_multiplier: markup,
+            cost_billed_per_min: newBilled,
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id" as never, row.id as never);
+        if (error) throw new Error(`Update "${row.label || row.id}": ${error.message}`);
+      }
+      toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.pricing });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Errore nell'applicazione del markup";
+      toast.error(msg);
     }
-
-    toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
-    queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.pricing });
   };
 
   const previewReal = 0.02;
@@ -278,26 +294,42 @@ export default function PlatformSettingsPage() {
         { key: "render_gemini_api_key", value: renderGeminiKey },
       ];
 
+      // Upsert con select + controllo errori + verifica scrittura effettiva (RLS-safe)
       for (const row of upserts) {
-        await supabase
+        const { data, error } = await supabase
           .from("platform_settings" as never)
-          .upsert({ key: row.key, value: row.value } as never, { onConflict: "key" as never });
+          .upsert(
+            { key: row.key, value: row.value, updated_at: new Date().toISOString() } as never,
+            { onConflict: "key" as never }
+          )
+          .select("key" as never);
+        if (error) throw new Error(`Upsert ${row.key} fallito: ${error.message}`);
+        if (!data || (data as unknown as unknown[]).length === 0) {
+          throw new Error(
+            `Salvataggio "${row.key}" bloccato (0 righe scritte). Probabile RLS: verifica di essere super_admin.`
+          );
+        }
       }
 
-      // Aggiorna is_default in render_provider_config
-      await supabase
+      // Aggiorna is_default in render_provider_config (WHERE obbligatorio per PostgREST)
+      const { error: resetErr } = await supabase
         .from("render_provider_config" as never)
-        .update({ is_default: false } as never);
-      await supabase
+        .update({ is_default: false } as never)
+        .neq("provider_key" as never, renderDefaultProvider as never);
+      if (resetErr) throw new Error(`Reset default provider: ${resetErr.message}`);
+
+      const { error: setErr } = await supabase
         .from("render_provider_config" as never)
         .update({ is_default: true } as never)
         .eq("provider_key" as never, renderDefaultProvider as never);
+      if (setErr) throw new Error(`Set default provider: ${setErr.message}`);
 
       toast.success("Impostazioni Render AI salvate");
       queryClient.invalidateQueries({ queryKey: ["render-provider-config"] });
       queryClient.invalidateQueries({ queryKey: ["platform-settings-render"] });
     } catch (err) {
-      toast.error("Errore nel salvataggio");
+      const msg = err instanceof Error ? err.message : "Errore nel salvataggio";
+      toast.error(msg);
       logger.error("Render settings save error", err);
     } finally {
       setRenderSaving(false);

@@ -87,19 +87,21 @@ export function PlatformBrandingTab() {
 
   const saveMutation = useMutation({
     mutationFn: async (updates: Record<string, string>) => {
+      // Schema platform_settings: key TEXT PK, value TEXT NOT NULL, updated_at, updated_by
+      // Le colonne `label` e `category` NON esistono.
       const rows = Object.entries(updates).map(([key, value]) => ({
         key,
         value,
-        label: key,
-        category: key.includes("color") || key.includes("logo") || key.includes("favicon")
-          ? "branding"
-          : "general",
         updated_at: new Date().toISOString(),
       }));
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("platform_settings")
-        .upsert(rows, { onConflict: "key" });
+        .upsert(rows, { onConflict: "key" })
+        .select("key");
       if (error) throw new Error(error.message);
+      if (!data || data.length === 0) {
+        throw new Error("Salvataggio bloccato (0 righe). Verifica di essere super_admin.");
+      }
     },
     onSuccess: () => {
       toast.success("Impostazioni branding salvate");
@@ -132,14 +134,16 @@ export function PlatformBrandingTab() {
       const rows = Object.entries(updates).map(([key, value]) => ({
         key,
         value,
-        label: key,
-        category: "seo",
         updated_at: new Date().toISOString(),
       }));
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("platform_settings")
-        .upsert(rows, { onConflict: "key" });
+        .upsert(rows, { onConflict: "key" })
+        .select("key");
       if (error) throw new Error(error.message);
+      if (!data || data.length === 0) {
+        throw new Error("Salvataggio bloccato (0 righe). Verifica di essere super_admin.");
+      }
     },
     onSuccess: () => {
       toast.success("Impostazioni SEO salvate");

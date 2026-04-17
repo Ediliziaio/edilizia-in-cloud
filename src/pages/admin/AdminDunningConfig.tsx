@@ -189,17 +189,20 @@ export default function AdminDunningConfig() {
 
   const saveSettings = useMutation({
     mutationFn: async (updates: Record<string, string>) => {
+      // platform_settings ha solo colonne: key, value, updated_at, updated_by
       const rows = Object.entries(updates).map(([key, value]) => ({
         key,
         value,
-        label: key,
-        category: "dunning",
         updated_at: new Date().toISOString(),
       }));
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("platform_settings")
-        .upsert(rows, { onConflict: "key" });
+        .upsert(rows, { onConflict: "key" })
+        .select("key");
       if (error) throw new Error(error.message);
+      if (!data || data.length === 0) {
+        throw new Error("Salvataggio bloccato (0 righe). Verifica di essere super_admin.");
+      }
     },
     onSuccess: () => {
       toast.success("Parametri dunning salvati");

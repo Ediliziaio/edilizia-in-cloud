@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { logger } from "@/utils/logger";
 
 interface Props {
   stream: "marketing" | "transactional";
@@ -181,27 +182,30 @@ export function EmailProviderConfig({ stream }: Props) {
       if (error) throw error;
       setTestResult({ ok: true, message: "Email di test inviata con successo!" });
 
-      // Save test status
+      // Save test status (auxiliary — log-only su errore, non interrompe feedback test)
       const now = new Date().toISOString();
-      await supabase.from("platform_settings" as never).upsert(
+      const r1 = await supabase.from("platform_settings" as never).upsert(
         { key: lastTestKey, value: now, updated_at: now } as never,
         { onConflict: "key" as never }
       );
-      await supabase.from("platform_settings" as never).upsert(
+      if (r1.error) logger.error("persist lastTestKey", r1.error);
+      const r2 = await supabase.from("platform_settings" as never).upsert(
         { key: lastTestStatusKey, value: "ok", updated_at: now } as never,
         { onConflict: "key" as never }
       );
+      if (r2.error) logger.error("persist lastTestStatusKey ok", r2.error);
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Errore sconosciuto";
       setTestResult({ ok: false, message });
 
-      // Save failed test status
+      // Save failed test status (auxiliary — log-only su errore)
       const now = new Date().toISOString();
-      await supabase.from("platform_settings" as never).upsert(
+      const r = await supabase.from("platform_settings" as never).upsert(
         { key: lastTestStatusKey, value: "fail", updated_at: now } as never,
         { onConflict: "key" as never }
       );
+      if (r.error) logger.error("persist lastTestStatusKey fail", r.error);
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
     } finally {
       setIsTesting(false);
