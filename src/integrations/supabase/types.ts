@@ -30933,6 +30933,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          metadata: Json | null
           type: string
         }
         Insert: {
@@ -30944,6 +30945,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          metadata?: Json | null
           type?: string
         }
         Update: {
@@ -30955,6 +30957,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          metadata?: Json | null
           type?: string
         }
         Relationships: [
@@ -31505,6 +31508,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      credit_transactions_unified: {
+        Row: {
+          amount: number | null
+          balance_after: number | null
+          balance_before: number | null
+          company_id: string | null
+          created_at: string | null
+          credit_type: string | null
+          description: string | null
+          direction: string | null
+          id: string | null
+          metadata: Json | null
+          reference_id: string | null
+          reference_kind: string | null
+          type: string | null
+        }
+        Relationships: []
       }
       fattura_pagamento_stato: {
         Row: {
