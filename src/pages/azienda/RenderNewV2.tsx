@@ -15,9 +15,11 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, ArrowRight, Upload, Camera, Loader2, Zap, CheckCircle2,
-  Download, RefreshCw, Sparkles, ImageIcon,
+  Download, RefreshCw, Sparkles, ImageIcon, FileText,
 } from "lucide-react";
 
+import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import {
   WIZARD_TIPI, WIZARD_PROFILI, WIZARD_RAL, WIZARD_LEGNO, WIZARD_HW_COLORS,
   WIZARD_CASS_MATERIALI, WIZARD_TAPP_OPTIONS,
@@ -63,7 +65,12 @@ export default function RenderNewV2() {
   const [generating, setGenerating] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [originalSignedUrl, setOriginalSignedUrl] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+
+  // CRM linking (populated in Step 6)
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -274,6 +281,26 @@ export default function RenderNewV2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, sessionId]);
 
+  // ── Build signed URL for original photo (needed by BeforeAfterSlider) ──────
+  useEffect(() => {
+    if (!photoPath || originalSignedUrl) return;
+    void (async () => {
+      const { data: signed } = await supabase.storage
+        .from("render-originals")
+        .createSignedUrl(photoPath, 3600);
+      if (signed?.signedUrl) setOriginalSignedUrl(signed.signedUrl);
+    })();
+  }, [photoPath, originalSignedUrl]);
+
+  // ── Persist CRM link onto render_sessions ──────────────────────────────────
+  useEffect(() => {
+    if (!sessionId) return;
+    void supabase
+      .from("render_sessions" as never)
+      .update({ contact_id: contactId, opportunity_id: opportunityId } as never)
+      .eq("id" as never, sessionId as never);
+  }, [sessionId, contactId, opportunityId]);
+
   // ── Reset wizard ───────────────────────────────────────────────────────────
   const reset = () => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -427,11 +454,21 @@ export default function RenderNewV2() {
         {step === 6 && (
           <Step6Render
             photoPreview={photoPreview}
+            originalSignedUrl={originalSignedUrl}
             resultUrl={resultUrl}
             generating={generating}
             elapsedSec={elapsedSec}
             error={generateError}
             state={state}
+            contactId={contactId}
+            opportunityId={opportunityId}
+            onContactChange={setContactId}
+            onOpportunityChange={setOpportunityId}
+            onCreateQuote={() => {
+              const qs = new URLSearchParams();
+              if (contactId) qs.set("contact_id", contactId);
+              navigate(`/azienda/marketing/preventivi/nuovo${qs.toString() ? `?${qs}` : ""}`);
+            }}
             onReset={reset}
             onRetry={startRender}
             onDownload={downloadResult}
@@ -807,17 +844,25 @@ function Step5Opzioni({
 
 // ─── Step 6: Generation + Result ─────────────────────────────────────────────
 function Step6Render({
-  photoPreview, resultUrl, generating, elapsedSec, error, state, onReset, onRetry, onDownload,
+  photoPreview, originalSignedUrl, resultUrl, generating, elapsedSec, error, state,
+  contactId, opportunityId, onContactChange, onOpportunityChange,
+  onReset, onRetry, onDownload, onCreateQuote,
 }: {
   photoPreview: string | null;
+  originalSignedUrl: string | null;
   resultUrl: string | null;
   generating: boolean;
   elapsedSec: number;
   error: string | null;
   state: WizardState;
+  contactId: string | null;
+  opportunityId: string | null;
+  onContactChange: (id: string | null) => void;
+  onOpportunityChange: (id: string | null) => void;
   onReset: () => void;
   onRetry: () => void;
   onDownload: () => void;
+  onCreateQuote: () => void;
 }) {
   const tipo = WIZARD_TIPI.find(t => t.id === state.tipo);
   const profilo = WIZARD_PROFILI.find(p => p.id === state.profilo);
@@ -910,26 +955,43 @@ function Step6Render({
             </CardContent>
           </Card>
 
-          <div className="relative overflow-hidden rounded-2xl border">
-            <img src={resultUrl} alt="Render" className="block w-full" />
-            <Badge className="absolute right-3 top-3 bg-orange-500 text-white hover:bg-orange-600">
-              RENDER AI
-            </Badge>
-          </div>
-
-          {photoPreview && (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Prima</div>
-                <img src={photoPreview} alt="Prima" className="rounded-lg border" />
+          {/* Before/After interactive slider (primary) */}
+          {(originalSignedUrl || photoPreview) ? (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Prima / Dopo — trascina il cursore
+                </div>
+                <Badge className="bg-orange-500 text-white hover:bg-orange-600">RENDER AI</Badge>
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-orange-600">Dopo</div>
-                <img src={resultUrl} alt="Dopo" className="rounded-lg border border-orange-500/40" />
-              </div>
+              <BeforeAfterSlider
+                beforeUrl={originalSignedUrl ?? photoPreview ?? ""}
+                afterUrl={resultUrl}
+                className="aspect-[4/3] border"
+              />
+            </div>
+          ) : (
+            <div className="relative overflow-hidden rounded-2xl border">
+              <img src={resultUrl} alt="Render" className="block w-full" />
+              <Badge className="absolute right-3 top-3 bg-orange-500 text-white hover:bg-orange-600">
+                RENDER AI
+              </Badge>
             </div>
           )}
 
+          {/* CRM linking */}
+          <Card>
+            <CardContent className="p-2">
+              <RenderCrmLinker
+                contactId={contactId}
+                opportunityId={opportunityId}
+                onContactChange={onContactChange}
+                onOpportunityChange={onOpportunityChange}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Action buttons */}
           <div className="grid grid-cols-2 gap-2">
             <Button onClick={onDownload} className="gap-2">
               <Download className="h-4 w-4" /> Scarica
@@ -938,6 +1000,16 @@ function Step6Render({
               <RefreshCw className="h-4 w-4" /> Nuovo render
             </Button>
           </div>
+
+          <Button
+            onClick={onCreateQuote}
+            disabled={!contactId}
+            size="lg"
+            className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
+          >
+            <FileText className="h-4 w-4" />
+            {contactId ? "Crea preventivo per questo contatto" : "Collega un contatto per creare il preventivo"}
+          </Button>
         </>
       )}
     </div>
