@@ -16,7 +16,7 @@ export function useSubscriptionLimits() {
   const companyStatus = (effectiveCompany?.status as CompanyStatus) || "trial";
 
   // Fetch plan
-  const { data: currentPlan, isLoading: planLoading } = useQuery({
+  const { data: currentPlan, isLoading: planLoading, isFetched: planFetched } = useQuery({
     queryKey: queryKeys.subscriptionLimits.plan(planId),
     queryFn: async () => {
       if (!planId) return null;
@@ -69,11 +69,20 @@ export function useSubscriptionLimits() {
 
   const trialExpired = companyStatus === "trial" && trialDaysLeft !== null && trialDaysLeft <= 0;
 
-  // Modules from plan
+  // Modules from plan.
+  // SICUREZZA: evitiamo il fail-open precedente, in cui un modulo non dichiarato
+  // in `included_modules` veniva comunque abilitato se il piano era malformato.
+  // Nuova semantica:
+  //   - plan caricato + `included_modules` è array → usa l'array
+  //   - plan caricato ma `included_modules` è malformato / null → array VUOTO
+  //     (chiuso di default; l'eventuale apertura passa sempre dal bypass/override)
+  //   - plan non ancora risolto → `null` (vedi isModuleEnabled: ritorniamo false
+  //     finché non abbiamo dati, così la UI non mostra moduli che l'utente non ha)
   const rawModules = currentPlan?.included_modules;
-  const includedModules: string[] = currentPlan
-    ? (Array.isArray(rawModules) ? (rawModules as string[]) : [...ALL_MODULES])
-    : [...ALL_MODULES];
+  const moduleListResolved: boolean = !!currentPlan && planFetched;
+  const includedModules: string[] = moduleListResolved
+    ? (Array.isArray(rawModules) ? (rawModules as string[]) : [])
+    : [];
 
   // Super admin bypass: also active when impersonation session exists but role
   // has not yet been resolved (e.g. fetchUserData racing setSession on page load).
@@ -97,6 +106,11 @@ export function useSubscriptionLimits() {
 
   const isModuleEnabled = (moduleKey: ModuleKey): boolean => {
     if (bypass) return true;
+    // Finché il plan non è stato risolto definitivamente restituiamo false
+    // (fail-closed): è la controparte del fix al fail-open sopra. Le UI che
+    // chiamano questo hook devono guardare `isLoading` per distinguere
+    // "disabilitato" da "in caricamento".
+    if (!moduleListResolved) return false;
     return includedModules.includes(moduleKey);
   };
 

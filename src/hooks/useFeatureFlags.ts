@@ -35,7 +35,33 @@ interface ResolvedFlag {
 export function useFeatureFlags(companyIdOverride?: string) {
   const { effectiveCompany, role, isImpersonating, impersonatedCompanyId, impersonationToken } = useAuth();
   const companyId = companyIdOverride || effectiveCompany?.id;
-  const planName = (effectiveCompany as any)?.subscription_plan?.name?.toLowerCase?.() ?? "";
+
+  // BUG FIX: AuthContext.fetchUserData non fa il join su subscription_plans, quindi
+  // `effectiveCompany.subscription_plan.name` è SEMPRE undefined → il branch "plan"
+  // del resolver non matcha mai e ogni feature cade sempre su `default_value`.
+  // Risolviamo con una query secondaria dedicata sul piano, tenuto separato per
+  // non costringere AuthContext a rifetchare il join su ogni cambio profilo.
+  const planId = (effectiveCompany as any)?.subscription_plan_id as string | null | undefined;
+  const { data: plan } = useQuery({
+    queryKey: ["subscription-plan-name", planId],
+    queryFn: async () => {
+      if (!planId) return null;
+      const { data, error } = await supabase
+        .from("subscription_plans")
+        .select("name")
+        .eq("id", planId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { name: string } | null;
+    },
+    enabled: !!planId,
+    staleTime: 5 * 60 * 1000,
+  });
+  // Ordine dei fallback: plan fetchato > join legacy embedded > stringa vuota
+  const planName =
+    plan?.name?.toLowerCase?.() ??
+    (effectiveCompany as any)?.subscription_plan?.name?.toLowerCase?.() ??
+    "";
 
   // Fetch all feature flags
   const { data: flags = [], isLoading: flagsLoading } = useQuery({

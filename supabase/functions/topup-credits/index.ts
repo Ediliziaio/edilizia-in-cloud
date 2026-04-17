@@ -66,45 +66,24 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Get current credits
-    const { data: credits } = await adminClient
-      .from(creditsTable as never)
-      .select("balance_eur, calls_blocked, blocked_reason, total_recharged_eur")
-      .eq("company_id", companyId)
-      .maybeSingle();
+    // Ricarica atomica via RPC (rimpiazza il pattern SELECT+UPDATE race-prone).
+    // La RPC fa UPSERT della row + UPDATE in-place + unblock condizionale.
+    const { data: rpcRows, error: rpcErr } = await adminClient.rpc(
+      "topup_service_credits" as never,
+      {
+        p_service: service,
+        p_company_id: companyId,
+        p_amount: amountEur,
+      } as never,
+    );
 
-    if (!credits) {
-      // Auto-create if missing — upsert per evitare duplicati su concorrenti
-      await adminClient
-        .from(creditsTable as never)
-        .upsert({ company_id: companyId } as never, { onConflict: "company_id" } as never);
+    if (rpcErr) {
+      console.error("[topup-credits] RPC error:", rpcErr);
+      return json({ error: "Errore ricarica: " + rpcErr.message }, 500);
     }
 
-    const currentBalance = (credits as any)?.balance_eur || 0;
-    const newBalance = Number((currentBalance + amountEur).toFixed(4));
-
-    // Update balance
-    const updateData: Record<string, unknown> = {
-      balance_eur: newBalance,
-      total_recharged_eur: Number((((credits as any)?.total_recharged_eur || 0) + amountEur).toFixed(4)),
-      updated_at: new Date().toISOString(),
-    };
-
-    // Unblock if was blocked for balance_zero (works for all services)
-    if ((credits as any)?.calls_blocked && (credits as any)?.blocked_reason === "balance_zero") {
-      updateData.calls_blocked = false;
-      updateData.blocked_at = null;
-      updateData.blocked_reason = null;
-    }
-    // whatsapp uses sends_blocked
-    if ((credits as any)?.sends_blocked) {
-      updateData.sends_blocked = false;
-    }
-
-    await adminClient
-      .from(creditsTable as never)
-      .update(updateData as never)
-      .eq("company_id" as never, companyId as never);
+    const firstRow = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+    const newBalance = Number((firstRow as any)?.new_balance ?? 0);
 
     // Generate invoice number
     const invoiceNum = `EIO-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
