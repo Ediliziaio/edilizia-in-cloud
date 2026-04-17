@@ -14,7 +14,10 @@ export function AdminPulseBar() {
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-      const [signupsRes, activeUsersRes, ordersRes, ticketsRes] = await Promise.all([
+      // Fail-soft: una singola query broken (RLS, colonna mancante) non deve
+      // oscurare l'intera pulse bar. allSettled → degradiamo a 0 sulle query
+      // rotte ma mostriamo ciò che abbiamo.
+      const settled = await Promise.allSettled([
         supabase
           .from("companies")
           .select("id", { count: "exact", head: true })
@@ -32,6 +35,16 @@ export function AdminPulseBar() {
           .select("id", { count: "exact", head: true })
           .gte("created_at", todayStart),
       ]);
+
+      const pick = <T = any>(idx: number): T =>
+        settled[idx].status === "fulfilled"
+          ? ((settled[idx] as PromiseFulfilledResult<any>).value as T)
+          : ({ data: null, error: null, count: 0 } as unknown as T);
+
+      const signupsRes = pick<{ count: number | null }>(0);
+      const activeUsersRes = pick<{ count: number | null }>(1);
+      const ordersRes = pick<{ data: any[] | null; count: number | null }>(2);
+      const ticketsRes = pick<{ count: number | null }>(3);
 
       const todayOrdersValue = (ordersRes.data || []).reduce(
         (sum, o: any) => sum + (Number(o.total_amount) || 0),

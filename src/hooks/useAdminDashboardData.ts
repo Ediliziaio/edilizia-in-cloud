@@ -61,18 +61,10 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [
-    companiesRes,
-    ordersAggRes,
-    customersRes,
-    ticketsRes,
-    recentCompaniesRes,
-    recentOrdersRes,
-    recentTicketsRes,
-    allCompaniesRes,
-    dacRes,
-    wacRes,
-  ] = await Promise.all([
+  // Fail-soft pattern: una singola query broken non deve bloccare l'intera
+  // dashboard. Usiamo allSettled e degradiamo gracefully su ogni query che
+  // fallisce (rendiamo la sezione vuota invece di buttare giù tutto).
+  const settled = await Promise.allSettled([
     supabase.from("companies").select("id", { count: "exact", head: true }),
     supabase.rpc("get_total_orders_value"),
     supabase
@@ -118,7 +110,32 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
       .limit(5000),
   ]);
 
-  if (companiesRes.error) throw new Error(companiesRes.error.message);
+  // Estrae il value-body di ogni allSettled (o un oggetto vuoto se rejected)
+  const unwrap = <T = any>(idx: number): T => {
+    const r = settled[idx];
+    if (r.status === "fulfilled") return r.value as T;
+    console.warn(`[AdminDashboard] query #${idx} failed:`, r.reason);
+    return { data: null, error: r.reason, count: 0 } as unknown as T;
+  };
+
+  const companiesRes = unwrap<{ data: unknown; error: unknown; count: number | null }>(0);
+  const ordersAggRes = unwrap<{ data: TotalOrdersValue[] | null; error: unknown }>(1);
+  const customersRes = unwrap<{ data: unknown; error: unknown; count: number | null }>(2);
+  const ticketsRes = unwrap<{ data: unknown; error: unknown; count: number | null }>(3);
+  const recentCompaniesRes = unwrap<{ data: RecentCompany[] | null; error: unknown }>(4);
+  const recentOrdersRes = unwrap<{ data: unknown[] | null; error: unknown }>(5);
+  const recentTicketsRes = unwrap<{ data: unknown[] | null; error: unknown }>(6);
+  const allCompaniesRes = unwrap<{ data: any[] | null; error: unknown }>(7);
+  const dacRes = unwrap<{ data: { company_id: string }[] | null; error: unknown }>(8);
+  const wacRes = unwrap<{ data: { company_id: string }[] | null; error: unknown }>(9);
+
+  // Log ma NON throw — mostriamo la dashboard con i dati parziali disponibili
+  if ((companiesRes as any).error) {
+    console.warn(
+      "[AdminDashboard] companies count query failed:",
+      (companiesRes as any).error
+    );
+  }
 
   const aggRow = (ordersAggRes.data as TotalOrdersValue[] | null)?.[0];
   const totalOrders = Number(aggRow?.total_count) || 0;

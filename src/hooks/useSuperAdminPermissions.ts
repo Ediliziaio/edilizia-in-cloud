@@ -70,6 +70,15 @@ export function useSuperAdminPermissions() {
     gcTime: 60 * 60 * 1000,
   });
 
+  // SAFETY NET: se il ruolo è `super_admin`, diamo SEMPRE ALL_TRUE.
+  // Questo previene che un record malformato o con tutti i flag a false
+  // (es. glitch di migrazione, rollback parziale, race nel bootstrap)
+  // blocchi l'accesso del super_admin alla dashboard. Gli altri ruoli
+  // admin-platform (company_admin, support, etc.) rispettano invece la riga.
+  if (role === "super_admin") {
+    return { permissions: ALL_TRUE, isLoading: false };
+  }
+
   // If record exists → use its explicit values.
   // If no record → full access by default (super_admin bootstrap / no restrictions set yet).
   const permissions: SuperAdminPermissions = data

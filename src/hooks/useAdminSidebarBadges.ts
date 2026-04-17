@@ -22,7 +22,10 @@ export function useAdminSidebarBadges() {
       const now = new Date();
       const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000).toISOString();
 
-      const [ticketsRes, trialsRes, maintenanceRes, announcementsRes, alertsRes] = await Promise.all([
+      // Fail-soft: se UNA delle query ha RLS broken (es. failure_alerts con
+      // policy `auth.jwt()->>role` pre-migration 000003), non vogliamo far
+      // saltare l'intera sidebar. allSettled → 0 per le query rotte.
+      const settled = await Promise.allSettled([
         supabase
           .from("support_conversations")
           .select("id", { count: "exact", head: true })
@@ -47,6 +50,17 @@ export function useAdminSidebarBadges() {
           .select("id", { count: "exact", head: true })
           .is("resolved_at", null),
       ]);
+
+      const pick = <T = any>(idx: number): T =>
+        settled[idx].status === "fulfilled"
+          ? ((settled[idx] as PromiseFulfilledResult<any>).value as T)
+          : ({ data: null, error: null, count: 0 } as unknown as T);
+
+      const ticketsRes = pick<{ count: number | null }>(0);
+      const trialsRes = pick<{ count: number | null }>(1);
+      const maintenanceRes = pick<{ data: { value: string } | null }>(2);
+      const announcementsRes = pick<{ count: number | null }>(3);
+      const alertsRes = pick<{ count: number | null }>(4);
 
       return {
         openTickets: ticketsRes.count || 0,
