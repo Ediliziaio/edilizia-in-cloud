@@ -339,13 +339,25 @@ function buildPromptFromConfig(session: any): {
     if (cinghia && CINGHIA_DESC[cinghia]) {
       iLines += `\n\nOPERATING MECHANISM:\n${CINGHIA_DESC[cinghia]}`;
     }
+    // Strap-removal semantics: if going from manual strap to motorized, explicitly remove strap winder
+    const currentCinghia = (analisi as Record<string, unknown>).cinghia_attuale as string | undefined;
+    if (cinghia === "senza_cinghia" && (currentCinghia === "con_cinghia" || analisi.presenza_tapparella)) {
+      iLines += `\n\n⚠️ STRAP REMOVAL — CRITICAL:\nIf an existing manual strap winder (avvolgitore a cinghia) box is visible on the interior wall beside the window, it MUST be removed entirely. Fill the wall area smoothly with plaster/paint matching the surrounding wall exactly — no ghost outline, no screw holes, no discoloration. On the exterior, the strap exit slot through the wall must be sealed and painted to blend into the facade.`;
+    }
     blocks.I = iLines;
   } else {
     blocks.I = `[BLOCK I – SHUTTER]\n${analisi.presenza_tapparella ? "Keep existing shutter exactly as-is." : "No shutter. Do not add one."}`;
   }
 
   // Block J
-  blocks.J = `[BLOCK J – PIXEL-PERFECT ENVIRONMENT PRESERVATION]\nThe following MUST remain 100% unchanged:\n- Wall: color (${analisi.colore_muro}), material (${analisi.materiale_muro}), texture, aging, stains\n- Window sill: ${analisi.presenza_davanzale ? "KEEP" : "NOT PRESENT — do not add"}\n- Security bars: ${analisi.presenza_inferriata ? "KEEP all bars" : "NOT PRESENT — do not add"}\n- Camera perspective: exact (${analisi.angolo_ripresa})\n- Surroundings: every pipe, cable, drain, crack, plant, neighboring window\n- Sky/background: identical\n- Lighting: same direction (${analisi.luce})`;
+  // Block J — Pixel-perfect environment preservation (with strap-winder exception)
+  {
+    const isStripping = tapparella.cinghia === "senza_cinghia" && sost.tapparella;
+    const wallExceptionNote = isStripping
+      ? `\n\n⚠️ WALL EXCEPTION (strap removal):\nThe small rectangular strap-winder box area on the interior wall (and its exit slot on the exterior) is the ONE allowed wall modification — fill seamlessly with matching plaster/paint. Every other square centimeter of wall remains pixel-identical.`
+      : "";
+    blocks.J = `[BLOCK J – PIXEL-PERFECT ENVIRONMENT PRESERVATION]\nThe following MUST remain 100% unchanged:\n- Wall: color (${analisi.colore_muro}), material (${analisi.materiale_muro}), texture, aging, stains\n- Window sill: ${analisi.presenza_davanzale ? "KEEP" : "NOT PRESENT — do not add"}\n- Security bars: ${analisi.presenza_inferriata ? "KEEP all bars" : "NOT PRESENT — do not add"}\n- Camera perspective: exact (${analisi.angolo_ripresa})\n- Surroundings: every pipe, cable, drain, crack, plant, neighboring window\n- Sky/background: identical\n- Lighting: same direction (${analisi.luce})${wallExceptionNote}`;
+  }
 
   // Block K
   blocks.K = `[BLOCK K – PHOTOREALISTIC LIGHTING & SHADOWS]\nLighting: ${analisi.luce}\nRequired shadows:\n- Frame shadow into wall rebate (~15-25mm depth)\n- Hinge shadow from each knuckle\n- Handle shadow on frame face\n- ${analisi.presenza_cassonetto ? "Cassonetto shadow onto wall below" : "No cassonetto shadow"}\n- Glass reflection matching scene light direction\n- Ambient occlusion in wall-to-frame rebate transition`;
@@ -739,7 +751,7 @@ Deno.serve(async (req) => {
     // ── Aggiorna render_sessions: completed ─────────────────────────────────
     const costReal = providerConfig.cost_real_per_render ?? 0.04;
     const costBilled = providerConfig.cost_billed_per_render ?? 0.10;
-    const activeConfig = sessionForPrompt.config as Record<string, unknown>;
+    const activeConfig = sessionLike.config as Record<string, unknown>;
     const ni = (activeConfig?.nuovo_infisso as Record<string, unknown>) || {};
 
     await supabase

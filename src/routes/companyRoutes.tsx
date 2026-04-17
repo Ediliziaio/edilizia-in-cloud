@@ -84,7 +84,7 @@ const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
 const RenderCategoryHub = lazy(() => import("@/pages/azienda/RenderCategoryHub"));
 const RenderHub = lazy(() => import("@/pages/azienda/RenderHub"));
-const RenderNew = lazy(() => import("@/pages/azienda/RenderNew"));
+const RenderNew = lazy(() => import("@/pages/azienda/RenderNewV2"));
 const RenderGallery = lazy(() => import("@/pages/azienda/RenderGallery"));
 const RenderGalleryDetail = lazy(() => import("@/pages/azienda/RenderGalleryDetail"));
 const RenderBagnoHub = lazy(() => import("@/pages/azienda/RenderBagnoHub"));
