@@ -27,7 +27,7 @@ in `src/test/logic/serramentiPricing.test.ts`.
 | 2 | Modello fornitori + linee prodotto | ✅ | 5648952e |
 | 3 | Extension listino_griglia axis_config + supplier | ✅ | c15b909b |
 | 4 | Editor matrice visuale Excel-like | ✅ | fd1c85c5 |
-| 5 | Import Excel/CSV bulk | ✅ | (pending) |
+| 5 | Import Excel/CSV bulk | ✅ | 827e7b72 |
 | 6 | Sconto + ricarico nel wizard preventivo | — | — |
 | 7 | Seed assi colore + vetro | — | — |
 | 8 | Multi-fascia per famiglia | — | — |
