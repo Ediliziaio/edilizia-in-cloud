@@ -802,12 +802,6 @@ export default function QuoteBuilder() {
     if (existingItems.length > 0) {
       setItems(
         existingItems.map((i) => {
-          // Addendum P2-04: tipi Supabase non ancora rigenerati (migration 20260917000012).
-          // Read defensively da any shape — se colonne assenti, default null.
-          const raw = i as typeof i & {
-            family_id?: string | null;
-            axis_selections?: Record<string, string> | null;
-          };
           return {
             id: i.id,
             item_type: i.item_type,
@@ -827,8 +821,11 @@ export default function QuoteBuilder() {
             is_optional: i.is_optional ?? false,
             misura_x: i.misura_x ?? null,
             misura_y: i.misura_y ?? null,
-            family_id: raw.family_id ?? null,
-            axis_selections: raw.axis_selections ?? null,
+            family_id: i.family_id ?? null,
+            axis_selections: (i.axis_selections as Record<string, string> | null) ?? null,
+            // STEP 6 Serramenti Avanzati
+            supplier_catalog_id: i.supplier_catalog_id ?? null,
+            supplier_product_line_id: i.supplier_product_line_id ?? null,
           };
         })
       );
@@ -1491,12 +1488,14 @@ export default function QuoteBuilder() {
             misura_x: it.misura_x ?? null,
             misura_y: it.misura_y ?? null,
             // Addendum P2-04: persist wizard serramentista config.
-            // TODO IMP10: i tipi generati non includono ancora queste colonne
-            // (nuova migration 20260917000012). Refresh tipi a prossimo giro.
             family_id: it.family_id ?? null,
             axis_selections: it.axis_selections ?? null,
+            // STEP 6 Serramenti Avanzati: fornitore/linea prodotto per
+            // rigenerazione coerente prezzo + calcolo margine atteso.
+            supplier_catalog_id: it.supplier_catalog_id ?? null,
+            supplier_product_line_id: it.supplier_product_line_id ?? null,
             // line_total è GENERATED ALWAYS dal DB — non va inserito esplicitamente
-          })) as never // supabase type gen non allineato — cast safe: colonne reali in DB
+          }))
         );
         if (itemsErr) throw itemsErr;
       }

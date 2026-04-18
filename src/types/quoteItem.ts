@@ -30,5 +30,12 @@ export interface QuoteItemPro {
   // è valorizzato, article_template_id DEVE essere null (check DB).
   family_id?: string | null;
   axis_selections?: Record<string, string> | null;
+  // STEP 6 Serramenti Avanzati: fornitore + linea prodotto usati per calcolare
+  // il prezzo base dalla matrice. Popolati SOLO se il wizard ha selezionato
+  // una linea (feature listini_serramenti_avanzati). Servono per:
+  //  - rigenerare il prezzo in modifica con le stesse regole
+  //  - calcolo margine atteso coerente (FASE 11)
+  supplier_catalog_id?: string | null;
+  supplier_product_line_id?: string | null;
   _parentIdx?: number;
 }

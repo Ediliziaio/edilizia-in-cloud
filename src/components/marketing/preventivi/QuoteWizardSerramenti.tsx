@@ -6,13 +6,21 @@
  * Output: onAddItems(items: QuoteItemPro[]) — prodotto + eventuale posa.
  *
  * Steps:
- *  1. Selezione famiglia (grid di card)
+ *  1. Selezione famiglia (grid di card) + linea prodotto fornitore (STEP 6)
  *  2. Misure + quantità (L×H mm, qty) — skippato se modalità=pz senza misure
  *  3. Configurazione assi (dropdown per ogni asse)
  *  4. Riepilogo + aggiungi (unit_price + totale + maggiorazioni applicate)
  *
  * Single source of truth resta `items[]` di QuoteBuilder; il wizard NON salva
  * nulla in DB, passa solo QuoteItemPro[] al parent via callback.
+ *
+ * STEP 6 Listini Serramenti Avanzati:
+ *  - Se per la famiglia selezionata esistono celle di griglia con una o più
+ *    linee prodotto fornitore, il wizard mostra un selettore "Linea prodotto".
+ *  - Il prezzo vendita viene derivato da `prezzo_acquisto × (1 + ricarico_linea)`
+ *    perché listino_griglia contiene il LISTINO come `prezzo_vendita`.
+ *  - Il fornitore + linea scelti vengono persistiti su quote_items per
+ *    rigenerazione coerente in modifica e per calcolo margine atteso.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -32,7 +40,12 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChevronLeft, ChevronRight, Check, Package, AlertCircle } from "lucide-react";
 import { useFamilies } from "@/hooks/useFamilies";
-import { useFamilyGrid, calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
+import {
+  useFamilyGrid,
+  calcolaPrezzoFamiglia,
+  adjustGridForRicarico,
+} from "@/hooks/useFamilyPricing";
+import { useSupplierProductLines } from "@/features/serramenti-listini";
 import { formatCurrency } from "@/lib/formatters";
 import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
 import type { QuoteItemPro } from "@/types/quoteItem";
@@ -63,17 +76,67 @@ export default function QuoteWizardSerramenti({
   const [quantita, setQuantita] = useState("1");
   const [selection, setSelection] = useState<AxisSelection>({});
   const [search, setSearch] = useState("");
+  // STEP 6: linea prodotto selezionata (null = legacy, usa prezzo_vendita as-is).
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
 
   const { data: grigliaPunti = [] } = useFamilyGrid(selectedFamily?.id);
+
+  // STEP 6: tutte le linee prodotto dell'azienda (cached 5 min).
+  // Servono per: (a) mostrare label fornitore/linea, (b) leggere ricarico_default
+  // per applicare la formula sconto/ricarico sul prezzo finale.
+  const { lines: allLines } = useSupplierProductLines();
+
+  // Linee prodotto DISPONIBILI per la famiglia: intersezione tra le linee
+  // configurate in azienda e le linee effettivamente presenti nelle celle di
+  // griglia della famiglia selezionata. Se vuoto → fallback legacy.
+  const availableLines = useMemo(() => {
+    if (!selectedFamily) return [];
+    const idsInGrid = new Set(
+      grigliaPunti
+        .map((p) => p.supplier_product_line_id)
+        .filter((id): id is string => !!id),
+    );
+    return allLines.filter((l) => idsInGrid.has(l.id) && l.attivo);
+  }, [selectedFamily, grigliaPunti, allLines]);
+
+  // Dettaglio linea scelta (null se nessuna o legacy). Serve per ricarico + IDs.
+  const selectedLine = useMemo(
+    () => availableLines.find((l) => l.id === selectedLineId) ?? null,
+    [availableLines, selectedLineId],
+  );
+
+  // Griglia filtrata + prezzo vendita aggiustato via ricarico (STEP 6).
+  const grigliaAdjusted = useMemo(() => {
+    if (!selectedLine) return grigliaPunti;
+    const filtered = grigliaPunti.filter(
+      (p) => p.supplier_product_line_id === selectedLine.id,
+    );
+    return adjustGridForRicarico(filtered, selectedLine.ricarico_default);
+  }, [grigliaPunti, selectedLine]);
 
   // Reset quando si apre/chiude
   useEffect(() => {
     if (open) {
       setStep(1);
       setSelectedFamily(null);
+      setSelectedLineId(null);
       setSearch("");
     }
   }, [open]);
+
+  // Auto-seleziona la prima linea disponibile quando:
+  //  - cambia famiglia → availableLines si aggiorna
+  //  - non c'è ancora una selezione o la selezione corrente non è più valida
+  useEffect(() => {
+    if (availableLines.length === 0) {
+      if (selectedLineId !== null) setSelectedLineId(null);
+      return;
+    }
+    const stillValid = availableLines.some((l) => l.id === selectedLineId);
+    if (!stillValid) {
+      setSelectedLineId(availableLines[0].id);
+    }
+  }, [availableLines, selectedLineId]);
 
   // Inizializza selezioni assi con default quando si sceglie una famiglia.
   // Intenzionalmente dep solo su `selectedFamily?.id`: se useFamilies refetch
@@ -119,9 +182,11 @@ export default function QuoteWizardSerramenti({
         lunghezza_ml: undefined,
         quantita: parseFloat(quantita) || 1,
       },
-      needsXY ? grigliaPunti : undefined,
+      // STEP 6: usa la griglia filtrata per linea + aggiustata con ricarico
+      // quando disponibile. Fallback alla griglia intera per compat legacy.
+      needsXY ? grigliaAdjusted : undefined,
     );
-  }, [selectedFamily, selection, larghezza, altezza, quantita, grigliaPunti, needsXY]);
+  }, [selectedFamily, selection, larghezza, altezza, quantita, grigliaAdjusted, needsXY]);
 
   const canAdvance = (): boolean => {
     if (step === 1) return !!selectedFamily;
@@ -187,6 +252,11 @@ export default function QuoteWizardSerramenti({
       // sono state scelte (evita perdita dati al salvataggio).
       family_id: selectedFamily.id,
       axis_selections: { ...selection },
+      // STEP 6 Serramenti Avanzati: fornitore + linea per calcolo margine
+      // atteso e rigenerazione prezzo in modifica. Null se l'utente non usa
+      // la feature listini_serramenti_avanzati.
+      supplier_catalog_id: selectedLine?.supplier_catalog_id ?? null,
+      supplier_product_line_id: selectedLine?.id ?? null,
     });
 
     // Posa di default se presente
@@ -331,6 +401,44 @@ export default function QuoteWizardSerramenti({
                   </Card>
                 ))}
               </div>
+
+              {/* STEP 6: selettore linea prodotto (appare solo se ci sono
+                   griglie configurate per la famiglia selezionata). */}
+              {selectedFamily && availableLines.length > 0 && (
+                <div className="rounded-md border p-3 bg-muted/20 space-y-2">
+                  <Label htmlFor="wizard-linea-prodotto" className="text-sm font-medium">
+                    Linea prodotto fornitore
+                    {availableLines.length > 1 && (
+                      <span className="text-destructive" aria-label="obbligatorio"> *</span>
+                    )}
+                  </Label>
+                  <Select
+                    value={selectedLineId ?? ""}
+                    onValueChange={(v) => setSelectedLineId(v || null)}
+                  >
+                    <SelectTrigger
+                      id="wizard-linea-prodotto"
+                      aria-label="Seleziona linea prodotto fornitore"
+                    >
+                      <SelectValue placeholder="Seleziona linea..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableLines.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.nome}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            (ricarico +{Math.round((l.ricarico_default ?? 0) * 100)}%)
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Il prezzo di vendita viene calcolato applicando il ricarico
+                    della linea al costo di acquisto (listino scontato).
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -341,6 +449,12 @@ export default function QuoteWizardSerramenti({
                 <p className="font-medium">{selectedFamily.nome}</p>
                 <p className="text-xs text-muted-foreground">
                   Modalità: {selectedFamily.modalita_prezzo_base}
+                  {selectedLine && (
+                    <>
+                      {" · "}
+                      <span className="font-medium">Linea: {selectedLine.nome}</span>
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -515,6 +629,17 @@ export default function QuoteWizardSerramenti({
                     <span className="text-muted-foreground">Prodotto:</span>
                     <span className="font-medium">{selectedFamily.nome}</span>
                   </div>
+                  {selectedLine && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Linea fornitore:</span>
+                      <span className="font-medium">
+                        {selectedLine.nome}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          (ricarico +{Math.round((selectedLine.ricarico_default ?? 0) * 100)}%)
+                        </span>
+                      </span>
+                    </div>
+                  )}
                   {needsXY && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Dimensioni:</span>

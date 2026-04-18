@@ -26,6 +26,13 @@ export interface GridPoint {
   valore_y: number;
   prezzo_vendita: number;
   prezzo_acquisto_netto: number | null;
+  /**
+   * STEP 6 Serramenti Avanzati: fornitore sorgente della cella. NULL per
+   * griglia "base" senza supplier (caso di aziende che non usano listini
+   * avanzati). Serve al wizard per filtrare e applicare sconto/ricarico.
+   */
+  supplier_catalog_id?: string | null;
+  supplier_product_line_id?: string | null;
 }
 
 export interface PricingInput {
@@ -270,6 +277,10 @@ export function calcolaPrezzoFamiglia(
  * Hook React Query: carica i punti griglia di una famiglia (cachati 5 min).
  * Invalidato automaticamente al salvataggio famiglia/griglia via
  * queryKeys.articleFamilies.grid(id).
+ *
+ * STEP 6: include supplier_catalog_id e supplier_product_line_id nel payload
+ * per permettere al wizard di filtrare per linea prodotto e applicare
+ * sconto/ricarico corretto lato client.
  */
 export function useFamilyGrid(familyId: string | undefined) {
   return useQuery({
@@ -284,7 +295,9 @@ export function useFamilyGrid(familyId: string | undefined) {
       // Mappiamo qui al dominio GridPoint.prezzo_acquisto_netto.
       const { data, error } = await (supabase as never as typeof supabase)
         .from("listino_griglia" as never)
-        .select("valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
+        .select(
+          "valore_x, valore_y, prezzo_vendita, prezzo_acquisto, supplier_catalog_id, supplier_product_line_id",
+        )
         .eq("family_id" as never, familyId);
       if (error) throw error;
       return ((data ?? []) as Array<{
@@ -292,12 +305,49 @@ export function useFamilyGrid(familyId: string | undefined) {
         valore_y: number;
         prezzo_vendita: number;
         prezzo_acquisto: number | null;
+        supplier_catalog_id: string | null;
+        supplier_product_line_id: string | null;
       }>).map((r) => ({
         valore_x: Number(r.valore_x),
         valore_y: Number(r.valore_y),
         prezzo_vendita: Number(r.prezzo_vendita),
         prezzo_acquisto_netto: r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0,
+        supplier_catalog_id: r.supplier_catalog_id,
+        supplier_product_line_id: r.supplier_product_line_id,
       }));
     },
   });
+}
+
+/**
+ * STEP 6 Serramenti Avanzati — adatta i GridPoint al prezzo vendita reale.
+ *
+ * Nel MatriceEditor (STEP 4) salviamo in listino_griglia:
+ *   - prezzo_vendita   = listino fornitore (PRE sconto)
+ *   - prezzo_acquisto  = listino × (1 − sconto) = quanto l'azienda paga
+ *
+ * Il prezzo di vendita REALE al cliente è invece:
+ *   prezzo_acquisto × (1 + ricarico_linea)
+ *
+ * Questa funzione riproduce tale trasformazione in lettura: restituisce una
+ * nuova lista di GridPoint dove `prezzo_vendita` è già il valore che il
+ * wizard deve mostrare al cliente (prima delle maggiorazioni assi).
+ *
+ * Se `ricarico` è null/undefined/0 ritorna la lista invariata (retro-compat
+ * con griglie legacy dove prezzo_vendita era già il finale).
+ */
+export function adjustGridForRicarico(
+  points: GridPoint[],
+  ricarico: number | null | undefined,
+): GridPoint[] {
+  if (ricarico == null || !Number.isFinite(ricarico) || ricarico <= 0) {
+    return points;
+  }
+  return points.map((p) => ({
+    ...p,
+    prezzo_vendita:
+      p.prezzo_acquisto_netto != null && p.prezzo_acquisto_netto > 0
+        ? round2(p.prezzo_acquisto_netto * (1 + ricarico))
+        : p.prezzo_vendita,
+  }));
 }

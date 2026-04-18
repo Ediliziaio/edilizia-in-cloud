@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       active_impersonations: {
@@ -22158,6 +22183,8 @@ export type Database = {
           quantity: number | null
           quote_id: string
           sort_order: number | null
+          supplier_catalog_id: string | null
+          supplier_product_line_id: string | null
           tariffa_id: string | null
           unit_of_measure: string | null
           unit_price: number | null
@@ -22191,6 +22218,8 @@ export type Database = {
           quantity?: number | null
           quote_id: string
           sort_order?: number | null
+          supplier_catalog_id?: string | null
+          supplier_product_line_id?: string | null
           tariffa_id?: string | null
           unit_of_measure?: string | null
           unit_price?: number | null
@@ -22224,6 +22253,8 @@ export type Database = {
           quantity?: number | null
           quote_id?: string
           sort_order?: number | null
+          supplier_catalog_id?: string | null
+          supplier_product_line_id?: string | null
           tariffa_id?: string | null
           unit_of_measure?: string | null
           unit_price?: number | null
@@ -22285,6 +22316,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_preventivo_analisi"
             referencedColumns: ["quote_id"]
+          },
+          {
+            foreignKeyName: "quote_items_supplier_catalog_id_fkey"
+            columns: ["supplier_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_catalogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_supplier_product_line_id_fkey"
+            columns: ["supplier_product_line_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_product_lines"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "quote_items_tariffa_id_fkey"
@@ -33854,6 +33899,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: [
