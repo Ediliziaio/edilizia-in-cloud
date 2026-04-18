@@ -27616,6 +27616,131 @@ export type Database = {
           },
         ]
       }
+      supplier_catalogs: {
+        Row: {
+          attivo: boolean
+          codice_interno: string | null
+          company_id: string
+          created_at: string
+          id: string
+          nome: string
+          note: string | null
+          sconto_default: number
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          codice_interno?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          note?: string | null
+          sconto_default?: number
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          codice_interno?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          note?: string | null
+          sconto_default?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_catalogs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "supplier_catalogs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_product_lines: {
+        Row: {
+          attivo: boolean
+          company_id: string
+          created_at: string
+          id: string
+          manodopera_tariffa_id: string | null
+          materiale: string
+          nome: string
+          note: string | null
+          ricarico_default: number
+          sconto_override: number | null
+          supplier_catalog_id: string
+          updated_at: string
+        }
+        Insert: {
+          attivo?: boolean
+          company_id: string
+          created_at?: string
+          id?: string
+          manodopera_tariffa_id?: string | null
+          materiale?: string
+          nome: string
+          note?: string | null
+          ricarico_default?: number
+          sconto_override?: number | null
+          supplier_catalog_id: string
+          updated_at?: string
+        }
+        Update: {
+          attivo?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          manodopera_tariffa_id?: string | null
+          materiale?: string
+          nome?: string
+          note?: string | null
+          ricarico_default?: number
+          sconto_override?: number | null
+          supplier_catalog_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_product_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "supplier_product_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_product_lines_manodopera_tariffa_id_fkey"
+            columns: ["manodopera_tariffa_id"]
+            isOneToOne: false
+            referencedRelation: "tariffe_aziendali"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_product_lines_supplier_catalog_id_fkey"
+            columns: ["supplier_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_catalogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           address: string | null

@@ -1065,4 +1065,22 @@ export const queryKeys = {
     detail: (bundleId: string | undefined) =>
       ["bundles", "detail", bundleId] as const,
   },
+
+  // ── Listini Serramenti: Fornitori + Linee Prodotto (STEP 2) ────────────
+  supplierCatalogs: {
+    all: ["supplier-catalogs"] as const,
+    list: (companyId: string | undefined) =>
+      ["supplier-catalogs", "list", companyId] as const,
+    detail: (supplierId: string | undefined) =>
+      ["supplier-catalogs", "detail", supplierId] as const,
+  },
+  supplierProductLines: {
+    all: ["supplier-product-lines"] as const,
+    list: (companyId: string | undefined) =>
+      ["supplier-product-lines", "list", companyId] as const,
+    byCatalog: (supplierCatalogId: string | undefined) =>
+      ["supplier-product-lines", "by-catalog", supplierCatalogId] as const,
+    detail: (lineId: string | undefined) =>
+      ["supplier-product-lines", "detail", lineId] as const,
+  },
 } as const;

@@ -41,6 +41,9 @@ const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/Setti
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
 const ListinoManutenzione = lazy(() => import("@/pages/azienda/settings/ListinoManutenzione"));
+const ListiniFornitoriPage = lazy(() =>
+  import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
+);
 const SettingsMargini = lazy(() => import("@/pages/azienda/settings/SettingsMargini"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
@@ -412,6 +415,17 @@ export function companyRoutes() {
           <Route path="bundle" element={<SettingsBundle />} />
           <Route path="tariffe" element={<SettingsTariffe />} />
           <Route path="listino-manutenzione" element={<ListinoManutenzione />} />
+          {/* Listini Serramenti Avanzati (feature opt-in) */}
+          <Route
+            path="listini-serramenti/fornitori"
+            element={
+              <FeatureRoute featureKey="listini_serramenti_avanzati">
+                <ErrorBoundary title="Errore listini serramenti">
+                  <ListiniFornitoriPage />
+                </ErrorBoundary>
+              </FeatureRoute>
+            }
+          />
           <Route path="margini" element={<SettingsMargini />} />
           <Route path="stati-ordine" element={<SettingsOrderStatus />} />
           <Route path="fornitori" element={<SettingsSuppliers />} />

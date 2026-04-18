@@ -11,9 +11,23 @@
 // Hooks
 export { useListiniFeature, LISTINI_SERRAMENTI_FEATURE_KEY } from "./hooks/useListiniFeature";
 export { useInstallaCatalogoSerramenti } from "./hooks/useInstallaCatalogoSerramenti";
+export {
+  useSupplierCatalogs,
+  useSupplierCatalogMutations,
+} from "./hooks/useSupplierCatalogs";
+export {
+  useSupplierProductLines,
+  useSupplierProductLineMutations,
+} from "./hooks/useSupplierProductLines";
 
 // Components
 export { InstallaCatalogoButton } from "./components/InstallaCatalogoButton";
+export { FornitoriManager } from "./components/FornitoriManager";
+export { SupplierCatalogFormDialog } from "./components/SupplierCatalogFormDialog";
+export { SupplierProductLineFormDialog } from "./components/SupplierProductLineFormDialog";
+
+// Pages
+export { default as ListiniFornitoriPage } from "./pages/ListiniFornitori";
 
 // Data (catalogo statico, utile in UI per icone e lookup per slug)
 export {

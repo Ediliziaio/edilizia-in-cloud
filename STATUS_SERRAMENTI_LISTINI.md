@@ -23,8 +23,8 @@ in `src/test/logic/serramentiPricing.test.ts`.
 | Step | Descrizione | Stato | Commit |
 |------|-------------|-------|--------|
 | 0 | Setup feature folder + flag + formula prezzo + test | ✅ | 01c88425 |
-| 1 | Seed catalogo 20 tipologie + edge fn installa | ✅ | _pending_ |
-| 2 | Modello fornitori + linee prodotto | — | — |
+| 1 | Seed catalogo 20 tipologie + edge fn installa | ✅ | 31009a88 |
+| 2 | Modello fornitori + linee prodotto | ✅ | _pending_ |
 | 3 | Extension listino_griglia axis_config + supplier | — | — |
 | 4 | Editor matrice visuale Excel-like | — | — |
 | 5 | Import Excel/CSV bulk | — | — |
@@ -59,6 +59,46 @@ nel catalogo client. Idempotente: ri-chiamate non duplicano.
 
 Integrazione UI: nessuna, ancora. Il bottone è pronto per essere
 montato nelle pagine admin/listini in STEP 4.
+
+## STEP 2 — dettaglio deliverable
+
+Consegnati:
+
+- `supabase/migrations/20260917000014_serramenti_14_supplier_catalogs.sql`
+  — 2 tabelle (`supplier_catalogs`, `supplier_product_lines`), indici,
+    RLS (select/cud/super_admin), trigger updated_at, CHECK materiale,
+    UNIQUE(company_id, nome) e UNIQUE(supplier_catalog_id, nome) per dedup,
+    FK manodopera_tariffa_id → tariffe_aziendali, tutto idempotente
+- `src/integrations/supabase/types.ts`
+  — aggiunte manualmente `supplier_catalogs` e `supplier_product_lines`
+    con Row/Insert/Update/Relationships (in alphabetical order prima di `suppliers`)
+- `src/features/serramenti-listini/hooks/useSupplierCatalogs.ts`
+  — TanStack Query: list + create/update/remove (soft-delete via attivo=false)
+- `src/features/serramenti-listini/hooks/useSupplierProductLines.ts`
+  — TanStack Query: list (by company o by catalog) + create/update/remove
+- `src/features/serramenti-listini/components/SupplierCatalogFormDialog.tsx`
+  — shadcn Dialog con validazione client (nome ≥ 2, sconto 0–100)
+- `src/features/serramenti-listini/components/SupplierProductLineFormDialog.tsx`
+  — shadcn Dialog con Select materiale + validazione UUID tariffa opzionale
+- `src/features/serramenti-listini/components/FornitoriManager.tsx`
+  — UI unificata: lista fornitori selezionabile → linee prodotto del selezionato,
+    Empty/Error/Loading state, AlertDialog soft-delete con conferma
+- `src/features/serramenti-listini/pages/ListiniFornitori.tsx`
+  — pagina container gated dalla feature `listini_serramenti_avanzati`
+- `src/routes/companyRoutes.tsx`
+  — route `/azienda/impostazioni/listini-serramenti/fornitori` dietro FeatureRoute
+- `src/lib/queryKeys.ts`
+  — queryKeys.supplierCatalogs e queryKeys.supplierProductLines
+- `src/features/serramenti-listini/index.ts`
+  — esportati nuovi hook/component/page
+
+Comportamento: la pagina espone CRUD su fornitori + linee. Validazione
+percentuali con UI in %, convertite a 0..1 prima del submit.
+Nessuna integrazione col wizard preventivo in STEP 2 — wiring in STEP 6.
+
+⚠ Migration NON applicata automaticamente (MCP Supabase punta ad altro
+progetto). Da applicare via CLI supabase dell'utente:
+`supabase db push` o pipeline di deploy standard.
 
 ## Vincoli architettonici
 
