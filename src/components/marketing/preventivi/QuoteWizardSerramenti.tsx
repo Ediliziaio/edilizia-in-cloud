@@ -182,6 +182,11 @@ export default function QuoteWizardSerramenti({
       is_optional: false,
       misura_x: needsXY ? parseFloat(larghezza) || null : null,
       misura_y: needsXY ? parseFloat(altezza) || null : null,
+      // Addendum P2-04: persisti configurazione famiglia serramentista, così
+      // riaprendo il preventivo si sa esattamente quale famiglia e quali varianti
+      // sono state scelte (evita perdita dati al salvataggio).
+      family_id: selectedFamily.id,
+      axis_selections: { ...selection },
     });
 
     // Posa di default se presente

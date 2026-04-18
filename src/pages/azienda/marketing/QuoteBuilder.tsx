@@ -801,26 +801,36 @@ export default function QuoteBuilder() {
   useEffect(() => {
     if (existingItems.length > 0) {
       setItems(
-        existingItems.map((i) => ({
-          id: i.id,
-          item_type: i.item_type,
-          item_category: i.item_category || "prodotto",
-          name: i.name,
-          description: i.description || "",
-          quantity: i.quantity,
-          unit_price: i.unit_price,
-          discount_percent: i.discount_percent || 0,
-          vat_rate: i.vat_rate,
-          unit_of_measure: i.unit_of_measure || "pz",
-          sort_order: i.sort_order,
-          article_template_id: i.article_template_id,
-          tariffa_id: i.tariffa_id || null,
-          prezzo_acquisto: i.prezzo_acquisto ?? 0,
-          mostra_nel_pdf: i.mostra_nel_pdf ?? true,
-          is_optional: i.is_optional ?? false,
-          misura_x: i.misura_x ?? null,
-          misura_y: i.misura_y ?? null,
-        }))
+        existingItems.map((i) => {
+          // Addendum P2-04: tipi Supabase non ancora rigenerati (migration 20260917000012).
+          // Read defensively da any shape — se colonne assenti, default null.
+          const raw = i as typeof i & {
+            family_id?: string | null;
+            axis_selections?: Record<string, string> | null;
+          };
+          return {
+            id: i.id,
+            item_type: i.item_type,
+            item_category: i.item_category || "prodotto",
+            name: i.name,
+            description: i.description || "",
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            discount_percent: i.discount_percent || 0,
+            vat_rate: i.vat_rate,
+            unit_of_measure: i.unit_of_measure || "pz",
+            sort_order: i.sort_order,
+            article_template_id: i.article_template_id,
+            tariffa_id: i.tariffa_id || null,
+            prezzo_acquisto: i.prezzo_acquisto ?? 0,
+            mostra_nel_pdf: i.mostra_nel_pdf ?? true,
+            is_optional: i.is_optional ?? false,
+            misura_x: i.misura_x ?? null,
+            misura_y: i.misura_y ?? null,
+            family_id: raw.family_id ?? null,
+            axis_selections: raw.axis_selections ?? null,
+          };
+        })
       );
     }
   }, [existingItems]);
@@ -979,6 +989,10 @@ export default function QuoteBuilder() {
       misure_y_mm: number | null;
       unit_price?: number;
       is_posa_di?: string | null;
+      // Addendum P2-04: se l'AI ha scelto una famiglia+config, propaga
+      // al quote_items per persistenza.
+      family_id?: string | null;
+      axis_selections?: Record<string, string> | null;
     }>
   ) => {
     // Resolve cost prices and VAT for every row before updating state
@@ -997,7 +1011,15 @@ export default function QuoteBuilder() {
           const my = r.misure_y_mm ?? undefined;
           const calc = await calcolaPrezzoProdotto(art, r.quantita, mx, my);
           const qty = r.quantita || 1;
-          if (upv === 0) upv = qty > 0 ? calc.prezzo_vendita / qty : calc.prezzo_vendita;
+          // Addendum P1-02: per modalità che dipendono da misure/listino dinamico
+          // (mq/griglia) il calc client è autoritativo; l'upv eventualmente mandato
+          // dall'AI potrebbe essere stale o inaccurato (nearest-neighbor vs exact).
+          // Per pz/misura_libera invece l'upv AI è la volontà dell'utente.
+          const modalita = art.modalita_prezzo ?? "pz";
+          const forceRecalc = modalita === "mq" || modalita === "griglia";
+          if (forceRecalc || upv === 0) {
+            upv = qty > 0 ? calc.prezzo_vendita / qty : calc.prezzo_vendita;
+          }
           upa = qty > 0 ? calc.prezzo_acquisto / qty : calc.prezzo_acquisto;
         }
       } else if (r.tariffa_id) {
@@ -1021,13 +1043,18 @@ export default function QuoteBuilder() {
         vat_rate,
         unit_of_measure: r.unita_misura || "pz",
         sort_order: 0,
-        article_template_id: r.article_template_id ?? null,
+        // Vincolo DB (migration 20260917000012): family_id e article_template_id
+        // mutualmente esclusivi. Se AI ha scelto famiglia, zeramo article id.
+        article_template_id: r.family_id ? null : (r.article_template_id ?? null),
         tariffa_id: r.tariffa_id ?? null,
         prezzo_acquisto: upa,
         mostra_nel_pdf: true,
         is_optional: false,
         misura_x: r.misure_x_mm ?? null,
         misura_y: r.misure_y_mm ?? null,
+        // Addendum P2-04: preserva config famiglia scelta dall'AI.
+        family_id: r.family_id ?? null,
+        axis_selections: r.axis_selections ?? null,
       } as QuoteItemPro);
     }
 
@@ -1463,8 +1490,13 @@ export default function QuoteBuilder() {
             is_optional: it.is_optional ?? false,
             misura_x: it.misura_x ?? null,
             misura_y: it.misura_y ?? null,
+            // Addendum P2-04: persist wizard serramentista config.
+            // TODO IMP10: i tipi generati non includono ancora queste colonne
+            // (nuova migration 20260917000012). Refresh tipi a prossimo giro.
+            family_id: it.family_id ?? null,
+            axis_selections: it.axis_selections ?? null,
             // line_total è GENERATED ALWAYS dal DB — non va inserito esplicitamente
-          }))
+          })) as never // supabase type gen non allineato — cast safe: colonne reali in DB
         );
         if (itemsErr) throw itemsErr;
       }

@@ -189,9 +189,11 @@ Deno.serve(async (req) => {
       values: AxisValue[];
     };
     const familyAxesMap = new Map<string, Axis[]>();
+    // NB: la tabella listino_griglia usa colonna `prezzo_acquisto` (NON `_netto` come
+    // article_templates). Addendum P1-01: allineamento naming DB↔code.
     const familyGridsMap = new Map<
       string,
-      Array<{ valore_x: number; valore_y: number; prezzo_vendita: number; prezzo_acquisto_netto: number | null }>
+      Array<{ valore_x: number; valore_y: number; prezzo_vendita: number; prezzo_acquisto: number | null }>
     >();
     const famiglieIds = famiglieMatched.map((f: any) => f.id);
     if (famiglieIds.length > 0) {
@@ -239,7 +241,7 @@ Deno.serve(async (req) => {
       if (gridFamilyIds.length > 0) {
         const { data: famGridRows } = await supabaseAdmin
           .from("listino_griglia")
-          .select("family_id,valore_x,valore_y,prezzo_vendita,prezzo_acquisto_netto")
+          .select("family_id,valore_x,valore_y,prezzo_vendita,prezzo_acquisto")
           .in("family_id", gridFamilyIds);
         for (const g of (famGridRows ?? []) as any[]) {
           const arr = familyGridsMap.get(g.family_id) ?? [];
@@ -247,7 +249,7 @@ Deno.serve(async (req) => {
             valore_x: Number(g.valore_x),
             valore_y: Number(g.valore_y),
             prezzo_vendita: Number(g.prezzo_vendita) || 0,
-            prezzo_acquisto_netto: g.prezzo_acquisto_netto != null ? Number(g.prezzo_acquisto_netto) : null,
+            prezzo_acquisto: g.prezzo_acquisto != null ? Number(g.prezzo_acquisto) : null,
           });
           familyGridsMap.set(g.family_id, arr);
         }

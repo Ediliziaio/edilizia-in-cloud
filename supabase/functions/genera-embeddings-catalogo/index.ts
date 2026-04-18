@@ -22,7 +22,11 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIM = 1536;
-const BATCH_SIZE = 50;
+// Addendum P2-02: aumento da 50 a 100 inputs per chiamata OpenAI.
+// text-embedding-3-small supporta fino a 2048 inputs/req; 100 è il
+// sweet-spot tra throughput (meno round-trip) e rischio timeout OpenAI
+// per cataloghi grandi. Ogni batch resta sotto i limiti soft rate-limit.
+const BATCH_SIZE = 100;
 
 type Mode = "all" | "missing" | "single";
 type Target = "articles" | "families" | "tariffe";

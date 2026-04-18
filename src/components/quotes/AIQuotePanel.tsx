@@ -54,6 +54,11 @@ interface RigaGenerata {
   misure_y_mm: number | null;
   unit_price?: number;
   is_posa_di?: string | null;
+  // Addendum P2-04: identità famiglia+configurazione quando l'AI sceglie
+  // un'istanza di article_families invece di un article_templates puntuale.
+  // Passati through da quote_items per preservare la config nel preventivo.
+  family_id?: string | null;
+  axis_selections?: Record<string, string> | null;
 }
 
 interface SezioneGenerata {

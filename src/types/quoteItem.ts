@@ -25,5 +25,10 @@ export interface QuoteItemPro {
   is_optional: boolean;
   misura_x?: number | null;
   misura_y?: number | null;
+  // Addendum P2-04: configurazione famiglia serramentista (wizard 4-step).
+  // Popolati SOLO per righe generate da QuoteWizardSerramenti. Se family_id
+  // è valorizzato, article_template_id DEVE essere null (check DB).
+  family_id?: string | null;
+  axis_selections?: Record<string, string> | null;
   _parentIdx?: number;
 }
