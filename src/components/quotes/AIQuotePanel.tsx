@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,7 @@ interface AIQuotePanelProps {
 }
 
 function categoryIcon(cat: string) {
-  const map: Record<string, any> = {
+  const map: Record<string, ReactNode> = {
     prodotto: <Package className="h-3 w-3" />,
     posa: <Wrench className="h-3 w-3" />,
     trasporto: <Truck className="h-3 w-3" />,
@@ -173,7 +173,7 @@ export default function AIQuotePanel({
           return s + 1;
         });
       }, 1000);
-    } catch (err) {
+    } catch {
       toast.error("Microfono non disponibile — usa la modalità testo");
       setActiveTab("testo");
     }
@@ -213,8 +213,9 @@ export default function AIQuotePanel({
       setAvvertenze(data.avvertenze ?? []);
       setNote(data.note ?? "");
       setStato("risultato");
-    } catch (err: any) {
-      toast.error(err.message || "Errore generazione");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore generazione";
+      toast.error(msg);
       setStato("errore");
     }
   };

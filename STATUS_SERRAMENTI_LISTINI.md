@@ -25,7 +25,7 @@ in `src/test/logic/serramentiPricing.test.ts`.
 | 0 | Setup feature folder + flag + formula prezzo + test | ✅ | 01c88425 |
 | 1 | Seed catalogo 20 tipologie + edge fn installa | ✅ | 31009a88 |
 | 2 | Modello fornitori + linee prodotto | ✅ | 5648952e |
-| 3 | Extension listino_griglia axis_config + supplier | ✅ | _pending_ |
+| 3 | Extension listino_griglia axis_config + supplier | ✅ | c15b909b |
 | 4 | Editor matrice visuale Excel-like | — | — |
 | 5 | Import Excel/CSV bulk | — | — |
 | 6 | Sconto + ricarico nel wizard preventivo | — | — |
