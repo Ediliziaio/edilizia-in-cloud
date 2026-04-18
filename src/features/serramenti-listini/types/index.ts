@@ -115,7 +115,9 @@ export interface TipologiaSerramento {
   ante: number | null; // 1, 2, 3, 4, null (vasistas, fisso)
   descrizione: string;
   icon_svg: string; // JSX-compatible SVG inline
-  modalita_prezzo_base_default: "mq" | "griglia";
+  /** Modalità prezzo base — DEVE essere coerente con CHECK constraint DB
+   *  (article_families.modalita_prezzo_base). */
+  modalita_prezzo_base_default: "pz" | "mq" | "griglia" | "misura_libera";
   unit_of_measure_default: string;
   area_max_mq: number | null; // vincolo fornitore tipico (2.25 m²)
 }

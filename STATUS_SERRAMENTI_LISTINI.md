@@ -22,8 +22,8 @@ in `src/test/logic/serramentiPricing.test.ts`.
 
 | Step | Descrizione | Stato | Commit |
 |------|-------------|-------|--------|
-| 0 | Setup feature folder + flag + formula prezzo + test | ⏳ | — |
-| 1 | Seed catalogo 20 tipologie + edge fn installa | — | — |
+| 0 | Setup feature folder + flag + formula prezzo + test | ✅ | 01c88425 |
+| 1 | Seed catalogo 20 tipologie + edge fn installa | ✅ | _pending_ |
 | 2 | Modello fornitori + linee prodotto | — | — |
 | 3 | Extension listino_griglia axis_config + supplier | — | — |
 | 4 | Editor matrice visuale Excel-like | — | — |
@@ -34,6 +34,31 @@ in `src/test/logic/serramentiPricing.test.ts`.
 | 9 | Import PDF via AI Vision | — | — |
 | 10 | Escalator temporale | — | — |
 | 11 | Smoke test + STATUS final | — | — |
+
+## STEP 1 — dettaglio deliverable
+
+Consegnati:
+
+- `src/features/serramenti-listini/data/tipologie-catalogo.ts`
+  — 20 tipologie con slug, categoria, ante, SVG originale (ISO 10077)
+- `src/features/serramenti-listini/hooks/useInstallaCatalogoSerramenti.ts`
+  — wrapper TanStack Mutation + toast + query invalidation
+- `src/features/serramenti-listini/components/InstallaCatalogoButton.tsx`
+  — AlertDialog di conferma con conteggio per categoria
+- `src/features/serramenti-listini/index.ts`
+  — barrel export pubblico
+- `supabase/functions/serramenti-installa-catalogo/index.ts`
+  — edge function idempotente (skip per company_id+nome) con verifica
+    accesso standard (super_admin / profiles / MCA / impersonation)
+
+Comportamento: installa le 20 famiglie in `article_families` con
+`vertical='serramentista'` e marcate da `custom_field_values.catalogo_base=true`
++ `slug` per futuri lookup. Prezzi esplicitamente a 0 (li compilerà
+l'azienda in STEP 4). Icone SVG NON salvate in DB — lookup via slug
+nel catalogo client. Idempotente: ri-chiamate non duplicano.
+
+Integrazione UI: nessuna, ancora. Il bottone è pronto per essere
+montato nelle pagine admin/listini in STEP 4.
 
 ## Vincoli architettonici
 
