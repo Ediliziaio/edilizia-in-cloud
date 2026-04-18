@@ -507,6 +507,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         { to: "/azienda/impostazioni/margini",              label: "Preventivi & Margini",icon: <TrendingUp className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/materiali-preventivi",label: "Materiali preventivi",icon: <FileStack className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte",    icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canEditSettingsCustomization },
+        { to: "/azienda/impostazioni/bundle",              label: "Bundle & Pacchetti",   icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsOrders },
       ],
     },
     {
@@ -977,7 +978,7 @@ const CompanySidebar = memo(function CompanySidebar() {
 });
 
 export function CompanyLayout() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, isImpersonating } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
   const { effectiveBrand } = useBrandSettings();
@@ -1017,6 +1018,23 @@ export function CompanyLayout() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Preventivatore Verticalizzato — FASE 1.4
+  // Gate onboarding vertical: se l'azienda corrente non ha ancora completato la
+  // scelta del settore (onboarding_vertical_completed=false) forziamo il redirect
+  // a /azienda/onboarding/vertical. Escludiamo:
+  // - impersonation super_admin: il super_admin non deve subire onboarding del tenant;
+  // - la pagina di onboarding stessa (evita loop).
+  const onboardingVerticalDone =
+    (effectiveCompany as unknown as { onboarding_vertical_completed?: boolean } | null)
+      ?.onboarding_vertical_completed;
+  useEffect(() => {
+    if (isImpersonating) return;
+    if (!effectiveCompany) return;
+    if (onboardingVerticalDone !== false) return;
+    if (location.pathname === "/azienda/onboarding/vertical") return;
+    navigate("/azienda/onboarding/vertical", { replace: true });
+  }, [isImpersonating, effectiveCompany, onboardingVerticalDone, location.pathname, navigate]);
 
   const [npsOpen, setNpsOpen] = useState(false);
 

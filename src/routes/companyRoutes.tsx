@@ -18,6 +18,8 @@ const DashboardView = lazy(() => import("@/pages/azienda/dashboards/DashboardVie
 const DashboardBuilder = lazy(() => import("@/pages/azienda/dashboards/DashboardBuilder"));
 const SettingsProfile = lazy(() => import("@/pages/azienda/settings/SettingsProfile"));
 const SettingsCatalog = lazy(() => import("@/pages/azienda/settings/SettingsCatalog"));
+const SettingsFamilyEditor = lazy(() => import("@/pages/azienda/settings/SettingsFamilyEditor"));
+const SettingsBundle = lazy(() => import("@/pages/azienda/settings/SettingsBundle"));
 const SettingsOrderStatus = lazy(() => import("@/pages/azienda/settings/SettingsOrderStatus"));
 const SettingsPipelines = lazy(() => import("@/pages/azienda/settings/SettingsPipelines"));
 const SettingsSuppliers = lazy(() => import("@/pages/azienda/settings/SettingsSuppliers"));
@@ -173,6 +175,7 @@ const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/Marketing
 const SmsMarketingPage = lazy(() => import("@/pages/azienda/sms-marketing/index"));
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
 const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
+const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
@@ -224,6 +227,7 @@ export function companyRoutes() {
       >
         <Route index element={<CompanyDashboard />} />
         <Route path="onboarding" element={<OnboardingPage />} />
+        <Route path="onboarding/vertical" element={<ErrorBoundary title="Errore nel caricamento onboarding settore"><OnboardingVertical /></ErrorBoundary>} />
         <Route path="cruscotto" element={<CruscottoDashboardPage />} />
         <Route path="cruscotto/gestisci" element={<CruscottoHub />} />
         <Route path="cruscotto/aziendale" element={<CruscottoAziendale />} />
@@ -401,6 +405,11 @@ export function companyRoutes() {
           <Route path="profilo" element={<SettingsProfile />} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />
           <Route path="listino" element={<SettingsCatalog />} />
+          <Route path="listino/famiglie" element={<Navigate to="../listino?tab=famiglie" replace />} />
+          <Route path="listino/famiglie/nuova" element={<SettingsFamilyEditor />} />
+          <Route path="listino/famiglie/:id" element={<SettingsFamilyEditor />} />
+          <Route path="bundle-serramentista" element={<SettingsBundle />} />
+          <Route path="bundle" element={<SettingsBundle />} />
           <Route path="tariffe" element={<SettingsTariffe />} />
           <Route path="listino-manutenzione" element={<ListinoManutenzione />} />
           <Route path="margini" element={<SettingsMargini />} />

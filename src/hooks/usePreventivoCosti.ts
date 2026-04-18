@@ -27,8 +27,14 @@ export interface TariffaPro {
   nome: string;
   tipo: "posa" | "trasporto" | "smaltimento" | "nolo" | "tiro_piano" | string;
   prezzo_vendita: number;
+  /** Legacy: era la colonna prezzo_costo. FASE 6: valore uguale a costo_interno. */
   prezzo_costo: number;
+  /** FASE 6: nuovo costo interno (posatore, attrezzatura). Se assente, leggi prezzo_costo. */
+  costo_interno?: number | null;
+  /** Legacy UM. */
   unita: string;
+  /** FASE 6: UM canonica di fatturazione (pz/mq/ml/mc/kg/gg/h/a_corpo/km/piano). */
+  unita_fatturazione?: string | null;
   // tiro_piano fields (DB columns)
   piano_base?: number | null;
   prezzo_piano_aggiuntivo?: number | null;
@@ -344,12 +350,17 @@ export function usePreventivoCosti(companyId: string | undefined) {
         .eq("company_id", companyId!)
         .order("nome");
       if (!data) return [] as TariffaPro[];
-      return data.map((d: Record<string, unknown>) => ({
-        ...d,
-        // DB column is prezzo_costo; prezzo_vendita stays as-is
-        prezzo_costo: (d.prezzo_costo as number | null) ?? 0,
-        prezzo_vendita: (d.prezzo_vendita as number | null) ?? 0,
-      })) as TariffaPro[];
+      return data.map((d: Record<string, unknown>) => {
+        const costoInterno = (d.costo_interno as number | null) ?? null;
+        const prezzoCosto = (d.prezzo_costo as number | null) ?? 0;
+        return {
+          ...d,
+          prezzo_costo: costoInterno ?? prezzoCosto,
+          costo_interno: costoInterno,
+          prezzo_vendita: (d.prezzo_vendita as number | null) ?? 0,
+          unita_fatturazione: (d.unita_fatturazione as string | null) ?? null,
+        };
+      }) as TariffaPro[];
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -403,13 +414,18 @@ export function usePreventivoCosti(companyId: string | undefined) {
     x: number,
     y: number
   ): Promise<{ prezzo_vendita: number; prezzo_acquisto_netto: number; trovato: boolean }> => {
-    const { data } = await (supabase.from("listino_griglia") as any)
-      .select("prezzo_vendita,prezzo_acquisto_netto,valore_x,valore_y")
+    // Schema reale: `prezzo_acquisto` (senza _netto). Mappiamo al dominio.
+    const { data, error } = await (supabase.from("listino_griglia") as any)
+      .select("prezzo_vendita,prezzo_acquisto,valore_x,valore_y")
       .eq("prodotto_id", prodotto_id);
+    if (error) {
+      console.error("[trovaPrezzoGriglia] errore caricamento griglia:", error);
+      return { prezzo_vendita: 0, prezzo_acquisto_netto: 0, trovato: false };
+    }
 
     interface GrigliaRow {
       prezzo_vendita: number;
-      prezzo_acquisto_netto: number | null;
+      prezzo_acquisto: number | null;
       valore_x: number;
       valore_y: number;
     }
@@ -427,7 +443,7 @@ export function usePreventivoCosti(companyId: string | undefined) {
     if (exact) {
       return {
         prezzo_vendita: exact.prezzo_vendita,
-        prezzo_acquisto_netto: exact.prezzo_acquisto_netto ?? 0,
+        prezzo_acquisto_netto: exact.prezzo_acquisto ?? 0,
         trovato: true,
       };
     }
@@ -445,7 +461,7 @@ export function usePreventivoCosti(companyId: string | undefined) {
 
     return {
       prezzo_vendita: nearest.prezzo_vendita,
-      prezzo_acquisto_netto: nearest.prezzo_acquisto_netto ?? 0,
+      prezzo_acquisto_netto: nearest.prezzo_acquisto ?? 0,
       trovato: false,
     };
   };
@@ -495,30 +511,56 @@ export function usePreventivoCosti(companyId: string | undefined) {
   };
 
   // calcolaTariffaAutomatica
+  // FASE 6.4: supporta le 10 UM canoniche di unita_fatturazione.
+  //  - 'a_corpo'   → prezzo fisso totale, qty sempre 1
+  //  - 'km'        → prezzo × kmCantiere (se passato)
+  //  - 'piano'     → sovrapprezzo a scaglioni (anche fuori dal tipo tiro_piano)
+  //  - 'gg','h','mq','ml','mc','kg','pz' → prezzo × qty (qty già in UM corretta)
   const calcolaTariffaAutomatica = (
     tariffa: TariffaPro,
     qty: number,
-    piano?: number
+    piano?: number,
+    kmCantiere?: number,
   ): { prezzo_vendita: number; prezzo_acquisto: number } => {
+    const um = (tariffa.unita_fatturazione ?? tariffa.unita ?? "pz").toLowerCase();
+    const costoUnit = tariffa.costo_interno ?? tariffa.prezzo_costo ?? 0;
+    const pvUnit = tariffa.prezzo_vendita ?? 0;
+
+    // tiro_piano legacy: prezzo base + extra per piano sopra soglia
     if (tariffa.tipo === "tiro_piano" && piano != null) {
-      // piano_base = threshold floor number (e.g. 1 = first floor)
-      // prezzo_vendita = base price (ground floor / no extra)
-      // prezzo_piano_aggiuntivo = extra per each floor ABOVE piano_base
       const sogliaPiano = tariffa.piano_base ?? 1;
       const extra =
         piano >= sogliaPiano
           ? (tariffa.prezzo_piano_aggiuntivo ?? 0) * (piano - sogliaPiano + 1)
           : 0;
-      const prezzoUnit = (tariffa.prezzo_vendita ?? 0) + extra;
+      const prezzoUnit = pvUnit + extra;
       return {
         prezzo_vendita: prezzoUnit * qty,
-        prezzo_acquisto: (tariffa.prezzo_costo ?? 0) * qty,
+        prezzo_acquisto: costoUnit * qty,
       };
     }
 
+    // a_corpo / fisso: importo fisso totale, ignora qty
+    if (um === "a_corpo" || um === "fisso") {
+      return { prezzo_vendita: pvUnit, prezzo_acquisto: costoUnit };
+    }
+
+    // km: moltiplica per kmCantiere se presente, altrimenti 0
+    if (um === "km") {
+      const km = kmCantiere ?? 0;
+      return { prezzo_vendita: pvUnit * km, prezzo_acquisto: costoUnit * km };
+    }
+
+    // piano (generico, non tiro_piano): moltiplica per il numero di piani
+    if (um === "piano") {
+      const n = piano ?? qty ?? 0;
+      return { prezzo_vendita: pvUnit * n, prezzo_acquisto: costoUnit * n };
+    }
+
+    // Default: pz, mq, ml, mc, kg, gg, h → × qty
     return {
-      prezzo_vendita: (tariffa.prezzo_vendita ?? 0) * qty,
-      prezzo_acquisto: (tariffa.prezzo_costo ?? 0) * qty,
+      prezzo_vendita: pvUnit * qty,
+      prezzo_acquisto: costoUnit * qty,
     };
   };
 

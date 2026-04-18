@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useVertical } from "@/hooks/useVertical";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { Plus, Pencil, Trash2, Zap } from "lucide-react";
@@ -25,42 +26,99 @@ import {
 } from "@/components/ui/table";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TipoTariffa = "posa" | "trasporto" | "tiro_piano" | "smaltimento" | "nolo" | "altro";
+// FASE 6: tipo esteso con tariffe serramentista + unita_fatturazione canonica.
+type TipoTariffa =
+  | "posa" | "trasporto" | "tiro_piano" | "smaltimento" | "nolo" | "pratica"
+  | "manodopera" | "sopralluogo" | "progettazione" | "ponteggio"
+  | "lattoneria" | "sigillatura" | "contorno" | "falso_telaio"
+  | "altro";
 
-// DB columns for tariffe_aziendali:
-// id, company_id, nome, tipo, prezzo_vendita, prezzo_costo, unita, piano_base, prezzo_piano_aggiuntivo
+type UnitaFatturazione =
+  | "pz" | "mq" | "ml" | "mc" | "kg" | "gg" | "h" | "a_corpo" | "km" | "piano";
+
 interface Tariffa {
   id: string;
   company_id: string;
   nome: string;
   tipo: TipoTariffa;
+  // Legacy: colonna `unita` CHECK (pz/mq/ml/mc/h/piano/km/fisso). Resta per retro-compat.
   unita?: string;
+  // FASE 6: source-of-truth UM
+  unita_fatturazione?: UnitaFatturazione;
   prezzo_vendita?: number;
+  // Legacy alias di costo_interno
   prezzo_costo?: number;
+  // FASE 6: costo interno (posatore, attrezzatura, etc.)
+  costo_interno?: number;
+  vertical_associato?: string | null;
+  descrizione?: string | null;
+  attivo?: boolean;
   piano_base?: number;
   prezzo_piano_aggiuntivo?: number;
 }
 
-interface Categoria { id: string; nome: string; }
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TIPO_TABS: { value: TipoTariffa | "altro"; label: string }[] = [
   { value: "posa", label: "Posa" },
+  { value: "manodopera", label: "Manodopera" },
   { value: "trasporto", label: "Trasporto" },
   { value: "tiro_piano", label: "Tiro Piano" },
   { value: "smaltimento", label: "Smaltimento" },
   { value: "nolo", label: "Nolo" },
+  { value: "sopralluogo", label: "Sopralluogo" },
+  { value: "progettazione", label: "Progettazione" },
+  { value: "ponteggio", label: "Ponteggio" },
+  { value: "lattoneria", label: "Lattoneria" },
+  { value: "sigillatura", label: "Sigillatura" },
+  { value: "contorno", label: "Contorno" },
+  { value: "falso_telaio", label: "Falso telaio" },
+  { value: "pratica", label: "Pratica" },
   { value: "altro", label: "Altro" },
 ];
 
-const UM_BY_TIPO: Record<string, string[]> = {
-  posa: ["pz", "mq", "ml", "h", "fisso"],
-  trasporto: ["fisso", "km", "pz"],
-  tiro_piano: ["piano", "fisso", "pz"],
-  smaltimento: ["pz", "mc", "mq", "fisso"],
-  nolo: ["fisso", "mq", "gg", "sett"],
-  altro: ["pz", "mq", "h", "fisso", "ml"],
+/** Unità di fatturazione canoniche FASE 6 — la UM è FISSA alla creazione. */
+const UM_FATTURAZIONE: { value: UnitaFatturazione; label: string; hint: string }[] = [
+  { value: "pz", label: "pz", hint: "Al pezzo" },
+  { value: "mq", label: "mq", hint: "Al metro quadro (L×H)" },
+  { value: "ml", label: "ml", hint: "Al metro lineare" },
+  { value: "mc", label: "mc", hint: "Al metro cubo" },
+  { value: "kg", label: "kg", hint: "Al chilo" },
+  { value: "gg", label: "gg", hint: "A giornata lavorativa" },
+  { value: "h", label: "h", hint: "All'ora" },
+  { value: "a_corpo", label: "a corpo", hint: "Importo fisso totale" },
+  { value: "km", label: "km", hint: "Al chilometro" },
+  { value: "piano", label: "piano", hint: "Per piano di installazione" },
+];
+
+/** Suggerimento iniziale di UM per tipo (l'utente può cambiare). */
+const UM_DEFAULT_BY_TIPO: Record<string, UnitaFatturazione> = {
+  posa: "pz",
+  manodopera: "h",
+  trasporto: "a_corpo",
+  tiro_piano: "piano",
+  smaltimento: "pz",
+  nolo: "gg",
+  sopralluogo: "a_corpo",
+  progettazione: "a_corpo",
+  ponteggio: "a_corpo",
+  lattoneria: "ml",
+  sigillatura: "ml",
+  contorno: "ml",
+  falso_telaio: "pz",
+  pratica: "a_corpo",
+  altro: "pz",
 };
+
+/** Mappa unita_fatturazione → colonna legacy `unita` (CHECK: pz/mq/ml/mc/h/piano/km/fisso). */
+function legacyUnitaFrom(u: UnitaFatturazione): string {
+  switch (u) {
+    case "pz": case "mq": case "ml": case "mc": case "h": case "km": case "piano":
+      return u;
+    case "a_corpo": return "fisso";
+    case "gg": return "h";
+    case "kg": return "pz";
+  }
+}
 
 // NOTE: categoria_prodotto and descrizione are NOT in the tariffe_aziendali schema.
 // attiva is NOT in the schema either — removed from all payloads.
@@ -84,13 +142,29 @@ const DEFAULT_TARIFFE: Omit<Tariffa, "id" | "company_id">[] = [
 function tipoBadgeClass(tipo: string) {
   const map: Record<string, string> = {
     posa: "bg-green-100 text-green-700",
+    manodopera: "bg-emerald-100 text-emerald-700",
     trasporto: "bg-blue-100 text-blue-700",
     tiro_piano: "bg-purple-100 text-purple-700",
     smaltimento: "bg-orange-100 text-orange-700",
     nolo: "bg-yellow-100 text-yellow-700",
+    sopralluogo: "bg-cyan-100 text-cyan-700",
+    progettazione: "bg-indigo-100 text-indigo-700",
+    ponteggio: "bg-amber-100 text-amber-700",
+    lattoneria: "bg-slate-100 text-slate-700",
+    sigillatura: "bg-rose-100 text-rose-700",
+    contorno: "bg-lime-100 text-lime-700",
+    falso_telaio: "bg-teal-100 text-teal-700",
+    pratica: "bg-pink-100 text-pink-700",
     altro: "bg-gray-100 text-gray-700",
   };
   return map[tipo] ?? map.altro;
+}
+
+/** Colore semaforo margine: >=25% verde, >=15% giallo, altrimenti rosso. */
+function margineColor(margine: number): string {
+  if (margine >= 25) return "text-green-600";
+  if (margine >= 15) return "text-yellow-600";
+  return "text-red-600";
 }
 
 function calcMargine(pv: number, pa: number) {
@@ -100,29 +174,49 @@ function calcMargine(pv: number, pa: number) {
 
 // ─── Tariffa Dialog ───────────────────────────────────────────────────────────
 function TariffaDialog({
-  open, onClose, editing, companyId, isAdmin, onSaved,
+  open, onClose, editing, companyId, isAdmin, currentVertical, onSaved,
 }: {
   open: boolean; onClose: () => void; editing: Tariffa | null;
-  companyId: string; isAdmin: boolean; onSaved: () => void;
+  companyId: string; isAdmin: boolean;
+  currentVertical: string | null;
+  onSaved: () => void;
 }) {
   const [nome, setNome] = useState(editing?.nome ?? "");
+  const [descrizione, setDescrizione] = useState(editing?.descrizione ?? "");
   const [tipo, setTipo] = useState<TipoTariffa>(editing?.tipo ?? "posa");
-  const [unita, setUnita] = useState(editing?.unita ?? "pz");
+  // FASE 6: unita_fatturazione è la nuova UM canonica (fissa alla creazione)
+  const [unitaFatturazione, setUnitaFatturazione] = useState<UnitaFatturazione>(
+    editing?.unita_fatturazione ?? UM_DEFAULT_BY_TIPO[editing?.tipo ?? "posa"] ?? "pz",
+  );
   const [prezzoVendita, setPrezzoVendita] = useState(String(editing?.prezzo_vendita ?? ""));
-  const [prezzoCosto, setPrezzoCosto] = useState(String(editing?.prezzo_costo ?? ""));
+  const [costoInterno, setCostoInterno] = useState(
+    String(editing?.costo_interno ?? editing?.prezzo_costo ?? ""),
+  );
+  const [verticalAssociato, setVerticalAssociato] = useState<string>(
+    editing?.vertical_associato ?? (currentVertical ?? ""),
+  );
   const [pianoBase, setPianoBase] = useState(String(editing?.piano_base ?? "1"));
   const [prezzoPianoAgg, setPrezzoPianoAgg] = useState(String(editing?.prezzo_piano_aggiuntivo ?? ""));
   const [saving, setSaving] = useState(false);
+
+  // Semaforo margine live
+  const pvNum = parseFloat(prezzoVendita) || 0;
+  const ciNum = parseFloat(costoInterno) || 0;
+  const margineLive = pvNum > 0 ? ((pvNum - ciNum) / pvNum) * 100 : 0;
 
   const handleSave = async () => {
     if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
     setSaving(true);
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         company_id: companyId,
         nome: nome.trim(),
+        descrizione: descrizione.trim() || null,
         tipo,
-        unita: unita || null,
+        // Backward-compat: popoliamo anche la vecchia colonna `unita` con mapping
+        unita: legacyUnitaFrom(unitaFatturazione),
+        unita_fatturazione: unitaFatturazione,
+        vertical_associato: verticalAssociato.trim() || null,
         prezzo_vendita: prezzoVendita.trim() !== "" ? parseFloat(prezzoVendita) : null,
         piano_base: tipo === "tiro_piano"
           ? (pianoBase.trim() !== "" ? parseInt(pianoBase, 10) : 1)
@@ -131,30 +225,31 @@ function TariffaDialog({
           ? (prezzoPianoAgg.trim() !== "" ? parseFloat(prezzoPianoAgg) : null)
           : null,
       };
-      // prezzo_costo only visible/writable by admins
+      // costo_interno only visible/writable by admins
       if (isAdmin) {
-        payload.prezzo_costo = prezzoCosto.trim() !== "" ? parseFloat(prezzoCosto) : null;
+        const v = costoInterno.trim() !== "" ? parseFloat(costoInterno) : 0;
+        payload.costo_interno = v;
+        // Manteniamo il legacy prezzo_costo allineato finché esiste la colonna
+        payload.prezzo_costo = v;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tbl = supabase.from("tariffe_aziendali") as any;
       if (editing) {
-        const { error } = await (supabase.from("tariffe_aziendali") as any)
-          .update(payload).eq("id", editing.id);
+        const { error } = await tbl.update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase.from("tariffe_aziendali") as any)
-          .insert(payload);
+        const { error } = await tbl.insert(payload);
         if (error) throw error;
       }
       toast.success(editing ? "Tariffa aggiornata" : "Tariffa creata");
       onSaved(); onClose();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Errore salvataggio");
     } finally {
       setSaving(false);
     }
   };
-
-  const unitOptions = UM_BY_TIPO[tipo] ?? UM_BY_TIPO.altro;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -167,12 +262,23 @@ function TariffaDialog({
             <Label>Nome *</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome tariffa" />
           </div>
+          <div>
+            <Label>Descrizione</Label>
+            <Input
+              value={descrizione}
+              onChange={(e) => setDescrizione(e.target.value)}
+              placeholder="Descrizione opzionale (visibile ai colleghi)"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Tipo</Label>
               <Select value={tipo} onValueChange={(v) => {
                 setTipo(v as TipoTariffa);
-                setUnita(UM_BY_TIPO[v]?.[0] ?? "pz");
+                // Suggerisci UM di default per il tipo, ma solo se stiamo creando
+                if (!editing) {
+                  setUnitaFatturazione(UM_DEFAULT_BY_TIPO[v] ?? "pz");
+                }
               }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -183,27 +289,61 @@ function TariffaDialog({
               </Select>
             </div>
             <div>
-              <Label>Unità di misura</Label>
-              <Select value={unita} onValueChange={setUnita}>
+              <Label>
+                Unità di fatturazione
+                {editing && (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    (FISSA alla creazione, non modificabile per preventivi)
+                  </span>
+                )}
+              </Label>
+              <Select
+                value={unitaFatturazione}
+                onValueChange={(v) => setUnitaFatturazione(v as UnitaFatturazione)}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {unitOptions.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  {UM_FATTURAZIONE.map((u) => (
+                    <SelectItem key={u.value} value={u.value}>
+                      <span className="font-medium">{u.label}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{u.hint}</span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
+          <div>
+            <Label>Vertical associato</Label>
+            <Select
+              value={verticalAssociato || "__none__"}
+              onValueChange={(v) => setVerticalAssociato(v === "__none__" ? "" : v)}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Globale (nessun vertical)</SelectItem>
+                <SelectItem value="serramentista">Serramentista</SelectItem>
+                <SelectItem value="generico">Generico</SelectItem>
+                <SelectItem value="edile">Edile</SelectItem>
+                <SelectItem value="impiantistica">Impiantistica</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {isAdmin && (
               <div>
-                <Label>Prezzo costo €</Label>
+                <Label>Costo interno €</Label>
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
-                  value={prezzoCosto}
-                  onChange={(e) => setPrezzoCosto(e.target.value)}
+                  value={costoInterno}
+                  onChange={(e) => setCostoInterno(e.target.value)}
                   placeholder="0.00"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Costo reale (posatore, attrezzatura). Non visibile al cliente.
+                </p>
               </div>
             )}
             <div>
@@ -218,6 +358,19 @@ function TariffaDialog({
               />
             </div>
           </div>
+          {isAdmin && pvNum > 0 && (
+            <div className="rounded-lg border p-3 flex items-center justify-between bg-muted/30">
+              <span className="text-sm">Margine live</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-lg font-semibold ${margineColor(margineLive)}`}>
+                  {margineLive.toFixed(1)}%
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  ({formatCurrency(pvNum - ciNum)} / unit.)
+                </span>
+              </div>
+            </div>
+          )}
           {tipo === "tiro_piano" && (
             <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/40 p-3">
               <div>
@@ -291,7 +444,8 @@ function TariffeTable({
             </TableRow>
           ) : items.map((t) => {
             const pv = t.prezzo_vendita ?? 0;
-            const pc = t.prezzo_costo ?? 0;
+            // Preferisci costo_interno (FASE 6), cadi sul legacy prezzo_costo
+            const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
             const margine = calcMargine(pv, pc);
             return (
               <TableRow key={t.id}>
@@ -308,15 +462,15 @@ function TariffeTable({
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{t.unita ?? "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {t.unita_fatturazione ?? t.unita ?? "—"}
+                </TableCell>
                 <TableCell>{pv ? formatCurrency(pv) : "—"}</TableCell>
                 {isAdmin && <TableCell>{pc ? formatCurrency(pc) : "—"}</TableCell>}
                 {isAdmin && (
                   <TableCell>
                     {pc && pv ? (
-                      <span className={`text-sm font-medium ${
-                        margine >= 25 ? "text-green-600" : margine >= 15 ? "text-yellow-600" : "text-red-600"
-                      }`}>
+                      <span className={`text-sm font-medium ${margineColor(margine)}`}>
                         {margine.toFixed(1)}%
                       </span>
                     ) : "—"}
@@ -348,6 +502,7 @@ function TariffeTable({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function SettingsTariffe() {
   const { effectiveCompany, role } = useAuth();
+  const { vertical: currentVertical } = useVertical();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();
@@ -358,13 +513,16 @@ export default function SettingsTariffe() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [confirmStandard, setConfirmStandard] = useState(false);
   const [creatingStandard, setCreatingStandard] = useState(false);
+  // FASE 6.3: filtro per vertical_associato
+  const [verticalFilter, setVerticalFilter] = useState<"all" | "current" | "global">("all");
 
   const { data: tariffe = [], isLoading } = useQuery({
     queryKey: ["tariffe-aziendali-full", companyId],
     enabled: !!companyId,
     queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("tariffe_aziendali") as any)
-        .select("id, company_id, nome, tipo, unita, prezzo_vendita, prezzo_costo, piano_base, prezzo_piano_aggiuntivo")
+        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo")
         .eq("company_id", companyId)
         .order("nome");
       if (error) throw error;
@@ -417,10 +575,19 @@ export default function SettingsTariffe() {
   const openNew = () => { setEditing(null); setDialogOpen(true); };
   const openEdit = (t: Tariffa) => { setEditing(t); setDialogOpen(true); };
 
+  // Conosce già i valori fissi dei tab "principali": tutti i tab registrati in TIPO_TABS tranne "altro".
+  const knownTipi = TIPO_TABS.filter((t) => t.value !== "altro").map((t) => t.value as string);
+
+  const tariffeFiltered = tariffe.filter((t) => {
+    if (verticalFilter === "current") return t.vertical_associato === currentVertical;
+    if (verticalFilter === "global") return !t.vertical_associato;
+    return true; // "all"
+  });
+
   const tariffeByTipo = (tipo: string) =>
-    tariffe.filter((t) =>
+    tariffeFiltered.filter((t) =>
       tipo === "altro"
-        ? !["posa", "trasporto", "tiro_piano", "smaltimento", "nolo"].includes(t.tipo)
+        ? !knownTipi.includes(t.tipo)
         : t.tipo === tipo
     );
 
@@ -435,7 +602,17 @@ export default function SettingsTariffe() {
           <h1 className="text-2xl font-bold">Tariffe Aziendali</h1>
           <p className="text-muted-foreground text-sm">Gestisci le tariffe di posa, trasporto e servizi</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as typeof verticalFilter)}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Filtra vertical" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte le tariffe</SelectItem>
+              <SelectItem value="current">Solo vertical corrente ({currentVertical})</SelectItem>
+              <SelectItem value="global">Solo globali (nessun vertical)</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={handleCreateStandard} disabled={creatingStandard}>
             <Zap className="h-4 w-4 mr-2" />Crea tariffe standard
           </Button>
@@ -476,6 +653,7 @@ export default function SettingsTariffe() {
           editing={editing}
           companyId={companyId}
           isAdmin={isAdmin}
+          currentVertical={currentVertical}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] })}
         />
       )}

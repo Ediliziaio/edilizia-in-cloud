@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import {
   Plus, Pencil, Trash2, Search, Package, Upload, Download, Copy,
-  Image, FileText,
+  Image, FileText, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -416,14 +416,19 @@ function ArticleDialog({
     queryKey: ["listino-griglia-edit", editingArticle?.id],
     enabled: !!editingArticle?.id && editingArticle.modalita_prezzo === "griglia",
     queryFn: async () => {
-      const { data } = await (supabase.from("listino_griglia") as any)
+      const { data, error } = await (supabase.from("listino_griglia") as any)
         .select("*")
         .eq("prodotto_id", editingArticle!.id);
+      if (error) {
+        console.error("[ArticleCatalog grid edit] errore:", error);
+        return [];
+      }
       if (data?.length) {
         const xs = Array.from(new Set(data.map((r: any) => r.valore_x))).sort((a: any, b: any) => a - b) as number[];
         const ys = Array.from(new Set(data.map((r: any) => r.valore_y))).sort((a: any, b: any) => a - b) as number[];
         const map = new Map<string, GrigliaCell>();
-        data.forEach((r: any) => map.set(`${r.valore_x}_${r.valore_y}`, { pv: r.prezzo_vendita, pa: r.prezzo_acquisto_netto ?? 0 }));
+        // Schema reale: colonna è `prezzo_acquisto` (non `_netto`).
+        data.forEach((r: any) => map.set(`${r.valore_x}_${r.valore_y}`, { pv: r.prezzo_vendita, pa: r.prezzo_acquisto ?? 0 }));
         setValoriX(xs); setValoriY(ys); setCelle(map);
       }
       return data;
@@ -480,7 +485,7 @@ function ArticleDialog({
           valoriY.forEach((y) => {
             const c = celle.get(`${x}_${y}`);
             if (c) {
-              toUpsert.push({ company_id: companyId, prodotto_id: prodottoId, valore_x: x, valore_y: y, prezzo_vendita: c.pv, prezzo_acquisto_netto: c.pa });
+              toUpsert.push({ company_id: companyId, prodotto_id: prodottoId, valore_x: x, valore_y: y, prezzo_vendita: c.pv, prezzo_acquisto: c.pa });
             }
           });
         });
@@ -897,6 +902,30 @@ export function ArticleCatalog() {
     onError: (err: any) => toast.error(err.message),
   });
 
+  // FASE 8.4: genera embeddings AI del catalogo (solo prodotti senza embedding by default)
+  const generaEmbeddingsMutation = useMutation({
+    mutationFn: async (mode: "missing" | "all") => {
+      const { data, error } = await supabase.functions.invoke("genera-embeddings-catalogo", {
+        body: { company_id: companyId, mode },
+      });
+      if (error) throw error;
+      return data as { ok: boolean; processed: number; skipped: number; errors: number };
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["article-templates-pro", companyId] });
+      if (res.errors > 0) {
+        toast.warning(
+          `Embeddings: ${res.processed} ok, ${res.errors} errori, ${res.skipped} saltati`,
+        );
+      } else {
+        toast.success(
+          `Embeddings generati: ${res.processed} prodotti${res.skipped > 0 ? ` (${res.skipped} già aggiornati)` : ""}`,
+        );
+      }
+    },
+    onError: (err: any) => toast.error(err.message ?? "Errore generazione embeddings"),
+  });
+
   // Early return after all hooks
   if (!companyId) return null;
 
@@ -999,6 +1028,16 @@ export function ArticleCatalog() {
             <SelectItem value="griglia">Griglia prezzi</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => generaEmbeddingsMutation.mutate("missing")}
+          disabled={generaEmbeddingsMutation.isPending || !isAdmin}
+          title="Genera embeddings AI per i prodotti senza embedding. Usato dal preventivatore AI per retrieval semantico."
+        >
+          <Sparkles className="h-4 w-4 mr-2" />
+          {generaEmbeddingsMutation.isPending ? "Genero..." : "Embeddings AI"}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setCsvOpen(true)}>
           <Upload className="h-4 w-4 mr-2" />Importa CSV
         </Button>
