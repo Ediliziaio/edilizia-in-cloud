@@ -205,13 +205,6 @@ interface ListinoCategoria {
   margine_target_percentuale?: number | null;
 }
 
-interface QuotePdfMaterial {
-  id: string;
-  name: string;
-  category: string | null;
-  file_size_bytes: number;
-}
-
 function ContactCombobox({
   contacts,
   value,
@@ -275,7 +268,6 @@ function ProductSearchDialog({
   onClose,
   articoli,
   categorie,
-  pianoInstallazione,
   calcolaPrezzoProdotto,
   onConfirm,
 }: {
@@ -283,7 +275,6 @@ function ProductSearchDialog({
   onClose: () => void;
   articoli: ArticlePro[];
   categorie: ListinoCategoria[];
-  pianoInstallazione: number;
   calcolaPrezzoProdotto: (
     prodotto: ArticlePro,
     qty: number,
@@ -788,8 +779,21 @@ export default function QuoteBuilder() {
       if (existingQuote.template_id) {
         setSelectedTemplateId(existingQuote.template_id);
       }
-      // P03 extras — these fields are not in the generated types (TODO IMP10: complex type)
-      const q = existingQuote as any;
+      // P03 extras — these fields are stored in `quotes` ma non nei generated types
+      // (vedi migrazioni 20260324200*_preventivo_pro_v2). Narrowing via unknown cast:
+      const q = existingQuote as unknown as {
+        tipo_lavoro?: string | null;
+        indirizzo_lavori?: string | null;
+        piano_installazione?: number | null;
+        km_cantiere?: number | null;
+        pdf_mostra_prezzi_per_riga?: boolean | null;
+        pdf_mostra_solo_totale?: boolean | null;
+        pdf_mostra_sconti?: boolean | null;
+        pdf_mostra_immagini?: boolean | null;
+        pdf_includi_schede_tecniche?: boolean | null;
+        firma_digitale_abilitata?: boolean | null;
+        template_layout_override?: string | null;
+      };
       setTipoLavoro(q.tipo_lavoro || "");
       setIndirizzoLavori(q.indirizzo_lavori || "");
       setPianoInstallazione(q.piano_installazione || 0);
@@ -2647,16 +2651,17 @@ export default function QuoteBuilder() {
                     const ricavo = round2(catItems.reduce((s, i) => s + i.quantity * i.unit_price * (1 - (i.discount_percent || 0) / 100), 0) * (1 - discountPercent / 100));
                     const costo = round2(catItems.reduce((s, i) => s + (i.prezzo_acquisto ?? 0) * i.quantity, 0));
                     const overhead = round2(costo * ((impostazioni.overhead_percentuale ?? 0) / 100));
-                    const margine = round2(ricavo - costo - overhead);
-                    const margine_pct = ricavo > 0 ? round2((margine / ricavo) * 100) : 0;
+                    const margine_euro = round2(ricavo - costo - overhead);
+                    const margine_pct = ricavo > 0 ? round2((margine_euro / ricavo) * 100) : 0;
                     const labels: Record<string, string> = { prodotto: "Prodotti", posa: "Posa", trasporto: "Trasporto", smaltimento: "Smaltimento", nolo: "Nolo" };
-                    return [{ cat, label: labels[cat], ricavo, margine, margine_pct }];
+                    // `margine_euro` consumato solo per il calcolo di `margine_pct`; la UI mostra ricavo + semaforo
+                    return [{ cat, label: labels[cat], ricavo, margine_pct }];
                   });
                   if (catRows.length < 2) return null;
                   return (
                     <div className="border-t pt-2 space-y-1">
                       <p className="text-xs font-medium text-blue-800">Margine per categoria</p>
-                      {catRows.map(({ cat, label, ricavo, margine, margine_pct }) => (
+                      {catRows.map(({ cat, label, ricavo, margine_pct }) => (
                         <div key={cat} className="grid grid-cols-3 gap-x-2 text-xs">
                           <span className="text-muted-foreground">{label}</span>
                           <span className="text-right">{formatCurrency(ricavo)}</span>
@@ -2942,7 +2947,6 @@ export default function QuoteBuilder() {
         onClose={() => setSearchOpen(false)}
         articoli={articoli}
         categorie={categorie}
-        pianoInstallazione={pianoInstallazione}
         calcolaPrezzoProdotto={calcolaPrezzoProdotto}
         onConfirm={addProductFromCatalog}
       />

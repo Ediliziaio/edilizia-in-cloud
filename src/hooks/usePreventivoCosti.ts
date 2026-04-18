@@ -373,7 +373,10 @@ export function espondiBundle(
     article_templates?: { name: string; unit_price?: number | null; prezzo_vendita?: number; prezzo_acquisto_netto?: number; unit_of_measure?: string | null; vat_rate?: number | null } | null;
     tariffe_aziendali?: { nome: string; prezzo_vendita?: number; prezzo_costo?: number; unita?: string | null } | null;
   }>,
-  overhead_pct: number
+  // Parametro residuale: attualmente non impatta il calcolo del bundle (l'overhead
+  // viene riapplicato dai totali del preventivo). Mantenuto nella signature per
+  // retrocompatibilità con i caller esistenti.
+  _overhead_pct: number
 ): import("@/types/quoteItem").QuoteItemPro[] {
   return voci.map((voce, idx) => {
     const isArt = !!voce.prodotto_id && !!voce.article_templates;
