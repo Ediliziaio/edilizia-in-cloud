@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       active_impersonations: {
@@ -3610,6 +3585,250 @@ export type Database = {
           },
         ]
       }
+      article_families: {
+        Row: {
+          attivo: boolean | null
+          categoria_id: string | null
+          company_id: string
+          created_at: string
+          custom_field_values: Json
+          descrizione: string | null
+          embedding: string | null
+          embedding_updated_at: string | null
+          griglia_asse_x_label: string | null
+          griglia_asse_y_label: string | null
+          griglia_unita: string | null
+          id: string
+          immagine_url: string | null
+          modalita_prezzo_base: string
+          nome: string
+          pdf_scheda_url: string | null
+          posa_quantita_default: number | null
+          posa_tariffa_default_id: string | null
+          prezzo_base_acquisto: number | null
+          prezzo_base_vendita: number | null
+          sort_order: number | null
+          unit_of_measure: string | null
+          updated_at: string
+          vat_rate: number | null
+          vertical: string
+        }
+        Insert: {
+          attivo?: boolean | null
+          categoria_id?: string | null
+          company_id: string
+          created_at?: string
+          custom_field_values?: Json
+          descrizione?: string | null
+          embedding?: string | null
+          embedding_updated_at?: string | null
+          griglia_asse_x_label?: string | null
+          griglia_asse_y_label?: string | null
+          griglia_unita?: string | null
+          id?: string
+          immagine_url?: string | null
+          modalita_prezzo_base?: string
+          nome: string
+          pdf_scheda_url?: string | null
+          posa_quantita_default?: number | null
+          posa_tariffa_default_id?: string | null
+          prezzo_base_acquisto?: number | null
+          prezzo_base_vendita?: number | null
+          sort_order?: number | null
+          unit_of_measure?: string | null
+          updated_at?: string
+          vat_rate?: number | null
+          vertical: string
+        }
+        Update: {
+          attivo?: boolean | null
+          categoria_id?: string | null
+          company_id?: string
+          created_at?: string
+          custom_field_values?: Json
+          descrizione?: string | null
+          embedding?: string | null
+          embedding_updated_at?: string | null
+          griglia_asse_x_label?: string | null
+          griglia_asse_y_label?: string | null
+          griglia_unita?: string | null
+          id?: string
+          immagine_url?: string | null
+          modalita_prezzo_base?: string
+          nome?: string
+          pdf_scheda_url?: string | null
+          posa_quantita_default?: number | null
+          posa_tariffa_default_id?: string | null
+          prezzo_base_acquisto?: number | null
+          prezzo_base_vendita?: number | null
+          sort_order?: number | null
+          unit_of_measure?: string | null
+          updated_at?: string
+          vat_rate?: number | null
+          vertical?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_families_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "listino_categorie"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_families_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "article_families_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_families_posa_tariffa_default_id_fkey"
+            columns: ["posa_tariffa_default_id"]
+            isOneToOne: false
+            referencedRelation: "tariffe_aziendali"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      article_family_axes: {
+        Row: {
+          codice: string
+          company_id: string
+          created_at: string
+          descrizione: string | null
+          family_id: string
+          id: string
+          nome: string
+          obbligatorio: boolean | null
+          sort_order: number | null
+          tipo: string
+        }
+        Insert: {
+          codice: string
+          company_id: string
+          created_at?: string
+          descrizione?: string | null
+          family_id: string
+          id?: string
+          nome: string
+          obbligatorio?: boolean | null
+          sort_order?: number | null
+          tipo?: string
+        }
+        Update: {
+          codice?: string
+          company_id?: string
+          created_at?: string
+          descrizione?: string | null
+          family_id?: string
+          id?: string
+          nome?: string
+          obbligatorio?: boolean | null
+          sort_order?: number | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_family_axes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "article_family_axes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_family_axes_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      article_family_axis_values: {
+        Row: {
+          attivo: boolean | null
+          axis_id: string
+          company_id: string
+          created_at: string
+          descrizione: string | null
+          id: string
+          is_default: boolean | null
+          label: string
+          maggiorazione_acquisto: number | null
+          maggiorazione_tipo: string
+          maggiorazione_valore: number | null
+          sort_order: number | null
+          valore: string
+        }
+        Insert: {
+          attivo?: boolean | null
+          axis_id: string
+          company_id: string
+          created_at?: string
+          descrizione?: string | null
+          id?: string
+          is_default?: boolean | null
+          label: string
+          maggiorazione_acquisto?: number | null
+          maggiorazione_tipo?: string
+          maggiorazione_valore?: number | null
+          sort_order?: number | null
+          valore: string
+        }
+        Update: {
+          attivo?: boolean | null
+          axis_id?: string
+          company_id?: string
+          created_at?: string
+          descrizione?: string | null
+          id?: string
+          is_default?: boolean | null
+          label?: string
+          maggiorazione_acquisto?: number | null
+          maggiorazione_tipo?: string
+          maggiorazione_valore?: number | null
+          sort_order?: number | null
+          valore?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_family_axis_values_axis_id_fkey"
+            columns: ["axis_id"]
+            isOneToOne: false
+            referencedRelation: "article_family_axes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_family_axis_values_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "article_family_axis_values_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article_templates: {
         Row: {
           attivo: boolean | null
@@ -3619,6 +3838,9 @@ export type Database = {
           created_at: string
           custom_field_values: Json | null
           description: string | null
+          embedding: string | null
+          embedding_updated_at: string | null
+          family_id: string | null
           griglia_descrizione: string | null
           griglia_unita_x: string | null
           griglia_unita_y: string | null
@@ -3653,6 +3875,9 @@ export type Database = {
           created_at?: string
           custom_field_values?: Json | null
           description?: string | null
+          embedding?: string | null
+          embedding_updated_at?: string | null
+          family_id?: string | null
           griglia_descrizione?: string | null
           griglia_unita_x?: string | null
           griglia_unita_y?: string | null
@@ -3687,6 +3912,9 @@ export type Database = {
           created_at?: string
           custom_field_values?: Json | null
           description?: string | null
+          embedding?: string | null
+          embedding_updated_at?: string | null
+          family_id?: string | null
           griglia_descrizione?: string | null
           griglia_unita_x?: string | null
           griglia_unita_y?: string | null
@@ -3726,6 +3954,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_templates_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
             referencedColumns: ["id"]
           },
           {
@@ -5600,8 +5835,11 @@ export type Database = {
           created_at: string | null
           descrizione: string | null
           id: string
+          is_template: boolean
           nome: string
           sconto_bundle_pct: number | null
+          tipo_lavoro: string | null
+          vertical: string | null
         }
         Insert: {
           attivo?: boolean | null
@@ -5609,8 +5847,11 @@ export type Database = {
           created_at?: string | null
           descrizione?: string | null
           id?: string
+          is_template?: boolean
           nome: string
           sconto_bundle_pct?: number | null
+          tipo_lavoro?: string | null
+          vertical?: string | null
         }
         Update: {
           attivo?: boolean | null
@@ -5618,8 +5859,11 @@ export type Database = {
           created_at?: string | null
           descrizione?: string | null
           id?: string
+          is_template?: boolean
           nome?: string
           sconto_bundle_pct?: number | null
+          tipo_lavoro?: string | null
+          vertical?: string | null
         }
         Relationships: [
           {
@@ -5640,28 +5884,43 @@ export type Database = {
       }
       bundle_voci: {
         Row: {
+          altezza_mm_default: number | null
+          axis_selections: Json
           bundle_id: string
+          family_id: string | null
           id: string
+          larghezza_mm_default: number | null
           prodotto_id: string | null
           quantita: number
           sort_order: number | null
           tariffa_id: string | null
+          vano_label: string | null
         }
         Insert: {
+          altezza_mm_default?: number | null
+          axis_selections?: Json
           bundle_id: string
+          family_id?: string | null
           id?: string
+          larghezza_mm_default?: number | null
           prodotto_id?: string | null
           quantita?: number
           sort_order?: number | null
           tariffa_id?: string | null
+          vano_label?: string | null
         }
         Update: {
+          altezza_mm_default?: number | null
+          axis_selections?: Json
           bundle_id?: string
+          family_id?: string | null
           id?: string
+          larghezza_mm_default?: number | null
           prodotto_id?: string | null
           quantita?: number
           sort_order?: number | null
           tariffa_id?: string | null
+          vano_label?: string | null
         }
         Relationships: [
           {
@@ -5669,6 +5928,13 @@ export type Database = {
             columns: ["bundle_id"]
             isOneToOne: false
             referencedRelation: "bundle_prodotti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bundle_voci_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
             referencedColumns: ["id"]
           },
           {
@@ -6541,6 +6807,7 @@ export type Database = {
           monthly_revenue_target: number | null
           name: string
           notes: string | null
+          onboarding_vertical_completed: boolean
           operational_address: string | null
           operational_city: string | null
           operational_lat: number | null
@@ -6573,6 +6840,8 @@ export type Database = {
           trial_extensions_count: number
           updated_at: string
           vat_number: string | null
+          vertical: string | null
+          verticals_secondari: string[]
           website: string | null
           white_label_enabled: boolean
           white_label_enabled_at: string | null
@@ -6637,6 +6906,7 @@ export type Database = {
           monthly_revenue_target?: number | null
           name: string
           notes?: string | null
+          onboarding_vertical_completed?: boolean
           operational_address?: string | null
           operational_city?: string | null
           operational_lat?: number | null
@@ -6669,6 +6939,8 @@ export type Database = {
           trial_extensions_count?: number
           updated_at?: string
           vat_number?: string | null
+          vertical?: string | null
+          verticals_secondari?: string[]
           website?: string | null
           white_label_enabled?: boolean
           white_label_enabled_at?: string | null
@@ -6733,6 +7005,7 @@ export type Database = {
           monthly_revenue_target?: number | null
           name?: string
           notes?: string | null
+          onboarding_vertical_completed?: boolean
           operational_address?: string | null
           operational_city?: string | null
           operational_lat?: number | null
@@ -6765,6 +7038,8 @@ export type Database = {
           trial_extensions_count?: number
           updated_at?: string
           vat_number?: string | null
+          vertical?: string | null
+          verticals_secondari?: string[]
           website?: string | null
           white_label_enabled?: boolean
           white_label_enabled_at?: string | null
@@ -21857,6 +22132,7 @@ export type Database = {
       quote_items: {
         Row: {
           article_template_id: string | null
+          axis_selections: Json | null
           codice_prezzario: string | null
           company_id: string
           computo_voce_id: string | null
@@ -21864,6 +22140,7 @@ export type Database = {
           custom_field_values: Json | null
           description: string | null
           discount_percent: number | null
+          family_id: string | null
           id: string
           image_url: string | null
           is_optional: boolean | null
@@ -21888,6 +22165,7 @@ export type Database = {
         }
         Insert: {
           article_template_id?: string | null
+          axis_selections?: Json | null
           codice_prezzario?: string | null
           company_id: string
           computo_voce_id?: string | null
@@ -21895,6 +22173,7 @@ export type Database = {
           custom_field_values?: Json | null
           description?: string | null
           discount_percent?: number | null
+          family_id?: string | null
           id?: string
           image_url?: string | null
           is_optional?: boolean | null
@@ -21919,6 +22198,7 @@ export type Database = {
         }
         Update: {
           article_template_id?: string | null
+          axis_selections?: Json | null
           codice_prezzario?: string | null
           company_id?: string
           computo_voce_id?: string | null
@@ -21926,6 +22206,7 @@ export type Database = {
           custom_field_values?: Json | null
           description?: string | null
           discount_percent?: number | null
+          family_id?: string | null
           id?: string
           image_url?: string | null
           is_optional?: boolean | null
@@ -21975,6 +22256,13 @@ export type Database = {
             columns: ["computo_voce_id"]
             isOneToOne: false
             referencedRelation: "computo_voci_estratte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
             referencedColumns: ["id"]
           },
           {
@@ -28059,10 +28347,14 @@ export type Database = {
       tariffe_aziendali: {
         Row: {
           attiva: boolean | null
+          attivo: boolean | null
           categoria_prodotto: string | null
           company_id: string
+          costo_interno: number | null
           created_at: string | null
           descrizione: string | null
+          embedding: string | null
+          embedding_updated_at: string | null
           id: string
           nome: string
           piano_base: number | null
@@ -28072,13 +28364,19 @@ export type Database = {
           sort_order: number | null
           tipo: string
           unita: string
+          unita_fatturazione: string | null
+          vertical_associato: string | null
         }
         Insert: {
           attiva?: boolean | null
+          attivo?: boolean | null
           categoria_prodotto?: string | null
           company_id: string
+          costo_interno?: number | null
           created_at?: string | null
           descrizione?: string | null
+          embedding?: string | null
+          embedding_updated_at?: string | null
           id?: string
           nome: string
           piano_base?: number | null
@@ -28088,13 +28386,19 @@ export type Database = {
           sort_order?: number | null
           tipo: string
           unita?: string
+          unita_fatturazione?: string | null
+          vertical_associato?: string | null
         }
         Update: {
           attiva?: boolean | null
+          attivo?: boolean | null
           categoria_prodotto?: string | null
           company_id?: string
+          costo_interno?: number | null
           created_at?: string | null
           descrizione?: string | null
+          embedding?: string | null
+          embedding_updated_at?: string | null
           id?: string
           nome?: string
           piano_base?: number | null
@@ -28104,6 +28408,8 @@ export type Database = {
           sort_order?: number | null
           tipo?: string
           unita?: string
+          unita_fatturazione?: string | null
+          vertical_associato?: string | null
         }
         Relationships: [
           {
@@ -30071,6 +30377,101 @@ export type Database = {
             columns: ["verification_id"]
             isOneToOne: false
             referencedRelation: "purchase_order_verifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vertical_category_templates: {
+        Row: {
+          attivo: boolean | null
+          created_at: string
+          descrizione: string | null
+          icona: string | null
+          id: string
+          margine_target_percentuale: number | null
+          modalita_prezzo_suggerita: string | null
+          nome: string
+          sort_order: number | null
+          vertical: string
+        }
+        Insert: {
+          attivo?: boolean | null
+          created_at?: string
+          descrizione?: string | null
+          icona?: string | null
+          id?: string
+          margine_target_percentuale?: number | null
+          modalita_prezzo_suggerita?: string | null
+          nome: string
+          sort_order?: number | null
+          vertical: string
+        }
+        Update: {
+          attivo?: boolean | null
+          created_at?: string
+          descrizione?: string | null
+          icona?: string | null
+          id?: string
+          margine_target_percentuale?: number | null
+          modalita_prezzo_suggerita?: string | null
+          nome?: string
+          sort_order?: number | null
+          vertical?: string
+        }
+        Relationships: []
+      }
+      vertical_family_templates: {
+        Row: {
+          assi_default: Json
+          attivo: boolean | null
+          categoria_template_id: string | null
+          created_at: string
+          descrizione: string | null
+          griglia_asse_x_label: string | null
+          griglia_asse_y_label: string | null
+          id: string
+          modalita_prezzo_base: string
+          nome: string
+          sort_order: number | null
+          unit_of_measure: string | null
+          vertical: string
+        }
+        Insert: {
+          assi_default?: Json
+          attivo?: boolean | null
+          categoria_template_id?: string | null
+          created_at?: string
+          descrizione?: string | null
+          griglia_asse_x_label?: string | null
+          griglia_asse_y_label?: string | null
+          id?: string
+          modalita_prezzo_base?: string
+          nome: string
+          sort_order?: number | null
+          unit_of_measure?: string | null
+          vertical: string
+        }
+        Update: {
+          assi_default?: Json
+          attivo?: boolean | null
+          categoria_template_id?: string | null
+          created_at?: string
+          descrizione?: string | null
+          griglia_asse_x_label?: string | null
+          griglia_asse_y_label?: string | null
+          id?: string
+          modalita_prezzo_base?: string
+          nome?: string
+          sort_order?: number | null
+          unit_of_measure?: string | null
+          vertical?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vertical_family_templates_categoria_template_id_fkey"
+            columns: ["categoria_template_id"]
+            isOneToOne: false
+            referencedRelation: "vertical_category_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -33046,6 +33447,69 @@ export type Database = {
             }
             Returns: Json
           }
+      match_articles: {
+        Args: {
+          p_company_id: string
+          p_match_count?: number
+          p_match_threshold?: number
+          p_query_embedding: string
+        }
+        Returns: {
+          categoria_id: string
+          ha_montaggio: boolean
+          id: string
+          modalita_prezzo: string
+          montaggio_tipo: string
+          name: string
+          prezzo_acquisto_netto: number
+          prezzo_vendita: number
+          similarity: number
+          sku: string
+          unit_of_measure: string
+        }[]
+      }
+      match_families_semantic: {
+        Args: {
+          p_company_id: string
+          p_match_count?: number
+          p_match_threshold?: number
+          p_query_embedding: string
+          p_vertical?: string
+        }
+        Returns: {
+          categoria_id: string
+          descrizione: string
+          id: string
+          modalita_prezzo_base: string
+          nome: string
+          posa_tariffa_default_id: string
+          prezzo_base_vendita: number
+          similarity: number
+          unit_of_measure: string
+        }[]
+      }
+      match_tariffe_semantic: {
+        Args: {
+          p_company_id: string
+          p_match_count?: number
+          p_match_threshold?: number
+          p_query_embedding: string
+          p_vertical?: string
+        }
+        Returns: {
+          costo_interno: number
+          id: string
+          nome: string
+          piano_base: number
+          prezzo_piano_aggiuntivo: number
+          prezzo_vendita: number
+          similarity: number
+          tipo: string
+          unita: string
+          unita_fatturazione: string
+          vertical_associato: string
+        }[]
+      }
       maybe_auto_recharge: {
         Args: { p_company_id: string }
         Returns: {
@@ -33390,9 +33854,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_role: [
@@ -33463,3 +33924,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.90.0 (currently installed v2.75.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
