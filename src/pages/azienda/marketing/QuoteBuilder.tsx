@@ -17,6 +17,7 @@ import {
   calcolaMargine,
   semaforo,
   calcolaTotaliPreventivo,
+  calcolaMargineAtteso,
   round2,
   espondiBundle,
   useScontiQuantita,
@@ -112,6 +113,8 @@ import {
   TrendingUp,
   AlertTriangle,
   Settings2,
+  Wallet,
+  Percent,
 } from "lucide-react";
 
 // ─── Helper components ────────────────────────────────────────────────────────
@@ -619,6 +622,10 @@ export default function QuoteBuilder() {
   // Step 1: Items
   const [items, setItems] = useState<QuoteItemPro[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
+  // FASE 11 Serramentisti — Margine Lordo Atteso:
+  // provvigione commerciale (%) da sottrarre al margine in preview.
+  // Sessione-only, non persistita in DB (preview calcolo per il venditore).
+  const [provvigionePct, setProvvigionePct] = useState<number>(0);
 
   // P03: Search dialog
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1397,6 +1404,19 @@ export default function QuoteBuilder() {
   const discountAmt = subtotal * (discountPercent / 100);
   const vatAmount = Object.values(totaliPro.iva_breakdown).reduce((s, v) => s + v, 0) * (1 - discountPercent / 100);
   const total = totaliPro.subtotale_netto + vatAmount;
+
+  // FASE 11 Serramentisti — breakdown margine atteso (materiali + manodopera +
+  // altri + overhead + provvigione commerciale). Visibile solo agli admin.
+  const margineAtteso = useMemo(
+    () =>
+      calcolaMargineAtteso(
+        items,
+        impostazioni.overhead_percentuale ?? 0,
+        discountPercent,
+        provvigionePct,
+      ),
+    [items, impostazioni.overhead_percentuale, discountPercent, provvigionePct],
+  );
 
   // Save
   const handleSave = async (status: string = "bozza") => {
@@ -2666,6 +2686,117 @@ export default function QuoteBuilder() {
                       </div>
                     ) : null;
                   })()}
+              </div>
+            )}
+
+            {/* FASE 11 Serramentisti — Margine Lordo Atteso (solo admin) */}
+            {isAdmin && margineAtteso.ricavo_netto > 0 && (
+              <div className="border rounded-lg p-4 bg-emerald-50/50 space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <h3 className="font-semibold text-sm flex items-center gap-2 text-emerald-900">
+                    <Wallet className="h-4 w-4" />
+                    Margine lordo atteso
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor="provvigione-pct"
+                      className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1"
+                    >
+                      <Percent className="h-3 w-3" />
+                      Provvigione venditore
+                    </Label>
+                    <Input
+                      id="provvigione-pct"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={provvigionePct}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setProvvigionePct(
+                          Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0,
+                        );
+                      }}
+                      className="w-20 h-8 text-right text-xs"
+                      aria-label="Percentuale provvigione commerciale"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-muted-foreground">Ricavo netto (IVA esclusa)</span>
+                  <span className="text-right font-medium">
+                    {formatCurrency(margineAtteso.ricavo_netto)}
+                  </span>
+
+                  {margineAtteso.costo_materiali > 0 && (
+                    <>
+                      <span className="text-muted-foreground">− Costo materiali</span>
+                      <span className="text-right text-destructive">
+                        -{formatCurrency(margineAtteso.costo_materiali)}
+                      </span>
+                    </>
+                  )}
+                  {margineAtteso.costo_manodopera > 0 && (
+                    <>
+                      <span className="text-muted-foreground">− Costo manodopera/posa</span>
+                      <span className="text-right text-destructive">
+                        -{formatCurrency(margineAtteso.costo_manodopera)}
+                      </span>
+                    </>
+                  )}
+                  {margineAtteso.costo_altri > 0 && (
+                    <>
+                      <span className="text-muted-foreground">
+                        − Trasporto / smaltimento / nolo
+                      </span>
+                      <span className="text-right text-destructive">
+                        -{formatCurrency(margineAtteso.costo_altri)}
+                      </span>
+                    </>
+                  )}
+
+                  {margineAtteso.overhead_euro > 0 && (
+                    <>
+                      <span className="text-muted-foreground">
+                        − Overhead aziendale ({impostazioni.overhead_percentuale ?? 0}%)
+                      </span>
+                      <span className="text-right text-destructive">
+                        -{formatCurrency(margineAtteso.overhead_euro)}
+                      </span>
+                    </>
+                  )}
+
+                  {margineAtteso.provvigione_euro > 0 && (
+                    <>
+                      <span className="text-muted-foreground">
+                        − Provvigione commerciale ({provvigionePct}%)
+                      </span>
+                      <span className="text-right text-destructive">
+                        -{formatCurrency(margineAtteso.provvigione_euro)}
+                      </span>
+                    </>
+                  )}
+
+                  <hr className="col-span-2 my-1" />
+
+                  <span className="font-semibold text-emerald-900">= Margine atteso</span>
+                  <span className="text-right font-semibold text-emerald-900 flex justify-end gap-2">
+                    {formatCurrency(margineAtteso.margine_atteso_euro)}
+                    <MargineSemaforo
+                      pct={margineAtteso.margine_atteso_pct}
+                      sogliaMin={impostazioni.margine_minimo_percentuale ?? 15}
+                      target={impostazioni.margine_target_percentuale ?? 25}
+                    />
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground border-t pt-2 leading-relaxed">
+                  Proiezione pre-ordine. IVA esclusa (passthrough). Non viene
+                  persistito in DB: serve solo come stima al venditore.
+                </p>
               </div>
             )}
 

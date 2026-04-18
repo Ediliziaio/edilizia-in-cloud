@@ -165,6 +165,145 @@ export function calcolaTotaliPreventivo(
   };
 }
 
+// ─── Margine Lordo Atteso (Serramentisti FASE 11) ─────────────────────────────
+
+export interface MargineAttesoInput {
+  quantity: number;
+  unit_price: number;
+  discount_percent: number;
+  prezzo_acquisto?: number;
+  is_optional?: boolean;
+  item_category?: string;
+}
+
+export interface MargineAttesoBreakdown {
+  /** Ricavo netto al netto di sconto globale (IVA esclusa) */
+  ricavo_netto: number;
+  /** Costo acquisto prodotti (item_category='prodotto') */
+  costo_materiali: number;
+  /** Costo posa/manodopera (item_category='posa') */
+  costo_manodopera: number;
+  /** Costo altri servizi (trasporto, smaltimento, nolo) */
+  costo_altri: number;
+  /** Somma costi diretti: materiali + manodopera + altri */
+  costo_totale: number;
+  /** Overhead azienda (costo_totale × overhead_pct/100) */
+  overhead_euro: number;
+  /** Provvigione commerciale (ricavo_netto × commission_pct/100) */
+  provvigione_euro: number;
+  /** Margine lordo prima di overhead/provvigione: ricavo - costo_totale */
+  margine_lordo_euro: number;
+  /** % margine lordo su ricavo */
+  margine_lordo_pct: number;
+  /** Margine atteso finale = lordo - overhead - provvigione */
+  margine_atteso_euro: number;
+  /** % margine atteso su ricavo */
+  margine_atteso_pct: number;
+}
+
+/**
+ * Preventivatore Serramentisti FASE 11 — Margine Lordo Atteso.
+ *
+ * Funzione pura: dato un preventivo (items + overhead + sconto globale +
+ * eventuale provvigione commerciale), restituisce il breakdown di margine
+ * atteso come PROIEZIONE (prima ancora di emettere l'ordine / incassare).
+ *
+ * Differenze rispetto a calcolaTotaliPreventivo:
+ *  - Separa il costo in 3 categorie (materiali / manodopera / altri servizi)
+ *    per rendere evidente dove va il denaro.
+ *  - Introduce la provvigione commerciale come voce a se stante (neutrale se 0).
+ *  - NON calcola l'IVA: per il venditore è passthrough, non entra nel margine.
+ *
+ * Le categorie escluse dal conteggio sono:
+ *  - 'nota' / 'subtotale' / 'sconto' → righe decorative, zero impact
+ *  - items con is_optional=true → opzionali, non nel totale
+ */
+export function calcolaMargineAtteso(
+  items: MargineAttesoInput[],
+  overhead_pct: number,
+  discount_global_pct = 0,
+  commission_pct = 0,
+): MargineAttesoBreakdown {
+  const ZERO: MargineAttesoBreakdown = {
+    ricavo_netto: 0,
+    costo_materiali: 0,
+    costo_manodopera: 0,
+    costo_altri: 0,
+    costo_totale: 0,
+    overhead_euro: 0,
+    provvigione_euro: 0,
+    margine_lordo_euro: 0,
+    margine_lordo_pct: 0,
+    margine_atteso_euro: 0,
+    margine_atteso_pct: 0,
+  };
+
+  const SKIP = new Set(["nota", "subtotale", "sconto"]);
+  const activeItems = items.filter(
+    (i) => !i.is_optional && !SKIP.has(i.item_category ?? ""),
+  );
+  if (activeItems.length === 0) return ZERO;
+
+  // Sanitize global discount to [0, 100)
+  const gd = Math.max(0, Math.min(100, discount_global_pct || 0));
+  const discountFactor = 1 - gd / 100;
+
+  let ricavo = 0;
+  let costo_materiali = 0;
+  let costo_manodopera = 0;
+  let costo_altri = 0;
+
+  for (const it of activeItems) {
+    const localDiscount = Math.max(0, Math.min(100, it.discount_percent || 0));
+    const imponibile =
+      (it.quantity || 0) * (it.unit_price || 0) * (1 - localDiscount / 100);
+    ricavo += imponibile;
+
+    const costoRiga = (it.prezzo_acquisto ?? 0) * (it.quantity || 0);
+    const cat = it.item_category ?? "prodotto";
+    if (cat === "prodotto") costo_materiali += costoRiga;
+    else if (cat === "posa") costo_manodopera += costoRiga;
+    else costo_altri += costoRiga; // trasporto/smaltimento/nolo/altro
+  }
+
+  const ricavo_netto = round2(ricavo * discountFactor);
+  costo_materiali = round2(costo_materiali);
+  costo_manodopera = round2(costo_manodopera);
+  costo_altri = round2(costo_altri);
+  const costo_totale = round2(costo_materiali + costo_manodopera + costo_altri);
+
+  // Sanitize overhead/commission to non-negative
+  const oh = Math.max(0, overhead_pct || 0);
+  const cp = Math.max(0, commission_pct || 0);
+
+  const overhead_euro = round2(costo_totale * (oh / 100));
+  const provvigione_euro = round2(ricavo_netto * (cp / 100));
+
+  const margine_lordo_euro = round2(ricavo_netto - costo_totale);
+  const margine_lordo_pct =
+    ricavo_netto > 0 ? round2((margine_lordo_euro / ricavo_netto) * 100) : 0;
+
+  const margine_atteso_euro = round2(
+    ricavo_netto - costo_totale - overhead_euro - provvigione_euro,
+  );
+  const margine_atteso_pct =
+    ricavo_netto > 0 ? round2((margine_atteso_euro / ricavo_netto) * 100) : 0;
+
+  return {
+    ricavo_netto,
+    costo_materiali,
+    costo_manodopera,
+    costo_altri,
+    costo_totale,
+    overhead_euro,
+    provvigione_euro,
+    margine_lordo_euro,
+    margine_lordo_pct,
+    margine_atteso_euro,
+    margine_atteso_pct,
+  };
+}
+
 // ─── IMP09: Sconti quantità ───────────────────────────────────────────────────
 
 /**
