@@ -414,13 +414,18 @@ export function usePreventivoCosti(companyId: string | undefined) {
     x: number,
     y: number
   ): Promise<{ prezzo_vendita: number; prezzo_acquisto_netto: number; trovato: boolean }> => {
-    const { data } = await (supabase.from("listino_griglia") as any)
-      .select("prezzo_vendita,prezzo_acquisto_netto,valore_x,valore_y")
+    // Schema reale: `prezzo_acquisto` (senza _netto). Mappiamo al dominio.
+    const { data, error } = await (supabase.from("listino_griglia") as any)
+      .select("prezzo_vendita,prezzo_acquisto,valore_x,valore_y")
       .eq("prodotto_id", prodotto_id);
+    if (error) {
+      console.error("[trovaPrezzoGriglia] errore caricamento griglia:", error);
+      return { prezzo_vendita: 0, prezzo_acquisto_netto: 0, trovato: false };
+    }
 
     interface GrigliaRow {
       prezzo_vendita: number;
-      prezzo_acquisto_netto: number | null;
+      prezzo_acquisto: number | null;
       valore_x: number;
       valore_y: number;
     }
@@ -438,7 +443,7 @@ export function usePreventivoCosti(companyId: string | undefined) {
     if (exact) {
       return {
         prezzo_vendita: exact.prezzo_vendita,
-        prezzo_acquisto_netto: exact.prezzo_acquisto_netto ?? 0,
+        prezzo_acquisto_netto: exact.prezzo_acquisto ?? 0,
         trovato: true,
       };
     }
@@ -456,7 +461,7 @@ export function usePreventivoCosti(companyId: string | undefined) {
 
     return {
       prezzo_vendita: nearest.prezzo_vendita,
-      prezzo_acquisto_netto: nearest.prezzo_acquisto_netto ?? 0,
+      prezzo_acquisto_netto: nearest.prezzo_acquisto ?? 0,
       trovato: false,
     };
   };

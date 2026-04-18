@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useBundlesList, type Bundle } from "@/hooks/useBundles";
 import { useFamilies } from "@/hooks/useFamilies";
-import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
+import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
 import { formatCurrency } from "@/lib/formatters";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
@@ -42,35 +42,40 @@ interface Props {
   tariffe: TariffaPro[];
 }
 
-/** Fetch grid points for all families involved in the selected bundle. */
+/** Fetch grid points for all families involved in the selected bundle.
+ *
+ * NOTE schema: colonne reali su `listino_griglia` sono `valore_x`, `valore_y`,
+ * `prezzo_vendita`, `prezzo_acquisto` (vedi migration preventivo_pro_v2_part15).
+ * Il dominio `GridPoint` usa `prezzo_acquisto_netto` per coerenza con
+ * article_templates → mappatura al boundary DB.
+ */
 function useBundleGrids(familyIds: string[]) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["bundle-grids", companyId, familyIds.sort().join(",")],
+    queryKey: ["bundle-grids", companyId, [...familyIds].sort().join(",")],
     enabled: !!companyId && familyIds.length > 0,
     queryFn: async () => {
-      const { data } = await supabase.from("listino_griglia" as never)
-        .select("family_id, asse_x, asse_y, prezzo_vendita, prezzo_acquisto")
-        .in("family_id", familyIds);
-      const byFamily = new Map<string, Array<{
-        asse_x: number;
-        asse_y: number;
-        prezzo_vendita: number;
-        prezzo_acquisto: number;
-      }>>();
+      const { data, error } = await supabase.from("listino_griglia" as never)
+        .select("family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
+        .in("family_id" as never, familyIds);
+      if (error) {
+        console.error("[useBundleGrids] errore caricamento griglia:", error);
+        return new Map<string, GridPoint[]>();
+      }
+      const byFamily = new Map<string, GridPoint[]>();
       for (const row of (data ?? []) as Array<{
         family_id: string;
-        asse_x: number;
-        asse_y: number;
+        valore_x: number;
+        valore_y: number;
         prezzo_vendita: number;
-        prezzo_acquisto: number;
+        prezzo_acquisto: number | null;
       }>) {
         if (!byFamily.has(row.family_id)) byFamily.set(row.family_id, []);
         byFamily.get(row.family_id)!.push({
-          asse_x: Number(row.asse_x),
-          asse_y: Number(row.asse_y),
+          valore_x: Number(row.valore_x),
+          valore_y: Number(row.valore_y),
           prezzo_vendita: Number(row.prezzo_vendita),
-          prezzo_acquisto: Number(row.prezzo_acquisto ?? 0),
+          prezzo_acquisto_netto: row.prezzo_acquisto != null ? Number(row.prezzo_acquisto) : 0,
         });
       }
       return byFamily;
@@ -385,10 +390,20 @@ function BundleCard({ bundle, selected, onSelect }: BundleCardProps) {
   const numVoci = bundle.voci?.length ?? 0;
   return (
     <Card
-      className={`cursor-pointer transition ${
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      aria-label={`Seleziona bundle ${bundle.nome}, ${numVoci} ${numVoci === 1 ? "voce" : "voci"}`}
+      className={`cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
         selected ? "ring-2 ring-primary" : "hover:border-primary/50"
       }`}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
     >
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2">

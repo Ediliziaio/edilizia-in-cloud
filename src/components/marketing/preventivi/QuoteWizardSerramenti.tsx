@@ -60,7 +60,6 @@ export default function QuoteWizardSerramenti({
   const [selectedFamily, setSelectedFamily] = useState<FamilyWithAxes | null>(null);
   const [larghezza, setLarghezza] = useState("1200");
   const [altezza, setAltezza] = useState("1400");
-  const [lunghezza, setLunghezza] = useState("0");
   const [quantita, setQuantita] = useState("1");
   const [selection, setSelection] = useState<AxisSelection>({});
   const [search, setSearch] = useState("");
@@ -101,7 +100,8 @@ export default function QuoteWizardSerramenti({
     !!selectedFamily &&
     (selectedFamily.modalita_prezzo_base === "mq" ||
       selectedFamily.modalita_prezzo_base === "griglia");
-  const needsML = false; // future: se aggiungiamo modalità lineare
+  // NB: modalità lineare (lunghezza_ml) non esposta dal wizard. Quando servirà
+  // aggiungere un input "Lunghezza (ml)", ripassare qui per popolare lunghezza_ml.
 
   const result = useMemo(() => {
     if (!selectedFamily) return null;
@@ -111,16 +111,27 @@ export default function QuoteWizardSerramenti({
         selections: selection,
         larghezza_mm: needsXY ? parseFloat(larghezza) || 0 : undefined,
         altezza_mm: needsXY ? parseFloat(altezza) || 0 : undefined,
-        lunghezza_ml: needsML ? parseFloat(lunghezza) || 0 : undefined,
+        lunghezza_ml: undefined,
         quantita: parseFloat(quantita) || 1,
       },
       needsXY ? grigliaPunti : undefined,
     );
-  }, [selectedFamily, selection, larghezza, altezza, lunghezza, quantita, grigliaPunti, needsXY]);
+  }, [selectedFamily, selection, larghezza, altezza, quantita, grigliaPunti, needsXY]);
 
   const canAdvance = (): boolean => {
     if (step === 1) return !!selectedFamily;
-    if (step === 2) return (parseFloat(quantita) || 0) > 0;
+    if (step === 2) {
+      const q = parseFloat(quantita) || 0;
+      if (q <= 0) return false;
+      if (needsXY) {
+        const l = parseFloat(larghezza);
+        const a = parseFloat(altezza);
+        // Misure devono essere numeri finiti nel range consigliato.
+        if (!Number.isFinite(l) || l < 200 || l > 4000) return false;
+        if (!Number.isFinite(a) || a < 200 || a > 4000) return false;
+      }
+      return true;
+    }
     if (step === 3) {
       // tutti gli assi obbligatori devono avere una scelta
       if (!selectedFamily) return false;
@@ -210,10 +221,18 @@ export default function QuoteWizardSerramenti({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex gap-2 mt-2">
+        <div
+          className="flex gap-2 mt-2"
+          role="progressbar"
+          aria-label={`Avanzamento wizard: step ${step} di 4`}
+          aria-valuenow={step}
+          aria-valuemin={1}
+          aria-valuemax={4}
+        >
           {([1, 2, 3, 4] as Step[]).map((s) => (
             <div
               key={s}
+              aria-hidden="true"
               className={`flex-1 h-1 rounded ${
                 s <= step ? "bg-primary" : "bg-muted"
               }`}
@@ -225,28 +244,61 @@ export default function QuoteWizardSerramenti({
           {/* Step 1: Scelta famiglia */}
           {step === 1 && (
             <div className="space-y-3">
+              <Label htmlFor="wizard-search" className="sr-only">
+                Cerca famiglia
+              </Label>
               <Input
+                id="wizard-search"
                 placeholder="Cerca famiglia..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                aria-label="Cerca famiglia per nome o descrizione"
               />
-              {isLoading && <p className="text-sm text-muted-foreground">Caricamento...</p>}
+              {isLoading && (
+                <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+                  Caricamento…
+                </p>
+              )}
               {!isLoading && filteredFamilies.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <AlertCircle className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                  <p>Nessuna famiglia disponibile. Creale in Impostazioni → Catalogo → Famiglie.</p>
+                <div className="text-center py-8 text-muted-foreground" role="status">
+                  <AlertCircle className="h-10 w-10 mx-auto mb-2 opacity-30" aria-hidden="true" />
+                  {search.trim() ? (
+                    <>
+                      <p>Nessuna famiglia corrisponde a «{search}».</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => setSearch("")}
+                      >
+                        Pulisci ricerca
+                      </Button>
+                    </>
+                  ) : (
+                    <p>Nessuna famiglia disponibile. Creale in Impostazioni → Catalogo → Famiglie.</p>
+                  )}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {filteredFamilies.map((f) => (
                   <Card
                     key={f.id}
-                    className={`cursor-pointer transition ${
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={selectedFamily?.id === f.id}
+                    aria-label={`Seleziona famiglia ${f.nome}`}
+                    className={`cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                       selectedFamily?.id === f.id
                         ? "ring-2 ring-primary"
                         : "hover:border-primary/50"
                     }`}
                     onClick={() => setSelectedFamily(f)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedFamily(f);
+                      }
+                    }}
                   >
                     <CardContent className="p-3">
                       <div className="flex items-start justify-between gap-2">
@@ -282,28 +334,60 @@ export default function QuoteWizardSerramenti({
                 </p>
               </div>
 
-              {needsXY && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>{selectedFamily.griglia_asse_x_label || "Larghezza"} (mm)</Label>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      value={larghezza}
-                      onChange={(e) => setLarghezza(e.target.value)}
-                    />
+              {needsXY && (() => {
+                const lNum = parseFloat(larghezza);
+                const aNum = parseFloat(altezza);
+                const lInvalid = !Number.isFinite(lNum) || lNum < 200 || lNum > 4000;
+                const aInvalid = !Number.isFinite(aNum) || aNum < 200 || aNum > 4000;
+                return (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="wizard-larghezza">
+                        {selectedFamily.griglia_asse_x_label || "Larghezza"} (mm)
+                      </Label>
+                      <Input
+                        id="wizard-larghezza"
+                        type="number"
+                        inputMode="numeric"
+                        min={200}
+                        max={4000}
+                        value={larghezza}
+                        onChange={(e) => setLarghezza(e.target.value)}
+                        aria-invalid={lInvalid}
+                        aria-describedby="wizard-larghezza-hint"
+                      />
+                      <p
+                        id="wizard-larghezza-hint"
+                        className={`text-xs mt-1 ${lInvalid ? "text-destructive" : "text-muted-foreground"}`}
+                      >
+                        Range consigliato 200–4000 mm
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="wizard-altezza">
+                        {selectedFamily.griglia_asse_y_label || "Altezza"} (mm)
+                      </Label>
+                      <Input
+                        id="wizard-altezza"
+                        type="number"
+                        inputMode="numeric"
+                        min={200}
+                        max={4000}
+                        value={altezza}
+                        onChange={(e) => setAltezza(e.target.value)}
+                        aria-invalid={aInvalid}
+                        aria-describedby="wizard-altezza-hint"
+                      />
+                      <p
+                        id="wizard-altezza-hint"
+                        className={`text-xs mt-1 ${aInvalid ? "text-destructive" : "text-muted-foreground"}`}
+                      >
+                        Range consigliato 200–4000 mm
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <Label>{selectedFamily.griglia_asse_y_label || "Altezza"} (mm)</Label>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      value={altezza}
-                      onChange={(e) => setAltezza(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {!needsXY && (
                 <p className="text-sm text-muted-foreground italic">
@@ -312,14 +396,25 @@ export default function QuoteWizardSerramenti({
               )}
 
               <div>
-                <Label>Quantità</Label>
+                <Label htmlFor="wizard-quantita">Quantità</Label>
                 <Input
+                  id="wizard-quantita"
                   type="number"
                   inputMode="numeric"
-                  min="1"
+                  min={1}
+                  step={1}
                   value={quantita}
                   onChange={(e) => setQuantita(e.target.value)}
+                  aria-invalid={(parseFloat(quantita) || 0) <= 0}
+                  aria-describedby={
+                    (parseFloat(quantita) || 0) <= 0 ? "wizard-quantita-error" : undefined
+                  }
                 />
+                {(parseFloat(quantita) || 0) <= 0 && (
+                  <p id="wizard-quantita-error" className="text-xs text-destructive mt-1">
+                    Inserisci una quantità maggiore di zero.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -334,9 +429,11 @@ export default function QuoteWizardSerramenti({
               )}
               {selectedFamily.axes.map((ax) => (
                 <div key={ax.id}>
-                  <Label>
+                  <Label htmlFor={`wizard-axis-${ax.codice}`}>
                     {ax.nome}
-                    {ax.obbligatorio && <span className="text-destructive"> *</span>}
+                    {ax.obbligatorio && (
+                      <span className="text-destructive" aria-label="obbligatorio"> *</span>
+                    )}
                   </Label>
                   <Select
                     value={selection[ax.codice] ?? ""}
@@ -344,7 +441,12 @@ export default function QuoteWizardSerramenti({
                       setSelection((prev) => ({ ...prev, [ax.codice]: v }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger
+                      id={`wizard-axis-${ax.codice}`}
+                      aria-label={ax.nome}
+                      aria-required={ax.obbligatorio}
+                      aria-describedby={ax.descrizione ? `wizard-axis-${ax.codice}-hint` : undefined}
+                    >
                       <SelectValue placeholder="Seleziona..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -365,10 +467,32 @@ export default function QuoteWizardSerramenti({
                     </SelectContent>
                   </Select>
                   {ax.descrizione && (
-                    <p className="text-xs text-muted-foreground mt-1">{ax.descrizione}</p>
+                    <p
+                      id={`wizard-axis-${ax.codice}-hint`}
+                      className="text-xs text-muted-foreground mt-1"
+                    >
+                      {ax.descrizione}
+                    </p>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Step 4: Empty state se il calcolo non è possibile */}
+          {step === 4 && (!selectedFamily || !result) && (
+            <div className="text-center py-8 space-y-3">
+              <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground opacity-50" />
+              <div>
+                <p className="font-medium">Calcolo prezzo non disponibile</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Controlla le misure o la griglia prezzi della famiglia selezionata.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setStep(2)}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Torna alle misure
+              </Button>
             </div>
           )}
 
@@ -462,7 +586,6 @@ export default function QuoteWizardSerramenti({
           <Button
             variant="outline"
             onClick={() => (step > 1 ? setStep((step - 1) as Step) : onClose())}
-            disabled={step === 1 && !selectedFamily}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
             {step === 1 ? "Annulla" : "Indietro"}

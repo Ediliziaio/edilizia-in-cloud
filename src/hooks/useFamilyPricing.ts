@@ -280,12 +280,24 @@ export function useFamilyGrid(familyId: string | undefined) {
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<GridPoint[]> => {
       if (!familyId) return [];
+      // Schema reale listino_griglia: `prezzo_acquisto` (non `_netto`).
+      // Mappiamo qui al dominio GridPoint.prezzo_acquisto_netto.
       const { data, error } = await (supabase as never as typeof supabase)
         .from("listino_griglia" as never)
-        .select("valore_x, valore_y, prezzo_vendita, prezzo_acquisto_netto")
+        .select("valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
         .eq("family_id" as never, familyId);
       if (error) throw error;
-      return (data ?? []) as unknown as GridPoint[];
+      return ((data ?? []) as Array<{
+        valore_x: number;
+        valore_y: number;
+        prezzo_vendita: number;
+        prezzo_acquisto: number | null;
+      }>).map((r) => ({
+        valore_x: Number(r.valore_x),
+        valore_y: Number(r.valore_y),
+        prezzo_vendita: Number(r.prezzo_vendita),
+        prezzo_acquisto_netto: r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0,
+      }));
     },
   });
 }

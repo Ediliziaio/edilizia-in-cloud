@@ -416,14 +416,19 @@ function ArticleDialog({
     queryKey: ["listino-griglia-edit", editingArticle?.id],
     enabled: !!editingArticle?.id && editingArticle.modalita_prezzo === "griglia",
     queryFn: async () => {
-      const { data } = await (supabase.from("listino_griglia") as any)
+      const { data, error } = await (supabase.from("listino_griglia") as any)
         .select("*")
         .eq("prodotto_id", editingArticle!.id);
+      if (error) {
+        console.error("[ArticleCatalog grid edit] errore:", error);
+        return [];
+      }
       if (data?.length) {
         const xs = Array.from(new Set(data.map((r: any) => r.valore_x))).sort((a: any, b: any) => a - b) as number[];
         const ys = Array.from(new Set(data.map((r: any) => r.valore_y))).sort((a: any, b: any) => a - b) as number[];
         const map = new Map<string, GrigliaCell>();
-        data.forEach((r: any) => map.set(`${r.valore_x}_${r.valore_y}`, { pv: r.prezzo_vendita, pa: r.prezzo_acquisto_netto ?? 0 }));
+        // Schema reale: colonna è `prezzo_acquisto` (non `_netto`).
+        data.forEach((r: any) => map.set(`${r.valore_x}_${r.valore_y}`, { pv: r.prezzo_vendita, pa: r.prezzo_acquisto ?? 0 }));
         setValoriX(xs); setValoriY(ys); setCelle(map);
       }
       return data;
@@ -480,7 +485,7 @@ function ArticleDialog({
           valoriY.forEach((y) => {
             const c = celle.get(`${x}_${y}`);
             if (c) {
-              toUpsert.push({ company_id: companyId, prodotto_id: prodottoId, valore_x: x, valore_y: y, prezzo_vendita: c.pv, prezzo_acquisto_netto: c.pa });
+              toUpsert.push({ company_id: companyId, prodotto_id: prodottoId, valore_x: x, valore_y: y, prezzo_vendita: c.pv, prezzo_acquisto: c.pa });
             }
           });
         });
