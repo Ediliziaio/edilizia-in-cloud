@@ -26,7 +26,7 @@ in `src/test/logic/serramentiPricing.test.ts`.
 | 1 | Seed catalogo 20 tipologie + edge fn installa | ✅ | 31009a88 |
 | 2 | Modello fornitori + linee prodotto | ✅ | 5648952e |
 | 3 | Extension listino_griglia axis_config + supplier | ✅ | c15b909b |
-| 4 | Editor matrice visuale Excel-like | ✅ | (pending) |
+| 4 | Editor matrice visuale Excel-like | ✅ | fd1c85c5 |
 | 5 | Import Excel/CSV bulk | — | — |
 | 6 | Sconto + ricarico nel wizard preventivo | — | — |
 | 7 | Seed assi colore + vetro | — | — |
