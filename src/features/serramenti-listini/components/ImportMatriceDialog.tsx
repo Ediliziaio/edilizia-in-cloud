@@ -135,10 +135,16 @@ export function ImportMatriceDialog({
 
   const handleOpenChange = useCallback(
     (v: boolean) => {
+      // Proteggi la chiusura durante l'import: ESC / overlay click /
+      // bottone di sistema verrebbero altrimenti persi a metà mutation.
+      if (!v && step === "importing") {
+        toast.info("Import in corso, attendi il completamento");
+        return;
+      }
       if (!v) reset();
       onOpenChange(v);
     },
-    [onOpenChange, reset],
+    [onOpenChange, reset, step],
   );
 
   // ─── File parsing ────────────────────────────────────────────────────────

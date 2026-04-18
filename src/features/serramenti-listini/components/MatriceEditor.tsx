@@ -72,7 +72,7 @@ export function MatriceEditor({
     familyId,
     axisConfig: null,
   });
-  const { upsert } = useGridCellMutations();
+  const { upsert, remove } = useGridCellMutations();
 
   // Sconto effettivo: override linea ∨ default fornitore
   const scontoEffettivo =
@@ -236,35 +236,17 @@ export function MatriceEditor({
     setSavingKey(k);
     try {
       if (!draft) {
-        // Utente ha cancellato: rimuovi via upsert con prezzo 0? No — upsert
-        // non fa DELETE. Deleghiamo a useGridCellMutations.remove ma solo
-        // se la cella esisteva lato server.
+        // Utente ha cancellato il valore: se la cella esisteva lato server,
+        // la rimuoviamo fisicamente tramite la mutation `remove`. Questo
+        // evita di lasciare celle "fantasma" con prezzo 0 in listino, che
+        // causerebbero prezzi errati nei preventivi successivi.
         const serverCell = filteredServerCells.find(
           (c) => c.valore_x === x && c.valore_y === y,
         );
         if (serverCell?.id) {
-          // Per evitare dipendere da remove qui, facciamo upsert con prezzo 0
-          // e lasciamo che l'utente la pulisca dal server in un secondo momento.
-          // In alternativa: esporre remove qui. Per ora facciamo semplicemente
-          // skippare il salvataggio cell-empty se non era mai stata salvata.
-          const res = calcolaPrezzoSerramento({
-            prezzo_listino: 0,
-            sconto_fornitore: scontoEffettivo,
-            ricarico_azienda: ricaricoEffettivo,
-            maggiorazioni_percentuali: 0,
-            maggiorazioni_fisse: 0,
-            manodopera: 0,
-          });
-          await upsert.mutateAsync({
-            family_id: familyId,
-            axis_config: null,
-            valore_x: x,
-            valore_y: y,
-            prezzo_vendita: 0,
-            prezzo_acquisto: res.prezzo_acquisto,
-            supplier_catalog_id: supplier.id,
-            supplier_product_line_id: productLine.id,
-            note: null,
+          await remove.mutateAsync({
+            id: serverCell.id,
+            familyId,
           });
         }
         return;
@@ -304,6 +286,7 @@ export function MatriceEditor({
     setIsSavingAll(true);
     let okCount = 0;
     const errs: string[] = [];
+    const okKeys = new Set<string>();
     try {
       for (const k of dirty) {
         const [xStr, yStr] = k.split("_");
@@ -312,6 +295,7 @@ export function MatriceEditor({
         try {
           await persistCell(x, y);
           okCount++;
+          okKeys.add(k);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           errs.push(`${x}×${y}: ${msg}`);
@@ -329,11 +313,33 @@ export function MatriceEditor({
           { familyId, productLineId: productLine.id, okCount, errCount: errs.length },
         );
       }
-      setDirty(new Set());
+      // Tieni dirty solo le celle che hanno fallito, così l'utente sa che
+      // deve riprovare. Se tutte ok, svuotiamo l'intero set.
+      setDirty((prev) => {
+        const next = new Set<string>();
+        for (const k of prev) {
+          if (!okKeys.has(k)) next.add(k);
+        }
+        return next;
+      });
     } finally {
       setIsSavingAll(false);
     }
   };
+
+  // ─── Warn prima di lasciare la pagina con modifiche non salvate ──────────
+  useEffect(() => {
+    if (dirty.size === 0) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      // Browser moderni ignorano il testo ma il preventDefault+returnValue
+      // è ancora lo switch per mostrare il prompt nativo.
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty.size]);
 
   // ─── Derived counters ─────────────────────────────────────────────────────
 
