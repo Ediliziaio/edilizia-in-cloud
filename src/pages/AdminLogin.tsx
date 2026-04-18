@@ -9,6 +9,7 @@ import { Loader2, Lock, Shield, Eye, EyeOff, AlertCircle, CheckCircle2 } from "l
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
 import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
+import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 
 type ViewMode = "login" | "2fa" | "forgot-password";
 
@@ -100,9 +101,19 @@ export default function AdminLogin() {
           .select("role")
           .eq("user_id", loggedUser.id);
 
-        const isAdminRole = roles?.some((r) =>
-          ADMIN_PLATFORM_ROLES.includes(r.role as AppRole)
-        );
+        // 🛡️  Defense-in-depth: scarta super_admin per email non in allowlist
+        // prima di valutare isAdminRole. Così un utente con solo super_admin
+        // fraudolento (senza altri platform_*) si vede rifiutato anche qui.
+        const effectiveRoles = (roles ?? [])
+          .map((r) => r.role as AppRole)
+          .filter((r) => {
+            if (r === "super_admin" && !isSuperAdminEmailAllowed(loggedUser.email)) {
+              return false;
+            }
+            return true;
+          });
+
+        const isAdminRole = effectiveRoles.some((r) => ADMIN_PLATFORM_ROLES.includes(r));
         if (!isAdminRole) {
           await supabase.auth.signOut();
           setFormError("Accesso negato. Questa pagina è riservata agli amministratori.");

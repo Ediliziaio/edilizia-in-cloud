@@ -5,6 +5,7 @@ import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@
 import { logger } from "@/utils/logger";
 import { toast } from "sonner";
 import { captureVelocityError, setSentryUserContext } from "@/lib/velocity/sentry";
+import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 
 /**
  * Velocity Protocol — V1/V2
@@ -274,7 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     validateImpersonation();
   }, [state.role]);
 
-  const fetchUserData = useCallback(async (userId: string) => {
+  const fetchUserData = useCallback(async (userId: string, userEmail: string | null | undefined) => {
     // Velocity — V1: timeout sulla critical path di auth.
     // Se Supabase è in cold-start (free tier ibernato) o la rete dell'utente in
     // cantiere è pessima, l'attesa può essere >15s → spinner infinito. Con
@@ -337,7 +338,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "company_staff",  // dipendente ufficio: solo company_staff → effective = company_staff
         "customer",
       ];
-      const userRoles = (rolesData || []).map(r => r.role as AppRole);
+      let userRoles = (rolesData || []).map(r => r.role as AppRole);
+
+      // 🛡️  Defense-in-depth: il ruolo super_admin viene rifiutato se l'email dell'utente
+      // non è nella SUPER_ADMIN_EMAIL_ALLOWLIST. In caso di mismatch (es. riga spuria in
+      // user_roles per demo@azienda.srl), scartiamo il ruolo prima di calcolare
+      // effectiveRole → l'utente viene instradato come il suo ruolo legittimo successivo
+      // (tipicamente company_admin) e non vede l'area superadmin.
+      if (userRoles.includes("super_admin") && !isSuperAdminEmailAllowed(userEmail)) {
+        logger.warn("[security] super_admin DB role rifiutato: email non in allowlist", {
+          userId,
+          email: userEmail ?? null,
+        });
+        captureVelocityError(
+          "auth.superAdmin.refused",
+          new Error("super_admin role rejected by allowlist"),
+          { userId, email: userEmail ?? null },
+        );
+        userRoles = userRoles.filter(r => r !== "super_admin");
+      }
+
       const effectiveRole = rolePriority.find(r => userRoles.includes(r)) || userRoles[0] || null;
 
       return {
@@ -383,7 +403,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const user = sessionResult.data.session?.user ?? null;
 
       if (user) {
-        const userData = await fetchUserData(user.id);
+        const userData = await fetchUserData(user.id, user.email);
         if (myGen !== authGenRef.current) return;
         setState({
           user,
@@ -479,7 +499,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // fresh cache entry for this user we render the UI immediately and let
           // the DB re-validation happen in the background.
           const cached = readProfileCache(session.user.id);
-          if (cached && cached.role !== null) {
+          // 🛡️  Defense-in-depth: se il cache contiene super_admin ma l'email non è
+          // nell'allowlist (es. cache stale pre-fix o tampering), invalidiamo il cache
+          // e costringiamo una re-fetch dal DB (che a sua volta scarta il ruolo).
+          const cacheSuperAdminRejected =
+            cached?.role === "super_admin" && !isSuperAdminEmailAllowed(session.user.email);
+          if (cacheSuperAdminRejected) {
+            logger.warn("[security] cache super_admin rifiutato: email non in allowlist — cache invalidata");
+            clearProfileCache();
+          }
+          if (cached && cached.role !== null && !cacheSuperAdminRejected) {
             resolvedRoleRef.current = cached.role;
             setState({
               user: session.user,
@@ -496,7 +525,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
           try {
             userData = await Promise.race([
-              fetchUserData(session.user.id),
+              fetchUserData(session.user.id, session.user.email),
               new Promise<never>((_, reject) =>
                 setTimeout(() => reject(new Error("fetchUserData timeout")), 12_000)
               ),
@@ -567,7 +596,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
             try {
               userData = await Promise.race([
-                fetchUserData(session.user.id),
+                fetchUserData(session.user.id, session.user.email),
                 new Promise<never>((_, reject) =>
                   setTimeout(() => reject(new Error("fetchUserData timeout")), 12_000)
                 ),

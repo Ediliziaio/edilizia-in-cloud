@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 import { Loader2 } from "lucide-react";
 import { getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
+import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 
 function LoadingSpinner({ text }: { text: string }) {
   return (
@@ -85,6 +86,13 @@ export function RoleBasedRedirect() {
     if (mustChangePassword === true) {
       return <Navigate to="/cambia-password" replace />;
     }
+  }
+
+  // 🛡️  Defense-in-depth: blocca dispatch a /admin se qualcuno arriva con
+  // super_admin ma email non in allowlist (cache stale, race condition, tampering).
+  if (role === "super_admin" && !isSuperAdminEmailAllowed(user.email)) {
+    logger.warn("[security] RoleBasedRedirect: super_admin bloccato, dispatch a /azienda");
+    return <Navigate to="/azienda" replace />;
   }
 
   // Redirect based on role
