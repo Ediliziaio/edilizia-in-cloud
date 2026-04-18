@@ -75,7 +75,11 @@ export default function QuoteWizardSerramenti({
     }
   }, [open]);
 
-  // Inizializza selezioni assi con default quando si sceglie una famiglia
+  // Inizializza selezioni assi con default quando si sceglie una famiglia.
+  // Intenzionalmente dep solo su `selectedFamily?.id`: se useFamilies refetch
+  // restituisce una nuova reference con lo stesso id, NON vogliamo resettare le
+  // scelte dell'utente. Solo un cambio di id (user sceglie altra famiglia)
+  // deve riapplicare i default.
   useEffect(() => {
     if (!selectedFamily) return;
     const sel: AxisSelection = {};
@@ -84,6 +88,7 @@ export default function QuoteWizardSerramenti({
       if (def) sel[ax.codice] = def.id;
     }
     setSelection(sel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFamily?.id]);
 
   const filteredFamilies = useMemo(() => {

@@ -30,6 +30,7 @@ import { useBundlesList, type Bundle } from "@/hooks/useBundles";
 import { useFamilies } from "@/hooks/useFamilies";
 import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
 import { formatCurrency } from "@/lib/formatters";
+import { logger } from "@/utils/logger";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { AxisSelection, FamilyWithAxes } from "@/types/articleFamily";
@@ -59,7 +60,7 @@ function useBundleGrids(familyIds: string[]) {
         .select("family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
         .in("family_id" as never, familyIds);
       if (error) {
-        console.error("[useBundleGrids] errore caricamento griglia:", error);
+        logger.error("[useBundleGrids] errore caricamento griglia", error);
         return new Map<string, GridPoint[]>();
       }
       const byFamily = new Map<string, GridPoint[]>();
