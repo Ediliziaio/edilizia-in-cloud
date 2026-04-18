@@ -16035,35 +16035,47 @@ export type Database = {
       }
       listino_griglia: {
         Row: {
+          axis_config: Json | null
           company_id: string
           created_at: string | null
+          family_id: string | null
           id: string
           note: string | null
           prezzo_acquisto: number | null
           prezzo_vendita: number
-          prodotto_id: string
+          prodotto_id: string | null
+          supplier_catalog_id: string | null
+          supplier_product_line_id: string | null
           valore_x: number
           valore_y: number
         }
         Insert: {
+          axis_config?: Json | null
           company_id: string
           created_at?: string | null
+          family_id?: string | null
           id?: string
           note?: string | null
           prezzo_acquisto?: number | null
           prezzo_vendita: number
-          prodotto_id: string
+          prodotto_id?: string | null
+          supplier_catalog_id?: string | null
+          supplier_product_line_id?: string | null
           valore_x: number
           valore_y: number
         }
         Update: {
+          axis_config?: Json | null
           company_id?: string
           created_at?: string | null
+          family_id?: string | null
           id?: string
           note?: string | null
           prezzo_acquisto?: number | null
           prezzo_vendita?: number
-          prodotto_id?: string
+          prodotto_id?: string | null
+          supplier_catalog_id?: string | null
+          supplier_product_line_id?: string | null
           valore_x?: number
           valore_y?: number
         }
@@ -16083,10 +16095,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "listino_griglia_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "listino_griglia_prodotto_id_fkey"
             columns: ["prodotto_id"]
             isOneToOne: false
             referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listino_griglia_supplier_catalog_id_fkey"
+            columns: ["supplier_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_catalogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listino_griglia_supplier_product_line_id_fkey"
+            columns: ["supplier_product_line_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_product_lines"
             referencedColumns: ["id"]
           },
         ]

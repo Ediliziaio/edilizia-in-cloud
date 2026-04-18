@@ -19,6 +19,11 @@ export {
   useSupplierProductLines,
   useSupplierProductLineMutations,
 } from "./hooks/useSupplierProductLines";
+export {
+  useGridCells,
+  useGridCellMutations,
+  type GridCellUpsert,
+} from "./hooks/useGridCells";
 
 // Components
 export { InstallaCatalogoButton } from "./components/InstallaCatalogoButton";

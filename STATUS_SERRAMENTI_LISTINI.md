@@ -25,7 +25,7 @@ in `src/test/logic/serramentiPricing.test.ts`.
 | 0 | Setup feature folder + flag + formula prezzo + test | ✅ | 01c88425 |
 | 1 | Seed catalogo 20 tipologie + edge fn installa | ✅ | 31009a88 |
 | 2 | Modello fornitori + linee prodotto | ✅ | 5648952e |
-| 3 | Extension listino_griglia axis_config + supplier | — | — |
+| 3 | Extension listino_griglia axis_config + supplier | ✅ | _pending_ |
 | 4 | Editor matrice visuale Excel-like | — | — |
 | 5 | Import Excel/CSV bulk | — | — |
 | 6 | Sconto + ricarico nel wizard preventivo | — | — |
@@ -99,6 +99,32 @@ Nessuna integrazione col wizard preventivo in STEP 2 — wiring in STEP 6.
 ⚠ Migration NON applicata automaticamente (MCP Supabase punta ad altro
 progetto). Da applicare via CLI supabase dell'utente:
 `supabase db push` o pipeline di deploy standard.
+
+## STEP 3 — dettaglio deliverable
+
+Consegnati:
+
+- `supabase/migrations/20260917000015_serramenti_15_griglia_axis_config.sql`
+  — ADD COLUMN axis_config JSONB + supplier_catalog_id + supplier_product_line_id
+    su listino_griglia. Indici: GIN su axis_config, btree parziali sui FK
+    supplier. DROP del vecchio `idx_griglia_family_xy_unique`, creato
+    `idx_griglia_family_axis_xy_unique` con COALESCE(axis_config, '{}'::jsonb)
+    per supportare multi-fascia. Idempotente.
+- `src/integrations/supabase/types.ts`
+  — aggiunti i 5 campi nuovi a listino_griglia (axis_config, family_id,
+    supplier_catalog_id, supplier_product_line_id) + prodotto_id ora nullable
+    (conforme allo schema reale dopo FASE 2).
+- `src/features/serramenti-listini/hooks/useGridCells.ts`
+  — useGridCells({ familyId, axisConfig? }) con filtro jsonb contains/containedBy
+    per matching esatto fascia. useGridCellMutations con upsert atomico
+    (cerca per dedup key → update se trovato, insert altrimenti).
+    Canonicalizzazione axis_config (sort delle chiavi) per cache stabile.
+- `src/features/serramenti-listini/index.ts`
+  — esportato useGridCells / useGridCellMutations / GridCellUpsert
+
+Comportamento: STEP 3 è puro data layer. La UI editor arriva in STEP 4.
+Backward compat: celle con axis_config NULL continuano a funzionare; il
+nuovo indice unique tratta NULL come `{}` via COALESCE.
 
 ## Vincoli architettonici
 
