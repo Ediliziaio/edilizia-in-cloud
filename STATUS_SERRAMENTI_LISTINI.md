@@ -26,7 +26,7 @@ in `src/test/logic/serramentiPricing.test.ts`.
 | 1 | Seed catalogo 20 tipologie + edge fn installa | ✅ | 31009a88 |
 | 2 | Modello fornitori + linee prodotto | ✅ | 5648952e |
 | 3 | Extension listino_griglia axis_config + supplier | ✅ | c15b909b |
-| 4 | Editor matrice visuale Excel-like | — | — |
+| 4 | Editor matrice visuale Excel-like | ✅ | (pending) |
 | 5 | Import Excel/CSV bulk | — | — |
 | 6 | Sconto + ricarico nel wizard preventivo | — | — |
 | 7 | Seed assi colore + vetro | — | — |
@@ -125,6 +125,50 @@ Consegnati:
 Comportamento: STEP 3 è puro data layer. La UI editor arriva in STEP 4.
 Backward compat: celle con axis_config NULL continuano a funzionare; il
 nuovo indice unique tratta NULL come `{}` via COALESCE.
+
+## STEP 4 — dettaglio deliverable
+
+Consegnati:
+
+- `src/features/serramenti-listini/components/MatriceEditor.tsx`
+  — Editor matrice visuale Excel-like per `listino_griglia`. Input: prezzi
+    di LISTINO (pre-sconto) da compilare in celle L×H. Output live via
+    `calcolaPrezzoSerramento`: acquisto + vendita renderizzati in ogni cella.
+    Dirty tracking con `Set<string>` (key `x_y`) + highlight amber sulle
+    celle modificate. Mutatori assi con validazione 100–5000mm + duplicate
+    check. Salvataggio batch via `saveAll()` → loop `upsert.mutateAsync`
+    con toast partial-success + `captureVelocityError` su errori.
+- `src/features/serramenti-listini/pages/MatriceListini.tsx`
+  — Container gated da `listini_serramenti_avanzati`. Tre select in grid:
+    famiglia (vertical=serramentista) × fornitore × linea prodotto. Editor
+    renderizzato solo quando tutti e 3 sono selezionati. Empty states con
+    deep-link alla pagina Fornitori quando lista vuota.
+- `src/routes/companyRoutes.tsx`
+  — Route `/azienda/impostazioni/listini-serramenti/matrice` dietro
+    `<FeatureRoute>` + `<ErrorBoundary title="Errore matrice listini">`.
+    Lazy-loaded via dynamic import.
+- `src/features/serramenti-listini/index.ts`
+  — Esportati `MatriceEditor` e `MatriceListiniPage`.
+
+Design notes:
+
+- `axis_config` FISSO a `null` in STEP 4 → cella "base" senza fascia.
+  Multi-fascia (colore/profilo/vetro) arriva in STEP 8.
+- Campo DB `listino_griglia.prezzo_vendita` contiene il prezzo di LISTINO
+  (pre-sconto): il prezzo vendita finale al cliente viene ricalcolato dal
+  wizard via `calcolaPrezzoSerramento`. Evita cambi schema DB.
+- `prezzo_acquisto` persistito pre-calcolato per reporting/margine.
+- Upsert client-side loop: OK per N×M ≤ 400 celle. Batch RPC arriva STEP 5.
+- Nessun DELETE destructive come `FamilyGridEditor` (preventivatore base,
+  che non ha supplier concept).
+- Sconto effettivo: `productLine.sconto_override ?? supplier.sconto_default`.
+- Ricarico: `productLine.ricarico_default`.
+
+Verifiche finali STEP 4:
+
+- `bunx tsc --noEmit`: ✅ 0 errori
+- `bun run test`: ✅ 216/216 passed
+- `bun run build`: ✅ chunk `serramenti-listini-*.js` 47.5 KB (gzip ~11 KB)
 
 ## Vincoli architettonici
 

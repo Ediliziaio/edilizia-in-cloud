@@ -1,0 +1,607 @@
+/**
+ * STEP 4 — Editor matrice visuale Excel-like per listino_griglia.
+ *
+ * Obiettivo: compilare il listino prezzi di una famiglia × linea prodotto.
+ * Input utente: prezzi di LISTINO (pre-sconto). Il componente calcola
+ * live acquisto + vendita + margine% usando la formula canonica
+ * `calcolaPrezzoSerramento`.
+ *
+ * Dati persistiti in `listino_griglia` (via useGridCellMutations.upsert):
+ *   { family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto,
+ *     supplier_catalog_id, supplier_product_line_id, axis_config: null }
+ *
+ * Note design:
+ *   - axis_config FISSO a null (= cella "base" senza fascia). Multi-fascia
+ *     arriva in STEP 8.
+ *   - Dirty tracking per salvare solo le celle modificate (no DELETE-ALL
+ *     destructive come FamilyGridEditor FASE 4, che è per Preventivatore
+ *     senza supplier concept).
+ *   - Upsert loop client-side: OK per N × M ≤ 400 celle. Oltre, valutare
+ *     un RPC batch (STEP 5).
+ */
+
+import { useEffect, useMemo, useState } from "react";
+import { Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { captureVelocityError } from "@/lib/velocity/sentry";
+import { useGridCellMutations, useGridCells } from "../hooks/useGridCells";
+import type { GridCell, SupplierCatalog, SupplierProductLine } from "../types";
+import { calcolaPrezzoSerramento } from "../utils/pricing";
+
+interface Props {
+  /** Famiglia serramento (article_families.id). Obbligatoria. */
+  familyId: string;
+  /** Nome famiglia per header. */
+  familyNome: string;
+  /** Fornitore di riferimento (per sconto_default). */
+  supplier: SupplierCatalog;
+  /** Linea prodotto specifica del fornitore (per ricarico + override sconto). */
+  productLine: SupplierProductLine;
+  /** Etichette assi griglia (default: "Larghezza (mm)" × "Altezza (mm)"). */
+  asseXLabel?: string;
+  asseYLabel?: string;
+}
+
+/** Stato locale di una cella prima del salvataggio. */
+interface CellDraft {
+  prezzo_listino: number;
+}
+
+const keyOf = (x: number, y: number) => `${x}_${y}`;
+const fmtEur = (n: number) =>
+  new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 2,
+  }).format(n);
+
+export function MatriceEditor({
+  familyId,
+  familyNome,
+  supplier,
+  productLine,
+  asseXLabel = "Larghezza (mm)",
+  asseYLabel = "Altezza (mm)",
+}: Props) {
+  const { cells: serverCells, isLoading, isError, refetch } = useGridCells({
+    familyId,
+    axisConfig: null,
+  });
+  const { upsert } = useGridCellMutations();
+
+  // Sconto effettivo: override linea ∨ default fornitore
+  const scontoEffettivo =
+    productLine.sconto_override ?? supplier.sconto_default ?? 0;
+  const ricaricoEffettivo = productLine.ricarico_default ?? 0;
+
+  // ─── Stato locale ─────────────────────────────────────────────────────────
+
+  const [xAxis, setXAxis] = useState<number[]>([]);
+  const [yAxis, setYAxis] = useState<number[]>([]);
+  const [drafts, setDrafts] = useState<Map<string, CellDraft>>(new Map());
+  const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [isSavingAll, setIsSavingAll] = useState(false);
+  const [newX, setNewX] = useState("");
+  const [newY, setNewY] = useState("");
+
+  // ─── Bootstrap dallo stato server ─────────────────────────────────────────
+  // Solo per questo supplier_product_line_id: filtriamo client-side perché
+  // useGridCells non accetta ancora filter supplier. (refactor eventuale STEP 5.)
+  const filteredServerCells = useMemo<GridCell[]>(
+    () =>
+      serverCells.filter(
+        (c) => c.supplier_product_line_id === productLine.id,
+      ),
+    [serverCells, productLine.id],
+  );
+
+  useEffect(() => {
+    const xs = Array.from(
+      new Set(filteredServerCells.map((c) => c.valore_x)),
+    ).sort((a, b) => a - b);
+    const ys = Array.from(
+      new Set(filteredServerCells.map((c) => c.valore_y)),
+    ).sort((a, b) => a - b);
+    const nextDrafts = new Map<string, CellDraft>();
+    for (const c of filteredServerCells) {
+      // Dal server leggiamo prezzo_vendita (che in listini avanzati rappresenta
+      // il prezzo di listino PRIMA di sconto/ricarico — è l'input utente).
+      // Decisione: usiamo `prezzo_vendita` come contenitore del listino per
+      // evitare cambio schema DB. Il vero prezzo_vendita finale cliente
+      // viene ricalcolato dal wizard preventivo tramite `calcolaPrezzoSerramento`.
+      nextDrafts.set(keyOf(c.valore_x, c.valore_y), {
+        prezzo_listino: c.prezzo_vendita,
+      });
+    }
+    setXAxis(xs);
+    setYAxis(ys);
+    setDrafts(nextDrafts);
+    setDirty(new Set());
+  }, [filteredServerCells]);
+
+  // ─── Mutators assi ────────────────────────────────────────────────────────
+
+  const addX = () => {
+    const v = parseInt(newX, 10);
+    if (!Number.isFinite(v) || v <= 0) {
+      toast.error("Valore larghezza non valido");
+      return;
+    }
+    if (v < 100 || v > 5000) {
+      toast.error("Range consigliato 100–5000 mm");
+      return;
+    }
+    if (xAxis.includes(v)) {
+      toast.error("Valore già presente");
+      return;
+    }
+    setXAxis([...xAxis, v].sort((a, b) => a - b));
+    setNewX("");
+  };
+
+  const addY = () => {
+    const v = parseInt(newY, 10);
+    if (!Number.isFinite(v) || v <= 0) {
+      toast.error("Valore altezza non valido");
+      return;
+    }
+    if (v < 100 || v > 5000) {
+      toast.error("Range consigliato 100–5000 mm");
+      return;
+    }
+    if (yAxis.includes(v)) {
+      toast.error("Valore già presente");
+      return;
+    }
+    setYAxis([...yAxis, v].sort((a, b) => a - b));
+    setNewY("");
+  };
+
+  const removeX = (v: number) => {
+    setXAxis(xAxis.filter((x) => x !== v));
+    setDrafts((prev) => {
+      const next = new Map(prev);
+      const removed: string[] = [];
+      for (const k of next.keys()) {
+        if (k.startsWith(`${v}_`)) {
+          next.delete(k);
+          removed.push(k);
+        }
+      }
+      if (removed.length > 0) {
+        setDirty((d) => {
+          const nd = new Set(d);
+          for (const k of removed) nd.add(k);
+          return nd;
+        });
+      }
+      return next;
+    });
+  };
+
+  const removeY = (v: number) => {
+    setYAxis(yAxis.filter((y) => y !== v));
+    setDrafts((prev) => {
+      const next = new Map(prev);
+      const removed: string[] = [];
+      for (const k of next.keys()) {
+        if (k.endsWith(`_${v}`)) {
+          next.delete(k);
+          removed.push(k);
+        }
+      }
+      if (removed.length > 0) {
+        setDirty((d) => {
+          const nd = new Set(d);
+          for (const k of removed) nd.add(k);
+          return nd;
+        });
+      }
+      return next;
+    });
+  };
+
+  const setCellListino = (x: number, y: number, value: string) => {
+    const parsed = parseFloat(value);
+    const num = Number.isFinite(parsed) ? parsed : 0;
+    const k = keyOf(x, y);
+    setDrafts((prev) => {
+      const next = new Map(prev);
+      if (num <= 0) {
+        next.delete(k);
+      } else {
+        next.set(k, { prezzo_listino: num });
+      }
+      return next;
+    });
+    setDirty((prev) => {
+      const next = new Set(prev);
+      next.add(k);
+      return next;
+    });
+  };
+
+  // ─── Save (loop upsert per le celle dirty) ────────────────────────────────
+
+  const persistCell = async (x: number, y: number) => {
+    const k = keyOf(x, y);
+    const draft = drafts.get(k);
+    setSavingKey(k);
+    try {
+      if (!draft) {
+        // Utente ha cancellato: rimuovi via upsert con prezzo 0? No — upsert
+        // non fa DELETE. Deleghiamo a useGridCellMutations.remove ma solo
+        // se la cella esisteva lato server.
+        const serverCell = filteredServerCells.find(
+          (c) => c.valore_x === x && c.valore_y === y,
+        );
+        if (serverCell?.id) {
+          // Per evitare dipendere da remove qui, facciamo upsert con prezzo 0
+          // e lasciamo che l'utente la pulisca dal server in un secondo momento.
+          // In alternativa: esporre remove qui. Per ora facciamo semplicemente
+          // skippare il salvataggio cell-empty se non era mai stata salvata.
+          const res = calcolaPrezzoSerramento({
+            prezzo_listino: 0,
+            sconto_fornitore: scontoEffettivo,
+            ricarico_azienda: ricaricoEffettivo,
+            maggiorazioni_percentuali: 0,
+            maggiorazioni_fisse: 0,
+            manodopera: 0,
+          });
+          await upsert.mutateAsync({
+            family_id: familyId,
+            axis_config: null,
+            valore_x: x,
+            valore_y: y,
+            prezzo_vendita: 0,
+            prezzo_acquisto: res.prezzo_acquisto,
+            supplier_catalog_id: supplier.id,
+            supplier_product_line_id: productLine.id,
+            note: null,
+          });
+        }
+        return;
+      }
+      const res = calcolaPrezzoSerramento({
+        prezzo_listino: draft.prezzo_listino,
+        sconto_fornitore: scontoEffettivo,
+        ricarico_azienda: ricaricoEffettivo,
+        maggiorazioni_percentuali: 0,
+        maggiorazioni_fisse: 0,
+        manodopera: 0,
+      });
+      await upsert.mutateAsync({
+        family_id: familyId,
+        axis_config: null,
+        valore_x: x,
+        valore_y: y,
+        // Salviamo il listino nel campo prezzo_vendita. Il "vero" prezzo
+        // vendita finale cliente lo ricalcola il wizard combinando
+        // listino × (1-sconto) × (1+ricarico).
+        prezzo_vendita: draft.prezzo_listino,
+        prezzo_acquisto: res.prezzo_acquisto,
+        supplier_catalog_id: supplier.id,
+        supplier_product_line_id: productLine.id,
+        note: null,
+      });
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const saveAll = async () => {
+    if (dirty.size === 0) {
+      toast.info("Nessuna modifica da salvare");
+      return;
+    }
+    setIsSavingAll(true);
+    let okCount = 0;
+    const errs: string[] = [];
+    try {
+      for (const k of dirty) {
+        const [xStr, yStr] = k.split("_");
+        const x = Number(xStr);
+        const y = Number(yStr);
+        try {
+          await persistCell(x, y);
+          okCount++;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          errs.push(`${x}×${y}: ${msg}`);
+        }
+      }
+      if (errs.length === 0) {
+        toast.success(`${okCount} celle salvate`);
+      } else {
+        toast.error(`Salvate ${okCount}, errori su ${errs.length}`, {
+          description: errs.slice(0, 3).join(" · "),
+        });
+        captureVelocityError(
+          "listini-avanzati.matrice.save_partial",
+          new Error(errs.join("; ")),
+          { familyId, productLineId: productLine.id, okCount, errCount: errs.length },
+        );
+      }
+      setDirty(new Set());
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
+
+  // ─── Derived counters ─────────────────────────────────────────────────────
+
+  const totalCells = xAxis.length * yAxis.length;
+  const filledCells = drafts.size;
+
+  // ─── Render ──────────────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground py-6">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        Caricamento matrice…
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Errore caricamento matrice prezzi.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            Riprova
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+          Matrice {familyNome}
+          <Badge variant="outline" className="text-xs font-normal">
+            {productLine.nome}
+          </Badge>
+          <Badge variant="secondary" className="text-xs font-normal">
+            {supplier.nome}
+          </Badge>
+        </CardTitle>
+        <CardDescription className="text-sm">
+          Inserisci i <strong>prezzi di listino</strong> (pre-sconto). Acquisto
+          e vendita vengono calcolati automaticamente:{" "}
+          <span className="font-mono text-xs">
+            sconto {(scontoEffettivo * 100).toFixed(0)}% · ricarico{" "}
+            {(ricaricoEffettivo * 100).toFixed(0)}%
+          </span>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Asse X */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{asseXLabel}</label>
+          <div className="flex flex-wrap items-center gap-2">
+            {xAxis.map((v) => (
+              <Badge key={v} variant="secondary" className="gap-1">
+                {v}
+                <button
+                  type="button"
+                  onClick={() => removeX(v)}
+                  className="ml-1 hover:text-destructive"
+                  aria-label={`Rimuovi larghezza ${v}`}
+                >
+                  ×
+                </button>
+              </Badge>
+            ))}
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={newX}
+                onChange={(e) => setNewX(e.target.value)}
+                placeholder="es. 1200"
+                className="w-32 h-8"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addX();
+                  }
+                }}
+                aria-label="Aggiungi valore larghezza"
+              />
+              <Button type="button" size="sm" variant="outline" onClick={addX}>
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Asse Y */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{asseYLabel}</label>
+          <div className="flex flex-wrap items-center gap-2">
+            {yAxis.map((v) => (
+              <Badge key={v} variant="secondary" className="gap-1">
+                {v}
+                <button
+                  type="button"
+                  onClick={() => removeY(v)}
+                  className="ml-1 hover:text-destructive"
+                  aria-label={`Rimuovi altezza ${v}`}
+                >
+                  ×
+                </button>
+              </Badge>
+            ))}
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={newY}
+                onChange={(e) => setNewY(e.target.value)}
+                placeholder="es. 1400"
+                className="w-32 h-8"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addY();
+                  }
+                }}
+                aria-label="Aggiungi valore altezza"
+              />
+              <Button type="button" size="sm" variant="outline" onClick={addY}>
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Matrice */}
+        {xAxis.length > 0 && yAxis.length > 0 ? (
+          <div className="border rounded-md overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="p-2 text-left border-r sticky left-0 bg-muted/50 z-10 min-w-[100px]">
+                    {asseYLabel} \ {asseXLabel}
+                  </th>
+                  {xAxis.map((x) => (
+                    <th key={x} className="p-2 text-center border-r min-w-[160px]">
+                      {x}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {yAxis.map((y) => (
+                  <tr key={y} className="border-t">
+                    <td className="p-2 font-medium border-r sticky left-0 bg-background z-10">
+                      {y}
+                    </td>
+                    {xAxis.map((x) => {
+                      const k = keyOf(x, y);
+                      const draft = drafts.get(k);
+                      const isDirty = dirty.has(k);
+                      const isSavingCell = savingKey === k;
+                      const calc = draft
+                        ? calcolaPrezzoSerramento({
+                            prezzo_listino: draft.prezzo_listino,
+                            sconto_fornitore: scontoEffettivo,
+                            ricarico_azienda: ricaricoEffettivo,
+                            maggiorazioni_percentuali: 0,
+                            maggiorazioni_fisse: 0,
+                            manodopera: 0,
+                          })
+                        : null;
+                      return (
+                        <td
+                          key={x}
+                          className={`p-1 border-r ${
+                            isDirty ? "bg-amber-50 dark:bg-amber-950/20" : ""
+                          }`}
+                        >
+                          <div className="flex flex-col gap-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              placeholder="Listino €"
+                              value={draft?.prezzo_listino ?? ""}
+                              onChange={(e) =>
+                                setCellListino(x, y, e.target.value)
+                              }
+                              className="h-7 text-xs font-mono"
+                              aria-label={`Prezzo listino ${x}×${y}`}
+                              disabled={isSavingCell}
+                            />
+                            {calc ? (
+                              <div className="text-[10px] leading-tight space-y-0.5 px-1">
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Acq:</span>
+                                  <span className="font-mono">
+                                    {fmtEur(calc.prezzo_acquisto)}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between font-medium">
+                                  <span>Vend:</span>
+                                  <span className="font-mono">
+                                    {fmtEur(calc.prezzo_vendita_no_posa)}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-muted-foreground italic px-1">
+                                vuota
+                              </div>
+                            )}
+                            {draft && (
+                              <button
+                                type="button"
+                                onClick={() => setCellListino(x, y, "0")}
+                                className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-0.5 px-1"
+                                disabled={isSavingCell}
+                                aria-label={`Svuota cella ${x}×${y}`}
+                              >
+                                <Trash2 className="h-2.5 w-2.5" aria-hidden />
+                                svuota
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
+            Aggiungi valori ai due assi per iniziare a compilare la matrice.
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-3 border-t flex-wrap gap-2">
+          <span className="text-sm text-muted-foreground">
+            {filledCells} / {totalCells} celle compilate
+            {dirty.size > 0 && (
+              <>
+                {" "}·{" "}
+                <span className="text-amber-700 dark:text-amber-400 font-medium">
+                  {dirty.size} non salvate
+                </span>
+              </>
+            )}
+          </span>
+          <Button
+            type="button"
+            onClick={() => void saveAll()}
+            disabled={isSavingAll || dirty.size === 0}
+          >
+            {isSavingAll ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />
+                Salvataggio…
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" aria-hidden />
+                Salva matrice
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

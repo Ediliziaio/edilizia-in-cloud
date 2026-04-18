@@ -44,6 +44,9 @@ const ListinoManutenzione = lazy(() => import("@/pages/azienda/settings/ListinoM
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
+const MatriceListiniPage = lazy(() =>
+  import("@/features/serramenti-listini").then((m) => ({ default: m.MatriceListiniPage })),
+);
 const SettingsMargini = lazy(() => import("@/pages/azienda/settings/SettingsMargini"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
@@ -422,6 +425,16 @@ export function companyRoutes() {
               <FeatureRoute featureKey="listini_serramenti_avanzati">
                 <ErrorBoundary title="Errore listini serramenti">
                   <ListiniFornitoriPage />
+                </ErrorBoundary>
+              </FeatureRoute>
+            }
+          />
+          <Route
+            path="listini-serramenti/matrice"
+            element={
+              <FeatureRoute featureKey="listini_serramenti_avanzati">
+                <ErrorBoundary title="Errore matrice listini">
+                  <MatriceListiniPage />
                 </ErrorBoundary>
               </FeatureRoute>
             }

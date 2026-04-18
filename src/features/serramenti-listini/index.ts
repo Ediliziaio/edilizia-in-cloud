@@ -28,11 +28,13 @@ export {
 // Components
 export { InstallaCatalogoButton } from "./components/InstallaCatalogoButton";
 export { FornitoriManager } from "./components/FornitoriManager";
+export { MatriceEditor } from "./components/MatriceEditor";
 export { SupplierCatalogFormDialog } from "./components/SupplierCatalogFormDialog";
 export { SupplierProductLineFormDialog } from "./components/SupplierProductLineFormDialog";
 
 // Pages
 export { default as ListiniFornitoriPage } from "./pages/ListiniFornitori";
+export { default as MatriceListiniPage } from "./pages/MatriceListini";
 
 // Data (catalogo statico, utile in UI per icone e lookup per slug)
 export {
