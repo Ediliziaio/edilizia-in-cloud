@@ -122,7 +122,12 @@ export default function ApplyBundleDialog({
       families.map((f) => [f.id, f]),
     );
 
-    for (const voce of (selectedBundle.voci ?? []).sort((a, z) => a.sort_order - z.sort_order)) {
+    // Spread prima di sort — .sort() muta in-place, e `voci` arriva dalla React Query cache.
+    // Senza copia l'ordine della cache cambierebbe ad ogni `expansion` memoizzata.
+    const vociSorted = [...(selectedBundle.voci ?? [])].sort(
+      (a, z) => a.sort_order - z.sort_order,
+    );
+    for (const voce of vociSorted) {
       const qty = Number(voce.quantita) || 1;
       const vanoSuffix = voce.vano_label ? ` — ${voce.vano_label}` : "";
 

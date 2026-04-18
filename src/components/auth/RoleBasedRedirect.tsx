@@ -24,6 +24,9 @@ export function RoleBasedRedirect() {
   const [checkingPassword, setCheckingPassword] = useState(false);
 
   useEffect(() => {
+    // Cancel flag: evita setState dopo cleanup se role cambia (view-as/impersonation).
+    let cancelled = false;
+
     async function checkPasswordChange() {
       if (["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "") && user) {
         setCheckingPassword(true);
@@ -33,7 +36,9 @@ export function RoleBasedRedirect() {
             .select("must_change_password")
             .eq("user_id", user.id)
             .maybeSingle();
-          
+
+          if (cancelled) return;
+
           if (error) {
             logger.error("Error checking password flag:", error);
             setMustChangePassword(false);
@@ -41,20 +46,24 @@ export function RoleBasedRedirect() {
             setMustChangePassword(data?.must_change_password ?? false);
           }
         } catch (err) {
+          if (cancelled) return;
           logger.error("Error in checkPasswordChange:", err);
           setMustChangePassword(false);
         } finally {
-          setCheckingPassword(false);
+          if (!cancelled) setCheckingPassword(false);
         }
-      } else if (role && role !== "company_staff") {
-        // Non-staff users don't need password check
+      } else {
+        // Fallback esplicito per ogni altro role (evita mustChangePassword=null
+        // residuo che lascerebbe lo spinner "Verifica in corso" infinito).
         setMustChangePassword(false);
       }
     }
-    
+
     if (user && role) {
       checkPasswordChange();
     }
+
+    return () => { cancelled = true; };
   }, [role, user]);
 
   // Show loading while auth is loading

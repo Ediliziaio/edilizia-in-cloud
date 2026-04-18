@@ -445,6 +445,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // On error we do NOT clear impersonatedCompanyId — that would permanently lose the
   // impersonation context if the query races with session setup. We just retry on next render.
   useEffect(() => {
+    // Cancel flag: se l'SA cambia rapidamente azienda, la query vecchia può
+    // risolvere DOPO quella nuova e sovrascrivere `impersonatedCompany` con
+    // dati obsoleti. Il flag garantisce che solo la fetch più recente scriva.
+    let cancelled = false;
+
     async function fetchImpersonatedCompany() {
       if (!impersonatedCompanyId) {
         setImpersonatedCompany(null);
@@ -459,6 +464,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq("id", impersonatedCompanyId)
         .maybeSingle();
 
+      if (cancelled) return;
+
       if (error) {
         logger.error("Error fetching impersonated company:", error);
         // Do NOT clear impersonatedCompanyId — keep it so we can retry on next auth change.
@@ -469,12 +476,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     fetchImpersonatedCompany();
+    return () => { cancelled = true; };
   // impersonationToken is included so that clicking "Accedi" for the SAME company
   // a second time (when impersonatedCompanyId hasn't changed) still re-triggers
   // this effect and re-fetches the company data.
   }, [impersonatedCompanyId, impersonationToken, state.user]);
 
   useEffect(() => {
+    // Hoist cross-subdomain flag BEFORE registering the listener so the
+    // callback closure never observes it in TDZ. Supabase currently emits
+    // INITIAL_SESSION asynchronously, but if that scheduling ever changes
+    // to synchronous we'd get a ReferenceError; this hoist eliminates the
+    // fragility with zero behavioral change.
+    const hash = window.location.hash;
+    const isCrossSubdomainHandoff = !!(hash && hash.includes('_at='));
+
     // Set up auth state listener BEFORE checking initial session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -659,8 +675,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Optional _pr field: base64url-encoded JSON of the SA profile/role/company.
     // Pre-populating the sessionStorage cache from it lets SIGNED_IN resolve
     // instantly (cache hit) instead of waiting for DB queries (up to 15s cold start).
-    const hash = window.location.hash;
-    const isCrossSubdomainHandoff = !!(hash && hash.includes('_at='));
+    // (isCrossSubdomainHandoff + hash already derived above, before listener registration.)
 
     if (isCrossSubdomainHandoff) {
       const params = new URLSearchParams(hash.slice(1));
