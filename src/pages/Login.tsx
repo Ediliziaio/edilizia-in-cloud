@@ -6,11 +6,37 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { Loader2 } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
+import { useToast } from "@/hooks/use-toast";
 
 const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
   const { user, role, isLoading } = useAuth();
+  const { toast } = useToast();
   const [mustChangePassword, setMustChangePassword] = useState<boolean | null>(null);
   const [checkingPassword, setCheckingPassword] = useState(false);
+  // Evita doppio toast/signOut in presenza di StrictMode / re-render multipli.
+  const [accessDeniedHandled, setAccessDeniedHandled] = useState(false);
+
+  // UX fix: se dopo il login risulta user valido ma role === null (es. super_admin
+  // rimosso dall'allowlist e nessun ruolo di fallback), informa l'utente e pulisce
+  // la sessione. Senza questo, il redirect default rimandava silenziosamente a /login
+  // facendo credere "password sbagliata" quando in realtà è "accesso negato".
+  useEffect(() => {
+    if (!isLoading && user && role === null && !accessDeniedHandled) {
+      setAccessDeniedHandled(true);
+      logger.warn("[security] Login: role null post-auth, signOut forzato", {
+        email: user.email ?? null,
+      });
+      toast({
+        title: "Accesso non autorizzato",
+        description:
+          "Questo account non ha i permessi per accedere. Contatta l'amministratore.",
+        variant: "destructive",
+      });
+      void supabase.auth.signOut().catch((err) =>
+        logger.error("signOut post-accessDenied fallito:", err),
+      );
+    }
+  }, [isLoading, user, role, accessDeniedHandled, toast]);
 
   useEffect(() => {
     async function checkPasswordChange() {
