@@ -317,6 +317,10 @@ function ProductSearchDialog({
     calcolaPrezzoProdotto(pending, parseFloat(qty) || 1, x, y)
       .then((r) => setPreview({ pv: r.prezzo_vendita, trovato: r.trovato_in_griglia ?? false }))
       .catch(() => setPreview(null));
+    // `calcolaPrezzoProdotto` volutamente non nelle deps: è una callback del parent
+    // non memoizzata, includerla causerebbe refetch ad ogni render del parent.
+    // Effect stabile sugli input utente (misure/quantità/articolo selezionato).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mx, my, qty, pending]);
 
   const mqPreview =
@@ -644,6 +648,11 @@ export default function QuoteBuilder() {
     if (defaultTemplate && !selectedTemplateId && !isEdit) {
       setSelectedTemplateId(defaultTemplate.id);
     }
+    // Intenzionale: pre-selezione template SOLO al primo caricamento di `defaultTemplate`.
+    // `isEdit` e `selectedTemplateId` non devono ri-triggerare: la selezione manuale
+    // dell'utente non va sovrascritta, e in modalità edit il template viene impostato
+    // altrove da `existingQuote.template_id`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultTemplate]);
 
   const selectedTemplate =
@@ -857,6 +866,11 @@ export default function QuoteBuilder() {
         handleContactSelect(urlContactId);
       }
     }
+    // Intenzionale: pre-compila contatto da `?contact_id=...` SOLO al primo render con
+    // contacts caricati. `contactId` e `handleContactSelect` fuori dalle deps perché
+    // includere `contactId` ri-triggererebbe ad ogni selezione, e `handleContactSelect`
+    // è definita dopo l'effect (hoisting function → stabile per render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contacts, isEdit, searchParams]);
 
   // Contact selection
@@ -1342,6 +1356,10 @@ export default function QuoteBuilder() {
     } catch {
       setAutosaveFailed(true);
     }
+    // `existingQuote?.status` volutamente fuori dalle deps: l'autosave scatta su cambi
+    // utente (clientName/items/discount), non sul carico di existingQuote. Leggere status
+    // dentro la funzione è sufficiente (closure chiama la query refetch se ID cambia).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientName, items.length, discountPercent, companyId, user, saving, isEdit, id]);
 
   useEffect(() => {

@@ -336,7 +336,8 @@ export function useScontiQuantita(companyId: string | undefined) {
     queryKey: ["sconti-quantita", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("sconti_quantita") as any)
+      const { data } = await supabase
+        .from("sconti_quantita")
         .select("*")
         .eq("company_id", companyId!)
         .eq("attivo", true)
@@ -450,14 +451,15 @@ export function useBundleProdotti(companyId: string | undefined) {
     queryKey: ["bundle-prodotti", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("bundle_prodotti") as any)
+      const { data } = await supabase
+        .from("bundle_prodotti")
         .select(
           "*, bundle_voci(*, article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure, vat_rate), tariffe_aziendali(nome, prezzo_vendita, prezzo_costo, unita))"
         )
         .eq("company_id", companyId!)
         .eq("attivo", true)
         .order("nome");
-      return (data ?? []) as BundleConVoci[];
+      return (data ?? []) as unknown as BundleConVoci[];
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -472,11 +474,12 @@ export function usePreventivoCosti(companyId: string | undefined) {
     queryKey: ["preventivo-impostazioni", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("preventivo_impostazioni") as any)
+      const { data } = await supabase
+        .from("preventivo_impostazioni")
         .select("*")
         .eq("company_id", companyId!)
         .maybeSingle();
-      return (data as PreventivoImpostazioni) ?? ({} as PreventivoImpostazioni);
+      return (data as unknown as PreventivoImpostazioni) ?? ({} as PreventivoImpostazioni);
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -487,7 +490,8 @@ export function usePreventivoCosti(companyId: string | undefined) {
     queryKey: ["tariffe-aziendali", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("tariffe_aziendali") as any)
+      const { data } = await supabase
+        .from("tariffe_aziendali")
         .select("*")
         .eq("company_id", companyId!)
         .order("nome");
@@ -540,7 +544,8 @@ export function usePreventivoCosti(companyId: string | undefined) {
     queryKey: ["listino-categorie", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("listino_categorie") as any)
+      const { data } = await supabase
+        .from("listino_categorie")
         .select("*")
         .eq("company_id", companyId!)
         .order("nome");
@@ -557,7 +562,8 @@ export function usePreventivoCosti(companyId: string | undefined) {
     y: number
   ): Promise<{ prezzo_vendita: number; prezzo_acquisto_netto: number; trovato: boolean }> => {
     // Schema reale: `prezzo_acquisto` (senza _netto). Mappiamo al dominio.
-    const { data, error } = await (supabase.from("listino_griglia") as any)
+    const { data, error } = await supabase
+      .from("listino_griglia")
       .select("prezzo_vendita,prezzo_acquisto,valore_x,valore_y")
       .eq("prodotto_id", prodotto_id);
     if (error) {
