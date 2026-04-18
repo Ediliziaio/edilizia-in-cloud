@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { Loader2, Plus, Save, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ import { captureVelocityError } from "@/lib/velocity/sentry";
 import { useGridCellMutations, useGridCells } from "../hooks/useGridCells";
 import type { GridCell, SupplierCatalog, SupplierProductLine } from "../types";
 import { calcolaPrezzoSerramento } from "../utils/pricing";
+import { ImportMatriceDialog } from "./ImportMatriceDialog";
 
 interface Props {
   /** Famiglia serramento (article_families.id). Obbligatoria. */
@@ -88,6 +89,7 @@ export function MatriceEditor({
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [newX, setNewX] = useState("");
   const [newY, setNewY] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
 
   // ─── Bootstrap dallo stato server ─────────────────────────────────────────
   // Solo per questo supplier_product_line_id: filtriamo client-side perché
@@ -366,24 +368,36 @@ export function MatriceEditor({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-          Matrice {familyNome}
-          <Badge variant="outline" className="text-xs font-normal">
-            {productLine.nome}
-          </Badge>
-          <Badge variant="secondary" className="text-xs font-normal">
-            {supplier.nome}
-          </Badge>
-        </CardTitle>
-        <CardDescription className="text-sm">
-          Inserisci i <strong>prezzi di listino</strong> (pre-sconto). Acquisto
-          e vendita vengono calcolati automaticamente:{" "}
-          <span className="font-mono text-xs">
-            sconto {(scontoEffettivo * 100).toFixed(0)}% · ricarico{" "}
-            {(ricaricoEffettivo * 100).toFixed(0)}%
-          </span>
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-2 flex-wrap">
+        <div className="space-y-1.5 min-w-0 flex-1">
+          <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+            Matrice {familyNome}
+            <Badge variant="outline" className="text-xs font-normal">
+              {productLine.nome}
+            </Badge>
+            <Badge variant="secondary" className="text-xs font-normal">
+              {supplier.nome}
+            </Badge>
+          </CardTitle>
+          <CardDescription className="text-sm">
+            Inserisci i <strong>prezzi di listino</strong> (pre-sconto).
+            Acquisto e vendita vengono calcolati automaticamente:{" "}
+            <span className="font-mono text-xs">
+              sconto {(scontoEffettivo * 100).toFixed(0)}% · ricarico{" "}
+              {(ricaricoEffettivo * 100).toFixed(0)}%
+            </span>
+          </CardDescription>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setImportOpen(true)}
+          disabled={isSavingAll}
+        >
+          <Upload className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+          Importa Excel/CSV
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Asse X */}
@@ -602,6 +616,16 @@ export function MatriceEditor({
           </Button>
         </div>
       </CardContent>
+
+      <ImportMatriceDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        familyId={familyId}
+        supplier={supplier}
+        productLine={productLine}
+        existingCells={filteredServerCells}
+        onImported={() => void refetch()}
+      />
     </Card>
   );
 }

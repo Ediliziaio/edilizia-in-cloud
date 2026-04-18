@@ -27,7 +27,7 @@ in `src/test/logic/serramentiPricing.test.ts`.
 | 2 | Modello fornitori + linee prodotto | ✅ | 5648952e |
 | 3 | Extension listino_griglia axis_config + supplier | ✅ | c15b909b |
 | 4 | Editor matrice visuale Excel-like | ✅ | fd1c85c5 |
-| 5 | Import Excel/CSV bulk | — | — |
+| 5 | Import Excel/CSV bulk | ✅ | (pending) |
 | 6 | Sconto + ricarico nel wizard preventivo | — | — |
 | 7 | Seed assi colore + vetro | — | — |
 | 8 | Multi-fascia per famiglia | — | — |
@@ -169,6 +169,57 @@ Verifiche finali STEP 4:
 - `bunx tsc --noEmit`: ✅ 0 errori
 - `bun run test`: ✅ 216/216 passed
 - `bun run build`: ✅ chunk `serramenti-listini-*.js` 47.5 KB (gzip ~11 KB)
+
+## STEP 5 — dettaglio deliverable
+
+Consegnati:
+
+- `src/features/serramenti-listini/utils/matrixImport.ts`
+  — Parser PURO (testable senza browser) per formato pivot L×H. Espone:
+    `parseLooseNumber` (IT/EN/valuta), `parsePositiveInt`,
+    `detectCsvSeparator`, `parseCsvMatrix`, `matrixToCells`,
+    `readFileToMatrix` (dyn import exceljs), `parseMatrixFile` (pipeline
+    completa). Limits: 10 MB file, 100×100 celle, prezzo max 1 M €,
+    range mm 100–5000. Warnings invece di throw per out-of-range
+    (UX-tollerante).
+- `src/test/logic/matrixImport.test.ts`
+  — 26 test: formati numero IT/EN, detect separator, parse CSV con quote,
+    matrixToCells su schema pivot, edge cases (vuoto, dupes, out-of-range,
+    prezzi assurdi, header non-numerico).
+- `src/features/serramenti-listini/components/ImportMatriceDialog.tsx`
+  — Dialog 4-step: upload (drag-drop + file input) → preview (summary tiles
+    + warnings list + conflict count + checkbox "sovrascrivi duplicati") →
+    importing (Progress bar %) → result (ok/errors). Loop client-side
+    `upsert.mutateAsync` + `captureVelocityError` su partial. Accetta
+    `.xlsx .xls .csv .tsv .txt`.
+- `src/features/serramenti-listini/components/MatriceEditor.tsx`
+  — Nuovo bottone "Importa Excel/CSV" in header, montato accanto al titolo
+    matrice. Apre il dialog, passa `existingCells` per calcolo conflitti,
+    `onImported` invalida la query per refetch.
+- `src/features/serramenti-listini/index.ts`
+  — Esportati `ImportMatriceDialog` + utility parser + tipi.
+
+Design notes:
+
+- Schema pivot L×H: riga 1 = larghezze (mm), colonna A = altezze (mm),
+  celle interne = prezzo LISTINO (€ pre-sconto). Celle vuote o ≤ 0 skip.
+- Parser numero tollerante a formati IT (`1.234,56`), EN (`1,234.56`), e
+  simboli valuta. Gli utenti target sono PMI italiane → robustezza critica.
+- Conflict detection client-side: match (valore_x, valore_y) vs celle già
+  presenti in DB. Default: sovrascrivi = true.
+- Non-destructive: celle esistenti FUORI dal file restano in DB (non è un
+  "replace all" — per quello si usa soft-delete manuale).
+- `prezzo_acquisto` pre-calcolato con formula serramenti al momento
+  dell'upsert: evita ricalcolo lato wizard.
+- Limits difensivi: max 100 righe × 100 colonne nel parser; warning a 400
+  celle nel dialog (loop sequenziale rallenta).
+
+Verifiche finali STEP 5:
+
+- `bunx tsc --noEmit`: ✅ 0 errori
+- `bun run test`: ✅ 242/242 passed (+26 da matrixImport)
+- `bun run build`: ✅ chunk `serramenti-listini-*.js` 62.5 KB (gzip ~14 KB)
+  — `vendor-excel` è già chunk condiviso, nessuna duplicazione.
 
 ## Vincoli architettonici
 

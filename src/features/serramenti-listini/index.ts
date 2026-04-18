@@ -29,6 +29,7 @@ export {
 export { InstallaCatalogoButton } from "./components/InstallaCatalogoButton";
 export { FornitoriManager } from "./components/FornitoriManager";
 export { MatriceEditor } from "./components/MatriceEditor";
+export { ImportMatriceDialog } from "./components/ImportMatriceDialog";
 export { SupplierCatalogFormDialog } from "./components/SupplierCatalogFormDialog";
 export { SupplierProductLineFormDialog } from "./components/SupplierProductLineFormDialog";
 
@@ -50,6 +51,17 @@ export {
   findExactGridCell,
   findNearestGridCell,
 } from "./utils/pricing";
+
+// Matrix import utilities
+export {
+  matrixToCells,
+  parseCsvMatrix,
+  parseLooseNumber,
+  parseMatrixFile,
+  MATRIX_IMPORT_LIMITS,
+  type MatrixParseCell,
+  type MatrixParseResult,
+} from "./utils/matrixImport";
 
 // Types
 export type {
