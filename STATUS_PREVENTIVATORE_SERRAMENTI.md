@@ -19,7 +19,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 5 — Motore calcolo prezzo | 🟢 DONE | 5.1 useFamilyPricing hook + 5.2 unit tests | `0b8d4af7` | 16 test vitest, funzione pura + nearestGrid Manhattan |
 | FASE 6 — Manodopera UM flessibili | 🟢 DONE | 6.1 migration + 6.2 edge fn + 6.3 UI + 6.4 calcolo | `a228d0a4` | 10 UM canoniche, costo_interno separato, semaforo live |
 | FASE 7 — Fix 3 P0 bug | 🟢 DONE | 7.1 unit_price mq/griglia + 7.3 sconti/bundle banner + 7.4 tests | `34dbb86f` | 7.2 LIMIT 60 skip: delegato a FASE 8 (pgvector retrieval) |
-| FASE 8 — AI + pgvector | 🟢 DONE | 8.1 migration vector+RPC + 8.2 edge fn genera-embeddings + 8.3 ai-v2 retrieval + 8.4 UI btn | `00b6f702` | pgvector 0.8.0 disponibile, migration da applicare. Fallback se OPENAI_API_KEY assente |
+| FASE 8 — AI + pgvector | 🟢 DONE | 8.1 mig vector + 8.2 embed-edge + 8.3 ai-v2 retrieval + 8.4 UI btn + 8.5 prompt verticalizzato + 8.6 family_id output + 8.bis embed families/tariffe | `00b6f702` → *(pending 8.5/8.6/8.bis commit)* | pgvector 0.8.0. FASE 8.5/8.6/8.bis: vertical-aware system prompt + 3 RPC paralleli + family_id/axis_selections nel JSON output |
 | FASE 9 — Wizard serramentista | 🟢 DONE | 4-step wizard dialog + integrazione QuoteBuilder | `ce82ebe8` | Single source of truth = `items[]` QB. Bottone visibile solo se ci sono famiglie |
 | FASE 10 — Bundle + pacchetti | 🟢 DONE | 10.1 migration + 10.2 UI CRUD + 10.3 seed 5 template + 10.4 ApplyBundleDialog integrazione | `6b7b72e1` → `c247bdde` → `edcadef5` | Sostituito BundleSelector legacy con ApplyBundleDialog family-aware. 5 template idempotenti. |
 | FASE 11 — Testing E2E + QA | 🟡 PARZIALE | Checklist manuale 3 scenari + ESLint cleanup FASE 10 | *(pending)* | Playwright non installato nel repo: scenari A/B/C documentati in `FASE11_QA_CHECKLIST.md` per esecuzione manuale. tsc 0 + vitest 171/171 + eslint clean |
@@ -308,6 +308,40 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
   - `onAddItems` callback: push multiplo in `items[]` con sort_order sequenziale.
 - ✅ `tsc --noEmit` → 0 errori. `vitest run` → 171/171 verdi (wizard UI non testabile unit: la logica è già in familyPricing.test.ts FASE 5).
 - ⏳ **Next:** FASE 10 (Bundle/pacchetti — già esistente via `bundle_prodotti` + BundleSelector. Verifica feature completeness + UX.).
+
+### 2026-04-18 — FASE 8.5 + 8.6 + 8.bis: prompt verticalizzato + family-aware AI
+
+- ✅ **8.bis migration** `supabase/migrations/20260917000011_serramenti_11_match_families_tariffe.sql`:
+  - `ALTER TABLE article_families ADD COLUMN embedding vector(1536), embedding_updated_at TIMESTAMPTZ`
+  - `ALTER TABLE tariffe_aziendali ADD COLUMN embedding vector(1536), embedding_updated_at TIMESTAMPTZ`
+  - 2 indici HNSW cosine partial (`WHERE embedding IS NOT NULL`)
+  - RPC `match_families_semantic(p_query_embedding, p_company_id, p_vertical, p_match_threshold=0.25, p_match_count=20)` — filtro vertical opzionale, SECURITY INVOKER
+  - RPC `match_tariffe_semantic(p_query_embedding, p_company_id, p_vertical, p_match_threshold=0.20, p_match_count=20)` — vertical match OR NULL (tariffe globali), filtro `attiva = true`
+- ✅ **8.5 system prompt** `supabase/functions/_shared/ai-prompts/{serramentista,generico,index}.ts`:
+  - `SERRAMENTISTA_SYSTEM_PROMPT` con terminologia specifica (apertura, vetri 4/16/4, ferramenta RC1-RC4, materiali, regole sostituzione/tiro al piano/sigillatura)
+  - `GENERICO_SYSTEM_PROMPT` (fallback storico + family_id hint)
+  - `getSystemPromptForVertical(vertical)` dispatcher (default → generico)
+  - Posizionato in `_shared/` invece di `src/lib/` perché edge functions girano in Deno e non possono importare da `src/`
+- ✅ **8.5 + 8.6 refactor** `supabase/functions/ai-genera-preventivo-v2/index.ts`:
+  - Fetch `companies.vertical` → passa a `getSystemPromptForVertical()`
+  - 3 RPC paralleli: `match_articles` (40) + `match_families_semantic` (20) + `match_tariffe_semantic` (20)
+  - Fallback tariffe a query full-table se RPC non restituisce nulla
+  - JSON output schema esteso con `family_id: string|null` e `axis_selections: {[axis_codice]: string}|null`
+  - Sezione context "LISTINO FAMIGLIE" con assi+valori passata a Claude solo se ci sono famiglie matchate
+  - Port server-side `calcolaPrezzoFamigliaServer()` (pure function): base modalita_prezzo_base + percentuali ordinate + fissi (pz/mq/ml), nearest-neighbor griglia
+  - Pre-loading di `article_family_axes`, `article_family_axis_values` (attivo=true), `listino_griglia` (per famiglie modalità griglia)
+  - Enrichment unit_price: `family_id` ha precedenza su `article_template_id`
+- ✅ **8.bis estensione** `supabase/functions/genera-embeddings-catalogo/index.ts`:
+  - Input esteso con `targets?: ("articles"|"families"|"tariffe")[]` (default = tutti e 3)
+  - `mode=single` forza `targets=["articles"]` (compat retrocompatibile)
+  - Output struttura `{processed, skipped, errors}` per target
+  - 3 helper `buildArticleText` / `buildFamilyText` / `buildTariffaText` con campi domain-specific (categoria, vertical, assi)
+  - Family text include `axes_text` (es. "Apertura [1 anta/2 ante] · Vetro [Doppio/Triplo]") per retrieval più ricco
+  - Refactor con generic `embedAndUpdate<T>()` → DRY su 3 tabelle
+- 🐛 **Schema fix:** corretto `tariffe_aziendali.attivo` → `tariffe_aziendali.attiva` (la colonna è effettivamente `attiva`, scoperto verificando `20260324200006_preventivo_pro_v2_part6.sql`)
+- ✅ `tsc --noEmit` → 0 errori. `vitest run` → 171/171 verdi (FASE 8 server-side: pure logic copertura via `familyPricing.test.ts`).
+- ⚠️ **Deploy TODO**: migration 11 + entrambe edge fn vanno deployate. Senza re-run `genera-embeddings-catalogo` con `targets=["families","tariffe"]` i nuovi RPC restituiscono 0 match.
+- ⏳ **Next:** UI button per generare embeddings su famiglie + tariffe (estensione di `ArticleCatalog` o nuova action in pagina Famiglie/Tariffe).
 
 ---
 

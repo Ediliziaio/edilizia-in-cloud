@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -43,18 +44,29 @@ Deno.serve(async (req) => {
       return errorResponse("Accesso negato a questa azienda", 403);
     }
 
-    // FASE 8.3: Query prodotti con retrieval semantico pgvector quando possibile,
-    // fallback a ORDER BY name LIMIT se embedding assente o OpenAI non configurato.
+    // FASE 8.5: leggi vertical della company per scegliere il system prompt.
+    const { data: company } = await supabaseAdmin
+      .from("companies")
+      .select("vertical")
+      .eq("id", company_id)
+      .maybeSingle();
+    const vertical: string | null = (company?.vertical as string | null) ?? null;
+
+    // FASE 8.3 + 8.bis: Retrieval semantico pgvector su prodotti, famiglie e tariffe.
     const PRODUCT_LIMIT = 60; // fallback legacy
-    const MATCH_COUNT = 40;   // top-K retrieval quando pgvector attivo
+    const MATCH_COUNT = 40;   // top-K retrieval prodotti
+    const MATCH_COUNT_FAMILIES = 20;
+    const MATCH_COUNT_TARIFFE = 20;
     const MATCH_THRESHOLD = 0.25;
+    const MATCH_THRESHOLD_TARIFFE = 0.20;
 
     let prodotti: any[] | null = null;
+    let famiglieMatched: any[] = [];
+    let tariffeMatched: any[] = [];
     let retrievalMode: "semantic" | "fallback" = "fallback";
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (openaiKey) {
-      // Prova retrieval semantico: embed la descrizione lavori e chiama match_articles RPC
       try {
         const embedRes = await fetch("https://api.openai.com/v1/embeddings", {
           method: "POST",
@@ -72,8 +84,11 @@ Deno.serve(async (req) => {
           const embedData = await embedRes.json();
           const queryEmbedding = embedData?.data?.[0]?.embedding;
           if (Array.isArray(queryEmbedding) && queryEmbedding.length === 1536) {
+            const embeddingStr = JSON.stringify(queryEmbedding);
+
+            // 1. match_articles (prodotti) — comportamento storico FASE 8.3
             const { data: matches, error: rpcErr } = await supabaseAdmin.rpc("match_articles", {
-              p_query_embedding: JSON.stringify(queryEmbedding),
+              p_query_embedding: embeddingStr,
               p_company_id: company_id,
               p_match_threshold: MATCH_THRESHOLD,
               p_match_count: MATCH_COUNT,
@@ -81,6 +96,36 @@ Deno.serve(async (req) => {
             if (!rpcErr && Array.isArray(matches) && matches.length > 0) {
               prodotti = matches as any[];
               retrievalMode = "semantic";
+            }
+
+            // 2. match_families_semantic (FASE 8.bis)
+            const { data: famMatches, error: famErr } = await supabaseAdmin.rpc(
+              "match_families_semantic",
+              {
+                p_query_embedding: embeddingStr,
+                p_company_id: company_id,
+                p_vertical: vertical,
+                p_match_threshold: MATCH_THRESHOLD,
+                p_match_count: MATCH_COUNT_FAMILIES,
+              },
+            );
+            if (!famErr && Array.isArray(famMatches)) {
+              famiglieMatched = famMatches as any[];
+            }
+
+            // 3. match_tariffe_semantic (FASE 8.bis)
+            const { data: tarMatches, error: tarErr } = await supabaseAdmin.rpc(
+              "match_tariffe_semantic",
+              {
+                p_query_embedding: embeddingStr,
+                p_company_id: company_id,
+                p_vertical: vertical,
+                p_match_threshold: MATCH_THRESHOLD_TARIFFE,
+                p_match_count: MATCH_COUNT_TARIFFE,
+              },
+            );
+            if (!tarErr && Array.isArray(tarMatches)) {
+              tariffeMatched = tarMatches as any[];
             }
           }
         }
@@ -126,18 +171,104 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Query tariffe (FASE 6: include costo_interno, unita_fatturazione, vertical_associato)
-    const { data: tariffe, error: tariffeErr } = await supabaseAdmin
-      .from("tariffe_aziendali")
-      .select(
-        "id,nome,tipo,prezzo_vendita,prezzo_costo,costo_interno,unita,unita_fatturazione,vertical_associato,piano_base,prezzo_piano_aggiuntivo"
-      )
-      .eq("company_id", company_id);
+    // FASE 8.6: per ogni famiglia matchata, carica assi+valori e griglia (se applicabile).
+    type AxisValue = {
+      id: string;
+      valore: string;
+      label: string;
+      maggiorazione_tipo: string;
+      maggiorazione_valore: number;
+      maggiorazione_acquisto: number;
+    };
+    type Axis = {
+      id: string;
+      codice: string;
+      nome: string;
+      sort_order: number;
+      obbligatorio: boolean;
+      values: AxisValue[];
+    };
+    const familyAxesMap = new Map<string, Axis[]>();
+    const familyGridsMap = new Map<
+      string,
+      Array<{ valore_x: number; valore_y: number; prezzo_vendita: number; prezzo_acquisto_netto: number | null }>
+    >();
+    const famiglieIds = famiglieMatched.map((f: any) => f.id);
+    if (famiglieIds.length > 0) {
+      const { data: axesRows } = await supabaseAdmin
+        .from("article_family_axes")
+        .select("id,family_id,codice,nome,sort_order,obbligatorio")
+        .in("family_id", famiglieIds);
+      const axisIds = (axesRows ?? []).map((a: any) => a.id);
+      const valuesByAxis = new Map<string, AxisValue[]>();
+      if (axisIds.length > 0) {
+        const { data: valRows } = await supabaseAdmin
+          .from("article_family_axis_values")
+          .select("id,axis_id,valore,label,maggiorazione_tipo,maggiorazione_valore,maggiorazione_acquisto,attivo")
+          .in("axis_id", axisIds)
+          .eq("attivo", true);
+        for (const v of (valRows ?? []) as any[]) {
+          const arr = valuesByAxis.get(v.axis_id) ?? [];
+          arr.push({
+            id: v.id,
+            valore: v.valore,
+            label: v.label,
+            maggiorazione_tipo: v.maggiorazione_tipo,
+            maggiorazione_valore: Number(v.maggiorazione_valore) || 0,
+            maggiorazione_acquisto: Number(v.maggiorazione_acquisto) || 0,
+          });
+          valuesByAxis.set(v.axis_id, arr);
+        }
+      }
+      for (const a of (axesRows ?? []) as any[]) {
+        const arr = familyAxesMap.get(a.family_id) ?? [];
+        arr.push({
+          id: a.id,
+          codice: a.codice,
+          nome: a.nome,
+          sort_order: Number(a.sort_order) || 0,
+          obbligatorio: !!a.obbligatorio,
+          values: valuesByAxis.get(a.id) ?? [],
+        });
+        familyAxesMap.set(a.family_id, arr);
+      }
+      // Griglia per famiglie con modalita_prezzo_base='griglia'
+      const gridFamilyIds = famiglieMatched
+        .filter((f: any) => f.modalita_prezzo_base === "griglia")
+        .map((f: any) => f.id);
+      if (gridFamilyIds.length > 0) {
+        const { data: famGridRows } = await supabaseAdmin
+          .from("listino_griglia")
+          .select("family_id,valore_x,valore_y,prezzo_vendita,prezzo_acquisto_netto")
+          .in("family_id", gridFamilyIds);
+        for (const g of (famGridRows ?? []) as any[]) {
+          const arr = familyGridsMap.get(g.family_id) ?? [];
+          arr.push({
+            valore_x: Number(g.valore_x),
+            valore_y: Number(g.valore_y),
+            prezzo_vendita: Number(g.prezzo_vendita) || 0,
+            prezzo_acquisto_netto: g.prezzo_acquisto_netto != null ? Number(g.prezzo_acquisto_netto) : null,
+          });
+          familyGridsMap.set(g.family_id, arr);
+        }
+      }
+    }
 
-    if (tariffeErr) throw new Error(`Tariffe query error: ${tariffeErr.message}`);
+    // Tariffe: usa quelle matchate semanticamente, fallback a TUTTE le tariffe della company.
+    let tariffe: any[] = tariffeMatched;
+    if (tariffe.length === 0) {
+      const { data: tariffeData, error: tariffeErr } = await supabaseAdmin
+        .from("tariffe_aziendali")
+        .select(
+          "id,nome,tipo,prezzo_vendita,prezzo_costo,costo_interno,unita,unita_fatturazione,vertical_associato,piano_base,prezzo_piano_aggiuntivo"
+        )
+        .eq("company_id", company_id);
+      if (tariffeErr) throw new Error(`Tariffe query error: ${tariffeErr.message}`);
+      tariffe = tariffeData ?? [];
+    }
 
     // Query impostazioni
-    const { data: impostazioni } = await supabaseAdmin
+    const { data: _impostazioni } = await supabaseAdmin
       .from("preventivo_impostazioni")
       .select("*")
       .eq("company_id", company_id)
@@ -155,7 +286,72 @@ Deno.serve(async (req) => {
       .map((t: any) => `ID:${t.id} | ${t.tipo}: ${t.nome} | €${t.prezzo_vendita}/${t.unita}`)
       .join("\n");
 
+    // FASE 8.6: contesto LISTINO FAMIGLIE con assi e valori per axis_selections.
+    const famiglieCtx = famiglieMatched
+      .map((f: any) => {
+        const axes = familyAxesMap.get(f.id) ?? [];
+        const axesDesc = axes
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((a) => {
+            const vals = a.values
+              .map((v) => `${v.label} (id=${v.id})`)
+              .join(", ");
+            return `  - asse "${a.codice}" (${a.nome}${a.obbligatorio ? ", OBBL" : ""}): ${vals || "—"}`;
+          })
+          .join("\n");
+        return `FAMILY_ID:${f.id} | ${f.nome} | base:${f.modalita_prezzo_base} | €${f.prezzo_base_vendita}/${f.unit_of_measure}${
+          axesDesc ? `\n${axesDesc}` : ""
+        }`;
+      })
+      .join("\n");
+
     const misureCtx = JSON.stringify(misure ?? []);
+
+    // FASE 8.5: system prompt scelto in base al vertical della company.
+    const systemPromptBase = getSystemPromptForVertical(vertical);
+    const outputSchema = `
+
+OUTPUT JSON (schema obbligatorio):
+{
+  "sezioni": [{
+    "nome": string,
+    "righe": [{
+      "item_category": "prodotto"|"posa"|"trasporto"|"smaltimento"|"nolo"|"nota",
+      "nome": string,
+      "descrizione": string,
+      "quantita": number,
+      "unita_misura": string,
+      "article_template_id": string|null,
+      "family_id": string|null,
+      "axis_selections": { [axis_codice: string]: string }|null,
+      "tariffa_id": string|null,
+      "misure_x_mm": number|null,
+      "misure_y_mm": number|null,
+      "is_posa_di": string|null
+    }]
+  }],
+  "note": string,
+  "avvertenze": string[]
+}`;
+    const systemPrompt = `${systemPromptBase}${outputSchema}`;
+
+    // Build user message: include LISTINO FAMIGLIE solo se ci sono famiglie matchate.
+    const userMessageParts = [
+      `LAVORI: ${descrizione}`,
+      `TIPO: ${tipo_lavoro ?? "generico"}`,
+      `PIANO: ${piano_installazione ?? 0}`,
+      `MISURE: ${misureCtx}`,
+      "",
+      "LISTINO PRODOTTI:",
+      prodottiCtx || "(nessun prodotto rilevante)",
+      "",
+      "TARIFFE DISPONIBILI:",
+      tariffeCtx || "(nessuna tariffa)",
+    ];
+    if (famiglieCtx) {
+      userMessageParts.push("", "LISTINO FAMIGLIE:", famiglieCtx);
+    }
+    const userMessage = userMessageParts.join("\n");
 
     // Call Claude API
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
@@ -168,42 +364,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "claude-opus-4-5",
         max_tokens: 2000,
-        system: `Sei un preventivista esperto per imprese edili italiane con 20 anni di esperienza. Conosci perfettamente serramenti, ristrutturazioni, bagni, pavimenti, tetti, impianti, cappotti, fotovoltaico.
-
-REGOLE:
-1. Usa i prodotti del listino quando possibile — includi SEMPRE l'ID esatto del prodotto
-2. Se modalita='griglia': indica misure_x e misure_y in mm
-3. Se modalita='mq': calcola mq dalle misure fornite
-4. Aggiungi righe tariffa (posa, trasporto, smaltimento) usando gli ID delle tariffe
-5. Calcola quantità realistiche dalle misure fornite
-6. Output SOLO JSON valido, niente testo fuori dal JSON
-
-OUTPUT JSON:
-{
-  "sezioni": [{
-    "nome": string,
-    "righe": [{
-      "item_category": "prodotto"|"posa"|"trasporto"|"smaltimento"|"nolo"|"nota",
-      "nome": string,
-      "descrizione": string,
-      "quantita": number,
-      "unita_misura": string,
-      "article_template_id": string|null,
-      "tariffa_id": string|null,
-      "misure_x_mm": number|null,
-      "misure_y_mm": number|null,
-      "is_posa_di": string|null
-    }]
-  }],
-  "note": string,
-  "avvertenze": string[]
-}`,
-        messages: [
-          {
-            role: "user",
-            content: `LAVORI: ${descrizione}\nTIPO: ${tipo_lavoro ?? "generico"}\nPIANO: ${piano_installazione ?? 0}\nMISURE: ${misureCtx}\n\nLISTINO PRODOTTI:\n${prodottiCtx}\n\nTARIFFE DISPONIBILI:\n${tariffeCtx}`,
-          },
-        ],
+        system: systemPrompt,
+        messages: [{ role: "user", content: userMessage }],
       }),
     });
 
@@ -231,6 +393,7 @@ OUTPUT JSON:
     // Enrich righe with unit_price (FASE 7.1: corretto per modalità mq / griglia)
     const prodottiMap = new Map((prodotti ?? []).map((p: any) => [p.id, p]));
     const tariffeMap = new Map((tariffe ?? []).map((t: any) => [t.id, t]));
+    const famigliaMap = new Map(famiglieMatched.map((f: any) => [f.id, f]));
 
     /** Nearest-neighbor (Manhattan) per listino_griglia. */
     function nearestInGriglia(
@@ -239,7 +402,6 @@ OUTPUT JSON:
       y: number,
     ): number | null {
       if (!punti || punti.length === 0) return null;
-      // exact match short-circuit
       for (const p of punti) {
         if (p.x_mm === x && p.y_mm === y) return p.prezzo_vendita;
       }
@@ -255,22 +417,153 @@ OUTPUT JSON:
       return best.prezzo_vendita;
     }
 
+    /**
+     * FASE 8.6 — Calcolo prezzo famiglia (port server-side di calcolaPrezzoFamiglia).
+     * Pure function: base + percentuali (in sort_order) + fissi (sort_order).
+     * Restituisce unit_price_vendita (rounded 2dp) o null se non calcolabile.
+     */
+    function calcolaPrezzoFamigliaServer(
+      family: any,
+      axes: Axis[],
+      selections: Record<string, string>,
+      xMm: number | null,
+      yMm: number | null,
+      mlValue: number | null,
+      grid: Array<{ valore_x: number; valore_y: number; prezzo_vendita: number }> | undefined,
+      warnings: string[],
+    ): number | null {
+      const mq = xMm != null && yMm != null ? (xMm / 1000) * (yMm / 1000) : null;
+      let pv = 0;
+      const baseMode = family.modalita_prezzo_base as string;
+      const baseV = Number(family.prezzo_base_vendita) || 0;
+      switch (baseMode) {
+        case "pz":
+        case "misura_libera":
+          pv = baseV;
+          break;
+        case "mq":
+          if (mq == null) {
+            warnings.push(`Famiglia '${family.nome}' mq: misure L×H mancanti.`);
+            return null;
+          }
+          pv = baseV * mq;
+          break;
+        case "griglia": {
+          if (xMm == null || yMm == null) {
+            warnings.push(`Famiglia '${family.nome}' griglia: misure L×H mancanti.`);
+            return null;
+          }
+          if (!grid || grid.length === 0) {
+            warnings.push(`Famiglia '${family.nome}' griglia: listino vuoto.`);
+            return null;
+          }
+          // exact then nearest
+          const exact = grid.find((g) => g.valore_x === xMm && g.valore_y === yMm);
+          if (exact) {
+            pv = exact.prezzo_vendita;
+          } else {
+            let best = grid[0];
+            let bestDist = Math.abs(best.valore_x - xMm) + Math.abs(best.valore_y - yMm);
+            for (let i = 1; i < grid.length; i++) {
+              const d = Math.abs(grid[i].valore_x - xMm) + Math.abs(grid[i].valore_y - yMm);
+              if (d < bestDist) {
+                best = grid[i];
+                bestDist = d;
+              }
+            }
+            pv = best.prezzo_vendita;
+            warnings.push(
+              `Famiglia '${family.nome}': misura ${xMm}×${yMm} non in griglia, usato nearest-neighbor.`,
+            );
+          }
+          break;
+        }
+        default:
+          pv = baseV;
+      }
+
+      const axesSorted = [...axes].sort((a, b) => a.sort_order - b.sort_order);
+      // 1. percentuali
+      for (const axis of axesSorted) {
+        const selValueId = selections[axis.codice];
+        if (!selValueId) {
+          if (axis.obbligatorio) {
+            warnings.push(`Famiglia '${family.nome}': asse "${axis.codice}" obbligatorio non selezionato.`);
+          }
+          continue;
+        }
+        const val = axis.values.find((v) => v.id === selValueId);
+        if (!val || val.maggiorazione_tipo !== "percentuale") continue;
+        pv = pv * (1 + val.maggiorazione_valore / 100);
+      }
+      // 2. fissi
+      for (const axis of axesSorted) {
+        const selValueId = selections[axis.codice];
+        if (!selValueId) continue;
+        const val = axis.values.find((v) => v.id === selValueId);
+        if (!val) continue;
+        switch (val.maggiorazione_tipo) {
+          case "fisso_pz":
+            pv += val.maggiorazione_valore;
+            break;
+          case "fisso_mq":
+            if (mq != null) pv += val.maggiorazione_valore * mq;
+            break;
+          case "fisso_ml":
+            if (mlValue != null) pv += val.maggiorazione_valore * mlValue;
+            break;
+          // fisso_mc / none / percentuale: no-op qui
+        }
+      }
+      return Math.round(pv * 100) / 100;
+    }
+
     const enrichmentWarnings: string[] = [];
 
     for (const sezione of parsedData.sezioni ?? []) {
       for (const riga of sezione.righe ?? []) {
-        if (riga.article_template_id) {
+        // Normalizza nuovi campi a null se mancanti (compat tolerance).
+        if (riga.family_id === undefined) riga.family_id = null;
+        if (riga.axis_selections === undefined) riga.axis_selections = null;
+
+        const xMm = typeof riga.misure_x_mm === "number" ? riga.misure_x_mm : null;
+        const yMm = typeof riga.misure_y_mm === "number" ? riga.misure_y_mm : null;
+
+        // FASE 8.6: family_id ha precedenza su article_template_id.
+        if (riga.family_id) {
+          const fam = famigliaMap.get(riga.family_id) as any;
+          if (!fam) {
+            riga.unit_price = null;
+            enrichmentWarnings.push(
+              `family_id ${riga.family_id} non trovato tra le famiglie matchate — riga ignorata in pricing.`,
+            );
+            continue;
+          }
+          const axes = familyAxesMap.get(riga.family_id) ?? [];
+          const grid = familyGridsMap.get(riga.family_id);
+          const selections: Record<string, string> =
+            (riga.axis_selections && typeof riga.axis_selections === "object")
+              ? riga.axis_selections
+              : {};
+          riga.unit_price = calcolaPrezzoFamigliaServer(
+            fam,
+            axes,
+            selections,
+            xMm,
+            yMm,
+            null,
+            grid,
+            enrichmentWarnings,
+          );
+        } else if (riga.article_template_id) {
           const prod = prodottiMap.get(riga.article_template_id) as any;
           if (!prod) {
             riga.unit_price = null;
             continue;
           }
           const modalita = prod.modalita_prezzo ?? "pz";
-          const xMm = typeof riga.misure_x_mm === "number" ? riga.misure_x_mm : null;
-          const yMm = typeof riga.misure_y_mm === "number" ? riga.misure_y_mm : null;
 
           if (modalita === "mq") {
-            // prezzo_vendita è €/mq → unit_price = prezzo × (x*y / 1_000_000)
             if (xMm != null && yMm != null && xMm > 0 && yMm > 0) {
               const mq = (xMm / 1000) * (yMm / 1000);
               const pv = Number(prod.prezzo_vendita) || 0;
@@ -291,7 +584,6 @@ OUTPUT JSON:
             } else if (xMm != null && yMm != null && xMm > 0 && yMm > 0) {
               const pv = nearestInGriglia(punti, xMm, yMm);
               riga.unit_price = pv;
-              // Nota: il matching è nearest-neighbor — non per forza esatto
               const exact = punti.some((p) => p.x_mm === xMm && p.y_mm === yMm);
               if (!exact) {
                 enrichmentWarnings.push(
@@ -305,7 +597,6 @@ OUTPUT JSON:
               );
             }
           } else {
-            // pz | misura_libera | altro → prezzo flat
             riga.unit_price = Number(prod.prezzo_vendita) || null;
           }
         } else if (riga.tariffa_id) {
@@ -336,10 +627,9 @@ OUTPUT JSON:
       );
     } else if (retrievalMode === "semantic") {
       avvertenze.push(
-        `Retrieval semantico: selezionati i ${(prodotti ?? []).length} prodotti più rilevanti su pgvector (soglia similarità ${MATCH_THRESHOLD}).`
+        `Retrieval semantico: ${(prodotti ?? []).length} prodotti, ${famiglieMatched.length} famiglie, ${tariffeMatched.length} tariffe selezionati su pgvector (soglia ${MATCH_THRESHOLD}).`
       );
     }
-    // Append enrichment warnings (FASE 7.1)
     if (enrichmentWarnings.length > 0) {
       avvertenze.push(...enrichmentWarnings);
     }
