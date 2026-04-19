@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText } from "lucide-react";
+import { FileText, AlertTriangle, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -50,6 +50,8 @@ export function WarehouseDDTTab({ warehouseFilter }: Props) {
     data: ddts = [],
     isLoading,
     error,
+    refetch,
+    isRefetching,
   } = useQuery<DDTRow[]>({
     queryKey: ["ddt-ricezione", companyId, warehouseFilter],
     enabled: !!companyId,
@@ -91,10 +93,30 @@ export function WarehouseDDTTab({ warehouseFilter }: Props) {
   if (error) {
     return (
       <Card>
-        <CardContent className="py-10 text-center space-y-2">
+        <CardContent
+          className="py-10 flex flex-col items-center gap-3 text-center"
+          role="alert"
+          aria-live="assertive"
+        >
+          <AlertTriangle
+            className="h-10 w-10 text-destructive/70"
+            aria-hidden="true"
+          />
           <p className="text-sm text-destructive">
             Errore nel caricamento dei DDT. Riprova tra qualche secondo.
           </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isRefetching}
+          >
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${isRefetching ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            Riprova
+          </Button>
         </CardContent>
       </Card>
     );

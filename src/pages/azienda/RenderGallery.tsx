@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Search } from "lucide-react";
+import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Search, AlertTriangle, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -18,7 +18,7 @@ export default function RenderGallery() {
   const companyId = effectiveCompany?.id;
   const [search, setSearch] = useState("");
 
-  const { data: gallery = [], isLoading } = useQuery({
+  const { data: gallery = [], isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["render-gallery", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -88,6 +88,22 @@ export default function RenderGallery() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
         </div>
+      ) : error ? (
+        <Card>
+          <CardContent className="py-12 flex flex-col items-center gap-4 text-center" role="alert" aria-live="assertive">
+            <AlertTriangle className="h-12 w-12 text-destructive/70" aria-hidden="true" />
+            <div>
+              <p className="font-medium">Impossibile caricare la galleria</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Problema temporaneo. Riprova tra qualche secondo.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => refetch()} disabled={isRefetching}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? "animate-spin" : ""}`} aria-hidden="true" />
+              Riprova
+            </Button>
+          </CardContent>
+        </Card>
       ) : gallery.length === 0 ? (
         <Card>
           <CardContent className="py-16 flex flex-col items-center gap-4 text-center">

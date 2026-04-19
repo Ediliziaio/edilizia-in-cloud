@@ -10,6 +10,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -82,6 +92,9 @@ export function WarehouseAssignmentsDialog({
   } = useWarehouseAssignments(open ? warehouseId : null);
 
   const [newUserId, setNewUserId] = useState<string>("");
+  const [revokeTarget, setRevokeTarget] = useState<
+    { id: string; name: string } | null
+  >(null);
 
   // Elenco profili della company per selezione. Esclude chi è già assegnato e attivo.
   const { data: companyProfiles = [], isLoading: isLoadingProfiles } = useQuery<CompanyProfile[]>({
@@ -127,11 +140,14 @@ export function WarehouseAssignmentsDialog({
     }
   };
 
-  const handleRevoke = async (row: WarehouseAssignmentRow) => {
+  const handleRevokeConfirm = async () => {
+    if (!revokeTarget) return;
     try {
-      await revokeAssignment(row.id);
+      await revokeAssignment(revokeTarget.id);
     } catch {
       /* toast già gestito in hook */
+    } finally {
+      setRevokeTarget(null);
     }
   };
 
@@ -242,7 +258,9 @@ export function WarehouseAssignmentsDialog({
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive shrink-0"
-                          onClick={() => handleRevoke(row)}
+                          onClick={() =>
+                            setRevokeTarget({ id: row.id, name: displayName })
+                          }
                           disabled={isRevoking}
                           aria-label={`Revoca ${displayName}`}
                         >
@@ -304,6 +322,33 @@ export function WarehouseAssignmentsDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog
+        open={revokeTarget !== null}
+        onOpenChange={(o) => !o && setRevokeTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revocare l&apos;assegnazione?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per revocare l&apos;accesso di{" "}
+              <strong>{revokeTarget?.name ?? "questo utente"}</strong> al
+              magazzino <strong>{warehouseName}</strong>. Non potrà più ricevere
+              merce, trasferire o inventariare finché non sarà riassegnato.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRevoking}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRevokeConfirm}
+              disabled={isRevoking}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isRevoking ? "Revoca in corso…" : "Revoca"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
