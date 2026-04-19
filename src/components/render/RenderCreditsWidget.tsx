@@ -21,6 +21,9 @@ export function RenderCreditsWidget() {
       return data as { balance: number; total_used: number } | null;
     },
     enabled: !!companyId,
+    // P5 FIX: evita refetch continui che fanno "flickerare" il badge
+    // durante navigation. I crediti non cambiano così spesso: 15s di cache.
+    staleTime: 15_000,
   });
 
   if (isLoading) return <Skeleton className="h-6 w-24" />;

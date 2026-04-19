@@ -28,10 +28,19 @@ async function fetchWithTimeout(
 }
 
 // ── fetchWithRetry ───────────────────────────────────────────────────
-async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
+// P1 FIX: usa fetchWithTimeout anche in fetchWithRetry per evitare che
+// l'AI gateway possa "hangarsi" silenziosamente per > 2 minuti bloccando
+// l'utente (e causando double-click con doppia deduzione crediti).
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 2,
+  delayMs = 2000,
+  timeoutMs = 120_000,
+): Promise<Response> {
   for (let i = 0; i <= retries; i++) {
     try {
-      const res = await fetch(url, options);
+      const res = await fetchWithTimeout(url, options, timeoutMs);
       if (res.ok || i === retries) return res;
       // Non-ok but retryable (5xx)
       if (res.status < 500) return res;

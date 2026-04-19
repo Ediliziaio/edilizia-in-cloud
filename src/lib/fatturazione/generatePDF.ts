@@ -25,11 +25,27 @@ export async function downloadNativePDF(documentoId: string, filename?: string):
   const blob = new Blob([data.html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const w = window.open(url, "_blank");
-  if (w) {
-    w.onload = () => {
-      w.print();
-    };
+
+  // P1 FIX: popup bloccati → fallback download diretto invece di fallire
+  // silenziosamente. L'utente vede il file scaricato e sa cosa è successo.
+  if (!w) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename || `documento-${documentoId}.html`;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    // Cleanup dopo il click (evitiamo revoke immediato)
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    throw new Error(
+      "Popup bloccato dal browser. Il PDF è stato scaricato come file HTML. Abilita i popup per questo sito per la stampa diretta.",
+    );
   }
+
+  w.onload = () => {
+    w.print();
+  };
   // Cleanup after delay
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }

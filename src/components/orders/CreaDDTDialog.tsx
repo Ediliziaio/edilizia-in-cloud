@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Truck, Sparkles, Check, User, Package, Loader2, Info } from "lucide-react";
+import { toast } from "sonner";
+import { Truck, Sparkles, Check, User, Loader2, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
-import type { ClienteSnapshot, RigaDocumento, DocumentoFiscale } from "@/types/fatturazione";
+import type { ClienteSnapshot, RigaDocumento } from "@/types/fatturazione";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -210,6 +211,14 @@ export function CreaDDTDialog({
   const linkMutation = useLinkFatturaOrdine();
 
   const handleCreaDDT = () => {
+    // P2 FIX: blocca creazione DDT vuoto (non conforme normativo).
+    if (previewRighe.length === 0) {
+      toast.error("Impossibile creare un DDT senza righe", {
+        description: "Aggiungi almeno un articolo all'ordine prima di generare il DDT.",
+      });
+      return;
+    }
+
     const clienteSnapshot: ClienteSnapshot | undefined = matchedAnagrafica
       ? {
           ragione_sociale: matchedAnagrafica.ragione_sociale || customerName,
@@ -246,15 +255,29 @@ export function CreaDDTDialog({
         ...(pesoKg && { ddt_peso: parseFloat(pesoKg) || undefined }),
       } as any,
       {
-        onSuccess: (doc) => {
-          // Create junction table link
+        onSuccess: async (doc) => {
+          // P1 FIX: await linkMutation così DDT e link sono creati
+          // atomicamente prima di navigare. Se il link fallisce, non
+          // chiudiamo il dialog (il DDT esiste, ma è orfano — l'utente
+          // deve sapere che deve ripetere l'operazione manualmente dal documento).
           if (companyId) {
-            linkMutation.mutate({
-              fatturaId: doc.id,
-              ordineId: orderId,
-              importoAssociato: totaleLordo,
-              companyId,
-            });
+            try {
+              await linkMutation.mutateAsync({
+                fatturaId: doc.id,
+                ordineId: orderId,
+                importoAssociato: totaleLordo,
+                companyId,
+              });
+            } catch (err) {
+              toast.error("DDT creato ma collegamento ordine fallito", {
+                description:
+                  err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
+              });
+              // Navighiamo comunque al DDT così l'utente può verificare
+              onOpenChange(false);
+              navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
+              return;
+            }
           }
           onOpenChange(false);
           navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);

@@ -53,15 +53,20 @@ Deno.serve(async (req) => {
     }
 
     // 5. Crea il cantiere (order)
+    // P1 FIX: arrotonda a 2 decimali gli importi monetari per evitare che
+    // valori float approssimati dal DB diventino mismatch tra preventivo
+    // (dopo round2 in UI) e cantiere (senza round2) — es. 1234.567 → 1234.57.
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const totalRounded = round2(Number(quote.total ?? 0));
     const orderData: Record<string, unknown> = {
       company_id:     quote.company_id,
       quote_id:       quote.id,
       quote_number:   quote.quote_number ?? null,
       status:         "confermato",
       description:    quote.title || quote.quote_number || "Cantiere da preventivo",
-      total_amount:   Number(quote.total ?? 0),
+      total_amount:   totalRounded,
       deposit_amount: 0,
-      balance_amount: Number(quote.total ?? 0),
+      balance_amount: totalRounded,
       client_name:    quote.client_name    ?? null,
       client_email:   quote.client_email   ?? null,
       client_phone:   quote.client_phone   ?? null,

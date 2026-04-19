@@ -170,7 +170,11 @@ export function WarehouseAssignmentsDialog({
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="assign-user-select">Assegna utente</Label>
             <Select value={newUserId} onValueChange={setNewUserId}>
-              <SelectTrigger id="assign-user-select" disabled={isLoadingProfiles}>
+              <SelectTrigger
+                id="assign-user-select"
+                disabled={isLoadingProfiles}
+                aria-label="Seleziona utente da assegnare a questo magazzino"
+              >
                 <SelectValue placeholder={isLoadingProfiles ? "Caricamento…" : "Scegli utente…"} />
               </SelectTrigger>
               <SelectContent>

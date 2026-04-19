@@ -1343,7 +1343,14 @@ export default function QuoteBuilder() {
     const STATI_BLOCCATI = ['inviata', 'accettata', 'rifiutata', 'scaduta'];
     if (STATI_BLOCCATI.includes(existingQuote?.status || '')) return;
     if (!companyId || !user || !clientName.trim() || saving || !isEdit) return;
-    const hash = JSON.stringify({ clientName, itemsLen: items.length, discountPercent });
+    // P2 FIX: hash completo su items invece di solo items.length, altrimenti
+    // modifiche a quantità/prezzo/sconto riga NON triggerano autosave —
+    // l'utente crede di essere salvato ma perde dati al refresh.
+    // Serializziamo solo i campi che contano per rilevare una modifica.
+    const itemsSignature = items
+      .map((i) => `${i.name}|${i.quantity}|${i.unit_price}|${i.discount_percent}|${i.item_category}`)
+      .join("·");
+    const hash = JSON.stringify({ clientName, itemsSignature, discountPercent });
     if (hash === lastSavedHashRef.current) return;
     try {
       await supabase.from("quotes").update({
@@ -1360,7 +1367,7 @@ export default function QuoteBuilder() {
     // utente (clientName/items/discount), non sul carico di existingQuote. Leggere status
     // dentro la funzione è sufficiente (closure chiama la query refetch se ID cambia).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, items.length, discountPercent, companyId, user, saving, isEdit, id]);
+  }, [clientName, items, discountPercent, companyId, user, saving, isEdit, id]);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -1443,6 +1450,10 @@ export default function QuoteBuilder() {
   // Save
   const handleSave = async (status: string = "bozza") => {
     if (!companyId || !user) return;
+    // P2 FIX: blocca double-click / submit concorrente.
+    // Se c'è già un save in progress ignora chiamata duplicata per evitare
+    // la race condition DELETE→INSERT che può perdere righe preventivo.
+    if (saving) return;
     setSaving(true);
     try {
       // TODO IMP10: complex type — quoteData includes P03 fields not in generated types

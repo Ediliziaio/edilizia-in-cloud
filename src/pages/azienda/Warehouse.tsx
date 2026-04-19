@@ -32,6 +32,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Loader2,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -597,8 +598,13 @@ export default function Warehouse() {
       ) : viewMode === "stock" ? (
         <WarehouseStockTab />
       ) : isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">
-          Caricamento articoli...
+        <div
+          className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+          <span className="text-sm">Caricamento articoli…</span>
         </div>
       ) : filteredItems.length === 0 ? (
         <Card>

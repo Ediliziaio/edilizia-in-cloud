@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import {
   Warehouse as WarehouseIcon,
   Plus,
@@ -176,10 +177,27 @@ export default function WarehouseManager() {
   };
 
   const handleSave = async () => {
+    // P2 FIX: client-side duplicate name check + uppercase province
+    // (la colonna DB può accettare duplicati ma UI li rende indistinguibili).
+    const normalizedName = form.name.trim();
+    const duplicate = warehouses.some(
+      (w) => w.name.toLowerCase() === normalizedName.toLowerCase() && w.id !== editingId,
+    );
+    if (duplicate) {
+      toast.error("Nome magazzino già in uso", {
+        description: "Scegli un nome diverso per distinguerli nei selettori.",
+      });
+      return;
+    }
+    const normalizedForm: typeof form = {
+      ...form,
+      name: normalizedName,
+      province: form.province ? form.province.toString().toUpperCase().slice(0, 2) : form.province,
+    };
     if (editingId) {
-      await updateWarehouse({ id: editingId, ...form });
+      await updateWarehouse({ id: editingId, ...normalizedForm });
     } else {
-      await createWarehouse(form);
+      await createWarehouse(normalizedForm);
     }
     setDialogOpen(false);
   };

@@ -210,6 +210,9 @@ export default function RenderBagnoNew() {
   // ── Step 3 -> Step 4: start render ─────────────────────────────────
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId) return;
+    // P1 FIX: guard contro double-click / doppio credit deduction.
+    // Se c'è già un render in corso, ignora il click (pulsante "Genera" / "Rigenera").
+    if (generating) return;
 
     setGenerating(true);
     setStep(4);
@@ -256,7 +259,7 @@ export default function RenderBagnoNew() {
 
     // Otherwise poll
     startPolling(sessionId);
-  }, [sessionId, companyId, config, queryClient]);
+  }, [sessionId, companyId, config, queryClient, generating]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -656,10 +659,10 @@ export default function RenderBagnoNew() {
           STEP 4 — Elaborazione / Risultato
       ═════════════════════════════════════════════════════════════ */}
       {step === 4 && generating && (
-        <div className="space-y-6">
+        <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
           <Card className="border-cyan-400/30 bg-cyan-50/50 dark:bg-cyan-950/20">
             <CardContent className="py-8 flex flex-col items-center gap-6 text-center">
-              <div className="relative w-20 h-20">
+              <div className="relative w-20 h-20" aria-hidden="true">
                 <div className="absolute inset-0 rounded-full border-4 border-cyan-400/20 animate-ping" />
                 <div className="absolute inset-2 rounded-full bg-cyan-500/10 flex items-center justify-center">
                   <Bath className="h-8 w-8 text-cyan-600 animate-pulse" />

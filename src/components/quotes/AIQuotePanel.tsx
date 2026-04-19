@@ -157,6 +157,10 @@ export default function AIQuotePanel({
           // no-op: defensive — se stop() fallisce è perché già fermato
         }
       }
+      // P4 FIX: nullifica il ref per evitare memory leak se l'utente
+      // riapre il panel subito dopo il cleanup (nuovo MediaRecorder
+      // allocato senza ripulire il riferimento morto).
+      mediaRecorderRef.current = null;
       if (statoRef.current !== "idle") {
         captureVelocityEvent("preventivatore.ai.abandon", {
           last_stato: statoRef.current,
