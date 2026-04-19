@@ -2,6 +2,112 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 
+// ── Shape dei record DB usati dall'edge function ───────────────────────────
+// Tipi minimali per sostituire `any` senza legarsi alle generated types (che
+// questa edge fn non importa per non incollarsi allo schema client).
+
+type ArticleTemplateRow = {
+  id: string;
+  name: string;
+  sku?: string | null;
+  modalita_prezzo?: string | null;
+  prezzo_vendita?: number | string | null;
+  prezzo_acquisto_netto?: number | string | null;
+  unit_of_measure?: string | null;
+  ha_montaggio?: boolean | null;
+  montaggio_tipo?: string | null;
+  categoria_id?: string | null;
+};
+
+type FamigliaMatch = {
+  id: string;
+  nome: string;
+  modalita_prezzo_base: string;
+  prezzo_base_vendita: number | string;
+  unit_of_measure?: string | null;
+  [key: string]: unknown;
+};
+
+type TariffaRow = {
+  id: string;
+  nome: string;
+  tipo: string;
+  prezzo_vendita: number | string;
+  prezzo_costo?: number | string | null;
+  costo_interno?: number | string | null;
+  unita?: string | null;
+  unita_fatturazione?: string | null;
+  vertical_associato?: string | null;
+  piano_base?: number | null;
+  prezzo_piano_aggiuntivo?: number | string | null;
+  [key: string]: unknown;
+};
+
+type ListinoGrigliaProdottoRow = {
+  article_template_id: string;
+  x_mm: number;
+  y_mm: number;
+  prezzo_vendita: number | string;
+  prezzo_acquisto: number | string | null;
+};
+
+type ArticleFamilyAxisRow = {
+  id: string;
+  family_id: string;
+  codice: string;
+  nome: string;
+  sort_order: number;
+  obbligatorio: boolean;
+};
+
+type ArticleFamilyAxisValueRow = {
+  id: string;
+  axis_id: string;
+  valore: string;
+  label: string;
+  maggiorazione_tipo: string;
+  maggiorazione_valore: number | string;
+  maggiorazione_acquisto: number | string;
+  attivo: boolean;
+};
+
+type ListinoGrigliaFamigliaRow = {
+  family_id: string;
+  valore_x: number;
+  valore_y: number;
+  prezzo_vendita: number | string;
+  prezzo_acquisto: number | string | null;
+};
+
+/** JSON che Claude deve restituire. Validato loose: i campi obbligatori sono
+ * `sezioni: RigaAIResp[]`; tutto il resto è tollerato per compat forward. */
+type RigaAIResp = {
+  item_category?: string;
+  nome?: string;
+  descrizione?: string;
+  quantita?: number;
+  unita_misura?: string;
+  article_template_id?: string | null;
+  family_id?: string | null;
+  axis_selections?: Record<string, string> | null;
+  tariffa_id?: string | null;
+  misure_x_mm?: number | null;
+  misure_y_mm?: number | null;
+  is_posa_di?: string | null;
+  unit_price?: number | null;
+};
+
+type SezioneAIResp = {
+  nome?: string;
+  righe?: RigaAIResp[];
+};
+
+type ClaudeJsonResponse = {
+  sezioni?: SezioneAIResp[];
+  note?: string;
+  avvertenze?: string[];
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -60,9 +166,9 @@ Deno.serve(async (req) => {
     const MATCH_THRESHOLD = 0.25;
     const MATCH_THRESHOLD_TARIFFE = 0.20;
 
-    let prodotti: any[] | null = null;
-    let famiglieMatched: any[] = [];
-    let tariffeMatched: any[] = [];
+    let prodotti: ArticleTemplateRow[] | null = null;
+    let famiglieMatched: FamigliaMatch[] = [];
+    let tariffeMatched: TariffaRow[] = [];
     let retrievalMode: "semantic" | "fallback" = "fallback";
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
@@ -94,7 +200,7 @@ Deno.serve(async (req) => {
               p_match_count: MATCH_COUNT,
             });
             if (!rpcErr && Array.isArray(matches) && matches.length > 0) {
-              prodotti = matches as any[];
+              prodotti = matches as ArticleTemplateRow[];
               retrievalMode = "semantic";
             }
 
@@ -110,7 +216,7 @@ Deno.serve(async (req) => {
               },
             );
             if (!famErr && Array.isArray(famMatches)) {
-              famiglieMatched = famMatches as any[];
+              famiglieMatched = famMatches as FamigliaMatch[];
             }
 
             // 3. match_tariffe_semantic (FASE 8.bis)
@@ -125,7 +231,7 @@ Deno.serve(async (req) => {
               },
             );
             if (!tarErr && Array.isArray(tarMatches)) {
-              tariffeMatched = tarMatches as any[];
+              tariffeMatched = tarMatches as TariffaRow[];
             }
           }
         }
@@ -150,16 +256,16 @@ Deno.serve(async (req) => {
 
     // FASE 7.1: batch-fetch griglia listini per tutti i prodotti con modalita='griglia'
     const prodottiGrigliaIds = (prodotti ?? [])
-      .filter((p: any) => p.modalita_prezzo === "griglia")
-      .map((p: any) => p.id);
-    let griglieMap = new Map<string, Array<{ x_mm: number; y_mm: number; prezzo_vendita: number; prezzo_acquisto: number | null }>>();
+      .filter((p) => p.modalita_prezzo === "griglia")
+      .map((p) => p.id);
+    const griglieMap = new Map<string, Array<{ x_mm: number; y_mm: number; prezzo_vendita: number; prezzo_acquisto: number | null }>>();
     if (prodottiGrigliaIds.length > 0) {
       const { data: listini, error: listErr } = await supabaseAdmin
         .from("listino_griglia")
         .select("article_template_id,x_mm,y_mm,prezzo_vendita,prezzo_acquisto")
         .in("article_template_id", prodottiGrigliaIds);
       if (listErr) throw new Error(`Listino griglia query error: ${listErr.message}`);
-      for (const punto of (listini ?? []) as any[]) {
+      for (const punto of (listini ?? []) as ListinoGrigliaProdottoRow[]) {
         const arr = griglieMap.get(punto.article_template_id) ?? [];
         arr.push({
           x_mm: punto.x_mm,
@@ -195,13 +301,14 @@ Deno.serve(async (req) => {
       string,
       Array<{ valore_x: number; valore_y: number; prezzo_vendita: number; prezzo_acquisto: number | null }>
     >();
-    const famiglieIds = famiglieMatched.map((f: any) => f.id);
+    const famiglieIds = famiglieMatched.map((f) => f.id);
     if (famiglieIds.length > 0) {
       const { data: axesRows } = await supabaseAdmin
         .from("article_family_axes")
         .select("id,family_id,codice,nome,sort_order,obbligatorio")
         .in("family_id", famiglieIds);
-      const axisIds = (axesRows ?? []).map((a: any) => a.id);
+      const axesTyped = (axesRows ?? []) as ArticleFamilyAxisRow[];
+      const axisIds = axesTyped.map((a) => a.id);
       const valuesByAxis = new Map<string, AxisValue[]>();
       if (axisIds.length > 0) {
         const { data: valRows } = await supabaseAdmin
@@ -209,7 +316,7 @@ Deno.serve(async (req) => {
           .select("id,axis_id,valore,label,maggiorazione_tipo,maggiorazione_valore,maggiorazione_acquisto,attivo")
           .in("axis_id", axisIds)
           .eq("attivo", true);
-        for (const v of (valRows ?? []) as any[]) {
+        for (const v of (valRows ?? []) as ArticleFamilyAxisValueRow[]) {
           const arr = valuesByAxis.get(v.axis_id) ?? [];
           arr.push({
             id: v.id,
@@ -222,7 +329,7 @@ Deno.serve(async (req) => {
           valuesByAxis.set(v.axis_id, arr);
         }
       }
-      for (const a of (axesRows ?? []) as any[]) {
+      for (const a of axesTyped) {
         const arr = familyAxesMap.get(a.family_id) ?? [];
         arr.push({
           id: a.id,
@@ -236,14 +343,14 @@ Deno.serve(async (req) => {
       }
       // Griglia per famiglie con modalita_prezzo_base='griglia'
       const gridFamilyIds = famiglieMatched
-        .filter((f: any) => f.modalita_prezzo_base === "griglia")
-        .map((f: any) => f.id);
+        .filter((f) => f.modalita_prezzo_base === "griglia")
+        .map((f) => f.id);
       if (gridFamilyIds.length > 0) {
         const { data: famGridRows } = await supabaseAdmin
           .from("listino_griglia")
           .select("family_id,valore_x,valore_y,prezzo_vendita,prezzo_acquisto")
           .in("family_id", gridFamilyIds);
-        for (const g of (famGridRows ?? []) as any[]) {
+        for (const g of (famGridRows ?? []) as ListinoGrigliaFamigliaRow[]) {
           const arr = familyGridsMap.get(g.family_id) ?? [];
           arr.push({
             valore_x: Number(g.valore_x),
@@ -257,7 +364,7 @@ Deno.serve(async (req) => {
     }
 
     // Tariffe: usa quelle matchate semanticamente, fallback a TUTTE le tariffe della company.
-    let tariffe: any[] = tariffeMatched;
+    let tariffe: TariffaRow[] = tariffeMatched;
     if (tariffe.length === 0) {
       const { data: tariffeData, error: tariffeErr } = await supabaseAdmin
         .from("tariffe_aziendali")
@@ -266,7 +373,7 @@ Deno.serve(async (req) => {
         )
         .eq("company_id", company_id);
       if (tariffeErr) throw new Error(`Tariffe query error: ${tariffeErr.message}`);
-      tariffe = tariffeData ?? [];
+      tariffe = (tariffeData ?? []) as TariffaRow[];
     }
 
     // Query impostazioni
@@ -279,18 +386,18 @@ Deno.serve(async (req) => {
     // Build context strings
     const prodottiCtx = (prodotti ?? [])
       .map(
-        (p: any) =>
+        (p) =>
           `[${p.categoria_id}] ${p.name} | ID:${p.id} | Modalità:${p.modalita_prezzo} | €${p.prezzo_vendita}/${p.unit_of_measure} | Montaggio:${p.montaggio_tipo}`
       )
       .join("\n");
 
     const tariffeCtx = (tariffe ?? [])
-      .map((t: any) => `ID:${t.id} | ${t.tipo}: ${t.nome} | €${t.prezzo_vendita}/${t.unita}`)
+      .map((t) => `ID:${t.id} | ${t.tipo}: ${t.nome} | €${t.prezzo_vendita}/${t.unita}`)
       .join("\n");
 
     // FASE 8.6: contesto LISTINO FAMIGLIE con assi e valori per axis_selections.
     const famiglieCtx = famiglieMatched
-      .map((f: any) => {
+      .map((f) => {
         const axes = familyAxesMap.get(f.id) ?? [];
         const axesDesc = axes
           .sort((a, b) => a.sort_order - b.sort_order)
@@ -385,17 +492,23 @@ OUTPUT JSON (schema obbligatorio):
     // Strip ```json ... ``` wrappers if present
     const text = rawText.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
 
-    let parsedData: any;
+    let parsedData: ClaudeJsonResponse;
     try {
-      parsedData = JSON.parse(text);
-    } catch (_e) {
+      parsedData = JSON.parse(text) as ClaudeJsonResponse;
+    } catch {
       throw new Error(`Claude ha restituito un JSON non valido: ${text.slice(0, 200)}`);
     }
 
     // Enrich righe with unit_price (FASE 7.1: corretto per modalità mq / griglia)
-    const prodottiMap = new Map((prodotti ?? []).map((p: any) => [p.id, p]));
-    const tariffeMap = new Map((tariffe ?? []).map((t: any) => [t.id, t]));
-    const famigliaMap = new Map(famiglieMatched.map((f: any) => [f.id, f]));
+    const prodottiMap = new Map<string, ArticleTemplateRow>(
+      (prodotti ?? []).map((p) => [p.id, p]),
+    );
+    const tariffeMap = new Map<string, TariffaRow>(
+      (tariffe ?? []).map((t) => [t.id, t]),
+    );
+    const famigliaMap = new Map<string, FamigliaMatch>(
+      famiglieMatched.map((f) => [f.id, f]),
+    );
 
     /** Nearest-neighbor (Manhattan) per listino_griglia. */
     function nearestInGriglia(
@@ -425,7 +538,7 @@ OUTPUT JSON (schema obbligatorio):
      * Restituisce unit_price_vendita (rounded 2dp) o null se non calcolabile.
      */
     function calcolaPrezzoFamigliaServer(
-      family: any,
+      family: FamigliaMatch,
       axes: Axis[],
       selections: Record<string, string>,
       xMm: number | null,
@@ -436,7 +549,7 @@ OUTPUT JSON (schema obbligatorio):
     ): number | null {
       const mq = xMm != null && yMm != null ? (xMm / 1000) * (yMm / 1000) : null;
       let pv = 0;
-      const baseMode = family.modalita_prezzo_base as string;
+      const baseMode = family.modalita_prezzo_base;
       const baseV = Number(family.prezzo_base_vendita) || 0;
       switch (baseMode) {
         case "pz":
@@ -533,7 +646,7 @@ OUTPUT JSON (schema obbligatorio):
 
         // FASE 8.6: family_id ha precedenza su article_template_id.
         if (riga.family_id) {
-          const fam = famigliaMap.get(riga.family_id) as any;
+          const fam = famigliaMap.get(riga.family_id);
           if (!fam) {
             riga.unit_price = null;
             enrichmentWarnings.push(
@@ -558,7 +671,7 @@ OUTPUT JSON (schema obbligatorio):
             enrichmentWarnings,
           );
         } else if (riga.article_template_id) {
-          const prod = prodottiMap.get(riga.article_template_id) as any;
+          const prod = prodottiMap.get(riga.article_template_id);
           if (!prod) {
             riga.unit_price = null;
             continue;
@@ -602,15 +715,15 @@ OUTPUT JSON (schema obbligatorio):
             riga.unit_price = Number(prod.prezzo_vendita) || null;
           }
         } else if (riga.tariffa_id) {
-          const tar = tariffeMap.get(riga.tariffa_id) as any;
+          const tar = tariffeMap.get(riga.tariffa_id);
           if (tar) {
             if (tar.tipo === "tiro_piano") {
               riga.unit_price =
-                tar.prezzo_vendita +
+                Number(tar.prezzo_vendita) +
                 Math.max(0, (piano_installazione ?? 0) - (tar.piano_base ?? 1)) *
-                  (tar.prezzo_piano_aggiuntivo ?? 0);
+                  (Number(tar.prezzo_piano_aggiuntivo) || 0);
             } else {
-              riga.unit_price = tar.prezzo_vendita;
+              riga.unit_price = Number(tar.prezzo_vendita);
             }
           } else {
             riga.unit_price = null;

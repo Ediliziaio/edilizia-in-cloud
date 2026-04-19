@@ -3,9 +3,19 @@
  *
  * Editor matrice L × H per famiglie in modalità prezzo 'griglia'.
  * Ogni cella = { prezzo_vendita, prezzo_acquisto }.
- * Salvataggio: delete-tutte-le-righe-della-famiglia + insert nuove righe.
- * Atomicità approssimata client-side; eventuale fallimento mid-way è
- * recuperabile rilanciando il salvataggio (cells ricostruite dal form).
+ *
+ * Strategia di salvataggio (hardened post-stabilization):
+ *  1. Upsert delle celle "nuove o modificate" preservando `id` per quelle
+ *     già esistenti (update-in-place) e inserendo le nuove.
+ *  2. Delete ESCLUSIVAMENTE delle celle rimosse dall'utente (diff su ids),
+ *     non più dell'intera famiglia.
+ *
+ * Garanzie:
+ *  - Nessuna finestra vuota: se l'upsert fallisce, nulla è stato toccato;
+ *    se il delete fallisce, il grid contiene valori validi (più eventuali
+ *    celle stale — l'utente rilancia il salvataggio).
+ *  - Preserva axis_config di celle aggiunte da editor avanzati (MatriceEditor
+ *    STEP 4): il delete filtra per `axis_config IS NULL` e scope per id.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -49,11 +59,15 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
     queryKey: queryKeys.articleFamilies.grid(familyId),
     enabled: !!companyId && !!familyId,
     queryFn: async (): Promise<GridRow[]> => {
+      // Filtra per axis_config IS NULL: questo editor gestisce solo celle "flat"
+      // (L × H senza fascia). Le celle multi-fascia sono di competenza esclusiva
+      // di MatriceEditor (STEP 4) e NON devono essere mostrate né toccate qui.
       const { data, error } = await supabase
         .from("listino_griglia")
         .select("id, family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
         .eq("family_id", familyId)
         .eq("company_id", companyId!)
+        .is("axis_config", null)
         .order("valore_x", { ascending: true })
         .order("valore_y", { ascending: true });
       if (error) throw new Error(error.message);
@@ -145,25 +159,39 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
     });
   };
 
-  // Salvataggio: delete tutte + insert le nuove
+  // Salvataggio: upsert-by-id + delete-by-diff (no empty window, no MatriceEditor loss)
   const saveGrid = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non identificata");
 
-      // Costruisci payload
-      const newRows: Array<{
+      // Map (x_y) → id delle celle attualmente persistite (axis_config IS NULL).
+      const existingByKey = new Map<string, GridRow>();
+      for (const r of rows) {
+        existingByKey.set(`${r.valore_x}_${r.valore_y}`, r);
+      }
+
+      // Costruisci payload upsert: preserva `id` per celle già esistenti
+      // (→ UPDATE), lascia id assente per le nuove (→ INSERT con uuid auto).
+      type UpsertRow = {
+        id?: string;
         company_id: string;
         family_id: string;
         valore_x: number;
         valore_y: number;
         prezzo_vendita: number;
         prezzo_acquisto: number;
-      }> = [];
+      };
+      const upsertRows: UpsertRow[] = [];
+      const keptKeys = new Set<string>();
       for (const x of xAxis) {
         for (const y of yAxis) {
-          const c = cells.get(`${x}_${y}`);
-          if (!c) continue; // celle vuote = non inserite
-          newRows.push({
+          const key = `${x}_${y}`;
+          const c = cells.get(key);
+          if (!c) continue; // celle vuote = non persistite
+          keptKeys.add(key);
+          const existing = existingByKey.get(key);
+          upsertRows.push({
+            ...(existing ? { id: existing.id } : {}),
             company_id: companyId,
             family_id: familyId,
             valore_x: x,
@@ -174,23 +202,38 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
         }
       }
 
-      // Step 1: delete esistenti per famiglia
-      const { error: delErr } = await supabase
-        .from("listino_griglia")
-        .delete()
-        .eq("family_id", familyId)
-        .eq("company_id", companyId);
-      if (delErr) throw new Error(`Errore pulizia griglia: ${delErr.message}`);
-
-      // Step 2: insert nuove (se ce ne sono)
-      if (newRows.length > 0) {
-        const { error: insErr } = await supabase
-          .from("listino_griglia")
-          .insert(newRows);
-        if (insErr) throw new Error(`Errore salvataggio celle: ${insErr.message}`);
+      // Celle da eliminare = esistenti (axis_config NULL) il cui (x,y) non è
+      // più presente nelle keptKeys. Delete scoped by id: non tocca MAI
+      // celle multi-fascia (axis_config NOT NULL) né altre famiglie.
+      const idsToDelete: string[] = [];
+      for (const [key, r] of existingByKey.entries()) {
+        if (!keptKeys.has(key)) idsToDelete.push(r.id);
       }
 
-      return newRows.length;
+      // Step 1: upsert PRIMA → nessuna finestra vuota. Se fallisce, il DB
+      // resta nello stato precedente (ok) e il delete non parte.
+      if (upsertRows.length > 0) {
+        const { error: upErr } = await supabase
+          .from("listino_griglia")
+          .upsert(upsertRows);
+        if (upErr) throw new Error(`Errore salvataggio celle: ${upErr.message}`);
+      }
+
+      // Step 2: delete DOPO, solo celle effettivamente rimosse dall'utente.
+      if (idsToDelete.length > 0) {
+        const { error: delErr } = await supabase
+          .from("listino_griglia")
+          .delete()
+          .in("id", idsToDelete);
+        if (delErr) {
+          // Upsert è andato a buon fine ma il delete ha fallito: la griglia
+          // contiene tutti i valori validi + eventuali celle stale. L'utente
+          // può rilanciare il salvataggio in sicurezza.
+          throw new Error(`Errore rimozione celle obsolete: ${delErr.message}`);
+        }
+      }
+
+      return upsertRows.length;
     },
     onSuccess: (count) => {
       toast.success(`Griglia salvata: ${count} celle`);

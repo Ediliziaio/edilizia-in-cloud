@@ -38,7 +38,15 @@ export function QuoteSignatureStatusCard({
   refusedReason,
   expiresAt,
 }: QuoteSignatureStatusCardProps) {
-  const steps = [
+  interface TimelineStep {
+    id: string;
+    label: string;
+    date: string | null | undefined;
+    icon: typeof FileText;
+    done: boolean;
+    isNegative?: boolean;
+  }
+  const steps: TimelineStep[] = [
     {
       id: "created",
       label: "Preventivo creato",
@@ -95,7 +103,7 @@ export function QuoteSignatureStatusCard({
           {steps.map((step, idx) => {
             const isLast = idx === steps.length - 1;
             const StepIcon = step.icon;
-            const isNeg = (step as any).isNegative;
+            const isNeg = step.isNegative === true;
 
             return (
               <div key={step.id} className="flex items-start gap-3 relative">

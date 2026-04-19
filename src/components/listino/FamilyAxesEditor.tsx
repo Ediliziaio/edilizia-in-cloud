@@ -564,28 +564,9 @@ function AxisFormDialog({
   const [obbligatorio, setObbligatorio] = useState(true);
   const [codiceManuallyEdited, setCodiceManuallyEdited] = useState(false);
 
-  // Reset quando apre o cambia axis
-  useState(() => {
-    if (open) {
-      if (axis) {
-        setNome(axis.nome);
-        setCodice(axis.codice);
-        setDescrizione(axis.descrizione ?? "");
-        setTipo(axis.tipo);
-        setObbligatorio(axis.obbligatorio);
-        setCodiceManuallyEdited(true);
-      } else {
-        setNome("");
-        setCodice("");
-        setDescrizione("");
-        setTipo("discrete");
-        setObbligatorio(true);
-        setCodiceManuallyEdited(false);
-      }
-    }
-  });
-  // Reset aggressivo su cambio open/axis
-  // (useState initializer sopra è one-shot; utilizziamo effect pattern con key sul Dialog)
+  // Reset aggressivo su cambio open/axis: usiamo `key={axis?.id ?? "new"}` sul
+  // DialogContent (sotto) + `onOpenAutoFocus` per inizializzare lo stato ad
+  // ogni apertura. Nessun useEffect necessario.
 
   const editing = axis !== null;
   const conflict =

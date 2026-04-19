@@ -185,14 +185,18 @@ async function embedAndUpdate<T extends { id: string }>(
         continue;
       }
       for (let j = 0; j < batch.length; j++) {
-        // deno-lint-ignore no-explicit-any
-        const { error: upErr } = await (admin as any)
-          .from(tableName)
+        // `tableName` è ristretto a una di 3 tabelle reali tutte con colonna
+        // `embedding` + `embedding_updated_at` + PK `id`. Il cast `as never`
+        // salta il narrowing di Supabase (che non può unificare i 3 Row type)
+        // ma resta type-safe su nomi colonne perché le tre tabelle li
+        // condividono per design (migration 20260915000003 + affini).
+        const { error: upErr } = await admin
+          .from(tableName as never)
           .update({
             embedding: JSON.stringify(embeddings[j]),
             embedding_updated_at: new Date().toISOString(),
-          })
-          .eq("id", batch[j].id);
+          } as never)
+          .eq("id" as never, batch[j].id);
         if (upErr) {
           errors += 1;
         } else {
@@ -273,13 +277,17 @@ Deno.serve(async (req) => {
 
     // ─── ARTICLES ───────────────────────────────────────────────────────────
     if (effectiveTargets.includes("articles")) {
-      // deno-lint-ignore no-explicit-any
-      let q: any = admin
+      // Build-then-narrow pattern: niente `let: any` — il PostgrestFilterBuilder
+      // conserva il tipo corretto grazie al chain ternario.
+      const baseQ = admin
         .from("article_templates")
         .select("id,name,sku,description,modalita_prezzo,unit_of_measure,categoria_id,embedding")
         .eq("company_id", companyId);
-      if (mode === "single") q = q.eq("id", articleId);
-      else if (mode === "missing") q = q.is("embedding", null);
+      const q = mode === "single"
+        ? baseQ.eq("id", articleId!)
+        : mode === "missing"
+        ? baseQ.is("embedding", null)
+        : baseQ;
       const { data: articles, error: artErr } = await q;
       if (artErr) throw new Error(`Query article_templates: ${artErr.message}`);
       const arts = (articles ?? []) as Array<ArticleRow & { categoria_id: string | null }>;
@@ -315,13 +323,12 @@ Deno.serve(async (req) => {
 
     // ─── FAMILIES ───────────────────────────────────────────────────────────
     if (effectiveTargets.includes("families")) {
-      // deno-lint-ignore no-explicit-any
-      let qf: any = admin
+      const baseQf = admin
         .from("article_families")
         .select("id,nome,descrizione,modalita_prezzo_base,unit_of_measure,vertical,categoria_id,embedding")
         .eq("company_id", companyId)
         .eq("attivo", true);
-      if (mode === "missing") qf = qf.is("embedding", null);
+      const qf = mode === "missing" ? baseQf.is("embedding", null) : baseQf;
       const { data: families, error: famErr } = await qf;
       if (famErr) throw new Error(`Query article_families: ${famErr.message}`);
       const fams = (families ?? []) as Array<FamilyRow & { categoria_id: string | null }>;
@@ -396,15 +403,14 @@ Deno.serve(async (req) => {
 
     // ─── TARIFFE ────────────────────────────────────────────────────────────
     if (effectiveTargets.includes("tariffe")) {
-      // deno-lint-ignore no-explicit-any
-      let qt: any = admin
+      const baseQt = admin
         .from("tariffe_aziendali")
         .select(
           "id,nome,tipo,descrizione,unita,unita_fatturazione,vertical_associato,attiva,embedding",
         )
         .eq("company_id", companyId)
         .eq("attiva", true);
-      if (mode === "missing") qt = qt.is("embedding", null);
+      const qt = mode === "missing" ? baseQt.is("embedding", null) : baseQt;
       const { data: tariffe, error: tarErr } = await qt;
       if (tarErr) throw new Error(`Query tariffe_aziendali: ${tarErr.message}`);
       const tars = (tariffe ?? []) as TariffaRow[];

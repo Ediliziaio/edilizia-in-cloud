@@ -15,6 +15,17 @@ import { Send, Loader2, CheckCircle, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import type { SendSignatureParams } from "@/hooks/useSignatureActions";
 
+/**
+ * Shape della risposta attesa da `send-quote-signature` edge function,
+ * limitata ai soli campi effettivamente letti dal dialog. Campi extra sono
+ * tollerati ma non usati: l'edge fn può evolvere senza rompere questo contratto.
+ */
+export interface SendSignatureResult {
+  signature_link?: string;
+  expires_at?: string;
+  [key: string]: unknown;
+}
+
 interface SendSignatureDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -22,7 +33,7 @@ interface SendSignatureDialogProps {
   clientName: string | null;
   clientPhone?: string | null;
   quoteNumber: string;
-  onSend: (params: SendSignatureParams) => Promise<any>;
+  onSend: (params: SendSignatureParams) => Promise<SendSignatureResult>;
   isSending: boolean;
 }
 
