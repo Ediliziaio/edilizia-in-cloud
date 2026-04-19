@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -10,7 +11,7 @@ interface Props {
   data: TrialActivation;
 }
 
-export function AdminTrialIntelligence({ data }: Props) {
+function AdminTrialIntelligenceImpl({ data }: Props) {
   const pctOrders = data.total > 0 ? Math.round((data.withOrders / data.total) * 100) : 0;
   const pctCustomers = data.total > 0 ? Math.round((data.withCustomers / data.total) * 100) : 0;
   const pctStaff = data.total > 0 ? Math.round((data.withStaff / data.total) * 100) : 0;
@@ -277,3 +278,5 @@ function MilestoneBar({
     </div>
   );
 }
+
+export const AdminTrialIntelligence = memo(AdminTrialIntelligenceImpl);

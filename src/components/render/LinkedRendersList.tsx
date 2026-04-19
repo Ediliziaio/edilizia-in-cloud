@@ -110,7 +110,7 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
             onClick={() => navigate(`/azienda/render/${r.render_type}/gallery/${r.id}`)}
           >
             {r.result_url ? (
-              <img src={r.result_url} alt="Render" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <img src={r.result_url} alt="Render" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Image className="h-6 w-6 text-muted-foreground/30" />

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   ResponsiveContainer,
   Line,
@@ -41,7 +42,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
   );
 }
 
-export function ForecastChart({ data }: ForecastChartProps) {
+function ForecastChartImpl({ data }: ForecastChartProps) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <ComposedChart
@@ -109,3 +110,5 @@ export function ForecastChart({ data }: ForecastChartProps) {
     </ResponsiveContainer>
   );
 }
+
+export const ForecastChart = memo(ForecastChartImpl);

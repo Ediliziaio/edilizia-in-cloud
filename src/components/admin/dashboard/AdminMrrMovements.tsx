@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -9,7 +10,7 @@ interface Props {
   data: MrrMovement[];
 }
 
-export function AdminMrrMovements({ data }: Props) {
+function AdminMrrMovementsImpl({ data }: Props) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -77,3 +78,5 @@ export function AdminMrrMovements({ data }: Props) {
     </Card>
   );
 }
+
+export const AdminMrrMovements = memo(AdminMrrMovementsImpl);

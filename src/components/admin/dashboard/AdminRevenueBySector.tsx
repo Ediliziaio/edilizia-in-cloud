@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -19,7 +20,7 @@ const COLORS = [
   "hsl(199, 89%, 48%)",
 ];
 
-export function AdminRevenueBySector({ data }: Props) {
+function AdminRevenueBySectorImpl({ data }: Props) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -69,3 +70,5 @@ export function AdminRevenueBySector({ data }: Props) {
     </Card>
   );
 }
+
+export const AdminRevenueBySector = memo(AdminRevenueBySectorImpl);

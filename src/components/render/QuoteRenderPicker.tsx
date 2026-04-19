@@ -119,7 +119,7 @@ export function QuoteRenderPicker({
               onClick={() => handleToggle(r)}
             >
               {r.result_url ? (
-                <img src={r.result_url} alt="Render" className="w-full h-full object-cover" />
+                <img src={r.result_url} alt="Render" className="w-full h-full object-cover" loading="lazy" decoding="async" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-muted">
                   <Image className="h-5 w-5 text-muted-foreground/30" />

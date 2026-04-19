@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -13,7 +14,12 @@ interface Props {
   currentMrr: number;
 }
 
-export function AdminMrrChart({ data, currentMrr }: Props) {
+/**
+ * Memo: dashboard admin re-renderizza al cambio filtro/periodo, ma
+ * quando `data` e `currentMrr` restano invariati (array ref stabile)
+ * evitiamo il re-compute recharts + re-render dell'intera Area chart.
+ */
+function AdminMrrChartImpl({ data, currentMrr }: Props) {
   const arr = currentMrr * 12;
 
   return (
@@ -70,3 +76,5 @@ export function AdminMrrChart({ data, currentMrr }: Props) {
     </Card>
   );
 }
+
+export const AdminMrrChart = memo(AdminMrrChartImpl);
