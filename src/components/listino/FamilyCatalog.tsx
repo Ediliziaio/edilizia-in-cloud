@@ -8,9 +8,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Package, Loader2, CopyPlus, Trash2 } from "lucide-react";
+import { Plus, Search, Package, Loader2, CopyPlus, Trash2, Info } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useFamilies } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
@@ -54,6 +55,8 @@ const MODALITA_LABEL: Record<ModalitaPrezzoBase, string> = {
 export function FamilyCatalog() {
   const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
+  const { role } = useAuth();
+  const isAdmin = role === "company_admin" || role === "super_admin";
   const { families, isLoading } = useFamilies();
   const { deleteFamily, duplicateFamily } = useFamilyMutations();
 
@@ -153,12 +156,27 @@ export function FamilyCatalog() {
               className="pl-9"
             />
           </div>
-          <Button onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}>
-            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-            Nuova famiglia
-          </Button>
+          {isAdmin && (
+            <Button onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}>
+              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+              Nuova famiglia
+            </Button>
+          )}
         </div>
       </header>
+
+      {!isAdmin && (
+        <div
+          className="flex items-start gap-2 rounded-lg border border-muted bg-muted/30 p-3 text-sm text-muted-foreground"
+          role="note"
+        >
+          <Info className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <p>
+            Visualizzazione in sola lettura. Solo l&apos;amministratore
+            dell&apos;azienda può creare, modificare o duplicare le famiglie.
+          </p>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -171,12 +189,16 @@ export function FamilyCatalog() {
             <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" aria-hidden="true" />
             <p className="font-medium">Nessuna famiglia configurata</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Crea la tua prima famiglia articoli per iniziare a preventivare.
+              {isAdmin
+                ? "Crea la tua prima famiglia articoli per iniziare a preventivare."
+                : "L'amministratore non ha ancora configurato famiglie articoli."}
             </p>
-            <Button className="mt-4" onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}>
-              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-              Crea famiglia
-            </Button>
+            {isAdmin && (
+              <Button className="mt-4" onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}>
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                Crea famiglia
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : grouped.length === 0 ? (
@@ -202,16 +224,28 @@ export function FamilyCatalog() {
                   return (
                     <Card
                       key={f.id}
-                      className="cursor-pointer hover:border-primary/50 transition-all"
-                      onClick={() => navigate(`/azienda/impostazioni/listino/famiglie/${f.id}`)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          navigate(`/azienda/impostazioni/listino/famiglie/${f.id}`);
-                        }
-                      }}
+                      className={
+                        isAdmin
+                          ? "cursor-pointer hover:border-primary/50 transition-all"
+                          : ""
+                      }
+                      onClick={
+                        isAdmin
+                          ? () => navigate(`/azienda/impostazioni/listino/famiglie/${f.id}`)
+                          : undefined
+                      }
+                      role={isAdmin ? "button" : undefined}
+                      tabIndex={isAdmin ? 0 : undefined}
+                      onKeyDown={
+                        isAdmin
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                navigate(`/azienda/impostazioni/listino/famiglie/${f.id}`);
+                              }
+                            }
+                          : undefined
+                      }
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between gap-2">
@@ -234,32 +268,34 @@ export function FamilyCatalog() {
                           <span>·</span>
                           <span>UM {f.unit_of_measure}</span>
                         </div>
-                        <div className="flex gap-2 pt-2 border-t">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setToDuplicate(f);
-                              setDupName(`${f.nome} (copia)`);
-                            }}
-                          >
-                            <CopyPlus className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
-                            Duplica
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setToDelete(f);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
-                            Disattiva
-                          </Button>
-                        </div>
+                        {isAdmin && (
+                          <div className="flex gap-2 pt-2 border-t">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setToDuplicate(f);
+                                setDupName(`${f.nome} (copia)`);
+                              }}
+                            >
+                              <CopyPlus className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                              Duplica
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setToDelete(f);
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                              Disattiva
+                            </Button>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );

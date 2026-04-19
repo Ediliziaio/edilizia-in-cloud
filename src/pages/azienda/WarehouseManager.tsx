@@ -12,7 +12,9 @@ import {
   MapPin,
   Car,
   Users,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,6 +87,8 @@ const emptyForm = (): WarehouseInsert => ({
 
 export default function WarehouseManager() {
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const isAdmin = role === "company_admin" || role === "super_admin";
   const {
     warehouses,
     isLoading,
@@ -101,6 +105,49 @@ export default function WarehouseManager() {
   const [form, setForm] = useState<WarehouseInsert>(emptyForm());
   const [deactivateTarget, setDeactivateTarget] = useState<Warehouse | null>(null);
   const [assignTarget, setAssignTarget] = useState<Warehouse | null>(null);
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <WarehouseIcon className="h-6 w-6" />
+            Gestione Magazzini
+          </h1>
+        </div>
+        <Card className="max-w-xl mx-auto">
+          <CardContent
+            className="py-10 flex flex-col items-center gap-4 text-center"
+            role="alert"
+            aria-live="polite"
+          >
+            <ShieldAlert
+              className="h-12 w-12 text-amber-500"
+              aria-hidden="true"
+            />
+            <div>
+              <p className="font-medium">Accesso riservato</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Solo l&apos;amministratore dell&apos;azienda può creare o
+                gestire i magazzini e le assegnazioni magazzinieri. Contatta
+                l&apos;amministratore per richiedere l&apos;accesso.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/azienda/magazzino")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
+              Torna al magazzino
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const openCreate = () => {
     setEditingId(null);
