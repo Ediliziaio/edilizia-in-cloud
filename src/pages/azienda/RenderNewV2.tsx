@@ -20,6 +20,7 @@ import {
 
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import {
   WIZARD_TIPI, WIZARD_PROFILI, WIZARD_RAL, WIZARD_LEGNO, WIZARD_HW_COLORS,
   WIZARD_CASS_MATERIALI, WIZARD_TAPP_OPTIONS,
@@ -439,6 +440,8 @@ export default function RenderNewV2() {
       </div>
 
       <div className="px-4">
+        {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
+        <RenderCreditGate />
         {step === 1 && (
           <Step1Foto
             preview={photoPreview}

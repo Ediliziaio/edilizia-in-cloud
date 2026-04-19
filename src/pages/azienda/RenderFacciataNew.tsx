@@ -15,6 +15,7 @@ import {
 
 import { FacciataConfigForm, DEFAULT_FACCIATA_CONFIG } from "@/components/render-facciata/FacciataConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazioneFacciata } from "@/modules/render-facciata/lib/types";
@@ -344,6 +345,9 @@ export default function RenderFacciataNew() {
         </div>
         <RenderCreditsWidget />
       </div>
+
+      {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
+      <RenderCreditGate />
 
       {/* ── Step indicator ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1">

@@ -148,9 +148,11 @@ export function CreditManagerCard({ companyId }: Props) {
     render: render.data ?? 0,
   };
 
-  // Mutazione adjust: usa admin-adjust-credits per i wallet EUR (registra audit
-  // in admin_credit_adjustments). Per render_credits l'edge fn non è ancora
-  // supportato → UPDATE diretto sulla tabella (solo super_admin per RLS).
+  // Mutazione adjust: usa admin-adjust-credits per TUTTI i wallet.
+  // - EUR (email/ai_agents/whatsapp) → registra in admin_credit_adjustments
+  // - render                          → RPC adjust_render_credits_atomic (FOR UPDATE + ledger audit)
+  // FIX P2.1 + P2.2 + P3.3: rimosso il pattern client-side read-modify-write
+  // per render (non atomico, nessun audit ledger).
   const adjust = useMutation({
     mutationFn: async () => {
       const amount = parseFloat(adjustAmount);
@@ -160,42 +162,35 @@ export function CreditManagerCard({ companyId }: Props) {
       const signedAmount = adjustDialog.direction === "deduct" ? -amount : amount;
 
       if (wallet === "render") {
-        // Render è intero — usa il valore intero + log manuale in render_credits
+        // Render è intero: l'edge fn richiede un delta integer (param `amount`)
         if (!Number.isInteger(amount)) {
           throw new Error("Per render i crediti devono essere interi");
         }
-        // SELECT current balance
-        const { data: current } = await supabase
-          .from("render_credits")
-          .select("balance, total_purchased, total_used")
-          .eq("company_id", companyId)
-          .maybeSingle();
-
-        const currentBalance = (current as { balance?: number } | null)?.balance ?? 0;
-        const newBalance = Math.max(0, currentBalance + signedAmount);
-
-        if (signedAmount < 0 && currentBalance < Math.abs(signedAmount)) {
-          throw new Error(`Saldo render insufficiente (${currentBalance}) per dedurre ${Math.abs(signedAmount)}`);
-        }
-
-        // Upsert: se la riga non esiste, creiamo con balance = newBalance
-        const { error } = await supabase
-          .from("render_credits")
-          .upsert({
+        const { data, error } = await supabase.functions.invoke("admin-adjust-credits", {
+          body: {
             company_id: companyId,
-            balance: newBalance,
-            total_purchased: ((current as { total_purchased?: number } | null)?.total_purchased ?? 0)
-              + (signedAmount > 0 ? signedAmount : 0),
-            total_used: ((current as { total_used?: number } | null)?.total_used ?? 0)
-              + (signedAmount < 0 ? Math.abs(signedAmount) : 0),
-            updated_at: new Date().toISOString(),
-          } as never, { onConflict: "company_id" } as never);
+            service: "render",
+            amount: signedAmount, // delta integer (negativo per deduct)
+            reason: adjustReason.trim(),
+          },
+        });
         if (error) throw error;
-
-        return { balance_before: currentBalance, balance_after: newBalance, wallet: "render" };
+        const payload = data as {
+          error?: string;
+          balance_before?: number;
+          balance_after?: number;
+          delta_applied?: number;
+          ledger_id?: string | null;
+        };
+        if (payload?.error) throw new Error(payload.error);
+        return {
+          balance_before: payload?.balance_before ?? 0,
+          balance_after:  payload?.balance_after  ?? 0,
+          wallet: "render" as const,
+        };
       }
 
-      // Wallet EUR → edge function
+      // Wallet EUR → edge function (legacy param `amount_eur`)
       const { data, error } = await supabase.functions.invoke("admin-adjust-credits", {
         body: {
           company_id: companyId,
@@ -235,9 +230,9 @@ export function CreditManagerCard({ companyId }: Props) {
         </CardTitle>
         <CardDescription>
           Saldo corrente per wallet. Usa <strong>Aggiungi</strong> per ricaricare un bonus,
-          <strong> Deduci</strong> per stornare: ogni movimento viene loggato in
-          <code className="text-[0.7rem] mx-1">admin_credit_adjustments</code> (EUR) o tracciato via
-          <code className="text-[0.7rem] mx-1">render_credits.total_*</code> (render).
+          <strong> Deduci</strong> per stornare: ogni movimento è atomico (FOR UPDATE) e loggato in
+          <code className="text-[0.7rem] mx-1">admin_credit_adjustments</code> (EUR) o
+          <code className="text-[0.7rem] mx-1">render_credit_ledger</code> (render).
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -284,10 +279,14 @@ export function CreditManagerCard({ companyId }: Props) {
         </div>
       </CardContent>
 
-      {/* Dialog Adjust */}
+      {/* Dialog Adjust — FIX P2.4: blocca chiusura durante mutazione in corso */}
       <Dialog
         open={adjustDialog.open}
-        onOpenChange={(open) => !open && setAdjustDialog({ open: false, wallet: "", direction: "add" })}
+        onOpenChange={(open) => {
+          if (open) return;
+          if (adjust.isPending) return; // evita chiusura accidentale durante l'adjust
+          setAdjustDialog({ open: false, wallet: "", direction: "add" });
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -327,6 +326,7 @@ export function CreditManagerCard({ companyId }: Props) {
             <Button
               variant="outline"
               onClick={() => setAdjustDialog({ open: false, wallet: "", direction: "add" })}
+              disabled={adjust.isPending}
             >
               Annulla
             </Button>

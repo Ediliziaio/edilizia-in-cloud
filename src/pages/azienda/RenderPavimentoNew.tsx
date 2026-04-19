@@ -18,6 +18,7 @@ import {
   DEFAULT_PAVIMENTO_CONFIG,
 } from "@/components/render-pavimento/PavimentoConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazionePavimento, AnalisiPavimento } from "@/modules/render-pavimento/lib/types";
@@ -149,8 +150,12 @@ export default function RenderPavimentoNew() {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           if (resp.error) {
-            let errBody: any = null;
-            try { const ctx = (resp.error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+            // FIX P3.5: rimossi `as any`. Parsing type-safe del FunctionsHttpError.
+            let errBody: { error?: string; message?: string } | null = null;
+            try {
+              const ctx = (resp.error as unknown as { context?: unknown }).context;
+              if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
+            } catch { /* ignore parse error, fall through to message below */ }
             throw new Error(errBody?.error ?? errBody?.message ?? resp.error.message ?? "Errore");
           }
           if (resp.data?.analisi) {
@@ -347,6 +352,9 @@ export default function RenderPavimentoNew() {
         </div>
         <RenderCreditsWidget />
       </div>
+
+      {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
+      <RenderCreditGate />
 
       {/* ── Progress stepper ───────────────────────────────────────────── */}
       <div className="space-y-2">

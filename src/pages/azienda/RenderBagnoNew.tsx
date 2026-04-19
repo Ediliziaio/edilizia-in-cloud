@@ -20,6 +20,7 @@ import {
   type BathroomConfig,
 } from "@/components/render-bagno/BathroomConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
@@ -165,8 +166,13 @@ export default function RenderBagnoNew() {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           if (resp.error) {
-            let errBody: any = null;
-            try { const ctx = (resp.error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+            // FIX P3.5: rimossi `as any`. Il `FunctionsHttpError` di supabase-js
+            // espone `context` come Response nel campo .context (runtime).
+            let errBody: { error?: string; message?: string } | null = null;
+            try {
+              const ctx = (resp.error as unknown as { context?: unknown }).context;
+              if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
+            } catch { /* ignore parse error, fall through to message below */ }
             throw new Error(errBody?.error ?? errBody?.message ?? resp.error.message ?? "Errore");
           }
 
@@ -390,6 +396,9 @@ export default function RenderBagnoNew() {
         </div>
         <RenderCreditsWidget />
       </div>
+
+      {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
+      <RenderCreditGate />
 
       {/* ── Progress stepper ──────────────────────────────────────── */}
       <div className="space-y-2">

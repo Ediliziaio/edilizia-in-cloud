@@ -3,6 +3,8 @@
 // Prompt Engine v1 — bathroom-specific blocks
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 
 // ── CORS ──────────────────────────────────────────────────────────────
 const CORS = {
@@ -252,26 +254,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Ownership check ─────────────────────────────────────────────
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || profile.company_id !== session.company_id) {
+    // ── Ownership check (impersonation-aware, FIX P1.3) ─────────────
+    const allowed = await canAccessCompany(
+      supabase,
+      user.id,
+      session.company_id as string,
+    );
+    if (!allowed) {
       return new Response(
-        JSON.stringify({ error: "forbidden", message: "Accesso negato" }),
+        JSON.stringify({ error: "forbidden", message: "Accesso negato alla sessione render bagno" }),
         { status: 403, headers: { ...CORS, "Content-Type": "application/json" } },
       );
     }
 
-    // ── Credit pre-flight ───────────────────────────────────────────
-    const creditResult = await supabase.rpc("deduct_render_credit", {
-      _company_id: session.company_id,
+    // ── Credit pre-flight (v3 → v2 → v1 fallback + audit ledger) ─────
+    const deductResult = await deductRenderCreditSafe(supabase, {
+      companyId:  session.company_id as string,
+      sessionId:  session_id,
+      userId:     user.id,
+      reasonMeta: { vertical: "bagno", edge_fn: "generate-bathroom-render" },
+      logTag:     "generate-bathroom-render",
     });
 
-    if (creditResult.data === "insufficient") {
+    if (deductResult.status === "insufficient") {
       return new Response(
         JSON.stringify({ error: "insufficient_credits", message: "Crediti render insufficienti" }),
         { status: 402, headers: { ...CORS, "Content-Type": "application/json" } },

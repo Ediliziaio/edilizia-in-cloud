@@ -4,6 +4,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -186,7 +187,40 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Aggiorna sessione con foto_analisi se session_id fornito ────────────
+    // FIX P1.1: prima di scrivere, verifica che la sessione appartenga alla
+    // company effettiva dell'utente (o che l'utente sia super_admin). Senza
+    // questo controllo la service_role key bypasserebbe RLS e permetterebbe
+    // a qualsiasi autenticato di sovrascrivere foto_analisi di sessioni altrui
+    // semplicemente conoscendo l'UUID.
     if (session_id) {
+      const { data: sess } = await supabase
+        .from("render_sessions")
+        .select("company_id")
+        .eq("id", session_id)
+        .maybeSingle();
+
+      const sessionCompanyId = (sess as { company_id?: string } | null)?.company_id;
+      if (!sessionCompanyId) {
+        return new Response(
+          JSON.stringify({
+            error: "session_not_found",
+            message: "Sessione render non trovata per il session_id fornito.",
+          }),
+          { status: 404, headers: { ...corsH, "Content-Type": "application/json" } },
+        );
+      }
+
+      const allowed = await canAccessCompany(supabase, user.id, sessionCompanyId);
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({
+            error: "forbidden",
+            message: "Non sei autorizzato a modificare questa sessione render.",
+          }),
+          { status: 403, headers: { ...corsH, "Content-Type": "application/json" } },
+        );
+      }
+
       await supabase
         .from("render_sessions")
         .update({ foto_analisi: fotoAnalisi })

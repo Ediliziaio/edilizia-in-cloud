@@ -25,6 +25,7 @@ import {
   DEFAULT_PERSIANE_CONFIG,
 } from "@/components/render-persiane/PersianeConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import type { ConfigurazionePersiane } from "@/modules/render-persiane/lib/types";
@@ -356,6 +357,9 @@ export default function RenderPersianeNew() {
         </div>
         <RenderCreditsWidget />
       </div>
+
+      {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
+      <RenderCreditGate />
 
       {/* ── Progress stepper ────────────────────────────────────────── */}
       <div className="space-y-2">

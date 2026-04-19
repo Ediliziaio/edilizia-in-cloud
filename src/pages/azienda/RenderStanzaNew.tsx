@@ -16,6 +16,7 @@ import {
 
 import { StanzaConfigForm, DEFAULT_STANZA_CONFIG } from "@/components/render-stanza/StanzaConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
@@ -342,6 +343,9 @@ export default function RenderStanzaNew() {
         </div>
         <RenderCreditsWidget />
       </div>
+
+      {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
+      <RenderCreditGate />
 
       {/* ── Progress stepper ───────────────────────────────────────────────── */}
       <div className="space-y-2">

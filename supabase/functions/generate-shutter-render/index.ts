@@ -3,6 +3,8 @@
 // Prompt Engine v1 per Persiane (shutters)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 
 // ── SHUTTER_PHYSICS ──────────────────────────────────────────────────────────
 const SHUTTER_PHYSICS: Record<string, string> = {
@@ -275,16 +277,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verifica company_id
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || profile.company_id !== session.company_id) {
+    // Verifica company_id (impersonation-aware, FIX P1.3)
+    const allowed = await canAccessCompany(
+      supabase,
+      user.id,
+      session.company_id as string,
+    );
+    if (!allowed) {
       return new Response(
-        JSON.stringify({ error: "forbidden", message: "Accesso negato" }),
+        JSON.stringify({ error: "forbidden", message: "Accesso negato alla sessione render persiane" }),
         {
           status: 403,
           headers: { ...CORS, "Content-Type": "application/json" },
@@ -292,12 +293,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Controlla crediti ────────────────────────────────────────────────
-    const creditResult = await supabase.rpc("deduct_render_credit", {
-      _company_id: session.company_id,
+    // ── Controlla crediti (v3 → v2 → v1 fallback + audit ledger) ──────────
+    const deductResult = await deductRenderCreditSafe(supabase, {
+      companyId:  session.company_id as string,
+      sessionId:  session_id,
+      userId:     user.id,
+      reasonMeta: { vertical: "persiane", edge_fn: "generate-shutter-render" },
+      logTag:     "generate-shutter-render",
     });
 
-    if (creditResult.data === "insufficient") {
+    if (deductResult.status === "insufficient") {
       return new Response(
         JSON.stringify({
           error: "insufficient_credits",

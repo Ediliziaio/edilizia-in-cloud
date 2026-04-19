@@ -27,6 +27,56 @@ const RPC_TYPE: Record<CreditType, "ai" | "email" | "whatsapp" | "render"> = {
   render: "render",
 };
 
+// ── Row types dalle SELECT (discriminated union) ──────────────────────────
+// FIX P3.5: rimossi tutti gli `as any` residui. Ora abbiamo tipi precisi
+// per wallet EUR vs render (integer) e nessun cast silenzioso.
+interface EurWalletRow {
+  balance_eur: number | null;
+  total_recharged_eur: number | null;
+  calls_blocked: boolean | null;
+  sends_blocked: boolean | null;
+  blocked_reason: string | null;
+  auto_recharge_enabled: boolean | null;
+  auto_recharge_threshold: number | null;
+  auto_recharge_amount: number | null;
+}
+
+interface RenderWalletRow {
+  balance: number | null;
+  total_purchased: number | null;
+  total_used: number | null;
+}
+
+type WalletRow = EurWalletRow | RenderWalletRow | null;
+
+function isRenderRow(row: WalletRow): row is RenderWalletRow {
+  return row != null && "balance" in row;
+}
+
+function isEurRow(row: WalletRow): row is EurWalletRow {
+  return row != null && "balance_eur" in row;
+}
+
+// ── ConsumeCredits RPC payload ────────────────────────────────────────────
+interface ConsumeRpcResultBase {
+  credit_type: string;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+}
+
+interface ConsumeRpcSuccess extends ConsumeRpcResultBase {
+  success: true;
+}
+
+interface ConsumeRpcFailure {
+  success: false;
+  error: string;
+  credit_type?: string;
+}
+
+type ConsumeRpcResult = ConsumeRpcSuccess | ConsumeRpcFailure;
+
 export interface CreditsState {
   /** Saldo attuale. EUR per ai/email/whatsapp, intero per render. */
   balance: number;
@@ -45,13 +95,11 @@ export interface CreditsState {
    * questo wrapper rilancia come Error così il caller può `try/catch`.
    * Su successo invalida la query del saldo per riflettere il nuovo balance.
    */
-  consume: (amount: number, description?: string, metadata?: Record<string, unknown>) => Promise<{
-    success: true;
-    credit_type: string;
-    amount: number;
-    balance_before: number;
-    balance_after: number;
-  }>;
+  consume: (
+    amount: number,
+    description?: string,
+    metadata?: Record<string, unknown>,
+  ) => Promise<ConsumeRpcSuccess>;
   isConsuming: boolean;
 }
 
@@ -80,38 +128,61 @@ export function useCredits(type: CreditType): CreditsState {
 
   const { data, isLoading } = useQuery({
     queryKey,
-    queryFn: async () => {
+    queryFn: async (): Promise<WalletRow> => {
       if (!companyId) return null;
+      const selectClause = type === "render"
+        ? "balance, total_purchased, total_used"
+        : "balance_eur, total_recharged_eur, calls_blocked, sends_blocked, blocked_reason, auto_recharge_enabled, auto_recharge_threshold, auto_recharge_amount";
       const { data, error } = await supabase
         .from(table)
-        .select(
-          type === "render"
-            ? "balance, total_purchased, total_used"
-            : "balance_eur, total_recharged_eur, calls_blocked, sends_blocked, blocked_reason, auto_recharge_enabled, auto_recharge_threshold, auto_recharge_amount",
-        )
-        .eq("company_id", companyId)
+        .select(selectClause)
+        // Cast locale: il client Supabase tipizza table-per-table ma qui il
+        // nome arriva da mapping statico, non da input utente — safe.
+        .eq("company_id" as never, companyId as never)
         .maybeSingle();
-      if (error) throw error;
-      return data as any;
+      if (error) {
+        console.error(`[useCredits] fetch ${type}:`, error);
+        throw error;
+      }
+      return (data ?? null) as WalletRow;
     },
     enabled: !!companyId,
     staleTime: 30 * 1000, // 30s — i saldi cambiano spesso ma non devono essere realtime
   });
 
-  const balance = type === "render"
-    ? Number((data as any)?.balance ?? 0)
-    : Number((data as any)?.balance_eur ?? 0);
+  // Estrazione discriminata: non più `as any`, ora type-safe.
+  let balance = 0;
+  let totalRecharged = 0;
+  let blocked = false;
+  let blockedReason: string | null = null;
+  let autoRechargeEnabled = false;
+  let autoRechargeThreshold: number | null = null;
+  let autoRechargeAmount: number | null = null;
 
-  const blocked = Boolean(
-    (data as any)?.calls_blocked || (data as any)?.sends_blocked,
-  );
+  if (type === "render" && isRenderRow(data ?? null)) {
+    const row = data as RenderWalletRow;
+    balance = Number(row.balance ?? 0);
+    totalRecharged = Number(row.total_purchased ?? 0);
+    // Render non ha concetto di "blocked" / auto-recharge: defaults ok.
+  } else if (type !== "render" && isEurRow(data ?? null)) {
+    const row = data as EurWalletRow;
+    balance = Number(row.balance_eur ?? 0);
+    totalRecharged = Number(row.total_recharged_eur ?? 0);
+    blocked = Boolean(row.calls_blocked || row.sends_blocked);
+    blockedReason = row.blocked_reason ?? null;
+    autoRechargeEnabled = Boolean(row.auto_recharge_enabled);
+    autoRechargeThreshold = row.auto_recharge_threshold != null
+      ? Number(row.auto_recharge_threshold) : null;
+    autoRechargeAmount = row.auto_recharge_amount != null
+      ? Number(row.auto_recharge_amount) : null;
+  }
 
   const consumeMutation = useMutation({
     mutationFn: async (args: {
       amount: number;
       description?: string;
       metadata?: Record<string, unknown>;
-    }) => {
+    }): Promise<ConsumeRpcSuccess> => {
       if (!companyId) {
         throw new Error("Nessuna azienda attiva: impossibile consumare crediti");
       }
@@ -124,7 +195,9 @@ export function useCredits(type: CreditType): CreditsState {
         p_credit_type: RPC_TYPE[type],
         p_amount:      args.amount,
         p_description: args.description ?? null,
-        p_metadata:    (args.metadata as any) ?? null,
+        // jsonb parametro opzionale — JSON-serializable, cast a never per
+        // compatibilità con il tipo di @supabase/supabase-js
+        p_metadata: (args.metadata ?? null) as never,
       });
 
       if (error) {
@@ -132,32 +205,20 @@ export function useCredits(type: CreditType): CreditsState {
         throw error;
       }
 
-      const result = data as {
-        success: boolean;
-        error?: string;
-        credit_type: string;
-        amount: number;
-        balance_before: number;
-        balance_after: number;
-      };
+      const result = data as unknown as ConsumeRpcResult | null;
 
       if (!result?.success) {
+        const errorCode = (result as ConsumeRpcFailure | null)?.error;
         const err = new Error(
-          result?.error === "insufficient_credits"
+          errorCode === "insufficient_credits"
             ? "Crediti insufficienti per completare l'operazione"
-            : `Consumo crediti fallito: ${result?.error ?? "errore sconosciuto"}`,
+            : `Consumo crediti fallito: ${errorCode ?? "errore sconosciuto"}`,
         ) as Error & { code?: string };
-        err.code = result?.error;
+        err.code = errorCode;
         throw err;
       }
 
-      return result as {
-        success: true;
-        credit_type: string;
-        amount: number;
-        balance_before: number;
-        balance_after: number;
-      };
+      return result;
     },
     onSuccess: () => {
       // Refresh saldo dopo consumo — il gating della UI che dipende dal balance
@@ -168,20 +229,12 @@ export function useCredits(type: CreditType): CreditsState {
 
   return {
     balance,
-    totalRecharged: type === "render"
-      ? Number((data as any)?.total_purchased ?? 0)
-      : Number((data as any)?.total_recharged_eur ?? 0),
+    totalRecharged,
     blocked,
-    blockedReason: (data as any)?.blocked_reason ?? null,
-    autoRechargeEnabled: Boolean((data as any)?.auto_recharge_enabled),
-    autoRechargeThreshold:
-      (data as any)?.auto_recharge_threshold != null
-        ? Number((data as any).auto_recharge_threshold)
-        : null,
-    autoRechargeAmount:
-      (data as any)?.auto_recharge_amount != null
-        ? Number((data as any).auto_recharge_amount)
-        : null,
+    blockedReason,
+    autoRechargeEnabled,
+    autoRechargeThreshold,
+    autoRechargeAmount,
     isLoading,
     canUse: (amount: number) => balance >= amount && !blocked,
     consume: (amount, description, metadata) =>

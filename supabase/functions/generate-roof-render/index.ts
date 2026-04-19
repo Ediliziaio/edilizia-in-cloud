@@ -3,6 +3,8 @@
 // Prompt Engine v1.0 — Roof renovation visualization
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 
 // ── ROOF_PHYSICS ─────────────────────────────────────────────────────────────
 const ROOF_PHYSICS: Record<string, string> = {
@@ -238,26 +240,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verifica che la sessione appartenga all'utente
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || profile.company_id !== session.company_id) {
+    // Verifica che la sessione appartenga all'utente (impersonation-aware, FIX P1.3)
+    const allowed = await canAccessCompany(
+      supabase,
+      user.id,
+      session.company_id as string,
+    );
+    if (!allowed) {
       return new Response(
-        JSON.stringify({ error: "forbidden", message: "Accesso negato" }),
+        JSON.stringify({ error: "forbidden", message: "Accesso negato alla sessione render tetto" }),
         { status: 403, headers: { ...CORS, "Content-Type": "application/json" } },
       );
     }
 
-    // ── Controlla e deduce crediti ────────────────────────────────────────────
-    const creditResult = await supabase.rpc("deduct_render_credit", {
-      _company_id: session.company_id,
+    // ── Controlla e deduce crediti (v3 → v2 → v1 fallback + audit ledger) ────
+    const deductResult = await deductRenderCreditSafe(supabase, {
+      companyId:  session.company_id as string,
+      sessionId:  session_id,
+      userId:     user.id,
+      reasonMeta: { vertical: "tetto", edge_fn: "generate-roof-render" },
+      logTag:     "generate-roof-render",
     });
 
-    if (creditResult.data === "insufficient") {
+    if (deductResult.status === "insufficient") {
       return new Response(
         JSON.stringify({ error: "insufficient_credits", message: "Crediti render insufficienti" }),
         { status: 402, headers: { ...CORS, "Content-Type": "application/json" } },

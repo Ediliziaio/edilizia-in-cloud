@@ -14,6 +14,7 @@ import {
 
 import { TettoConfigForm, DEFAULT_TETTO_CONFIG } from "@/components/render-tetto/TettoConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazioneTetto } from "@/modules/render-tetto/lib/types";
@@ -302,6 +303,9 @@ export default function RenderTettoNew() {
         </div>
         <RenderCreditsWidget />
       </div>
+
+      {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
+      <RenderCreditGate />
 
       {/* ── Progress stepper ───────────────────────────────────────────────── */}
       <div className="space-y-2">

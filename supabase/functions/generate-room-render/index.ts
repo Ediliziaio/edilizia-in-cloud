@@ -3,6 +3,8 @@
 // Prompt Engine stanza-v1.0.0
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 
 // ── STYLE GUIDE (mirrored from stanzaPromptBuilder) ──────────────────────────
 const STYLE_GUIDE: Record<string, string> = {
@@ -88,13 +90,31 @@ Deno.serve(async (req: Request) => {
 
     const companyId = session.company_id;
 
-    // Check credits
-    const { data: credits } = await supabase
-      .from("render_credits")
-      .select("balance")
-      .eq("company_id", companyId)
-      .single();
-    if (!credits || credits.balance < 1) {
+    // FIX P1.3: ownership check impersonation-aware. In precedenza il file
+    // assumeva che chiunque con il session_id potesse avviare il render: una
+    // vulnerabilità tenant. Ora controlliamo esplicitamente tramite helper
+    // che rispetta super_admin + active_impersonations + profiles.company_id.
+    const allowed = await canAccessCompany(
+      supabase,
+      user.id,
+      companyId as string,
+    );
+    if (!allowed) {
+      throw new Error("forbidden: accesso negato alla sessione render stanza");
+    }
+
+    // FIX P2.1 + P3.1: credito deduct atomico PRE-flight con audit ledger.
+    // Prima il codice faceva SELECT balance (non atomico) e poi
+    // decrement_render_credits a render completato → race condition +
+    // impossibile tracciare in ledger la sessione consumatrice.
+    const deductResult = await deductRenderCreditSafe(supabase, {
+      companyId:  companyId as string,
+      sessionId:  session_id,
+      userId:     user.id,
+      reasonMeta: { vertical: "stanza", edge_fn: "generate-room-render" },
+      logTag:     "generate-room-render",
+    });
+    if (deductResult.status === "insufficient") {
       throw new Error("insufficient_credits");
     }
 
@@ -388,11 +408,8 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", session_id);
 
-    // Deduct credit
-    await supabase.rpc("decrement_render_credits", {
-      p_company_id: companyId,
-      p_amount: 1,
-    });
+    // Credit già dedotto pre-flight via deductRenderCreditSafe (atomico + audit).
+    // NON chiamare decrement_render_credits qui: causerebbe doppio addebito.
 
     // Update provider stats
     await supabase

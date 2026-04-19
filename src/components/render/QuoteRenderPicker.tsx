@@ -22,6 +22,14 @@ interface QuoteRenderPickerProps {
   onSelectionChange: (renders: RenderOption[]) => void;
 }
 
+interface ViewRow {
+  id: string;
+  result_url: string | null;
+  created_at: string;
+  render_type: string;
+  source_table: string;
+}
+
 export function QuoteRenderPicker({
   contactId,
   selectedRenderIds,
@@ -32,53 +40,33 @@ export function QuoteRenderPicker({
 
   const { data: renders = [] } = useQuery({
     queryKey: ["quote-render-picker", companyId, contactId],
-    queryFn: async () => {
-      if (!companyId) return [] as RenderOption[];
+    queryFn: async (): Promise<RenderOption[]> => {
+      if (!companyId) return [];
 
-      const tables = [
-        { table: "render_sessions", type: "infissi", statusCol: "status", completedVal: "completed", urlCol: "result_urls", isArray: true },
-        { table: "render_bagno_sessions", type: "bagno", statusCol: "stato", completedVal: "completato", urlCol: "render_result_url", isArray: false },
-        { table: "render_facciata_sessions", type: "facciata", statusCol: "status", completedVal: "completed", urlCol: "result_urls", isArray: true },
-        { table: "render_pavimento_sessions", type: "pavimento", statusCol: "status", completedVal: "completed", urlCol: "result_urls", isArray: true },
-        { table: "render_persiane_sessions", type: "persiane", statusCol: "status", completedVal: "completed", urlCol: "result_urls", isArray: true },
-        { table: "render_tetto_sessions", type: "tetto", statusCol: "status", completedVal: "completed", urlCol: "result_urls", isArray: true },
-        { table: "render_stanza_sessions", type: "stanza", statusCol: "status", completedVal: "completed", urlCol: "result_urls", isArray: true },
-      ];
-
-      const results = await Promise.all(
-        tables.map(async (t) => {
-          const cols = t.isArray
-            ? `id,${t.urlCol},created_at`
-            : `id,${t.urlCol},created_at`;
-
-          let q = supabase
-            .from(t.table as never)
-            .select(cols as never)
-            .eq("company_id", companyId)
-            .eq(t.statusCol as never, t.completedVal as never)
-            .order("created_at", { ascending: false })
-            .limit(20);
-
-          if (contactId) {
-            q = q.eq("contact_id", contactId);
-          }
-
-          const { data } = await q;
-          return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
-            id: row.id as string,
-            result_url: t.isArray
-              ? ((row[t.urlCol] as string[] | null)?.[0] ?? null)
-              : (row[t.urlCol] as string | null),
-            created_at: row.created_at as string,
-            render_type: t.type,
-            session_table: t.table,
-          }));
-        })
-      );
-
-      return results.flat().filter(r => r.result_url).sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      // FIX P6.1: singola query sulla VIEW company_renders_recent invece
+      // di 7 query parallele. Filtriamo per status='completed' (normalizzato).
+      let q = supabase
+        .from("company_renders_recent" as never)
+        .select("id,result_url,created_at,render_type,source_table" as never)
+        .eq("company_id", companyId)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (contactId) q = q.eq("contact_id", contactId);
+      const { data, error } = await q;
+      if (error) {
+        console.error("[QuoteRenderPicker] query error:", error);
+        return [];
+      }
+      return ((data ?? []) as unknown as ViewRow[])
+        .filter(r => r.result_url)
+        .map((r) => ({
+          id: r.id,
+          result_url: r.result_url,
+          created_at: r.created_at,
+          render_type: r.render_type,
+          session_table: r.source_table,
+        }));
     },
     enabled: !!companyId,
   });

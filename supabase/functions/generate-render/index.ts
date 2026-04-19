@@ -6,6 +6,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage, pickProviderSize } from "../_shared/renderImage.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 
 // ── MATERIAL_PHYSICS ──────────────────────────────────────────────────────────
 const MATERIAL_PHYSICS: Record<string, string> = {
@@ -526,62 +528,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verifica che la sessione appartenga all'utente
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || profile.company_id !== session.company_id) {
+    // FIX P1.3: verifica tenant access tramite helper impersonation-aware.
+    // L'helper considera: (a) super_admin → accesso globale, (b) impersonation
+    // attiva in active_impersonations, (c) fallback profiles.company_id.
+    // Il vecchio pattern basato solo su profiles.company_id bloccava i
+    // superadmin che lavoravano in impersonazione.
+    const allowed = await canAccessCompany(
+      supabase,
+      user.id,
+      session.company_id as string,
+    );
+    if (!allowed) {
       return new Response(
-        JSON.stringify({ error: "forbidden", message: "Accesso negato" }),
+        JSON.stringify({ error: "forbidden", message: "Accesso negato alla sessione render" }),
         { status: 403, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
 
-    // ── Controlla e deduce crediti (v2: FIFO revenue tracking) ──────────────
-    // deduct_render_credit_v2 ritorna json:
-    //   { status: 'ok'|'insufficient', revenue_eur: numeric, purchase_id: uuid|null }
-    // Se v2 non esiste (migration non applicata), retrocompat su v1.
-    let revenueEur = 0;
-    let purchaseId: string | null = null;
-    let creditStatus: "ok" | "insufficient" = "ok";
-
-    const creditResultV2 = await supabase.rpc("deduct_render_credit_v2", {
-      _company_id: session.company_id,
+    // ── Controlla e deduce crediti (v3: audit ledger + FIFO revenue tracking) ──
+    // Helper shared: prova v3 → v2 → v1 per backward-compat con ambienti
+    // pre-migrazione. v3 scrive render_credit_ledger con session_id + user_id.
+    const deductResult = await deductRenderCreditSafe(supabase, {
+      companyId: session.company_id as string,
+      sessionId: session_id,
+      userId:    user.id,
+      reasonMeta: { vertical: "infissi", edge_fn: "generate-render" },
+      logTag:    "generate-render",
     });
 
-    if (creditResultV2.error) {
-      // Fallback v1 — retrocompat con ambienti pre-migrazione economics
-      console.warn(
-        "[generate-render] deduct_render_credit_v2 not available, falling back to v1:",
-        creditResultV2.error.message
-      );
-      const creditResultV1 = await supabase.rpc("deduct_render_credit", {
-        _company_id: session.company_id,
-      });
-      if (creditResultV1.error) {
-        throw new Error(`Credit deduction failed: ${creditResultV1.error.message}`);
-      }
-      creditStatus = creditResultV1.data === "insufficient" ? "insufficient" : "ok";
-    } else {
-      const payload = (creditResultV2.data || {}) as {
-        status?: "ok" | "insufficient";
-        revenue_eur?: number;
-        purchase_id?: string | null;
-      };
-      creditStatus = payload.status === "insufficient" ? "insufficient" : "ok";
-      revenueEur = Number(payload.revenue_eur ?? 0);
-      purchaseId = payload.purchase_id ?? null;
-    }
-
-    if (creditStatus === "insufficient") {
+    if (deductResult.status === "insufficient") {
       return new Response(
         JSON.stringify({ error: "insufficient_credits", message: "Crediti render insufficienti" }),
         { status: 402, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
+
+    const revenueEur = deductResult.revenue_eur;
+    const purchaseId = deductResult.purchase_id;
 
     // ── Aggiorna sessione: processing ───────────────────────────────────────
     await supabase
