@@ -66,7 +66,14 @@ export function FamilyCatalog() {
   const [dupName, setDupName] = useState("");
 
   // Categorie per etichette di raggruppamento
-  const { data: categorie = [] } = useQuery({
+  // FIX P4-B: se la query fallisce mostriamo un avviso inline anziché
+  // fallire silenziosamente (prima tutte le famiglie finivano in
+  // "Senza categoria" senza feedback all'utente).
+  const {
+    data: categorie = [],
+    isError: categorieError,
+    refetch: refetchCategorie,
+  } = useQuery({
     queryKey: ["listino-categorie-for-families", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -139,25 +146,29 @@ export function FamilyCatalog() {
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Famiglie articoli</h2>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1 min-w-0">
+          <h2 className="text-xl sm:text-2xl font-semibold tracking-tight">Famiglie articoli</h2>
           <p className="text-sm text-muted-foreground">
             Modelli parametrici con assi configurabili (materiale, vetro, apertura…).
           </p>
         </div>
-        <div className="flex gap-2">
-          <div className="relative w-full sm:w-64">
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:flex-nowrap">
+          <div className="relative w-full sm:w-64 lg:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <Input
               placeholder="Cerca famiglia…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-9 h-10"
+              aria-label="Cerca famiglia"
             />
           </div>
           {isAdmin && (
-            <Button onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}>
+            <Button
+              onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}
+              className="h-10 w-full sm:w-auto"
+            >
               <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
               Nuova famiglia
             </Button>
@@ -178,6 +189,33 @@ export function FamilyCatalog() {
         </div>
       )}
 
+      {categorieError && (
+        <div
+          className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3 text-sm"
+          role="alert"
+        >
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-900 dark:text-amber-100 font-medium">
+                Impossibile caricare le categorie
+              </p>
+              <p className="text-amber-800/90 dark:text-amber-200/90 text-xs mt-0.5">
+                Le famiglie sono mostrate senza raggruppamento. Riprova tra qualche secondo.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void refetchCategorie()}
+            className="h-9 shrink-0 w-full sm:w-auto"
+          >
+            Riprova
+          </Button>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
@@ -185,16 +223,19 @@ export function FamilyCatalog() {
         </div>
       ) : families.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center">
+          <CardContent className="py-10 sm:py-14 text-center px-4">
             <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" aria-hidden="true" />
             <p className="font-medium">Nessuna famiglia configurata</p>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
               {isAdmin
                 ? "Crea la tua prima famiglia articoli per iniziare a preventivare."
                 : "L'amministratore non ha ancora configurato famiglie articoli."}
             </p>
             {isAdmin && (
-              <Button className="mt-4" onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}>
+              <Button
+                className="mt-4 h-10 w-full sm:w-auto"
+                onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}
+              >
                 <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
                 Crea famiglia
               </Button>
@@ -203,8 +244,13 @@ export function FamilyCatalog() {
         </Card>
       ) : grouped.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            Nessuna famiglia corrisponde alla ricerca.
+          <CardContent className="py-8 text-center text-muted-foreground space-y-3">
+            <p>Nessuna famiglia corrisponde alla ricerca.</p>
+            {search && (
+              <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-9">
+                Pulisci ricerca
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -217,7 +263,7 @@ export function FamilyCatalog() {
                   ({group.items.length})
                 </span>
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {group.items.map((f) => {
                   const nAssi = f.axes.length;
                   const nValori = f.axes.reduce((sum, a) => sum + a.values.length, 0);
@@ -226,7 +272,7 @@ export function FamilyCatalog() {
                       key={f.id}
                       className={
                         isAdmin
-                          ? "cursor-pointer hover:border-primary/50 transition-all"
+                          ? "cursor-pointer hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
                           : ""
                       }
                       onClick={
@@ -236,6 +282,7 @@ export function FamilyCatalog() {
                       }
                       role={isAdmin ? "button" : undefined}
                       tabIndex={isAdmin ? 0 : undefined}
+                      aria-label={isAdmin ? `Apri famiglia ${f.nome}` : undefined}
                       onKeyDown={
                         isAdmin
                           ? (e) => {
@@ -249,8 +296,8 @@ export function FamilyCatalog() {
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-base leading-tight">{f.nome}</CardTitle>
-                          <Badge variant="secondary" className="shrink-0">
+                          <CardTitle className="text-base leading-tight break-words">{f.nome}</CardTitle>
+                          <Badge variant="secondary" className="shrink-0 whitespace-nowrap">
                             {MODALITA_LABEL[f.modalita_prezzo_base]}
                           </Badge>
                         </div>
@@ -261,38 +308,41 @@ export function FamilyCatalog() {
                         ) : null}
                       </CardHeader>
                       <CardContent className="pt-0 space-y-2">
-                        <div className="flex gap-3 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           <span>{nAssi} {nAssi === 1 ? "asse" : "assi"}</span>
-                          <span>·</span>
+                          <span aria-hidden="true">·</span>
                           <span>{nValori} {nValori === 1 ? "valore" : "valori"}</span>
-                          <span>·</span>
+                          <span aria-hidden="true">·</span>
                           <span>UM {f.unit_of_measure}</span>
                         </div>
                         {isAdmin && (
-                          <div className="flex gap-2 pt-2 border-t">
+                          <div className="flex gap-1 pt-2 border-t">
                             <Button
                               size="sm"
                               variant="ghost"
+                              className="h-9 flex-1 sm:flex-initial"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setToDuplicate(f);
                                 setDupName(`${f.nome} (copia)`);
                               }}
+                              aria-label={`Duplica ${f.nome}`}
                             >
-                              <CopyPlus className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
-                              Duplica
+                              <CopyPlus className="h-4 w-4 sm:mr-1" aria-hidden="true" />
+                              <span className="hidden sm:inline">Duplica</span>
                             </Button>
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-destructive hover:text-destructive"
+                              className="h-9 flex-1 sm:flex-initial text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setToDelete(f);
                               }}
+                              aria-label={`Disattiva ${f.nome}`}
                             >
-                              <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
-                              Disattiva
+                              <Trash2 className="h-4 w-4 sm:mr-1" aria-hidden="true" />
+                              <span className="hidden sm:inline">Disattiva</span>
                             </Button>
                           </div>
                         )}
@@ -331,9 +381,16 @@ export function FamilyCatalog() {
               value={dupName}
               onChange={(e) => setDupName(e.target.value)}
               autoFocus
+              className="h-10"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && dupName.trim() && !duplicateFamily.isPending) {
+                  e.preventDefault();
+                  void handleDuplicate();
+                }
+              }}
             />
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
             <Button
               variant="ghost"
               onClick={() => {
@@ -341,12 +398,14 @@ export function FamilyCatalog() {
                 setDupName("");
               }}
               disabled={duplicateFamily.isPending}
+              className="h-10 w-full sm:w-auto"
             >
               Annulla
             </Button>
             <Button
               onClick={handleDuplicate}
               disabled={!dupName.trim() || duplicateFamily.isPending}
+              className="h-10 w-full sm:w-auto"
             >
               {duplicateFamily.isPending ? (
                 <>
@@ -376,12 +435,14 @@ export function FamilyCatalog() {
               La famiglia verrà nascosta dai nuovi preventivi ma resterà nei preventivi storici che la usano. Potrai riattivarla in futuro.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteFamily.isPending}>Annulla</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+            <AlertDialogCancel disabled={deleteFamily.isPending} className="h-10 mt-0 w-full sm:w-auto">
+              Annulla
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleteFamily.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-10 w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteFamily.isPending ? (
                 <>

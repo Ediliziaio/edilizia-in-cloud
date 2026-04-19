@@ -233,13 +233,12 @@ function TariffaDialog({
         payload.prezzo_costo = v;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tbl = supabase.from("tariffe_aziendali") as any;
+      const tbl = supabase.from("tariffe_aziendali");
       if (editing) {
-        const { error } = await tbl.update(payload).eq("id", editing.id);
+        const { error } = await tbl.update(payload as never).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await tbl.insert(payload);
+        const { error } = await tbl.insert(payload as never);
         if (error) throw error;
       }
       toast.success(editing ? "Tariffa aggiornata" : "Tariffa creata");
@@ -520,20 +519,23 @@ export default function SettingsTariffe() {
     queryKey: ["tariffe-aziendali-full", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.from("tariffe_aziendali") as any)
+      const { data, error } = await supabase
+        .from("tariffe_aziendali")
         .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo")
         .eq("company_id", companyId)
         .order("nome");
       if (error) throw error;
-      return (data ?? []) as Tariffa[];
+      return (data ?? []) as unknown as Tariffa[];
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase.from("tariffe_aziendali") as any)
-        .delete().eq("id", id).eq("company_id", companyId);
+      const { error } = await supabase
+        .from("tariffe_aziendali")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -541,7 +543,9 @@ export default function SettingsTariffe() {
       toast.success("Tariffa eliminata");
       setDeleteId(null);
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Errore eliminazione tariffa");
+    },
   });
 
   const createStandardTariffe = async (skipExisting = true) => {
@@ -555,12 +559,14 @@ export default function SettingsTariffe() {
         toast.info("Tutte le tariffe standard sono già presenti");
         return;
       }
-      const { error } = await (supabase.from("tariffe_aziendali") as any).insert(toInsert);
+      const { error } = await supabase
+        .from("tariffe_aziendali")
+        .insert(toInsert as never);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] });
       toast.success(`${toInsert.length} tariffe standard create`);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Errore creazione tariffe");
     } finally {
       setCreatingStandard(false);
       setConfirmStandard(false);

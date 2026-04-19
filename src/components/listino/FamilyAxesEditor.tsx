@@ -396,18 +396,12 @@ export function FamilyAxesEditor({ family }: Props) {
         }}
         onSave={async (values, otherDefaultIds) => {
           try {
-            // Se questo valore diventa default, togli il flag agli altri default
-            if (values.is_default && otherDefaultIds.length > 0) {
-              await Promise.all(
-                otherDefaultIds.map((id) =>
-                  updateAxisValue.mutateAsync({
-                    id,
-                    familyId: family.id,
-                    patch: { is_default: false },
-                  }),
-                ),
-              );
-            }
+            // FIX P2-B: save new value FIRST, then clear other defaults.
+            // Vecchio ordine (clear → save) rischiava: se la seconda op falliva,
+            // l'asse obbligatorio restava con ZERO default (hard constraint
+            // violation). Nuovo ordine: se la clear fallisce, abbiamo DUE
+            // default per un istante — recuperabile (unique constraint lato DB
+            // + retry utente), molto meno grave di zero default.
             if (editingValue) {
               await updateAxisValue.mutateAsync({
                 id: editingValue.id,
@@ -430,6 +424,19 @@ export function FamilyAxesEditor({ family }: Props) {
                 attivo: values.attivo ?? true,
               });
               toast.success("Valore creato");
+            }
+            // Post-save: togli il flag is_default dagli altri valori
+            // (solo se il nuovo valore è effettivamente un default).
+            if (values.is_default && otherDefaultIds.length > 0) {
+              await Promise.all(
+                otherDefaultIds.map((id) =>
+                  updateAxisValue.mutateAsync({
+                    id,
+                    familyId: family.id,
+                    patch: { is_default: false },
+                  }),
+                ),
+              );
             }
             setNewValueAxisId(null);
             setEditingValue(null);

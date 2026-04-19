@@ -60,8 +60,14 @@ function useBundleGrids(familyIds: string[]) {
         .select("family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
         .in("family_id", familyIds);
       if (error) {
+        // FIX P1-B: non silenziare l'errore. Prima ritornavamo una Map vuota
+        // e il preventivo calcolava prezzi default/fallback → corruzione
+        // silente dei prezzi quotati al cliente. Ora throw → react-query
+        // imposta isError, l'UI mostra alert e blocca il confirm.
         logger.error("[useBundleGrids] errore caricamento griglia", error);
-        return new Map<string, GridPoint[]>();
+        throw new Error(
+          `Impossibile caricare la griglia prezzi: ${error.message ?? "errore sconosciuto"}`,
+        );
       }
       const byFamily = new Map<string, GridPoint[]>();
       for (const row of (data ?? []) as Array<{
@@ -111,7 +117,26 @@ export default function ApplyBundleDialog({
     return Array.from(ids);
   }, [selectedBundle]);
 
-  const { data: gridsByFamily } = useBundleGrids(familyIdsInSelected);
+  const {
+    data: gridsByFamily,
+    isLoading: gridsLoading,
+    isError: gridsError,
+    error: gridsErrorObj,
+    refetch: refetchGrids,
+  } = useBundleGrids(familyIdsInSelected);
+
+  // Quali voci richiedono griglia (modalita mq/griglia)?
+  const anyVoceNeedsGrid = useMemo(() => {
+    if (!selectedBundle) return false;
+    const familyMap = new Map(families.map((f) => [f.id, f] as const));
+    return (selectedBundle.voci ?? []).some((v) => {
+      if (!v.family_id) return false;
+      const fam = familyMap.get(v.family_id);
+      return fam?.modalita_prezzo_base === "mq" || fam?.modalita_prezzo_base === "griglia";
+    });
+  }, [selectedBundle, families]);
+
+  const gridBlocksConfirm = gridsError && anyVoceNeedsGrid;
 
   const expansion = useMemo(() => {
     if (!selectedBundle) return null;
@@ -302,19 +327,19 @@ export default function ApplyBundleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Applica bundle al preventivo
+      <DialogContent className="p-0 flex flex-col gap-0 w-[96vw] sm:w-full max-w-3xl h-[92vh] sm:h-auto sm:max-h-[90vh] overflow-hidden">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 border-b bg-background">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Package className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span className="truncate">Applica bundle al preventivo</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Seleziona un pacchetto pre-configurato. Le voci verranno aggiunte al preventivo,
             puoi modificarle singolarmente dopo l&apos;inserimento.
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 mt-2">
+        <ScrollArea className="flex-1 min-h-0 px-4 sm:px-6 py-3">
           {isLoading && <p className="text-sm text-muted-foreground">Caricamento…</p>}
           {!isLoading && activeBundles.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
@@ -336,6 +361,51 @@ export default function ApplyBundleDialog({
               />
             ))}
           </div>
+
+          {/* Grid loading / error banner (prima del preview totale) */}
+          {selectedBundle && gridsLoading && familyIdsInSelected.length > 0 && (
+            <div className="mt-4 rounded-md border p-3 bg-muted/30">
+              <p className="text-sm text-muted-foreground">
+                Caricamento griglia prezzi…
+              </p>
+            </div>
+          )}
+          {selectedBundle && gridsError && (
+            <div
+              className="mt-4 rounded-md border border-destructive/50 bg-destructive/10 p-3"
+              role="alert"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-destructive">
+                      Errore caricamento griglia prezzi
+                    </p>
+                    <p className="text-xs text-destructive/80 mt-1 break-words">
+                      {gridsErrorObj instanceof Error
+                        ? gridsErrorObj.message
+                        : "Impossibile calcolare i prezzi del bundle."}
+                    </p>
+                    {anyVoceNeedsGrid && (
+                      <p className="text-xs text-destructive/80 mt-1">
+                        Il bundle contiene voci che usano la griglia L×H: i prezzi
+                        mostrati sarebbero errati. Riprova o rimuovi quelle voci.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => refetchGrids()}
+                  className="h-9 shrink-0 w-full sm:w-auto"
+                >
+                  Riprova
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Preview totale */}
           {selectedBundle && expansion && (
@@ -371,14 +441,36 @@ export default function ApplyBundleDialog({
           )}
         </ScrollArea>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2 border-t px-4 sm:px-6 py-3 bg-background">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="h-10 w-full sm:w-auto"
+          >
+            Annulla
+          </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!expansion || expansion.items.length === 0}
+            disabled={
+              !expansion ||
+              expansion.items.length === 0 ||
+              gridBlocksConfirm ||
+              gridsLoading
+            }
+            title={
+              gridBlocksConfirm
+                ? "Impossibile aggiungere: griglia prezzi non caricata"
+                : undefined
+            }
+            className="h-10 w-full sm:w-auto"
           >
-            <Check className="h-4 w-4 mr-1" />
-            Aggiungi {expansion ? expansion.items.length : 0} voci
+            <Check className="h-4 w-4 mr-1.5" aria-hidden="true" />
+            <span className="sm:hidden">
+              Aggiungi {expansion ? expansion.items.length : 0}
+            </span>
+            <span className="hidden sm:inline">
+              Aggiungi {expansion ? expansion.items.length : 0} voci
+            </span>
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -400,8 +492,10 @@ function BundleCard({ bundle, selected, onSelect }: BundleCardProps) {
       tabIndex={0}
       aria-pressed={selected}
       aria-label={`Seleziona bundle ${bundle.nome}, ${numVoci} ${numVoci === 1 ? "voce" : "voci"}`}
-      className={`cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-        selected ? "ring-2 ring-primary" : "hover:border-primary/50"
+      className={`cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        selected
+          ? "ring-2 ring-primary bg-primary/5"
+          : "hover:border-primary/50 hover:shadow-sm"
       }`}
       onClick={onSelect}
       onKeyDown={(e) => {
@@ -411,16 +505,16 @@ function BundleCard({ bundle, selected, onSelect }: BundleCardProps) {
         }
       }}
     >
-      <CardContent className="p-3">
+      <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <p className="font-medium">{bundle.nome}</p>
+            <p className="font-medium text-sm sm:text-base break-words">{bundle.nome}</p>
             {bundle.descrizione && (
               <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                 {bundle.descrizione}
               </p>
             )}
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
               <Badge variant="outline" className="text-xs">
                 {numVoci} {numVoci === 1 ? "voce" : "voci"}
               </Badge>
@@ -441,6 +535,12 @@ function BundleCard({ bundle, selected, onSelect }: BundleCardProps) {
               )}
             </div>
           </div>
+          {selected && (
+            <Check
+              className="h-5 w-5 shrink-0 text-primary"
+              aria-hidden="true"
+            />
+          )}
         </div>
       </CardContent>
     </Card>

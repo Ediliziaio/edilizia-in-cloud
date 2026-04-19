@@ -291,36 +291,53 @@ export default function QuoteWizardSerramenti({
     onClose();
   };
 
+  const stepLabels: Record<Step, string> = {
+    1: "Famiglia",
+    2: "Misure",
+    3: "Varianti",
+    4: "Riepilogo",
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Wizard Serramentista — Step {step}/4
+      <DialogContent className="p-0 flex flex-col gap-0 w-[96vw] sm:w-full max-w-3xl h-[94vh] sm:h-auto sm:max-h-[90vh] overflow-hidden">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 border-b bg-background space-y-3">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Package className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span className="truncate">
+              Wizard Serramentista — Step {step}/4
+              <span className="hidden sm:inline text-muted-foreground font-normal">
+                {" · "}{stepLabels[step]}
+              </span>
+            </span>
           </DialogTitle>
+
+          <div
+            className="space-y-1"
+            role="progressbar"
+            aria-label={`Avanzamento wizard: step ${step} di 4 — ${stepLabels[step]}`}
+            aria-valuenow={step}
+            aria-valuemin={1}
+            aria-valuemax={4}
+          >
+            <div className="flex gap-1.5">
+              {([1, 2, 3, 4] as Step[]).map((s) => (
+                <div
+                  key={s}
+                  aria-hidden="true"
+                  className={`flex-1 h-1.5 rounded-full transition-colors ${
+                    s <= step ? "bg-primary" : "bg-muted"
+                  }`}
+                />
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground sm:hidden" aria-hidden="true">
+              {stepLabels[step]}
+            </p>
+          </div>
         </DialogHeader>
 
-        <div
-          className="flex gap-2 mt-2"
-          role="progressbar"
-          aria-label={`Avanzamento wizard: step ${step} di 4`}
-          aria-valuenow={step}
-          aria-valuemin={1}
-          aria-valuemax={4}
-        >
-          {([1, 2, 3, 4] as Step[]).map((s) => (
-            <div
-              key={s}
-              aria-hidden="true"
-              className={`flex-1 h-1 rounded ${
-                s <= step ? "bg-primary" : "bg-muted"
-              }`}
-            />
-          ))}
-        </div>
-
-        <ScrollArea className="flex-1 mt-4">
+        <ScrollArea className="flex-1 min-h-0 px-4 sm:px-6 py-4">
           {/* Step 1: Scelta famiglia */}
           {step === 1 && (
             <div className="space-y-3">
@@ -333,6 +350,8 @@ export default function QuoteWizardSerramenti({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 aria-label="Cerca famiglia per nome o descrizione"
+                className="h-10"
+                autoComplete="off"
               />
               {isLoading && (
                 <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
@@ -348,7 +367,7 @@ export default function QuoteWizardSerramenti({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="mt-3"
+                        className="mt-3 h-9"
                         onClick={() => setSearch("")}
                       >
                         Pulisci ricerca
@@ -359,47 +378,55 @@ export default function QuoteWizardSerramenti({
                   )}
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {filteredFamilies.map((f) => (
-                  <Card
-                    key={f.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={selectedFamily?.id === f.id}
-                    aria-label={`Seleziona famiglia ${f.nome}`}
-                    className={`cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                      selectedFamily?.id === f.id
-                        ? "ring-2 ring-primary"
-                        : "hover:border-primary/50"
-                    }`}
-                    onClick={() => setSelectedFamily(f)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedFamily(f);
-                      }
-                    }}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{f.nome}</p>
-                          {f.descrizione && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                              {f.descrizione}
-                            </p>
-                          )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                {filteredFamilies.map((f) => {
+                  const isSelected = selectedFamily?.id === f.id;
+                  return (
+                    <Card
+                      key={f.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-label={`Seleziona famiglia ${f.nome}`}
+                      className={`cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                        isSelected
+                          ? "ring-2 ring-primary bg-primary/5"
+                          : "hover:border-primary/50 hover:shadow-sm"
+                      }`}
+                      onClick={() => setSelectedFamily(f)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedFamily(f);
+                        }
+                      }}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium break-words">{f.nome}</p>
+                            {f.descrizione && (
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                                {f.descrizione}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            {isSelected && (
+                              <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+                            )}
+                            <Badge variant="outline" className="text-xs whitespace-nowrap">
+                              {f.modalita_prezzo_base}
+                            </Badge>
+                          </div>
                         </div>
-                        <Badge variant="outline" className="shrink-0 text-xs">
-                          {f.modalita_prezzo_base}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-2">
-                        {f.axes.length} {f.axes.length === 1 ? "asse" : "assi"} · UM: {f.unit_of_measure}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <div className="text-xs text-muted-foreground mt-2">
+                          {f.axes.length} {f.axes.length === 1 ? "asse" : "assi"} · UM: {f.unit_of_measure}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
 
               {/* STEP 6: selettore linea prodotto (appare solo se ci sono
@@ -419,6 +446,7 @@ export default function QuoteWizardSerramenti({
                     <SelectTrigger
                       id="wizard-linea-prodotto"
                       aria-label="Seleziona linea prodotto fornitore"
+                      className="h-10"
                     >
                       <SelectValue placeholder="Seleziona linea..." />
                     </SelectTrigger>

@@ -374,10 +374,10 @@ export function MatriceEditor({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-2 flex-wrap">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="space-y-1.5 min-w-0 flex-1">
-          <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-            Matrice {familyNome}
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2 flex-wrap break-words">
+            <span className="break-words">Matrice {familyNome}</span>
             <Badge variant="outline" className="text-xs font-normal">
               {productLine.nome}
             </Badge>
@@ -385,10 +385,10 @@ export function MatriceEditor({
               {supplier.nome}
             </Badge>
           </CardTitle>
-          <CardDescription className="text-sm">
+          <CardDescription className="text-xs sm:text-sm">
             Inserisci i <strong>prezzi di listino</strong> (pre-sconto).
             Acquisto e vendita vengono calcolati automaticamente:{" "}
-            <span className="font-mono text-xs">
+            <span className="font-mono text-xs block sm:inline mt-1 sm:mt-0">
               sconto {(scontoEffettivo * 100).toFixed(0)}% · ricarico{" "}
               {(ricaricoEffettivo * 100).toFixed(0)}%
             </span>
@@ -400,37 +400,46 @@ export function MatriceEditor({
           size="sm"
           onClick={() => setImportOpen(true)}
           disabled={isSavingAll}
+          className="h-10 w-full sm:w-auto shrink-0"
         >
-          <Upload className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+          <Upload className="h-4 w-4 mr-1.5" aria-hidden />
           Importa Excel/CSV
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Asse X */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">{asseXLabel}</label>
-          <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="matrice-new-x" className="text-sm font-medium">{asseXLabel}</label>
+          <div className="flex flex-wrap items-center gap-1.5">
             {xAxis.map((v) => (
-              <Badge key={v} variant="secondary" className="gap-1">
+              <Badge
+                key={v}
+                variant="secondary"
+                className="gap-0.5 pl-2.5 pr-1 h-8 text-sm font-mono"
+              >
                 {v}
                 <button
                   type="button"
                   onClick={() => removeX(v)}
-                  className="ml-1 hover:text-destructive"
+                  className="inline-flex items-center justify-center h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
                   aria-label={`Rimuovi larghezza ${v}`}
                 >
-                  ×
+                  <span className="text-base leading-none">×</span>
                 </button>
               </Badge>
             ))}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 w-full sm:w-auto">
               <Input
+                id="matrice-new-x"
                 type="number"
                 inputMode="numeric"
                 value={newX}
                 onChange={(e) => setNewX(e.target.value)}
                 placeholder="es. 1200"
-                className="w-32 h-8"
+                className="flex-1 sm:w-32 h-10"
+                min={100}
+                max={5000}
+                step={10}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -439,8 +448,15 @@ export function MatriceEditor({
                 }}
                 aria-label="Aggiungi valore larghezza"
               />
-              <Button type="button" size="sm" variant="outline" onClick={addX}>
-                <Plus className="h-3.5 w-3.5" aria-hidden />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={addX}
+                className="h-10 w-10 shrink-0"
+                aria-label="Aggiungi larghezza"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
               </Button>
             </div>
           </div>
@@ -448,29 +464,37 @@ export function MatriceEditor({
 
         {/* Asse Y */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">{asseYLabel}</label>
-          <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="matrice-new-y" className="text-sm font-medium">{asseYLabel}</label>
+          <div className="flex flex-wrap items-center gap-1.5">
             {yAxis.map((v) => (
-              <Badge key={v} variant="secondary" className="gap-1">
+              <Badge
+                key={v}
+                variant="secondary"
+                className="gap-0.5 pl-2.5 pr-1 h-8 text-sm font-mono"
+              >
                 {v}
                 <button
                   type="button"
                   onClick={() => removeY(v)}
-                  className="ml-1 hover:text-destructive"
+                  className="inline-flex items-center justify-center h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
                   aria-label={`Rimuovi altezza ${v}`}
                 >
-                  ×
+                  <span className="text-base leading-none">×</span>
                 </button>
               </Badge>
             ))}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 w-full sm:w-auto">
               <Input
+                id="matrice-new-y"
                 type="number"
                 inputMode="numeric"
                 value={newY}
                 onChange={(e) => setNewY(e.target.value)}
                 placeholder="es. 1400"
-                className="w-32 h-8"
+                className="flex-1 sm:w-32 h-10"
+                min={100}
+                max={5000}
+                step={10}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -479,8 +503,15 @@ export function MatriceEditor({
                 }}
                 aria-label="Aggiungi valore altezza"
               />
-              <Button type="button" size="sm" variant="outline" onClick={addY}>
-                <Plus className="h-3.5 w-3.5" aria-hidden />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={addY}
+                className="h-10 w-10 shrink-0"
+                aria-label="Aggiungi altezza"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
               </Button>
             </div>
           </div>
@@ -488,112 +519,132 @@ export function MatriceEditor({
 
         {/* Matrice */}
         {xAxis.length > 0 && yAxis.length > 0 ? (
-          <div className="border rounded-md overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="p-2 text-left border-r sticky left-0 bg-muted/50 z-10 min-w-[100px]">
-                    {asseYLabel} \ {asseXLabel}
-                  </th>
-                  {xAxis.map((x) => (
-                    <th key={x} className="p-2 text-center border-r min-w-[160px]">
-                      {x}
+          <div className="space-y-2">
+            {/* Hint scroll orizzontale mobile (visibile solo se tabella più larga dello schermo) */}
+            <p className="text-xs text-muted-foreground italic sm:hidden" aria-live="polite">
+              Scorri orizzontalmente per vedere tutte le colonne →
+            </p>
+            <div className="border rounded-md overflow-x-auto overscroll-x-contain">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th
+                      scope="col"
+                      className="p-2 text-left border-r sticky left-0 bg-muted/50 z-10 min-w-[72px] sm:min-w-[100px] text-xs sm:text-sm"
+                    >
+                      <span className="hidden sm:inline">{asseYLabel} \ {asseXLabel}</span>
+                      <span className="sm:hidden">H \ L</span>
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {yAxis.map((y) => (
-                  <tr key={y} className="border-t">
-                    <td className="p-2 font-medium border-r sticky left-0 bg-background z-10">
-                      {y}
-                    </td>
-                    {xAxis.map((x) => {
-                      const k = keyOf(x, y);
-                      const draft = drafts.get(k);
-                      const isDirty = dirty.has(k);
-                      const isSavingCell = savingKey === k;
-                      const calc = draft
-                        ? calcolaPrezzoSerramento({
-                            prezzo_listino: draft.prezzo_listino,
-                            sconto_fornitore: scontoEffettivo,
-                            ricarico_azienda: ricaricoEffettivo,
-                            maggiorazioni_percentuali: 0,
-                            maggiorazioni_fisse: 0,
-                            manodopera: 0,
-                          })
-                        : null;
-                      return (
-                        <td
-                          key={x}
-                          className={`p-1 border-r ${
-                            isDirty ? "bg-amber-50 dark:bg-amber-950/20" : ""
-                          }`}
-                        >
-                          <div className="flex flex-col gap-1">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min={0}
-                              placeholder="Listino €"
-                              value={draft?.prezzo_listino ?? ""}
-                              onChange={(e) =>
-                                setCellListino(x, y, e.target.value)
-                              }
-                              className="h-7 text-xs font-mono"
-                              aria-label={`Prezzo listino ${x}×${y}`}
-                              disabled={isSavingCell}
-                            />
-                            {calc ? (
-                              <div className="text-[10px] leading-tight space-y-0.5 px-1">
-                                <div className="flex justify-between text-muted-foreground">
-                                  <span>Acq:</span>
-                                  <span className="font-mono">
-                                    {fmtEur(calc.prezzo_acquisto)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between font-medium">
-                                  <span>Vend:</span>
-                                  <span className="font-mono">
-                                    {fmtEur(calc.prezzo_vendita_no_posa)}
-                                  </span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-[10px] text-muted-foreground italic px-1">
-                                vuota
-                              </div>
-                            )}
-                            {draft && (
-                              <button
-                                type="button"
-                                onClick={() => setCellListino(x, y, "0")}
-                                className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-0.5 px-1"
-                                disabled={isSavingCell}
-                                aria-label={`Svuota cella ${x}×${y}`}
-                              >
-                                <Trash2 className="h-2.5 w-2.5" aria-hidden />
-                                svuota
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
+                    {xAxis.map((x) => (
+                      <th
+                        key={x}
+                        scope="col"
+                        className="p-2 text-center border-r min-w-[140px] sm:min-w-[160px] font-mono text-xs sm:text-sm"
+                      >
+                        {x}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {yAxis.map((y) => (
+                    <tr key={y} className="border-t">
+                      <th
+                        scope="row"
+                        className="p-2 font-medium font-mono text-xs sm:text-sm border-r sticky left-0 bg-background z-10 text-left"
+                      >
+                        {y}
+                      </th>
+                      {xAxis.map((x) => {
+                        const k = keyOf(x, y);
+                        const draft = drafts.get(k);
+                        const isDirty = dirty.has(k);
+                        const isSavingCell = savingKey === k;
+                        const calc = draft
+                          ? calcolaPrezzoSerramento({
+                              prezzo_listino: draft.prezzo_listino,
+                              sconto_fornitore: scontoEffettivo,
+                              ricarico_azienda: ricaricoEffettivo,
+                              maggiorazioni_percentuali: 0,
+                              maggiorazioni_fisse: 0,
+                              manodopera: 0,
+                            })
+                          : null;
+                        return (
+                          <td
+                            key={x}
+                            className={`p-1 border-r transition-colors ${
+                              isDirty
+                                ? "bg-amber-50 dark:bg-amber-950/20"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex flex-col gap-1">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                placeholder="Listino €"
+                                value={draft?.prezzo_listino ?? ""}
+                                onChange={(e) =>
+                                  setCellListino(x, y, e.target.value)
+                                }
+                                className="h-9 text-sm font-mono"
+                                aria-label={`Prezzo listino ${x}×${y} mm`}
+                                disabled={isSavingCell}
+                                inputMode="decimal"
+                              />
+                              {calc ? (
+                                <div className="text-[10px] sm:text-[11px] leading-tight space-y-0.5 px-1">
+                                  <div className="flex justify-between text-muted-foreground">
+                                    <span>Acq:</span>
+                                    <span className="font-mono">
+                                      {fmtEur(calc.prezzo_acquisto)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between font-medium">
+                                    <span>Vend:</span>
+                                    <span className="font-mono">
+                                      {fmtEur(calc.prezzo_vendita_no_posa)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-[10px] sm:text-[11px] text-muted-foreground italic px-1">
+                                  vuota
+                                </div>
+                              )}
+                              {draft && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCellListino(x, y, "0")}
+                                  className="min-h-[28px] text-[11px] text-muted-foreground hover:text-destructive flex items-center justify-center gap-1 px-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
+                                  disabled={isSavingCell}
+                                  aria-label={`Svuota cella ${x}×${y}`}
+                                >
+                                  <Trash2 className="h-3 w-3" aria-hidden />
+                                  svuota
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
-          <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
+          <div className="border rounded-md p-6 sm:p-8 text-center text-sm text-muted-foreground">
             Aggiungi valori ai due assi per iniziare a compilare la matrice.
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-3 border-t flex-wrap gap-2">
-          <span className="text-sm text-muted-foreground">
-            {filledCells} / {totalCells} celle compilate
+        <div className="sticky bottom-0 -mx-6 px-6 pt-3 pb-3 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
+          <span className="text-sm text-muted-foreground" aria-live="polite">
+            <strong className="text-foreground">{filledCells}</strong> / {totalCells} celle compilate
             {dirty.size > 0 && (
               <>
                 {" "}·{" "}
@@ -607,6 +658,7 @@ export function MatriceEditor({
             type="button"
             onClick={() => void saveAll()}
             disabled={isSavingAll || dirty.size === 0}
+            className="h-10 w-full sm:w-auto"
           >
             {isSavingAll ? (
               <>
@@ -617,6 +669,9 @@ export function MatriceEditor({
               <>
                 <Save className="h-4 w-4 mr-2" aria-hidden />
                 Salva matrice
+                {dirty.size > 0 && (
+                  <span className="ml-1 font-normal">({dirty.size})</span>
+                )}
               </>
             )}
           </Button>

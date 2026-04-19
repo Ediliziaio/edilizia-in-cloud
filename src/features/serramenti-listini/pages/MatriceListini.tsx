@@ -122,12 +122,12 @@ export default function MatriceListiniPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-4 max-w-6xl">
+    <div className="container mx-auto p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 max-w-6xl">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
           Listini Serramenti — Matrice prezzi
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs sm:text-sm text-muted-foreground">
           Compila la matrice prezzi per la combinazione{" "}
           <strong>famiglia × fornitore × linea prodotto</strong>. Inserisci i
           prezzi di <em>listino</em>: acquisto e vendita sono calcolati
@@ -136,11 +136,11 @@ export default function MatriceListiniPage() {
       </header>
 
       {/* Pannello selettori */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Seleziona combinazione</CardTitle>
+      <Card className="sticky top-0 z-20 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm sm:text-base">Seleziona combinazione</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <CardContent className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-3">
           {/* Famiglia */}
           <div className="space-y-2">
             <Label htmlFor="sel-famiglia">Famiglia serramento</Label>
