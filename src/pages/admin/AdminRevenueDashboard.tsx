@@ -15,11 +15,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   TrendingUp, DollarSign, Users, RefreshCw, Loader2,
-  AlertTriangle, CheckCircle2, ArrowUpDown, BarChart3,
+  AlertTriangle, CheckCircle2, ArrowUpDown, BarChart3, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { RenderEconomicsTab } from "@/components/admin/RenderEconomicsTab";
 
 function fmt(value: number): string {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value);
@@ -632,7 +633,7 @@ export default function AdminRevenueDashboard() {
       </div>
 
       <Tabs defaultValue="revenue">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="revenue" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Revenue
@@ -644,6 +645,10 @@ export default function AdminRevenueDashboard() {
           <TabsTrigger value="ltv-cac" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             LTV / CAC
+          </TabsTrigger>
+          <TabsTrigger value="render-economics" className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            Render Economics
           </TabsTrigger>
         </TabsList>
 
@@ -657,6 +662,10 @@ export default function AdminRevenueDashboard() {
 
         <TabsContent value="ltv-cac" className="mt-4">
           <LTVCACTab />
+        </TabsContent>
+
+        <TabsContent value="render-economics" className="mt-4">
+          <RenderEconomicsTab />
         </TabsContent>
       </Tabs>
     </div>

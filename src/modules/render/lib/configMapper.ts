@@ -2,7 +2,9 @@
 //
 // Wizard state shape:
 //   tipo:          "F1A" | "F2A" | "F3A" | "PF1A" | "PF2A" | "PF3A" | "SCORR"
-//   profilo:       "pvc" | "alluminio" | "minimal" | "maniglia_centrale" | "legno" | "legno_alluminio"
+//   profilo:       "pvc" | "alluminio" | "minimal" | "legno" | "legno_alluminio"
+//   manigliaCentrale: boolean — toggle applicabile a qualsiasi profilo compatibile
+//                               (upgrade stile_telaio a "nodo_ridotto_maniglia_centrale").
 //   coloreInfisso: RAL id ("9016", "7016", ...) OR LEGNO id ("noce", "rovere", ...)
 //   coloreHw:      "cromo" | "inox" | "nero_opaco" | "bronzo" | "oro" | "titanio"
 //   cass:          boolean
@@ -10,6 +12,10 @@
 //   cassCol:       RAL id (only when cassMat === "colore_custom")
 //   tapp:          "no" | "motorizzate" | "nuove"
 //   tappCol:       "stesso" | RAL id
+//
+// A3 Fix (Supermaster Render): `maniglia_centrale` era un valore di `profilo` che
+// forzava erroneamente `materiale: 'alluminio'`. Ora è un flag booleano ortogonale
+// (`manigliaCentrale`) applicabile a PVC / alluminio / legno.
 
 // ─── Wizard-side dictionaries (mirror the mockup) ────────────────────────────
 export const WIZARD_TIPI = [
@@ -26,10 +32,20 @@ export const WIZARD_PROFILI = [
   { id: "pvc",               label: "PVC",               desc: "Profilo classico 70-82mm" },
   { id: "alluminio",         label: "Alluminio",         desc: "Estruso, profilo slim" },
   { id: "minimal",           label: "Minimal",           desc: "Nodo ristretto, sight-line minima" },
-  { id: "maniglia_centrale", label: "Maniglia Centrale", desc: "Handle al centro dell'anta" },
   { id: "legno",             label: "Legno",             desc: "Profilo legno massello" },
   { id: "legno_alluminio",   label: "Legno-Alluminio",   desc: "Legno interno, alluminio esterno" },
 ] as const;
+
+// Profili compatibili con il flag maniglia centrale (nodo ridotto).
+// acciaio_corten / acciaio_minimale non sono supportati oggi nel wizard ma
+// sono nel dizionario MATERIAL_PHYSICS e andrebbero esclusi se aggiunti.
+export const PROFILI_MANIGLIA_CENTRALE_COMPATIBILI: ReadonlyArray<string> = [
+  "pvc",
+  "alluminio",
+  "minimal",
+  "legno",
+  "legno_alluminio",
+];
 
 export const WIZARD_RAL = [
   { id: "9016", nome: "Bianco",            hex: "#F1F0EA" },
@@ -87,6 +103,13 @@ export type WizardTapp = typeof WIZARD_TAPP_OPTIONS[number]["id"];
 export interface WizardState {
   tipo: WizardTipo | "";
   profilo: WizardProfilo | "";
+  /**
+   * A3 fix — flag ortogonale: upgrade `stile_telaio` a
+   * "nodo_ridotto_maniglia_centrale" indipendentemente dal materiale.
+   * Applicabile solo se `profilo` è in PROFILI_MANIGLIA_CENTRALE_COMPATIBILI.
+   * Default: false.
+   */
+  manigliaCentrale: boolean;
   coloreInfisso: string; // RAL id or LEGNO id
   coloreHw: WizardHw;
   cass: boolean;
@@ -115,6 +138,8 @@ function mapProfiloToMateriale(profilo: WizardProfilo): {
   profilo_dim: string;
   profilo_forma: string;
 } {
+  // A3 fix: rimosso il case "maniglia_centrale" che forzava erroneamente
+  // materiale=alluminio. Ora è gestito come flag ortogonale in mapWizardToConfig.
   switch (profilo) {
     case "pvc":
       return { materiale: "pvc", stile_telaio: "europeo_classico", profilo_dim: "70mm", profilo_forma: "europeo" };
@@ -122,8 +147,6 @@ function mapProfiloToMateriale(profilo: WizardProfilo): {
       return { materiale: "alluminio", stile_telaio: "europeo_classico", profilo_dim: "70mm", profilo_forma: "squadrato" };
     case "minimal":
       return { materiale: "alluminio", stile_telaio: "minimal_squadrato", profilo_dim: "70mm", profilo_forma: "squadrato" };
-    case "maniglia_centrale":
-      return { materiale: "alluminio", stile_telaio: "nodo_ridotto_maniglia_centrale", profilo_dim: "70mm", profilo_forma: "squadrato" };
     case "legno":
       return { materiale: "legno", stile_telaio: "classico_arrotondato", profilo_dim: "82mm", profilo_forma: "arrotondato" };
     case "legno_alluminio":
@@ -297,12 +320,20 @@ export function mapWizardToConfig(state: WizardState, notes = ""): MapperOutput 
   const cass = mapCassonetto(state, col);
   const tapp = mapTapparella(state, col);
 
+  // A3 fix: applica il flag manigliaCentrale SOLO se il profilo è compatibile.
+  // Upgrade stile_telaio a "nodo_ridotto_maniglia_centrale" mantenendo il
+  // materiale scelto dall'utente (bug originale: forzava alluminio).
+  const stileTelaio =
+    state.manigliaCentrale && PROFILI_MANIGLIA_CENTRALE_COMPATIBILI.includes(state.profilo)
+      ? "nodo_ridotto_maniglia_centrale"
+      : prof.stile_telaio;
+
   return {
     apertura_default: apertura,
     notes,
     nuovo_infisso: {
       materiale: prof.materiale,
-      stile_telaio: prof.stile_telaio,
+      stile_telaio: stileTelaio,
       num_ante,
       colore: col.colore,
       colore_mode: col.colore_mode,

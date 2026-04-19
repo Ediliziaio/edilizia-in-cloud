@@ -4,6 +4,8 @@
 // Prompt Engine v6 completo (ported from Edile Genius)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { captureRealCost } from "../_shared/renderCost.ts";
+import { prepareInputImage, pickProviderSize } from "../_shared/renderImage.ts";
 
 // ── MATERIAL_PHYSICS ──────────────────────────────────────────────────────────
 const MATERIAL_PHYSICS: Record<string, string> = {
@@ -538,12 +540,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Controlla e deduce crediti ──────────────────────────────────────────
-    const creditResult = await supabase.rpc("deduct_render_credit", {
+    // ── Controlla e deduce crediti (v2: FIFO revenue tracking) ──────────────
+    // deduct_render_credit_v2 ritorna json:
+    //   { status: 'ok'|'insufficient', revenue_eur: numeric, purchase_id: uuid|null }
+    // Se v2 non esiste (migration non applicata), retrocompat su v1.
+    let revenueEur = 0;
+    let purchaseId: string | null = null;
+    let creditStatus: "ok" | "insufficient" = "ok";
+
+    const creditResultV2 = await supabase.rpc("deduct_render_credit_v2", {
       _company_id: session.company_id,
     });
 
-    if (creditResult.data === "insufficient") {
+    if (creditResultV2.error) {
+      // Fallback v1 — retrocompat con ambienti pre-migrazione economics
+      console.warn(
+        "[generate-render] deduct_render_credit_v2 not available, falling back to v1:",
+        creditResultV2.error.message
+      );
+      const creditResultV1 = await supabase.rpc("deduct_render_credit", {
+        _company_id: session.company_id,
+      });
+      if (creditResultV1.error) {
+        throw new Error(`Credit deduction failed: ${creditResultV1.error.message}`);
+      }
+      creditStatus = creditResultV1.data === "insufficient" ? "insufficient" : "ok";
+    } else {
+      const payload = (creditResultV2.data || {}) as {
+        status?: "ok" | "insufficient";
+        revenue_eur?: number;
+        purchase_id?: string | null;
+      };
+      creditStatus = payload.status === "insufficient" ? "insufficient" : "ok";
+      revenueEur = Number(payload.revenue_eur ?? 0);
+      purchaseId = payload.purchase_id ?? null;
+    }
+
+    if (creditStatus === "insufficient") {
       return new Response(
         JSON.stringify({ error: "insufficient_credits", message: "Crediti render insufficienti" }),
         { status: 402, headers: { ...CORS, "Content-Type": "application/json" } }
@@ -556,16 +589,19 @@ Deno.serve(async (req) => {
       .update({ status: "processing", processing_started_at: new Date().toISOString() })
       .eq("id", session_id);
 
-    // ── Genera signed URL per foto originale ────────────────────────────────
+    // ── Prepara immagine input (resize server-side A4) ──────────────────────
+    // target_width/target_height sono gli hint originali dal client (foto iPhone,
+    // upload utente). Se > 1600 lato lungo, applichiamo Supabase transform per
+    // ridurre input tokens e costo API (enorme risparmio).
     const originalPath = session.original_photo_url as string;
-    let imageUrl = originalPath;
-
-    if (originalPath && !originalPath.startsWith("http")) {
-      const { data: signed } = await supabase.storage
-        .from("render-originals")
-        .createSignedUrl(originalPath, 600);
-      if (signed?.signedUrl) imageUrl = signed.signedUrl;
-    }
+    const prepared = await prepareInputImage({
+      supabase,
+      bucket: "render-originals",
+      originalPath,
+      hintWidth: target_width,
+      hintHeight: target_height,
+    });
+    const imageUrl = prepared.url;
 
     // ── Build prompt v6 ─────────────────────────────────────────────────────
     // Bridge v1 → v6: se config è flat (vecchio formato), avvolgilo in
@@ -647,6 +683,7 @@ Deno.serve(async (req) => {
 
     // ── Chiama il provider AI ───────────────────────────────────────────────
     let imageData: string | null = null;
+    let providerRawResponse: Record<string, unknown> = {};
 
     if (providerConfig.provider_key === "openai") {
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
@@ -657,8 +694,13 @@ Deno.serve(async (req) => {
       form.append("prompt", userPrompt);
       form.append("image[]", imgBlob, "photo.jpg");
       form.append("n", "1");
-      // Determina dimensione output: usa target se fornito, altrimenti 1024x1024
-      const renderSize = resolveRenderSize(target_width, target_height);
+      // A5 fix: size output calcolata sulle dims ridotte (max 1600 lato lungo),
+      // non sulle dims iPhone originali. Mai > 1600x1600.
+      const renderSize = pickProviderSize(
+        prepared.effective_width,
+        prepared.effective_height,
+        "openai",
+      ) ?? resolveRenderSize(target_width, target_height);
       form.append("size", renderSize);
       form.append("response_format", "b64_json");
 
@@ -677,6 +719,7 @@ Deno.serve(async (req) => {
       }
 
       const oaiData = await resp.json();
+      providerRawResponse = oaiData as Record<string, unknown>;
       const b64 = oaiData.data?.[0]?.b64_json;
       if (b64) imageData = `data:image/png;base64,${b64}`;
 
@@ -714,6 +757,7 @@ Deno.serve(async (req) => {
       }
 
       const gemData = await resp.json();
+      providerRawResponse = gemData as Record<string, unknown>;
       const parts = gemData.candidates?.[0]?.content?.parts ?? [];
       for (const part of parts) {
         if (part.inlineData?.mimeType?.startsWith("image/")) {
@@ -754,28 +798,74 @@ Deno.serve(async (req) => {
 
     const resultUrl = publicUrlData.publicUrl;
 
+    // ── Capture costo reale API (B2) ────────────────────────────────────────
+    // Provo a leggere il pricing da render_provider_pricing (migration B1).
+    // Se fallisce (pricing non definito / parsing response errato), fallback
+    // su legacy providerConfig.cost_real_per_render.
+    const legacyCostReal = Number(providerConfig.cost_real_per_render ?? 0.04);
+    const capture = await captureRealCost({
+      supabase,
+      providerKey: providerConfig.provider_key,
+      model: providerConfig.model,
+      rawResponse: providerRawResponse,
+      legacyFallbackEur: legacyCostReal,
+    });
+
     // ── Aggiorna render_sessions: completed ─────────────────────────────────
-    const costReal = providerConfig.cost_real_per_render ?? 0.04;
+    const costReal = capture.cost_eur;
     const costBilled = providerConfig.cost_billed_per_render ?? 0.10;
     const activeConfig = sessionLike.config as Record<string, unknown>;
     const ni = (activeConfig?.nuovo_infisso as Record<string, unknown>) || {};
 
-    await supabase
+    // Update in due fasi per essere robusto se migration economics non
+    // ancora applicata (retrocompat deploy order-independent).
+    const legacyUpdate = {
+      status: "completed",
+      result_urls: [resultUrl],
+      prompt_used: userPrompt,
+      prompt_blocks: blocks,
+      prompt_version: promptVersion,
+      prompt_char_count: (systemPrompt + userPrompt).length,
+      provider_key: providerConfig.provider_key,
+      cost_real: costReal,
+      cost_billed: costBilled,
+      config_snapshot: activeConfig,
+      processing_completed_at: new Date().toISOString(),
+    };
+
+    const economicsUpdate = {
+      cost_real_api: costReal,
+      revenue_eur: revenueEur,
+      provider_usage: capture.usage,
+      provider_model: capture.model,
+      provider_request_id: capture.request_id,
+      vertical: "infissi",
+      meta: {
+        purchase_id: purchaseId,
+        input_image: prepared.meta,
+        provider_size_used: providerConfig.provider_key === "openai"
+          ? (pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? null)
+          : null,
+      },
+    };
+
+    // Prova prima con tutti i campi. Se fallisce (migration non applicata),
+    // retry solo legacy — l'update legacy è garantito dallo schema esistente.
+    const fullUpdate = await supabase
       .from("render_sessions")
-      .update({
-        status: "completed",
-        result_urls: [resultUrl],
-        prompt_used: userPrompt,
-        prompt_blocks: blocks,
-        prompt_version: promptVersion,
-        prompt_char_count: (systemPrompt + userPrompt).length,
-        provider_key: providerConfig.provider_key,
-        cost_real: costReal,
-        cost_billed: costBilled,
-        config_snapshot: activeConfig,
-        processing_completed_at: new Date().toISOString(),
-      })
+      .update({ ...legacyUpdate, ...economicsUpdate })
       .eq("id", session_id);
+
+    if (fullUpdate.error) {
+      console.warn(
+        "[generate-render] economics columns missing, fallback to legacy update:",
+        fullUpdate.error.message
+      );
+      await supabase
+        .from("render_sessions")
+        .update(legacyUpdate)
+        .eq("id", session_id);
+    }
 
     // ── Incrementa contatore provider ───────────────────────────────────────
     await supabase

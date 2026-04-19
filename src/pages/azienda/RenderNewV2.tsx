@@ -23,6 +23,7 @@ import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import {
   WIZARD_TIPI, WIZARD_PROFILI, WIZARD_RAL, WIZARD_LEGNO, WIZARD_HW_COLORS,
   WIZARD_CASS_MATERIALI, WIZARD_TAPP_OPTIONS,
+  PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
   mapWizardToConfig, getColorById,
   type WizardState, type WizardTipo, type WizardProfilo, type WizardHw,
   type WizardCassMat, type WizardTapp,
@@ -38,6 +39,7 @@ const STEP_LABELS = ["Foto", "Tipo", "Profilo", "Colori", "Opzioni", "Render"];
 const INITIAL_STATE: WizardState = {
   tipo: "",
   profilo: "",
+  manigliaCentrale: false,
   coloreInfisso: "",
   coloreHw: "cromo",
   cass: false,
@@ -444,6 +446,43 @@ export default function RenderNewV2() {
             onNext={goNext}
             nextDisabled={!canGoNextFromStep(3)}
             columns={2}
+            extra={
+              state.profilo && PROFILI_MANIGLIA_CENTRALE_COMPATIBILI.includes(state.profilo) ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setState(s => ({ ...s, manigliaCentrale: !s.manigliaCentrale }))
+                  }
+                  className={cn(
+                    "flex items-start gap-3 rounded-xl border p-3 text-left transition",
+                    state.manigliaCentrale
+                      ? "border-2 border-orange-500 bg-orange-50 dark:bg-orange-950/30"
+                      : "border-border hover:border-orange-300",
+                  )}
+                  aria-pressed={state.manigliaCentrale}
+                >
+                  <div
+                    className={cn(
+                      "mt-0.5 h-4 w-4 rounded border-2 flex-none flex items-center justify-center",
+                      state.manigliaCentrale
+                        ? "border-orange-500 bg-orange-500"
+                        : "border-muted-foreground/40",
+                    )}
+                  >
+                    {state.manigliaCentrale && (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold">Maniglia al centro</div>
+                    <div className="text-[11px] text-muted-foreground leading-snug">
+                      Posiziona la maniglia al centro dell'anta (nodo ridotto).
+                      Applicabile al profilo selezionato.
+                    </div>
+                  </div>
+                </button>
+              ) : null
+            }
           />
         )}
 
@@ -565,7 +604,7 @@ function Step1Foto({
 
 // ─── Generic choice step (used for Tipo and Profilo) ─────────────────────────
 function StepChoice({
-  title, options, value, onChange, onBack, onNext, nextDisabled, columns,
+  title, options, value, onChange, onBack, onNext, nextDisabled, columns, extra,
 }: {
   title: string;
   options: { id: string; label: string; desc?: string }[];
@@ -575,6 +614,8 @@ function StepChoice({
   onNext: () => void;
   nextDisabled: boolean;
   columns: number;
+  /** Contenuto opzionale tra la griglia delle opzioni e la NavButtons (es. toggle stilistici). */
+  extra?: React.ReactNode;
 }) {
   const gridClass = columns === 4 ? "grid-cols-4" : "grid-cols-2";
   return (
@@ -605,6 +646,7 @@ function StepChoice({
           </button>
         ))}
       </div>
+      {extra}
       <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} />
     </div>
   );
