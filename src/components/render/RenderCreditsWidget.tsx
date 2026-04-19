@@ -14,9 +14,9 @@ export function RenderCreditsWidget() {
     queryFn: async () => {
       if (!companyId) return null;
       const { data } = await supabase
-        .from("render_credits" as never)
+        .from("render_credits")
         .select("balance, total_used")
-        .eq("company_id" as never, companyId as never)
+        .eq("company_id", companyId)
         .maybeSingle();
       return data as { balance: number; total_used: number } | null;
     },

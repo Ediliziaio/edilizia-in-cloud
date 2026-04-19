@@ -110,7 +110,7 @@ export default function RenderFacciataNew() {
 
       // 2. Crea sessione (status: pending)
       const { data: sess, error: sessErr } = await supabase
-        .from("render_facciata_sessions" as never)
+        .from("render_facciata_sessions")
         .insert({
           company_id: companyId,
           created_by: user.id,
@@ -119,7 +119,7 @@ export default function RenderFacciataNew() {
           config: config,
           contact_id: contactId,
           opportunity_id: opportunityId,
-        } as never)
+        })
         .select("id")
         .single();
       if (sessErr || !sess) throw new Error("Creazione sessione fallita");
@@ -147,9 +147,9 @@ export default function RenderFacciataNew() {
 
         // Update session with analysis
         await supabase
-          .from("render_facciata_sessions" as never)
-          .update({ foto_analisi: defaultAnalisi } as never)
-          .eq("id" as never, sid as never);
+          .from("render_facciata_sessions")
+          .update({ foto_analisi: defaultAnalisi })
+          .eq("id", sid);
       } catch {
         // analysis is best-effort
       } finally {
@@ -174,9 +174,9 @@ export default function RenderFacciataNew() {
 
     // Update config in session
     await supabase
-      .from("render_facciata_sessions" as never)
-      .update({ config: config } as never)
-      .eq("id" as never, sessionId as never);
+      .from("render_facciata_sessions")
+      .update({ config: config })
+      .eq("id", sessionId);
 
     // Get photo dimensions
     let targetWidth: number | undefined;
@@ -251,9 +251,9 @@ export default function RenderFacciataNew() {
       }
 
       const { data: sess } = await supabase
-        .from("render_facciata_sessions" as never)
+        .from("render_facciata_sessions")
         .select("status, result_urls")
-        .eq("id" as never, sid as never)
+        .eq("id", sid)
         .single();
 
       const s = sess as { status: string; result_urls: string[] | null } | null;

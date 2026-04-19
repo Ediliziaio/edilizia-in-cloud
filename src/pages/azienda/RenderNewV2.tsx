@@ -105,35 +105,73 @@ export default function RenderNewV2() {
 
   // ── Upload + create session (when user clicks "Avanti" from step 1) ────────
   const uploadAndCreateSession = useCallback(async (): Promise<string | null> => {
-    if (!photo || !companyId || !user) {
-      toast.error("Carica una foto prima di procedere");
+    if (!user) {
+      toast.error("Devi essere autenticato per creare un render.");
+      return null;
+    }
+    if (!companyId) {
+      toast.error("Azienda non identificata. Ricarica la pagina o riprova.");
+      return null;
+    }
+    if (!photo) {
+      toast.error("Carica una foto prima di procedere.");
       return null;
     }
     if (sessionId && photoPath) return sessionId;
 
     setUploading(true);
     try {
+      // STEP 1 — Upload foto su storage (errori specifici del bucket)
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_original.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("render-originals")
         .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
+      if (upErr) {
+        // Messaggi specifici per i casi più frequenti
+        const msg = upErr.message ?? "";
+        if (/row-level security|permission|policy/i.test(msg)) {
+          throw new Error(
+            "Permessi insufficienti per caricare la foto. Verifica di essere connesso con l'azienda corretta.",
+          );
+        }
+        if (/not found|bucket/i.test(msg)) {
+          throw new Error(
+            "Bucket storage 'render-originals' non disponibile. Contatta l'assistenza.",
+          );
+        }
+        throw new Error(`Upload foto fallito: ${msg || "errore sconosciuto"}`);
+      }
       setPhotoPath(path);
 
+      // STEP 2 — Crea sessione render (errori specifici del DB)
       const { data: sess, error: sessErr } = await supabase
-        .from("render_sessions" as never)
+        .from("render_sessions")
         .insert({
           company_id: companyId,
           created_by: user.id,
           status: "pending",
           original_photo_url: path,
           config: {},
-        } as never)
+        })
         .select("id")
         .single();
-      if (sessErr || !sess) throw new Error("Creazione sessione fallita");
-      const sid = (sess as { id: string }).id;
+      if (sessErr) {
+        const msg = sessErr.message ?? "";
+        if (/schema|PGRST106/i.test(msg)) {
+          throw new Error(
+            "Schema database non disponibile per 'render_sessions'. Ricarica la pagina — se persiste, contatta l'assistenza.",
+          );
+        }
+        if (/row-level security|policy/i.test(msg)) {
+          throw new Error(
+            "Permessi insufficienti per creare la sessione render.",
+          );
+        }
+        throw new Error(`Creazione sessione fallita: ${msg || "errore sconosciuto"}`);
+      }
+      if (!sess) throw new Error("Creazione sessione fallita: nessun id restituito.");
+      const sid = sess.id;
       setSessionId(sid);
 
       // Background photo analysis (non-blocking — used as hint for prompt engine)
@@ -156,7 +194,8 @@ export default function RenderNewV2() {
 
       return sid;
     } catch (err) {
-      toast.error(String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(message);
       return null;
     } finally {
       setUploading(false);
@@ -187,22 +226,9 @@ export default function RenderNewV2() {
 
     // Update session config
     await supabase
-      .from("render_sessions" as never)
-      .update({ config } as never)
-      .eq("id" as never, sessionId as never);
-
-    // Get target dimensions from photo
-    let target_width: number | undefined;
-    let target_height: number | undefined;
-    if (photoPreview) {
-      try {
-        const img = new window.Image();
-        img.src = photoPreview;
-        await new Promise<void>(res => { img.onload = () => res(); img.onerror = () => res(); });
-        target_width = img.naturalWidth || undefined;
-        target_height = img.naturalHeight || undefined;
-      } catch { /* ignore */ }
-    }
+      .from("render_sessions")
+      .update({ config })
+      .eq("id", sessionId);
 
     // Start elapsed timer
     tickRef.current = setInterval(() => {
@@ -215,7 +241,6 @@ export default function RenderNewV2() {
         body: {
           session_id: sessionId,
           config,
-          ...(target_width && target_height ? { target_width, target_height } : {}),
         },
       });
 
@@ -238,10 +263,11 @@ export default function RenderNewV2() {
     } catch (err) {
       if (tickRef.current) clearInterval(tickRef.current);
       setGenerating(false);
-      setGenerateError(String(err));
-      toast.error(String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setGenerateError(message);
+      toast.error(message);
     }
-  }, [sessionId, companyId, state, photoPreview, queryClient]);
+  }, [sessionId, companyId, state, queryClient]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
@@ -255,12 +281,12 @@ export default function RenderNewV2() {
       }
 
       const { data: sess } = await supabase
-        .from("render_sessions" as never)
+        .from("render_sessions")
         .select("status, result_urls")
-        .eq("id" as never, sid as never)
+        .eq("id", sid)
         .single();
 
-      const s = sess as { status: string; result_urls: string[] | null } | null;
+      const s = sess;
       if (s?.status === "completed" && s.result_urls?.length) {
         if (tickRef.current) clearInterval(tickRef.current);
         setResultUrl(s.result_urls[0]);
@@ -308,9 +334,9 @@ export default function RenderNewV2() {
     if (!contactId && !opportunityId && !crmPersistedRef.current) return;
     crmPersistedRef.current = true;
     void supabase
-      .from("render_sessions" as never)
-      .update({ contact_id: contactId, opportunity_id: opportunityId } as never)
-      .eq("id" as never, sessionId as never);
+      .from("render_sessions")
+      .update({ contact_id: contactId, opportunity_id: opportunityId })
+      .eq("id", sessionId);
   }, [sessionId, contactId, opportunityId]);
 
   // ── Reset wizard ───────────────────────────────────────────────────────────

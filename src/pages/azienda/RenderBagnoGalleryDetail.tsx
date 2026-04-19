@@ -35,10 +35,10 @@ export default function RenderBagnoGalleryDetail() {
     queryFn: async () => {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
-        .from("render_bagno_sessions" as never)
+        .from("render_bagno_sessions")
         .select("*")
-        .eq("id" as never, id as never)
-        .eq("company_id" as never, companyId as never)
+        .eq("id", id)
+        .eq("company_id", companyId)
         .single();
       if (error) throw error;
       return data as {

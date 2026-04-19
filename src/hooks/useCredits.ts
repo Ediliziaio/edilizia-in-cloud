@@ -13,12 +13,12 @@ import { useAuth } from "@/contexts/AuthContext";
  */
 export type CreditType = "ai_agents" | "email" | "whatsapp" | "render";
 
-const CREDIT_TABLE: Record<CreditType, string> = {
+const CREDIT_TABLE = {
   ai_agents: "ai_credits",
   email: "email_credits",
   whatsapp: "whatsapp_credits",
   render: "render_credits",
-};
+} as const satisfies Record<CreditType, string>;
 
 const RPC_TYPE: Record<CreditType, "ai" | "email" | "whatsapp" | "render"> = {
   ai_agents: "ai",
@@ -83,7 +83,7 @@ export function useCredits(type: CreditType): CreditsState {
     queryFn: async () => {
       if (!companyId) return null;
       const { data, error } = await supabase
-        .from(table as never)
+        .from(table)
         .select(
           type === "render"
             ? "balance, total_purchased, total_used"

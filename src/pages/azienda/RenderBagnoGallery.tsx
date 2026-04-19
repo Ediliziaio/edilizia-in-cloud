@@ -23,11 +23,11 @@ export default function RenderBagnoGallery() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("render_bagno_sessions" as never)
+        .from("render_bagno_sessions")
         .select("id, galleria_titolo, foto_originale_url, render_result_url, tipo_intervento, salvato_in_galleria, created_at")
-        .eq("company_id" as never, companyId as never)
-        .eq("stato" as never, "completato" as never)
-        .order("created_at" as never, { ascending: false });
+        .eq("company_id", companyId)
+        .eq("stato", "completato")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as {
         id: string;

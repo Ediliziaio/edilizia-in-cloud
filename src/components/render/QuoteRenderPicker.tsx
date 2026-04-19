@@ -54,13 +54,13 @@ export function QuoteRenderPicker({
           let q = supabase
             .from(t.table as never)
             .select(cols as never)
-            .eq("company_id" as never, companyId as never)
+            .eq("company_id", companyId)
             .eq(t.statusCol as never, t.completedVal as never)
-            .order("created_at" as never, { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(20);
 
           if (contactId) {
-            q = q.eq("contact_id" as never, contactId as never);
+            q = q.eq("contact_id", contactId);
           }
 
           const { data } = await q;

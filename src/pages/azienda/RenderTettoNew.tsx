@@ -104,7 +104,7 @@ export default function RenderTettoNew() {
       setPhotoPath(path);
 
       const { data: sess, error: sessErr } = await supabase
-        .from("render_tetto_sessions" as never)
+        .from("render_tetto_sessions")
         .insert({
           company_id: companyId,
           created_by: user.id,
@@ -113,7 +113,7 @@ export default function RenderTettoNew() {
           config: config,
           contact_id: contactId,
           opportunity_id: opportunityId,
-        } as never)
+        })
         .select("id")
         .single();
       if (sessErr || !sess) throw new Error("Creazione sessione fallita");
@@ -137,9 +137,9 @@ export default function RenderTettoNew() {
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
     await supabase
-      .from("render_tetto_sessions" as never)
-      .update({ config: config } as never)
-      .eq("id" as never, sessionId as never);
+      .from("render_tetto_sessions")
+      .update({ config: config })
+      .eq("id", sessionId);
 
     let targetWidth: number | undefined;
     let targetHeight: number | undefined;
@@ -210,9 +210,9 @@ export default function RenderTettoNew() {
       }
 
       const { data: sess } = await supabase
-        .from("render_tetto_sessions" as never)
+        .from("render_tetto_sessions")
         .select("status, result_urls")
-        .eq("id" as never, sid as never)
+        .eq("id", sid)
         .single();
 
       const s = sess as { status: string; result_urls: string[] | null } | null;

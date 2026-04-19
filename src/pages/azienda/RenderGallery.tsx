@@ -23,10 +23,10 @@ export default function RenderGallery() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("render_gallery" as never)
+        .from("render_gallery")
         .select("id, title, original_url, render_url, tags, created_at, session_id")
-        .eq("company_id" as never, companyId as never)
-        .order("created_at" as never, { ascending: false });
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as {
         id: string;

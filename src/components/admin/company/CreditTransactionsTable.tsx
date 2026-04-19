@@ -76,7 +76,7 @@ export function CreditTransactionsTable({ companyId }: Props) {
     queryKey: ["admin-credit-transactions-unified", companyId, type, page],
     queryFn: async () => {
       let q = supabase
-        .from("credit_transactions_unified" as never)
+        .from("credit_transactions_unified")
         .select("*", { count: "exact" })
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })

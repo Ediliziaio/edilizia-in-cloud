@@ -55,10 +55,10 @@ export default function RenderHub() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("render_sessions" as never)
+        .from("render_sessions")
         .select("id, status, original_photo_url, result_urls, config, provider_key, created_at")
-        .eq("company_id" as never, companyId as never)
-        .order("created_at" as never, { ascending: false })
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw error;
       return (data ?? []) as {
@@ -85,10 +85,10 @@ export default function RenderHub() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("render_gallery" as never)
+        .from("render_gallery")
         .select("id, render_url, original_url, config_summary, created_at")
-        .eq("company_id" as never, companyId as never)
-        .order("created_at" as never, { ascending: false })
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
         .limit(6);
       if (error) throw error;
       return (data ?? []) as {

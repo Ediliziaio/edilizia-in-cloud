@@ -112,7 +112,7 @@ export default function RenderStanzaNew() {
 
       // 2. Crea sessione (status: pending)
       const { data: sess, error: sessErr } = await supabase
-        .from("render_stanza_sessions" as never)
+        .from("render_stanza_sessions")
         .insert({
           company_id: companyId,
           created_by: user.id,
@@ -121,7 +121,7 @@ export default function RenderStanzaNew() {
           config: config,
           contact_id: contactId,
           opportunity_id: opportunityId,
-        } as never)
+        })
         .select("id")
         .single();
       if (sessErr || !sess) throw new Error("Creazione sessione fallita");
@@ -148,9 +148,9 @@ export default function RenderStanzaNew() {
 
     // Update config on session
     await supabase
-      .from("render_stanza_sessions" as never)
-      .update({ config: config } as never)
-      .eq("id" as never, sessionId as never);
+      .from("render_stanza_sessions")
+      .update({ config: config })
+      .eq("id", sessionId);
 
     // Get image dimensions
     let targetWidth: number | undefined;
@@ -225,9 +225,9 @@ export default function RenderStanzaNew() {
       }
 
       const { data: sess } = await supabase
-        .from("render_stanza_sessions" as never)
+        .from("render_stanza_sessions")
         .select("status, result_urls")
-        .eq("id" as never, sid as never)
+        .eq("id", sid)
         .single();
 
       const s = sess as { status: string; result_urls: string[] | null } | null;
@@ -271,12 +271,12 @@ export default function RenderStanzaNew() {
         intensita: config.intensita,
       };
       const { error } = await supabase
-        .from("render_stanza_sessions" as never)
+        .from("render_stanza_sessions")
         .update({
           saved_to_gallery: true,
           config_summary: configSummary,
-        } as never)
-        .eq("id" as never, sessionId as never);
+        })
+        .eq("id", sessionId);
       if (error) throw error;
       setSavedToGallery(true);
       toast.success("Render salvato in galleria!");

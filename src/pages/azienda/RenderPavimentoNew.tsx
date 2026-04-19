@@ -114,7 +114,7 @@ export default function RenderPavimentoNew() {
 
       // 2. Crea sessione render (status: pending)
       const { data: sess, error: sessErr } = await supabase
-        .from("render_pavimento_sessions" as never)
+        .from("render_pavimento_sessions")
         .insert({
           company_id: companyId,
           created_by: user.id,
@@ -123,7 +123,7 @@ export default function RenderPavimentoNew() {
           config: config as unknown,
           contact_id: contactId,
           opportunity_id: opportunityId,
-        } as never)
+        })
         .select("id")
         .single();
       if (sessErr || !sess) throw new Error("Creazione sessione fallita");
@@ -181,9 +181,9 @@ export default function RenderPavimentoNew() {
 
     // Aggiorna config nella sessione
     await supabase
-      .from("render_pavimento_sessions" as never)
-      .update({ config: config as unknown } as never)
-      .eq("id" as never, sessionId as never);
+      .from("render_pavimento_sessions")
+      .update({ config: config as unknown })
+      .eq("id", sessionId);
 
     // Ottieni dimensioni foto
     let targetWidth: number | undefined;
@@ -257,9 +257,9 @@ export default function RenderPavimentoNew() {
       }
 
       const { data: sess } = await supabase
-        .from("render_pavimento_sessions" as never)
+        .from("render_pavimento_sessions")
         .select("status, result_urls")
-        .eq("id" as never, sid as never)
+        .eq("id", sid)
         .single();
 
       const s = sess as { status: string; result_urls: string[] | null } | null;

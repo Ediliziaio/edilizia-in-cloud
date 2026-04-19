@@ -50,12 +50,12 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
           let q = supabase
             .from(t.table as never)
             .select(cols as never)
-            .eq("company_id" as never, companyId as never);
+            .eq("company_id", companyId);
 
-          if (contactId) q = q.eq("contact_id" as never, contactId as never);
-          if (opportunityId) q = q.eq("opportunity_id" as never, opportunityId as never);
+          if (contactId) q = q.eq("contact_id", contactId);
+          if (opportunityId) q = q.eq("opportunity_id", opportunityId);
 
-          const { data } = await q.order("created_at" as never, { ascending: false }).limit(10);
+          const { data } = await q.order("created_at", { ascending: false }).limit(10);
 
           return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
             id: row.id as string,

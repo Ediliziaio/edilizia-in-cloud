@@ -120,7 +120,7 @@ export default function RenderPersianeNew() {
 
       // Crea sessione
       const { data: sess, error: sessErr } = await supabase
-        .from("render_persiane_sessions" as never)
+        .from("render_persiane_sessions")
         .insert({
           company_id: companyId,
           created_by: user.id,
@@ -129,7 +129,7 @@ export default function RenderPersianeNew() {
           config: config,
           contact_id: contactId,
           opportunity_id: opportunityId,
-        } as never)
+        })
         .select("id")
         .single();
       if (sessErr || !sess) throw new Error("Creazione sessione fallita");
@@ -155,9 +155,9 @@ export default function RenderPersianeNew() {
 
     // Aggiorna config nella sessione
     await supabase
-      .from("render_persiane_sessions" as never)
-      .update({ config: config } as never)
-      .eq("id" as never, sessionId as never);
+      .from("render_persiane_sessions")
+      .update({ config: config })
+      .eq("id", sessionId);
 
     // Ottieni dimensioni foto
     let targetWidth: number | undefined;
@@ -249,9 +249,9 @@ export default function RenderPersianeNew() {
         }
 
         const { data: sess } = await supabase
-          .from("render_persiane_sessions" as never)
+          .from("render_persiane_sessions")
           .select("status, result_urls")
-          .eq("id" as never, sid as never)
+          .eq("id", sid)
           .single();
 
         const s = sess as {

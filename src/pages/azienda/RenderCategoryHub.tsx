@@ -121,10 +121,11 @@ export default function RenderCategoryHub() {
       const results = await Promise.all(
         tables.map(async (t) => {
           const { data } = await supabase
-            .from(t.table as never)
-            .select(t.cols as never)
-            .eq("company_id" as never, companyId as never)
-            .order("created_at" as never, { ascending: false })
+            .from(t.table)
+            // t.cols è una stringa dinamica composta: impossibile narrow via types
+            .select(t.cols)
+            .eq("company_id", companyId)
+            .order("created_at", { ascending: false })
             .limit(4);
           return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
             id: row.id as string,

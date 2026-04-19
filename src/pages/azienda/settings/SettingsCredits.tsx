@@ -96,9 +96,9 @@ export default function SettingsCredits() {
     queryFn: async () => {
       if (!companyId) return null;
       const { data, error } = await supabase
-        .from("ai_credits" as never)
+        .from("ai_credits")
         .select("*")
-        .eq("company_id" as never, companyId as never)
+        .eq("company_id", companyId)
         .maybeSingle();
       if (error) throw error;
       return data as { balance_eur: number; total_spent_eur: number; total_recharged_eur: number; calls_blocked: boolean } | null;
@@ -112,9 +112,9 @@ export default function SettingsCredits() {
     queryFn: async () => {
       if (!companyId) return null;
       const { data, error } = await supabase
-        .from("whatsapp_credits" as never)
+        .from("whatsapp_credits")
         .select("*")
-        .eq("company_id" as never, companyId as never)
+        .eq("company_id", companyId)
         .maybeSingle();
       if (error) throw error;
       return data as { balance_eur: number; total_spent_eur: number; total_recharged_eur: number; sends_blocked: boolean } | null;
@@ -128,9 +128,9 @@ export default function SettingsCredits() {
     queryFn: async () => {
       if (!companyId) return null;
       const { data } = await supabase
-        .from("render_credits" as never)
+        .from("render_credits")
         .select("balance, total_used, total_purchased")
-        .eq("company_id" as never, companyId as never)
+        .eq("company_id", companyId)
         .maybeSingle();
       return data as { balance: number; total_used: number; total_purchased: number } | null;
     },
@@ -768,10 +768,10 @@ function WhatsAppCreditsLog({ companyId }: { companyId: string | undefined }) {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("whatsapp_credits_log" as never)
+        .from("whatsapp_credits_log")
         .select("*")
-        .eq("company_id" as never, companyId as never)
-        .order("created_at" as never, { ascending: false })
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
       return (data ?? []) as unknown as Array<{

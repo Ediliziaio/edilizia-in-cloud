@@ -57,10 +57,10 @@ export default function RenderBagnoHub() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("render_bagno_sessions" as never)
+        .from("render_bagno_sessions")
         .select("id, stato, foto_originale_url, render_result_url, configurazione, tipo_intervento, created_at")
-        .eq("company_id" as never, companyId as never)
-        .order("created_at" as never, { ascending: false })
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw error;
       return (data ?? []) as {
@@ -86,11 +86,11 @@ export default function RenderBagnoHub() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("render_bagno_sessions" as never)
+        .from("render_bagno_sessions")
         .select("id, render_result_url, tipo_intervento, created_at")
-        .eq("company_id" as never, companyId as never)
-        .eq("stato" as never, "completato" as never)
-        .order("created_at" as never, { ascending: false })
+        .eq("company_id", companyId)
+        .eq("stato", "completato")
+        .order("created_at", { ascending: false })
         .limit(6);
       if (error) throw error;
       return (data ?? []) as {

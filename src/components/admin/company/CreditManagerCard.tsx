@@ -101,7 +101,7 @@ export function CreditManagerCard({ companyId }: Props) {
     queryKey: wallets[0].queryKey,
     queryFn: async () => {
       const { data } = await supabase
-        .from("email_credits" as never).select("balance_eur")
+        .from("email_credits").select("balance_eur")
         .eq("company_id", companyId).maybeSingle();
       return (data as { balance_eur: number } | null)?.balance_eur ?? 0;
     },
@@ -112,7 +112,7 @@ export function CreditManagerCard({ companyId }: Props) {
     queryKey: wallets[1].queryKey,
     queryFn: async () => {
       const { data } = await supabase
-        .from("ai_credits" as never).select("balance_eur")
+        .from("ai_credits").select("balance_eur")
         .eq("company_id", companyId).maybeSingle();
       return (data as { balance_eur: number } | null)?.balance_eur ?? 0;
     },
@@ -123,7 +123,7 @@ export function CreditManagerCard({ companyId }: Props) {
     queryKey: wallets[2].queryKey,
     queryFn: async () => {
       const { data } = await supabase
-        .from("whatsapp_credits" as never).select("balance_eur")
+        .from("whatsapp_credits").select("balance_eur")
         .eq("company_id", companyId).maybeSingle();
       return (data as { balance_eur: number } | null)?.balance_eur ?? 0;
     },
@@ -134,7 +134,7 @@ export function CreditManagerCard({ companyId }: Props) {
     queryKey: wallets[3].queryKey,
     queryFn: async () => {
       const { data } = await supabase
-        .from("render_credits" as never).select("balance")
+        .from("render_credits").select("balance")
         .eq("company_id", companyId).maybeSingle();
       return (data as { balance: number } | null)?.balance ?? 0;
     },
@@ -166,7 +166,7 @@ export function CreditManagerCard({ companyId }: Props) {
         }
         // SELECT current balance
         const { data: current } = await supabase
-          .from("render_credits" as never)
+          .from("render_credits")
           .select("balance, total_purchased, total_used")
           .eq("company_id", companyId)
           .maybeSingle();
@@ -180,7 +180,7 @@ export function CreditManagerCard({ companyId }: Props) {
 
         // Upsert: se la riga non esiste, creiamo con balance = newBalance
         const { error } = await supabase
-          .from("render_credits" as never)
+          .from("render_credits")
           .upsert({
             company_id: companyId,
             balance: newBalance,

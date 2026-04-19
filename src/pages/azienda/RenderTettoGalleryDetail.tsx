@@ -33,10 +33,10 @@ export default function RenderTettoGalleryDetail() {
     queryFn: async () => {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
-        .from("render_tetto_sessions" as never)
+        .from("render_tetto_sessions")
         .select("*")
-        .eq("id" as never, id as never)
-        .eq("company_id" as never, companyId as never)
+        .eq("id", id)
+        .eq("company_id", companyId)
         .single();
       if (error) throw error;
       return data as {

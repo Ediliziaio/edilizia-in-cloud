@@ -55,10 +55,10 @@ export default function RenderTettoHub() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("render_tetto_sessions" as never)
+        .from("render_tetto_sessions")
         .select("id, status, original_photo_url, result_urls, config, created_at")
-        .eq("company_id" as never, companyId as never)
-        .order("created_at" as never, { ascending: false })
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw error;
       return (data ?? []) as {

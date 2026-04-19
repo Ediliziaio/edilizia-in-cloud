@@ -121,7 +121,7 @@ export default function RenderBagnoNew() {
 
       // 2. Crea sessione render_bagno_sessions
       const { data: sess, error: sessErr } = await supabase
-        .from("render_bagno_sessions" as never)
+        .from("render_bagno_sessions")
         .insert({
           company_id: companyId,
           user_id: user.id,
@@ -131,7 +131,7 @@ export default function RenderBagnoNew() {
           tipo_intervento: config.tipo_intervento,
           contact_id: contactId,
           opportunity_id: opportunityId,
-        } as never)
+        })
         .select("id")
         .single();
       if (sessErr || !sess) throw new Error("Creazione sessione fallita");
@@ -153,9 +153,9 @@ export default function RenderBagnoNew() {
 
         // Update session status
         await supabase
-          .from("render_bagno_sessions" as never)
-          .update({ stato: "analyzing" } as never)
-          .eq("id" as never, sid as never);
+          .from("render_bagno_sessions")
+          .update({ stato: "analyzing" })
+          .eq("id", sid);
 
         try {
           const { data: { session: authSession } } = await supabase.auth.getSession();
@@ -177,19 +177,19 @@ export default function RenderBagnoNew() {
 
             // Save analysis to session
             await supabase
-              .from("render_bagno_sessions" as never)
+              .from("render_bagno_sessions")
               .update({
                 stato: "analysis_done",
                 analisi_bagno: analysisData,
-              } as never)
-              .eq("id" as never, sid as never);
+              })
+              .eq("id", sid);
           }
         } catch (err) {
           setAnalysisError(`Analisi AI non disponibile: ${String(err)}`);
           await supabase
-            .from("render_bagno_sessions" as never)
-            .update({ stato: "analysis_done" } as never)
-            .eq("id" as never, sid as never);
+            .from("render_bagno_sessions")
+            .update({ stato: "analysis_done" })
+            .eq("id", sid);
         } finally {
           setAnalysisLoading(false);
         }
@@ -213,12 +213,12 @@ export default function RenderBagnoNew() {
 
     // Save latest config to session
     await supabase
-      .from("render_bagno_sessions" as never)
+      .from("render_bagno_sessions")
       .update({
         configurazione: config,
         tipo_intervento: config.tipo_intervento,
-      } as never)
-      .eq("id" as never, sessionId as never);
+      })
+      .eq("id", sessionId);
 
     // Invoke generate-bathroom-render
     const { data: fnData, error: fnErr } = await supabase.functions.invoke(
@@ -276,9 +276,9 @@ export default function RenderBagnoNew() {
       }
 
       const { data: sess } = await supabase
-        .from("render_bagno_sessions" as never)
+        .from("render_bagno_sessions")
         .select("stato, render_result_url")
-        .eq("id" as never, sid as never)
+        .eq("id", sid)
         .single();
 
       const s = sess as { stato: string; render_result_url: string | null } | null;
@@ -317,12 +317,12 @@ export default function RenderBagnoNew() {
     setSavingGallery(true);
     try {
       const { error } = await supabase
-        .from("render_bagno_sessions" as never)
+        .from("render_bagno_sessions")
         .update({
           salvato_in_galleria: true,
           galleria_titolo: `Render bagno ${new Date().toLocaleDateString("it-IT")}`,
-        } as never)
-        .eq("id" as never, sessionId as never);
+        } )
+        .eq("id", sessionId);
       if (error) throw error;
       setSavedToGallery(true);
       toast.success("Render salvato in galleria!");
