@@ -614,8 +614,9 @@ function AxisFormDialog({
 
         <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium">Nome</label>
+            <label htmlFor="axis-nome" className="text-sm font-medium">Nome</label>
             <Input
+              id="axis-nome"
               value={nome}
               onChange={(e) => {
                 setNome(e.target.value);
@@ -628,8 +629,9 @@ function AxisFormDialog({
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Codice</label>
+            <label htmlFor="axis-codice" className="text-sm font-medium">Codice</label>
             <Input
+              id="axis-codice"
               value={codice}
               onChange={(e) => {
                 setCodice(slugifyCodice(e.target.value));
@@ -637,26 +639,29 @@ function AxisFormDialog({
               }}
               placeholder="apertura"
               disabled={editing}
+              aria-invalid={!!conflict}
+              aria-describedby={conflict ? "axis-codice-error" : "axis-codice-hint"}
             />
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p id="axis-codice-hint" className="text-xs text-muted-foreground mt-0.5">
               Identificatore snake_case usato nelle selezioni del preventivo.
             </p>
             {conflict ? (
-              <p className="text-xs text-destructive mt-1">{conflict}</p>
+              <p id="axis-codice-error" className="text-xs text-destructive mt-1">{conflict}</p>
             ) : null}
           </div>
           <div>
-            <label className="text-sm font-medium">Descrizione (opzionale)</label>
+            <label htmlFor="axis-descrizione" className="text-sm font-medium">Descrizione (opzionale)</label>
             <Textarea
+              id="axis-descrizione"
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
               rows={2}
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Tipo</label>
+            <label htmlFor="axis-tipo" className="text-sm font-medium">Tipo</label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as AxisTipo)}>
-              <SelectTrigger>
+              <SelectTrigger id="axis-tipo">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -807,8 +812,9 @@ function ValueFormDialog({
 
         <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium">Label visibile</label>
+            <label htmlFor="val-label" className="text-sm font-medium">Label visibile</label>
             <Input
+              id="val-label"
               value={label}
               onChange={(e) => {
                 setLabel(e.target.value);
@@ -821,8 +827,9 @@ function ValueFormDialog({
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Codice valore</label>
+            <label htmlFor="val-codice" className="text-sm font-medium">Codice valore</label>
             <Input
+              id="val-codice"
               value={valore}
               onChange={(e) => {
                 setValore(slugifyCodice(e.target.value));
@@ -830,14 +837,17 @@ function ValueFormDialog({
               }}
               disabled={editing}
               placeholder="pvc_bianco"
+              aria-invalid={!!conflict}
+              aria-describedby={conflict ? "val-codice-error" : undefined}
             />
             {conflict ? (
-              <p className="text-xs text-destructive mt-1">{conflict}</p>
+              <p id="val-codice-error" className="text-xs text-destructive mt-1">{conflict}</p>
             ) : null}
           </div>
           <div>
-            <label className="text-sm font-medium">Descrizione (opzionale)</label>
+            <label htmlFor="val-descrizione" className="text-sm font-medium">Descrizione (opzionale)</label>
             <Textarea
+              id="val-descrizione"
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
               rows={2}
@@ -869,12 +879,12 @@ function ValueFormDialog({
           <div className="border rounded-md p-3 space-y-2 bg-muted/30">
             <div className="text-sm font-medium">Maggiorazione</div>
             <div>
-              <label className="text-xs text-muted-foreground">Tipo</label>
+              <label htmlFor="val-mag-tipo" className="text-xs text-muted-foreground">Tipo</label>
               <Select
                 value={magTipo}
                 onValueChange={(v) => setMagTipo(v as MaggiorazioneTipo)}
               >
-                <SelectTrigger className="h-8">
+                <SelectTrigger id="val-mag-tipo" className="h-8">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -889,10 +899,11 @@ function ValueFormDialog({
             {magTipo !== "none" ? (
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-muted-foreground">
+                  <label htmlFor="val-mag-vendita" className="text-xs text-muted-foreground">
                     Valore vendita
                   </label>
                   <Input
+                    id="val-mag-vendita"
                     type="number"
                     step="0.01"
                     value={magValore}
@@ -901,10 +912,11 @@ function ValueFormDialog({
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">
+                  <label htmlFor="val-mag-acquisto" className="text-xs text-muted-foreground">
                     Valore acquisto
                   </label>
                   <Input
+                    id="val-mag-acquisto"
                     type="number"
                     step="0.01"
                     value={magAcquisto}

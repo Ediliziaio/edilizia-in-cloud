@@ -220,15 +220,11 @@ export function VersioniPreventivo({ quoteId }: VersioniPreventivoProps) {
     queryKey: ["quote_versions", quoteId],
     enabled: !!quoteId,
     queryFn: async () => {
-      // `quote_versions` non è nelle generated types di Supabase: usiamo il
-      // pattern `never` già in uso altrove nel progetto (vedi useFamilyPricing)
-      // invece di un `as any` cieco, così TypeScript verifica almeno il nome
-      // del metodo .from/.select.
-      const { data, error: qErr } = await (supabase as never as typeof supabase)
-        .from("quote_versions" as never)
+      const { data, error: qErr } = await supabase
+        .from("quote_versions")
         .select("id,version_num,note,created_at,created_by,snapshot")
-        .eq("quote_id" as never, quoteId)
-        .order("version_num" as never, { ascending: false });
+        .eq("quote_id", quoteId)
+        .order("version_num", { ascending: false });
 
       if (qErr) throw qErr;
       return (data ?? []) as QuoteVersion[];

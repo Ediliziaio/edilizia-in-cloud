@@ -327,12 +327,12 @@ export function FamilyEditor() {
                     />
                   </div>
                   <div>
-                    <Label>Categoria</Label>
+                    <Label htmlFor="f-categoria">Categoria</Label>
                     <Select
                       value={categoriaId}
                       onValueChange={(v) => setCategoriaId(v)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="f-categoria">
                         <SelectValue placeholder="Nessuna" />
                       </SelectTrigger>
                       <SelectContent>
@@ -346,8 +346,9 @@ export function FamilyEditor() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Descrizione</Label>
+                    <Label htmlFor="f-descrizione">Descrizione</Label>
                     <Textarea
+                      id="f-descrizione"
                       value={descrizione}
                       onChange={(e) => setDescrizione(e.target.value)}
                       rows={2}
@@ -385,9 +386,9 @@ export function FamilyEditor() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Unità di misura</Label>
+                      <Label htmlFor="f-um">Unità di misura</Label>
                       <Select value={unitOfMeasure} onValueChange={setUnitOfMeasure}>
-                        <SelectTrigger>
+                        <SelectTrigger id="f-um">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -400,9 +401,9 @@ export function FamilyEditor() {
                       </Select>
                     </div>
                     <div>
-                      <Label>IVA %</Label>
+                      <Label htmlFor="f-iva">IVA %</Label>
                       <Select value={vatRate} onValueChange={setVatRate}>
-                        <SelectTrigger>
+                        <SelectTrigger id="f-iva">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -419,15 +420,17 @@ export function FamilyEditor() {
                   {modalita === "griglia" ? (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label>Etichetta asse X</Label>
+                        <Label htmlFor="f-griglia-x">Etichetta asse X</Label>
                         <Input
+                          id="f-griglia-x"
                           value={grigliaXLabel}
                           onChange={(e) => setGrigliaXLabel(e.target.value)}
                         />
                       </div>
                       <div>
-                        <Label>Etichetta asse Y</Label>
+                        <Label htmlFor="f-griglia-y">Etichetta asse Y</Label>
                         <Input
+                          id="f-griglia-y"
                           value={grigliaYLabel}
                           onChange={(e) => setGrigliaYLabel(e.target.value)}
                         />
@@ -477,8 +480,9 @@ export function FamilyEditor() {
                   </CardHeader>
                   <CardContent className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Prezzo vendita</Label>
+                      <Label htmlFor="f-prezzo-vendita">Prezzo vendita</Label>
                       <Input
+                        id="f-prezzo-vendita"
                         type="number"
                         step="0.01"
                         value={prezzoVendita}
@@ -486,8 +490,9 @@ export function FamilyEditor() {
                       />
                     </div>
                     <div>
-                      <Label>Prezzo acquisto</Label>
+                      <Label htmlFor="f-prezzo-acquisto">Prezzo acquisto</Label>
                       <Input
+                        id="f-prezzo-acquisto"
                         type="number"
                         step="0.01"
                         value={prezzoAcquisto}
@@ -530,9 +535,9 @@ export function FamilyEditor() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <Label>Tariffa posa</Label>
+                    <Label htmlFor="f-posa-tariffa">Tariffa posa</Label>
                     <Select value={posaTariffaId} onValueChange={setPosaTariffaId}>
-                      <SelectTrigger>
+                      <SelectTrigger id="f-posa-tariffa">
                         <SelectValue placeholder="Nessuna" />
                       </SelectTrigger>
                       <SelectContent>
@@ -547,8 +552,9 @@ export function FamilyEditor() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Quantità default</Label>
+                    <Label htmlFor="f-posa-quantita">Quantità default</Label>
                     <Input
+                      id="f-posa-quantita"
                       type="number"
                       step="0.01"
                       value={posaQuantita}

@@ -56,9 +56,9 @@ function useBundleGrids(familyIds: string[]) {
     queryKey: ["bundle-grids", companyId, [...familyIds].sort().join(",")],
     enabled: !!companyId && familyIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase.from("listino_griglia" as never)
+      const { data, error } = await supabase.from("listino_griglia")
         .select("family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
-        .in("family_id" as never, familyIds);
+        .in("family_id", familyIds);
       if (error) {
         logger.error("[useBundleGrids] errore caricamento griglia", error);
         return new Map<string, GridPoint[]>();
