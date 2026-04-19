@@ -31,6 +31,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,6 +65,7 @@ import WarehouseListView from "@/components/warehouse/WarehouseListView";
 import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
 import { WarehouseMapView } from "@/components/warehouse/WarehouseMapView";
 import WarehouseLottiTab from "@/components/warehouse/WarehouseLottiTab";
+import { WarehouseDDTTab } from "@/components/warehouse/WarehouseDDTTab";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { StockItem, WarehouseItem } from "@/types/warehouse";
@@ -401,6 +403,10 @@ export default function Warehouse() {
                     <Package className="h-4 w-4" />
                     <span className="hidden sm:inline">Lotti</span>
                   </TabsTrigger>
+                  <TabsTrigger value="ddt" className="gap-1.5">
+                    <FileText className="h-4 w-4" />
+                    <span className="hidden sm:inline">DDT</span>
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
 
@@ -584,7 +590,9 @@ export default function Warehouse() {
       </Card>
 
       {/* Content based on view mode */}
-      {viewMode === "lotti" ? (
+      {viewMode === "ddt" ? (
+        <WarehouseDDTTab warehouseFilter={warehouseFilter} />
+      ) : viewMode === "lotti" ? (
         <WarehouseLottiTab />
       ) : viewMode === "stock" ? (
         <WarehouseStockTab />

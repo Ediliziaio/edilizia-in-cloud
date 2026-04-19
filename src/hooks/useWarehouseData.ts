@@ -8,8 +8,9 @@ import { format, startOfWeek, endOfWeek, addWeeks } from "date-fns";
 import { exportToCSV as exportCsvUtil } from "@/lib/csvExport";
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
+import { useWarehouses } from "@/hooks/useWarehouses";
 
-export type ViewMode = "list" | "kanban" | "calendar" | "stock" | "lotti";
+export type ViewMode = "list" | "kanban" | "calendar" | "stock" | "lotti" | "ddt";
 export type GroupBy = "order" | "date" | "status" | "supplier";
 export type QuickFilter = "all" | "active" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
 
@@ -31,6 +32,16 @@ export function useWarehouseData() {
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
   const [page, setPage] = useState(0);
+
+  // Pre-selezione automatica del magazzino quando l'utente ha esattamente
+  // un magazzino visibile (es. magazziniere assegnato a un solo warehouse).
+  // Non sovrascrive MAI una selezione già effettuata dall'utente.
+  const { warehouses: visibleWarehouses } = useWarehouses(true);
+  useEffect(() => {
+    if (warehouseFilter === null && visibleWarehouses.length === 1) {
+      setWarehouseFilter(visibleWarehouses[0].id);
+    }
+  }, [visibleWarehouses, warehouseFilter]);
 
   // Reset page when filters change
   const setSearchQueryWithReset = useCallback((v: string) => { setSearchQuery(v); setPage(0); }, []);

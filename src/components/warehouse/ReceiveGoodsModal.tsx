@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useGoodsReceipt } from '@/hooks/warehouse/useGoodsReceipt';
+import { useWarehouses } from '@/hooks/useWarehouses';
 import { Camera, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
@@ -13,6 +14,14 @@ interface ReceiveGoodsModalProps {
   onOpenChange: (open: boolean) => void;
   orderItemId: string;
   orderItemName?: string;
+  /**
+   * Magazzino di destinazione della ricezione.
+   * Se omesso, viene pre-selezionato:
+   *  - il magazzino predefinito della company (admin)
+   *  - l'unico magazzino assegnato (magazziniere single-warehouse)
+   * Se l'utente ha più magazzini, può sceglierlo dalla dropdown in dialog.
+   */
+  warehouseId?: string;
 }
 
 export function ReceiveGoodsModal({
@@ -20,8 +29,10 @@ export function ReceiveGoodsModal({
   onOpenChange,
   orderItemId,
   orderItemName = 'Articolo',
+  warehouseId: warehouseIdProp,
 }: ReceiveGoodsModalProps) {
   const { createGoodsReceipt, isCreating, uploadProgress } = useGoodsReceipt();
+  const { warehouses, defaultWarehouse } = useWarehouses(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +46,21 @@ export function ReceiveGoodsModal({
   const [ddtPhotoPreview, setDdtPhotoPreview] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [streamRef, setStreamRef] = useState<MediaStream | null>(null);
+
+  // Magazzino destinazione: prop esplicita > default company > primo visibile.
+  const initialWarehouseId = useMemo(
+    () => warehouseIdProp ?? defaultWarehouse?.id ?? warehouses[0]?.id ?? '',
+    [warehouseIdProp, defaultWarehouse?.id, warehouses],
+  );
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(initialWarehouseId);
+
+  // Quando i magazzini arrivano (fetch async) e l'utente non ha ancora scelto,
+  // pre-selezioniamo quello calcolato. Non sovrascrive mai una scelta esplicita.
+  useEffect(() => {
+    if (!selectedWarehouseId && initialWarehouseId) {
+      setSelectedWarehouseId(initialWarehouseId);
+    }
+  }, [initialWarehouseId, selectedWarehouseId]);
 
   const startCamera = async () => {
     try {
@@ -95,10 +121,15 @@ export function ReceiveGoodsModal({
       toast.error('Quantità non valida — deve essere maggiore di zero');
       return;
     }
+    if (!selectedWarehouseId) {
+      toast.error('Seleziona il magazzino di destinazione');
+      return;
+    }
 
     try {
       await createGoodsReceipt({
         order_item_id: orderItemId,
+        warehouse_id: selectedWarehouseId,
         quantity_received: qty,
         ddt_number: ddtNumber || undefined,
         ddt_photo: ddtPhoto || undefined,
@@ -130,6 +161,28 @@ export function ReceiveGoodsModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Magazzino destinazione (se utente ha più di 1 magazzino visibile) */}
+          {warehouses.length > 1 && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Magazzino destinazione *</label>
+              <Select
+                value={selectedWarehouseId}
+                onValueChange={setSelectedWarehouseId}
+              >
+                <SelectTrigger disabled={isCreating}>
+                  <SelectValue placeholder="Scegli magazzino…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Quantità */}
           <div className="space-y-2">
             <label className="block text-sm font-medium">Quantità ricevuta *</label>
@@ -273,7 +326,10 @@ export function ReceiveGoodsModal({
             >
               Annulla
             </Button>
-            <Button type="submit" disabled={isCreating || !quantityReceived}>
+            <Button
+              type="submit"
+              disabled={isCreating || !quantityReceived || !selectedWarehouseId}
+            >
               {isCreating ? 'Registrando...' : '✓ Registra ricezione'}
             </Button>
           </div>

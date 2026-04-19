@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 
 export interface Warehouse {
@@ -29,27 +30,57 @@ export type WarehouseUpdate = Partial<WarehouseInsert>;
 const QUERY_KEY = "warehouses";
 
 export function useWarehouses(onlyActive = true) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
+  const userId = user?.id;
+  const { isAdmin, isLoading: isLoadingPermissions } = usePermissions();
   const queryClient = useQueryClient();
 
   const { data: warehouses = [], isLoading, error } = useQuery<Warehouse[]>({
-    queryKey: [QUERY_KEY, companyId, onlyActive],
-    enabled: !!companyId,
+    // Include isAdmin e userId nella queryKey: cambiare utente / ruolo → refetch.
+    queryKey: [QUERY_KEY, companyId, onlyActive, isAdmin, userId],
+    enabled: !!companyId && !!userId && !isLoadingPermissions,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      let q = supabase
+      // Admin: vede tutti i magazzini della company (comportamento originale).
+      if (isAdmin) {
+        let q = supabase
+          .from("warehouses")
+          .select("*")
+          .eq("company_id", companyId!)
+          .order("position", { ascending: true })
+          .order("name", { ascending: true });
+
+        if (onlyActive) q = q.eq("is_active", true);
+
+        const { data, error } = await q;
+        if (error) throw error;
+        return (data ?? []) as Warehouse[];
+      }
+
+      // Non-admin: intersezione con warehouse_assignments (active=true).
+      // `warehouse_assignments` non è ancora nei tipi auto-generati: usiamo cast locale.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = supabase as any;
+      let q = client
         .from("warehouses")
-        .select("*")
+        .select("*, warehouse_assignments!inner(user_id, active)")
         .eq("company_id", companyId!)
+        .eq("warehouse_assignments.user_id", userId!)
+        .eq("warehouse_assignments.active", true)
         .order("position", { ascending: true })
         .order("name", { ascending: true });
-
       if (onlyActive) q = q.eq("is_active", true);
 
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as Warehouse[];
+
+      // Rimuoviamo il campo joined prima di restituire (Warehouse[] pulito).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []).map((w: any) => {
+        const { warehouse_assignments: _warehouse_assignments, ...rest } = w;
+        return rest as Warehouse;
+      });
     },
   });
 

@@ -6,6 +6,10 @@ import { toast } from 'sonner';
 
 export interface CreateGoodsReceiptInput {
   order_item_id: string;
+  /** ID del magazzino di destinazione. Obbligatorio post-migration Magazzino V2. */
+  warehouse_id: string;
+  /** Opzionale: lega questa ricezione a una testata DDT già esistente. */
+  ddt_ricezione_id?: string;
   supplier_id?: string;
   quantity_received: number;
   ddt_number?: string;
@@ -54,21 +58,30 @@ export function useGoodsReceipt() {
       }
 
       // Create goods receipt
+      // Nota: warehouse_id + ddt_ricezione_id sono colonne aggiunte dalla
+      // migration 20260921000001. Finché types.ts non è rigenerato, costruiamo
+      // il payload dinamicamente e passiamo via cast per permettere la build.
       setUploadProgress(95);
+      const receiptPayload: Record<string, unknown> = {
+        order_item_id: input.order_item_id,
+        warehouse_id: input.warehouse_id,
+        company_id: effectiveCompany.id,
+        supplier_id: input.supplier_id || null,
+        quantity_received: input.quantity_received,
+        ddt_number: input.ddt_number || null,
+        ddt_photo_url,
+        quality_check_status: input.quality_check_status,
+        quality_notes: input.quality_notes || null,
+        notes: input.notes || null,
+        received_by: user.data.user.id,
+      };
+      if (input.ddt_ricezione_id) {
+        receiptPayload.ddt_ricezione_id = input.ddt_ricezione_id;
+      }
       const { data: receipt, error: insertError } = await supabase
         .from('goods_receipts')
-        .insert({
-          order_item_id: input.order_item_id,
-          company_id: effectiveCompany.id,
-          supplier_id: input.supplier_id || null,
-          quantity_received: input.quantity_received,
-          ddt_number: input.ddt_number || null,
-          ddt_photo_url,
-          quality_check_status: input.quality_check_status,
-          quality_notes: input.quality_notes || null,
-          notes: input.notes || null,
-          received_by: user.data.user.id,
-        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .insert(receiptPayload as any)
         .select()
         .single();
 

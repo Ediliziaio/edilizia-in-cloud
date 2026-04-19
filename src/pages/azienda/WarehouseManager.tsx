@@ -11,6 +11,7 @@ import {
   Building2,
   MapPin,
   Car,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useWarehouses, type Warehouse, type WarehouseInsert } from "@/hooks/useWarehouses";
+import { WarehouseAssignmentsDialog } from "@/components/warehouse/WarehouseAssignmentsDialog";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   main: <Building2 className="h-4 w-4" />,
@@ -98,6 +100,7 @@ export default function WarehouseManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<WarehouseInsert>(emptyForm());
   const [deactivateTarget, setDeactivateTarget] = useState<Warehouse | null>(null);
+  const [assignTarget, setAssignTarget] = useState<Warehouse | null>(null);
 
   const openCreate = () => {
     setEditingId(null);
@@ -216,10 +219,19 @@ export default function WarehouseManager() {
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-2 border-t">
+                <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
                   <Button variant="outline" size="sm" onClick={() => openEdit(w)}>
                     <Pencil className="h-3.5 w-3.5 mr-1" />
                     Modifica
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAssignTarget(w)}
+                    title="Gestisci magazzinieri assegnati a questo magazzino"
+                  >
+                    <Users className="h-3.5 w-3.5 mr-1" />
+                    Magazzinieri
                   </Button>
                   {!w.is_default && w.is_active && (
                     <Button
@@ -365,6 +377,16 @@ export default function WarehouseManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Assign users dialog */}
+      {assignTarget && (
+        <WarehouseAssignmentsDialog
+          warehouseId={assignTarget.id}
+          warehouseName={assignTarget.name}
+          open={!!assignTarget}
+          onOpenChange={(v) => !v && setAssignTarget(null)}
+        />
+      )}
 
       {/* Deactivate confirm */}
       <AlertDialog
