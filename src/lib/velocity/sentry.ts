@@ -71,7 +71,7 @@ export function initSentry(): void {
   } catch (e) {
     // Sentry init fallito: non blocchiamo l'app.
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
+       
       console.warn("[velocity] Sentry init skipped:", e);
     }
   }
@@ -89,7 +89,7 @@ export function captureVelocityError(
 ): void {
   if (!initialized) {
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
+       
       console.warn(`[velocity:${where}]`, error, extra ?? {});
     }
     return;
@@ -101,6 +101,43 @@ export function captureVelocityError(
     });
   } catch {
     /* noop — non si propaga un errore sul reporter di errori */
+  }
+}
+
+/**
+ * Traccia un evento di prodotto non-error (es. "wizard.generate.start",
+ * "wizard.generate.success", "quote.saved"). Implementato come Sentry
+ * breadcrumb: zero costo di rete finché non avviene un errore nella
+ * sessione — allora il breadcrumb trail arriva insieme all'exception,
+ * fornendo contesto puntuale su cosa stava facendo l'utente.
+ *
+ * In dev senza DSN: fa console.info, così lo sviluppatore vede gli
+ * eventi nel devtools senza dover configurare Sentry locale.
+ *
+ * Per metriche aggregate (% abbandoni per step, latenza media AI, etc.)
+ * l'ideale sarebbe integrare PostHog/Mixpanel — ma per avere *qualcosa*
+ * adesso, i breadcrumb Sentry visibili sulle exception sono il 80/20.
+ */
+export function captureVelocityEvent(
+  name: string,
+  data?: Record<string, unknown>,
+): void {
+  if (!initialized) {
+    if (import.meta.env.DEV) {
+       
+      console.info(`[velocity:event:${name}]`, data ?? {});
+    }
+    return;
+  }
+  try {
+    Sentry.addBreadcrumb({
+      category: "velocity",
+      message: name,
+      level: "info",
+      data,
+    });
+  } catch {
+    /* noop */
   }
 }
 

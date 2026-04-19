@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, type ReactNode } from "react";
+import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { captureVelocityEvent, captureVelocityError } from "@/lib/velocity/sentry";
 
 interface Misura {
   label: string;
@@ -125,6 +126,45 @@ export default function AIQuotePanel({
     setIsRecording(false);
   }, []);
 
+  // Cleanup su unmount: evita che timer + MediaRecorder + microfono rimangano
+  // attivi se il componente viene smontato durante una registrazione (es. utente
+  // naviga via durante i 90s). Senza questo, si ha memory leak + indicatore
+  // microfono browser che rimane acceso anche a preventivo chiuso.
+  //
+  // Emette anche un evento `preventivatore.ai.abandon` se lo stato NON è "idle"
+  // al momento dello smontaggio: significa che l'utente ha avviato il wizard
+  // e lo ha chiuso senza inserire le righe (proxy per churn rate UX).
+  //
+  // `statoRef` è usato per leggere lo stato corrente dentro il cleanup senza
+  // avere `stato` nel dependency array (altrimenti il cleanup girerebbe ad
+  // ogni cambio di stato, non solo su unmount).
+  const statoRef = useRef(stato);
+  useEffect(() => {
+    statoRef.current = stato;
+  }, [stato]);
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      const mr = mediaRecorderRef.current;
+      if (mr && mr.state !== "inactive") {
+        try {
+          mr.stream.getTracks().forEach((t) => t.stop());
+          mr.stop();
+        } catch {
+          // no-op: defensive — se stop() fallisce è perché già fermato
+        }
+      }
+      if (statoRef.current !== "idle") {
+        captureVelocityEvent("preventivatore.ai.abandon", {
+          last_stato: statoRef.current,
+        });
+      }
+    };
+  }, []);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -189,6 +229,14 @@ export default function AIQuotePanel({
       return;
     }
     setStato("generando");
+    const t0 = performance.now();
+    captureVelocityEvent("preventivatore.ai.generate.start", {
+      descrizione_len: descrizione.length,
+      misure_count: misure.length,
+      input_mode: activeTab, // "testo" | "voce"
+      tipo_lavoro: tipoLavoro ?? null,
+      piano_installazione: pianoInstallazione ?? null,
+    });
     try {
       const misureConvertite = misure
         .filter((m) => m.valore.trim() !== "")
@@ -209,14 +257,31 @@ export default function AIQuotePanel({
         },
       });
       if (error) throw new Error(error.message);
-      setRisultato(data.sezioni ?? []);
+      const sezioni: SezioneGenerata[] = data.sezioni ?? [];
+      setRisultato(sezioni);
       setAvvertenze(data.avvertenze ?? []);
       setNote(data.note ?? "");
       setStato("risultato");
+      const righeCount = sezioni.reduce((s, sez) => s + sez.righe.length, 0);
+      captureVelocityEvent("preventivatore.ai.generate.success", {
+        latency_ms: Math.round(performance.now() - t0),
+        sezioni_count: sezioni.length,
+        righe_count: righeCount,
+        avvertenze_count: (data.avvertenze ?? []).length,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Errore generazione";
       toast.error(msg);
       setStato("errore");
+      captureVelocityEvent("preventivatore.ai.generate.error", {
+        latency_ms: Math.round(performance.now() - t0),
+        message: msg,
+      });
+      // Log anche come error per tracciamento in Sentry (se configurato)
+      captureVelocityError("preventivatore.ai.generate", err, {
+        company_id: companyId,
+        descrizione_len: descrizione.length,
+      });
     }
   };
 
@@ -471,13 +536,23 @@ export default function AIQuotePanel({
               <div className="flex gap-2 pt-2">
                 <Button
                   onClick={() => {
+                    const righeTot = risultato.flatMap((s) => s.righe);
+                    const totale = righeTot.reduce(
+                      (sum, r) => sum + (r.unit_price ?? 0) * r.quantita,
+                      0,
+                    );
+                    captureVelocityEvent("preventivatore.ai.insert", {
+                      righe_count: righeTot.length,
+                      sezioni_count: risultato.length,
+                      totale_stimato: Math.round(totale * 100) / 100,
+                    });
                     onRigheGenerate(risultato);
                     setStato("idle");
                     setRisultato(null);
                     setDescrizione("");
                     setIsOpen(false);
                     toast.success(
-                      `${risultato.flatMap((s) => s.righe).length} righe aggiunte al preventivo`
+                      `${righeTot.length} righe aggiunte al preventivo`
                     );
                   }}
                   className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
@@ -487,6 +562,9 @@ export default function AIQuotePanel({
                 <Button
                   variant="outline"
                   onClick={() => {
+                    captureVelocityEvent("preventivatore.ai.regenerate", {
+                      descrizione_len: descrizione.length,
+                    });
                     setRisultato(null);
                     genera();
                   }}
@@ -497,6 +575,9 @@ export default function AIQuotePanel({
                 <Button
                   variant="outline"
                   onClick={() => {
+                    captureVelocityEvent("preventivatore.ai.discard", {
+                      righe_count: risultato.flatMap((s) => s.righe).length,
+                    });
                     setStato("idle");
                     setRisultato(null);
                   }}

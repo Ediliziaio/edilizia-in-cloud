@@ -12,6 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:critical": "vitest run src/test/logic/fatturazione.test.ts src/test/logic/preventivi.test.ts src/test/logic/banking.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e:ui": "playwright test --ui",
     "mobile:build": "VITE_APP_MODE=mobile vite build",
     "mobile:sync": "npx cap sync",
     "mobile:android": "npx cap open android",
@@ -112,6 +115,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
