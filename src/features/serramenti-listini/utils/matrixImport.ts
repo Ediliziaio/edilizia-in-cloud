@@ -270,7 +270,6 @@ export async function readFileToMatrix(file: File): Promise<(string | number | n
   }
 
   // Excel path
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
   const buffer = await file.arrayBuffer();

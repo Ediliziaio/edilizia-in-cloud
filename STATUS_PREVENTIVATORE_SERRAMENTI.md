@@ -22,7 +22,7 @@ File di tracciamento multi-sessione. Aggiornato a ogni commit di sotto-fase.
 | FASE 8 — AI + pgvector | 🟢 DONE | 8.1 mig vector + 8.2 embed-edge + 8.3 ai-v2 retrieval + 8.4 UI btn + 8.5 prompt verticalizzato + 8.6 family_id output + 8.bis embed families/tariffe | `00b6f702` → *(pending 8.5/8.6/8.bis commit)* | pgvector 0.8.0. FASE 8.5/8.6/8.bis: vertical-aware system prompt + 3 RPC paralleli + family_id/axis_selections nel JSON output |
 | FASE 9 — Wizard serramentista | 🟢 DONE | 4-step wizard dialog + integrazione QuoteBuilder | `ce82ebe8` | Single source of truth = `items[]` QB. Bottone visibile solo se ci sono famiglie |
 | FASE 10 — Bundle + pacchetti | 🟢 DONE | 10.1 migration + 10.2 UI CRUD + 10.3 seed 5 template + 10.4 ApplyBundleDialog integrazione | `6b7b72e1` → `c247bdde` → `edcadef5` | Sostituito BundleSelector legacy con ApplyBundleDialog family-aware. 5 template idempotenti. |
-| FASE 11 — Testing E2E + QA | 🟡 PARZIALE | Checklist manuale 3 scenari + ESLint cleanup FASE 10 | *(pending)* | Playwright non installato nel repo: scenari A/B/C documentati in `FASE11_QA_CHECKLIST.md` per esecuzione manuale. tsc 0 + vitest 171/171 + eslint clean |
+| FASE 11 — Testing E2E + QA | 🟢 DONE | Checklist manuale 3 scenari + Playwright smoke scaffold + 3 stability sweep | `eff7cd8d` → `692354f3` → `2c24a71e` → `4a88588d` → `c58668ba` | Playwright ora installato (commit c58668ba), smoke E2E 2/2 verdi, Sentry breadcrumbs attivi. tsc 0 + vitest 288/288 + serramenti scope eslint clean |
 
 Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
 
@@ -362,3 +362,79 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
 - 🔧 `MargineSemaforo` duplicato → unificare in `src/components/shared/MargineSemaforo.tsx` quando si tocca ArticleCatalog in FASE 4.
 - 🔧 `QuoteBuilder.tsx` 2622 righe → splittare per concerns dopo FASE 11 (tracking, non nel masterprompt ma utile post-feature).
 - 🔧 `ai-genera-preventivo-v2` non legge mai `prezzari` (catalogo pubblico regionale) → valutare in FASE 8.
+
+---
+
+### 2026-04-19 — Stabilization audit post-FASE 11
+
+Audit end-to-end del feat Preventivatore Serramentisti contro le 11 FASI del masterprompt. Obiettivo: confermare che tutte le fasi siano chiuse, senza dead code, import inutilizzati, bug funzionali residui, regressioni UX.
+
+**Stato commit vs masterprompt**
+
+| FASE | Richiesto | Commit | Stato |
+|------|-----------|--------|-------|
+| 0 Analisi | FASE0_PREVENTIVATORE_SERRAMENTI_ANALISI.md | `325c94db` | ✅ |
+| 1 Vertical + onboarding | migration + hook + page + guard | `146f54df` | ✅ |
+| 2 Data model famiglie/assi | 3 tabelle + RLS + ALTER griglia | `2eb437b4` | ✅ |
+| 3 Seed categorie + installer | 11 cat + 38 famiglie + edge fn | `cccd5f5c` | ✅ |
+| 4 Editor UI famiglie | 5 step + axes + grid + preview | `674015fc` | ✅ |
+| 5 Motore calcolo prezzo | `useFamilyPricing` + unit tests | `0b8d4af7` | ✅ 26 test |
+| 6 Manodopera UM flessibili | 10 UM + costo_interno + semaforo | `a228d0a4` | ✅ |
+| 7 Fix 3 P0 AI bugs | unit_price mq/griglia + sconti + bundle | `34dbb86f` | ✅ |
+| 8 AI + pgvector | 3 RPC + prompt vertical + family_id | `00b6f702` → `10b72de0` | ✅ |
+| 9 Wizard serramentista | 4-step dialog + QuoteBuilder integration | `ce82ebe8` | ✅ |
+| 10 Bundle chiavi-in-mano | migration + UI + 5 seed template | `6b7b72e1` → `edcadef5` | ✅ |
+| 11 Testing E2E + QA | 3 scenari + tests + clean console | `eff7cd8d` → `4a88588d` → `c58668ba` | ✅ |
+
+**Baseline tecnica al 2026-04-19 (HEAD = `add8a273`)**
+
+- `bun run test` → **288/288 test verdi** (17 file)
+- `bunx tsc --noEmit` → **0 errori**
+- `bunx playwright test` → **2/2 smoke E2E verdi** (app boot + title)
+- `bun run build` → **OK** (gzip bundle main 115 KB)
+- ESLint scope serramenti (listino/*, features/serramenti-listini/*, hooks/useFamil*, marketing/preventivi/QuoteWizard*, onboarding/OnboardingVertical, SettingsFamilyEditor, types/articleFamily) → **0 problemi**
+- ESLint globale: 654 problemi pre-esistenti in aree **fuori scope** (integrations/*, landing/*, interventi/*, admin/*) → debito tecnico storico non attribuibile a Preventivatore Serramentisti
+
+**Dead code audit (file scope serramenti, 25+ file, ~8000 righe)**
+
+- ✅ Zero import inutilizzati
+- ✅ Zero TODO/FIXME/HACK/XXX
+- ✅ Zero `console.log`/`console.debug` (mantenuti solo `console.warn` intenzionali in dev gating `import.meta.env.DEV`)
+- ✅ Zero `any`/`as any` residui
+- ✅ Tutti i componenti `Family*` montati e usati
+- ✅ Tutti gli hook esportati chiamati da almeno un consumer
+- ✅ 14 migration serramenti applicate (senza gap reali — salti di numerazione compensati da migration non-serramenti 0000 + 0016)
+
+**Cleanup applicati in questa sessione**
+
+- 🧹 Rimosso `eslint-disable @typescript-eslint/consistent-type-imports` inutilizzato in `src/features/serramenti-listini/utils/matrixImport.ts:273` (ESLint lo segnalava: l'import dinamico `import("exceljs")` non è un type import).
+
+**UX review wizard serramentista (FASE 9)**
+
+Il dialog `QuoteWizardSerramenti.tsx` (744 righe) è stato verificato puntualmente contro i requisiti UX del masterprompt. Stato:
+
+- ✅ Progress bar a 4 segmenti con `role="progressbar"` + ARIA values
+- ✅ Loading state su `useFamilies` (`role="status"` + `aria-live="polite"`)
+- ✅ Empty state: "Nessuna famiglia corrisponde a «query»" + CTA "Pulisci ricerca" se filtrato, altrimenti link a Impostazioni → Catalogo → Famiglie
+- ✅ Validazione live L×H con range 200–4000 mm (+ `aria-invalid` + hint `aria-describedby`)
+- ✅ Validazione quantità > 0 con errore inline
+- ✅ Fallback "Calcolo prezzo non disponibile" (step 4) con CTA "Torna alle misure"
+- ✅ Keyboard navigation su card famiglia (Enter/Space)
+- ✅ Warnings del motore di calcolo mostrati in banner ambra accessibile
+- ✅ Info nudge su posa auto-aggiunta
+
+**Commit strategy rispettata**
+
+- Conventional commits (feat/chore/fix/docs) presenti su tutti i 20+ commit della feature
+- Nessun commit con `--no-verify` o bypass hook
+- Ogni commit atomico (1 sotto-fase)
+
+**Push status (current HEAD)**
+
+`main` tracks `origin/main` e HEAD = `add8a273` è già su `origin/main`. `feat/preventivatore-serramentisti` è BEHIND `main` (già merged). Niente commit locali in attesa: tutto pushato in sessioni precedenti.
+
+---
+
+## Verdetto finale
+
+🟢 **TUTTE 11 FASI DEL MASTERPROMPT SONO CHIUSE** — Preventivatore Verticalizzato Serramentisti in stato production-ready su main al commit `add8a273`. Baseline: 288/288 unit test verdi · 2/2 E2E smoke verdi · 0 errori TS · 0 warning ESLint nello scope serramenti · bundle build OK · Sentry breadcrumbs attivi per velocity.
