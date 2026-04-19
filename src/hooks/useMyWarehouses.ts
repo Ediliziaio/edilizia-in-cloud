@@ -23,12 +23,19 @@ export interface MyWarehouseAssignment {
  *  - dalla UI per mostrare capability specifiche per magazzino
  *
  * RLS garantisce che l'utente veda solo le proprie assegnazioni (policy wa_self_view).
- *
- * Nota: la tabella `warehouse_assignments` è definita nella migration
- * 20260921000001_warehouse_assignments_and_rls.sql e potrebbe non essere ancora
- * presente nei tipi auto-generati. Usiamo cast locali per consentire la build
- * prima della rigenerazione di types.ts.
  */
+type WarehouseAssignmentRaw = {
+  id: string;
+  warehouse_id: string;
+  is_primary_manager: boolean | null;
+  can_receive_goods: boolean | null;
+  can_ship_to_site: boolean | null;
+  can_transfer: boolean | null;
+  can_count_inventory: boolean | null;
+  can_view_purchase_orders: boolean | null;
+  warehouse: { id: string; name: string; type: string } | null;
+};
+
 export function useMyWarehouses() {
   const { user } = useAuth();
   const userId = user?.id;
@@ -38,9 +45,7 @@ export function useMyWarehouses() {
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from("warehouse_assignments")
         .select(`
           id, warehouse_id, is_primary_manager,
@@ -53,8 +58,8 @@ export function useMyWarehouses() {
 
       if (error) throw error;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any) => ({
+      const rows = (data ?? []) as unknown as WarehouseAssignmentRaw[];
+      return rows.map((r) => ({
         id: r.id,
         warehouse_id: r.warehouse_id,
         warehouse_name: r.warehouse?.name ?? "",

@@ -55,9 +55,7 @@ export function WarehouseDDTTab({ warehouseFilter }: Props) {
     enabled: !!companyId,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      let q = client
+      let q = supabase
         .from("ddt_ricezione")
         .select(`
           id, numero_ddt, data_ricezione, stato, quantita_ricevuta,
@@ -74,7 +72,7 @@ export function WarehouseDDTTab({ warehouseFilter }: Props) {
 
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as DDTRow[];
+      return (data ?? []) as unknown as DDTRow[];
     },
   });
 

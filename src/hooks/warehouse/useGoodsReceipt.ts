@@ -58,11 +58,8 @@ export function useGoodsReceipt() {
       }
 
       // Create goods receipt
-      // Nota: warehouse_id + ddt_ricezione_id sono colonne aggiunte dalla
-      // migration 20260921000001. Finché types.ts non è rigenerato, costruiamo
-      // il payload dinamicamente e passiamo via cast per permettere la build.
       setUploadProgress(95);
-      const receiptPayload: Record<string, unknown> = {
+      const receiptPayload = {
         order_item_id: input.order_item_id,
         warehouse_id: input.warehouse_id,
         company_id: effectiveCompany.id,
@@ -74,14 +71,11 @@ export function useGoodsReceipt() {
         quality_notes: input.quality_notes || null,
         notes: input.notes || null,
         received_by: user.data.user.id,
+        ...(input.ddt_ricezione_id ? { ddt_ricezione_id: input.ddt_ricezione_id } : {}),
       };
-      if (input.ddt_ricezione_id) {
-        receiptPayload.ddt_ricezione_id = input.ddt_ricezione_id;
-      }
       const { data: receipt, error: insertError } = await supabase
         .from('goods_receipts')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .insert(receiptPayload as any)
+        .insert(receiptPayload)
         .select()
         .single();
 

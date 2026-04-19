@@ -59,10 +59,7 @@ export function useWarehouses(onlyActive = true) {
       }
 
       // Non-admin: intersezione con warehouse_assignments (active=true).
-      // `warehouse_assignments` non è ancora nei tipi auto-generati: usiamo cast locale.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      let q = client
+      let q = supabase
         .from("warehouses")
         .select("*, warehouse_assignments!inner(user_id, active)")
         .eq("company_id", companyId!)
@@ -76,9 +73,10 @@ export function useWarehouses(onlyActive = true) {
       if (error) throw error;
 
       // Rimuoviamo il campo joined prima di restituire (Warehouse[] pulito).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((w: any) => {
-        const { warehouse_assignments: _warehouse_assignments, ...rest } = w;
+      type RowWithAssignments = Warehouse & { warehouse_assignments?: unknown };
+      const rows = (data ?? []) as unknown as RowWithAssignments[];
+      return rows.map((w) => {
+        const { warehouse_assignments: _joined, ...rest } = w;
         return rest as Warehouse;
       });
     },

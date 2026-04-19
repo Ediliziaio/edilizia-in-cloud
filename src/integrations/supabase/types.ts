@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       active_impersonations: {
@@ -9393,6 +9368,7 @@ export type Database = {
           quantita_ricevuta: number
           source: string | null
           stato: string
+          warehouse_id: string
         }
         Insert: {
           company_id: string
@@ -9406,6 +9382,7 @@ export type Database = {
           quantita_ricevuta?: number
           source?: string | null
           stato?: string
+          warehouse_id: string
         }
         Update: {
           company_id?: string
@@ -9419,6 +9396,7 @@ export type Database = {
           quantita_ricevuta?: number
           source?: string | null
           stato?: string
+          warehouse_id?: string
         }
         Relationships: [
           {
@@ -9440,6 +9418,13 @@ export type Database = {
             columns: ["purchase_order_id"]
             isOneToOne: false
             referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ddt_ricezione_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -12759,6 +12744,7 @@ export type Database = {
           created_at: string | null
           ddt_number: string | null
           ddt_photo_url: string | null
+          ddt_ricezione_id: string | null
           id: string
           notes: string | null
           order_item_id: string
@@ -12769,12 +12755,14 @@ export type Database = {
           received_by: string
           supplier_id: string | null
           updated_at: string | null
+          warehouse_id: string
         }
         Insert: {
           company_id: string
           created_at?: string | null
           ddt_number?: string | null
           ddt_photo_url?: string | null
+          ddt_ricezione_id?: string | null
           id?: string
           notes?: string | null
           order_item_id: string
@@ -12785,12 +12773,14 @@ export type Database = {
           received_by: string
           supplier_id?: string | null
           updated_at?: string | null
+          warehouse_id: string
         }
         Update: {
           company_id?: string
           created_at?: string | null
           ddt_number?: string | null
           ddt_photo_url?: string | null
+          ddt_ricezione_id?: string | null
           id?: string
           notes?: string | null
           order_item_id?: string
@@ -12801,6 +12791,7 @@ export type Database = {
           received_by?: string
           supplier_id?: string | null
           updated_at?: string | null
+          warehouse_id?: string
         }
         Relationships: [
           {
@@ -12818,6 +12809,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "goods_receipts_ddt_ricezione_id_fkey"
+            columns: ["ddt_ricezione_id"]
+            isOneToOne: false
+            referencedRelation: "ddt_ricezione"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "goods_receipts_order_item_id_fkey"
             columns: ["order_item_id"]
             isOneToOne: false
@@ -12829,6 +12827,13 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipts_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -23887,6 +23892,109 @@ export type Database = {
           },
         ]
       }
+      render_credit_packs: {
+        Row: {
+          created_at: string
+          credits_amount: number
+          id: string
+          is_active: boolean
+          label: string
+          price_eur: number
+          price_per_credit_eur: number | null
+          sku: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credits_amount: number
+          id?: string
+          is_active?: boolean
+          label: string
+          price_eur: number
+          price_per_credit_eur?: number | null
+          sku: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credits_amount?: number
+          id?: string
+          is_active?: boolean
+          label?: string
+          price_eur?: number
+          price_per_credit_eur?: number | null
+          sku?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      render_credit_purchases: {
+        Row: {
+          company_id: string
+          created_at: string
+          credits_amount: number
+          credits_remaining: number
+          id: string
+          pack_id: string | null
+          price_paid_eur: number
+          price_per_credit_eur: number
+          purchased_at: string
+          status: string
+          stripe_payment_intent_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          credits_amount: number
+          credits_remaining: number
+          id?: string
+          pack_id?: string | null
+          price_paid_eur: number
+          price_per_credit_eur: number
+          purchased_at?: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          credits_amount?: number
+          credits_remaining?: number
+          id?: string
+          pack_id?: string | null
+          price_paid_eur?: number
+          price_per_credit_eur?: number
+          purchased_at?: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_credit_purchases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "render_credit_purchases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_credit_purchases_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "render_credit_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       render_credits: {
         Row: {
           balance: number
@@ -24416,6 +24524,54 @@ export type Database = {
         }
         Relationships: []
       }
+      render_provider_pricing: {
+        Row: {
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          fallback_cost_per_call_eur: number
+          id: string
+          model: string
+          notes: string | null
+          price_input_image_eur: number
+          price_input_token_eur: number
+          price_output_image_eur: number
+          price_output_token_eur: number
+          pricing_mode: string
+          provider_key: string
+        }
+        Insert: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          fallback_cost_per_call_eur?: number
+          id?: string
+          model: string
+          notes?: string | null
+          price_input_image_eur?: number
+          price_input_token_eur?: number
+          price_output_image_eur?: number
+          price_output_token_eur?: number
+          pricing_mode: string
+          provider_key: string
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          fallback_cost_per_call_eur?: number
+          id?: string
+          model?: string
+          notes?: string | null
+          price_input_image_eur?: number
+          price_input_token_eur?: number
+          price_output_image_eur?: number
+          price_output_token_eur?: number
+          pricing_mode?: string
+          provider_key?: string
+        }
+        Relationships: []
+      }
       render_sessions: {
         Row: {
           company_id: string
@@ -24424,11 +24580,16 @@ export type Database = {
           contact_id: string | null
           cost_billed: number | null
           cost_real: number | null
+          cost_real_api: number | null
+          cost_real_storage: number
+          cost_real_total: number | null
           created_at: string | null
           created_by: string | null
           error_message: string | null
           foto_analisi: Json | null
           id: string
+          margin_eur: number | null
+          meta: Json
           opportunity_id: string | null
           original_photo_url: string | null
           processing_completed_at: string | null
@@ -24438,8 +24599,13 @@ export type Database = {
           prompt_used: string | null
           prompt_version: string | null
           provider_key: string | null
+          provider_model: string | null
+          provider_request_id: string | null
+          provider_usage: Json | null
           result_urls: string[] | null
+          revenue_eur: number | null
           status: string
+          vertical: string | null
         }
         Insert: {
           company_id: string
@@ -24448,11 +24614,16 @@ export type Database = {
           contact_id?: string | null
           cost_billed?: number | null
           cost_real?: number | null
+          cost_real_api?: number | null
+          cost_real_storage?: number
+          cost_real_total?: number | null
           created_at?: string | null
           created_by?: string | null
           error_message?: string | null
           foto_analisi?: Json | null
           id?: string
+          margin_eur?: number | null
+          meta?: Json
           opportunity_id?: string | null
           original_photo_url?: string | null
           processing_completed_at?: string | null
@@ -24462,8 +24633,13 @@ export type Database = {
           prompt_used?: string | null
           prompt_version?: string | null
           provider_key?: string | null
+          provider_model?: string | null
+          provider_request_id?: string | null
+          provider_usage?: Json | null
           result_urls?: string[] | null
+          revenue_eur?: number | null
           status?: string
+          vertical?: string | null
         }
         Update: {
           company_id?: string
@@ -24472,11 +24648,16 @@ export type Database = {
           contact_id?: string | null
           cost_billed?: number | null
           cost_real?: number | null
+          cost_real_api?: number | null
+          cost_real_storage?: number
+          cost_real_total?: number | null
           created_at?: string | null
           created_by?: string | null
           error_message?: string | null
           foto_analisi?: Json | null
           id?: string
+          margin_eur?: number | null
+          meta?: Json
           opportunity_id?: string | null
           original_photo_url?: string | null
           processing_completed_at?: string | null
@@ -24486,8 +24667,13 @@ export type Database = {
           prompt_used?: string | null
           prompt_version?: string | null
           provider_key?: string | null
+          provider_model?: string | null
+          provider_request_id?: string | null
+          provider_usage?: Json | null
           result_urls?: string[] | null
+          revenue_eur?: number | null
           status?: string
+          vertical?: string | null
         }
         Relationships: [
           {
@@ -30597,6 +30783,99 @@ export type Database = {
           },
         ]
       }
+      warehouse_assignments: {
+        Row: {
+          active: boolean
+          assigned_at: string
+          assigned_by: string | null
+          can_count_inventory: boolean
+          can_receive_goods: boolean
+          can_ship_to_site: boolean
+          can_transfer: boolean
+          can_view_purchase_orders: boolean
+          company_id: string
+          created_at: string
+          id: string
+          is_primary_manager: boolean
+          notes: string | null
+          updated_at: string
+          user_id: string
+          warehouse_id: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string | null
+          can_count_inventory?: boolean
+          can_receive_goods?: boolean
+          can_ship_to_site?: boolean
+          can_transfer?: boolean
+          can_view_purchase_orders?: boolean
+          company_id: string
+          created_at?: string
+          id?: string
+          is_primary_manager?: boolean
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+          warehouse_id: string
+        }
+        Update: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string | null
+          can_count_inventory?: boolean
+          can_receive_goods?: boolean
+          can_ship_to_site?: boolean
+          can_transfer?: boolean
+          can_view_purchase_orders?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_primary_manager?: boolean
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_assignments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "warehouse_assignments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_assignments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warehouse_lot_batches: {
         Row: {
           company_id: string
@@ -32736,6 +33015,7 @@ export type Database = {
         Returns: Json
       }
       deduct_render_credit: { Args: { _company_id: string }; Returns: string }
+      deduct_render_credit_v2: { Args: { _company_id: string }; Returns: Json }
       deduct_whatsapp_credits_with_log: {
         Args: {
           p_campaign_id?: string
@@ -33172,6 +33452,7 @@ export type Database = {
       }
       get_my_company_id: { Args: never; Returns: string }
       get_my_cruscotto_dashboard: { Args: never; Returns: string }
+      get_my_warehouse_ids: { Args: never; Returns: string[] }
       get_order_company_id: { Args: { _order_id: string }; Returns: string }
       get_order_customer_id: { Args: { _order_id: string }; Returns: string }
       get_order_materials_history: {
@@ -33222,6 +33503,41 @@ export type Database = {
       }
       get_prima_nota_saldo: {
         Args: { p_company_id: string; p_from_date?: string; p_to_date?: string }
+        Returns: Json
+      }
+      get_render_economics_by_company: {
+        Args: { _from?: string; _to?: string }
+        Returns: {
+          avg_cost_per_render: number
+          avg_revenue_per_render: number
+          company_id: string
+          company_name: string
+          cost_total_eur: number
+          last_activity: string
+          margin_pct: number
+          margin_total_eur: number
+          renders_count: number
+          revenue_total_eur: number
+        }[]
+      }
+      get_render_economics_detail: {
+        Args: { _company_id: string; _from?: string; _to?: string }
+        Returns: {
+          cost_real_api: number
+          created_at: string
+          margin_eur: number
+          model: string
+          prompt_version: string
+          provider: string
+          result_url: string
+          revenue_eur: number
+          session_id: string
+          status: string
+          vertical: string
+        }[]
+      }
+      get_render_economics_global: {
+        Args: { _from?: string; _to?: string }
         Returns: Json
       }
       get_sales_forecast: {
@@ -33430,8 +33746,13 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: string
       }
+      is_assigned_to_warehouse: {
+        Args: { p_warehouse_id: string }
+        Returns: boolean
+      }
       is_scopri_plan: { Args: { p_company_id: string }; Returns: boolean }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
+      is_warehouse_user: { Args: never; Returns: boolean }
       list_company_members: {
         Args: never
         Returns: {
@@ -33899,9 +34220,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_role: [

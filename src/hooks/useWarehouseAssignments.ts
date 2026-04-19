@@ -49,11 +49,28 @@ export type CapabilityField =
  * Usato esclusivamente dal dialog admin (`WarehouseAssignmentsDialog`).
  *
  * RLS: solo company_admin/super_admin possono scrivere (policy wa_admin_manage).
- *
- * Nota: la tabella `warehouse_assignments` è definita nella migration
- * 20260921000001_warehouse_assignments_and_rls.sql. Usiamo cast locali per
- * consentire la build prima della rigenerazione di types.ts.
  */
+type AssignmentRowRaw = {
+  id: string;
+  warehouse_id: string;
+  user_id: string;
+  is_primary_manager: boolean | null;
+  can_receive_goods: boolean | null;
+  can_ship_to_site: boolean | null;
+  can_transfer: boolean | null;
+  can_count_inventory: boolean | null;
+  can_view_purchase_orders: boolean | null;
+  active: boolean | null;
+  assigned_at: string;
+  notes: string | null;
+  profile: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  } | null;
+};
+
 export function useWarehouseAssignments(warehouseId: string | null) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -66,9 +83,7 @@ export function useWarehouseAssignments(warehouseId: string | null) {
     enabled: !!warehouseId && !!companyId,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from("warehouse_assignments")
         .select(`
           id, warehouse_id, user_id,
@@ -83,8 +98,8 @@ export function useWarehouseAssignments(warehouseId: string | null) {
 
       if (error) throw error;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any): WarehouseAssignmentRow => {
+      const rows = (data ?? []) as unknown as AssignmentRowRaw[];
+      return rows.map((r): WarehouseAssignmentRow => {
         const first = r.profile?.first_name ?? "";
         const last = r.profile?.last_name ?? "";
         const fullName = `${first} ${last}`.trim();
@@ -118,8 +133,6 @@ export function useWarehouseAssignments(warehouseId: string | null) {
   const assignMutation = useMutation({
     mutationFn: async (input: AssignUserInput) => {
       if (!companyId) throw new Error("company_id mancante");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
 
       const payload = {
         company_id: companyId,
@@ -137,7 +150,7 @@ export function useWarehouseAssignments(warehouseId: string | null) {
       };
 
       // Upsert by UNIQUE(warehouse_id, user_id)
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from("warehouse_assignments")
         .upsert(payload, { onConflict: "warehouse_id,user_id" })
         .select()
@@ -167,9 +180,7 @@ export function useWarehouseAssignments(warehouseId: string | null) {
       field: CapabilityField;
       value: boolean;
     }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      const { error } = await client
+      const { error } = await supabase
         .from("warehouse_assignments")
         .update({ [field]: value })
         .eq("id", id);
@@ -187,9 +198,7 @@ export function useWarehouseAssignments(warehouseId: string | null) {
   // REVOKE: soft-delete (active=false), NON hard delete
   const revokeMutation = useMutation({
     mutationFn: async (assignmentId: string) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      const { error } = await client
+      const { error } = await supabase
         .from("warehouse_assignments")
         .update({ active: false })
         .eq("id", assignmentId);
