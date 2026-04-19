@@ -101,7 +101,7 @@ export function useWarehouses(onlyActive = true) {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
       toast.success("Magazzino creato");
     },
-    onError: (err: any) => toast.error("Errore creazione magazzino: " + err.message),
+    onError: (err: Error) => toast.error("Errore creazione magazzino: " + err.message),
   });
 
   // UPDATE
@@ -120,7 +120,7 @@ export function useWarehouses(onlyActive = true) {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
       toast.success("Magazzino aggiornato");
     },
-    onError: (err: any) => toast.error("Errore aggiornamento magazzino: " + err.message),
+    onError: (err: Error) => toast.error("Errore aggiornamento magazzino: " + err.message),
   });
 
   // SET DEFAULT (aggiorna quello precedente via DB unique index)
@@ -146,7 +146,7 @@ export function useWarehouses(onlyActive = true) {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
       toast.success("Magazzino predefinito aggiornato");
     },
-    onError: (err: any) => toast.error("Errore: " + err.message),
+    onError: (err: Error) => toast.error("Errore: " + err.message),
   });
 
   // DEACTIVATE (soft delete)
@@ -162,7 +162,7 @@ export function useWarehouses(onlyActive = true) {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
       toast.success("Magazzino disattivato");
     },
-    onError: (err: any) => toast.error("Errore: " + err.message),
+    onError: (err: Error) => toast.error("Errore: " + err.message),
   });
 
   return {

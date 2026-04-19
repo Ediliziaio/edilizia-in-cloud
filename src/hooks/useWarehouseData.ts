@@ -303,7 +303,12 @@ export function useWarehouseData() {
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
-      return (data || []).map((o: any) => ({
+      type OrderRow = {
+        id: string;
+        order_code: string | null;
+        customer: { first_name: string | null; last_name: string | null } | null;
+      };
+      return ((data || []) as unknown as OrderRow[]).map((o) => ({
         id: o.id,
         code: o.order_code || "N/A",
         customer: `${o.customer?.first_name || ""} ${o.customer?.last_name || ""}`.trim(),

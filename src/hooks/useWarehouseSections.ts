@@ -53,8 +53,8 @@ export function useWarehouseSections() {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.sectionsAll });
       toast.success("Sezione creata");
     },
-    onError: (e: any) => {
-      if (e?.message?.includes("duplicate")) {
+    onError: (e: Error) => {
+      if (e.message.includes("duplicate")) {
         toast.error("Esiste già una sezione con questo nome");
       } else {
         toast.error("Errore nella creazione della sezione");
