@@ -132,9 +132,13 @@ export function FamilyAxesEditor({ family }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h3 className="font-medium">Assi di variazione</h3>
-        <Button size="sm" onClick={() => setNewAxisOpen(true)}>
+        <Button
+          size="sm"
+          onClick={() => setNewAxisOpen(true)}
+          className="h-9 w-full sm:w-auto"
+        >
           <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
           Aggiungi asse
         </Button>
@@ -153,17 +157,19 @@ export function FamilyAxesEditor({ family }: Props) {
             const defaults = axis.values.filter((v) => v.is_default).length;
             return (
               <Card key={axis.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
+                <CardHeader className="pb-2 p-3 sm:p-4">
+                  <div className="flex items-start gap-1.5 sm:gap-2">
                     <button
                       type="button"
                       onClick={() =>
                         setExpandedAxisId(isExpanded ? null : axis.id)
                       }
-                      className="flex-1 text-left flex items-center gap-2 min-w-0"
+                      className="flex-1 text-left flex items-start gap-2 min-w-0 py-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      aria-expanded={isExpanded}
+                      aria-label={`${isExpanded ? "Chiudi" : "Apri"} asse ${axis.nome}`}
                     >
                       <ChevronRight
-                        className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                        className={`h-4 w-4 mt-0.5 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
                         aria-hidden="true"
                       />
                       <div className="flex-1 min-w-0">
@@ -173,65 +179,68 @@ export function FamilyAxesEditor({ family }: Props) {
                             ({axis.codice})
                           </span>
                         </CardTitle>
-                        <div className="flex gap-2 items-center mt-0.5">
-                          <Badge variant="outline" className="text-xs">
+                        <div className="flex flex-wrap gap-1.5 items-center mt-1">
+                          <Badge variant="outline" className="text-[10px] sm:text-xs">
                             {axis.tipo}
                           </Badge>
                           {axis.obbligatorio ? (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="text-[10px] sm:text-xs">
                               obbligatorio
                             </Badge>
                           ) : null}
                           <span className="text-xs text-muted-foreground">
                             {axis.values.length} {axis.values.length === 1 ? "valore" : "valori"}
-                            {axis.obbligatorio && defaults === 0 ? (
-                              <span className="ml-2 text-destructive">⚠ nessun default</span>
-                            ) : null}
                           </span>
+                          {axis.obbligatorio && defaults === 0 ? (
+                            <span className="text-xs text-destructive" role="alert">⚠ nessun default</span>
+                          ) : null}
                         </div>
                       </div>
                     </button>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-0.5 shrink-0">
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
                         onClick={() => moveAxis(axis, "up")}
                         disabled={idx === 0 || updateAxis.isPending}
                         aria-label="Sposta su"
+                        className="h-9 w-9"
                       >
                         <ChevronUp className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
                         onClick={() => moveAxis(axis, "down")}
                         disabled={idx === family.axes.length - 1 || updateAxis.isPending}
                         aria-label="Sposta giù"
+                        className="h-9 w-9"
                       >
                         <ChevronDown className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
                         onClick={() => setEditingAxis(axis)}
                         aria-label="Modifica asse"
+                        className="h-9 w-9"
                       >
-                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="text-destructive hover:text-destructive"
+                        className="h-9 w-9 text-destructive hover:text-destructive"
                         onClick={() => setAxisToDelete(axis)}
                         aria-label="Elimina asse"
                       >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
                 {isExpanded ? (
-                  <CardContent className="pt-0 space-y-2">
+                  <CardContent className="pt-0 p-3 sm:p-4 space-y-2">
                     {axis.values.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         Nessun valore. Aggiungi almeno un valore.
@@ -241,27 +250,27 @@ export function FamilyAxesEditor({ family }: Props) {
                         {axis.values.map((v) => (
                           <li
                             key={v.id}
-                            className="flex items-center gap-2 text-sm p-2 rounded-md border"
+                            className="flex items-start gap-1.5 sm:gap-2 text-sm p-2 rounded-md border"
                           >
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium truncate">{v.label}</span>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-medium break-words">{v.label}</span>
                                 <span className="text-xs text-muted-foreground">
                                   {v.valore}
                                 </span>
                                 {v.is_default ? (
-                                  <Badge variant="secondary" className="text-xs">
+                                  <Badge variant="secondary" className="text-[10px] sm:text-xs">
                                     default
                                   </Badge>
                                 ) : null}
                                 {!v.attivo ? (
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant="outline" className="text-[10px] sm:text-xs">
                                     non attivo
                                   </Badge>
                                 ) : null}
                               </div>
                               {v.maggiorazione_tipo !== "none" ? (
-                                <div className="text-xs text-muted-foreground mt-0.5">
+                                <div className="text-xs text-muted-foreground mt-0.5 break-words">
                                   +{v.maggiorazione_valore}
                                   {v.maggiorazione_tipo === "percentuale" ? "%" : " €"}
                                   {v.maggiorazione_tipo !== "percentuale"
@@ -273,23 +282,26 @@ export function FamilyAxesEditor({ family }: Props) {
                                 </div>
                               ) : null}
                             </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setEditingValue(v)}
-                              aria-label="Modifica valore"
-                            >
-                              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => setValueToDelete(v)}
-                              aria-label="Elimina valore"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                            </Button>
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setEditingValue(v)}
+                                aria-label="Modifica valore"
+                                className="h-9 w-9"
+                              >
+                                <Pencil className="h-4 w-4" aria-hidden="true" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-9 w-9 text-destructive hover:text-destructive"
+                                onClick={() => setValueToDelete(v)}
+                                aria-label="Elimina valore"
+                              >
+                                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                              </Button>
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -298,8 +310,9 @@ export function FamilyAxesEditor({ family }: Props) {
                       size="sm"
                       variant="outline"
                       onClick={() => setNewValueAxisId(axis.id)}
+                      className="h-9 w-full sm:w-auto"
                     >
-                      <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                      <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
                       Aggiungi valore
                     </Button>
                   </CardContent>
@@ -457,15 +470,15 @@ export function FamilyAxesEditor({ family }: Props) {
           if (!open) setAxisToDelete(null);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[96vw] sm:w-full sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare asse "{axisToDelete?.nome}"?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-base sm:text-lg">Eliminare asse "{axisToDelete?.nome}"?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs sm:text-sm">
               Verranno cancellati anche tutti i valori associati. Questa operazione è irreversibile.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteAxis.isPending}>Annulla</AlertDialogCancel>
+          <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+            <AlertDialogCancel disabled={deleteAxis.isPending} className="h-10 w-full sm:w-auto mt-0">Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!axisToDelete) return;
@@ -483,7 +496,7 @@ export function FamilyAxesEditor({ family }: Props) {
                 }
               }}
               disabled={deleteAxis.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-10 w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Elimina
             </AlertDialogAction>
@@ -499,15 +512,15 @@ export function FamilyAxesEditor({ family }: Props) {
           if (!open) setValueToDelete(null);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[96vw] sm:w-full sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare valore "{valueToDelete?.label}"?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-base sm:text-lg">Eliminare valore "{valueToDelete?.label}"?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs sm:text-sm">
               Il valore non sarà più disponibile nei nuovi preventivi. I preventivi storici restano invariati.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteAxisValue.isPending}>Annulla</AlertDialogCancel>
+          <AlertDialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+            <AlertDialogCancel disabled={deleteAxisValue.isPending} className="h-10 w-full sm:w-auto mt-0">Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!valueToDelete) return;
@@ -525,7 +538,7 @@ export function FamilyAxesEditor({ family }: Props) {
                 }
               }}
               disabled={deleteAxisValue.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-10 w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Elimina
             </AlertDialogAction>
@@ -591,7 +604,7 @@ function AxisFormDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-md"
+        className="w-[96vw] sm:w-full sm:max-w-md max-h-[94vh] overflow-y-auto"
         key={axis?.id ?? "new"}
         onOpenAutoFocus={() => {
           // inizializza stato al mount del content
@@ -613,14 +626,14 @@ function AxisFormDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>{editing ? "Modifica asse" : "Nuovo asse"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica asse" : "Nuovo asse"}</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Gli assi rappresentano le dimensioni di variazione della famiglia (es. "Apertura", "Vetro", "Materiale").
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          <div>
+          <div className="space-y-1.5">
             <label htmlFor="axis-nome" className="text-sm font-medium">Nome</label>
             <Input
               id="axis-nome"
@@ -633,9 +646,10 @@ function AxisFormDialog({
               }}
               placeholder="es. Apertura"
               autoFocus
+              className="h-10"
             />
           </div>
-          <div>
+          <div className="space-y-1.5">
             <label htmlFor="axis-codice" className="text-sm font-medium">Codice</label>
             <Input
               id="axis-codice"
@@ -648,27 +662,29 @@ function AxisFormDialog({
               disabled={editing}
               aria-invalid={!!conflict}
               aria-describedby={conflict ? "axis-codice-error" : "axis-codice-hint"}
+              className="h-10 font-mono"
             />
-            <p id="axis-codice-hint" className="text-xs text-muted-foreground mt-0.5">
+            <p id="axis-codice-hint" className="text-xs text-muted-foreground">
               Identificatore snake_case usato nelle selezioni del preventivo.
             </p>
             {conflict ? (
-              <p id="axis-codice-error" className="text-xs text-destructive mt-1">{conflict}</p>
+              <p id="axis-codice-error" className="text-xs text-destructive" role="alert">{conflict}</p>
             ) : null}
           </div>
-          <div>
+          <div className="space-y-1.5">
             <label htmlFor="axis-descrizione" className="text-sm font-medium">Descrizione (opzionale)</label>
             <Textarea
               id="axis-descrizione"
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
               rows={2}
+              className="resize-none"
             />
           </div>
-          <div>
+          <div className="space-y-1.5">
             <label htmlFor="axis-tipo" className="text-sm font-medium">Tipo</label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as AxisTipo)}>
-              <SelectTrigger id="axis-tipo">
+              <SelectTrigger id="axis-tipo" className="h-10">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -677,20 +693,26 @@ function AxisFormDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 py-1">
             <Checkbox
               id="obbl"
               checked={obbligatorio}
               onCheckedChange={(c) => setObbligatorio(c === true)}
+              className="h-5 w-5"
             />
-            <label htmlFor="obbl" className="text-sm">
+            <label htmlFor="obbl" className="text-sm cursor-pointer select-none">
               Obbligatorio (richiede selezione nel preventivo)
             </label>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
+        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={saving}
+            className="h-10 w-full sm:w-auto"
+          >
             Annulla
           </Button>
           <Button
@@ -705,6 +727,7 @@ function AxisFormDialog({
               })
             }
             disabled={!canSave}
+            className="h-10 w-full sm:w-auto"
           >
             {saving ? (
               <>
@@ -784,7 +807,7 @@ function ValueFormDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-md"
+        className="w-[96vw] sm:w-full sm:max-w-md max-h-[94vh] overflow-y-auto"
         key={value?.id ?? `new-${axisId}`}
         onOpenAutoFocus={() => {
           if (value) {
@@ -811,14 +834,14 @@ function ValueFormDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>{editing ? "Modifica valore" : "Nuovo valore"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica valore" : "Nuovo valore"}</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Un valore ammesso per l'asse + eventuale maggiorazione applicata al prezzo.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          <div>
+          <div className="space-y-1.5">
             <label htmlFor="val-label" className="text-sm font-medium">Label visibile</label>
             <Input
               id="val-label"
@@ -831,9 +854,10 @@ function ValueFormDialog({
               }}
               placeholder="es. PVC bianco"
               autoFocus
+              className="h-10"
             />
           </div>
-          <div>
+          <div className="space-y-1.5">
             <label htmlFor="val-codice" className="text-sm font-medium">Codice valore</label>
             <Input
               id="val-codice"
@@ -846,52 +870,56 @@ function ValueFormDialog({
               placeholder="pvc_bianco"
               aria-invalid={!!conflict}
               aria-describedby={conflict ? "val-codice-error" : undefined}
+              className="h-10 font-mono"
             />
             {conflict ? (
-              <p id="val-codice-error" className="text-xs text-destructive mt-1">{conflict}</p>
+              <p id="val-codice-error" className="text-xs text-destructive" role="alert">{conflict}</p>
             ) : null}
           </div>
-          <div>
+          <div className="space-y-1.5">
             <label htmlFor="val-descrizione" className="text-sm font-medium">Descrizione (opzionale)</label>
             <Textarea
               id="val-descrizione"
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
               rows={2}
+              className="resize-none"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex items-center gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="flex items-center gap-2 py-1">
               <Checkbox
                 id="val-default"
                 checked={isDefault}
                 onCheckedChange={(c) => setIsDefault(c === true)}
+                className="h-5 w-5"
               />
-              <label htmlFor="val-default" className="text-sm">
+              <label htmlFor="val-default" className="text-sm cursor-pointer select-none">
                 Default (preselezionato)
               </label>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 py-1">
               <Checkbox
                 id="val-attivo"
                 checked={attivo}
                 onCheckedChange={(c) => setAttivo(c === true)}
+                className="h-5 w-5"
               />
-              <label htmlFor="val-attivo" className="text-sm">
+              <label htmlFor="val-attivo" className="text-sm cursor-pointer select-none">
                 Attivo
               </label>
             </div>
           </div>
 
-          <div className="border rounded-md p-3 space-y-2 bg-muted/30">
+          <div className="border rounded-md p-3 space-y-2.5 bg-muted/30">
             <div className="text-sm font-medium">Maggiorazione</div>
-            <div>
+            <div className="space-y-1">
               <label htmlFor="val-mag-tipo" className="text-xs text-muted-foreground">Tipo</label>
               <Select
                 value={magTipo}
                 onValueChange={(v) => setMagTipo(v as MaggiorazioneTipo)}
               >
-                <SelectTrigger id="val-mag-tipo" className="h-8">
+                <SelectTrigger id="val-mag-tipo" className="h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -904,31 +932,33 @@ function ValueFormDialog({
               </Select>
             </div>
             {magTipo !== "none" ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
                   <label htmlFor="val-mag-vendita" className="text-xs text-muted-foreground">
                     Valore vendita
                   </label>
                   <Input
                     id="val-mag-vendita"
                     type="number"
+                    inputMode="decimal"
                     step="0.01"
                     value={magValore}
                     onChange={(e) => setMagValore(e.target.value)}
-                    className="h-8"
+                    className="h-10 font-mono"
                   />
                 </div>
-                <div>
+                <div className="space-y-1">
                   <label htmlFor="val-mag-acquisto" className="text-xs text-muted-foreground">
                     Valore acquisto
                   </label>
                   <Input
                     id="val-mag-acquisto"
                     type="number"
+                    inputMode="decimal"
                     step="0.01"
                     value={magAcquisto}
                     onChange={(e) => setMagAcquisto(e.target.value)}
-                    className="h-8"
+                    className="h-10 font-mono"
                   />
                 </div>
               </div>
@@ -936,8 +966,13 @@ function ValueFormDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
+        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={saving}
+            className="h-10 w-full sm:w-auto"
+          >
             Annulla
           </Button>
           <Button
@@ -958,6 +993,7 @@ function ValueFormDialog({
               )
             }
             disabled={!canSave}
+            className="h-10 w-full sm:w-auto"
           >
             {saving ? (
               <>

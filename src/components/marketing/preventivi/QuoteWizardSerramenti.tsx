@@ -474,7 +474,7 @@ export default function QuoteWizardSerramenti({
           {step === 2 && selectedFamily && (
             <div className="space-y-4">
               <div className="rounded-md border p-3 bg-muted/30">
-                <p className="font-medium">{selectedFamily.nome}</p>
+                <p className="font-medium break-words">{selectedFamily.nome}</p>
                 <p className="text-xs text-muted-foreground">
                   Modalità: {selectedFamily.modalita_prezzo_base}
                   {selectedLine && (
@@ -492,8 +492,8 @@ export default function QuoteWizardSerramenti({
                 const lInvalid = !Number.isFinite(lNum) || lNum < 200 || lNum > 4000;
                 const aInvalid = !Number.isFinite(aNum) || aNum < 200 || aNum > 4000;
                 return (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
                       <Label htmlFor="wizard-larghezza">
                         {selectedFamily.griglia_asse_x_label || "Larghezza"} (mm)
                       </Label>
@@ -507,15 +507,16 @@ export default function QuoteWizardSerramenti({
                         onChange={(e) => setLarghezza(e.target.value)}
                         aria-invalid={lInvalid}
                         aria-describedby="wizard-larghezza-hint"
+                        className="h-10"
                       />
                       <p
                         id="wizard-larghezza-hint"
-                        className={`text-xs mt-1 ${lInvalid ? "text-destructive" : "text-muted-foreground"}`}
+                        className={`text-xs ${lInvalid ? "text-destructive" : "text-muted-foreground"}`}
                       >
                         Range consigliato 200–4000 mm
                       </p>
                     </div>
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="wizard-altezza">
                         {selectedFamily.griglia_asse_y_label || "Altezza"} (mm)
                       </Label>
@@ -529,10 +530,11 @@ export default function QuoteWizardSerramenti({
                         onChange={(e) => setAltezza(e.target.value)}
                         aria-invalid={aInvalid}
                         aria-describedby="wizard-altezza-hint"
+                        className="h-10"
                       />
                       <p
                         id="wizard-altezza-hint"
-                        className={`text-xs mt-1 ${aInvalid ? "text-destructive" : "text-muted-foreground"}`}
+                        className={`text-xs ${aInvalid ? "text-destructive" : "text-muted-foreground"}`}
                       >
                         Range consigliato 200–4000 mm
                       </p>
@@ -547,7 +549,7 @@ export default function QuoteWizardSerramenti({
                 </p>
               )}
 
-              <div>
+              <div className="space-y-1.5">
                 <Label htmlFor="wizard-quantita">Quantità</Label>
                 <Input
                   id="wizard-quantita"
@@ -561,9 +563,10 @@ export default function QuoteWizardSerramenti({
                   aria-describedby={
                     (parseFloat(quantita) || 0) <= 0 ? "wizard-quantita-error" : undefined
                   }
+                  className="h-10 sm:max-w-xs"
                 />
                 {(parseFloat(quantita) || 0) <= 0 && (
-                  <p id="wizard-quantita-error" className="text-xs text-destructive mt-1">
+                  <p id="wizard-quantita-error" className="text-xs text-destructive">
                     Inserisci una quantità maggiore di zero.
                   </p>
                 )}
@@ -580,7 +583,7 @@ export default function QuoteWizardSerramenti({
                 </p>
               )}
               {selectedFamily.axes.map((ax) => (
-                <div key={ax.id}>
+                <div key={ax.id} className="space-y-1.5">
                   <Label htmlFor={`wizard-axis-${ax.codice}`}>
                     {ax.nome}
                     {ax.obbligatorio && (
@@ -598,6 +601,7 @@ export default function QuoteWizardSerramenti({
                       aria-label={ax.nome}
                       aria-required={ax.obbligatorio}
                       aria-describedby={ax.descrizione ? `wizard-axis-${ax.codice}-hint` : undefined}
+                      className="h-10"
                     >
                       <SelectValue placeholder="Seleziona..." />
                     </SelectTrigger>
@@ -621,7 +625,7 @@ export default function QuoteWizardSerramenti({
                   {ax.descrizione && (
                     <p
                       id={`wizard-axis-${ax.codice}-hint`}
-                      className="text-xs text-muted-foreground mt-1"
+                      className="text-xs text-muted-foreground"
                     >
                       {ax.descrizione}
                     </p>
@@ -633,16 +637,16 @@ export default function QuoteWizardSerramenti({
 
           {/* Step 4: Empty state se il calcolo non è possibile */}
           {step === 4 && (!selectedFamily || !result) && (
-            <div className="text-center py-8 space-y-3">
-              <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground opacity-50" />
+            <div className="text-center py-8 space-y-3" role="status">
+              <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground opacity-50" aria-hidden="true" />
               <div>
                 <p className="font-medium">Calcolo prezzo non disponibile</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Controlla le misure o la griglia prezzi della famiglia selezionata.
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setStep(2)}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
+              <Button variant="outline" size="sm" className="h-9" onClick={() => setStep(2)}>
+                <ChevronLeft className="h-4 w-4 mr-1" aria-hidden="true" />
                 Torna alle misure
               </Button>
             </div>
@@ -652,71 +656,73 @@ export default function QuoteWizardSerramenti({
           {step === 4 && selectedFamily && result && (
             <div className="space-y-3">
               <Card>
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Prodotto:</span>
-                    <span className="font-medium">{selectedFamily.nome}</span>
+                <CardContent className="p-3 sm:p-4 space-y-2">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground shrink-0">Prodotto:</span>
+                    <span className="font-medium text-right break-words">{selectedFamily.nome}</span>
                   </div>
                   {selectedLine && (
-                    <div className="flex justify-between text-sm">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2 text-sm">
                       <span className="text-muted-foreground">Linea fornitore:</span>
-                      <span className="font-medium">
+                      <span className="font-medium sm:text-right break-words">
                         {selectedLine.nome}
-                        <span className="ml-2 text-xs text-muted-foreground">
+                        <span className="ml-2 text-xs text-muted-foreground whitespace-nowrap">
                           (ricarico +{Math.round((selectedLine.ricarico_default ?? 0) * 100)}%)
                         </span>
                       </span>
                     </div>
                   )}
                   {needsXY && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Dimensioni:</span>
-                      <span>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground shrink-0">Dimensioni:</span>
+                      <span className="font-mono text-right">
                         {larghezza}×{altezza} mm
                         {result.mq != null && ` (${result.mq.toFixed(3)} mq)`}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Quantità:</span>
-                    <span>{quantita}</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground shrink-0">Quantità:</span>
+                    <span className="font-mono">{quantita}</span>
                   </div>
                   {result.prezzo_griglia_base != null && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Prezzo base griglia:</span>
-                      <span>{formatCurrency(result.prezzo_griglia_base)}</span>
+                    <div className="flex justify-between gap-2 text-sm">
+                      <span className="text-muted-foreground shrink-0">Prezzo base griglia:</span>
+                      <span className="font-mono">{formatCurrency(result.prezzo_griglia_base)}</span>
                     </div>
                   )}
 
                   {result.maggiorazioni_applicate.length > 0 && (
                     <div className="pt-2 border-t">
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Maggiorazioni applicate:</p>
-                      {result.maggiorazioni_applicate.map((m, i) => (
-                        <div key={i} className="flex justify-between text-xs">
-                          <span>
-                            {m.axis_codice}: {m.value_valore}
-                            {" "}
-                            <Badge variant="outline" className="ml-1 text-[10px]">
-                              {m.tipo === "percentuale" ? `+${m.valore}%` : `+${formatCurrency(m.valore)}`}
-                            </Badge>
-                          </span>
-                          <span className="text-muted-foreground">
-                            Δ {formatCurrency(m.delta_vendita)}
-                          </span>
-                        </div>
-                      ))}
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">Maggiorazioni applicate:</p>
+                      <div className="space-y-1">
+                        {result.maggiorazioni_applicate.map((m, i) => (
+                          <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2 text-xs">
+                            <span className="break-words">
+                              {m.axis_codice}: {m.value_valore}
+                              {" "}
+                              <Badge variant="outline" className="ml-1 text-[10px] whitespace-nowrap">
+                                {m.tipo === "percentuale" ? `+${m.valore}%` : `+${formatCurrency(m.valore)}`}
+                              </Badge>
+                            </span>
+                            <span className="text-muted-foreground font-mono sm:text-right shrink-0">
+                              Δ {formatCurrency(m.delta_vendita)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  <div className="pt-2 border-t flex justify-between">
+                  <div className="pt-2 border-t flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                     <span className="font-medium">Prezzo unitario:</span>
-                    <span className="font-semibold">
+                    <span className="font-semibold font-mono sm:text-right">
                       {formatCurrency(result.unit_price_vendita)} / {selectedFamily.unit_of_measure}
                     </span>
                   </div>
-                  <div className="flex justify-between text-lg">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2 text-lg">
                     <span className="font-medium">Totale:</span>
-                    <span className="font-bold text-primary">
+                    <span className="font-bold text-primary font-mono sm:text-right">
                       {formatCurrency(result.totale_vendita)}
                     </span>
                   </div>
@@ -724,10 +730,13 @@ export default function QuoteWizardSerramenti({
               </Card>
 
               {result.warnings.length > 0 && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
+                <div
+                  className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30"
+                  role="alert"
+                >
                   <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="text-sm text-amber-900 dark:text-amber-200 space-y-1">
+                    <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
+                    <div className="text-sm text-amber-900 dark:text-amber-200 space-y-1 break-words">
                       {result.warnings.map((w, i) => (
                         <p key={i}>{w}</p>
                       ))}
@@ -737,32 +746,39 @@ export default function QuoteWizardSerramenti({
               )}
 
               {selectedFamily.posa_tariffa_default_id && (
-                <p className="text-sm text-muted-foreground">
-                  ℹ️ Verrà aggiunta anche una riga posa collegata (tariffa di default della famiglia).
-                </p>
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="text-sm text-muted-foreground flex items-start gap-2">
+                    <span aria-hidden="true">ℹ️</span>
+                    <span>Verrà aggiunta anche una riga posa collegata (tariffa di default della famiglia).</span>
+                  </p>
+                </div>
               )}
             </div>
           )}
         </ScrollArea>
 
-        <DialogFooter className="flex justify-between sm:justify-between mt-4">
+        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between sm:gap-2 border-t px-4 sm:px-6 py-3 bg-background">
           <Button
             variant="outline"
             onClick={() => (step > 1 ? setStep((step - 1) as Step) : onClose())}
+            className="h-10 w-full sm:w-auto"
           >
-            <ChevronLeft className="h-4 w-4 mr-1" />
+            <ChevronLeft className="h-4 w-4 mr-1" aria-hidden="true" />
             {step === 1 ? "Annulla" : "Indietro"}
           </Button>
           {step < 4 ? (
             <Button
               onClick={() => setStep((step + 1) as Step)}
               disabled={!canAdvance()}
+              className="h-10 w-full sm:w-auto"
             >
-              Avanti <ChevronRight className="h-4 w-4 ml-1" />
+              Avanti <ChevronRight className="h-4 w-4 ml-1" aria-hidden="true" />
             </Button>
           ) : (
-            <Button onClick={handleConfirm} disabled={!result}>
-              <Check className="h-4 w-4 mr-1" /> Aggiungi al preventivo
+            <Button onClick={handleConfirm} disabled={!result} className="h-10 w-full sm:w-auto">
+              <Check className="h-4 w-4 mr-1" aria-hidden="true" />
+              <span className="sm:hidden">Aggiungi</span>
+              <span className="hidden sm:inline">Aggiungi al preventivo</span>
             </Button>
           )}
         </DialogFooter>

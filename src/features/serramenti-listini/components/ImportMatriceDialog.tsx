@@ -257,19 +257,20 @@ export function ImportMatriceDialog({
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
-        className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-md p-8 cursor-pointer transition-colors ${
+        className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-md p-6 sm:p-8 cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-primary ${
           dragOver
             ? "border-primary bg-primary/5"
             : "border-muted-foreground/25 hover:border-primary/50"
         }`}
       >
-        <Upload className="h-8 w-8 text-muted-foreground" aria-hidden />
-        <span className="text-sm font-medium">
-          Trascina qui un file Excel o CSV
+        <Upload className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground" aria-hidden />
+        <span className="text-sm font-medium text-center">
+          <span className="hidden sm:inline">Trascina qui un file Excel o CSV</span>
+          <span className="sm:hidden">Tocca per scegliere un file</span>
         </span>
-        <span className="text-xs text-muted-foreground">
-          Oppure clicca per selezionare. Max{" "}
-          {MATRIX_IMPORT_LIMITS.MAX_FILE_SIZE_BYTES / 1024 / 1024} MB
+        <span className="text-xs text-muted-foreground text-center">
+          <span className="hidden sm:inline">Oppure clicca per selezionare. </span>
+          Max {MATRIX_IMPORT_LIMITS.MAX_FILE_SIZE_BYTES / 1024 / 1024} MB · .xlsx .xls .csv
         </span>
         <input
           id="matrix-file"
@@ -281,16 +282,20 @@ export function ImportMatriceDialog({
         />
       </label>
       {isParsing && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           Lettura {fileName}…
         </div>
       )}
       {parseError && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" role="alert">
           <AlertTriangle className="h-4 w-4" aria-hidden />
           <AlertTitle>Errore parsing file</AlertTitle>
-          <AlertDescription className="text-xs">{parseError}</AlertDescription>
+          <AlertDescription className="text-xs break-words">{parseError}</AlertDescription>
         </Alert>
       )}
       <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
@@ -486,15 +491,15 @@ export function ImportMatriceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="w-[96vw] sm:w-full sm:max-w-2xl max-h-[94vh] sm:max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 flex-wrap">
+          <DialogTitle className="flex items-center gap-2 flex-wrap text-base sm:text-lg">
             Importa matrice da file
             <Badge variant="outline" className="text-xs font-normal">
               {productLine.nome}
             </Badge>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Carica un file Excel/CSV con lo schema pivot L×H. I prezzi vengono
             scritti come <em>listino</em>; acquisto e vendita sono calcolati
             al salvataggio applicando lo sconto fornitore e il ricarico della
@@ -507,9 +512,13 @@ export function ImportMatriceDialog({
         {step === "importing" && renderImporting()}
         {step === "result" && renderResult()}
 
-        <DialogFooter>
+        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
           {step === "upload" && (
-            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+            <Button
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              className="h-10 w-full sm:w-auto"
+            >
               Annulla
             </Button>
           )}
@@ -521,26 +530,38 @@ export function ImportMatriceDialog({
                   setStep("upload");
                   setParsed(null);
                 }}
+                className="h-10 w-full sm:w-auto"
               >
                 Indietro
               </Button>
               <Button
                 onClick={() => void applyImport()}
                 disabled={cellsToWrite.length === 0}
+                className="h-10 w-full sm:w-auto"
               >
-                Importa {cellsToWrite.length} cell
-                {cellsToWrite.length === 1 ? "a" : "e"}
+                <span className="sm:hidden">
+                  Importa {cellsToWrite.length}
+                </span>
+                <span className="hidden sm:inline">
+                  Importa {cellsToWrite.length} cell
+                  {cellsToWrite.length === 1 ? "a" : "e"}
+                </span>
               </Button>
             </>
           )}
           {step === "importing" && (
-            <Button disabled variant="outline">
+            <Button disabled variant="outline" className="h-10 w-full sm:w-auto">
               <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />
               Import in corso
             </Button>
           )}
           {step === "result" && (
-            <Button onClick={() => handleOpenChange(false)}>Chiudi</Button>
+            <Button
+              onClick={() => handleOpenChange(false)}
+              className="h-10 w-full sm:w-auto"
+            >
+              Chiudi
+            </Button>
           )}
         </DialogFooter>
       </DialogContent>
