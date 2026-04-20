@@ -673,7 +673,14 @@ OUTPUT JSON (schema obbligatorio):
         } else if (riga.article_template_id) {
           const prod = prodottiMap.get(riga.article_template_id);
           if (!prod) {
+            // P2 FIX: quando l'AI suggerisce un ID non più presente
+            // (prodotto cancellato), avvertiamo esplicitamente l'utente
+            // invece di mettere silenziosamente unit_price=null
+            // (prima: riga visualizzata "gratis" senza spiegazione).
             riga.unit_price = null;
+            enrichmentWarnings.push(
+              `Prodotto '${riga.name ?? riga.article_template_id}' non trovato nel catalogo — inseriscilo manualmente o rigenera.`,
+            );
             continue;
           }
           const modalita = prod.modalita_prezzo ?? "pz";
@@ -726,7 +733,11 @@ OUTPUT JSON (schema obbligatorio):
               riga.unit_price = Number(tar.prezzo_vendita);
             }
           } else {
+            // P2 FIX: tariffa suggerita non più presente → warning esplicito.
             riga.unit_price = null;
+            enrichmentWarnings.push(
+              `Tariffa '${riga.name ?? riga.tariffa_id}' non trovata nel listino manodopera — inseriscila manualmente o rigenera.`,
+            );
           }
         } else {
           riga.unit_price = null;

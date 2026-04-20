@@ -202,7 +202,7 @@ export default function WarehouseManager() {
     setDialogOpen(false);
   };
 
-  const f = (field: keyof WarehouseInsert, value: any) =>
+  const f = <K extends keyof WarehouseInsert>(field: K, value: WarehouseInsert[K] | string | null) =>
     setForm((prev) => ({ ...prev, [field]: value || null }));
 
   return (

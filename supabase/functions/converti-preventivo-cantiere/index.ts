@@ -76,12 +76,15 @@ Deno.serve(async (req) => {
       created_by:     userId,
     };
 
-    // Campi opzionali presenti solo se la colonna esiste
-    if ("indirizzo_lavori" in quote) {
-      orderData.indirizzo_lavori = (quote as any).indirizzo_lavori ?? null;
+    // Campi opzionali presenti solo se la colonna esiste.
+    // Usiamo Record<string, unknown> invece di `any` per safety —
+    // `in` guard già garantisce presenza della chiave.
+    const quoteRecord = quote as Record<string, unknown>;
+    if ("indirizzo_lavori" in quoteRecord) {
+      orderData.indirizzo_lavori = quoteRecord.indirizzo_lavori ?? null;
     }
-    if ("tipo_lavoro" in quote) {
-      orderData.tipo_lavoro = (quote as any).tipo_lavoro ?? null;
+    if ("tipo_lavoro" in quoteRecord) {
+      orderData.tipo_lavoro = quoteRecord.tipo_lavoro ?? null;
     }
 
     const { data: order, error: insertErr } = await supabaseAdmin

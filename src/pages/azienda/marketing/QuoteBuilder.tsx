@@ -1485,7 +1485,13 @@ export default function QuoteBuilder() {
         margine_totale_percentuale: totaliPro.margine_totale_pct || null,
         firma_digitale_abilitata: pdfFirma,
         template_layout_override: layoutOverride || null,
-        subtotal: subtotal - discountAmt,
+        // P1 FIX wave 4: subtotal ora è il LORDO coerente con la UI che mostra:
+        //   Subtotale (lordo) - Sconto - IVA = Totale.
+        //   Prima salvavamo `subtotal - discountAmt` (netto) causando incoerenza
+        //   visiva per l'utente. `total` rimane la grandezza autoritativa per
+        //   aggregati/report; i preventivi vecchi continueranno a mostrare il
+        //   subtotale "netto" storico ma total è comunque corretto.
+        subtotal,
         discount_amount: discountAmt,
         vat_amount: vatAmount,
         total,

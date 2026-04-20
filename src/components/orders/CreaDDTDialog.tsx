@@ -123,7 +123,7 @@ export function CreaDDTDialog({
   orderId,
   orderCode,
   orderDescription,
-  totalAmount,
+  totalAmount: _totalAmount,
   vatRate,
   customerId,
   customerName,
@@ -171,7 +171,7 @@ export function CreaDDTDialog({
     queryKey: ["anagrafica-match", customerId, companyId],
     enabled: open && !!customerId && !!companyId,
     queryFn: async () => {
-      const { data: byClienteId } = await (supabase as any)
+      const { data: byClienteId } = await supabase
         .from("anagrafiche_native")
         .select("*")
         .eq("company_id", companyId!)
@@ -182,7 +182,7 @@ export function CreaDDTDialog({
       if (customerName) {
         const parts = customerName.trim().split(/\s+/);
         if (parts.length >= 2) {
-          const { data: byName } = await (supabase as any)
+          const { data: byName } = await supabase
             .from("anagrafiche_native")
             .select("*")
             .eq("company_id", companyId!)
@@ -253,7 +253,7 @@ export function CreaDDTDialog({
         ...(aspettoBeni && { ddt_aspetto_beni: aspettoBeni }),
         ...(numeroColli && { ddt_numero_colli: parseInt(numeroColli, 10) || undefined }),
         ...(pesoKg && { ddt_peso: parseFloat(pesoKg) || undefined }),
-      } as any,
+      },
       {
         onSuccess: async (doc) => {
           // P1 FIX: await linkMutation così DDT e link sono creati

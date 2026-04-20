@@ -123,22 +123,14 @@ export function useWarehouses(onlyActive = true) {
     onError: (err: Error) => toast.error("Errore aggiornamento magazzino: " + err.message),
   });
 
-  // SET DEFAULT (aggiorna quello precedente via DB unique index)
+  // SET DEFAULT — P2 FIX wave 4: usa RPC atomica set_default_warehouse
+  // per evitare race condition su tab concorrenti (le due UPDATE separate
+  // potevano generare "no default" momentaneo o due default simultanei).
   const setDefaultMutation = useMutation({
     mutationFn: async (warehouseId: string) => {
-      // Prima rimuovi il default esistente per questa company
-      await supabase
-        .from("warehouses")
-        .update({ is_default: false })
-        .eq("company_id", companyId!)
-        .eq("is_default", true);
-
-      const { data, error } = await supabase
-        .from("warehouses")
-        .update({ is_default: true })
-        .eq("id", warehouseId)
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc("set_default_warehouse", {
+        p_warehouse_id: warehouseId,
+      });
       if (error) throw error;
       return data as Warehouse;
     },

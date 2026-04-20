@@ -57,62 +57,32 @@ export function useGoodsReceipt() {
         }
       }
 
-      // Create goods receipt
+      // P2 FIX wave 4: usa RPC atomica insert_goods_receipt_atomic
+      // per evitare che il receipt venga creato senza l'update su
+      // order_items o senza il timeline event. PL/pgSQL garantisce
+      // rollback se qualcosa fallisce.
       setUploadProgress(95);
-      const receiptPayload = {
-        order_item_id: input.order_item_id,
-        warehouse_id: input.warehouse_id,
-        company_id: effectiveCompany.id,
-        supplier_id: input.supplier_id || null,
-        quantity_received: input.quantity_received,
-        ddt_number: input.ddt_number || null,
-        ddt_photo_url,
-        quality_check_status: input.quality_check_status,
-        quality_notes: input.quality_notes || null,
-        notes: input.notes || null,
-        received_by: user.data.user.id,
-        ...(input.ddt_ricezione_id ? { ddt_ricezione_id: input.ddt_ricezione_id } : {}),
-      };
-      const { data: receipt, error: insertError } = await supabase
-        .from('goods_receipts')
-        .insert(receiptPayload)
-        .select()
-        .single();
+      const { data: receiptId, error: rpcError } = await supabase.rpc(
+        "insert_goods_receipt_atomic",
+        {
+          p_order_item_id: input.order_item_id,
+          p_warehouse_id: input.warehouse_id,
+          p_quantity_received: input.quantity_received,
+          p_quality_check_status: input.quality_check_status,
+          p_supplier_id: input.supplier_id || null,
+          p_ddt_number: input.ddt_number || null,
+          p_ddt_photo_url: ddt_photo_url,
+          p_ddt_ricezione_id: input.ddt_ricezione_id || null,
+          p_quality_notes: input.quality_notes || null,
+          p_notes: input.notes || null,
+        },
+      );
 
-      if (insertError) throw insertError;
-      if (!receipt) throw new Error('No receipt returned');
-
-      // Update order_item
-      const { error: updateError } = await supabase
-        .from('order_items')
-        .update({
-          quantity_received: input.quantity_received,
-          receipt_id: receipt.id,
-          fulfillment_status: 'received',
-          last_goods_receipt_date: new Date().toISOString(),
-        })
-        .eq('id', input.order_item_id);
-
-      if (updateError) throw updateError;
-
-      // Add timeline event
-      const { error: timelineError } = await supabase
-        .from('order_item_timeline')
-        .insert({
-          order_item_id: input.order_item_id,
-          company_id: effectiveCompany.id,
-          event_type: 'received',
-          event_by: user.data.user.id,
-          photo_url: ddt_photo_url,
-          document_ref: receipt.id,
-          notes: `Ricevuto ${input.quantity_received} pz - Qualità: ${input.quality_check_status}`,
-          location: 'Magazzino',
-        });
-
-      if (timelineError) throw timelineError;
+      if (rpcError) throw rpcError;
+      if (!receiptId) throw new Error("RPC insert_goods_receipt_atomic non ha restituito id");
 
       setUploadProgress(100);
-      return receipt;
+      return { id: receiptId as string };
     },
     onSuccess: () => {
       toast.success('Ricezione registrata ✓');
