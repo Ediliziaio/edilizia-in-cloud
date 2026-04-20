@@ -24,6 +24,8 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { TariffaVariantiEditor } from "@/components/settings/TariffaVariantiEditor";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 // FASE 6: tipo esteso con tariffe serramentista + unita_fatturazione canonica.
@@ -172,6 +174,19 @@ function calcMargine(pv: number, pa: number) {
   return ((pv - pa) / pv) * 100;
 }
 
+/**
+ * Sezione varianti costo: wrapper che si monta solo se l'utente ha
+ * can_view_costs. Gating doppio (role check + permission) per evitare
+ * anche solo un flash della UI in caso di ruolo non-admin.
+ */
+function TariffaVariantiSection({
+  tariffaId, costoDefault,
+}: { tariffaId: string; costoDefault: number | null }) {
+  const { data: perms } = useUserPermissions();
+  if (!perms?.can_view_costs) return null;
+  return <TariffaVariantiEditor tariffaId={tariffaId} costoDefault={costoDefault} />;
+}
+
 // ─── Tariffa Dialog ───────────────────────────────────────────────────────────
 function TariffaDialog({
   open, onClose, editing, companyId, isAdmin, currentVertical, onSaved,
@@ -252,7 +267,7 @@ function TariffaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Modifica tariffa" : "Nuova tariffa"}</DialogTitle>
         </DialogHeader>
@@ -398,6 +413,8 @@ function TariffaDialog({
               </div>
             </div>
           )}
+          {/* Sprint B — Varianti Costo Manodopera: visibile solo su tariffe esistenti e solo admin */}
+          {isAdmin && editing && <TariffaVariantiSection tariffaId={editing.id} costoDefault={editing.costo_interno ?? editing.prezzo_costo ?? null} />}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annulla</Button>

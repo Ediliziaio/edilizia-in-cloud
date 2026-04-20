@@ -189,6 +189,7 @@ const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookF
 const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
+const QuoteMargini = lazy(() => import("@/pages/azienda/marketing/QuoteMargini"));
 // AnalisiPreventivi now rendered as tab inside Preventivi — lazy import removed
 const RitenuteGaranzia = lazy(() => import("@/pages/azienda/RitenuteGaranzia"));
 const ContabilitaFiscale = lazy(() => import("@/pages/azienda/ContabilitaFiscale"));
@@ -405,6 +406,8 @@ export function companyRoutes() {
         <Route path="marketing/preventivi/nuovo" element={<QuoteBuilder />} />
         <Route path="marketing/preventivi/:id" element={<QuoteDetail />} />
         <Route path="marketing/preventivi/:id/modifica" element={<QuoteBuilder />} />
+        {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
+        <Route path="marketing/preventivi/:id/margini" element={<QuoteMargini />} />
         
         <Route path="impostazioni" element={<SettingsLayout />}>
           <Route index element={<Navigate to="mio-profilo" replace />} />
