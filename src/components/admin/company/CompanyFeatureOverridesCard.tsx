@@ -87,12 +87,6 @@ interface FeatureFlagRow {
   sort_order: number | null;
 }
 
-interface PlanFeatureDefaultRow {
-  feature_key: string;
-  is_enabled: boolean;
-  limit_value: number | null;
-}
-
 interface CompanyFeatureOverrideRow {
   id: string;
   company_id: string;
@@ -110,13 +104,22 @@ interface CompanyFeatureOverrideRow {
   updated_at: string | null;
 }
 
+/** Riga restituita da RPC `resolve_company_features(company_id)` */
+interface ResolvedFeatureRow {
+  feature_key: string;
+  is_enabled: boolean;
+  source: "override" | "plan_default" | "plan" | "default";
+  limit_value: number | null;
+  price_override: number | null;
+  expires_at: string | null;
+}
+
 type EffectiveSource = "override" | "plan_default" | "plan" | "default";
 
 interface MergedRow {
   flag: FeatureFlagRow;
   override: CompanyFeatureOverrideRow | null;
-  planDefault: PlanFeatureDefaultRow | null;
-  /** Stato effettivo risolto: override → plan_default → plans_included → default_value. */
+  /** Stato effettivo risolto via RPC `resolve_company_features` (source of truth DB-side). */
   effectiveEnabled: boolean;
   /** Limite effettivo (override.limit_value → plan_default.limit_value → null illimitato). */
   effectiveLimit: number | null;
@@ -130,10 +133,15 @@ export function CompanyFeatureOverridesCard({
   planId,
   planSlug,
 }: Props) {
+  // `planId`/`planSlug` non sono più usati qui: la risoluzione ora è centralizzata
+  // nel DB (RPC `resolve_company_features`). Li lasciamo in firma per retrocompat
+  // con il chiamante (`CompanySubscriptionTab`) e per eventuali future estensioni.
+  void planId;
+  void planSlug;
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // 1) Catalogo completo delle feature
+  // 1) Catalogo completo delle feature — serve per name/description/category/BETA
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
     queryKey: ["admin-feature-flags-catalog"] as const,
     queryFn: async () => {
@@ -147,7 +155,7 @@ export function CompanyFeatureOverridesCard({
     staleTime: 5 * 60 * 1000,
   });
 
-  // 2) Override esistenti per questa azienda
+  // 2) Override esistenti per questa azienda — riga raw (editor + toggle preservation)
   const { data: overrides = [], isLoading: overridesLoading } = useQuery({
     queryKey: queryKeys.admin.companyFeatureOverrides(companyId),
     queryFn: async () => {
@@ -161,64 +169,46 @@ export function CompanyFeatureOverridesCard({
     staleTime: 30 * 1000,
   });
 
-  // 3) Default del piano per badge "plan_default"
-  const { data: planDefaults = [], isLoading: planDefaultsLoading } = useQuery({
-    queryKey: queryKeys.admin.planFeatureDefaults(planId ?? ""),
+  // 3) Stato RISOLTO via RPC — unica sorgente di verità per source/effectiveEnabled/effectiveLimit.
+  // Prima facevamo join manuale tra overrides + plan_feature_defaults + plans_included[],
+  // duplicando la logica del resolver DB e rischiando drift. Ora deleghiamo al DB.
+  const { data: resolved = [], isLoading: resolvedLoading } = useQuery({
+    queryKey: queryKeys.featureFlags.companyResolved(companyId),
     queryFn: async () => {
-      if (!planId) return [] as PlanFeatureDefaultRow[];
-      const { data, error } = await supabase
-        .from("plan_feature_defaults")
-        .select("feature_key, is_enabled, limit_value")
-        .eq("plan_id", planId);
+      const { data, error } = await supabase.rpc("resolve_company_features" as never, {
+        p_company_id: companyId,
+      } as never);
       if (error) throw error;
-      return (data ?? []) as PlanFeatureDefaultRow[];
+      return (data ?? []) as ResolvedFeatureRow[];
     },
-    enabled: !!planId,
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000,
   });
 
-  const isLoading = flagsLoading || overridesLoading || planDefaultsLoading;
+  const isLoading = flagsLoading || overridesLoading || resolvedLoading;
 
-  // JOIN in JS + calcolo sorgente effettiva
+  // JOIN in JS: catalog flags + raw override (per editor) + risolto RPC (per stato effettivo)
   const rows: MergedRow[] = useMemo(() => {
     const overrideByKey = new Map(overrides.map(o => [o.feature_key, o]));
-    const planDefaultByKey = new Map(planDefaults.map(p => [p.feature_key, p]));
+    const resolvedByKey = new Map(resolved.map(r => [r.feature_key, r]));
     return flags.map((flag) => {
       const ov = overrideByKey.get(flag.key) ?? null;
-      const pd = planDefaultByKey.get(flag.key) ?? null;
+      const res = resolvedByKey.get(flag.key) ?? null;
 
-      // Determina stato effettivo: override → plan_default → plans_included → default_value
-      let effectiveEnabled: boolean;
-      let effectiveLimit: number | null;
-      let source: EffectiveSource;
-      if (ov) {
-        effectiveEnabled = Boolean(ov.is_enabled);
-        effectiveLimit = ov.limit_value ?? pd?.limit_value ?? null;
-        source = "override";
-      } else if (pd) {
-        effectiveEnabled = pd.is_enabled;
-        effectiveLimit = pd.limit_value ?? null;
-        source = "plan_default";
-      } else if (flag.plans_included && planSlug && flag.plans_included.includes(planSlug)) {
-        effectiveEnabled = true;
-        effectiveLimit = null;
-        source = "plan";
-      } else {
-        effectiveEnabled = Boolean(flag.default_value);
-        effectiveLimit = null;
-        source = "default";
-      }
+      // Fallback fail-closed se la feature non è ancora nel set risolto (race di
+      // caricamento): mostra il default_value del catalogo finché la RPC non arriva.
+      const effectiveEnabled = res?.is_enabled ?? Boolean(flag.default_value);
+      const effectiveLimit = res?.limit_value ?? null;
+      const source: EffectiveSource = res?.source ?? "default";
 
       return {
         flag,
         override: ov,
-        planDefault: pd,
         effectiveEnabled,
         effectiveLimit,
         source,
       };
     });
-  }, [flags, overrides, planDefaults, planSlug]);
+  }, [flags, overrides, resolved]);
 
   // Helpers per scrittura audit log
   const insertAuditLog = async (args: {
