@@ -333,12 +333,37 @@ export function useCompanyDetail(id: string | undefined) {
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // S1.10: invalidazione completa di tutte le cache che dipendono dal piano
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.planAll });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(id) });
+      // Feature resolver + override (il piano cambia i default)
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyResolved(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.list(id) });
+      // Feature-access per-feature (menu sidebar + FeatureGate)
+      queryClient.invalidateQueries({ queryKey: ["feature-access"] });
+      // Lista admin companies mostra il nome del piano
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.planUsage });
+      // Override per-azienda visti dal pannello admin
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.companyFeatureOverrides(id!),
+      });
       setChangePlanDialog(false);
       refreshCompany();
-      toast.success("Piano aggiornato");
+
+      // Toast contestuale: se Stripe non è stato sincronizzato lo segnaliamo
+      // come warning invece di success silente (S1.9 → feedback UX)
+      if (data?.stripe_attempted && !data?.stripe_synced) {
+        toast.warning("Piano aggiornato in DB ma Stripe NON sincronizzato", {
+          description: data?.stripe_error
+            ? `Errore Stripe: ${data.stripe_error}`
+            : "Sottoscrizione Stripe non trovata — verifica manuale",
+        });
+      } else {
+        toast.success("Piano aggiornato");
+      }
     },
     onError: (err: any) => {
       toast.error("Errore cambio piano", { description: err.message });

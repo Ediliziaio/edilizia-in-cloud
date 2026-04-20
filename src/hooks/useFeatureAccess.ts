@@ -39,15 +39,30 @@ export function useFeatureAccess(
   featureKey: string,
   companyIdOverride?: string,
 ): FeatureAccess {
-  const { effectiveCompany, role, isImpersonating, impersonatedCompanyId, impersonationToken } =
-    useAuth();
+  const {
+    effectiveCompany,
+    role,
+    isImpersonating,
+    isImpersonationReady,
+    impersonatedCompanyId,
+    impersonationToken,
+  } = useAuth();
   const companyId = companyIdOverride || effectiveCompany?.id;
 
-  // Bypass sa-impersonation identico agli altri hook — evita UX stuck durante la race
-  // tra fetchUserData e setSession al page load.
+  // Bypass sa-impersonation: richiede TUTTE queste condizioni per evitare che
+  // un attaccante che scrive in sessionStorage attivi il bypass prima che la
+  // verifica server-side del ruolo super_admin sia stata completata.
+  //   - role === "super_admin" (dallo state dopo fetchUserData)
+  //   - isImpersonationReady=true (gate server-confirmed in AuthContext:567-572)
+  //   - isImpersonating=true (company ID + validazione attiva)
+  //   - impersonationToken presente (ed usato dal client come auth header)
   const isSuperAdmin = role === "super_admin";
   const bypass =
-    isSuperAdmin && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken));
+    isSuperAdmin &&
+    isImpersonationReady &&
+    isImpersonating &&
+    !!impersonatedCompanyId &&
+    !!impersonationToken;
 
   const { data, isLoading } = useQuery({
     queryKey: ["feature-access", companyId, featureKey],

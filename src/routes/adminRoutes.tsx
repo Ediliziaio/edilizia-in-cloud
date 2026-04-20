@@ -1,6 +1,7 @@
 import { lazy } from "react";
 import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RequireSuperAdmin } from "@/components/auth/RequireSuperAdmin";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
@@ -156,32 +157,32 @@ export function adminRoutes() {
         <Route path="ticket" element={<GlobalTickets />} />
         <Route path="impostazioni" element={<Navigate to="/admin/impostazioni/profilo" replace />} />
         <Route path="impostazioni/profilo" element={<AdminSettingsProfile />} />
-        <Route path="impostazioni/piattaforma" element={<AdminSettingsPlatform />} />
+        <Route path="impostazioni/piattaforma" element={<RequireSuperAdmin><AdminSettingsPlatform /></RequireSuperAdmin>} />
         <Route path="impostazioni/notifiche" element={<AdminSettingsNotifications />} />
-        <Route path="impostazioni/super-admin" element={<AdminSettingsSuperAdmins />} />
-        <Route path="impostazioni/audit" element={<AdminSettingsAuditLog />} />
+        <Route path="impostazioni/super-admin" element={<RequireSuperAdmin><AdminSettingsSuperAdmins /></RequireSuperAdmin>} />
+        <Route path="impostazioni/audit" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
         <Route path="impostazioni/email" element={<AdminSettingsEmail />} />
         <Route path="impostazioni/agenti-ai" element={<AdminSettingsAI />} />
-        <Route path="impostazioni/ip-allowlist" element={<AdminSettingsIPAllowlist />} />
-        <Route path="impostazioni/sicurezza" element={<AdminSettingsSecurity />} />
+        <Route path="impostazioni/ip-allowlist" element={<RequireSuperAdmin><AdminSettingsIPAllowlist /></RequireSuperAdmin>} />
+        <Route path="impostazioni/sicurezza" element={<RequireSuperAdmin><AdminSettingsSecurity /></RequireSuperAdmin>} />
         <Route path="impostazioni/feature-flags" element={<Navigate to="/admin/feature-flags" replace />} />
-        <Route path="impostazioni/integrazioni" element={<AdminSettingsIntegrations />} />
-        <Route path="impostazioni/banking" element={<AdminSettingsBanking />} />
-        <Route path="impostazioni/webhooks" element={<AdminSettingsWebhooks />} />
-        <Route path="impostazioni/webhook-logs" element={<AdminSettingsWebhookLogs />} />
-        <Route path="impostazioni/banking-overview" element={<AdminSettingsBankingOverview />} />
+        <Route path="impostazioni/integrazioni" element={<RequireSuperAdmin><AdminSettingsIntegrations /></RequireSuperAdmin>} />
+        <Route path="impostazioni/banking" element={<RequireSuperAdmin><AdminSettingsBanking /></RequireSuperAdmin>} />
+        <Route path="impostazioni/webhooks" element={<RequireSuperAdmin><AdminSettingsWebhooks /></RequireSuperAdmin>} />
+        <Route path="impostazioni/webhook-logs" element={<RequireSuperAdmin><AdminSettingsWebhookLogs /></RequireSuperAdmin>} />
+        <Route path="impostazioni/banking-overview" element={<RequireSuperAdmin><AdminSettingsBankingOverview /></RequireSuperAdmin>} />
         <Route path="impostazioni/ai-usage" element={<AdminSettingsAIUsage />} />
-        <Route path="piani" element={<SubscriptionPlans />} />
-        <Route path="piani/:id" element={<PlanDetail />} />
+        <Route path="piani" element={<RequireSuperAdmin><SubscriptionPlans /></RequireSuperAdmin>} />
+        <Route path="piani/:id" element={<RequireSuperAdmin><PlanDetail /></RequireSuperAdmin>} />
         <Route path="referral" element={<ReferralDashboard />} />
-        <Route path="feature-flags" element={<FeatureFlags />} />
+        <Route path="feature-flags" element={<RequireSuperAdmin><FeatureFlags /></RequireSuperAdmin>} />
         <Route path="implementazioni" element={<Navigate to="/admin/feature-flags" replace />} />
         <Route path="sync-logs" element={<SyncLogs />} />
         <Route path="lifecycle" element={<CompanyLifecycle />} />
         <Route path="annunci" element={<Announcements />} />
         <Route path="customer-success" element={<CustomerSuccess />} />
         <Route path="cs-tasks" element={<AdminCSTasks />} />
-        <Route path="gdpr" element={<AdminGDPR />} />
+        <Route path="gdpr" element={<RequireSuperAdmin><AdminGDPR /></RequireSuperAdmin>} />
         <Route path="marketing" element={<AdminMarketingDashboard />} />
         <Route path="marketing/contatti" element={<AdminMarketingContacts />} />
         <Route path="marketing/contatti/:id" element={<AdminMarketingContactDetail />} />
@@ -201,7 +202,7 @@ export function adminRoutes() {
         <Route path="revenue" element={<AdminRevenueDashboard />} />
         <Route path="promo-codes" element={<PromoCodes />} />
         <Route path="fatture" element={<AdminInvoiceHistory />} />
-        <Route path="dunning" element={<AdminDunningConfig />} />
+        <Route path="dunning" element={<RequireSuperAdmin><AdminDunningConfig /></RequireSuperAdmin>} />
         <Route path="cs-dashboard" element={<AdminCSDashboard />} />
         <Route path="sms" element={<SmsSuperAdminPage />} />
         <Route path="crm" element={<AdminCRM />} />
@@ -213,13 +214,13 @@ export function adminRoutes() {
         {/* Import CSV Lead — Feature 5 */}
         <Route path="csv-import" element={<CsvImportPage />} />
         {/* Audit Log Flag — Feature 9 */}
-        <Route path="audit-log" element={<AuditLogPage />} />
+        <Route path="audit-log" element={<RequireSuperAdmin><AuditLogPage /></RequireSuperAdmin>} />
         {/* Failure Alerts — Feature 11 */}
         <Route path="failure-alerts" element={<FailureAlertsPage />} />
         {/* Cohort Chart — Feature 3 */}
         <Route path="cohort" element={<CohortPage />} />
         {/* Dunning Templates — Feature 4 */}
-        <Route path="dunning-templates" element={<DunningTemplatesPage />} />
+        <Route path="dunning-templates" element={<RequireSuperAdmin><DunningTemplatesPage /></RequireSuperAdmin>} />
       </Route>
     </>
   );

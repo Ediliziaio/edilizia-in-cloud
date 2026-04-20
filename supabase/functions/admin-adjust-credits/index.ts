@@ -17,8 +17,14 @@ Deno.serve(async (req) => {
       return errorResponse("Parametri mancanti: company_id, service, amount_eur, reason", 400, corsH);
     }
 
-    if (!["email", "ai_agents", "whatsapp"].includes(service)) {
+    if (!["email", "ai_agents", "whatsapp", "render"].includes(service)) {
       return errorResponse("Servizio non valido: " + service, 400, corsH);
+    }
+
+    // Per render gli importi sono NUMERO di crediti (interi). Rifiutiamo valori
+    // con decimali prima di chiamare la RPC per errori utente più chiari.
+    if (service === "render" && !Number.isInteger(amount_eur)) {
+      return errorResponse("Per 'render' amount_eur deve essere un intero (N crediti)", 400, corsH);
     }
 
     const { data, error } = await supabaseAdmin.rpc("adjust_credits_atomic", {

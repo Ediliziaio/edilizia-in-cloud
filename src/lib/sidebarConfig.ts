@@ -106,7 +106,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Manutenzione", url: "/azienda/manutenzione", icon: Settings, permissionKey: "canViewManutenzione", groupLabel: "Pianificazione" },
       { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
       // ─── Controllo ───
-      { title: "Sicurezza Cantiere", url: "/azienda/sicurezza-cantiere", icon: ShieldAlert, permissionKey: "canViewSicurezzaCantiere" },
+      { title: "Sicurezza Cantiere", url: "/azienda/sicurezza-cantiere", icon: ShieldAlert, permissionKey: "canViewSicurezzaCantiere", featureKey: "cantieri_avanzati" },
     ],
   },
 
@@ -128,7 +128,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarClock, permissionKey: "canViewScadenzario", featureKey: "billing_external" },
       // ─── Contabilità ───
       { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewPrimaNota", groupLabel: "Contabilità" },
-      { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria" },
+      { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", featureKey: "tesoreria" },
       { title: "Costi", url: "/azienda/costi", icon: TrendingDown, permissionKey: "canViewCosts", moduleKey: "forecast" },
       { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
       { title: "Contabilità Fiscale", url: "/azienda/contabilita-fiscale", icon: Calculator, permissionKey: "canViewPrimaNota", groupLabel: "Fiscale" },
@@ -143,7 +143,7 @@ export const macroAreas: MacroArea[] = [
     title: "Persone",
     icon: Users2,
     items: [
-      { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone" },
+      { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone", featureKey: "hr_personale" },
       { title: "Giornale Lavori", url: "/azienda/giornale-lavori", icon: NotebookPen, permissionKey: "canViewGiornaleLavori" },
       { title: "Messaggi Esterni", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewMessaggiEsterni" },
     ],
@@ -158,7 +158,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities" },
       { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities" },
-      { title: "Documenti & FEA", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewMarketingOpportunities" },
+      { title: "Documenti & FEA", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "firma_fea" },
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports" },
@@ -172,14 +172,14 @@ export const macroAreas: MacroArea[] = [
     icon: Zap,
     items: [
       // ─── Canali comunicazione ───
-      { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", groupLabel: "Comunicazione" },
-      { title: "SMS Marketing", url: "/azienda/sms-marketing", icon: MessageSquare, permissionKey: "canViewSmsMarketing" },
-      { title: "SMS Transazionale", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing" },
-      { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp" },
+      { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", featureKey: "email_marketing", groupLabel: "Comunicazione" },
+      { title: "SMS Marketing", url: "/azienda/sms-marketing", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
+      { title: "SMS Transazionale", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
+      { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", featureKey: "whatsapp" },
       // ─── Automazione ───
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni", groupLabel: "Automazione" },
-      { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent" },
-      { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewRenderAi" },
+      { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents" },
+      { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewRenderAi", featureKey: "render_ai" },
     ],
   },
 ];

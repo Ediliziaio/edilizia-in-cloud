@@ -9,7 +9,14 @@ const ALL_MODULES = ["orders", "warehouse", "calendar", "customers", "employees"
 export type ModuleKey = (typeof ALL_MODULES)[number];
 
 export function useSubscriptionLimits() {
-  const { effectiveCompany, isImpersonating, role, impersonatedCompanyId, impersonationToken } = useAuth();
+  const {
+    effectiveCompany,
+    isImpersonating,
+    isImpersonationReady,
+    role,
+    impersonatedCompanyId,
+    impersonationToken,
+  } = useAuth();
 
   const companyId = effectiveCompany?.id;
   const planId = effectiveCompany?.subscription_plan_id;
@@ -84,10 +91,16 @@ export function useSubscriptionLimits() {
     ? (Array.isArray(rawModules) ? (rawModules as string[]) : [])
     : [];
 
-  // Super admin bypass: also active when impersonation session exists but role
-  // has not yet been resolved (e.g. fetchUserData racing setSession on page load).
+  // Super admin bypass hardened: serve `isImpersonationReady` (confermato server-side
+  // via fetchUserData in AuthContext:567-572) oltre a tutti gli altri gate — così un
+  // attaccante con scrittura in sessionStorage non ottiene l'unlock anticipato.
   const isSuperAdmin = role === "super_admin";
-  const bypass = isSuperAdmin && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken));
+  const bypass =
+    isSuperAdmin &&
+    isImpersonationReady &&
+    isImpersonating &&
+    !!impersonatedCompanyId &&
+    !!impersonationToken;
 
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;

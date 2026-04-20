@@ -165,6 +165,34 @@ Deno.serve(async (req) => {
             { onConflict: "email", ignoreDuplicates: true }
           );
       }
+
+      // S0.6: su HARD bounce rifondi il credito email al wallet dell'azienda.
+      // Chiama refund_email_credit_on_bounce, che è idempotente: se il
+      // message_id è già stato rifondato NON viene emesso un nuovo refund.
+      // Per evitare refund su soft bounce (temporanei, il provider riproverà),
+      // rifondiamo SOLO se il provider dichiara hard bounce esplicitamente.
+      if (
+        event.type === "bounced" &&
+        event.isHardBounce === true &&
+        event.providerMessageId
+      ) {
+        try {
+          const { data: refundResult, error: refundErr } = await adminClient.rpc(
+            "refund_email_credit_on_bounce",
+            {
+              p_provider_message_id: event.providerMessageId,
+              p_reason: event.reason || "hard_bounce",
+            },
+          );
+          if (refundErr) {
+            console.error("[email-provider-webhook] refund error:", refundErr);
+          } else {
+            console.log("[email-provider-webhook] refund result:", refundResult);
+          }
+        } catch (refundCatch) {
+          console.error("[email-provider-webhook] refund threw:", refundCatch);
+        }
+      }
     }
 
     return new Response(JSON.stringify({ processed: events.length }), {
@@ -186,10 +214,18 @@ interface NormalizedEvent {
   email?: string;
   reason?: string;
   timestamp?: string;
+  /**
+   * true = hard bounce (permanent, indirizzo invalido). Rifondiamo il credito.
+   * false = soft bounce (temporaneo, il provider riproverà).
+   * undefined = ambiguo, no refund.
+   */
+  isHardBounce?: boolean;
 }
 
 function normalizeEvents(body: any, stream: string): NormalizedEvent[] {
-  // SendGrid sends an array of events
+  // SendGrid sends an array of events.
+  // Hard bounce detection: SendGrid marks `type: 'bounce'` con `bounce_classification`,
+  // oppure `type: 'blocked'` = soft. `event: 'bounce'` + `bounce_classification` in {"Invalid Address"} = hard.
   if (Array.isArray(body)) {
     return body.map((ev: any) => ({
       type: mapSendGridEvent(ev.event),
@@ -197,10 +233,15 @@ function normalizeEvents(body: any, stream: string): NormalizedEvent[] {
       email: ev.email,
       reason: ev.reason || ev.response,
       timestamp: ev.timestamp ? new Date(ev.timestamp * 1000).toISOString() : undefined,
+      isHardBounce: ev.event === "bounce"
+        ? (ev.type === "bounce"
+          || String(ev.bounce_classification || "").toLowerCase().includes("invalid")
+          || String(ev.reason || "").toLowerCase().includes("does not exist"))
+        : undefined,
     }));
   }
 
-  // Brevo
+  // Brevo: distingue hard_bounce vs soft_bounce esplicitamente
   if (body.event && body["message-id"]) {
     return [{
       type: mapBrevoEvent(body.event),
@@ -208,40 +249,55 @@ function normalizeEvents(body: any, stream: string): NormalizedEvent[] {
       email: body.email,
       reason: body.reason,
       timestamp: body.date,
+      isHardBounce: body.event === "hard_bounce" ? true
+        : body.event === "soft_bounce" ? false
+        : undefined,
     }];
   }
 
-  // Elastic Email
+  // Elastic Email: bounce_category "HardBounce" / "Hard" = hard
   if (body.status && body.msgID) {
+    const cat = String(body.error_category || body.bounce_category || "").toLowerCase();
     return [{
       type: mapElasticEvent(body.status),
       providerMessageId: body.msgID,
       email: body.to,
       reason: body.error_category,
       timestamp: body.date,
+      isHardBounce: body.status === "Bounced"
+        ? (cat.includes("hard") || cat.includes("noMailbox") || cat.includes("badaddress") ? true : undefined)
+        : undefined,
     }];
   }
 
-  // Mailgun
+  // Mailgun: `severity: permanent` = hard, `severity: temporary` = soft
   if (body["event-data"] || body.event) {
     const ev = body["event-data"] || body;
+    const severity = String(ev.severity || ev["delivery-status"]?.severity || "").toLowerCase();
     return [{
       type: mapMailgunEvent(ev.event),
       providerMessageId: ev.message?.headers?.["message-id"],
       email: ev.recipient,
       reason: ev["delivery-status"]?.description,
       timestamp: ev.timestamp ? new Date(Number(ev.timestamp) * 1000).toISOString() : undefined,
+      isHardBounce: ev.event === "failed"
+        ? (severity === "permanent" ? true : severity === "temporary" ? false : undefined)
+        : undefined,
     }];
   }
 
-  // Resend
+  // Resend: bounce.type "Permanent" / "Transient"
   if (body.type && body.data) {
+    const btype = String(body.data?.bounce?.type || "").toLowerCase();
     return [{
       type: mapResendEvent(body.type),
       providerMessageId: body.data?.email_id,
       email: body.data?.to?.[0],
       reason: body.data?.bounce?.message,
       timestamp: body.created_at,
+      isHardBounce: body.type === "email.bounced"
+        ? (btype === "permanent" ? true : btype === "transient" ? false : undefined)
+        : undefined,
     }];
   }
 
