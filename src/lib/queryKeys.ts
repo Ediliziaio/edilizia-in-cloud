@@ -542,6 +542,21 @@ export const queryKeys = {
     items: (poId: string | null) => ["purchase-order-items", poId] as const,
   },
 
+  // ── DDT Ricezione (Documenti di Trasporto fornitori) ───
+  ddtRicezione: {
+    all: ["ddt-ricezione"] as const,
+    list: (companyId: string | undefined, filters?: Record<string, unknown>) =>
+      ["ddt-ricezione", "list", companyId, filters] as const,
+    byPurchaseOrder: (poId: string | null | undefined) =>
+      ["ddt-ricezione", "by-po", poId] as const,
+    detail: (ddtId: string | undefined) =>
+      ["ddt-ricezione", "detail", ddtId] as const,
+    goodsReceipts: (ddtId: string | undefined) =>
+      ["ddt-ricezione", "goods-receipts", ddtId] as const,
+    countsByPO: (companyId: string | undefined) =>
+      ["ddt-ricezione", "counts-by-po", companyId] as const,
+  },
+
   // ── Google Calendar ────────────────────────────────────
   googleCalendar: {
     connection: (companyId: string | undefined, userId: string | undefined) =>

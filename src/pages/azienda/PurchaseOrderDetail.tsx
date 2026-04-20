@@ -15,9 +15,10 @@ import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
   Truck, Save, XCircle, ExternalLink, FileCheck, ShieldCheck,
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
+import { useDDTRicezioneMutations } from "@/hooks/useDDTRicezione";
 import { ArticleCombobox, type ArticleTemplateData } from "@/components/orders/ArticleCombobox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -84,28 +85,30 @@ export default function PurchaseOrderDetail() {
     enabled: !!odaId,
   });
 
-  const createDdtMutation = useMutation({
-    mutationFn: async () => {
-      if (!ddtForm.numero_ddt.trim()) throw new Error("Numero DDT obbligatorio");
-      const { error } = await supabase.from("ddt_ricezione").insert({
-        company_id: effectiveCompany?.id,
+  // Usa il hook unificato useDDTRicezioneMutations: gestisce warehouse_id auto-fill
+  // (delivery_warehouse_id dell'ODA → default azienda) e invalida tutte le cache
+  // correlate (warehouse_stock, purchase_orders, ddt-ricezione globale, …).
+  const { createDDT: createDdtMutation } = useDDTRicezioneMutations(odaId ?? null);
+
+  const handleCreateDdt = () => {
+    if (!odaId) return;
+    createDdtMutation.mutate(
+      {
         purchase_order_id: odaId,
-        numero_ddt: ddtForm.numero_ddt.trim(),
+        numero_ddt: ddtForm.numero_ddt,
         data_ricezione: ddtForm.data_ricezione,
         quantita_ricevuta: parseFloat(ddtForm.quantita_ricevuta) || 0,
-        stato: ddtForm.stato,
-        note: ddtForm.note.trim() || null,
-      });
-      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
-    },
-    onSuccess: () => {
-      toast.success("DDT registrato");
-      queryClient.invalidateQueries({ queryKey: ["ddt-ricezione", odaId] });
-      setDdtDialogOpen(false);
-      setDdtForm({ numero_ddt: "", data_ricezione: format(new Date(), "yyyy-MM-dd"), quantita_ricevuta: "", stato: "ricevuto", note: "" });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+        stato: ddtForm.stato as "attesa" | "parziale" | "ricevuto",
+        note: ddtForm.note || null,
+      },
+      {
+        onSuccess: () => {
+          setDdtDialogOpen(false);
+          setDdtForm({ numero_ddt: "", data_ricezione: format(new Date(), "yyyy-MM-dd"), quantita_ricevuta: "", stato: "ricevuto", note: "" });
+        },
+      }
+    );
+  };
 
   if (isLoading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -404,7 +407,19 @@ export default function PurchaseOrderDetail() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileCheck className="h-4 w-4" aria-hidden="true" /> DDT Ricezione
-                  {ddtList.length > 0 && <Badge variant="secondary" className="text-xs">{ddtList.length}</Badge>}
+                  {ddtList.length > 0 && (
+                    <>
+                      <Badge variant="secondary" className="text-xs">{ddtList.length}</Badge>
+                      {(() => {
+                        const ricevuti = ddtList.filter((d: any) => d.stato === "ricevuto").length;
+                        return ricevuti > 0 ? (
+                          <Badge className="bg-green-100 text-green-800 text-[10px]">
+                            {ricevuti} ricevuti
+                          </Badge>
+                        ) : null;
+                      })()}
+                    </>
+                  )}
                 </CardTitle>
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDdtDialogOpen(true)}>
                   <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Registra
@@ -417,9 +432,17 @@ export default function PurchaseOrderDetail() {
               ) : (
                 <div className="space-y-1.5">
                   {ddtList.map((ddt: any) => (
-                    <div key={ddt.id} className="flex items-start justify-between p-2 rounded-md bg-muted/50 text-xs gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium">{ddt.numero_ddt}</p>
+                    <button
+                      type="button"
+                      key={ddt.id}
+                      onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
+                      className="w-full flex items-start justify-between p-2 rounded-md bg-muted/50 hover:bg-muted text-xs gap-2 text-left transition-colors group"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium truncate">{ddt.numero_ddt}</p>
+                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                        </div>
                         <p className="text-muted-foreground">{ddt.data_ricezione?.split("-").reverse().join("/")} · {ddt.quantita_ricevuta} unità</p>
                         {ddt.note && <p className="text-muted-foreground italic truncate">{ddt.note}</p>}
                       </div>
@@ -430,7 +453,7 @@ export default function PurchaseOrderDetail() {
                       }>
                         {ddt.stato === "ricevuto" ? "Ricevuto" : ddt.stato === "parziale" ? "Parziale" : "Attesa"}
                       </Badge>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -491,7 +514,7 @@ export default function PurchaseOrderDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDdtDialogOpen(false)}>Annulla</Button>
-            <Button onClick={() => createDdtMutation.mutate()} disabled={createDdtMutation.isPending}>
+            <Button onClick={handleCreateDdt} disabled={createDdtMutation.isPending || !ddtForm.numero_ddt.trim()}>
               {createDdtMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registra DDT"}
             </Button>
           </DialogFooter>

@@ -148,6 +148,7 @@ const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
 // PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
+const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
 const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
 const SubappaltatoriPage = lazy(() => import("@/pages/azienda/SubappaltatoriPage"));
@@ -311,6 +312,8 @@ export function companyRoutes() {
         <Route path="prima-nota" element={<ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>} />
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
         <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
+        <Route path="ddt" element={<Navigate to="/azienda/ordini?tab=ddt" replace />} />
+        <Route path="ddt/:ddtId" element={<ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>} />
         {/* Cantieri avanzati — gated: cantieri_avanzati (core, default su tutti i piani) */}
         <Route path="sicurezza-cantiere" element={<FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>} />
         <Route path="giornale-lavori" element={<FeatureRoute featureKey="cantieri_avanzati"><GiornaleLavori /></FeatureRoute>} />

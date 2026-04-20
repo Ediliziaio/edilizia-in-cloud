@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Package, ExternalLink, Link2, Unlink } from "lucide-react";
+import { Package, ExternalLink, Link2, Unlink, FileCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
 import { CreatePurchaseOrderButton } from "./CreatePurchaseOrderButton";
 import { LinkExistingPurchaseOrderDialog } from "./LinkExistingPurchaseOrderDialog";
+import { useDDTCountsByPO } from "@/hooks/useDDTRicezione";
 
 const STATUS_LABELS: Record<string, string> = {
   bozza: "Bozza", inviato: "Inviato", confermato: "Confermato",
@@ -101,6 +102,9 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
     enabled: !!orderId,
   });
 
+  // DDT aggregato per ODA — evidenzia stato ricezione nei collegamenti
+  const { data: ddtCounts = {} } = useDDTCountsByPO();
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
@@ -123,42 +127,60 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
           <p className="text-sm text-muted-foreground">Nessun ordine d'acquisto collegato.</p>
         ) : (
           <div className="space-y-3">
-            {linkedPOs.map((po) => (
-              <div
-                key={po.id}
-                className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors group"
-              >
-                <Link
-                  to={`/azienda/ordini-acquisto/${po.id}`}
-                  className="flex-1 min-w-0"
+            {linkedPOs.map((po) => {
+              const ddtAgg = ddtCounts[po.id];
+              return (
+                <div
+                  key={po.id}
+                  className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors group"
                 >
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-medium">{po.oda_number}</span>
-                      <Badge className={`text-xs border-0 ${STATUS_COLORS[po.status] || ""}`}>
-                        {STATUS_LABELS[po.status] || po.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{po.suppliers?.name || "—"}</p>
-                  </div>
-                </Link>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <span className="text-sm font-medium">{formatCurrency(Number(po.total))}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => { e.stopPropagation(); setUnlinkTarget({ id: po.id, oda_number: po.oda_number }); }}
-                    aria-label={`Scollega OdA ${po.oda_number}`}
+                  <Link
+                    to={`/azienda/ordini-acquisto/${po.id}`}
+                    className="flex-1 min-w-0"
                   >
-                    <Unlink className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                  <Link to={`/azienda/ordini-acquisto/${po.id}`}>
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-sm font-medium">{po.oda_number}</span>
+                        <Badge className={`text-xs border-0 ${STATUS_COLORS[po.status] || ""}`}>
+                          {STATUS_LABELS[po.status] || po.status}
+                        </Badge>
+                        {ddtAgg && ddtAgg.total > 0 && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] gap-1 ${
+                              ddtAgg.ricevuti === ddtAgg.total
+                                ? "border-green-300 text-green-700 bg-green-50"
+                                : ddtAgg.parziali > 0
+                                ? "border-amber-300 text-amber-700 bg-amber-50"
+                                : "border-muted-foreground/30 text-muted-foreground"
+                            }`}
+                          >
+                            <FileCheck className="h-2.5 w-2.5" />
+                            {ddtAgg.ricevuti}/{ddtAgg.total} DDT
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{po.suppliers?.name || "—"}</p>
+                    </div>
                   </Link>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="text-sm font-medium">{formatCurrency(Number(po.total))}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => { e.stopPropagation(); setUnlinkTarget({ id: po.id, oda_number: po.oda_number }); }}
+                      aria-label={`Scollega OdA ${po.oda_number}`}
+                    >
+                      <Unlink className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                    <Link to={`/azienda/ordini-acquisto/${po.id}`}>
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>

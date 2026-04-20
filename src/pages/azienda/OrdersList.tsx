@@ -5,9 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera, Columns } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera, Columns, FileCheck } from "lucide-react";
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
+import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
 import FotoCantiere from "@/pages/azienda/FotoCantiere";
@@ -1294,6 +1295,7 @@ export default function OrdersList() {
   const tabs = [
     { id: "ordini", label: "Ordini", icon: ClipboardList, show: true },
     { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewForecast },
+    { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewForecast },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewOrders },
     { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewOrders },
     { id: "foto", label: "Foto Cantiere", icon: Camera, show: permissions.canViewOrders },
@@ -1334,6 +1336,12 @@ export default function OrdersList() {
         <div className="[&>div:first-child>div:first-child]:hidden">
           <PurchaseOrdersList />
         </div>
+      )}
+
+      {activeTab === "ddt" && (
+        <ErrorBoundary title="Errore nel caricamento DDT">
+          <DDTRicezioneList />
+        </ErrorBoundary>
       )}
 
       {activeTab === "anomalie" && (
