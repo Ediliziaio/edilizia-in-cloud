@@ -557,35 +557,17 @@ function AxisFormDialog({
   onSave: (values: AxisFormValues) => void | Promise<void>;
   saving: boolean;
 }) {
-  const [nome, setNome] = useState("");
-  const [codice, setCodice] = useState("");
-  const [descrizione, setDescrizione] = useState("");
-  const [tipo, setTipo] = useState<AxisTipo>("discrete");
-  const [obbligatorio, setObbligatorio] = useState(true);
-  const [codiceManuallyEdited, setCodiceManuallyEdited] = useState(false);
-
-  // Reset quando apre o cambia axis
-  useState(() => {
-    if (open) {
-      if (axis) {
-        setNome(axis.nome);
-        setCodice(axis.codice);
-        setDescrizione(axis.descrizione ?? "");
-        setTipo(axis.tipo);
-        setObbligatorio(axis.obbligatorio);
-        setCodiceManuallyEdited(true);
-      } else {
-        setNome("");
-        setCodice("");
-        setDescrizione("");
-        setTipo("discrete");
-        setObbligatorio(true);
-        setCodiceManuallyEdited(false);
-      }
-    }
-  });
-  // Reset aggressivo su cambio open/axis
-  // (useState initializer sopra è one-shot; utilizziamo effect pattern con key sul Dialog)
+  // BUG FIX wave 5: prima c'era un `useState(() => { ... setNome(...) ... })`
+  // che chiamava i setState durante il render (anti-pattern React). È stato
+  // rimosso: il reset dei campi avviene tramite `key={axis?.id ?? "new"}` sul
+  // DialogContent (forza remount) + `onOpenAutoFocus` (ripopola al focus).
+  // Gli initializer qui sotto gestiscono correttamente il mount iniziale.
+  const [nome, setNome] = useState(axis?.nome ?? "");
+  const [codice, setCodice] = useState(axis?.codice ?? "");
+  const [descrizione, setDescrizione] = useState(axis?.descrizione ?? "");
+  const [tipo, setTipo] = useState<AxisTipo>(axis?.tipo ?? "discrete");
+  const [obbligatorio, setObbligatorio] = useState(axis?.obbligatorio ?? true);
+  const [codiceManuallyEdited, setCodiceManuallyEdited] = useState(axis !== null);
 
   const editing = axis !== null;
   const conflict =
