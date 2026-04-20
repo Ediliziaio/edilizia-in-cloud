@@ -9,10 +9,12 @@
  * così il tab sopravvive a refresh + è condivisibile.
  */
 
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArticleCatalog } from "@/components/settings/ArticleCatalog";
 import { FamilyCatalog } from "@/components/listino/FamilyCatalog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Upload, Sparkles } from "lucide-react";
 
 export default function SettingsCatalog() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -26,6 +28,21 @@ export default function SettingsCatalog() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-end gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link to="/azienda/impostazioni/listino/import">
+            <Upload className="h-4 w-4 mr-2" />
+            Import Excel/CSV
+          </Link>
+        </Button>
+        <Button asChild size="sm">
+          <Link to="/azienda/impostazioni/listino/import">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Import AI da PDF
+          </Link>
+        </Button>
+      </div>
+
       <Tabs value={tab} onValueChange={handleChange}>
         <TabsList>
           <TabsTrigger value="famiglie">Famiglie</TabsTrigger>

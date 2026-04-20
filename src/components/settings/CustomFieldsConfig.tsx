@@ -79,6 +79,11 @@ const FOLDER_COLORS: Record<string, string> = {
   costo_aziendale: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
   // ── Azienda ───────────────────────────────────────────────────────────────
   company: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
+  // ── Catalogo Esteso (Sprint C) ────────────────────────────────────────────
+  product: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  family: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
+  tariffa: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  catalog_category: "bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300",
 };
 const FOLDER_LABELS: Record<string, string> = {
   contact: "Contatto",
@@ -120,6 +125,11 @@ const FOLDER_LABELS: Record<string, string> = {
   costo_aziendale: "Costo Aziendale",
   // ── Azienda ───────────────────────────────────────────────────────────────
   company: "Azienda / Profilo",
+  // ── Catalogo Esteso (Sprint C) ────────────────────────────────────────────
+  product: "Prodotto (Articolo)",
+  family: "Famiglia Prodotto",
+  tariffa: "Tariffa / Manodopera",
+  catalog_category: "Categoria Listino",
 };
 
 /* ───── helper to build system fields ───── */
@@ -690,6 +700,61 @@ const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_co_bank_name",         "Nome Banca",            "Azienda", "company", "{{ company.bank_name }}"),
   sysField("sys_co_logo_url",          "Logo URL",              "Azienda", "company", "{{ company.logo_url }}"),
   sysField("sys_co_regime_fiscale",    "Regime Fiscale",        "Azienda", "company", "{{ company.regime_fiscale }}"),
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── Catalogo Esteso (Sprint C) ─ Prodotto / Articolo ─────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  sysField("sys_prod_id",              "ID Prodotto",           "Prodotto", "product", "{{ product.id }}"),
+  sysField("sys_prod_code",            "Codice Articolo",       "Prodotto", "product", "{{ product.code }}"),
+  sysField("sys_prod_name",            "Nome / Descrizione",    "Prodotto", "product", "{{ product.name }}"),
+  sysField("sys_prod_description",     "Descrizione Estesa",    "Prodotto", "product", "{{ product.description }}"),
+  sysField("sys_prod_category",        "Categoria",             "Prodotto", "product", "{{ product.category }}"),
+  sysField("sys_prod_family_id",       "Famiglia",              "Prodotto", "product", "{{ product.family_id }}"),
+  sysField("sys_prod_supplier_id",     "Fornitore",             "Prodotto", "product", "{{ product.supplier_id }}"),
+  sysField("sys_prod_unit",            "Unità di Misura",       "Prodotto", "product", "{{ product.unit }}"),
+  sysField("sys_prod_base_price",      "Prezzo Base",           "Prodotto", "product", "{{ product.base_price }}"),
+  sysField("sys_prod_list_price",      "Prezzo Listino",        "Prodotto", "product", "{{ product.list_price }}"),
+  sysField("sys_prod_cost",            "Costo",                 "Prodotto", "product", "{{ product.cost }}"),
+  sysField("sys_prod_margin_pct",      "Margine %",             "Prodotto", "product", "{{ product.margin_pct }}"),
+  sysField("sys_prod_vat_rate",        "Aliquota IVA",          "Prodotto", "product", "{{ product.vat_rate }}"),
+  sysField("sys_prod_barcode",         "Barcode / EAN",         "Prodotto", "product", "{{ product.barcode }}"),
+  sysField("sys_prod_sku",             "SKU",                   "Prodotto", "product", "{{ product.sku }}"),
+  sysField("sys_prod_weight",          "Peso (kg)",             "Prodotto", "product", "{{ product.weight }}"),
+  sysField("sys_prod_notes",           "Note",                  "Prodotto", "product", "{{ product.notes }}"),
+  sysField("sys_prod_active",          "Attivo",                "Prodotto", "product", "{{ product.active }}"),
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── Catalogo Esteso (Sprint C) ─ Famiglia Prodotto ───────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  sysField("sys_fam_id",               "ID Famiglia",           "Famiglia", "family", "{{ family.id }}"),
+  sysField("sys_fam_name",             "Nome Famiglia",         "Famiglia", "family", "{{ family.name }}"),
+  sysField("sys_fam_code",             "Codice Famiglia",       "Famiglia", "family", "{{ family.code }}"),
+  sysField("sys_fam_parent_id",        "Famiglia Padre",        "Famiglia", "family", "{{ family.parent_id }}"),
+  sysField("sys_fam_supplier_id",      "Fornitore di Origine",  "Famiglia", "family", "{{ family.supplier_id }}"),
+  sysField("sys_fam_default_margin",   "Margine Default %",     "Famiglia", "family", "{{ family.default_margin_pct }}"),
+  sysField("sys_fam_default_markup",   "Ricarico Default %",    "Famiglia", "family", "{{ family.default_markup_pct }}"),
+  sysField("sys_fam_description",      "Descrizione",           "Famiglia", "family", "{{ family.description }}"),
+  sysField("sys_fam_notes",            "Note",                  "Famiglia", "family", "{{ family.notes }}"),
+  sysField("sys_fam_active",           "Attiva",                "Famiglia", "family", "{{ family.active }}"),
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── Catalogo Esteso (Sprint C) ─ Tariffa / Manodopera ────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  sysField("sys_tar_id",               "ID Tariffa",            "Tariffa", "tariffa", "{{ tariffa.id }}"),
+  sysField("sys_tar_nome",             "Nome Tariffa",          "Tariffa", "tariffa", "{{ tariffa.nome }}"),
+  sysField("sys_tar_codice",           "Codice Tariffa",        "Tariffa", "tariffa", "{{ tariffa.codice }}"),
+  sysField("sys_tar_categoria",        "Categoria (Operaio/Tecnico)", "Tariffa", "tariffa", "{{ tariffa.categoria }}"),
+  sysField("sys_tar_qualifica",        "Qualifica / Livello",   "Tariffa", "tariffa", "{{ tariffa.qualifica }}"),
+  sysField("sys_tar_costo_orario",     "Costo Orario Base",     "Tariffa", "tariffa", "{{ tariffa.costo_orario }}"),
+  sysField("sys_tar_costo_giornaliero","Costo Giornaliero",     "Tariffa", "tariffa", "{{ tariffa.costo_giornaliero }}"),
+  sysField("sys_tar_prezzo_orario",    "Prezzo Vendita Orario", "Tariffa", "tariffa", "{{ tariffa.prezzo_orario }}"),
+  sysField("sys_tar_margine_pct",      "Margine %",             "Tariffa", "tariffa", "{{ tariffa.margine_pct }}"),
+  sysField("sys_tar_ore_giornaliere",  "Ore Giornaliere Std.",  "Tariffa", "tariffa", "{{ tariffa.ore_giornaliere }}"),
+  sysField("sys_tar_ccnl",             "CCNL di Riferimento",   "Tariffa", "tariffa", "{{ tariffa.ccnl }}"),
+  sysField("sys_tar_valida_dal",       "Valida Dal",            "Tariffa", "tariffa", "{{ tariffa.valida_dal }}"),
+  sysField("sys_tar_valida_al",        "Valida Al",             "Tariffa", "tariffa", "{{ tariffa.valida_al }}"),
+  sysField("sys_tar_note",             "Note",                  "Tariffa", "tariffa", "{{ tariffa.note }}"),
+  sysField("sys_tar_attiva",           "Attiva",                "Tariffa", "tariffa", "{{ tariffa.attiva }}"),
 ];
 
 const FIELD_TYPES = [
@@ -731,6 +796,11 @@ const CANTIERE_SECTIONS: Record<string, { value: string; label: string }[]> = {
   costo_aziendale:       [{ value: "costo_aziendale",       label: "Costo Aziendale" }],
   // ── Azienda ──
   company:               [{ value: "company",               label: "Azienda / Profilo" }],
+  // ── Catalogo Esteso (Sprint C) ──
+  product:               [{ value: "product",               label: "Prodotto (Articolo)" }],
+  family:                [{ value: "family",                label: "Famiglia Prodotto" }],
+  tariffa:               [{ value: "tariffa",               label: "Tariffa / Manodopera" }],
+  catalog_category:      [{ value: "catalog_category",      label: "Categoria Listino" }],
 };
 
 const GROUP_OPTIONS = [
@@ -772,6 +842,11 @@ const GROUP_OPTIONS = [
   { value: "costo_aziendale",       label: "Costo Aziendale" },
   // ── Azienda ──
   { value: "company",               label: "Azienda / Profilo" },
+  // ── Catalogo Esteso (Sprint C) ──
+  { value: "product",               label: "Prodotto (Articolo)" },
+  { value: "family",                label: "Famiglia Prodotto" },
+  { value: "tariffa",               label: "Tariffa / Manodopera" },
+  { value: "catalog_category",      label: "Categoria Listino" },
 ];
 
 const OBJECT_NAME_MAP: Record<string, string> = {
@@ -812,6 +887,11 @@ const OBJECT_NAME_MAP: Record<string, string> = {
   costo_aziendale: "Costo Aziendale",
   // ── Azienda ──
   company: "Azienda / Profilo",
+  // ── Catalogo Esteso (Sprint C) ──
+  product: "Prodotto (Articolo)",
+  family: "Famiglia Prodotto",
+  tariffa: "Tariffa / Manodopera",
+  catalog_category: "Categoria Listino",
 };
 
 function toSnakeCase(s: string) {
