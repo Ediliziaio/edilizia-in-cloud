@@ -18,6 +18,7 @@ const DashboardView = lazy(() => import("@/pages/azienda/dashboards/DashboardVie
 const DashboardBuilder = lazy(() => import("@/pages/azienda/dashboards/DashboardBuilder"));
 const SettingsProfile = lazy(() => import("@/pages/azienda/settings/SettingsProfile"));
 const SettingsCatalog = lazy(() => import("@/pages/azienda/settings/SettingsCatalog"));
+const SettingsCatalogImport = lazy(() => import("@/pages/azienda/settings/SettingsCatalogImport"));
 const SettingsFamilyEditor = lazy(() => import("@/pages/azienda/settings/SettingsFamilyEditor"));
 const SettingsBundle = lazy(() => import("@/pages/azienda/settings/SettingsBundle"));
 const SettingsOrderStatus = lazy(() => import("@/pages/azienda/settings/SettingsOrderStatus"));
@@ -417,6 +418,8 @@ export function companyRoutes() {
           <Route path="profilo" element={<SettingsProfile />} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />
           <Route path="listino" element={<SettingsCatalog />} />
+          <Route path="listino/import" element={<SettingsCatalogImport />} />
+          <Route path="catalogo/import" element={<Navigate to="../listino/import" replace />} />
           <Route path="listino/famiglie" element={<Navigate to="../listino?tab=famiglie" replace />} />
           <Route path="listino/famiglie/nuova" element={<SettingsFamilyEditor />} />
           <Route path="listino/famiglie/:id" element={<SettingsFamilyEditor />} />
