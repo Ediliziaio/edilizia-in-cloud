@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,7 @@ import {
   Building2,
   MapPin,
   Car,
+  HardHat,
   Users,
   ShieldAlert,
 } from "lucide-react";
@@ -48,6 +49,16 @@ import {
 } from "@/components/ui/select";
 import { useWarehouses, type Warehouse, type WarehouseInsert } from "@/hooks/useWarehouses";
 import { WarehouseAssignmentsDialog } from "@/components/warehouse/WarehouseAssignmentsDialog";
+import {
+  useAllWarehouseReferentiMap,
+  useReferenteCandidates,
+  useWarehouseReferenti,
+  referenteToPerson,
+} from "@/hooks/useWarehouseReferenti";
+import {
+  WarehouseReferentiPicker,
+  type PickerReferente,
+} from "@/components/warehouse/WarehouseReferentiPicker";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   main: <Building2 className="h-4 w-4" />,
@@ -101,6 +112,13 @@ export default function WarehouseManager() {
     isUpdating,
   } = useWarehouses(false); // mostra anche disattivati
 
+  // Mappa referenti per tutti i magazzini (popola le card)
+  const { data: referentiMap = {} } = useAllWarehouseReferentiMap();
+
+  // Candidati assegnabili (operai, staff interno, subappaltatori; MAI clienti)
+  const { employees, subcontractors, isLoading: isLoadingCandidates } =
+    useReferenteCandidates();
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<WarehouseInsert>(emptyForm());
@@ -150,9 +168,44 @@ export default function WarehouseManager() {
     );
   }
 
+  // Referenti del magazzino in edit
+  const {
+    referenti: existingReferenti,
+    isLoading: isLoadingReferenti,
+    saveReferenti,
+    isSaving: isSavingReferenti,
+  } = useWarehouseReferenti(editingId);
+
+  const [pickerValue, setPickerValue] = useState<PickerReferente[]>([]);
+
+  // Seed / reset pickerValue quando cambia il magazzino in edit o si riapre il dialog
+  useEffect(() => {
+    if (!dialogOpen) return;
+    if (!editingId) return; // create mode: già resettato in openCreate
+    const items: PickerReferente[] = existingReferenti
+      .map((r) => {
+        const person = referenteToPerson(r);
+        if (!person) return null;
+        return {
+          id: r.id,
+          kind: person.kind,
+          targetId: person.id,
+          displayName: person.displayName,
+          subtitle: person.subtitle,
+          phone: person.phone,
+          email: person.email,
+          role_label: r.role_label,
+          is_primary: r.is_primary,
+        };
+      })
+      .filter((x): x is PickerReferente => x !== null);
+    setPickerValue(items);
+  }, [dialogOpen, editingId, existingReferenti]);
+
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
+    setPickerValue([]);
     setDialogOpen(true);
   };
 
@@ -173,6 +226,7 @@ export default function WarehouseManager() {
       linked_order_id: w.linked_order_id ?? null,
       notes: w.notes ?? null,
     });
+    // pickerValue viene popolato dall'useEffect quando la query referenti risolve
     setDialogOpen(true);
   };
 
@@ -194,11 +248,31 @@ export default function WarehouseManager() {
       name: normalizedName,
       province: form.province ? form.province.toString().toUpperCase().slice(0, 2) : form.province,
     };
+    // 1) Salva il magazzino (create o update)
+    let warehouseId: string;
     if (editingId) {
       await updateWarehouse({ id: editingId, ...normalizedForm });
+      warehouseId = editingId;
     } else {
-      await createWarehouse(normalizedForm);
+      const created = await createWarehouse(normalizedForm);
+      warehouseId = created.id;
     }
+
+    // 2) Sincronizza referenti (solo se la picker ha qualcosa o se stiamo
+    //    modificando — in modo da poter rimuovere tutti i referenti esistenti)
+    if (pickerValue.length > 0 || editingId) {
+      await saveReferenti({
+        warehouse_id: warehouseId,
+        referenti: pickerValue.map((v) => ({
+          id: v.id,
+          employee_id: v.kind === "employee" ? v.targetId : null,
+          subcontractor_id: v.kind === "subcontractor" ? v.targetId : null,
+          role_label: v.role_label,
+          is_primary: v.is_primary,
+        })),
+      });
+    }
+
     setDialogOpen(false);
   };
 
@@ -270,13 +344,54 @@ export default function WarehouseManager() {
                     {[w.address, w.city, w.province].filter(Boolean).join(", ")}
                   </p>
                 )}
-                {w.contact_name && (
-                  <p className="flex items-center gap-1.5">
-                    <Truck className="h-3.5 w-3.5 shrink-0" />
-                    {w.contact_name}
-                    {w.contact_phone && ` · ${w.contact_phone}`}
-                  </p>
-                )}
+
+                {/* Referenti (nuovo sistema) o fallback legacy contact_name */}
+                {(() => {
+                  const refs = referentiMap[w.id] ?? [];
+                  if (refs.length > 0) {
+                    const primary =
+                      refs.find((r) => r.is_primary) ?? refs[0];
+                    const person = referenteToPerson(primary);
+                    const extraCount = refs.length - 1;
+                    return (
+                      <div className="space-y-1">
+                        <p className="flex items-center gap-1.5">
+                          {primary.employee_id ? (
+                            <HardHat className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+                          ) : (
+                            <Building2 className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                          )}
+                          <span className="truncate">
+                            <span className="font-medium text-foreground">
+                              {person?.displayName ?? "—"}
+                            </span>
+                            <span className="text-xs">
+                              {" "}· {primary.role_label}
+                            </span>
+                          </span>
+                        </p>
+                        {extraCount > 0 && (
+                          <p className="flex items-center gap-1.5 text-xs">
+                            <Users className="h-3 w-3 shrink-0" />
+                            +{extraCount} altr{extraCount === 1 ? "o" : "i"} referent
+                            {extraCount === 1 ? "e" : "i"}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+                  if (w.contact_name) {
+                    return (
+                      <p className="flex items-center gap-1.5">
+                        <Truck className="h-3.5 w-3.5 shrink-0" />
+                        {w.contact_name}
+                        {w.contact_phone && ` · ${w.contact_phone}`}
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {!w.is_active && (
                   <Badge variant="outline" className="text-xs text-destructive border-destructive/50">
                     Disattivato
@@ -328,7 +443,7 @@ export default function WarehouseManager() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingId ? "Modifica Magazzino" : "Nuovo Magazzino"}
@@ -400,23 +515,33 @@ export default function WarehouseManager() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Referente</Label>
-                <Input
-                  value={form.contact_name ?? ""}
-                  onChange={(e) => f("contact_name", e.target.value)}
-                  placeholder="Mario Rossi"
-                />
+            {/* Referenti: operai, staff interno o subappaltatori — MAI clienti */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" />
+                  Referenti del magazzino
+                </Label>
+                {pickerValue.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] h-5">
+                    {pickerValue.length}{" "}
+                    {pickerValue.length === 1 ? "assegnato" : "assegnati"}
+                  </Badge>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label>Telefono referente</Label>
-                <Input
-                  value={form.contact_phone ?? ""}
-                  onChange={(e) => f("contact_phone", e.target.value)}
-                  placeholder="+39 333 123456"
-                />
-              </div>
+              <WarehouseReferentiPicker
+                value={pickerValue}
+                onChange={setPickerValue}
+                employees={employees}
+                subcontractors={subcontractors}
+                isLoading={isLoadingCandidates || isLoadingReferenti}
+                disabled={isLoadingReferenti}
+              />
+              {isLoadingReferenti && (
+                <p className="text-[11px] text-muted-foreground">
+                  Caricamento referenti esistenti…
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -435,9 +560,17 @@ export default function WarehouseManager() {
             </Button>
             <Button
               onClick={handleSave}
-              disabled={!form.name.trim() || isCreating || isUpdating}
+              disabled={
+                !form.name.trim() ||
+                isCreating ||
+                isUpdating ||
+                isSavingReferenti ||
+                isLoadingReferenti
+              }
             >
-              {isCreating || isUpdating ? "Salvataggio…" : "Salva"}
+              {isCreating || isUpdating || isSavingReferenti
+                ? "Salvataggio…"
+                : "Salva"}
             </Button>
           </DialogFooter>
         </DialogContent>

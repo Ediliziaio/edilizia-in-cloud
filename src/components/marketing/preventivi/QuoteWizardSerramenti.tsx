@@ -139,10 +139,11 @@ export default function QuoteWizardSerramenti({
   }, [availableLines, selectedLineId]);
 
   // Inizializza selezioni assi con default quando si sceglie una famiglia.
-  // Intenzionalmente dep solo su `selectedFamily?.id`: se useFamilies refetch
-  // restituisce una nuova reference con lo stesso id, NON vogliamo resettare le
-  // scelte dell'utente. Solo un cambio di id (user sceglie altra famiglia)
-  // deve riapplicare i default.
+  // NB: dipende volutamente solo da `selectedFamily?.id` — il parent potrebbe
+  // re-instanziare l'oggetto famiglia a ogni render di useFamilies(); se
+  // dipendessimo dall'oggetto intero perderemmo le selezioni dell'utente a
+  // ogni invalidazione della query. Il set di assi cambia solo quando cambia
+  // la famiglia, quindi `.id` è la vera key semantica.
   useEffect(() => {
     if (!selectedFamily) return;
     const sel: AxisSelection = {};

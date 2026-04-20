@@ -55,13 +55,28 @@ interface ResolvedRow {
  * open (or vice versa). Moving resolution server-side eliminates that drift.
  */
 export function useFeatureFlags(companyIdOverride?: string) {
-  const { effectiveCompany, role, isImpersonating, impersonatedCompanyId, impersonationToken } = useAuth();
+  const {
+    effectiveCompany,
+    role,
+    isImpersonating,
+    isImpersonationReady,
+    impersonatedCompanyId,
+    impersonationToken,
+  } = useAuth();
   const companyId = companyIdOverride || effectiveCompany?.id;
 
-  // Super admin bypass: covers the initial impersonation race where `role` has
-  // not resolved yet but the impersonation session tokens are already present.
+  // Super admin bypass hardened: ogni gate deve essere vero per attivare il
+  // bypass. `isImpersonationReady` è il solo segnale confermato server-side
+  // (AuthContext 567-572, post fetchUserData); senza di esso un attaccante
+  // che scrive `sa_imp_company_id` in sessionStorage + cache profile con
+  // role sbagliata potrebbe aprire tutte le feature prima della verifica async.
   const isSuperAdmin = role === "super_admin";
-  const bypass = isSuperAdmin && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken));
+  const bypass =
+    isSuperAdmin &&
+    isImpersonationReady &&
+    isImpersonating &&
+    !!impersonatedCompanyId &&
+    !!impersonationToken;
 
   // Catalog: needed for display metadata (icon, category, name, description)
   // in consumers that introspect the flag list. No longer used for resolution.

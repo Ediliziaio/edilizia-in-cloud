@@ -15,8 +15,8 @@ interface WarehouseKanbanViewProps {
 
 const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "prenotato", "installato"];
 
-export default function WarehouseKanbanView({ 
-  items, 
+export default function WarehouseKanbanView({
+  items,
   onStatusChange,
   onUpdateNotes,
   getSupplierName,
@@ -24,7 +24,14 @@ export default function WarehouseKanbanView({
   selectedIds = new Set(),
   onToggleSelection,
 }: WarehouseKanbanViewProps) {
-  const [selectedItem, setSelectedItem] = useState<WarehouseItem | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+
+  // Always resolve fresh item reference so workflow mutations propagate into
+  // the dialog immediately without requiring a close/reopen.
+  const selectedItem = useMemo<WarehouseItem | null>(
+    () => (selectedItemId ? items.find((i) => i.id === selectedItemId) ?? null : null),
+    [selectedItemId, items]
+  );
 
   const itemsByStatus = useMemo(() => {
     const grouped: Record<OrderItemStatus, WarehouseItem[]> = {
@@ -33,6 +40,8 @@ export default function WarehouseKanbanView({
     items.forEach((item) => { if (grouped[item.status]) grouped[item.status].push(item); });
     return grouped;
   }, [items]);
+
+  const handleSelectItem = (item: WarehouseItem) => setSelectedItemId(item.id);
 
   return (
     <>
@@ -43,7 +52,7 @@ export default function WarehouseKanbanView({
             status={status}
             items={itemsByStatus[status]}
             getSupplierName={getSupplierName}
-            onSelectItem={setSelectedItem}
+            onSelectItem={handleSelectItem}
             selectedIds={selectedIds}
             onToggleSelection={onToggleSelection}
           />
@@ -52,8 +61,8 @@ export default function WarehouseKanbanView({
 
       <WarehouseItemDetailDialog
         item={selectedItem}
-        open={!!selectedItem}
-        onOpenChange={(open) => !open && setSelectedItem(null)}
+        open={!!selectedItemId}
+        onOpenChange={(open) => !open && setSelectedItemId(null)}
         onStatusChange={onStatusChange}
         onUpdateNotes={onUpdateNotes}
         getSupplierName={getSupplierName}

@@ -6,6 +6,7 @@ import { logger } from "@/utils/logger";
 import { toast } from "sonner";
 import { captureVelocityError, setSentryUserContext } from "@/lib/velocity/sentry";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
+import { queryKeys } from "@/lib/queryKeys";
 
 /**
  * Velocity Protocol — V1/V2
@@ -892,6 +893,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // email: state.user.email,
     });
   }, [state.user?.id, state.role, state.company?.id]);
+
+  // ── Realtime: company_feature_overrides ──────────────────────────────────
+  // Quando il SuperAdmin modifica un override (sblocca/blocca feature, cambia
+  // limite o scadenza), il cambio deve riflettersi IMMEDIATAMENTE in Area
+  // Azienda senza aspettare staleTime (60s in useFeatureAccess). Senza questo
+  // listener, l'utente finale vedeva feature bloccate anche dopo che l'admin
+  // le aveva sbloccate — fino a un refresh manuale o allo scadere del TTL.
+  //
+  // Sottoscriviamo un channel postgres_changes su company_feature_overrides
+  // filtrato per company_id effettivo (reale, multi-company o impersonata),
+  // e al trigger invalidiamo tutte le query che dipendono dal gating.
+  //
+  // La logica di derivazione di `effCompanyId` replica inline quella di
+  // `effectiveCompany` (riga ~920) perché useEffect() si esegue PRIMA della
+  // derivazione a fondo componente — non possiamo usare la variabile direttamente.
+  useEffect(() => {
+    const hasActiveImp = !!impersonatedCompanyId && !!impersonationToken;
+    const isImp = (state.role === "super_admin" && !!impersonatedCompanyId) || hasActiveImp;
+    const isPlatform = state.role?.startsWith("platform_") ?? false;
+    const effCompanyId = isImp
+      ? impersonatedCompanyId
+      : (state.role === "multi_company_user" || isPlatform) && multiCompanyState.selectedId
+        ? multiCompanyState.selectedId
+        : state.company?.id ?? null;
+
+    if (!effCompanyId || !state.user) return;
+
+    const channel = supabase
+      .channel(`feature-overrides-${effCompanyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "company_feature_overrides",
+          filter: `company_id=eq.${effCompanyId}`,
+        },
+        () => {
+          // Invalida tutti i query-keys che consumano il gating per questa company.
+          // Usiamo key prefix "feature-access" (non esposto via queryKeys factory,
+          // ma definito inline in src/hooks/useFeatureAccess.ts) + i key del factory.
+          queryClient.invalidateQueries({ queryKey: ["feature-access"] });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.featureFlags.companyResolved(effCompanyId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.featureFlags.companyOverrides(effCompanyId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.admin.companyFeatureOverrides(effCompanyId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.admin.featureOverrides,
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [
+    state.user?.id,
+    state.role,
+    state.company?.id,
+    impersonatedCompanyId,
+    impersonationToken,
+    multiCompanyState.selectedId,
+    queryClient,
+  ]);
 
   // Fetch multi-company accesses for multi_company_user and platform roles
   useEffect(() => {
