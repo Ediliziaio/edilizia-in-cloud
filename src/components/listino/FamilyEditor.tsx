@@ -51,6 +51,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { FamilyAxesEditor } from "./FamilyAxesEditor";
 import { FamilyGridEditor } from "./FamilyGridEditor";
 import { FamilyPricePreview } from "./FamilyPricePreview";
@@ -110,6 +111,10 @@ export function FamilyEditor() {
   // Step 4
   const [posaTariffaId, setPosaTariffaId] = useState<string | "none">("none");
   const [posaQuantita, setPosaQuantita] = useState("1");
+  // Sprint A §4.3 / Step 10 — flag posa legata. Se true (default), la riga posa
+  // auto-generata dal preventivatore resta legata alla riga prodotto: DELETE
+  // cascade + QUANTITY sync. Se false, la posa resta indipendente.
+  const [posaLinked, setPosaLinked] = useState<boolean>(true);
 
   // Bootstrap da family caricata
   useEffect(() => {
@@ -126,6 +131,10 @@ export function FamilyEditor() {
       setPrezzoAcquisto(String(family.prezzo_base_acquisto));
       setPosaTariffaId(family.posa_tariffa_default_id ?? "none");
       setPosaQuantita(String(family.posa_quantita_default));
+      // `posa_linked` arriva dalla migration Step 3; fino alla rigenerazione
+      // dei types potrebbe non essere presente → default true.
+      const pl = (family as unknown as { posa_linked?: boolean | null }).posa_linked;
+      setPosaLinked(pl ?? true);
     }
   }, [family]);
 
@@ -175,6 +184,7 @@ export function FamilyEditor() {
       prezzo_base_acquisto: parseFloat(prezzoAcquisto) || 0,
       posa_tariffa_default_id: posaTariffaId === "none" ? null : posaTariffaId,
       posa_quantita_default: parseFloat(posaQuantita) || 1,
+      posa_linked: posaLinked,
     };
 
     try {
@@ -560,6 +570,25 @@ export function FamilyEditor() {
                       value={posaQuantita}
                       onChange={(e) => setPosaQuantita(e.target.value)}
                       className="w-32"
+                    />
+                  </div>
+                  {/* Sprint A §4.3 / Step 10 — Posa legata al prodotto */}
+                  <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="f-posa-linked" className="cursor-pointer">
+                        Posa legata al prodotto
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Se attivo, cancellare o modificare la riga prodotto
+                        aggiorna anche la riga posa. Se disattivo, posa e
+                        prodotto vivono in modo indipendente.
+                      </p>
+                    </div>
+                    <Switch
+                      id="f-posa-linked"
+                      checked={posaLinked}
+                      onCheckedChange={setPosaLinked}
+                      disabled={posaTariffaId === "none"}
                     />
                   </div>
                   <div className="flex justify-end">

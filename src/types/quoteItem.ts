@@ -38,4 +38,11 @@ export interface QuoteItemPro {
   supplier_catalog_id?: string | null;
   supplier_product_line_id?: string | null;
   _parentIdx?: number;
+  // Preventivatore Unificato (Sprint A §4.9) — parent/child client-side
+  // per la posa legata. `parent_item_id` è la colonna DB (persistita dopo
+  // il SAVE), `client_temp_id`/`parent_temp_id` sono UUID lato client
+  // usati mentre l'item vive ancora solo in memoria.
+  parent_item_id?: string | null;
+  client_temp_id?: string | null;
+  parent_temp_id?: string | null;
 }

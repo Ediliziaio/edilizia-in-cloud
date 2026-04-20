@@ -1072,6 +1072,18 @@ export const queryKeys = {
       ["article-families", "grid", familyId] as const,
   },
 
+  // ── Catalog (Preventivatore Unificato — Sprint A) ──────────────────────
+  // Chiavi condivise tra useCatalogCategories (Stadio 1) e useCatalogItems
+  // (Stadio 2). `all` permette invalidazioni broad dopo CRUD di famiglie o
+  // articoli.
+  catalog: {
+    all: ["catalog"] as const,
+    categories: (companyId: string | undefined) =>
+      ["catalog", "categories", companyId] as const,
+    items: (companyId: string | undefined, categoriaId: string | null) =>
+      ["catalog", "items", companyId, categoriaId] as const,
+  },
+
   // ── Bundle Prodotti (Preventivatore Verticalizzato FASE 10) ────────────
   bundles: {
     all: ["bundles"] as const,
