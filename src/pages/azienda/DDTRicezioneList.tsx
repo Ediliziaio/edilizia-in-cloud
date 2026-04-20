@@ -1,62 +1,53 @@
 // ============================================================================
-// DDTRicezioneList — Vista globale dei DDT fornitori
+// DDTRicezioneList — Vista globale dei DDT fornitori (UX procedurale)
 // ----------------------------------------------------------------------------
-// Pagina/componente tab usata dentro OrdersList.tsx accanto a "Ordini d'Acquisto".
-// Mostra tutti i DDT dell'azienda con filtri stato/periodo/magazzino e collegamenti
-// ai documenti correlati (ODA, Ordine cliente, Fornitore, Magazzino).
+// Tab usata dentro OrdersList.tsx accanto a "Ordini d'Acquisto".
+// Include:
+//   • Header + KPI con evidenza non conformità / da verificare
+//   • Filtro pill mobile-first (tutti/atteso/parziale/ricevuto/verificato/non_conforme)
+//   • Card mobile con allegati mini-icon + DDTStatusBadge
+//   • Tabella desktop con colonna corriere + allegati
+//   • Dialog Nuovo DDT → wizard procedurale 3 step
 // ============================================================================
 
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  FileCheck, Plus, Loader2, Search, Truck, Warehouse, FileText,
-  ShoppingCart, ArrowRight, Package,
+  FileCheck, Plus, Loader2, Search, Truck, Warehouse as WarehouseIcon,
+  FileText, ShoppingCart, ArrowRight, AlertTriangle, Paperclip,
+  ShieldCheck, Image as ImageIcon, ChevronRight, Clock,
 } from "lucide-react";
-import { useDDTRicezioneList, useDDTRicezioneMutations, type DDTStato } from "@/hooks/useDDTRicezione";
+import { cn } from "@/lib/utils";
+import { useDDTRicezioneList, type DDTStato } from "@/hooks/useDDTRicezione";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
-import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
+import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge";
+import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 
-const STATO_COLORS: Record<DDTStato, string> = {
-  ricevuto: "bg-green-100 text-green-800",
-  parziale: "bg-amber-100 text-amber-800",
-  attesa: "bg-muted text-muted-foreground",
-};
+type FilterKey = "tutti" | DDTStato;
 
-const STATO_LABELS: Record<DDTStato, string> = {
-  ricevuto: "Ricevuto",
-  parziale: "Parziale",
-  attesa: "In attesa",
-};
+const FILTERS: Array<{ key: FilterKey; label: string }> = [
+  { key: "tutti", label: "Tutti" },
+  { key: "atteso", label: "Attesi" },
+  { key: "parziale", label: "Parziali" },
+  { key: "ricevuto", label: "Ricevuti" },
+  { key: "verificato", label: "Verificati" },
+  { key: "non_conforme", label: "Non conformi" },
+];
 
 export default function DDTRicezioneList() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"tutti" | DDTStato>("tutti");
+  const [tab, setTab] = useState<FilterKey>("tutti");
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
-  const [newPoId, setNewPoId] = useState("");
-  const [newNumero, setNewNumero] = useState("");
-  const [newData, setNewData] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [newStato, setNewStato] = useState<DDTStato>("ricevuto");
-  const [newQty, setNewQty] = useState("");
-  const [newWarehouseId, setNewWarehouseId] = useState<string | null>(null);
-  const [newNote, setNewNote] = useState("");
 
   const { data: ddtList = [], isLoading } = useDDTRicezioneList();
   const { orders } = usePurchaseOrders();
-  const { createDDT } = useDDTRicezioneMutations(newPoId || null);
 
-  // Solo ODA non annullati possono ricevere nuovi DDT
   const availablePOs = useMemo(
     () => orders.filter((o) => o.status !== "annullato"),
     [orders]
@@ -64,7 +55,13 @@ export default function DDTRicezioneList() {
 
   const filtered = useMemo(() => {
     let list = ddtList;
-    if (tab !== "tutti") list = list.filter((d) => d.stato === tab);
+    if (tab !== "tutti") {
+      list = list.filter((d) => {
+        // "atteso" include sia "atteso" che legacy "attesa"
+        if (tab === "atteso") return d.stato === "atteso" || d.stato === "attesa";
+        return d.stato === tab;
+      });
+    }
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -74,441 +71,477 @@ export default function DDTRicezioneList() {
           d.numero_ddt.toLowerCase().includes(q) ||
           po?.oda_number?.toLowerCase().includes(q) ||
           po?.suppliers?.name?.toLowerCase().includes(q) ||
-          po?.orders?.order_code?.toLowerCase().includes(q)
+          po?.orders?.order_code?.toLowerCase().includes(q) ||
+          (d.corriere ?? "").toLowerCase().includes(q) ||
+          (d.autista_nome ?? "").toLowerCase().includes(q)
         );
       });
     }
     return list;
   }, [ddtList, tab, search]);
 
-  const counts = useMemo(
-    () => ({
+  const counts = useMemo(() => {
+    const c: Record<FilterKey, number> = {
       tutti: ddtList.length,
-      ricevuto: ddtList.filter((d) => d.stato === "ricevuto").length,
-      parziale: ddtList.filter((d) => d.stato === "parziale").length,
-      attesa: ddtList.filter((d) => d.stato === "attesa").length,
-    }),
-    [ddtList]
-  );
+      atteso: 0,
+      attesa: 0,
+      parziale: 0,
+      ricevuto: 0,
+      verificato: 0,
+      non_conforme: 0,
+    };
+    for (const d of ddtList) {
+      if (d.stato === "atteso" || d.stato === "attesa") c.atteso++;
+      else c[d.stato as FilterKey] = (c[d.stato as FilterKey] || 0) + 1;
+    }
+    return c;
+  }, [ddtList]);
 
   const kpis = useMemo(() => {
     const totalQty = ddtList.reduce((s, d) => s + Number(d.quantita_ricevuta || 0), 0);
-    const ricevuti = ddtList.filter((d) => d.stato === "ricevuto").length;
-    const pct = ddtList.length > 0 ? Math.round((ricevuti / ddtList.length) * 100) : 0;
+    const verificati = ddtList.filter((d) => d.stato === "verificato").length;
+    const damaged = ddtList.filter((d) => d.has_damages || d.stato === "non_conforme").length;
+    const pct = ddtList.length > 0 ? Math.round((verificati / ddtList.length) * 100) : 0;
     return {
       total: ddtList.length,
       totalQty: totalQty.toLocaleString("it-IT", { maximumFractionDigits: 2 }),
-      ricevuti,
+      verificati,
       pct,
+      damaged,
+      pendenti: counts.atteso + counts.parziale,
     };
-  }, [ddtList]);
-
-  const resetNewForm = () => {
-    setNewPoId("");
-    setNewNumero("");
-    setNewData(format(new Date(), "yyyy-MM-dd"));
-    setNewStato("ricevuto");
-    setNewQty("");
-    setNewWarehouseId(null);
-    setNewNote("");
-  };
-
-  const handleCreate = () => {
-    if (!newPoId) return;
-    if (!newNumero.trim()) return;
-
-    createDDT.mutate(
-      {
-        purchase_order_id: newPoId,
-        numero_ddt: newNumero.trim(),
-        data_ricezione: newData,
-        quantita_ricevuta: parseFloat(newQty) || 0,
-        stato: newStato,
-        note: newNote.trim() || null,
-        warehouse_id: newWarehouseId,
-      },
-      {
-        onSuccess: (data) => {
-          setNewOpen(false);
-          resetNewForm();
-          if (data?.id) navigate(`/azienda/ddt/${data.id}`);
-        },
-      }
-    );
-  };
-
-  // Se l'utente seleziona un ODA nel form, precompila il magazzino se noto
-  const selectedPO = useMemo(
-    () => availablePOs.find((o) => o.id === newPoId),
-    [availablePOs, newPoId]
-  );
+  }, [ddtList, counts]);
 
   return (
-    <div className="space-y-6">
-      {/* ─── Header ───────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <FileCheck className="h-6 w-6 sm:h-7 sm:w-7 text-primary shrink-0" />
-          <h1 className="text-xl sm:text-2xl font-bold truncate">DDT Fornitori</h1>
+    <div className="space-y-5">
+      {/* ─── Header ──────────────────────────────────────────────── */}
+      <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-start sm:items-center gap-3 min-w-0">
+          <div className="rounded-xl bg-primary/10 p-2 shrink-0">
+            <FileCheck className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">DDT Fornitori</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Ricezioni merce con documenti, corriere, verifica e non conformità
+            </p>
+          </div>
         </div>
-        <Button onClick={() => setNewOpen(true)} className="shrink-0" disabled={availablePOs.length === 0}>
+        <Button
+          onClick={() => setNewOpen(true)}
+          className="shrink-0 h-10"
+          disabled={availablePOs.length === 0}
+          size="default"
+        >
           <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline ml-1">Nuovo DDT</span>
-          <span className="sm:hidden ml-1">Nuovo</span>
+          <span className="hidden xs:inline ml-1.5">Nuovo DDT</span>
+          <span className="xs:hidden ml-1">Nuovo</span>
         </Button>
       </div>
 
-      {/* ─── KPI ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">DDT totali</p>
-            <p className="text-xl font-bold">{kpis.total}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">DDT ricevuti</p>
-            <p className="text-xl font-bold">{kpis.ricevuti}</p>
-            <p className="text-xs text-muted-foreground">{kpis.pct}% completi</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Quantità totali</p>
-            <p className="text-xl font-bold">{kpis.totalQty}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">In attesa / Parziale</p>
-            <p className="text-xl font-bold">{counts.attesa + counts.parziale}</p>
-          </CardContent>
-        </Card>
+      {/* ─── KPI Cards ──────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <KPICard
+          icon={FileCheck}
+          label="DDT totali"
+          value={kpis.total.toString()}
+          iconClassName="text-primary"
+          bgClassName="from-primary/5 to-transparent"
+        />
+        <KPICard
+          icon={ShieldCheck}
+          label="Verificati"
+          value={kpis.verificati.toString()}
+          sublabel={`${kpis.pct}% del totale`}
+          iconClassName="text-green-600"
+          bgClassName="from-green-50 to-transparent dark:from-green-950/30"
+        />
+        <KPICard
+          icon={Clock}
+          label="Pendenti"
+          value={kpis.pendenti.toString()}
+          sublabel="Attesi / parziali"
+          iconClassName="text-amber-600"
+          bgClassName="from-amber-50 to-transparent dark:from-amber-950/30"
+        />
+        <KPICard
+          icon={AlertTriangle}
+          label="Non conformi"
+          value={kpis.damaged.toString()}
+          sublabel={kpis.damaged > 0 ? "Richiede attenzione" : "Nessuno"}
+          iconClassName={kpis.damaged > 0 ? "text-rose-600" : "text-muted-foreground"}
+          bgClassName={kpis.damaged > 0 ? "from-rose-50 to-transparent dark:from-rose-950/30" : ""}
+        />
       </div>
 
-      {/* ─── Filtri ───────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "tutti" | DDTStato)} className="flex-1">
-          <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full justify-start overflow-x-auto scrollbar-none">
-            <TabsTrigger value="tutti" className="shrink-0">Tutti ({counts.tutti})</TabsTrigger>
-            <TabsTrigger value="ricevuto" className="shrink-0">Ricevuti ({counts.ricevuto})</TabsTrigger>
-            <TabsTrigger value="parziale" className="shrink-0">Parziali ({counts.parziale})</TabsTrigger>
-            <TabsTrigger value="attesa" className="shrink-0">In attesa ({counts.attesa})</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div className="relative w-full sm:w-64">
+      {/* ─── Filter pills + Search ─────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+        <div className="flex overflow-x-auto gap-1 p-0.5 rounded-lg bg-muted/50 scrollbar-none">
+          {FILTERS.map((f) => {
+            const c = counts[f.key] ?? 0;
+            const isActive = tab === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setTab(f.key)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-all flex items-center gap-1.5",
+                  isActive
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {f.label}
+                <span
+                  className={cn(
+                    "inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] rounded-full",
+                    isActive ? "bg-primary/15 text-primary" : "bg-muted-foreground/15"
+                  )}
+                >
+                  {c}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative sm:ml-auto w-full sm:w-64">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca DDT, ODA, fornitore..."
+            placeholder="Cerca DDT, ODA, fornitore, corriere…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
+            className="pl-8 h-9 text-sm"
           />
         </div>
       </div>
 
-      {/* ─── List ─────────────────────────────────────────────────── */}
+      {/* ─── List ─────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="flex justify-center py-12">
+        <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 space-y-3">
-          <FileCheck className="h-12 w-12 mx-auto text-muted-foreground/40" />
-          <p className="text-muted-foreground font-medium">
-            {search || tab !== "tutti" ? "Nessun DDT trovato" : "Nessun DDT registrato"}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {search || tab !== "tutti"
-              ? "Prova a cambiare i filtri o i termini di ricerca."
-              : "Registra il primo DDT per tracciare le ricezioni merce dai fornitori."}
-          </p>
-          {availablePOs.length > 0 && !search && tab === "tutti" && (
-            <Button onClick={() => setNewOpen(true)} className="mt-2">
-              <Plus className="h-4 w-4 mr-1" /> Registra primo DDT
-            </Button>
-          )}
-          {availablePOs.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">
-              Crea prima un Ordine d'Acquisto per poter registrare un DDT.
-            </p>
-          )}
-        </div>
+        <EmptyState
+          hasFilter={!!search || tab !== "tutti"}
+          canCreate={availablePOs.length > 0}
+          onCreate={() => setNewOpen(true)}
+        />
       ) : (
         <>
-          {/* Mobile card list */}
-          <div className="sm:hidden divide-y border rounded-lg">
-            {filtered.map((ddt) => {
-              const po = ddt.purchase_orders;
-              return (
-                <div
-                  key={ddt.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer"
-                  onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-medium">{ddt.numero_ddt}</span>
-                      <Badge className={`text-xs ${STATO_COLORS[ddt.stato]}`}>
-                        {STATO_LABELS[ddt.stato]}
-                      </Badge>
-                    </div>
-                    {po && (
-                      <div className="text-sm font-medium mt-0.5 flex items-center gap-1">
-                        <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <span className="truncate">{po.suppliers?.name || "—"}</span>
-                      </div>
-                    )}
-                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
-                      <span>{format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it })}</span>
-                      {po?.oda_number && (
-                        <span className="inline-flex items-center gap-0.5 text-primary">
-                          <ShoppingCart className="h-3 w-3" /> {po.oda_number}
-                        </span>
-                      )}
-                      {po?.orders?.order_code && (
-                        <span className="inline-flex items-center gap-0.5 text-primary">
-                          <FileText className="h-3 w-3" /> {po.orders.order_code}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="font-semibold text-sm">{Number(ddt.quantita_ricevuta).toLocaleString("it-IT", { maximumFractionDigits: 2 })}</span>
-                    <p className="text-[10px] text-muted-foreground">unità</p>
-                  </div>
-                </div>
-              );
-            })}
+          {/* Mobile cards */}
+          <div className="sm:hidden space-y-2">
+            {filtered.map((ddt) => (
+              <MobileDDTCard
+                key={ddt.id}
+                ddt={ddt}
+                onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
+              />
+            ))}
           </div>
 
           {/* Desktop table */}
-          <div className="hidden sm:block rounded-lg border overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-medium">N° DDT</th>
-                  <th className="text-left p-3 font-medium">Data</th>
-                  <th className="text-left p-3 font-medium">Fornitore</th>
-                  <th className="text-left p-3 font-medium">ODA</th>
-                  <th className="text-left p-3 font-medium">Ordine</th>
-                  <th className="text-left p-3 font-medium">Magazzino</th>
-                  <th className="text-right p-3 font-medium">Quantità</th>
-                  <th className="text-left p-3 font-medium">Stato</th>
-                  <th className="p-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((ddt) => {
-                  const po = ddt.purchase_orders;
-                  return (
-                    <tr
-                      key={ddt.id}
-                      className="border-b hover:bg-muted/30 cursor-pointer"
-                      onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
-                    >
-                      <td className="p-3 font-mono text-xs font-medium">{ddt.numero_ddt}</td>
-                      <td className="p-3 text-muted-foreground">
-                        {format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it })}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-1.5">
-                          <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="truncate max-w-[180px]">{po?.suppliers?.name || "—"}</span>
-                        </div>
-                      </td>
-                      <td
-                        className="p-3 text-xs"
-                        onClick={(e) => {
-                          if (!po?.id) return;
-                          e.stopPropagation();
-                          navigate(`/azienda/ordini-acquisto/${po.id}`);
-                        }}
+          <div className="hidden sm:block rounded-lg border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium">N° DDT</th>
+                    <th className="text-left p-3 font-medium">Data</th>
+                    <th className="text-left p-3 font-medium">Fornitore / ODA</th>
+                    <th className="text-left p-3 font-medium">Corriere</th>
+                    <th className="text-left p-3 font-medium">Magazzino</th>
+                    <th className="text-center p-3 font-medium">Allegati</th>
+                    <th className="text-right p-3 font-medium">Q.tà</th>
+                    <th className="text-left p-3 font-medium">Stato</th>
+                    <th className="p-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((ddt) => {
+                    const po = ddt.purchase_orders;
+                    const attachCount =
+                      (ddt.attachments?.length ?? 0) + (ddt.ddt_file_url ? 1 : 0);
+                    return (
+                      <tr
+                        key={ddt.id}
+                        className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
+                        onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
                       >
-                        {po?.oda_number ? (
-                          <span className="inline-flex items-center gap-1 text-primary font-medium hover:underline">
-                            <ShoppingCart className="h-3 w-3" />
-                            {po.oda_number}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td
-                        className="p-3 text-xs"
-                        onClick={(e) => {
-                          if (!po?.orders?.id) return;
-                          e.stopPropagation();
-                          navigate(`/azienda/ordini/${po.orders.id}`);
-                        }}
-                      >
-                        {po?.orders?.order_code ? (
-                          <span className="inline-flex items-center gap-1 text-primary font-medium hover:underline">
-                            <FileText className="h-3 w-3" />
-                            {po.orders.order_code}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-xs">
-                        {ddt.warehouses?.name ? (
-                          <span className="inline-flex items-center gap-1 text-muted-foreground">
-                            <Warehouse className="h-3 w-3" />
-                            {ddt.warehouses.name}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right font-medium">
-                        {Number(ddt.quantita_ricevuta).toLocaleString("it-IT", { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-3">
-                        <Badge className={`text-xs ${STATO_COLORS[ddt.stato]}`}>
-                          {STATO_LABELS[ddt.stato]}
-                        </Badge>
-                      </td>
-                      <td className="p-3">
-                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5">
+                            {ddt.ddt_file_url && (
+                              <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                            )}
+                            <span className="font-mono text-xs font-medium">
+                              {ddt.numero_ddt}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-muted-foreground text-xs">
+                          {format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it })}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium truncate max-w-[200px]">
+                              {po?.suppliers?.name || "—"}
+                            </span>
+                            <div className="flex items-center gap-2 text-[11px]">
+                              {po?.oda_number && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/azienda/ordini-acquisto/${po.id}`);
+                                  }}
+                                  className="inline-flex items-center gap-0.5 text-primary hover:underline font-mono"
+                                >
+                                  <ShoppingCart className="h-2.5 w-2.5" />
+                                  {po.oda_number}
+                                </button>
+                              )}
+                              {po?.orders?.order_code && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/azienda/ordini/${po.orders!.id}`);
+                                  }}
+                                  className="inline-flex items-center gap-0.5 text-primary hover:underline font-mono"
+                                >
+                                  <FileText className="h-2.5 w-2.5" />
+                                  {po.orders.order_code}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3 text-xs">
+                          {ddt.corriere ? (
+                            <div className="flex items-center gap-1.5">
+                              <Truck className="h-3 w-3 text-muted-foreground" />
+                              <span className="truncate max-w-[140px]">{ddt.corriere}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-xs">
+                          {ddt.warehouses?.name ? (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground">
+                              <WarehouseIcon className="h-3 w-3" />
+                              {ddt.warehouses.name}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          {attachCount > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
+                              <Paperclip className="h-3 w-3" />
+                              {attachCount}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right font-medium">
+                          {Number(ddt.quantita_ricevuta).toLocaleString("it-IT", {
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td className="p-3">
+                          <DDTStatusBadge stato={ddt.stato} size="sm" />
+                          {ddt.has_damages && (
+                            <AlertTriangle className="h-3 w-3 text-rose-500 inline-block ml-1" />
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
 
-      {/* ─── New DDT Dialog ──────────────────────────────────────── */}
-      <Dialog
-        open={newOpen}
-        onOpenChange={(o) => {
-          setNewOpen(o);
-          if (!o) resetNewForm();
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileCheck className="h-5 w-5 text-primary" />
-              Nuovo DDT Fornitore
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <Label>Ordine di Acquisto *</Label>
-              <Select value={newPoId} onValueChange={setNewPoId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona ODA..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePOs.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      <span className="font-mono text-xs">{o.oda_number}</span>
-                      {" · "}
-                      {o.suppliers?.name || "—"}
-                      {o.orders?.order_code ? ` · ${o.orders.order_code}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedPO && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                  <Package className="h-3 w-3" />
-                  Stato ODA: <strong>{selectedPO.status}</strong>
-                  {selectedPO.expected_delivery_date && (
-                    <span>
-                      · consegna prevista{" "}
-                      {format(new Date(selectedPO.expected_delivery_date), "dd/MM/yyyy", { locale: it })}
-                    </span>
-                  )}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label>Numero DDT *</Label>
-              <Input
-                value={newNumero}
-                onChange={(e) => setNewNumero(e.target.value)}
-                placeholder="es. DDT-2024-001"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Data ricezione</Label>
-                <Input type="date" value={newData} onChange={(e) => setNewData(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Quantità ricevuta</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={newQty}
-                  onChange={(e) => setNewQty(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Stato</Label>
-                <Select value={newStato} onValueChange={(v) => setNewStato(v as DDTStato)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ricevuto">Ricevuto completo</SelectItem>
-                    <SelectItem value="parziale">Parziale</SelectItem>
-                    <SelectItem value="attesa">In attesa</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Magazzino</Label>
-                <WarehouseSelect
-                  value={newWarehouseId}
-                  onChange={setNewWarehouseId}
-                  placeholder="Default"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label>Note</Label>
-              <Textarea
-                rows={2}
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                placeholder="Opzionale"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setNewOpen(false);
-                resetNewForm();
-              }}
-            >
-              Annulla
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={!newPoId || !newNumero.trim() || createDDT.isPending}
-            >
-              {createDDT.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registra DDT"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ─── New DDT Wizard ─────────────────────────────────── */}
+      <NewDDTDialog open={newOpen} onOpenChange={setNewOpen} />
     </div>
+  );
+}
+
+// ============================================================================
+// KPI Card
+// ============================================================================
+function KPICard({
+  icon: Icon,
+  label,
+  value,
+  sublabel,
+  iconClassName,
+  bgClassName,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  sublabel?: string;
+  iconClassName?: string;
+  bgClassName?: string;
+}) {
+  return (
+    <Card className={cn("overflow-hidden", bgClassName && `bg-gradient-to-br ${bgClassName}`)}>
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              {label}
+            </p>
+            <p className="text-xl sm:text-2xl font-bold mt-0.5 tabular-nums">{value}</p>
+            {sublabel && (
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
+                {sublabel}
+              </p>
+            )}
+          </div>
+          <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5 shrink-0", iconClassName)} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================================
+// Empty state
+// ============================================================================
+function EmptyState({
+  hasFilter,
+  canCreate,
+  onCreate,
+}: {
+  hasFilter: boolean;
+  canCreate: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="text-center py-12 sm:py-16 space-y-3 rounded-lg border-2 border-dashed">
+      <div className="h-12 w-12 mx-auto rounded-full bg-muted flex items-center justify-center">
+        <FileCheck className="h-6 w-6 text-muted-foreground/50" />
+      </div>
+      <p className="text-muted-foreground font-medium">
+        {hasFilter ? "Nessun DDT corrisponde ai filtri" : "Nessun DDT registrato"}
+      </p>
+      <p className="text-sm text-muted-foreground max-w-md mx-auto">
+        {hasFilter
+          ? "Prova a cambiare i filtri o la ricerca per trovare il DDT."
+          : "Registra il primo DDT per tracciare le ricezioni merce con allegati, dati corriere e verifica qualità."}
+      </p>
+      {canCreate && !hasFilter && (
+        <Button onClick={onCreate} className="mt-2">
+          <Plus className="h-4 w-4 mr-1" /> Registra primo DDT
+        </Button>
+      )}
+      {!canCreate && (
+        <p className="text-xs text-muted-foreground italic">
+          Crea prima un Ordine d'Acquisto per poter registrare un DDT.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Mobile DDT Card
+// ============================================================================
+function MobileDDTCard({
+  ddt,
+  onClick,
+}: {
+  ddt: ReturnType<typeof useDDTRicezioneList>["data"] extends (infer U)[] | undefined ? U : never;
+  onClick: () => void;
+}) {
+  const po = ddt.purchase_orders;
+  const attachCount = (ddt.attachments?.length ?? 0) + (ddt.ddt_file_url ? 1 : 0);
+  const meta = DDT_STATO_META[ddt.stato] ?? DDT_STATO_META.atteso;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full text-left rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition-all active:scale-[0.99]",
+        ddt.has_damages && "border-rose-200"
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          {/* Line 1: numero + badge */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {ddt.ddt_file_url ? (
+              <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+            ) : (
+              <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            )}
+            <span className="font-mono text-xs font-semibold truncate max-w-[180px]">
+              {ddt.numero_ddt}
+            </span>
+            <DDTStatusBadge stato={ddt.stato} size="sm" />
+          </div>
+
+          {/* Line 2: fornitore */}
+          {po?.suppliers?.name && (
+            <div className="flex items-center gap-1 mt-1 text-sm font-medium">
+              <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="truncate">{po.suppliers.name}</span>
+            </div>
+          )}
+
+          {/* Line 3: meta (data · ODA · corriere) */}
+          <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground flex-wrap">
+            <span>{format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it })}</span>
+            {po?.oda_number && (
+              <span className="inline-flex items-center gap-0.5 text-primary">
+                <ShoppingCart className="h-2.5 w-2.5" />
+                {po.oda_number}
+              </span>
+            )}
+            {ddt.corriere && (
+              <span className="inline-flex items-center gap-0.5 truncate max-w-[100px]">
+                <Truck className="h-2.5 w-2.5" />
+                {ddt.corriere}
+              </span>
+            )}
+            {attachCount > 0 && (
+              <span className="inline-flex items-center gap-0.5">
+                <Paperclip className="h-2.5 w-2.5" />
+                {attachCount}
+              </span>
+            )}
+          </div>
+
+          {/* Non conformità */}
+          {ddt.has_damages && (
+            <div className="mt-1.5 flex items-center gap-1 text-[11px] text-rose-600">
+              <AlertTriangle className="h-3 w-3" />
+              Non conformità rilevata
+            </div>
+          )}
+        </div>
+
+        {/* Right: qty + arrow */}
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="font-semibold text-sm tabular-nums">
+            {Number(ddt.quantita_ricevuta).toLocaleString("it-IT", { maximumFractionDigits: 2 })}
+          </span>
+          <span className="text-[9px] text-muted-foreground">unità</span>
+          <span className={cn("inline-block h-1.5 w-1.5 rounded-full mt-auto", meta.dotColor)} />
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+        </div>
+      </div>
+    </button>
   );
 }

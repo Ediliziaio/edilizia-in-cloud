@@ -1,5 +1,5 @@
 // ============================================================================
-// useDDTRicezione — Hooks per la gestione DDT fornitori
+// useDDTRicezione — Hooks per la gestione DDT fornitori (UX procedurale)
 // ----------------------------------------------------------------------------
 // Catena completa:
 //   purchase_orders ──< ddt_ricezione ──< goods_receipts ──> warehouse_stock
@@ -14,6 +14,7 @@
 //   - useDDTRicezioneDetail     → dettaglio + goods_receipts + order_item
 //   - useDDTCountsByPO          → aggregato per badge nelle liste
 //   - useDDTRicezioneMutations  → create/update/delete DDT + createGoodsReceipt
+//   - useDDTAttachments         → upload/delete file allegati + DDT principale
 // ============================================================================
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,7 +25,31 @@ import { queryKeys } from "@/lib/queryKeys";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export type DDTStato = "attesa" | "parziale" | "ricevuto";
+export type DDTStato =
+  | "atteso"        // Pre-avviso, ancora da arrivare
+  | "attesa"        // Legacy: in attesa di ricezione
+  | "parziale"      // Ricevuto parzialmente
+  | "ricevuto"      // Ricevuto completo (da verificare)
+  | "verificato"    // Controllo completato, conforme
+  | "non_conforme"; // Difforme da ODA / danni
+
+export type DDTAttachmentKind =
+  | "ddt"
+  | "bolla"
+  | "danni"
+  | "packing_list"
+  | "firma"
+  | "altro";
+
+export interface DDTAttachment {
+  url: string;
+  name: string;
+  mime: string;
+  size: number;
+  uploaded_at: string;
+  kind: DDTAttachmentKind;
+  path: string; // storage path per eventuale delete
+}
 
 export interface DDTRicezione {
   id: string;
@@ -38,6 +63,30 @@ export interface DDTRicezione {
   note: string | null;
   created_at: string;
   created_by: string | null;
+
+  // ── Procedural UX ─────────────────────────────────────────
+  ddt_file_url?: string | null;
+  ddt_file_name?: string | null;
+  ddt_file_mime?: string | null;
+  attachments?: DDTAttachment[];
+
+  // Corriere / mezzo / autista
+  corriere?: string | null;
+  targa_mezzo?: string | null;
+  autista_nome?: string | null;
+  autista_telefono?: string | null;
+  ora_arrivo?: string | null;
+  ora_partenza?: string | null;
+
+  // Ricezione fisica
+  ricevuto_da_nome?: string | null;
+  signature_url?: string | null;
+
+  // Controllo qualità
+  non_conformita?: string | null;
+  has_damages?: boolean;
+  verified_at?: string | null;
+  verified_by?: string | null;
 }
 
 export interface DDTRicezioneWithJoins extends DDTRicezione {
@@ -46,7 +95,7 @@ export interface DDTRicezioneWithJoins extends DDTRicezione {
     oda_number: string;
     status: string;
     order_id: string | null;
-    suppliers?: { name: string } | null;
+    suppliers?: { name: string; email?: string | null } | null;
     orders?: { id: string; order_code: string } | null;
   } | null;
   warehouses?: { id: string; name: string } | null;
@@ -83,6 +132,8 @@ export interface DDTCountAggregate {
   ricevuti: number;
   parziali: number;
   attesa: number;
+  verificati: number;
+  non_conformi: number;
 }
 
 // ============================================================================
@@ -105,7 +156,7 @@ export function useDDTRicezioneList(filters?: {
       let q = supabase
         .from("ddt_ricezione")
         .select(
-          "*, purchase_orders!inner(id, oda_number, status, order_id, supplier_id, suppliers(name), orders(id, order_code)), warehouses(id, name)"
+          "*, purchase_orders!inner(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name)"
         )
         .eq("company_id", companyId!)
         .order("data_ricezione", { ascending: false });
@@ -131,10 +182,9 @@ export function useDDTRicezioneList(filters?: {
 
       let rows = (data || []) as unknown as DDTRicezioneWithJoins[];
 
-      // Filtro client-side per supplier: richiederebbe un or() complesso server-side
       if (filters?.supplierId) {
         rows = rows.filter(
-          (r) => (r.purchase_orders as any)?.supplier_id === filters.supplierId
+          (r) => (r.purchase_orders as unknown as { supplier_id?: string })?.supplier_id === filters.supplierId
         );
       }
 
@@ -147,7 +197,7 @@ export function useDDTRicezioneList(filters?: {
 }
 
 // ============================================================================
-// BY PURCHASE ORDER: DDT collegati a un singolo ODA
+// BY PURCHASE ORDER
 // ============================================================================
 export function useDDTByPurchaseOrder(poId: string | null | undefined) {
   return useQuery<DDTRicezione[]>({
@@ -168,7 +218,7 @@ export function useDDTByPurchaseOrder(poId: string | null | undefined) {
 }
 
 // ============================================================================
-// DETAIL: singolo DDT + goods_receipts collegate (via ddt_ricezione_id)
+// DETAIL
 // ============================================================================
 export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
   const detailQuery = useQuery<DDTRicezioneWithJoins | null>({
@@ -218,7 +268,7 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
 }
 
 // ============================================================================
-// COUNTS BY PO: aggregato DDT per ODA (per badge in liste)
+// COUNTS BY PO
 // ============================================================================
 export function useDDTCountsByPO() {
   const { effectiveCompany } = useAuth();
@@ -235,7 +285,7 @@ export function useDDTCountsByPO() {
 
       const map: Record<string, DDTCountAggregate> = {};
       for (const row of data || []) {
-        const pid = (row as any).purchase_order_id as string;
+        const pid = (row as { purchase_order_id: string }).purchase_order_id;
         if (!map[pid]) {
           map[pid] = {
             purchase_order_id: pid,
@@ -243,13 +293,17 @@ export function useDDTCountsByPO() {
             ricevuti: 0,
             parziali: 0,
             attesa: 0,
+            verificati: 0,
+            non_conformi: 0,
           };
         }
         map[pid].total += 1;
-        const stato = (row as any).stato as DDTStato;
+        const stato = (row as { stato: DDTStato }).stato;
         if (stato === "ricevuto") map[pid].ricevuti += 1;
+        else if (stato === "verificato") map[pid].verificati += 1;
         else if (stato === "parziale") map[pid].parziali += 1;
-        else if (stato === "attesa") map[pid].attesa += 1;
+        else if (stato === "attesa" || stato === "atteso") map[pid].attesa += 1;
+        else if (stato === "non_conforme") map[pid].non_conformi += 1;
       }
       return map;
     },
@@ -269,9 +323,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.ddtRicezione.all });
-    // Legacy key usato da PurchaseOrderDetail
     queryClient.invalidateQueries({ queryKey: ["ddt-ricezione"] });
-    // Warehouse ricalcola stock/movimenti per via del trigger auto_carico
     queryClient.invalidateQueries({ queryKey: ["warehouse"] });
     queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
     queryClient.invalidateQueries({ queryKey: ["warehouse-movements"] });
@@ -291,11 +343,20 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       stato: DDTStato;
       note?: string | null;
       warehouse_id?: string | null;
+      // ── Procedural ─────────────────────────────
+      corriere?: string | null;
+      targa_mezzo?: string | null;
+      autista_nome?: string | null;
+      autista_telefono?: string | null;
+      ora_arrivo?: string | null;
+      ora_partenza?: string | null;
+      ricevuto_da_nome?: string | null;
+      non_conformita?: string | null;
+      has_damages?: boolean;
     }) => {
       if (!companyId) throw new Error("Company non disponibile");
       if (!params.numero_ddt.trim()) throw new Error("Numero DDT obbligatorio");
 
-      // Se warehouse_id non passato, usa il default del PO → poi della company
       let warehouseId = params.warehouse_id ?? null;
       if (!warehouseId) {
         const { data: po } = await supabase
@@ -303,7 +364,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
           .select("delivery_warehouse_id")
           .eq("id", params.purchase_order_id)
           .single();
-        warehouseId = (po as any)?.delivery_warehouse_id ?? null;
+        warehouseId = (po as { delivery_warehouse_id?: string | null })?.delivery_warehouse_id ?? null;
       }
       if (!warehouseId) {
         const { data: defWh } = await supabase
@@ -313,7 +374,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
           .eq("is_default", true)
           .limit(1)
           .maybeSingle();
-        warehouseId = (defWh as any)?.id ?? null;
+        warehouseId = (defWh as { id?: string })?.id ?? null;
       }
       if (!warehouseId) {
         throw new Error(
@@ -322,19 +383,30 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       }
 
       const user = (await supabase.auth.getUser()).data.user;
+      const payload: Record<string, unknown> = {
+        company_id: companyId,
+        purchase_order_id: params.purchase_order_id,
+        warehouse_id: warehouseId,
+        numero_ddt: params.numero_ddt.trim(),
+        data_ricezione: params.data_ricezione,
+        quantita_ricevuta: params.quantita_ricevuta,
+        stato: params.stato,
+        note: params.note?.trim() || null,
+        created_by: user?.id ?? null,
+        corriere: params.corriere?.trim() || null,
+        targa_mezzo: params.targa_mezzo?.trim() || null,
+        autista_nome: params.autista_nome?.trim() || null,
+        autista_telefono: params.autista_telefono?.trim() || null,
+        ora_arrivo: params.ora_arrivo || null,
+        ora_partenza: params.ora_partenza || null,
+        ricevuto_da_nome: params.ricevuto_da_nome?.trim() || null,
+        non_conformita: params.non_conformita?.trim() || null,
+        has_damages: params.has_damages ?? false,
+      };
+
       const { data, error } = await supabase
         .from("ddt_ricezione")
-        .insert({
-          company_id: companyId,
-          purchase_order_id: params.purchase_order_id,
-          warehouse_id: warehouseId,
-          numero_ddt: params.numero_ddt.trim(),
-          data_ricezione: params.data_ricezione,
-          quantita_ricevuta: params.quantita_ricevuta,
-          stato: params.stato,
-          note: params.note?.trim() || null,
-          created_by: user?.id ?? null,
-        } as any)
+        .insert(payload as never)
         .select()
         .single();
       if (error) throw error;
@@ -351,7 +423,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
     mutationFn: async (params: { id: string; updates: Partial<DDTRicezione> }) => {
       const { error } = await supabase
         .from("ddt_ricezione")
-        .update(params.updates as any)
+        .update(params.updates as never)
         .eq("id", params.id);
       if (error) throw error;
     },
@@ -374,9 +446,6 @@ export function useDDTRicezioneMutations(poId?: string | null) {
     onError: (err: Error) => toast.error(err.message || "Errore eliminazione DDT"),
   });
 
-  // Crea un goods_receipt legato al DDT: usa l'RPC atomica insert_goods_receipt_atomic
-  // (stesso meccanismo di useGoodsReceipt) che aggiorna order_items + timeline in
-  // transazione e triggera il carico stock via trigger DB.
   const createGoodsReceipt = useMutation({
     mutationFn: async (params: {
       ddt_ricezione_id: string;
@@ -393,7 +462,6 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       if (params.quantity_received <= 0)
         throw new Error("La quantità deve essere maggiore di zero");
 
-      // warehouse_id dal DDT padre se non passato
       let warehouseId = params.warehouse_id ?? null;
       if (!warehouseId) {
         const { data: ddt } = await supabase
@@ -401,7 +469,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
           .select("warehouse_id")
           .eq("id", params.ddt_ricezione_id)
           .single();
-        warehouseId = (ddt as any)?.warehouse_id ?? null;
+        warehouseId = (ddt as { warehouse_id?: string | null })?.warehouse_id ?? null;
       }
       if (!warehouseId) {
         throw new Error("Warehouse non specificato e DDT senza magazzino");
@@ -420,7 +488,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
           p_ddt_ricezione_id: params.ddt_ricezione_id,
           p_quality_notes: params.quality_notes ?? null,
           p_notes: params.notes ?? null,
-        } as any,
+        } as never,
       );
       if (error) throw error;
       return { id: receiptId as string };
@@ -450,5 +518,194 @@ export function useDDTRicezioneMutations(poId?: string | null) {
     deleteDDT,
     createGoodsReceipt,
     deleteGoodsReceipt,
+  };
+}
+
+// ============================================================================
+// ATTACHMENTS — upload/delete allegati DDT (bucket: ddt_attachments)
+// ----------------------------------------------------------------------------
+// Convenzione path: {company_id}/{ddt_id}/{uuid}-{filename}
+// ============================================================================
+export function useDDTAttachments(ddtId?: string | null) {
+  const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
+  const companyId = effectiveCompany?.id;
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.ddtRicezione.all });
+    if (ddtId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.ddtRicezione.detail(ddtId) });
+    }
+  };
+
+  const sanitizeName = (n: string) =>
+    n.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+
+  /**
+   * Upload di un singolo file nello storage bucket con path per-company/per-ddt.
+   * Restituisce il signed URL (1 ora) + path storage per futuri delete.
+   */
+  const uploadToStorage = async (
+    file: File,
+    targetDdtId: string,
+  ): Promise<{ url: string; path: string; name: string; mime: string; size: number }> => {
+    if (!companyId) throw new Error("Company non disponibile");
+    const uuid = crypto.randomUUID();
+    const safeName = sanitizeName(file.name);
+    const path = `${companyId}/${targetDdtId}/${uuid}-${safeName}`;
+
+    const { error: upErr } = await supabase.storage
+      .from("ddt_attachments")
+      .upload(path, file, {
+        contentType: file.type,
+        cacheControl: "3600",
+        upsert: false,
+      });
+    if (upErr) throw upErr;
+
+    const { data: signed, error: signErr } = await supabase.storage
+      .from("ddt_attachments")
+      .createSignedUrl(path, 60 * 60 * 24 * 365); // 1 anno
+    if (signErr) throw signErr;
+
+    return {
+      url: signed.signedUrl,
+      path,
+      name: file.name,
+      mime: file.type,
+      size: file.size,
+    };
+  };
+
+  /**
+   * Upload del file DDT principale (ddt_file_url/name/mime columns).
+   * Usato nel wizard o nel detail "sostituisci documento DDT".
+   */
+  const uploadMainDDT = useMutation({
+    mutationFn: async (params: { ddtId: string; file: File }) => {
+      const uploaded = await uploadToStorage(params.file, params.ddtId);
+      const { error } = await supabase
+        .from("ddt_ricezione")
+        .update({
+          ddt_file_url: uploaded.url,
+          ddt_file_name: uploaded.name,
+          ddt_file_mime: uploaded.mime,
+        } as never)
+        .eq("id", params.ddtId);
+      if (error) throw error;
+      return uploaded;
+    },
+    onSuccess: () => {
+      toast.success("Documento DDT caricato");
+      invalidate();
+    },
+    onError: (err: Error) => toast.error(err.message || "Errore upload DDT"),
+  });
+
+  /**
+   * Aggiunge uno o più allegati al JSONB attachments.
+   */
+  const uploadAttachments = useMutation({
+    mutationFn: async (params: {
+      ddtId: string;
+      files: { file: File; kind: DDTAttachmentKind }[];
+    }) => {
+      const uploaded: DDTAttachment[] = [];
+      for (const { file, kind } of params.files) {
+        const res = await uploadToStorage(file, params.ddtId);
+        uploaded.push({
+          url: res.url,
+          path: res.path,
+          name: res.name,
+          mime: res.mime,
+          size: res.size,
+          kind,
+          uploaded_at: new Date().toISOString(),
+        });
+      }
+
+      const { data: row, error: fetchErr } = await supabase
+        .from("ddt_ricezione")
+        .select("attachments")
+        .eq("id", params.ddtId)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      const existing =
+        ((row as { attachments?: DDTAttachment[] })?.attachments as DDTAttachment[]) || [];
+      const merged = [...existing, ...uploaded];
+
+      const { error } = await supabase
+        .from("ddt_ricezione")
+        .update({ attachments: merged } as never)
+        .eq("id", params.ddtId);
+      if (error) throw error;
+      return uploaded;
+    },
+    onSuccess: (data) => {
+      toast.success(`${data.length} allegat${data.length === 1 ? "o" : "i"} caricat${data.length === 1 ? "o" : "i"}`);
+      invalidate();
+    },
+    onError: (err: Error) => toast.error(err.message || "Errore upload allegato"),
+  });
+
+  /**
+   * Upload firma digitale (dataURL da SignaturePad o file).
+   */
+  const uploadSignature = useMutation({
+    mutationFn: async (params: { ddtId: string; file: File }) => {
+      const uploaded = await uploadToStorage(params.file, params.ddtId);
+      const { error } = await supabase
+        .from("ddt_ricezione")
+        .update({ signature_url: uploaded.url } as never)
+        .eq("id", params.ddtId);
+      if (error) throw error;
+      return uploaded;
+    },
+    onSuccess: () => {
+      toast.success("Firma salvata");
+      invalidate();
+    },
+    onError: (err: Error) => toast.error(err.message || "Errore salvataggio firma"),
+  });
+
+  /**
+   * Rimuove un allegato dal JSONB + dallo storage.
+   */
+  const deleteAttachment = useMutation({
+    mutationFn: async (params: { ddtId: string; path: string }) => {
+      const { data: row, error: fetchErr } = await supabase
+        .from("ddt_ricezione")
+        .select("attachments")
+        .eq("id", params.ddtId)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      const existing =
+        ((row as { attachments?: DDTAttachment[] })?.attachments as DDTAttachment[]) || [];
+      const filtered = existing.filter((a) => a.path !== params.path);
+
+      const { error: upErr } = await supabase
+        .from("ddt_ricezione")
+        .update({ attachments: filtered } as never)
+        .eq("id", params.ddtId);
+      if (upErr) throw upErr;
+
+      // Best-effort storage delete (non-blocking)
+      void supabase.storage.from("ddt_attachments").remove([params.path]);
+      return true;
+    },
+    onSuccess: () => {
+      toast.success("Allegato rimosso");
+      invalidate();
+    },
+    onError: (err: Error) => toast.error(err.message || "Errore rimozione allegato"),
+  });
+
+  return {
+    uploadMainDDT,
+    uploadAttachments,
+    uploadSignature,
+    deleteAttachment,
   };
 }

@@ -6,19 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
-  Truck, Save, XCircle, ExternalLink, FileCheck, ShieldCheck,
+  Truck, Save, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
+  AlertTriangle,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
-import { useDDTRicezioneMutations } from "@/hooks/useDDTRicezione";
+import type { DDTStato } from "@/hooks/useDDTRicezione";
 import { ArticleCombobox, type ArticleTemplateData } from "@/components/orders/ArticleCombobox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +24,8 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { VerifyPurchaseOrderDialog } from "@/components/orders/VerifyPurchaseOrderDialog";
 import { VerificationHistoryCard } from "@/components/orders/VerificationHistoryCard";
+import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
+import { DDTStatusBadge } from "@/components/ddt/DDTStatusBadge";
 
 const fmtEur = (n: number) => formatCurrency(n);
 
@@ -72,9 +72,8 @@ export default function PurchaseOrderDetail() {
   // AI Verification
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
 
-  // M4 — DDT ricezione
+  // M4 — DDT ricezione (nuovo wizard procedurale)
   const [ddtDialogOpen, setDdtDialogOpen] = useState(false);
-  const [ddtForm, setDdtForm] = useState({ numero_ddt: "", data_ricezione: format(new Date(), "yyyy-MM-dd"), quantita_ricevuta: "", stato: "ricevuto", note: "" });
 
   const { data: ddtList = [] } = useQuery({
     queryKey: ["ddt-ricezione", odaId],
@@ -84,31 +83,6 @@ export default function PurchaseOrderDetail() {
     },
     enabled: !!odaId,
   });
-
-  // Usa il hook unificato useDDTRicezioneMutations: gestisce warehouse_id auto-fill
-  // (delivery_warehouse_id dell'ODA → default azienda) e invalida tutte le cache
-  // correlate (warehouse_stock, purchase_orders, ddt-ricezione globale, …).
-  const { createDDT: createDdtMutation } = useDDTRicezioneMutations(odaId ?? null);
-
-  const handleCreateDdt = () => {
-    if (!odaId) return;
-    createDdtMutation.mutate(
-      {
-        purchase_order_id: odaId,
-        numero_ddt: ddtForm.numero_ddt,
-        data_ricezione: ddtForm.data_ricezione,
-        quantita_ricevuta: parseFloat(ddtForm.quantita_ricevuta) || 0,
-        stato: ddtForm.stato as "attesa" | "parziale" | "ricevuto",
-        note: ddtForm.note || null,
-      },
-      {
-        onSuccess: () => {
-          setDdtDialogOpen(false);
-          setDdtForm({ numero_ddt: "", data_ricezione: format(new Date(), "yyyy-MM-dd"), quantita_ricevuta: "", stato: "ricevuto", note: "" });
-        },
-      }
-    );
-  };
 
   if (isLoading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -408,53 +382,113 @@ export default function PurchaseOrderDetail() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileCheck className="h-4 w-4" aria-hidden="true" /> DDT Ricezione
                   {ddtList.length > 0 && (
-                    <>
-                      <Badge variant="secondary" className="text-xs">{ddtList.length}</Badge>
-                      {(() => {
-                        const ricevuti = ddtList.filter((d: any) => d.stato === "ricevuto").length;
-                        return ricevuti > 0 ? (
-                          <Badge className="bg-green-100 text-green-800 text-[10px]">
-                            {ricevuti} ricevuti
-                          </Badge>
-                        ) : null;
-                      })()}
-                    </>
+                    <Badge variant="secondary" className="text-xs">{ddtList.length}</Badge>
                   )}
                 </CardTitle>
-                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDdtDialogOpen(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Registra
+                <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => setDdtDialogOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Registra
                 </Button>
               </div>
+              {ddtList.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap text-[10px] mt-1">
+                  {(() => {
+                    const counts: Record<string, number> = {};
+                    for (const d of ddtList as { stato: DDTStato }[]) {
+                      counts[d.stato] = (counts[d.stato] ?? 0) + 1;
+                    }
+                    return (
+                      <>
+                        {counts.verificato ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">
+                            <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />
+                            {counts.verificato} verificat{counts.verificato === 1 ? "o" : "i"}
+                          </Badge>
+                        ) : null}
+                        {counts.ricevuto ? (
+                          <Badge className="bg-green-100 text-green-800 text-[10px]">
+                            {counts.ricevuto} ricevut{counts.ricevuto === 1 ? "o" : "i"}
+                          </Badge>
+                        ) : null}
+                        {counts.parziale ? (
+                          <Badge className="bg-amber-100 text-amber-800 text-[10px]">
+                            {counts.parziale} parzial{counts.parziale === 1 ? "e" : "i"}
+                          </Badge>
+                        ) : null}
+                        {counts.non_conforme ? (
+                          <Badge className="bg-rose-100 text-rose-800 text-[10px]">
+                            <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                            {counts.non_conforme} non conform{counts.non_conforme === 1 ? "e" : "i"}
+                          </Badge>
+                        ) : null}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </CardHeader>
             <CardContent className="pt-0">
               {ddtList.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-3">Nessun DDT registrato</p>
+                <div className="text-center py-5 space-y-2">
+                  <FileCheck className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-xs text-muted-foreground">Nessun DDT registrato</p>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setDdtDialogOpen(true)}>
+                    <Plus className="h-3.5 w-3.5" /> Registra il primo DDT
+                  </Button>
+                </div>
               ) : (
                 <div className="space-y-1.5">
-                  {ddtList.map((ddt: any) => (
-                    <button
-                      type="button"
-                      key={ddt.id}
-                      onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
-                      className="w-full flex items-start justify-between p-2 rounded-md bg-muted/50 hover:bg-muted text-xs gap-2 text-left transition-colors group"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-medium truncate">{ddt.numero_ddt}</p>
-                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                  {(ddtList as {
+                    id: string;
+                    numero_ddt: string;
+                    data_ricezione: string;
+                    quantita_ricevuta: number;
+                    stato: DDTStato;
+                    note: string | null;
+                    attachments?: unknown[] | null;
+                    ddt_file_url?: string | null;
+                    has_damages?: boolean;
+                  }[]).map((ddt) => {
+                    const attachCount =
+                      (Array.isArray(ddt.attachments) ? ddt.attachments.length : 0) +
+                      (ddt.ddt_file_url ? 1 : 0);
+                    return (
+                      <button
+                        type="button"
+                        key={ddt.id}
+                        onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
+                        className="w-full flex items-start justify-between p-2 rounded-md bg-muted/40 hover:bg-muted text-xs gap-2 text-left transition-colors group border border-transparent hover:border-primary/20"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium truncate font-mono">{ddt.numero_ddt}</p>
+                            <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                          </div>
+                          <p className="text-muted-foreground mt-0.5">
+                            {ddt.data_ricezione?.split("-").reverse().join("/")} ·{" "}
+                            {Number(ddt.quantita_ricevuta).toLocaleString("it-IT", { maximumFractionDigits: 2 })} unità
+                          </p>
+                          {(attachCount > 0 || ddt.has_damages) && (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              {attachCount > 0 && (
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                  <Paperclip className="h-2.5 w-2.5" />
+                                  {attachCount}
+                                </span>
+                              )}
+                              {ddt.has_damages && (
+                                <span className="text-[10px] text-rose-600 flex items-center gap-0.5">
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  danni
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {ddt.note && <p className="text-muted-foreground italic truncate mt-0.5">{ddt.note}</p>}
                         </div>
-                        <p className="text-muted-foreground">{ddt.data_ricezione?.split("-").reverse().join("/")} · {ddt.quantita_ricevuta} unità</p>
-                        {ddt.note && <p className="text-muted-foreground italic truncate">{ddt.note}</p>}
-                      </div>
-                      <Badge className={
-                        ddt.stato === "ricevuto" ? "bg-green-100 text-green-800 text-[10px] shrink-0" :
-                        ddt.stato === "parziale" ? "bg-yellow-100 text-yellow-800 text-[10px] shrink-0" :
-                        "bg-muted text-muted-foreground text-[10px] shrink-0"
-                      }>
-                        {ddt.stato === "ricevuto" ? "Ricevuto" : ddt.stato === "parziale" ? "Parziale" : "Attesa"}
-                      </Badge>
-                    </button>
-                  ))}
+                        <DDTStatusBadge stato={ddt.stato} size="sm" className="shrink-0" />
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -475,51 +509,12 @@ export default function PurchaseOrderDetail() {
         orderCode={order.orders?.order_code}
       />
 
-      {/* DDT Dialog */}
-      <Dialog open={ddtDialogOpen} onOpenChange={setDdtDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><FileCheck className="h-5 w-5" />Registra DDT</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <Label>Numero DDT *</Label>
-              <Input value={ddtForm.numero_ddt} onChange={(e) => setDdtForm((p) => ({ ...p, numero_ddt: e.target.value }))} placeholder="es. DDT-2024-001" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Data ricezione</Label>
-                <Input type="date" value={ddtForm.data_ricezione} onChange={(e) => setDdtForm((p) => ({ ...p, data_ricezione: e.target.value }))} />
-              </div>
-              <div className="space-y-1">
-                <Label>Quantità</Label>
-                <Input type="number" min="0" step="0.01" value={ddtForm.quantita_ricevuta} onChange={(e) => setDdtForm((p) => ({ ...p, quantita_ricevuta: e.target.value }))} placeholder="0" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Stato</Label>
-              <Select value={ddtForm.stato} onValueChange={(v) => setDdtForm((p) => ({ ...p, stato: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ricevuto">Ricevuto completo</SelectItem>
-                  <SelectItem value="parziale">Parziale</SelectItem>
-                  <SelectItem value="attesa">In attesa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Note</Label>
-              <Input value={ddtForm.note} onChange={(e) => setDdtForm((p) => ({ ...p, note: e.target.value }))} placeholder="Opzionale" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDdtDialogOpen(false)}>Annulla</Button>
-            <Button onClick={handleCreateDdt} disabled={createDdtMutation.isPending || !ddtForm.numero_ddt.trim()}>
-              {createDdtMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registra DDT"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* DDT Wizard — nuovo dialog procedurale multi-step con upload foto/PDF */}
+      <NewDDTDialog
+        open={ddtDialogOpen}
+        onOpenChange={setDdtDialogOpen}
+        prefillPurchaseOrderId={odaId ?? null}
+      />
     </div>
   );
 }
