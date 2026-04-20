@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -591,6 +591,17 @@ export default function QuoteBuilder() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = role === "company_admin" || role === "super_admin";
+  /**
+   * Sprint B — Varianti Costo Manodopera.
+   * Flag legacy: le analisi margine inline (per-riga + totali admin + provvigione)
+   * sono state spostate nella pagina dedicata /margini, accessibile tramite il badge
+   * "Margini & pianificazione" in alto. In questo builder tutti i ruoli (anche admin)
+   * vedono SOLO prezzi di vendita — evita screenshot condivisi con commerciali.
+   *
+   * Settare a `true` per ripristinare temporaneamente i blocchi inline.
+   */
+  const QUOTE_BUILDER_INLINE_MARGINS_LEGACY = false;
+  const showInlineMargins = isAdmin && QUOTE_BUILDER_INLINE_MARGINS_LEGACY;
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -1723,6 +1734,16 @@ export default function QuoteBuilder() {
             </p>
           )}
         </div>
+        {/* Sprint B — Badge admin "Margine & Pianificazione". Visibile solo in edit e solo ad admin. */}
+        {isAdmin && isEdit && id && (
+          <Link
+            to={`/azienda/marketing/preventivi/${id}/margini`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+          >
+            <TrendingUp className="h-3.5 w-3.5" />
+            Margini &amp; pianificazione
+          </Link>
+        )}
       </div>
 
       {/* Stepper */}
@@ -2406,8 +2427,8 @@ export default function QuoteBuilder() {
                                   )}
                                 </div>
                               )}
-                              {/* Admin: margine per tutte le categorie con costo noto */}
-                              {isAdmin &&
+                              {/* Admin: margine per tutte le categorie con costo noto — legacy (vedi /margini) */}
+                              {showInlineMargins &&
                                 item.prezzo_acquisto > 0 &&
                                 !["nota", "subtotale", "sconto"].includes(item.item_category) && (
                                   <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
@@ -2532,8 +2553,8 @@ export default function QuoteBuilder() {
                   <span>Totale</span>
                   <span>{formatCurrency(total)}</span>
                 </div>
-                {/* Admin block */}
-                {isAdmin && totaliPro.costo_totale > 0 && (
+                {/* Admin block — legacy (vedi /margini) */}
+                {showInlineMargins && totaliPro.costo_totale > 0 && (
                   <>
                     <Separator />
                     <div className="space-y-1 text-xs">
@@ -2811,8 +2832,8 @@ export default function QuoteBuilder() {
               </div>
             </div>
 
-            {/* Admin cost block */}
-            {isAdmin && totaliPro.costo_totale > 0 && (
+            {/* Admin cost block — legacy (vedi /margini) */}
+            {showInlineMargins && totaliPro.costo_totale > 0 && (
               <div className="border rounded-lg p-4 bg-blue-50/50 space-y-3 text-sm">
                 <h3 className="font-semibold text-sm flex items-center gap-2 text-blue-900">
                   <TrendingUp className="h-4 w-4" />
@@ -2893,8 +2914,8 @@ export default function QuoteBuilder() {
               </div>
             )}
 
-            {/* FASE 11 Serramentisti — Margine Lordo Atteso (solo admin) */}
-            {isAdmin && margineAtteso.ricavo_netto > 0 && (
+            {/* FASE 11 Serramentisti — Margine Lordo Atteso (solo admin) — legacy (vedi /margini) */}
+            {showInlineMargins && margineAtteso.ricavo_netto > 0 && (
               <div className="border rounded-lg p-4 bg-emerald-50/50 space-y-3 text-sm">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <h3 className="font-semibold text-sm flex items-center gap-2 text-emerald-900">
