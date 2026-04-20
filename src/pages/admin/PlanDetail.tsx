@@ -68,7 +68,24 @@ export default function PlanDetail() {
     staleTime: 60 * 1000,
   });
 
-  const { data: features = [] } = useQuery({
+  // Shape della lista legacy feature_flags per slug piano — serve solo a
+  // renderizzare la card "plans_included" sotto. I campi sono esattamente
+  // quelli selezionati: nessun allargamento opportunistico a `any`.
+  interface LegacyPlanFeature {
+    id: string;
+    key: string;
+    name: string;
+    description: string | null;
+    category: string;
+    is_beta: boolean;
+    default_value: boolean;
+    plans_included: string[];
+    price_per_month: number | null;
+    icon: string | null;
+    sort_order: number;
+  }
+
+  const { data: features = [] } = useQuery<LegacyPlanFeature[]>({
     queryKey: ["admin-plan-features", plan?.slug],
     queryFn: async () => {
       if (!plan?.slug) return [];
@@ -78,7 +95,7 @@ export default function PlanDetail() {
         .contains("plans_included", [plan.slug])
         .order("sort_order");
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as LegacyPlanFeature[];
     },
     enabled: !!plan?.slug,
     staleTime: 2 * 60 * 1000,
@@ -106,11 +123,18 @@ export default function PlanDetail() {
     mutationFn: async () => {
       if (!plan) throw new Error("Piano non caricato");
       if (!saPermissions.can_manage_plans) throw new Error("Non hai i permessi per gestire i piani");
+      // `plan` è tipato dal generato di supabase-js (subscription_plans row).
+      // Escludiamo i campi auto-generati; il resto è copiato 1:1 e poi
+      // sovrascriviamo i campi che devono differire nella copia.
       const {
         id: _id,
         created_at: _c,
         ...rest
-      } = plan as any;
+      } = plan;
+      // Silence unused destructuring warnings: questi campi vengono esclusi
+      // di proposito dal payload di insert.
+      void _id;
+      void _c;
       const payload = {
         ...rest,
         name: `${plan.name} (copia)`,
@@ -122,7 +146,7 @@ export default function PlanDetail() {
       };
       const { data, error } = await supabase
         .from("subscription_plans")
-        .insert(payload)
+        .insert(payload as never)
         .select("id")
         .single();
       if (error) throw error;
@@ -373,7 +397,7 @@ export default function PlanDetail() {
           </CardHeader>
           <CardContent>
             <div className="divide-y">
-              {features.map((f: any) => (
+              {features.map((f) => (
                 <div key={f.id} className="flex items-start justify-between gap-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

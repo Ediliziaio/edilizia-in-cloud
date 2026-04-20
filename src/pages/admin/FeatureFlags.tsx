@@ -45,6 +45,40 @@ interface FlagForm {
   sort_order: number;
 }
 
+// Shape della riga di `platform_feature_flags` con le colonne realmente
+// selezionate dalla query catalogo sotto. Tenerla qui evita di dover
+// `any`-izzare i callback (.map/.filter) in tutta la pagina.
+interface FlagRow {
+  id: string;
+  key: string;
+  name: string;
+  icon: string | null;
+  category: string;
+  description: string | null;
+  is_beta: boolean;
+  default_value: boolean;
+  plans_included: string[] | null;
+  price_per_month: number | null;
+  sort_order: number;
+}
+
+interface CompanyRow {
+  id: string;
+  name: string;
+}
+
+interface OverrideRow {
+  company_id: string;
+  feature_key: string;
+  is_enabled: boolean;
+}
+
+interface PlanSlugRow {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 const EMPTY_FLAG_FORM: FlagForm = {
   key: "",
   name: "",
@@ -73,7 +107,7 @@ export default function FeatureFlags() {
   const [deleteConfirmFlag, setDeleteConfirmFlag] = useState<{ id: string; key: string; name: string } | null>(null);
 
   // Fetch flags
-  const { data: flags = [], isLoading: flagsLoading } = useQuery({
+  const { data: flags = [], isLoading: flagsLoading } = useQuery<FlagRow[]>({
     queryKey: queryKeys.admin.featureFlags,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -81,13 +115,13 @@ export default function FeatureFlags() {
         .select("id, key, name, icon, category, description, is_beta, default_value, plans_included, price_per_month, sort_order")
         .order("sort_order");
       if (error) throw error;
-      return data;
+      return (data ?? []) as FlagRow[];
     },
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch companies
-  const { data: companies = [], isLoading: companiesLoading } = useQuery({
+  const { data: companies = [], isLoading: companiesLoading } = useQuery<CompanyRow[]>({
     queryKey: queryKeys.admin.ffCompanies,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -95,13 +129,13 @@ export default function FeatureFlags() {
         .select("id, name")
         .order("name");
       if (error) throw error;
-      return data;
+      return (data ?? []) as CompanyRow[];
     },
     staleTime: 10 * 60 * 1000,
   });
 
   // Fetch plans for plans_included selector
-  const { data: plans = [] } = useQuery({
+  const { data: plans = [] } = useQuery<PlanSlugRow[]>({
     queryKey: ["admin-plans-slugs"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -109,20 +143,20 @@ export default function FeatureFlags() {
         .select("id, name, slug")
         .order("position");
       if (error) throw error;
-      return data;
+      return (data ?? []) as PlanSlugRow[];
     },
     staleTime: 10 * 60 * 1000,
   });
 
   // Fetch all overrides
-  const { data: allOverrides = [] } = useQuery({
+  const { data: allOverrides = [] } = useQuery<OverrideRow[]>({
     queryKey: queryKeys.admin.featureOverrides,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_feature_overrides")
         .select("company_id, feature_key, is_enabled");
       if (error) throw error;
-      return data;
+      return (data ?? []) as OverrideRow[];
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -209,9 +243,9 @@ export default function FeatureFlags() {
   const rolloutMutation = useMutation({
     mutationFn: async ({ flagKey, pct }: { flagKey: string; pct: number }) => {
       const count = Math.round((pct / 100) * companies.length);
-      const sorted = [...companies].sort((a: any, b: any) => a.name.localeCompare(b.name));
-      const toEnable = sorted.slice(0, count).map((c: any) => c.id);
-      const toDisable = sorted.slice(count).map((c: any) => c.id);
+      const sorted = [...companies].sort((a, b) => a.name.localeCompare(b.name));
+      const toEnable = sorted.slice(0, count).map((c) => c.id);
+      const toDisable = sorted.slice(count).map((c) => c.id);
 
       if (toEnable.length > 0) {
         const rows = toEnable.map((id) => ({ company_id: id, feature_key: flagKey, is_enabled: true }));
@@ -241,7 +275,21 @@ export default function FeatureFlags() {
   // Save flag (insert/update)
   const saveFlagMutation = useMutation({
     mutationFn: async (form: FlagForm) => {
-      const payload = {
+      // Shape esatta della riga da persistere; evita il cast ad `any`
+      // sul payload e guida l'autocompletamento nei consumer.
+      interface FlagDbRow {
+        key: string;
+        name: string;
+        description: string | null;
+        category: string;
+        icon: string | null;
+        is_beta: boolean;
+        default_value: boolean;
+        plans_included: string[];
+        price_per_month: number | null;
+        sort_order: number;
+      }
+      const payload: FlagDbRow = {
         key: form.key.trim().toLowerCase().replace(/\s+/g, "_"),
         name: form.name.trim(),
         description: form.description.trim() || null,
@@ -256,13 +304,13 @@ export default function FeatureFlags() {
       if (form.id) {
         const { error } = await supabase
           .from("platform_feature_flags")
-          .update(payload)
+          .update(payload as never)
           .eq("id", form.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("platform_feature_flags")
-          .insert(payload);
+          .insert(payload as never);
         if (error) throw error;
       }
     },
@@ -299,7 +347,7 @@ export default function FeatureFlags() {
     setEditDialogOpen(true);
   };
 
-  const openEditFlag = (flag: any) => {
+  const openEditFlag = (flag: FlagRow) => {
     setEditingFlag({
       id: flag.id,
       key: flag.key,
@@ -316,7 +364,7 @@ export default function FeatureFlags() {
     setEditDialogOpen(true);
   };
 
-  const filteredFlags = flags.filter((f: any) =>
+  const filteredFlags = flags.filter((f) =>
     categoryFilter === "all" || f.category === categoryFilter
   );
 
@@ -352,10 +400,10 @@ export default function FeatureFlags() {
       </Tabs>
 
       <div className="grid gap-4">
-        {filteredFlags.map((flag: any) => {
-          const IconComp = ICON_MAP[flag.icon] || Zap;
+        {filteredFlags.map((flag) => {
+          const IconComp = (flag.icon && ICON_MAP[flag.icon]) || Zap;
           const catStyle = CATEGORY_STYLES[flag.category] || CATEGORY_STYLES.core;
-          const flagOverrides = allOverrides.filter((o: any) => o.feature_key === flag.key && o.is_enabled);
+          const flagOverrides = allOverrides.filter((o) => o.feature_key === flag.key && o.is_enabled);
           const activeCount = flagOverrides.length;
           const noneActive = activeCount === 0 && !flag.default_value;
           const StatusIcon = noneActive ? EyeOff : Eye;
@@ -440,7 +488,7 @@ export default function FeatureFlags() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const cur = allOverrides.filter((o: any) => o.feature_key === flag.key && o.is_enabled).length;
+                        const cur = allOverrides.filter((o) => o.feature_key === flag.key && o.is_enabled).length;
                         setRolloutPct(companies.length > 0 ? Math.round((cur / companies.length) * 100) : 0);
                         setDialogFlagKey(flag.key);
                       }}
@@ -525,10 +573,10 @@ export default function FeatureFlags() {
 
                   <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
                     {companies
-                      .filter((c: any) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                      .map((company: any) => {
+                      .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      .map((company) => {
                         const hasOverride = allOverrides.some(
-                          (o: any) => o.company_id === company.id && o.feature_key === flag.key && o.is_enabled
+                          (o) => o.company_id === company.id && o.feature_key === flag.key && o.is_enabled
                         );
                         return (
                           <label
@@ -550,7 +598,7 @@ export default function FeatureFlags() {
                           </label>
                         );
                       })}
-                    {companies.filter((c: any) => c.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                    {companies.filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-4">Nessuna azienda trovata.</p>
                     )}
                   </div>
@@ -709,7 +757,7 @@ export default function FeatureFlags() {
                 Seleziona i piani che includono automaticamente questa feature.
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {plans.map((p: any) => {
+                {plans.map((p) => {
                   const checked = editingFlag.plans_included.includes(p.slug);
                   return (
                     <label

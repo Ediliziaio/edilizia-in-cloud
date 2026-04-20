@@ -18,11 +18,37 @@ import { CreditManagerCard } from "./CreditManagerCard";
 import { CompanyFeatureOverridesCard } from "./CompanyFeatureOverridesCard";
 import { CompanyOverrideAuditLogCard } from "./CompanyOverrideAuditLogCard";
 
+// Forma minima di un piano tariffario — solo i campi letti qui.
+// Evita di importare la riga completa di `subscription_plans` che contiene
+// decine di colonne irrilevanti per questo componente.
+interface SubscriptionPlanSummary {
+  id?: string;
+  name: string;
+  price_monthly: number;
+}
+
+interface CurrentSubscriptionSummary {
+  current_period_start?: string | null;
+  current_period_end?: string | null;
+}
+
+// `subscription_logs` con join (`subscription_plans:plan_id(name)`).
+// `event_type` è uno dei codici riconosciuti da `eventTypeLabels`.
+interface SubscriptionLogRow {
+  id: string;
+  event_type: string;
+  notes: string | null;
+  old_status: string | null;
+  new_status: string | null;
+  created_at: string;
+  subscription_plans: { name: string } | null;
+}
+
 interface CompanySubscriptionTabProps {
   company: Company;
-  currentPlan: any;
-  currentSubscription: any;
-  subscriptionLogs: any[] | undefined;
+  currentPlan: SubscriptionPlanSummary | null | undefined;
+  currentSubscription: CurrentSubscriptionSummary | null | undefined;
+  subscriptionLogs: SubscriptionLogRow[] | undefined;
   onChangePlan: () => void;
   onSuspend: () => void;
   onReactivate: () => void;
@@ -101,11 +127,11 @@ export function CompanySubscriptionTab({
               <span className="font-medium font-mono text-xs">{company.stripe_customer_id}</span>
             </div>
           )}
-          {(company as any).dunning_status && (company as any).dunning_status !== "none" && (
+          {company.dunning_status && company.dunning_status !== "none" && (
             <div className="flex justify-between py-2 border-b text-sm">
               <span className="text-muted-foreground">Stato Dunning</span>
-              <Badge variant={(company as any).dunning_status === "critical" ? "destructive" : "secondary"}>
-                {(company as any).dunning_status} — {(company as any).payment_failure_count || 0} fallimenti
+              <Badge variant={company.dunning_status === "critical" ? "destructive" : "secondary"}>
+                {company.dunning_status} — {company.payment_failure_count || 0} fallimenti
               </Badge>
             </div>
           )}

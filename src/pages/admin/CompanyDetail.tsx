@@ -156,8 +156,9 @@ export default function CompanyDetail() {
       await h.handleDeleteCompany();
       toast.success("Azienda eliminata");
       navigate("/admin/aziende");
-    } catch (err: any) {
-      toast.error("Errore eliminazione azienda", { description: err.message });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore eliminazione azienda", { description: msg });
     }
   };
 
@@ -174,8 +175,9 @@ export default function CompanyDetail() {
       if (error) throw error;
       toast.success(`${name} eliminato`);
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(id) });
-    } catch (err: any) {
-      toast.error("Errore eliminazione utente", { description: err.message });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore eliminazione utente", { description: msg });
     } finally {
       setIsDeletingUser(false);
     }
@@ -185,13 +187,16 @@ export default function CompanyDetail() {
   const handleResetPassword = async (userId: string, name: string) => {
     setIsResettingPassword(true);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-super-admins", {
+      // Ci interessa solo verificare `error`; il body di risposta è ignorato
+      // (la password è inviata via email dal servizio server-side).
+      const { error } = await supabase.functions.invoke("manage-super-admins", {
         body: { action: "reset-password", userId },
       });
       if (error) throw error;
       toast.success(`Password resettata per ${name}`, { description: "La nuova password è stata inviata via email." });
-    } catch (err: any) {
-      toast.error("Errore reset password", { description: err.message });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore reset password", { description: msg });
     } finally {
       setIsResettingPassword(false);
     }

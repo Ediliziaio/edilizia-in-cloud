@@ -315,7 +315,7 @@ export function useCompanyDetail(id: string | undefined) {
       refreshCompany();
       toast.success("Stato aggiornato");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Errore aggiornamento stato", { description: err.message });
     },
   });
@@ -365,7 +365,7 @@ export function useCompanyDetail(id: string | undefined) {
         toast.success("Piano aggiornato");
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Errore cambio piano", { description: err.message });
     },
   });
@@ -397,7 +397,7 @@ export function useCompanyDetail(id: string | undefined) {
       refreshCompany();
       toast.success("Trial esteso");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Errore estensione trial", { description: err.message });
     },
   });
@@ -422,8 +422,9 @@ export function useCompanyDetail(id: string | undefined) {
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Staff creato con successo");
       return { temporaryPassword: resp.data.temporary_password };
-    } catch (err: any) {
-      toast.error("Errore", { description: err.message });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore", { description: msg });
       throw err;
     } finally {
       setCreateStaffLoading(false);
@@ -442,25 +443,38 @@ export function useCompanyDetail(id: string | undefined) {
           "can_view_marketing_appointments", "can_view_marketing_automations",
           "can_view_marketing_ai_agent", "can_view_marketing_email",
           "can_view_marketing_whatsapp", "can_view_marketing_reports",
-        ].some(k => (permissions as any)[k] === true),
+        ].some((k) => permissions[k as keyof StaffPermissions] === true),
         can_edit_marketing: [
           "can_edit_marketing_contacts",
           "can_edit_marketing_opportunities",
-        ].some(k => (permissions as any)[k] === true),
+        ].some((k) => permissions[k as keyof StaffPermissions] === true),
       };
       const { error } = await supabase.from("staff_permissions").update(syncedPermissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Permessi aggiornati");
-    } catch (err: any) {
-      toast.error("Errore", { description: err.message });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore", { description: msg });
     } finally {
       setSavingPermissions(false);
     }
   };
 
+  // Payload per creazione venditore: replica i campi del form salesperson.
+  // Tipato qui per evitare `any` sul mutation payload e sul handler.
+  interface SalespersonFormPayload {
+    first_name: string;
+    last_name: string;
+    email?: string | null;
+    phone?: string | null;
+    commission_type: string;
+    commission_value: number;
+    is_active?: boolean;
+  }
+
   const createSalespersonMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: SalespersonFormPayload) => {
       const { error } = await supabase.from("salespeople").insert({
         company_id: id!, first_name: data.first_name, last_name: data.last_name,
         email: data.email || null, phone: data.phone || null,
@@ -473,12 +487,12 @@ export function useCompanyDetail(id: string | undefined) {
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Venditore creato");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Errore", { description: err.message });
     },
   });
 
-  const handleCreateSalesperson = (data: any) => {
+  const handleCreateSalesperson = (data: SalespersonFormPayload) => {
     createSalespersonMutation.mutate(data);
   };
 
@@ -497,7 +511,7 @@ export function useCompanyDetail(id: string | undefined) {
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       toast.success("Dipendente creato");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Errore", { description: err.message });
     },
   });
@@ -520,8 +534,9 @@ export function useCompanyDetail(id: string | undefined) {
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
       setPasswordDialog({ open: true, password: resp.data.temp_password, name, email });
       toast.success("Account creato");
-    } catch (err: any) {
-      toast.error("Errore", { description: err.message });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore", { description: msg });
     } finally {
       setCreatingAccountFor(null);
     }
@@ -541,32 +556,66 @@ export function useCompanyDetail(id: string | undefined) {
     if (!id) return;
     setIsSaving(true);
     try {
-      const updateData: Record<string, any> = {
-        name: data.name, email: data.email, sector: data.sector,
-        business_name: data.business_name || null, phone: data.phone || null,
-        vat_number: data.vat_number || null, fiscal_code: data.fiscal_code || null,
-        pec: data.pec || null, sdi_code: data.sdi_code || null, website: data.website || null,
-        legal_address: data.legal_address || null, legal_city: data.legal_city || null,
-        legal_province: data.legal_province || null, legal_postal_code: data.legal_postal_code || null,
-        notes: data.notes || null,
-      };
-      if (sameAsLegal) {
-        updateData.operational_address = data.legal_address || null;
-        updateData.operational_city = data.legal_city || null;
-        updateData.operational_province = data.legal_province || null;
-        updateData.operational_postal_code = data.legal_postal_code || null;
-      } else {
-        updateData.operational_address = data.operational_address || null;
-        updateData.operational_city = data.operational_city || null;
-        updateData.operational_province = data.operational_province || null;
-        updateData.operational_postal_code = data.operational_postal_code || null;
+      // Shape esatta del subset di colonne `companies` che aggiorniamo dal
+      // form — coincide con i campi validati da `formSchema` più i 4 campi
+      // operativi duplicati dal toggle "sameAsLegal".
+      interface CompanyUpdatePayload {
+        name: string;
+        email: string;
+        sector: CompanySector;
+        business_name: string | null;
+        phone: string | null;
+        vat_number: string | null;
+        fiscal_code: string | null;
+        pec: string | null;
+        sdi_code: string | null;
+        website: string | null;
+        legal_address: string | null;
+        legal_city: string | null;
+        legal_province: string | null;
+        legal_postal_code: string | null;
+        notes: string | null;
+        operational_address: string | null;
+        operational_city: string | null;
+        operational_province: string | null;
+        operational_postal_code: string | null;
       }
+      const updateData: CompanyUpdatePayload = {
+        name: data.name,
+        email: data.email,
+        sector: data.sector as CompanySector,
+        business_name: data.business_name || null,
+        phone: data.phone || null,
+        vat_number: data.vat_number || null,
+        fiscal_code: data.fiscal_code || null,
+        pec: data.pec || null,
+        sdi_code: data.sdi_code || null,
+        website: data.website || null,
+        legal_address: data.legal_address || null,
+        legal_city: data.legal_city || null,
+        legal_province: data.legal_province || null,
+        legal_postal_code: data.legal_postal_code || null,
+        notes: data.notes || null,
+        operational_address: sameAsLegal
+          ? data.legal_address || null
+          : data.operational_address || null,
+        operational_city: sameAsLegal
+          ? data.legal_city || null
+          : data.operational_city || null,
+        operational_province: sameAsLegal
+          ? data.legal_province || null
+          : data.operational_province || null,
+        operational_postal_code: sameAsLegal
+          ? data.legal_postal_code || null
+          : data.operational_postal_code || null,
+      };
       const { error } = await supabase.from("companies").update(updateData).eq("id", id);
       if (error) throw error;
       refreshCompany();
       toast.success("Dati aggiornati con successo");
-    } catch (error: any) {
-      toast.error("Errore", { description: error.message });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Errore sconosciuto";
+      toast.error("Errore", { description: msg });
     } finally {
       setIsSaving(false);
     }
@@ -594,7 +643,7 @@ export function useCompanyDetail(id: string | undefined) {
       refreshCompany();
       toast.success("Metodo di pagamento aggiornato");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Errore", { description: err.message });
     },
   });
@@ -627,7 +676,7 @@ export function useCompanyDetail(id: string | undefined) {
       setCheckoutUrl(data.url);
       toast.success("Link di pagamento generato");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Errore generazione link", { description: err.message });
     },
   });

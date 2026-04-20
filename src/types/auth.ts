@@ -238,6 +238,14 @@ export interface Company {
   vertical: CompanyVertical | null;
   verticals_secondari: CompanyVertical[];
   onboarding_vertical_completed: boolean;
+  // Billing / dunning (SuperAdmin): queste colonne esistono già su
+  // `companies` ma erano assenti dal type client causando cast ad `any`.
+  // Le rendiamo opzionali perché il fetch minimo (login) non le seleziona
+  // sempre; la pagina SuperAdmin le popola invece dal detail-fetch completo.
+  dunning_status?: string | null;
+  payment_failure_count?: number | null;
+  trial_extensions_count?: number | null;
+  last_payment_failure_at?: string | null;
 }
 
 export interface AuthState {

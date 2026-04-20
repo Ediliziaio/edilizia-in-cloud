@@ -5,8 +5,19 @@ import { differenceInDays } from "date-fns";
 import type { CompanyStatus } from "@/types/auth";
 import { queryKeys } from "@/lib/queryKeys";
 
-const ALL_MODULES = ["orders", "warehouse", "calendar", "customers", "employees", "tickets", "forecast"] as const;
-export type ModuleKey = (typeof ALL_MODULES)[number];
+// Lista moduli gestiti dal piano.
+// Tenuta come tipo puro (nessuna const runtime) perché i consumer la usano
+// solo come vincolo: la sorgente autoritativa dei moduli abilitati su
+// un'azienda è `subscription_plans.included_modules`. L'array runtime lo
+// abbiamo in `src/lib/adminConstants.ts` per l'UI admin (icone + label).
+export type ModuleKey =
+  | "orders"
+  | "warehouse"
+  | "calendar"
+  | "customers"
+  | "employees"
+  | "tickets"
+  | "forecast";
 
 export function useSubscriptionLimits() {
   const {

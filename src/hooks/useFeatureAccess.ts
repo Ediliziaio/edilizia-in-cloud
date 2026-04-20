@@ -64,17 +64,36 @@ export function useFeatureAccess(
     !!impersonatedCompanyId &&
     !!impersonationToken;
 
-  const { data, isLoading } = useQuery({
+  // Shape della riga ritornata da RPC `resolve_company_feature` lato DB.
+  // Se la feature è sconosciuta la RPC ritorna comunque una riga con
+  // `is_enabled=false, source='default'` → fail-closed.
+  interface ResolveRow {
+    is_enabled: boolean;
+    source: "override" | "plan_default" | "plan" | "default";
+    limit_value: number | null;
+    price_override: number | null;
+    expires_at: string | null;
+  }
+
+  const { data, isLoading } = useQuery<ResolveRow | null>({
     queryKey: ["feature-access", companyId, featureKey],
     queryFn: async () => {
       if (!companyId) return null;
-      const { data, error } = await supabase.rpc("resolve_company_feature" as never, {
-        p_company_id: companyId,
-        p_feature_key: featureKey,
-      } as never);
+      // Cast sui parametri RPC: il tipo generato di supabase-js è unione discriminata
+      // di tutte le RPC — qui specializziamo al nostro payload senza `any`.
+      const { data, error } = await supabase.rpc(
+        "resolve_company_feature" as never,
+        {
+          p_company_id: companyId,
+          p_feature_key: featureKey,
+        } as never,
+      );
       if (error) throw error;
-      const row = Array.isArray(data) ? (data[0] as any) : (data as any);
-      return row ?? null;
+      // La RPC ritorna SETOF RECORD → client normalizza ad array o singolo.
+      const row: ResolveRow | null = Array.isArray(data)
+        ? ((data[0] as ResolveRow | undefined) ?? null)
+        : ((data as ResolveRow | null) ?? null);
+      return row;
     },
     enabled: !!companyId && !!featureKey && !bypass,
     staleTime: 60 * 1000, // 1 min — override cambiano raramente ma bisogna reagire veloce

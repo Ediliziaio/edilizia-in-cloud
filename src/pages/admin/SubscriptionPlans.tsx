@@ -107,7 +107,29 @@ export default function SubscriptionPlans() {
   const saveMutation = useMutation({
     mutationFn: async (plan: PlanForm & { id?: string }) => {
       if (!saPermissions.can_manage_plans) throw new Error("Non hai i permessi per gestire i piani");
-      const payload: Record<string, any> = {
+      // Shape del record da persistere su subscription_plans.
+      // Manteniamo il tipo esplicito per evitare `any` e allinearci alla
+      // colonna SQL (features JSONB array, included_modules text[] — entrambi
+      // accettano string[] lato supabase-js via cast implicito).
+      interface PlanDbRow {
+        name: string;
+        slug: string;
+        description: string | null;
+        price_monthly: number;
+        price_yearly: number;
+        max_orders: number;
+        trial_days: number;
+        max_users: number;
+        max_storage_mb: number;
+        features: string[];
+        is_active: boolean;
+        position: number;
+        included_modules: string[];
+        stripe_product_id: string | null;
+        stripe_price_monthly_id: string | null;
+        stripe_price_yearly_id: string | null;
+      }
+      const payload: PlanDbRow = {
         name: plan.name,
         slug: plan.slug,
         description: plan.description || null,
@@ -127,10 +149,18 @@ export default function SubscriptionPlans() {
       };
 
       if (plan.id) {
-        const { error } = await supabase.from("subscription_plans").update(payload).eq("id", plan.id);
+        // Cast su `never`: il tipo generato di supabase-js per update()
+        // è unione discriminata di tutte le tabelle → qui specializziamo al
+        // nostro payload senza ricorrere ad `any`.
+        const { error } = await supabase
+          .from("subscription_plans")
+          .update(payload as never)
+          .eq("id", plan.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("subscription_plans").insert(payload as any);
+        const { error } = await supabase
+          .from("subscription_plans")
+          .insert(payload as never);
         if (error) throw error;
       }
     },
@@ -229,7 +259,9 @@ export default function SubscriptionPlans() {
     }
   };
 
-  const formatLimit = (value: number) => (value === -1 ? "Illimitati" : value.toString());
+  // `displayLimit` è la versione con glifo ∞ usata nelle card; la variante
+  // "Illimitati" testuale era duplicata e non referenziata — rimossa per
+  // restare in linea con §8 (no dead code).
   const displayLimit = (val: number) => val === -1 ? '∞ Illimitati' : val.toString();
   const displayStorage = (mb: number) => mb >= 1024 ? `${Math.round(mb / 1024)} GB` : `${mb} MB`;
 

@@ -402,19 +402,34 @@ export default function CompaniesList() {
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
+      // Shape delle righe letto dalla select() qui sopra — manteniamo
+      // i tipi locali per evitare `any` sui callback e perché non vogliamo
+      // trascinarci in giro tutto il tipo generato della tabella.
+      interface CompanyNoteRow {
+        company_id: string;
+        content: string;
+        created_at: string;
+        author_id: string;
+      }
+      interface AuthorRow {
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+      }
+      const rows = (data ?? []) as CompanyNoteRow[];
       const map: Record<string, { content: string; created_at: string; authorName: string }> = {};
-      const authorIds = [...new Set((data || []).map((n: any) => n.author_id))];
+      const authorIds = [...new Set(rows.map((n) => n.author_id))];
       const authorMap: Record<string, string> = {};
       if (authorIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("id, first_name, last_name")
           .in("id", authorIds);
-        (profiles || []).forEach((p: any) => {
+        ((profiles ?? []) as AuthorRow[]).forEach((p) => {
           authorMap[p.id] = `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Admin";
         });
       }
-      (data || []).forEach((n: any) => {
+      rows.forEach((n) => {
         if (!map[n.company_id]) {
           map[n.company_id] = {
             content: n.content,
@@ -1114,21 +1129,29 @@ export default function CompaniesList() {
                           </div>
                         </TableCell>
                       </TableRow>
-                      {isExpanded && (
-                        <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={5 + visibleCols.length} className="p-4">
-                            <CompanyExpandedRow
-                              company={company}
-                              orderStats={orderStats[company.id]}
-                              healthData={healthData[company.id]}
-                              planLimits={(company.subscription_plans as any) ? { max_orders: (company.subscription_plans as any).max_orders, max_users: (company.subscription_plans as any).max_users } : undefined}
-                              planInfo={(company.subscription_plans as any) ? { name: (company.subscription_plans as any).name, price_monthly: (company.subscription_plans as any).price_monthly } : undefined}
-                              latestNote={latestNotes[company.id]}
-                              tags={companyTags[company.id] || []}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      )}
+                      {isExpanded && (() => {
+                        const expandedPlan = company.subscription_plans as {
+                          name: string;
+                          price_monthly: number;
+                          max_orders: number;
+                          max_users: number;
+                        } | null;
+                        return (
+                          <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableCell colSpan={5 + visibleCols.length} className="p-4">
+                              <CompanyExpandedRow
+                                company={company}
+                                orderStats={orderStats[company.id]}
+                                healthData={healthData[company.id]}
+                                planLimits={expandedPlan ? { max_orders: expandedPlan.max_orders, max_users: expandedPlan.max_users } : undefined}
+                                planInfo={expandedPlan ? { name: expandedPlan.name, price_monthly: expandedPlan.price_monthly } : undefined}
+                                latestNote={latestNotes[company.id]}
+                                tags={companyTags[company.id] || []}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })()}
                     </React.Fragment>
                   );
                 })}

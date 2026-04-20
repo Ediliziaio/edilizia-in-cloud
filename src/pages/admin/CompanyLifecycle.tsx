@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
-import { useAdminRevenueData } from "@/hooks/useAdminRevenueData";
+import { useAdminRevenueData, type CompanyHealthScore } from "@/hooks/useAdminRevenueData";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ interface OnboardingStep {
   done: boolean;
 }
 
-function getOnboardingSteps(healthScore: any): OnboardingStep[] {
+function getOnboardingSteps(healthScore: CompanyHealthScore): OnboardingStep[] {
   return [
     { key: "profile", label: "Profilo completo", done: true }, // All companies have a profile
     { key: "staff", label: "Primo utente staff", done: healthScore?.hasStaff || false },
@@ -74,7 +74,7 @@ function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { 
           trial_ends_at: newEnd,
           status: "trial",
           trial_extensions_count: extensionsCount + 1,
-        } as any)
+        })
         .eq("id", companyId);
       if (error) throw error;
       return newEnd;
