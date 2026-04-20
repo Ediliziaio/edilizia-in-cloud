@@ -404,6 +404,13 @@ function ArticleDialog({
   const [haMontaggio, setHaMontaggio] = useState(editingArticle?.ha_montaggio ?? false);
   const [montaggioTipo, setMontaggioTipo] = useState(editingArticle?.montaggio_tipo ?? "incluso");
   const [montaggioTariffaId, setMontaggioTariffaId] = useState(editingArticle?.montaggio_tariffa_id ?? "");
+  // Sprint A §4.3 / Step 10 — flag "montaggio legato al prodotto".
+  // Se true (default), cancellare/modificare la riga prodotto nel preventivatore
+  // aggiorna anche la riga montaggio. Se false, restano righe indipendenti.
+  const [posaLinked, setPosaLinked] = useState<boolean>(
+    (editingArticle as unknown as { posa_linked?: boolean | null } | undefined)
+      ?.posa_linked ?? true,
+  );
 
   // Tab 5 — Media
   const [uploadingImg, setUploadingImg] = useState(false);
@@ -460,6 +467,8 @@ function ArticleDialog({
         ha_montaggio: haMontaggio,
         montaggio_tipo: haMontaggio ? montaggioTipo : null,
         montaggio_tariffa_id: (haMontaggio && montaggioTipo === "separato" && montaggioTariffaId) ? montaggioTariffaId : null,
+        // Sprint A §4.3 / Step 10: persiste il flag posa_linked anche qui.
+        posa_linked: posaLinked,
         immagine_url: imgUrl || null,
         pdf_scheda_url: pdfUrl || null,
       };
@@ -748,17 +757,40 @@ function ArticleDialog({
                   </RadioGroup>
                 </div>
                 {montaggioTipo === "separato" && (
-                  <div>
-                    <Label>Tariffa di posa</Label>
-                    <Select value={montaggioTariffaId} onValueChange={setMontaggioTariffaId}>
-                      <SelectTrigger><SelectValue placeholder="Seleziona tariffa" /></SelectTrigger>
-                      <SelectContent>
-                        {tariffe.filter((t) => t.tipo === "posa").map((t) => (
-                          <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <>
+                    <div>
+                      <Label>Tariffa di posa</Label>
+                      <Select value={montaggioTariffaId} onValueChange={setMontaggioTariffaId}>
+                        <SelectTrigger><SelectValue placeholder="Seleziona tariffa" /></SelectTrigger>
+                        <SelectContent>
+                          {tariffe.filter((t) => t.tipo === "posa").map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* Sprint A §4.3 / Step 10 — Posa legata al prodotto */}
+                    <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3">
+                      <div className="space-y-0.5">
+                        <label
+                          htmlFor="art-posa-linked"
+                          className="font-medium text-sm cursor-pointer"
+                        >
+                          Montaggio legato al prodotto
+                        </label>
+                        <p className="text-xs text-muted-foreground">
+                          Se attivo, cancellare o modificare la riga prodotto
+                          nel preventivatore aggiorna anche la riga montaggio.
+                          Se disattivo, restano righe indipendenti.
+                        </p>
+                      </div>
+                      <Switch
+                        id="art-posa-linked"
+                        checked={posaLinked}
+                        onCheckedChange={setPosaLinked}
+                      />
+                    </div>
+                  </>
                 )}
               </div>
             )}

@@ -27,6 +27,9 @@ import {
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
 import QuoteWizardSerramenti from "@/components/marketing/preventivi/QuoteWizardSerramenti";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
+import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
+import { isPreventivatoreUnifiedOn } from "@/lib/featureFlags";
+import type { ConfiguredItem } from "@/types/catalogItem";
 import { useFamilies } from "@/hooks/useFamilies";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -630,6 +633,13 @@ export default function QuoteBuilder() {
   const [bundleOpen, setBundleOpen] = useState(false);
   // FASE 9: Wizard Serramentista dialog
   const [wizardSerramentiOpen, setWizardSerramentiOpen] = useState(false);
+  // Sprint A — Preventivatore Unificato: dialog a 3 stadi dietro feature flag
+  // `PREVENTIVATORE_UNIFIED_V1`. Quando ON sostituisce il cluster di 5 bottoni
+  // (Listino / Bundle / Serramento / Riga libera / Altro) con un unico
+  // entry point "+ Aggiungi voce" che apre la macchina a stati
+  // Macrocategoria → Prodotto → Configura.
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const preventivatoreUnifiedOn = isPreventivatoreUnifiedOn();
 
   // Step 2: Documents + PDF settings
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
@@ -846,6 +856,14 @@ export default function QuoteBuilder() {
             // STEP 6 Serramenti Avanzati
             supplier_catalog_id: i.supplier_catalog_id ?? null,
             supplier_product_line_id: i.supplier_product_line_id ?? null,
+            // Sprint A §4.9 — Preventivatore Unificato (posa legata).
+            // Rileggiamo `parent_item_id` persistito per riabilitare il
+            // DELETE cascade + QUANTITY sync anche in modalità edit.
+            // `client_temp_id`/`parent_temp_id` restano null: sono vivi solo
+            // tra l'aggiunta e il primo SAVE.
+            parent_item_id: (i as { parent_item_id?: string | null }).parent_item_id ?? null,
+            client_temp_id: null,
+            parent_temp_id: null,
           };
         })
       );
@@ -1165,11 +1183,55 @@ export default function QuoteBuilder() {
   };
 
   const updateItem = (index: number, field: keyof QuoteItemPro, value: QuoteItemPro[keyof QuoteItemPro]) => {
+    // Sprint A §4.9 — QUANTITY SYNC posa legata.
+    // Se modifichiamo la `quantity` di un item parent (posa_linked), ricalcoliamo
+    // in proporzione la quantità di ogni figlio. Rapporto preso dallo stato
+    // corrente: `newChild = oldChild × (newParent / oldParent)`. Così la
+    // posa resta coerente anche dopo modifiche manuali del figlio.
+    const current = items[index];
+    if (
+      field === "quantity" &&
+      current &&
+      current.client_temp_id &&
+      typeof value === "number" &&
+      current.quantity > 0 &&
+      value !== current.quantity
+    ) {
+      const ratio = value / current.quantity;
+      const parentTempId = current.client_temp_id;
+      const parentDbId = current.id ?? null;
+      setItems(
+        items.map((it, i) => {
+          if (i === index) return { ...it, [field]: value };
+          const isChildByTemp = it.parent_temp_id === parentTempId;
+          const isChildByDb = !!parentDbId && it.parent_item_id === parentDbId;
+          if (isChildByTemp || isChildByDb) {
+            return { ...it, quantity: Math.max(0, it.quantity * ratio) };
+          }
+          return it;
+        }),
+      );
+      return;
+    }
     setItems(items.map((it, i) => (i === index ? { ...it, [field]: value } : it)));
   };
 
   const removeItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
+    // Sprint A §4.9 — DELETE CASCADE posa legata (lato client).
+    // Se l'item rimosso è un parent (posa_linked), elimino anche i figli.
+    // Matching sia su `client_temp_id` (righe non ancora persistite) che su
+    // `parent_item_id` (righe che vengono da un quote riletto dal DB).
+    const removed = items[index];
+    const parentTempId = removed?.client_temp_id ?? null;
+    const parentDbId = removed?.id ?? null;
+    setItems(
+      items.filter((it, i) => {
+        if (i === index) return false;
+        if (parentTempId && it.parent_temp_id === parentTempId) return false;
+        if (parentDbId && it.parent_item_id === parentDbId) return false;
+        return true;
+      }),
+    );
   };
 
   // FASE 7.3: compute suggestions (sconti quantità applicabili + bundle che contengono prodotti già presenti)
@@ -1524,39 +1586,86 @@ export default function QuoteBuilder() {
         await supabase.from("quote_items").delete().eq("quote_id", quoteId!);
       }
       if (items.length > 0) {
-        const { error: itemsErr } = await supabase.from("quote_items").insert(
-          items.map((it, idx) => ({
-            quote_id: quoteId!,
-            company_id: companyId,
-            item_type: it.item_type,
-            name: it.name,
-            description: it.description || null,
-            quantity: it.quantity,
-            unit_price: it.unit_price,
-            discount_percent: it.discount_percent,
-            vat_rate: it.vat_rate,
-            unit_of_measure: it.unit_of_measure,
-            sort_order: idx,
-            article_template_id: it.article_template_id || null,
-            // P03
-            item_category: it.item_category || "prodotto",
-            tariffa_id: it.tariffa_id || null,
-            prezzo_acquisto: it.prezzo_acquisto ?? 0,
-            mostra_nel_pdf: it.mostra_nel_pdf ?? true,
-            is_optional: it.is_optional ?? false,
-            misura_x: it.misura_x ?? null,
-            misura_y: it.misura_y ?? null,
-            // Addendum P2-04: persist wizard serramentista config.
-            family_id: it.family_id ?? null,
-            axis_selections: it.axis_selections ?? null,
-            // STEP 6 Serramenti Avanzati: fornitore/linea prodotto per
-            // rigenerazione coerente prezzo + calcolo margine atteso.
-            supplier_catalog_id: it.supplier_catalog_id ?? null,
-            supplier_product_line_id: it.supplier_product_line_id ?? null,
-            // line_total è GENERATED ALWAYS dal DB — non va inserito esplicitamente
-          }))
-        );
+        // FASE 1: INSERT senza `parent_item_id` (il parent potrebbe essere in
+        // coda dopo il figlio, e `parent_item_id` è un FK che richiede l'id
+        // definitivo del parent). Ritorniamo `id` per mappare `client_temp_id`
+        // → `quote_items.id` in FASE 2.
+        const { data: insertedRows, error: itemsErr } = await supabase
+          .from("quote_items")
+          .insert(
+            items.map((it, idx) => ({
+              quote_id: quoteId!,
+              company_id: companyId,
+              item_type: it.item_type,
+              name: it.name,
+              description: it.description || null,
+              quantity: it.quantity,
+              unit_price: it.unit_price,
+              discount_percent: it.discount_percent,
+              vat_rate: it.vat_rate,
+              unit_of_measure: it.unit_of_measure,
+              sort_order: idx,
+              article_template_id: it.article_template_id || null,
+              // P03
+              item_category: it.item_category || "prodotto",
+              tariffa_id: it.tariffa_id || null,
+              prezzo_acquisto: it.prezzo_acquisto ?? 0,
+              mostra_nel_pdf: it.mostra_nel_pdf ?? true,
+              is_optional: it.is_optional ?? false,
+              misura_x: it.misura_x ?? null,
+              misura_y: it.misura_y ?? null,
+              // Addendum P2-04: persist wizard serramentista config.
+              family_id: it.family_id ?? null,
+              axis_selections: it.axis_selections ?? null,
+              // STEP 6 Serramenti Avanzati: fornitore/linea prodotto per
+              // rigenerazione coerente prezzo + calcolo margine atteso.
+              supplier_catalog_id: it.supplier_catalog_id ?? null,
+              supplier_product_line_id: it.supplier_product_line_id ?? null,
+              // Sprint A §4.9: `parent_item_id` NON viene impostato in INSERT.
+              // Lo riscriviamo in un UPDATE secondario dopo aver mappato
+              // client_temp_id → id. Così il figlio-posa punta al prodotto
+              // corretto anche se il parent è stato inserito nella stessa
+              // batch (evita chicken-and-egg sul FK).
+              // line_total è GENERATED ALWAYS dal DB — non va inserito esplicitamente
+            }))
+          )
+          .select("id");
         if (itemsErr) throw itemsErr;
+
+        // FASE 2: se ci sono relazioni parent/child (posa_linked), pattcha
+        // `parent_item_id` con un UPDATE per-id. I client_temp_id vivono solo
+        // lato client; l'insert preserva l'ordine → `insertedRows[idx].id`
+        // corrisponde a `items[idx]`.
+        const idByTemp = new Map<string, string>();
+        if (insertedRows && insertedRows.length === items.length) {
+          items.forEach((it, idx) => {
+            const dbId = insertedRows[idx]?.id;
+            if (it.client_temp_id && dbId) {
+              idByTemp.set(it.client_temp_id, dbId);
+            }
+          });
+          const childUpdates = items
+            .map((it, idx) => {
+              const parentTemp = it.parent_temp_id;
+              const dbId = insertedRows[idx]?.id;
+              if (!parentTemp || !dbId) return null;
+              const parentDbId = idByTemp.get(parentTemp);
+              if (!parentDbId) return null;
+              return { childId: dbId, parentId: parentDbId };
+            })
+            .filter((x): x is { childId: string; parentId: string } => !!x);
+          // Nessun bulk-update atomico in Supabase JS → una chiamata per child.
+          // In pratica sono 1-2 righe per ogni prodotto "con posa", quindi
+          // trascurabile; se il volume cresce si migra a una RPC
+          // (es. `link_quote_items(pairs jsonb)`).
+          for (const upd of childUpdates) {
+            const { error: updErr } = await supabase
+              .from("quote_items")
+              .update({ parent_item_id: upd.parentId })
+              .eq("id", upd.childId);
+            if (updErr) throw updErr;
+          }
+        }
       }
 
       // Attachments
@@ -1844,78 +1953,133 @@ export default function QuoteBuilder() {
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <CardTitle>Prodotti e Servizi</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => setSearchOpen(true)} size="sm">
-                      <Plus className="h-4 w-4 mr-1" /> Dal listino
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setBundleOpen(true)}
-                    >
-                      <Layers className="h-4 w-4 mr-1" /> Bundle
-                    </Button>
-                    {hasSerramentiFamilies && (
+                  {preventivatoreUnifiedOn ? (
+                    // Sprint A: entry point unificato. Le azioni secondarie
+                    // (Riga libera/Sconto/Subtotale) sono dentro il dialog
+                    // stesso; Nota/Trasporto/Nolo restano accessibili dal
+                    // menu "Altro" sottostante per non rompere il flusso
+                    // avanzato degli utenti abituati.
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => setAddItemOpen(true)}>
+                        <Plus className="h-4 w-4 mr-1" /> Aggiungi voce
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <ChevronDown className="h-4 w-4 mr-1" /> Altro
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => addItemPro("nota")}>
+                            <StickyNote className="h-4 w-4 mr-2" /> Nota
+                          </DropdownMenuItem>
+                          {tariffe.filter((t) => t.tipo === "trasporto")
+                            .length > 0 && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                const t = tariffe.find(
+                                  (x) => x.tipo === "trasporto"
+                                );
+                                if (t) addTariffa(t, "trasporto");
+                              }}
+                            >
+                              <Truck className="h-4 w-4 mr-2" /> Trasporto
+                            </DropdownMenuItem>
+                          )}
+                          {tariffe.filter((t) => t.tipo === "nolo").length >
+                            0 && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                const t = tariffe.find(
+                                  (x) => x.tipo === "nolo"
+                                );
+                                if (t) addTariffa(t, "nolo");
+                              }}
+                            >
+                              <Layers className="h-4 w-4 mr-2" /> Nolo
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={() => setSearchOpen(true)} size="sm">
+                        <Plus className="h-4 w-4 mr-1" /> Dal listino
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setWizardSerramentiOpen(true)}
+                        onClick={() => setBundleOpen(true)}
                       >
-                        <Package className="h-4 w-4 mr-1" /> Serramento
+                        <Layers className="h-4 w-4 mr-1" /> Bundle
                       </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => addItem("product")}
-                    >
-                      <Plus className="h-4 w-4 mr-1" /> Riga libera
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <ChevronDown className="h-4 w-4 mr-1" /> Altro
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => addItemPro("nota")}>
-                          <StickyNote className="h-4 w-4 mr-2" /> Nota
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => addItemPro("sconto")}>
-                          <Tag className="h-4 w-4 mr-2" /> Sconto
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => addItemPro("subtotale")}
+                      {hasSerramentiFamilies && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setWizardSerramentiOpen(true)}
                         >
-                          <Hash className="h-4 w-4 mr-2" /> Subtotale
-                        </DropdownMenuItem>
-                        {tariffe.filter((t) => t.tipo === "trasporto").length >
-                          0 && (
-                          <DropdownMenuItem
-                            onClick={() => {
-                              const t = tariffe.find(
-                                (x) => x.tipo === "trasporto"
-                              );
-                              if (t) addTariffa(t, "trasporto");
-                            }}
-                          >
-                            <Truck className="h-4 w-4 mr-2" /> Trasporto
+                          <Package className="h-4 w-4 mr-1" /> Serramento
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addItem("product")}
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Riga libera
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <ChevronDown className="h-4 w-4 mr-1" /> Altro
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => addItemPro("nota")}>
+                            <StickyNote className="h-4 w-4 mr-2" /> Nota
                           </DropdownMenuItem>
-                        )}
-                        {tariffe.filter((t) => t.tipo === "nolo").length >
-                          0 && (
                           <DropdownMenuItem
-                            onClick={() => {
-                              const t = tariffe.find((x) => x.tipo === "nolo");
-                              if (t) addTariffa(t, "nolo");
-                            }}
+                            onClick={() => addItemPro("sconto")}
                           >
-                            <Layers className="h-4 w-4 mr-2" /> Nolo
+                            <Tag className="h-4 w-4 mr-2" /> Sconto
                           </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                          <DropdownMenuItem
+                            onClick={() => addItemPro("subtotale")}
+                          >
+                            <Hash className="h-4 w-4 mr-2" /> Subtotale
+                          </DropdownMenuItem>
+                          {tariffe.filter((t) => t.tipo === "trasporto")
+                            .length > 0 && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                const t = tariffe.find(
+                                  (x) => x.tipo === "trasporto"
+                                );
+                                if (t) addTariffa(t, "trasporto");
+                              }}
+                            >
+                              <Truck className="h-4 w-4 mr-2" /> Trasporto
+                            </DropdownMenuItem>
+                          )}
+                          {tariffe.filter((t) => t.tipo === "nolo").length >
+                            0 && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                const t = tariffe.find(
+                                  (x) => x.tipo === "nolo"
+                                );
+                                if (t) addTariffa(t, "nolo");
+                              }}
+                            >
+                              <Layers className="h-4 w-4 mr-2" /> Nolo
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -3043,6 +3207,34 @@ export default function QuoteBuilder() {
           });
         }}
       />
+
+      {/* Sprint A — Preventivatore Unificato: dialog 3-stadi dietro feature flag. */}
+      {preventivatoreUnifiedOn && (
+        <AddItemDialog
+          open={addItemOpen}
+          onClose={() => setAddItemOpen(false)}
+          tariffe={tariffe}
+          currentSortOrder={items.length}
+          onAddItems={(configured: ConfiguredItem[]) => {
+            // I ConfiguredItem portano già `client_temp_id`/`parent_temp_id`
+            // nel loro `quote_item`: li preserviamo as-is in `items` per poi
+            // farne il mapping in SAVE (Step 9 — persist `parent_item_id`).
+            // Qui ricalcoliamo solo il sort_order in base alla lunghezza
+            // corrente, così evitiamo collisioni se il dialog è stato aperto
+            // quando `items.length` era diversa.
+            setItems((prev) => {
+              const base = [...prev];
+              configured.forEach((c, idx) => {
+                base.push({ ...c.quote_item, sort_order: base.length + idx });
+              });
+              return base;
+            });
+          }}
+          onAddFreeLine={() => addItem("product")}
+          onAddDiscount={() => addItemPro("sconto")}
+          onAddSubtotal={() => addItemPro("subtotale")}
+        />
+      )}
     </div>
   );
 }
