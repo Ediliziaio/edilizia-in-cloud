@@ -55,8 +55,20 @@ function WarehouseListView({
 }: WarehouseListViewProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [selectedItem, setSelectedItem] = useState<WarehouseItem | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Always resolve the FRESH item from orderGroups so that after a workflow
+  // mutation (e.g. goods receipt) the dialog re-renders with the updated
+  // fulfillment_status without needing to be closed and reopened.
+  const selectedItem = useMemo<WarehouseItem | null>(() => {
+    if (!selectedItemId) return null;
+    for (const group of orderGroups) {
+      const found = group.items.find((i) => i.id === selectedItemId);
+      if (found) return found;
+    }
+    return null;
+  }, [selectedItemId, orderGroups]);
 
   const isSupplierGroup = groupBy === "supplier";
 
@@ -98,7 +110,7 @@ function WarehouseListView({
   }, [stockMap]);
 
   const handleSelectItem = useCallback((item: WarehouseItem) => {
-    setSelectedItem(item);
+    setSelectedItemId(item.id);
   }, []);
 
   // Virtualizer for the order groups list
@@ -317,8 +329,8 @@ function WarehouseListView({
       {/* Item detail dialog */}
       <WarehouseItemDetailDialog
         item={selectedItem}
-        open={!!selectedItem}
-        onOpenChange={(open) => !open && setSelectedItem(null)}
+        open={!!selectedItemId}
+        onOpenChange={(open) => !open && setSelectedItemId(null)}
         onStatusChange={onStatusChange}
         onUpdateNotes={onUpdateNotes}
         getSupplierName={getSupplierName}
