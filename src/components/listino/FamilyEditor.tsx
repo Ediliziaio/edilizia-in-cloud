@@ -872,6 +872,7 @@ export function FamilyEditor() {
                   familyId={family.id}
                   asseXLabel={grigliaXLabel}
                   asseYLabel={grigliaYLabel}
+                  prezzoBaseMode={prezzoBaseMode}
                 />
               ) : (
                 <Card>

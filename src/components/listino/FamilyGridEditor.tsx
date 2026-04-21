@@ -53,9 +53,22 @@ interface Props {
   familyId: string;
   asseXLabel: string;
   asseYLabel: string;
+  /**
+   * Modalità prezzo della famiglia. Quando è "acquisto_markup" nascondiamo
+   * l'input del prezzo di vendita (viene derivato dal markup configurato),
+   * mostrando solo il prezzo di acquisto — riduce rumore visivo e DOM
+   * (266 celle × 1 input invece di × 2).
+   * Default: "vendita" per compat con chiamate storiche.
+   */
+  prezzoBaseMode?: "vendita" | "acquisto_markup";
 }
 
-export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
+export function FamilyGridEditor({
+  familyId,
+  asseXLabel,
+  asseYLabel,
+  prezzoBaseMode = "vendita",
+}: Props) {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
@@ -391,85 +404,127 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
 
         {/* Matrice */}
         {xAxis.length > 0 && yAxis.length > 0 ? (
-          <div className="border rounded-md overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="p-2 text-left border-r sticky left-0 bg-muted/50 z-10">
-                    {asseYLabel} \ {asseXLabel}
-                  </th>
-                  {xAxis.map((x) => (
-                    <th key={x} className="p-2 text-center border-r min-w-[180px]">
-                      {x}
+          <>
+            {xAxis.length > 8 && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <span aria-hidden="true">←</span>
+                Scorri orizzontalmente per vedere tutte le {xAxis.length} colonne
+                <span aria-hidden="true">→</span>
+              </p>
+            )}
+            <div className="border rounded-md overflow-x-auto overflow-y-auto max-h-[70vh] relative">
+              {/* Table `w-max` — così cresce oltre il container e il wrapper overflow-x-auto abilita lo scroll orizzontale quando le colonne sono molte (19 × 120 = 2280 px). Senza `w-max` (o con `w-full`) il browser comprime le colonne sotto il min-width e lo scroll non appare. */}
+              <table className="w-max text-sm border-collapse">
+                <thead className="bg-muted/50 sticky top-0 z-20">
+                  <tr>
+                    <th className="p-2 text-left border-r border-b sticky left-0 bg-muted/50 z-30 min-w-[70px]">
+                      {asseYLabel} \ {asseXLabel}
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {yAxis.map((y) => (
-                  <tr key={y} className="border-t">
-                    <td className="p-2 font-medium border-r sticky left-0 bg-background z-10">
-                      {y}
-                    </td>
-                    {xAxis.map((x) => {
-                      const c = cells.get(`${x}_${y}`);
-                      return (
-                        <td key={x} className="p-1 border-r">
-                          <div className="flex flex-col gap-1">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Vend. €"
-                              value={c?.prezzo_vendita ?? ""}
-                              onChange={(e) =>
-                                setCell(
-                                  x,
-                                  y,
-                                  "prezzo_vendita",
-                                  parseFloat(e.target.value) || 0,
-                                )
-                              }
-                              className="h-7 text-xs"
-                            />
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Acq. €"
-                              value={c?.prezzo_acquisto ?? ""}
-                              onChange={(e) =>
-                                setCell(
-                                  x,
-                                  y,
-                                  "prezzo_acquisto",
-                                  parseFloat(e.target.value) || 0,
-                                )
-                              }
-                              className="h-7 text-xs text-muted-foreground"
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setCells((prev) => {
-                                  const next = new Map(prev);
-                                  next.delete(`${x}_${y}`);
-                                  return next;
-                                })
-                              }
-                              className="text-xs text-muted-foreground hover:text-destructive"
-                              disabled={!c}
-                              aria-label={`Svuota cella ${x}×${y}`}
-                            >
-                              <Trash2 className="h-3 w-3 inline" aria-hidden="true" />
-                            </button>
-                          </div>
-                        </td>
-                      );
-                    })}
+                    {xAxis.map((x) => (
+                      <th
+                        key={x}
+                        className={`p-2 text-center border-r border-b ${
+                          prezzoBaseMode === "acquisto_markup"
+                            ? "min-w-[110px]"
+                            : "min-w-[140px]"
+                        }`}
+                      >
+                        {x}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {yAxis.map((y) => (
+                    <tr key={y} className="border-t">
+                      <td className="p-2 font-medium border-r sticky left-0 bg-background z-10">
+                        {y}
+                      </td>
+                      {xAxis.map((x) => {
+                        const c = cells.get(`${x}_${y}`);
+                        return (
+                          <td key={x} className="p-1 border-r align-top">
+                            <div className="flex items-center gap-1">
+                              <div className="flex-1 flex flex-col gap-1">
+                                {prezzoBaseMode === "acquisto_markup" ? (
+                                  // Solo acquisto — vendita derivata dal markup
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Acq. €"
+                                    value={c?.prezzo_acquisto ?? ""}
+                                    onChange={(e) =>
+                                      setCell(
+                                        x,
+                                        y,
+                                        "prezzo_acquisto",
+                                        parseFloat(e.target.value) || 0,
+                                      )
+                                    }
+                                    className="h-8 text-xs"
+                                  />
+                                ) : (
+                                  // Entrambi — vendita sopra (principale), acquisto sotto (opzionale)
+                                  <>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      placeholder="Vend. €"
+                                      value={c?.prezzo_vendita ?? ""}
+                                      onChange={(e) =>
+                                        setCell(
+                                          x,
+                                          y,
+                                          "prezzo_vendita",
+                                          parseFloat(e.target.value) || 0,
+                                        )
+                                      }
+                                      className="h-7 text-xs"
+                                    />
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      placeholder="Acq. €"
+                                      value={c?.prezzo_acquisto ?? ""}
+                                      onChange={(e) =>
+                                        setCell(
+                                          x,
+                                          y,
+                                          "prezzo_acquisto",
+                                          parseFloat(e.target.value) || 0,
+                                        )
+                                      }
+                                      className="h-7 text-xs text-muted-foreground"
+                                    />
+                                  </>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setCells((prev) => {
+                                    const next = new Map(prev);
+                                    next.delete(`${x}_${y}`);
+                                    return next;
+                                  })
+                                }
+                                className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                disabled={!c}
+                                aria-label={`Svuota cella ${x}×${y}`}
+                                title="Svuota cella"
+                              >
+                                <Trash2 className="h-3 w-3" aria-hidden="true" />
+                              </button>
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
             Aggiungi valori ai due assi per iniziare a compilare la matrice.
