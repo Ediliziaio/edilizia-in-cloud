@@ -108,18 +108,53 @@ export function FamilyConfigurator({
     );
   }, [family, selection, lMm, hMm, qty, grigliaPunti]);
 
-  /** Tariffa posa default della famiglia (se configurata). */
+  // ── Manodopera: legge la modalità (tariffa/manuale/nessuna) dalla famiglia.
+  // In modalità "manuale" i prezzi sono inline sulla famiglia (no tariffa).
+  const manodoperaMod =
+    (family as unknown as {
+      manodopera_modalita?: "tariffa" | "manuale" | "nessuna" | null;
+    }).manodopera_modalita ??
+    (family.posa_tariffa_default_id ? "tariffa" : "nessuna");
+  const manodoperaManuale = manodoperaMod === "manuale" ? {
+    costo: Number(
+      (family as unknown as { manodopera_costo_acquisto?: number | null })
+        .manodopera_costo_acquisto ?? 0,
+    ),
+    vendita: Number(
+      (family as unknown as { manodopera_prezzo_vendita?: number | null })
+        .manodopera_prezzo_vendita ?? 0,
+    ),
+    unita:
+      (family as unknown as { manodopera_unita?: string | null })
+        .manodopera_unita ?? "pz",
+  } : null;
+
+  /** Tariffa posa default della famiglia (solo in modalità tariffa). */
   const tariffaPosa = useMemo<TariffaPro | null>(() => {
+    if (manodoperaMod !== "tariffa") return null;
     if (!family.posa_tariffa_default_id) return null;
     return tariffe.find((t) => t.id === family.posa_tariffa_default_id) ?? null;
-  }, [family.posa_tariffa_default_id, tariffe]);
+  }, [manodoperaMod, family.posa_tariffa_default_id, tariffe]);
 
-  const posaUnit = tariffaPosa?.prezzo_vendita ?? 0;
+  const posaUnit = manodoperaManuale
+    ? manodoperaManuale.vendita
+    : (tariffaPosa?.prezzo_vendita ?? 0);
   // TariffaPro usa `prezzo_costo`/`costo_interno` (non `prezzo_acquisto`).
-  const posaAcq = tariffaPosa?.costo_interno ?? tariffaPosa?.prezzo_costo ?? 0;
-  const posaUm = tariffaPosa?.unita_fatturazione ?? tariffaPosa?.unita ?? "h";
+  const posaAcq = manodoperaManuale
+    ? manodoperaManuale.costo
+    : (tariffaPosa?.costo_interno ?? tariffaPosa?.prezzo_costo ?? 0);
+  const posaUm = manodoperaManuale
+    ? manodoperaManuale.unita
+    : (tariffaPosa?.unita_fatturazione ?? tariffaPosa?.unita ?? "h");
+  const posaNome = manodoperaManuale
+    ? "Manodopera (importo manuale)"
+    : (tariffaPosa?.nome ?? "Manodopera");
   const posaQtyUnit = family.posa_quantita_default ?? 1;
-  const posaTotale = includePosa && tariffaPosa ? posaUnit * posaQtyUnit * qty : 0;
+  const posaDisponibile = manodoperaManuale
+    ? manodoperaManuale.vendita > 0 || manodoperaManuale.costo > 0
+    : !!tariffaPosa;
+  const posaTotale =
+    includePosa && posaDisponibile ? posaUnit * posaQtyUnit * qty : 0;
 
   const totaleCompleto = pricing.totale_vendita + posaTotale;
 
@@ -182,13 +217,13 @@ export function FamilyConfigurator({
       },
     ];
 
-    if (includePosa && tariffaPosa) {
+    if (includePosa && posaDisponibile) {
       const posaTempId = uuid();
       const posaItem: QuoteItemPro = {
         item_type: "service",
         item_category: "posa",
-        name: `Posa inclusa — ${family.nome}`,
-        description: tariffaPosa.nome,
+        name: `Manodopera — ${family.nome}`,
+        description: posaNome,
         quantity: posaQtyUnit * qty,
         unit_price: posaUnit,
         discount_percent: 0,
@@ -196,7 +231,9 @@ export function FamilyConfigurator({
         vat_rate: family.vat_rate,
         unit_of_measure: posaUm,
         sort_order: baseSort + 1,
-        tariffa_id: tariffaPosa.id,
+        // In modalità manuale NON esiste una tariffa DB: tariffa_id = null.
+        // La persistenza legge prezzo_acquisto/unit_price inline.
+        tariffa_id: tariffaPosa?.id ?? null,
         prezzo_acquisto: posaAcq,
         mostra_nel_pdf: true,
         is_optional: false,
@@ -319,11 +356,16 @@ export function FamilyConfigurator({
           />
           <div className="space-y-0.5">
             <Label htmlFor="includi-posa" className="cursor-pointer">
-              Includi posa nel preventivo
+              Includi manodopera nel preventivo
             </Label>
             <p className="text-xs text-muted-foreground">
-              La riga posa resterà legata a questo prodotto: cambiando quantità o
-              eliminandolo, anche la posa verrà aggiornata.
+              {manodoperaManuale
+                ? `Costo cliente: ${formatCurrency(posaUnit)}/${posaUm}. `
+                : tariffaPosa
+                  ? `Tariffa: ${tariffaPosa.nome} (${formatCurrency(posaUnit)}/${posaUm}). `
+                  : ""}
+              La riga manodopera resterà legata a questo prodotto: cambiando
+              quantità o eliminandolo, anche la manodopera verrà aggiornata.
             </p>
           </div>
         </div>
@@ -343,9 +385,9 @@ export function FamilyConfigurator({
               {formatCurrency(pricing.totale_vendita)}
             </span>
           </div>
-          {includePosa && tariffaPosa && (
+          {includePosa && posaDisponibile && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Posa</span>
+              <span className="text-muted-foreground">Manodopera</span>
               <span className="font-medium">{formatCurrency(posaTotale)}</span>
             </div>
           )}

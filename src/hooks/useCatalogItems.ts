@@ -86,6 +86,28 @@ export function useCatalogItems(params: UseCatalogItemsParams = {}) {
         // `posa_linked` arriva dalla migration Step 3. Fino alla rigenerazione
         // dei types potrebbe non essere presente: leggiamo in modo difensivo.
         const posaLinkedRaw = (f as unknown as { posa_linked?: boolean | null }).posa_linked;
+        // Modalità manodopera (migration 20260421000030). Pre-migration:
+        // deriviamo da posa_tariffa_default_id (retrocompat).
+        const moMod = (f as unknown as {
+          manodopera_modalita?: "tariffa" | "manuale" | "nessuna" | null;
+        }).manodopera_modalita;
+        const haPosaAutomatica =
+          moMod === "manuale"
+            ? (Number(
+                (f as unknown as { manodopera_prezzo_vendita?: number | null })
+                  .manodopera_prezzo_vendita ?? 0,
+              ) > 0 ||
+                Number(
+                  (f as unknown as {
+                    manodopera_costo_acquisto?: number | null;
+                  }).manodopera_costo_acquisto ?? 0,
+                ) > 0)
+            : moMod === "tariffa"
+              ? !!f.posa_tariffa_default_id
+              : moMod === "nessuna"
+                ? false
+                : // Fallback pre-migration: comportamento legacy
+                  !!f.posa_tariffa_default_id;
         return {
           source: "family" as const,
           id: f.id,
@@ -101,7 +123,7 @@ export function useCatalogItems(params: UseCatalogItemsParams = {}) {
           attivo: f.attivo,
           sort_order: f.sort_order,
           family: f,
-          ha_posa_automatica: !!f.posa_tariffa_default_id,
+          ha_posa_automatica: haPosaAutomatica,
           posa_linked: posaLinkedRaw ?? true,
         };
       });

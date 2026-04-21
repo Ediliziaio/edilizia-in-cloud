@@ -5,7 +5,7 @@
  *  1. Dati base (nome, categoria, descrizione, modalità prezzo, UM, IVA)
  *  2. Prezzo base + griglia L×H (solo se modalità=griglia)
  *  3. Assi di variazione (delegato a FamilyAxesEditor)
- *  4. Posa default (tariffa + quantità)
+ *  4. Manodopera (ex "Posa") — tariffa, importo manuale o nessuna
  *  5. Riepilogo + salva
  *
  * Modalità:
@@ -28,6 +28,17 @@ import {
   Upload,
   ImageIcon,
   X,
+  Wrench,
+  Banknote,
+  Ban,
+  TrendingUp,
+  TrendingDown,
+  Info,
+  Package,
+  Link2,
+  Link2Off,
+  ListChecks,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,7 +85,12 @@ import type {
   ModalitaPrezzoBase,
   PrezzoBaseMode,
   MarkupTipo,
+  ManodoperaModalita,
+  ManodoperaUnita,
+  FamilyWithAxes,
 } from "@/types/articleFamily";
+import type { ListinoMacrocategoria } from "@/hooks/useListinoMacrocategorie";
+import type { ListinoCategoria } from "@/hooks/useListinoCategorie";
 import {
   applyMarkup,
   applyScontiFornitore,
@@ -108,6 +124,47 @@ const IVA_OPTIONS: Array<{ value: number; label: string; hint?: string }> = [
   { value: 5, label: "5%", hint: "Aliquota ridotta" },
   { value: 10, label: "10%", hint: "Aliquota ridotta" },
   { value: 22, label: "22%", hint: "Ordinaria" },
+];
+
+const MANODOPERA_MODALITA_CARDS: Array<{
+  value: ManodoperaModalita;
+  label: string;
+  descrizione: string;
+  icon: typeof Wrench;
+}> = [
+  {
+    value: "tariffa",
+    label: "Tariffa aziendale",
+    descrizione:
+      "Usa una tariffa dal listino manodopera (uomo/giorno, ponteggio...). Ideale se i costi sono standard per tipo di intervento.",
+    icon: Wrench,
+  },
+  {
+    value: "manuale",
+    label: "Importo manuale",
+    descrizione:
+      "Fisso io costo di montaggio (pagato al subappaltatore) e prezzo di vendita. Ideale per tariffa a corpo specifica di questo articolo.",
+    icon: Banknote,
+  },
+  {
+    value: "nessuna",
+    label: "Nessuna manodopera",
+    descrizione:
+      "L'articolo non prevede montaggio automatico. Il cliente riceve solo il prodotto.",
+    icon: Ban,
+  },
+];
+
+const MANODOPERA_UNITA_OPTIONS: Array<{
+  value: ManodoperaUnita;
+  label: string;
+  hint: string;
+}> = [
+  { value: "pz", label: "a pezzo", hint: "1 = un intervento per unità prodotto" },
+  { value: "ml", label: "al metro lineare", hint: "€ × ml di serramento" },
+  { value: "mq", label: "al mq", hint: "€ × superficie serramento" },
+  { value: "h", label: "all'ora", hint: "€ × ore di installazione" },
+  { value: "a_corpo", label: "a corpo", hint: "forfait per l'intero articolo" },
 ];
 
 const PREZZO_MODE_CARDS: Array<{
@@ -181,13 +238,23 @@ export function FamilyEditor() {
   const [scontoFornitore1, setScontoFornitore1] = useState("0");
   const [scontoFornitore2, setScontoFornitore2] = useState("0");
 
-  // Step 4
+  // Step 4 — Manodopera (ex "Posa")
+  // Modalità di gestione della manodopera: 'tariffa' usa tariffe_aziendali
+  // (legacy), 'manuale' fissa costo+vendita direttamente qui, 'nessuna' non
+  // auto-genera riga al preventivo. Migration 20260421000030.
+  const [manodoperaModalita, setManodoperaModalita] =
+    useState<ManodoperaModalita>("nessuna");
   const [posaTariffaId, setPosaTariffaId] = useState<string | "none">("none");
   const [posaQuantita, setPosaQuantita] = useState("1");
   // Sprint A §4.3 / Step 10 — flag posa legata. Se true (default), la riga posa
   // auto-generata dal preventivatore resta legata alla riga prodotto: DELETE
   // cascade + QUANTITY sync. Se false, la posa resta indipendente.
   const [posaLinked, setPosaLinked] = useState<boolean>(true);
+  // Campi modalità manuale (ignorati se modalita != 'manuale'). Input utente
+  // come stringhe per coerenza con gli altri campi numerici dell'editor.
+  const [manodoperaCostoAcquisto, setManodoperaCostoAcquisto] = useState("0");
+  const [manodoperaPrezzoVendita, setManodoperaPrezzoVendita] = useState("0");
+  const [manodoperaUnita, setManodoperaUnita] = useState<ManodoperaUnita>("pz");
 
   // ── Query: macrocategorie + categorie + tariffe ────────────────────────
   const { macrocategorie } = useListinoMacrocategorie();
@@ -238,6 +305,21 @@ export function FamilyEditor() {
       // dei types potrebbe non essere presente → default true.
       const pl = (family as unknown as { posa_linked?: boolean | null }).posa_linked;
       setPosaLinked(pl ?? true);
+      // Nuovi campi manodopera (migration 20260421000030). Retrocompat:
+      // righe pre-migration hanno modalita=null → deriviamo da posa_tariffa_default_id.
+      const mp = family as unknown as {
+        manodopera_modalita?: ManodoperaModalita | null;
+        manodopera_costo_acquisto?: number | null;
+        manodopera_prezzo_vendita?: number | null;
+        manodopera_unita?: ManodoperaUnita | null;
+      };
+      setManodoperaModalita(
+        mp.manodopera_modalita ??
+          (family.posa_tariffa_default_id ? "tariffa" : "nessuna"),
+      );
+      setManodoperaCostoAcquisto(String(mp.manodopera_costo_acquisto ?? 0));
+      setManodoperaPrezzoVendita(String(mp.manodopera_prezzo_vendita ?? 0));
+      setManodoperaUnita(mp.manodopera_unita ?? "pz");
     }
   }, [family, categorie]);
 
@@ -454,9 +536,20 @@ export function FamilyEditor() {
       sconto_fornitore_1: parseFloat(scontoFornitore1) || 0,
       sconto_fornitore_2: parseFloat(scontoFornitore2) || 0,
       immagine_url: immagineUrl,
-      posa_tariffa_default_id: posaTariffaId === "none" ? null : posaTariffaId,
+      // Manodopera: in modalità 'tariffa' salviamo il legacy link, in 'manuale'
+      // gli importi diretti, in 'nessuna' reset legacy a null. Gli importi
+      // manuali restano in DB anche fuori dalla modalità 'manuale' per non
+      // perdere lo storico se l'utente fa avanti e indietro.
+      posa_tariffa_default_id:
+        manodoperaModalita === "tariffa" && posaTariffaId !== "none"
+          ? posaTariffaId
+          : null,
       posa_quantita_default: parseFloat(posaQuantita) || 1,
       posa_linked: posaLinked,
+      manodopera_modalita: manodoperaModalita,
+      manodopera_costo_acquisto: parseFloat(manodoperaCostoAcquisto) || 0,
+      manodopera_prezzo_vendita: parseFloat(manodoperaPrezzoVendita) || 0,
+      manodopera_unita: manodoperaUnita,
     };
 
     try {
@@ -587,7 +680,7 @@ export function FamilyEditor() {
               <TabsTrigger value="1">1. Dati base</TabsTrigger>
               <TabsTrigger value="2" disabled={isNew}>2. Prezzo</TabsTrigger>
               <TabsTrigger value="3" disabled={isNew}>3. Assi</TabsTrigger>
-              <TabsTrigger value="4" disabled={isNew}>4. Posa</TabsTrigger>
+              <TabsTrigger value="4" disabled={isNew}>4. Manodopera</TabsTrigger>
               <TabsTrigger value="5" disabled={isNew}>5. Riepilogo</TabsTrigger>
             </TabsList>
 
@@ -1459,221 +1552,60 @@ export function FamilyEditor() {
               {family ? <FamilyAxesEditor family={family} /> : null}
             </TabsContent>
 
-            {/* STEP 4 — Posa */}
+            {/* STEP 4 — Manodopera (ex "Posa") */}
             <TabsContent value="4" className="space-y-4 mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Posa default</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    La posa verrà aggiunta automaticamente al preventivo quando si seleziona un articolo di questa famiglia.
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <Label htmlFor="f-posa-tariffa">Tariffa posa</Label>
-                    <Select value={posaTariffaId} onValueChange={setPosaTariffaId}>
-                      <SelectTrigger id="f-posa-tariffa">
-                        <SelectValue placeholder="Nessuna" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nessuna posa automatica</SelectItem>
-                        {tariffe.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.nome}{" "}
-                            <span className="text-muted-foreground ml-2">{t.tipo}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="f-posa-quantita">Quantità default</Label>
-                    <Input
-                      id="f-posa-quantita"
-                      type="number"
-                      step="0.01"
-                      value={posaQuantita}
-                      onChange={(e) => setPosaQuantita(e.target.value)}
-                      className="w-32"
-                    />
-                  </div>
-                  {/* Sprint A §4.3 / Step 10 — Posa legata al prodotto */}
-                  <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="f-posa-linked" className="cursor-pointer">
-                        Posa legata al prodotto
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Se attivo, cancellare o modificare la riga prodotto
-                        aggiorna anche la riga posa. Se disattivo, posa e
-                        prodotto vivono in modo indipendente.
-                      </p>
-                    </div>
-                    <Switch
-                      id="f-posa-linked"
-                      checked={posaLinked}
-                      onCheckedChange={setPosaLinked}
-                      disabled={posaTariffaId === "none"}
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button onClick={saveBase} disabled={saving}>
-                      {saving ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                          Salvataggio…
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                          Salva posa
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <ManodoperaSection
+                modalita={manodoperaModalita}
+                onModalitaChange={setManodoperaModalita}
+                tariffaId={posaTariffaId}
+                onTariffaChange={setPosaTariffaId}
+                tariffe={tariffe}
+                quantita={posaQuantita}
+                onQuantitaChange={setPosaQuantita}
+                linked={posaLinked}
+                onLinkedChange={setPosaLinked}
+                costoAcquisto={manodoperaCostoAcquisto}
+                onCostoAcquistoChange={setManodoperaCostoAcquisto}
+                prezzoVendita={manodoperaPrezzoVendita}
+                onPrezzoVenditaChange={setManodoperaPrezzoVendita}
+                unita={manodoperaUnita}
+                onUnitaChange={setManodoperaUnita}
+                onSave={saveBase}
+                saving={saving}
+              />
             </TabsContent>
 
             {/* STEP 5 — Riepilogo */}
             <TabsContent value="5" className="space-y-4 mt-4">
               {family ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Riepilogo articolo</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <Row label="Nome" value={family.nome} />
-                    <Row
-                      label="Macrocategoria"
-                      value={
-                        (() => {
-                          const cat = family.categoria_id
-                            ? categorie.find((c) => c.id === family.categoria_id)
-                            : null;
-                          const macroId = cat?.macrocategoria_id;
-                          return macroId
-                            ? macrocategorie.find((m) => m.id === macroId)?.nome ?? "—"
-                            : "Nessuna";
-                        })()
-                      }
-                    />
-                    <Row
-                      label="Categoria"
-                      value={
-                        categorie.find((c) => c.id === family.categoria_id)?.nome ??
-                        "Nessuna"
-                      }
-                    />
-                    <Row label="Modalità prezzo" value={family.modalita_prezzo_base} />
-                    <Row label="UM" value={family.unit_of_measure} />
-                    <Row
-                      label="IVA vendita"
-                      value={
-                        family.vat_rate === 0
-                          ? "0% (estero / reverse charge)"
-                          : `${family.vat_rate}%`
-                      }
-                    />
-                    {prezzoBaseMode === "acquisto_markup" ? (
-                      <Row
-                        label="IVA acquisto"
-                        value={
-                          parseFloat(vatRateAcquisto) === 0
-                            ? "0% (reverse charge)"
-                            : `${parseFloat(vatRateAcquisto)}%`
-                        }
-                      />
-                    ) : null}
-                    <Row
-                      label="Gestione prezzo"
-                      value={
-                        prezzoBaseMode === "vendita"
-                          ? "Vendita diretta"
-                          : "Acquisto + markup"
-                      }
-                    />
-                    {prezzoBaseMode === "acquisto_markup" ? (
-                      <>
-                        <Row
-                          label="Prezzo acquisto"
-                          value={formatCurrency(
-                            parseFloat(prezzoAcquisto) || 0,
-                          )}
-                        />
-                        <Row
-                          label="Markup"
-                          value={
-                            markupTipo === "none"
-                              ? "Nessuno"
-                              : markupTipo === "percentuale"
-                                ? `+${parseFloat(markupValore) || 0}%`
-                                : `+${formatCurrency(parseFloat(markupValore) || 0)}/pz`
-                          }
-                        />
-                        <Row
-                          label="Prezzo vendita calcolato"
-                          value={formatCurrency(prezzoVenditaCalcolato)}
-                        />
-                      </>
-                    ) : (
-                      <Row
-                        label="Prezzo vendita"
-                        value={formatCurrency(parseFloat(prezzoVendita) || 0)}
-                      />
-                    )}
-                    <Row
-                      label="Posa"
-                      value={
-                        family.posa_tariffa_default_id
-                          ? `${tariffe.find((t) => t.id === family.posa_tariffa_default_id)?.nome ?? "—"} (${family.posa_quantita_default})`
-                          : "Nessuna"
-                      }
-                    />
-                    <div>
-                      <div className="font-medium mb-1">Assi ({family.axes.length})</div>
-                      {family.axes.length === 0 ? (
-                        <p className="text-muted-foreground">Nessun asse configurato.</p>
-                      ) : (
-                        <ul className="space-y-1">
-                          {family.axes.map((ax) => (
-                            <li key={ax.id} className="flex gap-2 items-center">
-                              <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                              <span className="font-medium">{ax.nome}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {ax.values.length}{" "}
-                                {ax.values.length === 1 ? "valore" : "valori"}
-                              </Badge>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                    <div className="flex gap-2 pt-3 border-t">
-                      <Button
-                        onClick={() =>
-                          navigate("/azienda/impostazioni/listino/famiglie")
-                        }
-                        variant="outline"
-                      >
-                        Torna al catalogo
-                      </Button>
-                      <Button onClick={handleDuplicate} disabled={duplicateFamily.isPending}>
-                        {duplicateFamily.isPending ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                            Duplicazione…
-                          </>
-                        ) : (
-                          <>
-                            <CopyPlus className="h-4 w-4 mr-2" aria-hidden="true" />
-                            Salva e crea copia
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <RiepilogoSection
+                  family={family}
+                  categorie={categorie}
+                  macrocategorie={macrocategorie}
+                  tariffe={tariffe}
+                  prezzoBaseMode={prezzoBaseMode}
+                  prezzoVendita={prezzoVendita}
+                  prezzoAcquisto={prezzoAcquisto}
+                  acquistoNetto={acquistoNetto}
+                  scontoFornitore1={scontoFornitore1}
+                  scontoFornitore2={scontoFornitore2}
+                  markupTipo={markupTipo}
+                  markupValore={markupValore}
+                  prezzoVenditaCalcolato={prezzoVenditaCalcolato}
+                  vatRateAcquisto={vatRateAcquisto}
+                  manodoperaModalita={manodoperaModalita}
+                  manodoperaCostoAcquisto={manodoperaCostoAcquisto}
+                  manodoperaPrezzoVendita={manodoperaPrezzoVendita}
+                  manodoperaUnita={manodoperaUnita}
+                  posaLinked={posaLinked}
+                  immagineUrl={immagineUrl}
+                  onGotoStep={setActiveStep}
+                  onBackToCatalog={() =>
+                    navigate("/azienda/impostazioni/listino/famiglie")
+                  }
+                  onDuplicate={handleDuplicate}
+                  duplicating={duplicateFamily.isPending}
+                />
               ) : null}
             </TabsContent>
           </Tabs>
@@ -1717,6 +1649,852 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between border-b pb-1">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+// ── STEP 4: Manodopera (ex "Posa") ─────────────────────────────────────────
+//
+// Estratta in componente proprio per leggibilità: la logica ha tre branch
+// (tariffa / manuale / nessuna) + preview margine live in modalità manuale.
+// La Preview mostra ((vendita - costo) / vendita × 100) e un indicatore
+// colorato così l'utente capisce subito se sta vendendo in perdita.
+interface ManodoperaSectionProps {
+  modalita: ManodoperaModalita;
+  onModalitaChange: (v: ManodoperaModalita) => void;
+  tariffaId: string | "none";
+  onTariffaChange: (v: string | "none") => void;
+  tariffe: Tariffa[];
+  quantita: string;
+  onQuantitaChange: (v: string) => void;
+  linked: boolean;
+  onLinkedChange: (v: boolean) => void;
+  costoAcquisto: string;
+  onCostoAcquistoChange: (v: string) => void;
+  prezzoVendita: string;
+  onPrezzoVenditaChange: (v: string) => void;
+  unita: ManodoperaUnita;
+  onUnitaChange: (v: ManodoperaUnita) => void;
+  onSave: () => Promise<string | null>;
+  saving: boolean;
+}
+
+function ManodoperaSection(props: ManodoperaSectionProps) {
+  const {
+    modalita,
+    onModalitaChange,
+    tariffaId,
+    onTariffaChange,
+    tariffe,
+    quantita,
+    onQuantitaChange,
+    linked,
+    onLinkedChange,
+    costoAcquisto,
+    onCostoAcquistoChange,
+    prezzoVendita,
+    onPrezzoVenditaChange,
+    unita,
+    onUnitaChange,
+    onSave,
+    saving,
+  } = props;
+
+  // ── Preview margine (modalità manuale) ──────────────────────────────────
+  const costoNum = parseFloat(costoAcquisto) || 0;
+  const venditaNum = parseFloat(prezzoVendita) || 0;
+  const margineEuro = venditaNum - costoNum;
+  // Margine % calcolato sulla vendita (standard CFO italiano), non sul costo.
+  const marginePct = venditaNum > 0 ? (margineEuro / venditaNum) * 100 : 0;
+  const margineColor =
+    margineEuro < 0
+      ? "text-red-600"
+      : margineEuro === 0
+        ? "text-muted-foreground"
+        : marginePct < 20
+          ? "text-amber-600"
+          : "text-emerald-600";
+  const MargineIcon =
+    margineEuro < 0 ? TrendingDown : margineEuro > 0 ? TrendingUp : Info;
+  const unitaLabel =
+    MANODOPERA_UNITA_OPTIONS.find((u) => u.value === unita)?.label ?? unita;
+
+  // Preview tariffa selezionata: mostra margine atteso come se fosse manuale
+  const tariffaSelezionata = tariffe.find((t) => t.id === tariffaId);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start gap-2">
+          <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+            <Wrench className="h-4 w-4" aria-hidden="true" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base">Manodopera</CardTitle>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Montaggio/posa automatico quando un cliente aggiunge questo
+              articolo al preventivo. Puoi scegliere una tariffa aziendale
+              standard, impostare costi a corpo specifici per l'articolo, o
+              nessuna manodopera.
+            </p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* 1. Modalità: 3 card cliccabili ─────────────────────────────── */}
+        <div>
+          <Label className="mb-2 block">Modalità</Label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {MANODOPERA_MODALITA_CARDS.map((m) => {
+              const Icon = m.icon;
+              const selected = modalita === m.value;
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => onModalitaChange(m.value)}
+                  className={`text-left p-3 border rounded-md transition-all ${
+                    selected
+                      ? "border-primary ring-2 ring-primary/20 bg-primary/5"
+                      : "hover:border-primary/50"
+                  }`}
+                  aria-pressed={selected}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon
+                      className={`h-4 w-4 ${
+                        selected ? "text-primary" : "text-muted-foreground"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span className="font-medium text-sm">{m.label}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-snug">
+                    {m.descrizione}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 2. Branch: TARIFFA AZIENDALE ──────────────────────────────── */}
+        {modalita === "tariffa" && (
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="f-posa-tariffa">Tariffa manodopera</Label>
+              <Select value={tariffaId} onValueChange={onTariffaChange}>
+                <SelectTrigger id="f-posa-tariffa">
+                  <SelectValue placeholder="Seleziona tariffa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Seleziona tariffa —</SelectItem>
+                  {tariffe.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nome}
+                      <span className="text-muted-foreground ml-2">
+                        {t.tipo}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {tariffe.length === 0 ? (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                  Nessuna tariffa configurata. Vai in{" "}
+                  <span className="font-medium">
+                    Impostazioni → Tariffe aziendali
+                  </span>{" "}
+                  per crearne una, oppure usa "Importo manuale".
+                </p>
+              ) : tariffaId === "none" ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nessuna tariffa selezionata. L'articolo non avrà manodopera
+                  automatica.
+                </p>
+              ) : tariffaSelezionata ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tariffa "{tariffaSelezionata.nome}" selezionata. I costi sono
+                  definiti nella tariffa stessa.
+                </p>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="f-posa-quantita">Quantità default</Label>
+                <Input
+                  id="f-posa-quantita"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={quantita}
+                  onChange={(e) => onQuantitaChange(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Moltiplicatore per la quantità prodotto al preventivo.
+                </p>
+              </div>
+            </div>
+            <LinkedToggle
+              linked={linked}
+              onChange={onLinkedChange}
+              disabled={tariffaId === "none"}
+            />
+          </div>
+        )}
+
+        {/* 3. Branch: IMPORTO MANUALE ───────────────────────────────── */}
+        {modalita === "manuale" && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="f-mo-costo">
+                  Costo di montaggio (€){" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    pagato al subappaltatore
+                  </span>
+                </Label>
+                <Input
+                  id="f-mo-costo"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={costoAcquisto}
+                  onChange={(e) => onCostoAcquistoChange(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Quanto paghi al montatore/subappaltatore. Solo CFO/admin
+                  vedono questo costo, mai il cliente.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="f-mo-vendita">
+                  Prezzo di vendita (€){" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    listino cliente
+                  </span>
+                </Label>
+                <Input
+                  id="f-mo-vendita"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={prezzoVendita}
+                  onChange={(e) => onPrezzoVenditaChange(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Quanto addebiti in preventivo al cliente.
+                </p>
+              </div>
+            </div>
+
+            {/* Preview margine live */}
+            {(costoNum > 0 || venditaNum > 0) && (
+              <div
+                className={`rounded-md border p-3 ${
+                  margineEuro < 0
+                    ? "bg-red-50 border-red-200"
+                    : marginePct >= 20
+                      ? "bg-emerald-50 border-emerald-200"
+                      : "bg-muted/30"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <MargineIcon
+                    className={`h-4 w-4 ${margineColor}`}
+                    aria-hidden="true"
+                  />
+                  <span className="text-sm font-medium">
+                    Margine previsto
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Costo</div>
+                    <div className="font-medium">
+                      {formatCurrency(costoNum)}/{unitaLabel}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Vendita</div>
+                    <div className="font-medium">
+                      {formatCurrency(venditaNum)}/{unitaLabel}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Margine</div>
+                    <div className={`font-bold ${margineColor}`}>
+                      {formatCurrency(margineEuro)}
+                      {venditaNum > 0 ? ` (${marginePct.toFixed(1)}%)` : ""}
+                    </div>
+                  </div>
+                </div>
+                {margineEuro < 0 ? (
+                  <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                    Stai vendendo SOTTO COSTO. Controlla i numeri prima di
+                    salvare.
+                  </p>
+                ) : marginePct < 10 && venditaNum > 0 ? (
+                  <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                    Margine molto basso (&lt; 10%). Verifica che copra davvero i
+                    costi accessori (trasferte, attrezzi, imprevisti).
+                  </p>
+                ) : null}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="f-mo-unita">Unità di misura</Label>
+                <Select
+                  value={unita}
+                  onValueChange={(v) => onUnitaChange(v as ManodoperaUnita)}
+                >
+                  <SelectTrigger id="f-mo-unita">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MANODOPERA_UNITA_OPTIONS.map((u) => (
+                      <SelectItem key={u.value} value={u.value}>
+                        {u.label}{" "}
+                        <span className="text-muted-foreground ml-1">
+                          — {u.hint}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="f-mo-quantita">Quantità default</Label>
+                <Input
+                  id="f-mo-quantita"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={quantita}
+                  onChange={(e) => onQuantitaChange(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Es. 1 = un intervento, oppure n° h, ml, mq per unità prodotto.
+                </p>
+              </div>
+            </div>
+
+            <LinkedToggle linked={linked} onChange={onLinkedChange} />
+          </div>
+        )}
+
+        {/* 4. Branch: NESSUNA ───────────────────────────────────────── */}
+        {modalita === "nessuna" && (
+          <div className="rounded-md border bg-muted/30 p-4 flex gap-3 items-start">
+            <Ban
+              className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
+            <div className="text-sm">
+              <p className="font-medium">Nessuna manodopera automatica</p>
+              <p className="text-muted-foreground mt-1">
+                Quando il cliente aggiunge questo articolo al preventivo,{" "}
+                <span className="font-medium">
+                  non verrà creata nessuna riga di montaggio
+                </span>
+                . Puoi sempre aggiungere una voce manodopera manualmente dal
+                preventivatore se serve.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 5. Salva ─────────────────────────────────────────────────── */}
+        <div className="flex justify-end pt-2 border-t">
+          <Button onClick={onSave} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2
+                  className="h-4 w-4 mr-2 animate-spin"
+                  aria-hidden="true"
+                />
+                Salvataggio…
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" aria-hidden="true" />
+                Salva manodopera
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── STEP 5: Riepilogo ──────────────────────────────────────────────────────
+//
+// Riepilogo visivo a card: invece di una lista piatta label/valore, l'utente
+// vede 4 card tematiche (Anagrafica, Prezzo, Manodopera, Assi) con azioni
+// rapide "Modifica" che riportano allo step corrispondente. Meglio per code
+// review visuale + UX prima del salvataggio finale.
+interface RiepilogoSectionProps {
+  family: FamilyWithAxes;
+  categorie: ListinoCategoria[];
+  macrocategorie: ListinoMacrocategoria[];
+  tariffe: Tariffa[];
+  prezzoBaseMode: PrezzoBaseMode;
+  prezzoVendita: string;
+  prezzoAcquisto: string;
+  acquistoNetto: number;
+  scontoFornitore1: string;
+  scontoFornitore2: string;
+  markupTipo: MarkupTipo;
+  markupValore: string;
+  prezzoVenditaCalcolato: number;
+  vatRateAcquisto: string;
+  manodoperaModalita: ManodoperaModalita;
+  manodoperaCostoAcquisto: string;
+  manodoperaPrezzoVendita: string;
+  manodoperaUnita: ManodoperaUnita;
+  posaLinked: boolean;
+  immagineUrl: string | null;
+  onGotoStep: (step: string) => void;
+  onBackToCatalog: () => void;
+  onDuplicate: () => void;
+  duplicating: boolean;
+}
+
+function RiepilogoSection(props: RiepilogoSectionProps) {
+  const {
+    family,
+    categorie,
+    macrocategorie,
+    tariffe,
+    prezzoBaseMode,
+    prezzoVendita,
+    prezzoAcquisto,
+    acquistoNetto,
+    scontoFornitore1,
+    scontoFornitore2,
+    markupTipo,
+    markupValore,
+    prezzoVenditaCalcolato,
+    vatRateAcquisto,
+    manodoperaModalita,
+    manodoperaCostoAcquisto,
+    manodoperaPrezzoVendita,
+    manodoperaUnita,
+    posaLinked,
+    immagineUrl,
+    onGotoStep,
+    onBackToCatalog,
+    onDuplicate,
+    duplicating,
+  } = props;
+
+  const cat = family.categoria_id
+    ? categorie.find((c) => c.id === family.categoria_id)
+    : null;
+  const macroId = cat?.macrocategoria_id;
+  const macroNome = macroId
+    ? macrocategorie.find((m) => m.id === macroId)?.nome ?? "—"
+    : "Nessuna";
+  const catNome = cat?.nome ?? "Nessuna";
+
+  const modalitaPrezzoLabel =
+    MODALITA_CARDS.find((m) => m.value === family.modalita_prezzo_base)?.label ??
+    family.modalita_prezzo_base;
+
+  // Margine prodotto (solo se acquisto_markup)
+  const prodottoCosto = acquistoNetto;
+  const prodottoVendita =
+    prezzoBaseMode === "acquisto_markup"
+      ? prezzoVenditaCalcolato
+      : parseFloat(prezzoVendita) || 0;
+  const prodottoMargine = prodottoVendita - prodottoCosto;
+  const prodottoMarginePct =
+    prodottoVendita > 0 ? (prodottoMargine / prodottoVendita) * 100 : 0;
+
+  // Margine manodopera (solo se manuale)
+  const moCosto = parseFloat(manodoperaCostoAcquisto) || 0;
+  const moVendita = parseFloat(manodoperaPrezzoVendita) || 0;
+  const moMargine = moVendita - moCosto;
+  const moMarginePct = moVendita > 0 ? (moMargine / moVendita) * 100 : 0;
+
+  const tariffaNome = family.posa_tariffa_default_id
+    ? tariffe.find((t) => t.id === family.posa_tariffa_default_id)?.nome ?? "—"
+    : null;
+
+  const assiObbligatori = family.axes.filter((a) => a.obbligatorio).length;
+  const valoriTotali = family.axes.reduce(
+    (sum, a) => sum + a.values.filter((v) => v.attivo).length,
+    0,
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Card Anagrafica */}
+      <RiepilogoCard
+        icon={Package}
+        title="Anagrafica"
+        onEdit={() => onGotoStep("1")}
+      >
+        <div className="flex gap-4 items-start">
+          {immagineUrl ? (
+            <img
+              src={immagineUrl}
+              alt={family.nome}
+              className="h-20 w-20 rounded-md object-cover border flex-shrink-0"
+            />
+          ) : (
+            <div className="h-20 w-20 rounded-md bg-muted border flex items-center justify-center flex-shrink-0">
+              <ImageIcon
+                className="h-6 w-6 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </div>
+          )}
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="font-semibold text-base">{family.nome}</div>
+            <div className="flex flex-wrap gap-1 text-xs">
+              <Badge variant="outline">{macroNome}</Badge>
+              <Badge variant="outline">{catNome}</Badge>
+              <Badge variant="secondary">{family.unit_of_measure}</Badge>
+              <Badge variant="secondary">IVA {family.vat_rate}%</Badge>
+            </div>
+            {family.descrizione ? (
+              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                {family.descrizione}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </RiepilogoCard>
+
+      {/* Card Prezzo */}
+      <RiepilogoCard
+        icon={Banknote}
+        title="Prezzo"
+        onEdit={() => onGotoStep("2")}
+      >
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide">
+            Modalità: <span className="font-medium">{modalitaPrezzoLabel}</span>
+            {" · "}
+            <span className="font-medium">
+              {prezzoBaseMode === "vendita"
+                ? "Vendita diretta"
+                : "Acquisto + markup"}
+            </span>
+          </div>
+          {prezzoBaseMode === "acquisto_markup" ? (
+            <div className="space-y-1.5 bg-muted/30 rounded-md p-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Listino lordo</span>
+                <span className="font-medium">
+                  {formatCurrency(parseFloat(prezzoAcquisto) || 0)}
+                </span>
+              </div>
+              {(parseFloat(scontoFornitore1) || 0) > 0 ||
+              (parseFloat(scontoFornitore2) || 0) > 0 ? (
+                <div className="flex justify-between text-emerald-700">
+                  <span>
+                    Sconti fornitore −{scontoFornitore1}%
+                    {(parseFloat(scontoFornitore2) || 0) > 0
+                      ? ` / −${scontoFornitore2}%`
+                      : ""}
+                  </span>
+                  <span className="font-medium">
+                    = {formatCurrency(acquistoNetto)}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  Markup{" "}
+                  {markupTipo === "percentuale"
+                    ? `+${parseFloat(markupValore) || 0}%`
+                    : markupTipo === "fisso_pz"
+                      ? `+${formatCurrency(parseFloat(markupValore) || 0)}/pz`
+                      : "Nessuno"}
+                </span>
+                <span className="font-medium text-amber-700">
+                  +{formatCurrency(prodottoMargine)}
+                </span>
+              </div>
+              <div className="flex justify-between pt-1 border-t text-base font-semibold text-primary">
+                <span>Prezzo vendita</span>
+                <span>{formatCurrency(prodottoVendita)}</span>
+              </div>
+              {prodottoVendita > 0 ? (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    Margine: {formatCurrency(prodottoMargine)}
+                  </span>
+                  <span
+                    className={
+                      prodottoMarginePct < 20
+                        ? "text-amber-600 font-medium"
+                        : "text-emerald-600 font-medium"
+                    }
+                  >
+                    {prodottoMarginePct.toFixed(1)}% sulla vendita
+                  </span>
+                </div>
+              ) : null}
+              <div className="text-xs text-muted-foreground pt-1">
+                IVA acquisto {parseFloat(vatRateAcquisto) || 0}% · IVA vendita{" "}
+                {family.vat_rate}%
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-between items-center bg-muted/30 rounded-md p-3">
+              <span className="text-sm text-muted-foreground">
+                Prezzo vendita diretto
+              </span>
+              <span className="text-lg font-bold text-primary">
+                {formatCurrency(parseFloat(prezzoVendita) || 0)}
+              </span>
+            </div>
+          )}
+        </div>
+      </RiepilogoCard>
+
+      {/* Card Manodopera */}
+      <RiepilogoCard
+        icon={Wrench}
+        title="Manodopera"
+        onEdit={() => onGotoStep("4")}
+      >
+        {manodoperaModalita === "nessuna" ? (
+          <div className="flex gap-2 items-center text-sm text-muted-foreground">
+            <Ban className="h-4 w-4" aria-hidden="true" />
+            <span>Nessuna manodopera automatica</span>
+          </div>
+        ) : manodoperaModalita === "tariffa" ? (
+          <div className="space-y-1.5 text-sm">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                Tariffa aziendale
+              </Badge>
+              <span className="font-medium">{tariffaNome ?? "—"}</span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Quantità default: {family.posa_quantita_default} ·{" "}
+              {posaLinked ? (
+                <span className="inline-flex gap-1 items-center">
+                  <Link2 className="h-3 w-3" aria-hidden="true" />
+                  legata al prodotto
+                </span>
+              ) : (
+                <span className="inline-flex gap-1 items-center">
+                  <Link2Off className="h-3 w-3" aria-hidden="true" />
+                  indipendente
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                Importo manuale
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                unità: {manodoperaUnita}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-3 bg-muted/30 rounded-md p-3">
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Costo subappalto
+                </div>
+                <div className="font-medium">{formatCurrency(moCosto)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Prezzo cliente
+                </div>
+                <div className="font-medium">{formatCurrency(moVendita)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Margine</div>
+                <div
+                  className={`font-bold ${
+                    moMargine < 0
+                      ? "text-red-600"
+                      : moMarginePct < 20
+                        ? "text-amber-600"
+                        : "text-emerald-600"
+                  }`}
+                >
+                  {formatCurrency(moMargine)}
+                  {moVendita > 0 ? ` (${moMarginePct.toFixed(1)}%)` : ""}
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Quantità default: {family.posa_quantita_default} ·{" "}
+              {posaLinked ? (
+                <span className="inline-flex gap-1 items-center">
+                  <Link2 className="h-3 w-3" aria-hidden="true" />
+                  legata al prodotto
+                </span>
+              ) : (
+                <span className="inline-flex gap-1 items-center">
+                  <Link2Off className="h-3 w-3" aria-hidden="true" />
+                  indipendente
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </RiepilogoCard>
+
+      {/* Card Assi */}
+      <RiepilogoCard
+        icon={ListChecks}
+        title={`Assi di variazione (${family.axes.length})`}
+        onEdit={() => onGotoStep("3")}
+      >
+        {family.axes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nessun asse configurato. L'articolo ha un prezzo fisso.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            <div className="text-xs text-muted-foreground">
+              {assiObbligatori} obbligatori · {valoriTotali} valori totali
+            </div>
+            <ul className="space-y-1.5">
+              {family.axes.map((ax) => (
+                <li
+                  key={ax.id}
+                  className="flex gap-2 items-center text-sm border rounded-md p-2"
+                >
+                  <Check
+                    className="h-3.5 w-3.5 text-primary flex-shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span className="font-medium">{ax.nome}</span>
+                  {ax.obbligatorio ? (
+                    <Badge variant="outline" className="text-xs">
+                      obbligatorio
+                    </Badge>
+                  ) : null}
+                  <Badge variant="secondary" className="text-xs ml-auto">
+                    {ax.values.filter((v) => v.attivo).length}{" "}
+                    {ax.values.filter((v) => v.attivo).length === 1
+                      ? "valore"
+                      : "valori"}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </RiepilogoCard>
+
+      {/* Azioni finali */}
+      <div className="flex flex-wrap gap-2 pt-3 border-t">
+        <Button onClick={onBackToCatalog} variant="outline">
+          <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
+          Torna al catalogo
+        </Button>
+        <Button onClick={onDuplicate} disabled={duplicating}>
+          {duplicating ? (
+            <>
+              <Loader2
+                className="h-4 w-4 mr-2 animate-spin"
+                aria-hidden="true"
+              />
+              Duplicazione…
+            </>
+          ) : (
+            <>
+              <CopyPlus className="h-4 w-4 mr-2" aria-hidden="true" />
+              Salva e crea copia
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function RiepilogoCard({
+  icon: Icon,
+  title,
+  onEdit,
+  children,
+}: {
+  icon: typeof Wrench;
+  title: string;
+  onEdit: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+            </div>
+            <CardTitle className="text-sm">{title}</CardTitle>
+          </div>
+          <Button size="sm" variant="ghost" onClick={onEdit}>
+            Modifica
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">{children}</CardContent>
+    </Card>
+  );
+}
+
+function LinkedToggle({
+  linked,
+  onChange,
+  disabled,
+}: {
+  linked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3">
+      <div className="space-y-0.5 flex gap-2 items-start">
+        {linked ? (
+          <Link2
+            className="h-4 w-4 text-primary mt-0.5 flex-shrink-0"
+            aria-hidden="true"
+          />
+        ) : (
+          <Link2Off
+            className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0"
+            aria-hidden="true"
+          />
+        )}
+        <div>
+          <Label htmlFor="f-mo-linked" className="cursor-pointer">
+            Manodopera legata al prodotto
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Se attivo, cancellare o modificare la riga prodotto aggiorna anche
+            la riga manodopera (sincronizzazione quantità + delete cascade). Se
+            disattivo, le due righe vivono in modo indipendente.
+          </p>
+        </div>
+      </div>
+      <Switch
+        id="f-mo-linked"
+        checked={linked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+      />
     </div>
   );
 }

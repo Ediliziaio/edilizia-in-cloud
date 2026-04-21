@@ -42,6 +42,22 @@ export type MaggiorazioneTipo =
 /** Tipo di asse: lista discreta di valori o flag booleano. */
 export type AxisTipo = "discrete" | "boolean";
 
+/**
+ * Modalità di gestione della manodopera (ex "posa") a livello famiglia.
+ *  - "tariffa":  usa `posa_tariffa_default_id` (legacy — tariffa aziendale).
+ *  - "manuale":  importi fissati direttamente sulla famiglia
+ *                (manodopera_costo_acquisto + manodopera_prezzo_vendita).
+ *                Tipico: tariffa a corpo per questo articolo, senza dover
+ *                creare una tariffa aziendale dedicata.
+ *  - "nessuna":  nessuna riga manodopera auto-generata al preventivo.
+ *
+ * Migration `20260421000030_manodopera_manuale_columns`.
+ */
+export type ManodoperaModalita = "tariffa" | "manuale" | "nessuna";
+
+/** Unità di misura ammesse per la modalità manodopera manuale. */
+export type ManodoperaUnita = "pz" | "ml" | "mq" | "h" | "a_corpo";
+
 export interface ArticleFamily {
   id: string;
   company_id: string;
@@ -93,6 +109,27 @@ export interface ArticleFamily {
   unit_of_measure: string;
   posa_tariffa_default_id: string | null;
   posa_quantita_default: number;
+  /**
+   * Modalità di gestione manodopera (ex "posa"). Aggiunta dalla migration
+   * 20260421000030. Default 'nessuna' per nuove righe; backfill ha messo
+   * 'tariffa' dove esisteva `posa_tariffa_default_id`, 'nessuna' altrove.
+   * Retrocompat: righe pre-migration letto come 'tariffa' se posa_tariffa
+   * default_id != null, altrimenti 'nessuna' — vedi lettura difensiva nei
+   * consumer.
+   */
+  manodopera_modalita: ManodoperaModalita;
+  /**
+   * Costo di montaggio (€) pagato al subappaltatore/dipendente. Usato solo
+   * se `manodopera_modalita === 'manuale'`. Unità = `manodopera_unita`.
+   */
+  manodopera_costo_acquisto: number;
+  /**
+   * Prezzo di vendita (€) della manodopera al cliente. Usato solo se
+   * `manodopera_modalita === 'manuale'`. Unità = `manodopera_unita`.
+   */
+  manodopera_prezzo_vendita: number;
+  /** Unità di misura manodopera in modalità manuale. */
+  manodopera_unita: ManodoperaUnita;
   griglia_asse_x_label: string;
   griglia_asse_y_label: string;
   griglia_unita: string;
