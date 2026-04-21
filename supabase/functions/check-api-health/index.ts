@@ -72,6 +72,11 @@ Deno.serve(async (req) => {
       "telnyx_api_key",
       "gocardless_access_token",
       "google_maps_api_key",
+      "openai_api_key",
+      "render_gemini_api_key",
+      "gemini_api_key",
+      "cloudflare_api_token",
+      "cloudflare_account_id",
     ];
 
     const { data: settings } = await admin
@@ -86,6 +91,20 @@ Deno.serve(async (req) => {
 
     const results: IntegrationResult[] = [];
     const now = new Date().toISOString();
+
+    // ── Supabase ─────────────────────────────────────────────────────────
+    const supabaseStarted = Date.now();
+    const { error: supabasePingError } = await admin
+      .from("companies")
+      .select("id", { head: true, count: "exact" })
+      .limit(1);
+    results.push({
+      name: "supabase",
+      status: supabasePingError ? "down" : "healthy",
+      last_seen: now,
+      response_ms: Date.now() - supabaseStarted,
+      error: supabasePingError?.message ?? null,
+    });
 
     // ── Stripe ────────────────────────────────────────────────────────────
     const stripeKey = settingsMap["stripe_secret_key"] || Deno.env.get("STRIPE_SECRET_KEY");
@@ -102,6 +121,66 @@ Deno.serve(async (req) => {
       });
     } else {
       results.push({ name: "stripe", status: "unconfigured", last_seen: null, response_ms: null, error: "API key not configured" });
+    }
+
+    // ── OpenAI ────────────────────────────────────────────────────────────
+    const openaiKey = settingsMap["openai_api_key"] || Deno.env.get("OPENAI_API_KEY");
+    if (openaiKey) {
+      const ping = await pingWithLatency("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${openaiKey}` },
+      });
+      results.push({
+        name: "openai",
+        status: ping.ok ? "healthy" : ping.status === 401 ? "degraded" : "down",
+        last_seen: now,
+        response_ms: ping.latency_ms,
+        error: ping.ok ? null : (ping.error || `HTTP ${ping.status}`),
+      });
+    } else {
+      results.push({ name: "openai", status: "unconfigured", last_seen: null, response_ms: null, error: "API key not configured" });
+    }
+
+    // ── Gemini Render AI ─────────────────────────────────────────────────
+    const geminiKey =
+      settingsMap["render_gemini_api_key"] ||
+      settingsMap["gemini_api_key"] ||
+      Deno.env.get("RENDER_GEMINI_API_KEY") ||
+      Deno.env.get("GEMINI_API_KEY") ||
+      Deno.env.get("GOOGLE_AI_API_KEY");
+    if (geminiKey) {
+      const ping = await pingWithLatency(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`
+      );
+      results.push({
+        name: "gemini",
+        status: ping.ok ? "healthy" : ping.status === 400 || ping.status === 401 || ping.status === 403 ? "degraded" : "down",
+        last_seen: now,
+        response_ms: ping.latency_ms,
+        error: ping.ok ? null : (ping.error || `HTTP ${ping.status}`),
+      });
+    } else {
+      results.push({ name: "gemini", status: "unconfigured", last_seen: null, response_ms: null, error: "Render AI key not configured" });
+    }
+
+    // ── Cloudflare ───────────────────────────────────────────────────────
+    const cloudflareToken = settingsMap["cloudflare_api_token"] || Deno.env.get("CLOUDFLARE_API_TOKEN");
+    const cloudflareAccountId = settingsMap["cloudflare_account_id"] || Deno.env.get("CLOUDFLARE_ACCOUNT_ID");
+    if (cloudflareToken) {
+      const cloudflareUrl = cloudflareAccountId
+        ? `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}`
+        : "https://api.cloudflare.com/client/v4/user/tokens/verify";
+      const ping = await pingWithLatency(cloudflareUrl, {
+        headers: { Authorization: `Bearer ${cloudflareToken}` },
+      });
+      results.push({
+        name: "cloudflare",
+        status: ping.ok ? "healthy" : ping.status === 401 || ping.status === 403 ? "degraded" : "down",
+        last_seen: now,
+        response_ms: ping.latency_ms,
+        error: ping.ok ? null : (ping.error || `HTTP ${ping.status}`),
+      });
+    } else {
+      results.push({ name: "cloudflare", status: "unconfigured", last_seen: null, response_ms: null, error: "API token not configured" });
     }
 
     // ── SendGrid / Elastic Email ───────────────────────────────────────────
@@ -231,6 +310,10 @@ Deno.serve(async (req) => {
       email_marketing: !!(settingsMap["email_marketing_api_key"] || Deno.env.get("EMAIL_MARKETING_API_KEY")),
       email_transactional: !!(emailTransKey),
       elevenlabs: results.find((r) => r.name === "elevenlabs")?.status === "healthy",
+      openai: results.find((r) => r.name === "openai")?.status === "healthy",
+      gemini: results.find((r) => r.name === "gemini")?.status === "healthy",
+      cloudflare: results.find((r) => r.name === "cloudflare")?.status === "healthy",
+      supabase: results.find((r) => r.name === "supabase")?.status === "healthy",
     };
 
     return new Response(

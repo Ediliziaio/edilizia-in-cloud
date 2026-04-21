@@ -9,23 +9,6 @@ import {
   isRevenueEligibleCompany,
 } from "@/lib/adminRevenue";
 
-interface RecentActivity {
-  id: string;
-  type: "order" | "ticket";
-  title: string;
-  subtitle: string;
-  created_at: string;
-}
-
-interface RecentCompany {
-  id: string;
-  name: string;
-  email: string;
-  sector: string;
-  logo_url: string | null;
-  created_at: string;
-}
-
 export interface AdminDashboardStats {
   totalCompanies: number;
   accessActiveCompanies: number;
@@ -60,8 +43,6 @@ export interface AdminDashboardData {
   stats: AdminDashboardStats;
   mrrStats: AdminMrrStats;
   mrrChartData: MrrChartData[];
-  recentCompanies: RecentCompany[];
-  recentActivity: RecentActivity[];
 }
 
 const CACHE_TTL_MS = 30 * 1000; // 30 secondi
@@ -88,22 +69,6 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
       .from("support_conversations")
       .select("id", { count: "exact", head: true })
       .not("status", "in", '("resolved","closed")'),
-    supabase
-      .from("companies")
-      .select("id, name, email, sector, logo_url, created_at")
-      .eq("is_platform_admin_company", false)
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("orders")
-      .select("id, description, created_at, company:companies(name)")
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("tickets")
-      .select("id, subject, created_at, company:companies(name)")
-      .order("created_at", { ascending: false })
-      .limit(5),
     supabase
       .from("companies")
       .select(
@@ -137,12 +102,9 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
   const ordersAggRes = unwrap<{ data: TotalOrdersValue[] | null; error: unknown }>(1);
   const customersRes = unwrap<{ data: unknown; error: unknown; count: number | null }>(2);
   const ticketsRes = unwrap<{ data: unknown; error: unknown; count: number | null }>(3);
-  const recentCompaniesRes = unwrap<{ data: RecentCompany[] | null; error: unknown }>(4);
-  const recentOrdersRes = unwrap<{ data: unknown[] | null; error: unknown }>(5);
-  const recentTicketsRes = unwrap<{ data: unknown[] | null; error: unknown }>(6);
-  const allCompaniesRes = unwrap<{ data: any[] | null; error: unknown }>(7);
-  const dacRes = unwrap<{ data: { company_id: string }[] | null; error: unknown }>(8);
-  const wacRes = unwrap<{ data: { company_id: string }[] | null; error: unknown }>(9);
+  const allCompaniesRes = unwrap<{ data: any[] | null; error: unknown }>(4);
+  const dacRes = unwrap<{ data: { company_id: string }[] | null; error: unknown }>(5);
+  const wacRes = unwrap<{ data: { company_id: string }[] | null; error: unknown }>(6);
 
   // Log ma NON throw — mostriamo la dashboard con i dati parziali disponibili
   if ((companiesRes as any).error) {
@@ -222,42 +184,6 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
     });
   }
 
-  const activities: RecentActivity[] = [];
-  recentOrdersRes.data?.forEach((order) => {
-    const o = order as {
-      id: string;
-      description: string | null;
-      created_at: string;
-      company: { name: string } | null;
-    };
-    activities.push({
-      id: o.id,
-      type: "order",
-      title: o.description?.substring(0, 50) || "Nuovo ordine",
-      subtitle: o.company?.name || "Azienda",
-      created_at: o.created_at,
-    });
-  });
-  recentTicketsRes.data?.forEach((ticket) => {
-    const t = ticket as {
-      id: string;
-      subject: string;
-      created_at: string;
-      company: { name: string } | null;
-    };
-    activities.push({
-      id: t.id,
-      type: "ticket",
-      title: t.subject,
-      subtitle: t.company?.name || "Azienda",
-      created_at: t.created_at,
-    });
-  });
-  activities.sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-
   return {
     stats: {
       totalCompanies: companiesRes.count || 0,
@@ -283,8 +209,6 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
       expiredCount: expiredCompanies.length,
     },
     mrrChartData,
-    recentCompanies: (recentCompaniesRes.data as RecentCompany[]) || [],
-    recentActivity: activities.slice(0, 8),
   };
 }
 

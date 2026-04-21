@@ -23,39 +23,54 @@ export interface DashboardWidget {
   span: 1 | 2; // 1 = half width, 2 = full width
 }
 
-const STORAGE_KEY = "admin-dashboard-layout";
+const STORAGE_KEY = "adminDashboardLayout";
 
 export const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "stat-cards", label: "KPI Principali", category: "kpi", visible: true, span: 2 },
+  { id: "command-center", label: "Centro operativo", category: "kpi", visible: true, span: 2 },
   { id: "revenue-kpis", label: "Revenue Intelligence", category: "kpi", visible: true, span: 2 },
+  { id: "saas-metrics", label: "Metriche SaaS (ARPU/LTV/CAC)", category: "kpi", visible: true, span: 2 },
+  { id: "mrr-reconciliation", label: "Riconciliazione MRR Stripe", category: "kpi", visible: true, span: 1 },
+  { id: "dunning", label: "Dunning", category: "alerts", visible: true, span: 1 },
+  { id: "health-summary", label: "Health Summary", category: "alerts", visible: true, span: 1 },
+  { id: "system-health", label: "System Health", category: "tables", visible: true, span: 2 },
   { id: "mrr-chart", label: "MRR Chart", category: "charts", visible: true, span: 1 },
   { id: "mrr-movements", label: "MRR Movements", category: "charts", visible: true, span: 1 },
   { id: "revenue-sector", label: "Revenue per Settore", category: "charts", visible: true, span: 1 },
-  { id: "health-summary", label: "Health Summary", category: "alerts", visible: true, span: 1 },
-  { id: "trial-intelligence", label: "Trial Intelligence", category: "tables", visible: true, span: 2 },
-  { id: "revenue-forecast", label: "Revenue Forecast", category: "charts", visible: true, span: 2 },
-  { id: "revenue-forecast-v2", label: "Previsione Ricavi 30/60/90gg", category: "charts", visible: true, span: 2 },
-  { id: "cohort-analysis", label: "Cohort Analysis", category: "charts", visible: true, span: 2 },
-  { id: "upsell-alerts", label: "Upsell Alerts", category: "alerts", visible: true, span: 1 },
-  { id: "dunning", label: "Dunning", category: "alerts", visible: true, span: 1 },
   { id: "feature-usage", label: "Feature Usage", category: "charts", visible: true, span: 1 },
-  { id: "system-health", label: "System Health", category: "tables", visible: true, span: 1 },
-  { id: "recent-companies", label: "Aziende Recenti", category: "tables", visible: true, span: 1 },
-  { id: "recent-activity", label: "Attività Recente", category: "tables", visible: true, span: 1 },
-  { id: "addon-summary", label: "Addon Attivi", category: "kpi", visible: true, span: 1 },
-  { id: "nps-survey", label: "NPS Survey", category: "alerts", visible: true, span: 1 },
-  { id: "mrr-reconciliation", label: "Riconciliazione MRR Stripe", category: "kpi", visible: true, span: 1 },
-  { id: "saas-metrics", label: "Metriche SaaS (ARPU/LTV/CAC)", category: "kpi", visible: true, span: 2 },
+  { id: "upsell-alerts", label: "Upsell Alerts", category: "alerts", visible: true, span: 1 },
+  { id: "churn-alerts", label: "Churn Alerts", category: "alerts", visible: true, span: 1 },
+  { id: "revenue-forecast", label: "Revenue Forecast", category: "charts", visible: true, span: 2 },
   { id: "cohort-revenue", label: "Cohort Retention", category: "charts", visible: true, span: 2 },
+  { id: "addon-summary", label: "Addon Attivi", category: "kpi", visible: false, span: 1 },
+  { id: "trial-intelligence", label: "Trial Intelligence", category: "tables", visible: false, span: 2 },
+  { id: "revenue-forecast-v2", label: "Previsione Ricavi 30/60/90gg", category: "charts", visible: false, span: 2 },
+  { id: "cohort-analysis", label: "Cohort Analysis", category: "charts", visible: false, span: 2 },
+  { id: "nps-survey", label: "NPS Survey", category: "alerts", visible: false, span: 1 },
 ];
+
+function isLegacyLayout(layout: DashboardWidget[]): boolean {
+  const ids = new Set(layout.map((w) => w.id));
+  return (
+    ids.has("recent-companies") ||
+    ids.has("recent-activity") ||
+    !ids.has("command-center")
+  );
+}
 
 function loadLayoutFromStorage(): DashboardWidget[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return DEFAULT_WIDGETS;
     const parsed = JSON.parse(saved) as DashboardWidget[];
+    if (isLegacyLayout(parsed)) return DEFAULT_WIDGETS;
     const savedMap = new Map(parsed.map((w) => [w.id, w]));
-    return DEFAULT_WIDGETS.map((dw) => savedMap.get(dw.id) ?? dw).sort((a, b) => {
+    return DEFAULT_WIDGETS.map((dw) => {
+      const savedWidget = savedMap.get(dw.id);
+      return savedWidget
+        ? { ...dw, visible: savedWidget.visible, span: savedWidget.span }
+        : dw;
+    }).sort((a, b) => {
       const ai = parsed.findIndex((p) => p.id === a.id);
       const bi = parsed.findIndex((p) => p.id === b.id);
       if (ai === -1 && bi === -1) return 0;
@@ -69,8 +84,14 @@ function loadLayoutFromStorage(): DashboardWidget[] {
 }
 
 function mergeWithDefaults(persisted: DashboardWidget[]): DashboardWidget[] {
+  if (isLegacyLayout(persisted)) return DEFAULT_WIDGETS;
   const savedMap = new Map(persisted.map((w) => [w.id, w]));
-  return DEFAULT_WIDGETS.map((dw) => savedMap.get(dw.id) ?? dw).sort((a, b) => {
+  return DEFAULT_WIDGETS.map((dw) => {
+    const savedWidget = savedMap.get(dw.id);
+    return savedWidget
+      ? { ...dw, visible: savedWidget.visible, span: savedWidget.span }
+      : dw;
+  }).sort((a, b) => {
     const ai = persisted.findIndex((p) => p.id === a.id);
     const bi = persisted.findIndex((p) => p.id === b.id);
     if (ai === -1 && bi === -1) return 0;

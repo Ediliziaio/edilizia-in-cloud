@@ -229,7 +229,11 @@ interface IntegrationResult {
 }
 
 const INTEGRATION_LABELS: Record<string, string> = {
+  supabase: "Supabase",
   stripe: "Stripe",
+  openai: "OpenAI",
+  gemini: "Gemini Render AI",
+  cloudflare: "Cloudflare",
   sendgrid: "SendGrid",
   elastic_email: "Elastic Email",
   elevenlabs: "ElevenLabs",

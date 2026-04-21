@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, AlertTriangle } from "lucide-react";
@@ -12,8 +11,6 @@ import { AdminMrrMovements } from "@/components/admin/dashboard/AdminMrrMovement
 import { AdminRevenueBySector } from "@/components/admin/dashboard/AdminRevenueBySector";
 import { AdminHealthSummary } from "@/components/admin/dashboard/AdminHealthSummary";
 import { AdminTrialIntelligence } from "@/components/admin/dashboard/AdminTrialIntelligence";
-import { AdminRecentCompanies } from "@/components/admin/dashboard/AdminRecentCompanies";
-import { AdminRecentActivity } from "@/components/admin/dashboard/AdminRecentActivity";
 import { AdminDunning } from "@/components/admin/dashboard/AdminDunning";
 import { AdminFeatureUsage } from "@/components/admin/dashboard/AdminFeatureUsage";
 import { AdminSystemHealth, IntegrationHealthSection } from "@/components/admin/dashboard/AdminSystemHealth";
@@ -27,9 +24,9 @@ import { RevenueForecastWidget } from "@/components/admin/dashboard/RevenueForec
 import { MrrReconciliationCard } from "@/components/admin/dashboard/MrrReconciliationCard";
 import { SaasMetricsGrid } from "@/components/admin/dashboard/SaasMetricsGrid";
 import { CohortRevenueChart } from "@/components/admin/dashboard/CohortRevenueChart";
+import { AdminScaleCommandCenter } from "@/components/admin/dashboard/AdminScaleCommandCenter";
 import { DashboardHeader } from "@/components/admin/dashboard/DashboardHeader";
 import { DashboardSkeleton } from "@/components/admin/dashboard/DashboardSkeleton";
-import { DashboardDateFilter, getDefaultDateRange, type DateRange } from "@/components/admin/dashboard/DashboardDateFilter";
 import { DashboardExport } from "@/components/admin/dashboard/DashboardExport";
 import { AdminPulseBar } from "@/components/admin/dashboard/AdminPulseBar";
 import {
@@ -64,7 +61,6 @@ export default function AdminDashboard() {
     refetch,
   } = useAdminDashboardData();
   const { data: revenueData } = useAdminRevenueData();
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
   const { widgets, isSaving, toggleVisibility, reorder, resetLayout, saveNow } =
     useDashboardLayout(user?.id);
   const sensors = useSensors(
@@ -97,8 +93,6 @@ export default function AdminDashboard() {
     expiredCount: 0,
   };
   const mrrChartData = dashboardData?.mrrChartData ?? [];
-  const recentCompanies = dashboardData?.recentCompanies ?? [];
-  const recentActivity = dashboardData?.recentActivity ?? [];
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -144,6 +138,16 @@ export default function AdminDashboard() {
     switch (widgetId) {
       case "stat-cards":
         return <AdminStatCards stats={stats} />;
+      case "command-center":
+        return (
+          <AdminScaleCommandCenter
+            stats={stats}
+            mrrStats={mrrStats}
+            healthSummary={revenueData?.healthSummary}
+            avgMonthlyGrowth={revenueData?.avgMonthlyGrowth}
+            avgMonthlyChurnMrr={revenueData?.avgMonthlyChurnMrr}
+          />
+        );
       case "revenue-kpis":
         return revenueData ? (
           <AdminRevenueKPIs mrr={revenueData.currentMrr} arr={revenueData.arr} nrr={revenueData.nrr} avgLtv={revenueData.avgLtv} />
@@ -182,10 +186,6 @@ export default function AdminDashboard() {
             <IntegrationHealthSection />
           </div>
         );
-      case "recent-companies":
-        return <AdminRecentCompanies companies={recentCompanies} />;
-      case "recent-activity":
-        return <AdminRecentActivity activities={recentActivity} />;
       case "addon-summary":
         return <AdminAddonsSummary />;
       case "revenue-forecast-v2":
@@ -198,6 +198,8 @@ export default function AdminDashboard() {
         return <SaasMetricsGrid />;
       case "cohort-revenue":
         return <CohortRevenueChart />;
+      case "churn-alerts":
+        return <AdminChurnAlerts />;
       default:
         return null;
     }
@@ -228,7 +230,6 @@ export default function AdminDashboard() {
           isRefreshing={isRefreshing}
           onRefresh={refetch}
         >
-          <DashboardDateFilter value={dateRange} onChange={setDateRange} />
           <DashboardExport
             data={{
               stats,
@@ -270,9 +271,6 @@ export default function AdminDashboard() {
           </SortableContext>
         </DndContext>
       )}
-
-      {/* Churn Risk Alerts */}
-      <AdminChurnAlerts />
     </div>
   );
 }
