@@ -13,7 +13,7 @@
  *  - Ordinamento via pulsanti freccia (up/down)
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -22,6 +22,9 @@ import {
   ChevronRight,
   Loader2,
   Pencil,
+  Sparkles,
+  Copy,
+  ChevronsUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
@@ -63,6 +66,39 @@ import type {
   AxisTipo,
   MaggiorazioneTipo,
 } from "@/types/articleFamily";
+import { AxisPresetsDialog } from "./AxisPresetsDialog";
+
+/**
+ * Label compatto per il tipo maggiorazione (usato nei badge valore).
+ * Mostra l'unità con cui si applica la maggiorazione al prezzo.
+ */
+function maggiorazioneLabel(tipo: MaggiorazioneTipo, valore: number): string {
+  if (tipo === "none") return "";
+  if (tipo === "percentuale") return `+${valore}%`;
+  if (tipo === "fisso_pz") return `+${valore}€/pz`;
+  if (tipo === "fisso_mq") return `+${valore}€/m²`;
+  if (tipo === "fisso_ml") return `+${valore}€/ml`;
+  if (tipo === "fisso_mc") return `+${valore}€/m³`;
+  return "";
+}
+
+/** Classi Tailwind per il badge maggiorazione: codice colore semantico. */
+function maggiorazioneBadgeClass(tipo: MaggiorazioneTipo): string {
+  // bianco/none → grigio soft; % → ambra (moltiplicativo); fisso → indigo (additivo)
+  switch (tipo) {
+    case "none":
+      return "bg-muted text-muted-foreground";
+    case "percentuale":
+      return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 border-amber-200 dark:border-amber-800";
+    case "fisso_pz":
+    case "fisso_mq":
+    case "fisso_ml":
+    case "fisso_mc":
+      return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
 
 const MAGGIORAZIONE_OPTIONS: Array<{ value: MaggiorazioneTipo; label: string }> = [
   { value: "none", label: "Nessuna" },
@@ -94,15 +130,64 @@ export function FamilyAxesEditor({ family }: Props) {
     createAxisValue,
     updateAxisValue,
     deleteAxisValue,
+    bulkInsertAxesWithValues,
   } = useFamilyMutations();
 
   const [newAxisOpen, setNewAxisOpen] = useState(false);
-  const [expandedAxisId, setExpandedAxisId] = useState<string | null>(null);
+  // Multi-open: più assi possono essere espansi insieme (era single prima).
+  // Comportamento più utile nel configurare N assi in parallelo.
+  const [expandedAxisIds, setExpandedAxisIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [editingAxis, setEditingAxis] = useState<FamilyAxis | null>(null);
   const [axisToDelete, setAxisToDelete] = useState<FamilyAxis | null>(null);
   const [newValueAxisId, setNewValueAxisId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState<AxisValue | null>(null);
   const [valueToDelete, setValueToDelete] = useState<AxisValue | null>(null);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+
+  // Statistiche famiglia per header (evita ricalcolo inline in 3+ posti).
+  const stats = useMemo(() => {
+    const totValori = family.axes.reduce(
+      (acc, ax) => acc + ax.values.length,
+      0,
+    );
+    const obbligatori = family.axes.filter((a) => a.obbligatorio).length;
+    const conMaggiorazione = family.axes.reduce(
+      (acc, ax) =>
+        acc +
+        ax.values.filter((v) => v.maggiorazione_tipo !== "none").length,
+      0,
+    );
+    const senzaDefault = family.axes.filter(
+      (a) => a.obbligatorio && a.values.every((v) => !v.is_default),
+    ).length;
+    return { totValori, obbligatori, conMaggiorazione, senzaDefault };
+  }, [family.axes]);
+
+  const allExpanded =
+    family.axes.length > 0 && expandedAxisIds.size === family.axes.length;
+  const toggleExpandAll = () => {
+    if (allExpanded) setExpandedAxisIds(new Set());
+    else setExpandedAxisIds(new Set(family.axes.map((a) => a.id)));
+  };
+  const toggleExpandOne = (id: string) => {
+    setExpandedAxisIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Prossimo sort_order (step 10) — utility usata dai dialog e dal bulk preset.
+  const nextAxisSortOrder = useMemo(
+    () =>
+      family.axes.length > 0
+        ? Math.max(...family.axes.map((a) => a.sort_order)) + 10
+        : 0,
+    [family.axes],
+  );
 
   // ── Riordino assi ──────────────────────────────────────────────────────
   const moveAxis = async (axis: FamilyAxis, direction: "up" | "down") => {
@@ -130,30 +215,185 @@ export function FamilyAxesEditor({ family }: Props) {
     }
   };
 
+  // Applica un preset: traduce PresetAxis[] → payload bulkInsertAxesWithValues.
+  // Il sort_order parte da `nextAxisSortOrder` e cresce di 10 per asse (mantiene
+  // spazio per riordini manuali successivi). Idem per i valori (step 10).
+  const handleApplyPresets = async (
+    presets: import("@/lib/axisPresets").PresetAxis[],
+  ) => {
+    try {
+      const payloadAxes = presets.map((p, i) => ({
+        nome: p.nome,
+        codice: p.codice,
+        descrizione: p.descrizione ?? null,
+        tipo: "discrete" as AxisTipo,
+        obbligatorio: p.obbligatorio,
+        sort_order: nextAxisSortOrder + i * 10,
+        values: p.values.map((v, j) => ({
+          valore: v.valore,
+          label: v.label,
+          descrizione: v.descrizione ?? null,
+          is_default: v.is_default ?? false,
+          maggiorazione_tipo: v.maggiorazione_tipo,
+          maggiorazione_valore: v.maggiorazione_valore,
+          maggiorazione_acquisto:
+            v.maggiorazione_acquisto ?? v.maggiorazione_valore,
+          sort_order: j * 10,
+          attivo: true,
+        })),
+      }));
+      const res = await bulkInsertAxesWithValues.mutateAsync({
+        familyId: family.id,
+        axes: payloadAxes,
+      });
+      toast.success(
+        `Preset applicato: ${res.axesCreated} assi, ${res.valuesCreated} valori`,
+      );
+      setPresetsOpen(false);
+    } catch (err) {
+      toast.error("Errore applicazione preset", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
+  // Duplica un valore: crea una copia incrementando il codice con "_copia".
+  // Non imposta is_default (mai duplicare il default — creerebbe conflitti).
+  const duplicateValue = async (ax: FamilyAxis, v: AxisValue) => {
+    try {
+      const baseCodice = v.valore;
+      const existingCodici = new Set(ax.values.map((x) => x.valore));
+      let newCodice = `${baseCodice}_copia`;
+      let i = 2;
+      while (existingCodici.has(newCodice)) {
+        newCodice = `${baseCodice}_copia${i}`;
+        i++;
+      }
+      const maxSort = Math.max(...ax.values.map((x) => x.sort_order), 0);
+      await createAxisValue.mutateAsync({
+        familyId: family.id,
+        axis_id: ax.id,
+        valore: newCodice,
+        label: `${v.label} (copia)`,
+        descrizione: v.descrizione,
+        is_default: false,
+        maggiorazione_tipo: v.maggiorazione_tipo,
+        maggiorazione_valore: v.maggiorazione_valore,
+        maggiorazione_acquisto: v.maggiorazione_acquisto,
+        sort_order: maxSort + 10,
+        attivo: v.attivo,
+      });
+      toast.success(`Valore "${v.label}" duplicato`);
+    } catch (err) {
+      toast.error("Errore duplicazione", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h3 className="font-medium">Assi di variazione</h3>
-        <Button
-          size="sm"
-          onClick={() => setNewAxisOpen(true)}
-          className="h-9 w-full sm:w-auto"
-        >
-          <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-          Aggiungi asse
-        </Button>
+      {/* Header: titolo + statistiche + azioni globali */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="font-medium flex items-center gap-2">
+            Assi di variazione
+            {family.axes.length > 0 ? (
+              <span className="text-xs font-normal text-muted-foreground">
+                ({family.axes.length} ass{family.axes.length === 1 ? "e" : "i"} · {stats.totValori} valori)
+              </span>
+            ) : null}
+          </h3>
+          {family.axes.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {stats.obbligatori > 0 ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  {stats.obbligatori} obbligator{stats.obbligatori === 1 ? "io" : "i"}
+                </Badge>
+              ) : null}
+              {stats.conMaggiorazione > 0 ? (
+                <Badge variant="outline" className="text-[10px]">
+                  {stats.conMaggiorazione} con maggiorazione
+                </Badge>
+              ) : null}
+              {stats.senzaDefault > 0 ? (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-destructive text-destructive"
+                  role="alert"
+                >
+                  ⚠ {stats.senzaDefault} obbligatori senza default
+                </Badge>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {family.axes.length > 0 ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={toggleExpandAll}
+              className="h-9"
+              aria-label={allExpanded ? "Chiudi tutti gli assi" : "Espandi tutti gli assi"}
+            >
+              <ChevronsUpDown className="h-4 w-4 mr-1" aria-hidden="true" />
+              {allExpanded ? "Chiudi tutto" : "Espandi tutto"}
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPresetsOpen(true)}
+            className="h-9"
+          >
+            <Sparkles className="h-4 w-4 mr-1" aria-hidden="true" />
+            Applica preset
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setNewAxisOpen(true)}
+            className="h-9"
+          >
+            <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+            Aggiungi asse
+          </Button>
+        </div>
       </div>
 
       {family.axes.length === 0 ? (
-        <Card>
-          <CardContent className="py-6 text-center text-sm text-muted-foreground">
-            Nessun asse configurato. Aggiungi il primo asse (es. "Materiale", "Apertura") per variare il prezzo.
+        <Card className="border-dashed">
+          <CardContent className="py-8 text-center space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Nessun asse configurato. Puoi partire da zero o applicare un{" "}
+              <strong className="text-foreground">preset rapido</strong> per serramenti
+              (colore, vetro, apertura, ferramenta).
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button
+                size="sm"
+                onClick={() => setPresetsOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Sparkles className="h-4 w-4 mr-1" aria-hidden="true" />
+                Applica preset serramenti
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setNewAxisOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+                Crea manualmente
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
           {family.axes.map((axis, idx) => {
-            const isExpanded = expandedAxisId === axis.id;
+            const isExpanded = expandedAxisIds.has(axis.id);
             const defaults = axis.values.filter((v) => v.is_default).length;
             return (
               <Card key={axis.id}>
@@ -161,9 +401,7 @@ export function FamilyAxesEditor({ family }: Props) {
                   <div className="flex items-start gap-1.5 sm:gap-2">
                     <button
                       type="button"
-                      onClick={() =>
-                        setExpandedAxisId(isExpanded ? null : axis.id)
-                      }
+                      onClick={() => toggleExpandOne(axis.id)}
                       className="flex-1 text-left flex items-start gap-2 min-w-0 py-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       aria-expanded={isExpanded}
                       aria-label={`${isExpanded ? "Chiudi" : "Apri"} asse ${axis.nome}`}
@@ -247,63 +485,104 @@ export function FamilyAxesEditor({ family }: Props) {
                       </p>
                     ) : (
                       <ul className="space-y-1.5">
-                        {axis.values.map((v) => (
-                          <li
-                            key={v.id}
-                            className="flex items-start gap-1.5 sm:gap-2 text-sm p-2 rounded-md border"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="font-medium break-words">{v.label}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {v.valore}
-                                </span>
-                                {v.is_default ? (
-                                  <Badge variant="secondary" className="text-[10px] sm:text-xs">
-                                    default
-                                  </Badge>
-                                ) : null}
-                                {!v.attivo ? (
-                                  <Badge variant="outline" className="text-[10px] sm:text-xs">
-                                    non attivo
-                                  </Badge>
-                                ) : null}
-                              </div>
-                              {v.maggiorazione_tipo !== "none" ? (
-                                <div className="text-xs text-muted-foreground mt-0.5 break-words">
-                                  +{v.maggiorazione_valore}
-                                  {v.maggiorazione_tipo === "percentuale" ? "%" : " €"}
-                                  {v.maggiorazione_tipo !== "percentuale"
-                                    ? ` (${v.maggiorazione_tipo.replace("fisso_", "/")})`
-                                    : " sul prezzo base"}
-                                  {v.maggiorazione_acquisto > 0 ? (
-                                    <span> · acquisto: {v.maggiorazione_acquisto}</span>
+                        {axis.values.map((v) => {
+                          const magLabel = maggiorazioneLabel(
+                            v.maggiorazione_tipo,
+                            v.maggiorazione_valore,
+                          );
+                          const magBadgeClass = maggiorazioneBadgeClass(
+                            v.maggiorazione_tipo,
+                          );
+                          return (
+                            <li
+                              key={v.id}
+                              className="flex items-start gap-1.5 sm:gap-2 text-sm p-2 rounded-md border"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="font-medium break-words">
+                                    {v.label}
+                                  </span>
+                                  <span className="text-xs font-mono text-muted-foreground">
+                                    {v.valore}
+                                  </span>
+                                  {v.is_default ? (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] sm:text-xs"
+                                    >
+                                      default
+                                    </Badge>
+                                  ) : null}
+                                  {!v.attivo ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] sm:text-xs"
+                                    >
+                                      non attivo
+                                    </Badge>
+                                  ) : null}
+                                  {magLabel ? (
+                                    <Badge
+                                      className={`text-[10px] sm:text-xs ${magBadgeClass}`}
+                                      title={
+                                        v.maggiorazione_tipo === "percentuale"
+                                          ? "Maggiorazione percentuale sul prezzo base"
+                                          : "Maggiorazione fissa additiva"
+                                      }
+                                    >
+                                      {magLabel}
+                                    </Badge>
+                                  ) : null}
+                                  {v.maggiorazione_tipo !== "none" &&
+                                  v.maggiorazione_acquisto !== 0 &&
+                                  v.maggiorazione_acquisto !==
+                                    v.maggiorazione_valore ? (
+                                    <span className="text-[10px] sm:text-xs text-muted-foreground">
+                                      (acq. {v.maggiorazione_acquisto})
+                                    </span>
                                   ) : null}
                                 </div>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center gap-0.5 shrink-0">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => setEditingValue(v)}
-                                aria-label="Modifica valore"
-                                className="h-9 w-9"
-                              >
-                                <Pencil className="h-4 w-4" aria-hidden="true" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-9 w-9 text-destructive hover:text-destructive"
-                                onClick={() => setValueToDelete(v)}
-                                aria-label="Elimina valore"
-                              >
-                                <Trash2 className="h-4 w-4" aria-hidden="true" />
-                              </Button>
-                            </div>
-                          </li>
-                        ))}
+                                {v.descrizione ? (
+                                  <p className="text-xs text-muted-foreground mt-0.5 break-words">
+                                    {v.descrizione}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => duplicateValue(axis, v)}
+                                  disabled={createAxisValue.isPending}
+                                  aria-label={`Duplica valore ${v.label}`}
+                                  title="Duplica valore"
+                                  className="h-9 w-9"
+                                >
+                                  <Copy className="h-4 w-4" aria-hidden="true" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setEditingValue(v)}
+                                  aria-label="Modifica valore"
+                                  className="h-9 w-9"
+                                >
+                                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-9 w-9 text-destructive hover:text-destructive"
+                                  onClick={() => setValueToDelete(v)}
+                                  aria-label="Elimina valore"
+                                >
+                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                </Button>
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                     <Button
@@ -328,11 +607,7 @@ export function FamilyAxesEditor({ family }: Props) {
         open={newAxisOpen || editingAxis !== null}
         axis={editingAxis}
         existingCodici={family.axes.map((a) => a.codice)}
-        nextSortOrder={
-          family.axes.length > 0
-            ? Math.max(...family.axes.map((a) => a.sort_order)) + 10
-            : 0
-        }
+        nextSortOrder={nextAxisSortOrder}
         onClose={() => {
           setNewAxisOpen(false);
           setEditingAxis(null);
@@ -545,6 +820,15 @@ export function FamilyAxesEditor({ family }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog preset assi — bootstrap rapido delle dimensioni tipiche */}
+      <AxisPresetsDialog
+        open={presetsOpen}
+        onOpenChange={setPresetsOpen}
+        existingCodici={family.axes.map((a) => a.codice)}
+        onApply={handleApplyPresets}
+        saving={bulkInsertAxesWithValues.isPending}
+      />
     </div>
   );
 }

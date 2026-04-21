@@ -392,6 +392,117 @@ export function useFamilyMutations() {
       captureVelocityError("axis_values.delete", err, { companyId }),
   });
 
+  /**
+   * Bulk insert di assi + valori da un preset. Crea tutti gli assi in una
+   * singola INSERT, poi tutti i valori in un'altra INSERT: 2 round-trip totali
+   * invece di N×(1+M) del pattern naive. Idempotenza non richiesta lato DB
+   * (il chiamante filtra i codici già presenti), ma ci proteggiamo dal caso
+   * race: errore unique → messaggio chiaro all'utente.
+   *
+   * Input: familyId + array di preset assi (con il loro sort_order già
+   * pre-calcolato dal chiamante per preservare l'ordine di presentazione).
+   */
+  type BulkAxisInput = {
+    nome: string;
+    codice: string;
+    descrizione: string | null;
+    tipo: FamilyAxis["tipo"];
+    obbligatorio: boolean;
+    sort_order: number;
+    values: Array<{
+      valore: string;
+      label: string;
+      descrizione: string | null;
+      is_default: boolean;
+      maggiorazione_tipo: AxisValue["maggiorazione_tipo"];
+      maggiorazione_valore: number;
+      maggiorazione_acquisto: number;
+      sort_order: number;
+      attivo: boolean;
+    }>;
+  };
+
+  const bulkInsertAxesWithValues = useMutation({
+    mutationFn: async (args: {
+      familyId: string;
+      axes: BulkAxisInput[];
+    }) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      if (args.axes.length === 0) return { axesCreated: 0, valuesCreated: 0 };
+
+      // Step 1: INSERT assi (tutti insieme, select id). Preserva sort_order.
+      const axisRows = args.axes.map((ax) => ({
+        family_id: args.familyId,
+        company_id: companyId,
+        nome: ax.nome,
+        codice: ax.codice,
+        descrizione: ax.descrizione,
+        tipo: ax.tipo,
+        obbligatorio: ax.obbligatorio,
+        sort_order: ax.sort_order,
+      }));
+      const { data: newAxes, error: errAx } = await supabase
+        .from("article_family_axes" as never)
+        .insert(axisRows)
+        .select("id, codice");
+      if (errAx) throw new Error(errAx.message);
+
+      // Mappa codice → id per agganciare i valori al loro asse.
+      const codiceToId = new Map<string, string>();
+      for (const a of (newAxes ?? []) as Array<{ id: string; codice: string }>) {
+        codiceToId.set(a.codice, a.id);
+      }
+
+      // Step 2: INSERT valori in bulk. Genera righe per ogni asse, ogni valore.
+      const valueRows: Array<{
+        axis_id: string;
+        company_id: string;
+        valore: string;
+        label: string;
+        descrizione: string | null;
+        is_default: boolean;
+        maggiorazione_tipo: AxisValue["maggiorazione_tipo"];
+        maggiorazione_valore: number;
+        maggiorazione_acquisto: number;
+        sort_order: number;
+        attivo: boolean;
+      }> = [];
+      for (const ax of args.axes) {
+        const axisId = codiceToId.get(ax.codice);
+        if (!axisId) continue; // dovrebbe essere impossibile
+        for (const v of ax.values) {
+          valueRows.push({
+            axis_id: axisId,
+            company_id: companyId,
+            valore: v.valore,
+            label: v.label,
+            descrizione: v.descrizione,
+            is_default: v.is_default,
+            maggiorazione_tipo: v.maggiorazione_tipo,
+            maggiorazione_valore: v.maggiorazione_valore,
+            maggiorazione_acquisto: v.maggiorazione_acquisto,
+            sort_order: v.sort_order,
+            attivo: v.attivo,
+          });
+        }
+      }
+      if (valueRows.length > 0) {
+        const { error: errVal } = await supabase
+          .from("article_family_axis_values" as never)
+          .insert(valueRows);
+        if (errVal) throw new Error(errVal.message);
+      }
+
+      return {
+        axesCreated: axisRows.length,
+        valuesCreated: valueRows.length,
+      };
+    },
+    onSuccess: (_res, args) => invalidate(args.familyId),
+    onError: (err: Error) =>
+      captureVelocityError("axes.bulkInsert", err, { companyId }),
+  });
+
   return {
     createFamily,
     updateFamily,
@@ -405,5 +516,6 @@ export function useFamilyMutations() {
     createAxisValue,
     updateAxisValue,
     deleteAxisValue,
+    bulkInsertAxesWithValues,
   };
 }
