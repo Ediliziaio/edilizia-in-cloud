@@ -308,7 +308,7 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
             className="shrink-0"
           >
             <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
-            Importa da testo
+            Importa (testo o immagine AI)
           </Button>
         </div>
       </CardHeader>

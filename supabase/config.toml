@@ -304,3 +304,6 @@ verify_jwt = false
 
 [functions.admin-mrr-data]
 verify_jwt = false
+[functions.parse-matrix-image]
+verify_jwt = false
+
