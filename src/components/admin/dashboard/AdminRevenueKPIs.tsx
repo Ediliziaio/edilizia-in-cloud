@@ -31,9 +31,9 @@ function MiniDelta({ current, previous, suffix = "" }: { current: number; previo
 export function AdminRevenueKPIs({ mrr, arr, nrr, avgLtv, previousMrr }: Props) {
   const kpis = [
     {
-      title: "MRR",
+      title: "MRR Pagante",
       value: formatCurrency(mrr),
-      description: "Monthly Recurring Revenue",
+      description: "Solo aziende con pagamento configurato",
       icon: TrendingUp,
       iconBg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
       border: "border-l-emerald-500/50",
@@ -42,7 +42,7 @@ export function AdminRevenueKPIs({ mrr, arr, nrr, avgLtv, previousMrr }: Props) 
     {
       title: "ARR",
       value: formatCurrency(arr),
-      description: "Annual Recurring Revenue",
+      description: "Proiezione annua pagante",
       icon: Target,
       iconBg: "bg-primary/10 text-primary",
       border: "border-l-primary/50",

@@ -75,6 +75,11 @@ export default function AdminDashboard() {
 
   const stats = dashboardData?.stats ?? {
     totalCompanies: 0,
+    accessActiveCompanies: 0,
+    payingCompanies: 0,
+    nonPayingActiveCompanies: 0,
+    freeActiveCompanies: 0,
+    excludedMrr: 0,
     totalOrders: 0,
     totalOrdersValue: 0,
     totalCustomers: 0,

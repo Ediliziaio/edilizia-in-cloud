@@ -21,6 +21,7 @@ export function AdminPulseBar() {
         supabase
           .from("companies")
           .select("id", { count: "exact", head: true })
+          .eq("is_platform_admin_company", false)
           .gte("created_at", todayStart),
         supabase
           .from("profiles")

@@ -244,6 +244,7 @@ export interface Company {
   // sempre; la pagina SuperAdmin le popola invece dal detail-fetch completo.
   dunning_status?: string | null;
   payment_failure_count?: number | null;
+  stripe_subscription_status?: string | null;
   trial_extensions_count?: number | null;
   last_payment_failure_at?: string | null;
 }

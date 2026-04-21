@@ -25,7 +25,10 @@ export default function AdminCSDashboard() {
     queryKey: ['admin-cs-dashboard'],
     queryFn: async () => {
       const [companiesRes, healthRes, ticketsRes] = await Promise.all([
-        supabase.from('companies').select('id,status,created_at'),
+        supabase
+          .from('companies')
+          .select('id,status,created_at')
+          .eq('is_platform_admin_company', false),
         supabase
           .from('company_health_scores' as never)
           .select('company_id,health_status,score' as never)

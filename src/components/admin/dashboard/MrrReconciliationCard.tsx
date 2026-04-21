@@ -85,14 +85,14 @@ export function MrrReconciliationCard() {
                 <p className="text-xs text-muted-foreground mb-1">MRR Stripe</p>
                 <p className="text-xl font-bold tabular-nums">{fmt.format(mrrStripe)}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {latest.aziende_attive_stripe} aziende attive
+                  {latest.aziende_attive_stripe} aziende paganti
                 </p>
               </div>
               <div className="rounded-lg border p-3">
                 <p className="text-xs text-muted-foreground mb-1">MRR Interno</p>
                 <p className="text-xl font-bold tabular-nums">{fmt.format(mrrInterno)}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {latest.aziende_attive_interno} aziende attive
+                  {latest.aziende_attive_interno} aziende paganti
                 </p>
               </div>
             </div>

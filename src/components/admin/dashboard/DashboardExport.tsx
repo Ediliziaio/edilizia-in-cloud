@@ -30,16 +30,20 @@ export function DashboardExport({ data }: { data: ExportData }) {
   const exportCSV = useCallback(() => {
     const rows = [
       ["Metrica", "Valore"],
-      ["Aziende Attive", String(data.stats.totalCompanies)],
+      ["Aziende Totali", String(data.stats.totalCompanies)],
+      ["Accessi Attivi", String(data.stats.accessActiveCompanies)],
+      ["Aziende Paganti", String(data.stats.payingCompanies)],
+      ["Accessi Non Paganti", String(data.stats.nonPayingActiveCompanies + data.stats.freeActiveCompanies)],
+      ["MRR Escluso Non Pagante", formatCurrency(data.stats.excludedMrr)],
       ["Ordini Totali", String(data.stats.totalOrders)],
       ["Valore Ordini", formatCurrency(data.stats.totalOrdersValue)],
       ["Clienti Totali", String(data.stats.totalCustomers)],
       ["Ticket Aperti", String(data.stats.openSupportConversations)],
-      ["MRR", formatCurrency(data.mrrStats.mrr)],
+      ["MRR Pagante", formatCurrency(data.mrrStats.mrr)],
       ["Trial Attivi", String(data.mrrStats.trialCount)],
       ["Trial In Scadenza", String(data.mrrStats.trialExpiringSoon)],
       ["Churn Rate", `${data.mrrStats.churnRate}%`],
-      ["Aziende Attive (plan)", String(data.mrrStats.activeCount)],
+      ["Aziende Paganti (plan)", String(data.mrrStats.activeCount)],
       ["Aziende Scadute", String(data.mrrStats.expiredCount)],
     ];
 
@@ -70,18 +74,22 @@ export function DashboardExport({ data }: { data: ExportData }) {
         ["Dashboard Admin — Report", "", format(new Date(), "dd MMMM yyyy", { locale: it })],
         [],
         ["METRICHE PRINCIPALI"],
-        ["Aziende Attive", data.stats.totalCompanies],
+        ["Aziende Totali", data.stats.totalCompanies],
+        ["Accessi Attivi", data.stats.accessActiveCompanies],
+        ["Aziende Paganti", data.stats.payingCompanies],
+        ["Accessi Non Paganti", data.stats.nonPayingActiveCompanies + data.stats.freeActiveCompanies],
+        ["MRR Escluso Non Pagante (€)", data.stats.excludedMrr],
         ["Ordini Totali", data.stats.totalOrders],
         ["Valore Ordini (€)", data.stats.totalOrdersValue],
         ["Clienti Totali", data.stats.totalCustomers],
         ["Ticket Aperti", data.stats.openSupportConversations],
         [],
         ["METRICHE REVENUE"],
-        ["MRR (€)", data.mrrStats.mrr],
+        ["MRR Pagante (€)", data.mrrStats.mrr],
         ["Trial Attivi", data.mrrStats.trialCount],
         ["Trial In Scadenza", data.mrrStats.trialExpiringSoon],
         ["Churn Rate (%)", data.mrrStats.churnRate],
-        ["Aziende Attive", data.mrrStats.activeCount],
+        ["Aziende Paganti", data.mrrStats.activeCount],
         ["Aziende Scadute", data.mrrStats.expiredCount],
       ];
 
@@ -141,4 +149,3 @@ export function DashboardExport({ data }: { data: ExportData }) {
     </DropdownMenu>
   );
 }
-

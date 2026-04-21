@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building, Users, ClipboardList, MessageSquare, TrendingUp, TrendingDown, Minus, Activity, CalendarDays, Zap } from "lucide-react";
+import { Building, Users, ClipboardList, MessageSquare, TrendingUp, TrendingDown, Minus, Activity, CalendarDays, Zap, Gift } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { AdminDashboardStats } from "@/hooks/useAdminDashboardData";
 
@@ -42,14 +42,24 @@ export function AdminStatCards({ stats, previousStats }: Props) {
 
   const statCards = [
     {
-      title: "Aziende Attive",
-      value: stats.totalCompanies,
-      delta: getDelta(stats.totalCompanies, previousStats?.totalCompanies),
+      title: "Aziende Paganti",
+      value: stats.payingCompanies,
+      delta: getDelta(stats.payingCompanies, previousStats?.payingCompanies),
       icon: Building,
-      description: "Registrate sulla piattaforma",
+      description: `${stats.accessActiveCompanies} accessi attivi · ${stats.totalCompanies} aziende`,
       href: "/admin/aziende",
       accent: "from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10",
       iconBg: "bg-primary/10 text-primary",
+    },
+    {
+      title: "Accessi Non Paganti",
+      value: stats.nonPayingActiveCompanies + stats.freeActiveCompanies,
+      delta: null,
+      icon: Gift,
+      description: `${formatCurrency(stats.excludedMrr)} MRR escluso`,
+      href: "/admin/aziende?noPayment=1",
+      accent: "from-orange-500/10 to-orange-500/5 dark:from-orange-500/20 dark:to-orange-500/10",
+      iconBg: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
     },
     {
       title: "Ordini Totali",
@@ -110,7 +120,7 @@ export function AdminStatCards({ stats, previousStats }: Props) {
       value: `${stats.engagementRate ?? 0}%`,
       delta: null,
       icon: Zap,
-      description: "DAC / aziende attive",
+      description: "DAC / accessi attivi",
       href: "/admin/aziende",
       accent: "from-amber-500/10 to-amber-500/5 dark:from-amber-500/20 dark:to-amber-500/10",
       iconBg: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -118,7 +128,7 @@ export function AdminStatCards({ stats, previousStats }: Props) {
   ];
 
   return (
-    <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+    <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
       {statCards.map((stat) => (
         <Card
           key={stat.title}

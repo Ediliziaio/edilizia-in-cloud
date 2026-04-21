@@ -29,7 +29,7 @@ interface CompanyExpandedRowProps {
   orderStats?: { count: number; totalValue: number; lastOrderDate: string | null };
   healthData?: { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean };
   planLimits?: { max_orders: number | null; max_users: number | null };
-  planInfo?: { name: string; price_monthly: number };
+  planInfo?: { name: string; price_monthly: number; monthly_revenue?: number; counts_as_revenue?: boolean };
   latestNote?: { content: string; created_at: string; authorName: string };
   tags: Array<{ id: string; tag: string; color: string }>;
 }
@@ -123,9 +123,13 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
         <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
           <div className="rounded-md bg-primary/10 p-2"><TrendingUp className="h-4 w-4 text-primary" /></div>
           <div>
-            <p className="text-xs text-muted-foreground">MRR</p>
+            <p className="text-xs text-muted-foreground">MRR pagante</p>
             <p className="text-sm font-semibold">
-              {planInfo ? formatCurrency(planInfo.price_monthly) + "/mese" : <span className="text-muted-foreground font-normal">Nessun piano</span>}
+              {planInfo ? (
+                planInfo.counts_as_revenue
+                  ? formatCurrency(planInfo.monthly_revenue ?? planInfo.price_monthly) + "/mese"
+                  : <span className="text-muted-foreground font-normal">Escluso</span>
+              ) : <span className="text-muted-foreground font-normal">Nessun piano</span>}
             </p>
             {planInfo && <p className="text-xs text-muted-foreground">{planInfo.name}</p>}
           </div>

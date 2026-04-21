@@ -4,6 +4,11 @@ import { queryKeys } from "@/lib/queryKeys";
 import { subMonths, format, startOfMonth, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import type { CompanyHealthData } from "@/types/adminRpc";
+import {
+  getAdminRevenueBreakdown,
+  getCompanyMonthlyRevenue,
+  isRevenueEligibleCompany,
+} from "@/lib/adminRevenue";
 
 export type HealthStatus = "healthy" | "at_risk" | "critical";
 
@@ -146,8 +151,9 @@ export function useAdminRevenueData() {
       const [companiesRes, healthRes, subscriptionLogsRes, plansRes] = await Promise.all([
         supabase
           .from("companies")
-          .select("id, name, sector, status, created_at, trial_ends_at, subscription_plan_id, trial_extensions_count, subscription_plans:subscription_plan_id(name, price_monthly, max_orders, max_users)")
-          .limit(1000),
+          .select("id, name, sector, status, created_at, trial_ends_at, subscription_plan_id, trial_extensions_count, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plans:subscription_plan_id(name, price_monthly, price_yearly, max_orders, max_users)")
+          .eq("is_platform_admin_company", false)
+          .limit(5000),
         supabase.rpc("get_company_health_data"),
         supabase
           .from("subscription_logs")
@@ -200,12 +206,14 @@ export function useAdminRevenueData() {
         critical: healthScores.filter((h) => h.health === "critical").length,
       };
 
-      const priceOf = (c: typeof companies[number]) => (c.subscription_plans as { price_monthly: number } | null)?.price_monthly || 0;
+      const priceOf = (c: typeof companies[number]) => getCompanyMonthlyRevenue(c);
+      const revenueBreakdown = getAdminRevenueBreakdown(companies);
+      const payingCompanies = companies.filter(isRevenueEligibleCompany);
 
       // ---- REVENUE BY SECTOR ----
       const sectorMap = new Map<string, { mrr: number; count: number }>();
       companies
-        .filter((c) => c.status === "active")
+        .filter(isRevenueEligibleCompany)
         .forEach((c) => {
           const price = priceOf(c);
           const existing = sectorMap.get(c.sector) || { mrr: 0, count: 0 };
@@ -225,91 +233,62 @@ export function useAdminRevenueData() {
         .sort((a, b) => b.mrr - a.mrr);
 
       // ---- MRR & ARR & NRR ----
-      const activeCompanies = companies.filter((c) => c.status === "active");
-      const currentMrr = activeCompanies.reduce((sum, c) => sum + priceOf(c), 0);
+      const currentMrr = revenueBreakdown.mrr;
 
       const arr = currentMrr * 12;
 
       // NRR approximation: (current MRR from companies that existed 6mo ago) / (MRR 6mo ago)
       const sixMonthsAgo = subMonths(new Date(), 6);
-      const companiesExistingSixMonths = activeCompanies.filter(
+      const companiesExistingSixMonths = payingCompanies.filter(
         (c) => new Date(c.created_at) <= sixMonthsAgo
       );
       const currentMrrFromExisting = companiesExistingSixMonths.reduce((sum, c) => sum + priceOf(c), 0);
 
       // Estimate MRR 6mo ago from all companies that were active at that time
       const allExistingSixMonths = companies.filter(
-        (c) => new Date(c.created_at) <= sixMonthsAgo
+        (c) => new Date(c.created_at) <= sixMonthsAgo && isRevenueEligibleCompany(c)
       );
-      const mrrSixMonthsAgo = allExistingSixMonths.reduce((sum, c) => {
-        if (c.status === "active" || c.status === "expired") {
-          return sum + priceOf(c);
-        }
-        return sum;
-      }, 0);
+      const mrrSixMonthsAgo = allExistingSixMonths.reduce((sum, c) => sum + priceOf(c), 0);
 
       const nrr = mrrSixMonthsAgo > 0
         ? Math.round((currentMrrFromExisting / mrrSixMonthsAgo) * 100)
         : 100;
 
-      // ---- MRR MOVEMENTS (last 6 months) — use RPC for real data ----
-      let mrrMovements: MrrMovement[] = [];
-      try {
-        const { data: mrrMovData } = await supabase
-          .rpc("get_mrr_movements_monthly", { p_months: 6 });
+      // ---- MRR MOVEMENTS (last 6 months)
+      // Legacy RPC movements read plan-change logs and can include gifted access.
+      // Keep this widget tied to the same paid-revenue predicate used by MRR.
+      const mrrMovements: MrrMovement[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = subMonths(now, i);
+        const mStart = startOfMonth(monthDate);
+        const mEnd = endOfMonth(monthDate);
 
-        if (mrrMovData && mrrMovData.length > 0) {
-          mrrMovements = (mrrMovData as any[]).map((row) => ({
-            month:          String(row.month),
-            newMrr:         Number(row.new_mrr)         / 100,
-            expansionMrr:   Number(row.expansion_mrr)   / 100,
-            contractionMrr: Number(row.contraction_mrr) / 100,
-            churnMrr:       Number(row.churn_mrr)       / 100,
-            netNew: (
-              Number(row.new_mrr) + Number(row.expansion_mrr) -
-              Number(row.contraction_mrr) - Number(row.churn_mrr)
-            ) / 100,
-          }));
-        }
-      } catch (rpcErr) {
-        console.warn("get_mrr_movements_monthly RPC failed, falling back to client calc", rpcErr);
-      }
+        const newThisMonth = companies.filter((c) => {
+          const created = new Date(c.created_at);
+          return created >= mStart && created <= mEnd && isRevenueEligibleCompany(c);
+        });
+        const newMrr = newThisMonth.reduce((s, c) => s + priceOf(c), 0);
 
-      // Fallback: client-side calculation if RPC returned nothing
-      if (mrrMovements.length === 0) {
-        for (let i = 5; i >= 0; i--) {
-          const monthDate = subMonths(now, i);
-          const mStart = startOfMonth(monthDate);
-          const mEnd = endOfMonth(monthDate);
+        const churnedThisMonth = companies.filter((c) => {
+          if (c.status !== "expired") return false;
+          if (!c.trial_ends_at) return false;
+          const churnDate = new Date(c.trial_ends_at);
+          return churnDate >= mStart && churnDate <= mEnd;
+        });
+        const churnMrr = churnedThisMonth.reduce((s, c) => s + priceOf(c), 0);
 
-          const newThisMonth = companies.filter((c) => {
-            const created = new Date(c.created_at);
-            return created >= mStart && created <= mEnd && c.status === "active";
-          });
-          const newMrr = newThisMonth.reduce((s, c) => s + priceOf(c), 0);
+        // Without a paid subscription event ledger these remain 0 intentionally.
+        const expansionMrr = 0;
+        const contractionMrr = 0;
 
-          const churnedThisMonth = companies.filter((c) => {
-            if (c.status !== "expired") return false;
-            if (!c.trial_ends_at) return false;
-            const churnDate = new Date(c.trial_ends_at);
-            return churnDate >= mStart && churnDate <= mEnd;
-          });
-          const churnMrr = churnedThisMonth.reduce((s, c) => s + priceOf(c), 0);
-
-          // Fallback: estimate expansion/contraction from plan changes
-          // (without previous_plan_id data these remain 0, which is expected)
-          const expansionMrr = 0;
-          const contractionMrr = 0;
-
-          mrrMovements.push({
-            month: format(monthDate, "MMM yy", { locale: it }),
-            newMrr,
-            expansionMrr,
-            contractionMrr,
-            churnMrr,
-            netNew: newMrr + expansionMrr - contractionMrr - churnMrr,
-          });
-        }
+        mrrMovements.push({
+          month: format(monthDate, "MMM yy", { locale: it }),
+          newMrr,
+          expansionMrr,
+          contractionMrr,
+          churnMrr,
+          netNew: newMrr + expansionMrr - contractionMrr - churnMrr,
+        });
       }
 
       // ---- TRIAL INTELLIGENCE ----
@@ -346,7 +325,7 @@ export function useAdminRevenueData() {
       }).length;
 
       // Time to first order for converted companies
-      const convertedWithOrders = activeCompanies
+      const convertedWithOrders = payingCompanies
         .map((c) => {
           const hd = healthDataMap.get(c.id);
           if (!hd?.last_order_date) return null;
@@ -364,7 +343,7 @@ export function useAdminRevenueData() {
       const totalTrialPool = allTrialAndConverted.length;
       const conversionRate =
         totalTrialPool > 0
-          ? Math.round((activeCompanies.length / totalTrialPool) * 100)
+          ? Math.round((payingCompanies.length / totalTrialPool) * 100)
           : 0;
 
       // ---- CONVERSION TREND (last 6 months) ----
@@ -381,7 +360,7 @@ export function useAdminRevenueData() {
 
         const converted = companies.filter((c) => {
           const created = new Date(c.created_at);
-          return created >= mStart && created <= mEnd && c.status === "active";
+          return created >= mStart && created <= mEnd && isRevenueEligibleCompany(c);
         }).length;
 
         const expired = companies.filter((c) => {
@@ -441,7 +420,7 @@ export function useAdminRevenueData() {
       const expiredCount = companies.filter((c) => c.status === "expired").length;
       const avgLtv =
         expiredCount > 0 && currentMrr > 0
-          ? Math.round((currentMrr * activeCompanies.length) / (activeCompanies.length + expiredCount) * 12)
+          ? Math.round((currentMrr * payingCompanies.length) / (payingCompanies.length + expiredCount) * 12)
           : arr;
 
       // ---- COHORT ANALYSIS (last 12 months) ----
@@ -513,7 +492,7 @@ export function useAdminRevenueData() {
 
       // ---- UPSELL ALERTS ----
       const upsellAlerts: UpsellAlert[] = [];
-      for (const c of activeCompanies) {
+      for (const c of payingCompanies) {
         const plan = c.subscription_plans as { name: string; price_monthly: number; max_orders: number; max_users: number } | null;
         if (!plan) continue;
         const hd = healthDataMap.get(c.id);

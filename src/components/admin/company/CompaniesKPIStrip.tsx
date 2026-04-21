@@ -1,29 +1,26 @@
 import { Building2, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/formatters";
+import { getAdminRevenueBreakdown } from "@/lib/adminRevenue";
 
 interface KPIStripProps {
   companies: Array<{
     id: string;
     status: string;
-    subscription_plans: { price_monthly: number } | null;
+    payment_method?: string | null;
+    stripe_customer_id?: string | null;
+    stripe_subscription_status?: string | null;
+    is_platform_admin_company?: boolean | null;
+    subscription_plans: { price_monthly: number; price_yearly?: number | null } | null;
   }>;
   healthData: Record<string, { score: number; health: string }>;
 }
 
 export function CompaniesKPIStrip({ companies, healthData }: KPIStripProps) {
-  const activeCount = companies.filter((c) => c.status === "active").length;
-  const totalMRR = companies.reduce((sum, c) => {
-    if (c.status === "active" && c.subscription_plans?.price_monthly) {
-      return sum + c.subscription_plans.price_monthly;
-    }
-    return sum;
-  }, 0);
-
-  const trialConvertible = companies.filter((c) =>
-    ["active", "trial", "expired"].includes(c.status)
-  ).length;
-  const conversionRate = trialConvertible > 0 ? Math.round((activeCount / trialConvertible) * 100) : 0;
+  const revenue = getAdminRevenueBreakdown(companies);
+  const activeCount = revenue.accessActiveCompanies;
+  const payingCount = revenue.payingCompanies;
+  const totalMRR = revenue.mrr;
 
   const atRiskCount = companies.filter((c) => {
     const h = healthData[c.id];
@@ -32,25 +29,25 @@ export function CompaniesKPIStrip({ companies, healthData }: KPIStripProps) {
 
   const kpis = [
     {
-      label: "Aziende Attive",
+      label: "Accessi Attivi",
       value: activeCount.toString(),
       icon: Building2,
       accent: "text-primary",
       bg: "bg-primary/10",
     },
     {
-      label: "MRR Totale",
+      label: "Aziende Paganti",
+      value: payingCount.toString(),
+      icon: TrendingUp,
+      accent: "text-blue-600",
+      bg: "bg-blue-500/10",
+    },
+    {
+      label: "MRR Pagante",
       value: formatCurrency(totalMRR),
       icon: DollarSign,
       accent: "text-emerald-600",
       bg: "bg-emerald-500/10",
-    },
-    {
-      label: "Conversione Trial",
-      value: `${conversionRate}%`,
-      icon: TrendingUp,
-      accent: "text-blue-600",
-      bg: "bg-blue-500/10",
     },
     {
       label: "A Rischio",

@@ -28,11 +28,11 @@ function AdminMrrChartImpl({ data, currentMrr }: Props) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-emerald-600" />
-            <CardTitle className="text-base">MRR Trend</CardTitle>
+            <CardTitle className="text-base">MRR Pagante Trend</CardTitle>
           </div>
           <div className="flex items-center gap-4 text-sm">
             <div>
-              <span className="text-muted-foreground">MRR: </span>
+              <span className="text-muted-foreground">MRR pagante: </span>
               <span className="font-semibold">{formatCurrency(currentMrr)}</span>
             </div>
             <div>
@@ -56,7 +56,7 @@ function AdminMrrChartImpl({ data, currentMrr }: Props) {
               <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
               <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} tickFormatter={formatCurrencyCompact} />
               <Tooltip
-                formatter={(value: number) => [formatCurrency(value), "MRR"]}
+                formatter={(value: number) => [formatCurrency(value), "MRR pagante"]}
                 contentStyle={{
                   backgroundColor: "hsl(var(--card))",
                   border: "1px solid hsl(var(--border))",

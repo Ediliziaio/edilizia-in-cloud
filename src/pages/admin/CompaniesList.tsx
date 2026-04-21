@@ -37,6 +37,7 @@ import { CompanyFilterPresets, type FilterPreset } from "@/components/admin/comp
 import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFilters";
 import { CompanySegmentFilters } from "@/components/admin/company/CompanySegmentFilters";
 import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
+import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
@@ -95,7 +96,7 @@ const PAGE_SIZE = 25;
 const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "sector", label: "Settore" },
   { key: "plan", label: "Piano" },
-  { key: "mrr", label: "MRR" },
+  { key: "mrr", label: "MRR pagante" },
   { key: "users", label: "Utenti" },
   { key: "orders", label: "Ordini" },
   { key: "lastAccess", label: "Ultimo Accesso" },
@@ -268,7 +269,7 @@ export default function CompaniesList() {
       let query = supabase
         .from("companies")
         .select(
-          "id, name, email, status, sector, logo_url, payment_method, trial_ends_at, created_at, stripe_customer_id, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, max_orders, max_users)",
+          "id, name, email, status, sector, logo_url, payment_method, trial_ends_at, created_at, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, price_yearly, max_orders, max_users)",
           { count: "exact" }
         )
         .eq("is_platform_admin_company", false);
@@ -507,7 +508,7 @@ export default function CompaniesList() {
     queryFn: async () => {
       let q = supabase
         .from("companies")
-        .select("id, status, trial_ends_at, payment_method, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly)")
+        .select("id, status, trial_ends_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly, price_yearly)")
         .eq("is_platform_admin_company", false);
       if (permissions.allowed_company_ids?.length) {
         q = q.in("id", permissions.allowed_company_ids);
@@ -542,7 +543,11 @@ export default function CompaniesList() {
       const planB = b.subscription_plans as { id: string; name: string; price_monthly: number } | null;
       switch (sortKey) {
         case "plan": return dir * (planA?.name || "").localeCompare(planB?.name || "");
-        case "mrr": return dir * ((planA?.price_monthly || 0) - (planB?.price_monthly || 0));
+        case "mrr":
+          return dir * (
+            (isRevenueEligibleCompany(a) ? getCompanyMonthlyRevenue(a) : 0) -
+            (isRevenueEligibleCompany(b) ? getCompanyMonthlyRevenue(b) : 0)
+          );
         case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
         case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
         case "lastAccess": {
@@ -576,8 +581,7 @@ export default function CompaniesList() {
     ).length;
 
     const noPayment = allCompaniesSummary.filter((c) =>
-      (c.status === "active" || c.status === "trial") &&
-      (!c.payment_method || c.payment_method === "none" || c.payment_method === "")
+      (c.status === "active" || c.status === "trial") && !isRevenueEligibleCompany(c)
     ).length;
 
     const inactive = allCompaniesSummary.filter((c) => {
@@ -1097,7 +1101,7 @@ export default function CompaniesList() {
                   </TableHead>
                   {col("sector") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("sector")}><span className="inline-flex items-center">Settore<SortIcon col="sector" /></span></TableHead>}
                   {col("plan") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("plan")}><span className="inline-flex items-center">Piano<SortIcon col="plan" /></span></TableHead>}
-                  {col("mrr") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("mrr")}><span className="inline-flex items-center">MRR<SortIcon col="mrr" /></span></TableHead>}
+                  {col("mrr") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("mrr")}><span className="inline-flex items-center">MRR pagante<SortIcon col="mrr" /></span></TableHead>}
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>
                     <span className="inline-flex items-center">Stato<SortIcon col="status" /></span>
                   </TableHead>
@@ -1114,7 +1118,9 @@ export default function CompaniesList() {
                 {pagedCompanies.map((company) => {
                   const status = (company.status || "trial") as CompanyStatus;
                   const cfg = statusConfig[status] || statusConfig.trial;
-                  const plan = company.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+                  const plan = company.subscription_plans as { id: string; name: string; price_monthly: number; price_yearly?: number | null } | null;
+                  const monthlyRevenue = getCompanyMonthlyRevenue(company);
+                  const countsAsRevenue = isRevenueEligibleCompany(company);
                   const isExpanded = expandedId === company.id;
                   
 
@@ -1149,7 +1155,24 @@ export default function CompaniesList() {
                         </TableCell>
                         {col("sector") && <TableCell><Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge></TableCell>}
                         {col("plan") && <TableCell>{plan ? <Badge variant="outline">{plan.name}</Badge> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>}
-                        {col("mrr") && <TableCell>{plan ? <span className="text-sm font-medium">{formatCurrency(plan.price_monthly)}</span> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>}
+                        {col("mrr") && (
+                          <TableCell>
+                            {plan ? (
+                              <div className="flex flex-col gap-1">
+                                <span className={`text-sm font-medium ${countsAsRevenue ? "" : "text-muted-foreground"}`}>
+                                  {countsAsRevenue ? formatCurrency(monthlyRevenue) : "Escluso"}
+                                </span>
+                                {!countsAsRevenue && monthlyRevenue > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    Piano {formatCurrency(monthlyRevenue)}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        )}
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select
                             value={status}
@@ -1207,7 +1230,12 @@ export default function CompaniesList() {
                                 orderStats={orderStats[company.id]}
                                 healthData={healthData[company.id]}
                                 planLimits={expandedPlan ? { max_orders: expandedPlan.max_orders, max_users: expandedPlan.max_users } : undefined}
-                                planInfo={expandedPlan ? { name: expandedPlan.name, price_monthly: expandedPlan.price_monthly } : undefined}
+                                planInfo={expandedPlan ? {
+                                  name: expandedPlan.name,
+                                  price_monthly: expandedPlan.price_monthly,
+                                  monthly_revenue: monthlyRevenue,
+                                  counts_as_revenue: countsAsRevenue,
+                                } : undefined}
                                 latestNote={latestNotes[company.id]}
                                 tags={companyTags[company.id] || []}
                               />

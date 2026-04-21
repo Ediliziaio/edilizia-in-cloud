@@ -26,7 +26,7 @@ function AdminRevenueBySectorImpl({ data }: Props) {
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <PieChart className="h-5 w-5 text-primary" />
-          <CardTitle className="text-base">Revenue per Settore</CardTitle>
+          <CardTitle className="text-base">Revenue Pagante per Settore</CardTitle>
         </div>
       </CardHeader>
       <CardContent>
@@ -45,7 +45,7 @@ function AdminRevenueBySectorImpl({ data }: Props) {
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
               />
               <Tooltip
-                formatter={(value: number) => [formatCurrency(value), "MRR"]}
+                formatter={(value: number) => [formatCurrency(value), "MRR pagante"]}
                 contentStyle={{
                   backgroundColor: "hsl(var(--card))",
                   border: "1px solid hsl(var(--border))",

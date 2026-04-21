@@ -3,6 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { addDays, subMonths, format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { TotalOrdersValue } from "@/types/adminRpc";
+import {
+  getAdminRevenueBreakdown,
+  getCompanyMonthlyRevenue,
+  isRevenueEligibleCompany,
+} from "@/lib/adminRevenue";
 
 interface RecentActivity {
   id: string;
@@ -23,6 +28,11 @@ interface RecentCompany {
 
 export interface AdminDashboardStats {
   totalCompanies: number;
+  accessActiveCompanies: number;
+  payingCompanies: number;
+  nonPayingActiveCompanies: number;
+  freeActiveCompanies: number;
+  excludedMrr: number;
   totalOrders: number;
   totalOrdersValue: number;
   totalCustomers: number;
@@ -65,7 +75,10 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
   // dashboard. Usiamo allSettled e degradiamo gracefully su ogni query che
   // fallisce (rendiamo la sezione vuota invece di buttare giù tutto).
   const settled = await Promise.allSettled([
-    supabase.from("companies").select("id", { count: "exact", head: true }),
+    supabase
+      .from("companies")
+      .select("id", { count: "exact", head: true })
+      .eq("is_platform_admin_company", false),
     supabase.rpc("get_total_orders_value"),
     supabase
       .from("user_roles")
@@ -78,6 +91,7 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
     supabase
       .from("companies")
       .select("id, name, email, sector, logo_url, created_at")
+      .eq("is_platform_admin_company", false)
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
@@ -93,9 +107,10 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
     supabase
       .from("companies")
       .select(
-        "id, status, trial_ends_at, subscription_plan_id, created_at, subscription_plans:subscription_plan_id(price_monthly)"
+        "id, status, trial_ends_at, subscription_plan_id, created_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plans:subscription_plan_id(price_monthly, price_yearly)"
       )
-      .limit(500),
+      .eq("is_platform_admin_company", false)
+      .limit(5000),
     supabase
       .from("audit_log")
       .select("company_id", { count: "exact", head: false })
@@ -145,6 +160,8 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
   const activeCompanies = allCompanies.filter((c) => c.status === "active");
   const trialCompanies = allCompanies.filter((c) => c.status === "trial");
   const expiredCompanies = allCompanies.filter((c) => c.status === "expired");
+  const revenueBreakdown = getAdminRevenueBreakdown(allCompanies);
+  const payingCompanies = allCompanies.filter(isRevenueEligibleCompany);
 
   const dacRows = dacRes.data ?? [];
   const wacRows = wacRes.data ?? [];
@@ -161,10 +178,7 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
       ? Math.round((dac / activeCompanies.length) * 100)
       : 0;
 
-  const mrr = activeCompanies.reduce((sum, c) => {
-    const plan = c.subscription_plans as { price_monthly: number } | null;
-    return sum + (plan?.price_monthly || 0);
-  }, 0);
+  const mrr = revenueBreakdown.mrr;
 
   const now = new Date();
   const threeDaysFromNow = addDays(now, 3);
@@ -174,7 +188,7 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
     return end <= threeDaysFromNow && end >= now;
   }).length;
 
-  const totalActive = activeCompanies.length;
+  const totalActive = payingCompanies.length;
   const churnRate =
     totalActive > 0
       ? (expiredCompanies.length / (totalActive + expiredCompanies.length)) * 100
@@ -191,13 +205,14 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
     const monthMrr = allCompanies.reduce((sum, c) => {
       const created = new Date(c.created_at);
       if (created > monthEnd) return sum;
-      const plan = c.subscription_plans as { price_monthly: number } | null;
-      const price = plan?.price_monthly || 0;
+      const price = getCompanyMonthlyRevenue(c);
       if (price === 0) return sum;
-      if (c.status === "active") return sum + price;
+      if (c.status === "active" && isRevenueEligibleCompany(c)) return sum + price;
       if (c.status === "expired" || c.status === "trial") {
         const trialEnd = c.trial_ends_at ? new Date(c.trial_ends_at) : null;
-        if (!trialEnd || trialEnd > monthEnd) return sum + price;
+        if (!trialEnd || trialEnd > monthEnd) {
+          return isRevenueEligibleCompany(c) ? sum + price : sum;
+        }
       }
       return sum;
     }, 0);
@@ -246,6 +261,11 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
   return {
     stats: {
       totalCompanies: companiesRes.count || 0,
+      accessActiveCompanies: revenueBreakdown.accessActiveCompanies,
+      payingCompanies: revenueBreakdown.payingCompanies,
+      nonPayingActiveCompanies: revenueBreakdown.nonPayingActiveCompanies,
+      freeActiveCompanies: revenueBreakdown.freeActiveCompanies,
+      excludedMrr: revenueBreakdown.excludedMrr,
       totalOrders,
       totalOrdersValue: totalValue,
       totalCustomers: customersRes.count || 0,
@@ -259,7 +279,7 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
       trialCount: trialCompanies.length,
       trialExpiringSoon,
       churnRate: Math.round(churnRate * 10) / 10,
-      activeCount: activeCompanies.length,
+      activeCount: revenueBreakdown.payingCompanies,
       expiredCount: expiredCompanies.length,
     },
     mrrChartData,
@@ -338,7 +358,14 @@ export function useAdminDashboardData() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "subscriptions" },
+        { event: "*", schema: "public", table: "company_subscriptions" },
+        () => {
+          doFetch(false);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "subscription_plans" },
         () => {
           doFetch(false);
         }

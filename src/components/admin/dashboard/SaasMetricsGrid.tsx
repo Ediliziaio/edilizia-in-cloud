@@ -89,7 +89,7 @@ export function SaasMetricsGrid() {
             value={fmtEur.format(metrics.arpu)}
             icon={DollarSign}
             color="text-blue-500"
-            tooltip={`ARPU (Average Revenue Per User): ${fmtEur.format(metrics.mrrStripe)} MRR Stripe ÷ ${metrics.activeCompanies} aziende attive`}
+            tooltip={`ARPU (Average Revenue Per User): ${fmtEur.format(metrics.mrrStripe)} MRR Stripe ÷ ${metrics.activeCompanies} aziende paganti`}
           />
           <MetricCard
             label="Churn Rate"

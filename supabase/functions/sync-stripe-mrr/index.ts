@@ -61,6 +61,72 @@ function calcMrrCents(sub: StripeSubscription): number {
   }, 0);
 }
 
+type InternalCompany = {
+  id: string;
+  name: string | null;
+  status: string | null;
+  payment_method: string | null;
+  stripe_subscription_status: string | null;
+  subscription_plans: {
+    price_monthly: number | null;
+    price_yearly: number | null;
+  } | null;
+  company_subscriptions?: Array<{
+    status: string | null;
+    stripe_subscription_id: string | null;
+    billing_period: string | null;
+  }> | null;
+};
+
+const NON_PAYING_METHODS = new Set([
+  "",
+  "none",
+  "free",
+  "trial",
+  "gift",
+  "gifted",
+  "gratis",
+  "omaggio",
+  "manual_free",
+  "complimentary",
+  "comp",
+]);
+
+function norm(value: string | null | undefined): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function companyMrrCents(company: InternalCompany): number {
+  const plan = company.subscription_plans;
+  if (!plan) return 0;
+  const sub =
+    company.company_subscriptions?.find((s) => norm(s.status) === "active") ??
+    company.company_subscriptions?.[0] ??
+    null;
+  const monthly = Number(plan.price_monthly ?? 0);
+  if (norm(sub?.billing_period) === "yearly") {
+    const yearly = Number(plan.price_yearly ?? 0);
+    return Math.round((yearly > 0 ? yearly / 12 : monthly) * 100);
+  }
+  return Math.round(monthly * 100);
+}
+
+function countsAsPaidRevenue(company: InternalCompany): boolean {
+  if (company.status !== "active") return false;
+  if (companyMrrCents(company) <= 0) return false;
+
+  const stripeStatus = norm(company.stripe_subscription_status);
+  const hasActiveStripeSub =
+    company.company_subscriptions?.some(
+      (sub) => norm(sub.status) === "active" && !!sub.stripe_subscription_id
+    ) ?? false;
+  if (stripeStatus === "active" || hasActiveStripeSub) return true;
+  if (["canceled", "cancelled", "unpaid", "past_due"].includes(stripeStatus)) return false;
+
+  const paymentMethod = norm(company.payment_method);
+  return !!paymentMethod && !NON_PAYING_METHODS.has(paymentMethod) && paymentMethod !== "stripe";
+}
+
 Deno.serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -82,19 +148,18 @@ Deno.serve(async (req: Request) => {
     const mrrStripe = subscriptions.reduce((s, sub) => s + calcMrrCents(sub), 0);
     const aziendeAttivaStripe = subscriptions.length;
 
-    // Calcola MRR interno da companies con piano attivo
-    const { data: pianiAttivi } = await supabase
+    // Calcola MRR interno pagante: accessi demo/regalati restano utilizzabili,
+    // ma non devono entrare in MRR, ARR o riconciliazione revenue.
+    const { data: companies } = await supabase
       .from("companies")
-      .select("subscription_plans:subscription_plan_id(price_monthly)")
+      .select("id, name, status, payment_method, stripe_subscription_status, subscription_plans:subscription_plan_id(price_monthly, price_yearly), company_subscriptions(status, stripe_subscription_id, billing_period)")
       .eq("status", "active")
       .eq("is_platform_admin_company", false);
 
-    const mrrInterno = (pianiAttivi ?? []).reduce((s, c) => {
-      const plan = c.subscription_plans as { price_monthly: number } | null;
-      return s + (plan ? Math.round(plan.price_monthly * 100) : 0);
-    }, 0);
+    const paidCompanies = ((companies ?? []) as InternalCompany[]).filter(countsAsPaidRevenue);
+    const mrrInterno = paidCompanies.reduce((s, c) => s + companyMrrCents(c), 0);
 
-    const aziendeAttivaInterno = pianiAttivi?.length ?? 0;
+    const aziendeAttivaInterno = paidCompanies.length;
 
     // Breakdown per piano (Stripe metadata.plan_name)
     const breakdownPerPiano: Record<string, number> = {};

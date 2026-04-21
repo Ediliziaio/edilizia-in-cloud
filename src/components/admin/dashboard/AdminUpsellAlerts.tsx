@@ -7,6 +7,7 @@ import { ArrowRight, AlertTriangle, ClipboardList, Users, Flame } from "lucide-r
 import type { UpsellAlert } from "@/hooks/useAdminRevenueData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
 
 interface ChurnRisk {
   company_id: string;
@@ -29,7 +30,7 @@ function ChurnRiskSection() {
           score,
           churn_risk,
           signals,
-          company:companies!company_id(name, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly))
+          company:companies!company_id(name, status, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly, price_yearly))
         ` as never)
         .lt("score" as never, 30)
         .order("churn_risk" as never, { ascending: false })
@@ -41,7 +42,9 @@ function ChurnRiskSection() {
         score: row.score,
         churn_risk: row.churn_risk ?? 0,
         plan_name: row.company?.subscription_plans?.name ?? null,
-        mrr: row.company?.subscription_plans?.price_monthly ?? 0,
+        mrr: row.company && isRevenueEligibleCompany(row.company)
+          ? getCompanyMonthlyRevenue(row.company)
+          : 0,
         signals: row.signals || [],
       }));
     },

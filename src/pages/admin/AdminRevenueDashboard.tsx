@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { RenderEconomicsTab } from "@/components/admin/RenderEconomicsTab";
+import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
 
 function fmt(value: number): string {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value);
@@ -35,13 +36,21 @@ interface Plan {
   price_yearly: number | null;
 }
 
-interface Subscription {
+interface RevenueCompany {
   id: string;
-  company_id: string;
-  plan_id: string;
+  name: string | null;
+  subscription_plan_id: string | null;
   status: string;
-  billing_cycle: string | null;
-  stripe_subscription_id: string | null;
+  payment_method: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_status: string | null;
+  is_platform_admin_company: boolean | null;
+  subscription_plans: Plan | null;
+  company_subscriptions?: Array<{
+    status: string | null;
+    stripe_subscription_id: string | null;
+    billing_period: string | null;
+  }> | null;
 }
 
 interface PlanBreakdown {
@@ -77,45 +86,31 @@ function useRevenueDashboard() {
       const [plansRes, subsRes] = await Promise.all([
         supabase.from("subscription_plans").select("id,name,price_monthly,price_yearly"),
         supabase
-          .from("company_subscriptions")
-          .select("id,company_id,plan_id,status,billing_cycle,stripe_subscription_id")
-          .eq("status", "active"),
+          .from("companies")
+          .select("id,name,status,payment_method,stripe_customer_id,stripe_subscription_status,is_platform_admin_company,subscription_plan_id,subscription_plans:subscription_plan_id(id,name,price_monthly,price_yearly),company_subscriptions(status,stripe_subscription_id,billing_period)")
+          .eq("is_platform_admin_company", false),
       ]);
 
       if (plansRes.error) throw plansRes.error;
       if (subsRes.error) throw subsRes.error;
 
       const plans = (plansRes.data ?? []) as Plan[];
-      const subs = (subsRes.data ?? []) as Subscription[];
-      const planMap = Object.fromEntries(plans.map((p) => [p.id, p]));
+      const paidCompanies = ((subsRes.data ?? []) as RevenueCompany[]).filter(isRevenueEligibleCompany);
 
-      const mrr = subs.reduce((sum, s) => {
-        const plan = planMap[s.plan_id];
-        if (!plan) return sum;
-        const monthly =
-          s.billing_cycle === "yearly"
-            ? (plan.price_yearly ?? (plan.price_monthly ?? 0) * 12) / 12
-            : (plan.price_monthly ?? 0);
-        return sum + monthly;
-      }, 0);
+      const mrr = paidCompanies.reduce((sum, company) => sum + getCompanyMonthlyRevenue(company), 0);
 
       const byPlan: PlanBreakdown[] = plans
-        .map((p) => ({
-          name: p.name,
-          count: subs.filter((s) => s.plan_id === p.id).length,
-          mrr: subs
-            .filter((s) => s.plan_id === p.id)
-            .reduce((sum, s) => {
-              const monthly =
-                s.billing_cycle === "yearly"
-                  ? (p.price_yearly ?? (p.price_monthly ?? 0) * 12) / 12
-                  : (p.price_monthly ?? 0);
-              return sum + monthly;
-            }, 0),
-        }))
+        .map((p) => {
+          const companiesForPlan = paidCompanies.filter((c) => c.subscription_plan_id === p.id);
+          return {
+            name: p.name,
+            count: companiesForPlan.length,
+            mrr: companiesForPlan.reduce((sum, company) => sum + getCompanyMonthlyRevenue(company), 0),
+          };
+        })
         .filter((p) => p.count > 0);
 
-      return { mrr, arr: mrr * 12, byPlan, activeCount: subs.length };
+      return { mrr, arr: mrr * 12, byPlan, activeCount: paidCompanies.length };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -143,9 +138,9 @@ function RevenueTab() {
   const { data, isLoading, refetch, isFetching } = useRevenueDashboard();
 
   const kpis = [
-    { label: "MRR Corrente", value: fmt(data?.mrr ?? 0), icon: DollarSign, color: "text-emerald-600" },
+    { label: "MRR Corrente Pagante", value: fmt(data?.mrr ?? 0), icon: DollarSign, color: "text-emerald-600" },
     { label: "ARR Proiettato", value: fmt(data?.arr ?? 0), icon: TrendingUp, color: "text-blue-600" },
-    { label: "Abbonamenti Attivi", value: String(data?.activeCount ?? 0), icon: Users, color: "text-primary" },
+    { label: "Abbonamenti Paganti", value: String(data?.activeCount ?? 0), icon: Users, color: "text-primary" },
   ];
 
   return (
@@ -312,7 +307,7 @@ function ReconciliationTab() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: "MRR Stripe", value: fmt(latest.mrr_stripe_cents / 100), color: "text-emerald-600" },
-            { label: "MRR DB Interno", value: fmt(latest.mrr_interno_cents / 100), color: "" },
+            { label: "MRR DB Pagante", value: fmt(latest.mrr_interno_cents / 100), color: "" },
             { label: "Discrepanza", value: fmt(discrepancyCents / 100), color: discrepancyCents > 100 ? "text-destructive" : "text-muted-foreground" },
             { label: "Aziende Stripe", value: latest.aziende_attive_stripe.toString(), color: "" },
           ].map((kpi) => (
@@ -486,7 +481,7 @@ function LTVCACTab() {
           {[
             { label: "ARPU", value: `${fmt(metrics.arpu)}/mese`, sub: "Ricavo medio per azienda" },
             { label: "Churn Rate", value: `${metrics.churnRate.toFixed(2)}%`, sub: "Tasso abbandono mensile", alert: metrics.churnRate > 5 },
-            { label: "Aziende Attive", value: metrics.activeCompanies.toLocaleString("it-IT"), sub: "Su Stripe" },
+            { label: "Aziende Paganti", value: metrics.activeCompanies.toLocaleString("it-IT"), sub: "Su Stripe" },
           ].map(m => (
             <div key={m.label} className="rounded-lg border p-4">
               <p className="text-xs text-muted-foreground">{m.label}</p>

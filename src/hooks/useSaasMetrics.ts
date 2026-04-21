@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getAdminRevenueBreakdown } from "@/lib/adminRevenue";
 
 export interface SaasMetrics {
   arpu: number; // €/mese
@@ -67,12 +68,12 @@ export function useSaasMetrics() {
         .select("id", { count: "exact", head: true })
         .eq("event_type", "cancelled")
         .gte("created_at", thirtyDaysAgo.toISOString());
-      const { count: activeCount } = await supabase
+      const { data: companies } = await supabase
         .from("companies")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "active")
+        .select("id, status, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plans:subscription_plan_id(price_monthly, price_yearly)")
         .eq("is_platform_admin_company", false);
-      return { cancellazioni: cancellazioni ?? 0, activeCount: activeCount ?? 1 };
+      const payingCount = getAdminRevenueBreakdown(companies ?? []).payingCompanies;
+      return { cancellazioni: cancellazioni ?? 0, activeCount: payingCount || 1 };
     },
   });
 
