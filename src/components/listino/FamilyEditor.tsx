@@ -75,7 +75,11 @@ import type {
   PrezzoBaseMode,
   MarkupTipo,
 } from "@/types/articleFamily";
-import { applyMarkup, resolvePrezzoVendita } from "@/lib/priceMarkup";
+import {
+  applyMarkup,
+  applyScontiFornitore,
+  resolvePrezzoVendita,
+} from "@/lib/priceMarkup";
 import { formatCurrency } from "@/lib/formatters";
 
 interface Tariffa {
@@ -171,6 +175,11 @@ export function FamilyEditor() {
   const [prezzoAcquisto, setPrezzoAcquisto] = useState("0");
   const [markupTipo, setMarkupTipo] = useState<MarkupTipo>("none");
   const [markupValore, setMarkupValore] = useState("0");
+  // Sconti fornitore in cascata: tipici listini IT serramentisti (es. 55% + 3%).
+  // Il prezzoAcquisto diventa "lordo di listino" quando almeno uno è > 0.
+  // Migration 20260421000006. Retrocompat: 0/0 = nessuno sconto, input = netto.
+  const [scontoFornitore1, setScontoFornitore1] = useState("0");
+  const [scontoFornitore2, setScontoFornitore2] = useState("0");
 
   // Step 4
   const [posaTariffaId, setPosaTariffaId] = useState<string | "none">("none");
@@ -215,10 +224,14 @@ export function FamilyEditor() {
         prezzo_base_mode?: PrezzoBaseMode | null;
         markup_tipo?: MarkupTipo | null;
         markup_valore?: number | null;
+        sconto_fornitore_1?: number | null;
+        sconto_fornitore_2?: number | null;
       };
       setPrezzoBaseMode(fx.prezzo_base_mode ?? "vendita");
       setMarkupTipo(fx.markup_tipo ?? "none");
       setMarkupValore(String(fx.markup_valore ?? 0));
+      setScontoFornitore1(String(fx.sconto_fornitore_1 ?? 0));
+      setScontoFornitore2(String(fx.sconto_fornitore_2 ?? 0));
       setPosaTariffaId(family.posa_tariffa_default_id ?? "none");
       setPosaQuantita(String(family.posa_quantita_default));
       // `posa_linked` arriva dalla migration Step 3; fino alla rigenerazione
@@ -263,8 +276,9 @@ export function FamilyEditor() {
     },
   });
 
-  // Prezzo vendita effettivo: calcolato da acquisto+markup se mode dice così,
-  // oppure input diretto. Serve sia al salvataggio che alla preview inline.
+  // Prezzo vendita effettivo: calcolato da (lordo → sconti → netto → markup)
+  // se mode=acquisto_markup, oppure input diretto se mode=vendita. Serve sia
+  // al salvataggio che alla preview inline.
   const prezzoVenditaCalcolato = useMemo(
     () =>
       resolvePrezzoVendita({
@@ -273,18 +287,43 @@ export function FamilyEditor() {
         prezzoAcquistoInput: parseFloat(prezzoAcquisto) || 0,
         markupTipo,
         markupValore: parseFloat(markupValore) || 0,
+        scontoFornitore1: parseFloat(scontoFornitore1) || 0,
+        scontoFornitore2: parseFloat(scontoFornitore2) || 0,
       }),
-    [prezzoBaseMode, prezzoVendita, prezzoAcquisto, markupTipo, markupValore],
+    [
+      prezzoBaseMode,
+      prezzoVendita,
+      prezzoAcquisto,
+      markupTipo,
+      markupValore,
+      scontoFornitore1,
+      scontoFornitore2,
+    ],
   );
+
+  // Acquisto netto = lordo × (1-s1/100) × (1-s2/100). Quando entrambi sono 0
+  // torna il lordo invariato (retrocompat: input era già netto).
+  const acquistoNetto = useMemo(() => {
+    if (prezzoBaseMode !== "acquisto_markup") return 0;
+    const lordo = parseFloat(prezzoAcquisto) || 0;
+    const s1 = parseFloat(scontoFornitore1) || 0;
+    const s2 = parseFloat(scontoFornitore2) || 0;
+    return s1 > 0 || s2 > 0 ? applyScontiFornitore(lordo, s1, s2) : lordo;
+  }, [prezzoBaseMode, prezzoAcquisto, scontoFornitore1, scontoFornitore2]);
+
+  const scontiAttivi =
+    (parseFloat(scontoFornitore1) || 0) > 0 ||
+    (parseFloat(scontoFornitore2) || 0) > 0;
 
   const markupPreview = useMemo(() => {
     if (prezzoBaseMode !== "acquisto_markup") return null;
+    // Il markup si applica sull'acquisto NETTO (post sconti), non sul lordo.
     return applyMarkup({
-      prezzoAcquisto: parseFloat(prezzoAcquisto) || 0,
+      prezzoAcquisto: acquistoNetto,
       markupTipo,
       markupValore: parseFloat(markupValore) || 0,
     });
-  }, [prezzoBaseMode, prezzoAcquisto, markupTipo, markupValore]);
+  }, [prezzoBaseMode, acquistoNetto, markupTipo, markupValore]);
 
   // ── Upload immagine articolo ─────────────────────────────────────────────
   //
@@ -410,6 +449,10 @@ export function FamilyEditor() {
       prezzo_base_acquisto: prezzoAcquistoNum,
       markup_tipo: markupTipo,
       markup_valore: parseFloat(markupValore) || 0,
+      // Sconti fornitore in cascata (migration 20260421000006). Persistiamo
+      // sempre: anche in mode=vendita resta 0/0 (default DB) senza effetto.
+      sconto_fornitore_1: parseFloat(scontoFornitore1) || 0,
+      sconto_fornitore_2: parseFloat(scontoFornitore2) || 0,
       immagine_url: immagineUrl,
       posa_tariffa_default_id: posaTariffaId === "none" ? null : posaTariffaId,
       posa_quantita_default: parseFloat(posaQuantita) || 1,
@@ -873,6 +916,10 @@ export function FamilyEditor() {
                   asseXLabel={grigliaXLabel}
                   asseYLabel={grigliaYLabel}
                   prezzoBaseMode={prezzoBaseMode}
+                  scontoFornitore1={parseFloat(scontoFornitore1) || 0}
+                  scontoFornitore2={parseFloat(scontoFornitore2) || 0}
+                  markupTipo={markupTipo}
+                  markupValore={parseFloat(markupValore) || 0}
                 />
               ) : (
                 <Card>
@@ -943,7 +990,9 @@ export function FamilyEditor() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <Label htmlFor="f-prezzo-acquisto">
-                              Prezzo di acquisto (€, netto)
+                              {scontiAttivi
+                                ? "Prezzo LORDO di listino fornitore (€)"
+                                : "Prezzo di acquisto (€, netto)"}
                             </Label>
                             <Input
                               id="f-prezzo-acquisto"
@@ -956,7 +1005,9 @@ export function FamilyEditor() {
                               }
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                              Costo dal fornitore al netto di IVA.
+                              {scontiAttivi
+                                ? `Listino fornitore NON scontato. Netto calcolato: ${formatCurrency(acquistoNetto)}.`
+                                : "Costo dal fornitore al netto di IVA."}
                             </p>
                           </div>
                           <div>
@@ -990,6 +1041,79 @@ export function FamilyEditor() {
                             </p>
                           </div>
                         </div>
+
+                        {/* Sconti fornitore in cascata — opzionali, 0/0 = disattivi */}
+                        <div className="rounded-md border bg-muted/10 p-3 space-y-2">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div>
+                              <Label className="text-sm font-medium">
+                                Sconti fornitore in cascata
+                              </Label>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Se il prezzo sopra è il{" "}
+                                <strong>lordo di listino</strong> (es. Finestra a
+                                Wasistas), inserisci qui la scontistica
+                                commerciale del fornitore. Es. &quot;55% + 3%&quot;.
+                                Lascia 0/0 se hai già inserito l'acquisto netto.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="f-sconto-fornitore-1" className="text-xs">
+                                Sconto 1 (%)
+                              </Label>
+                              <Input
+                                id="f-sconto-fornitore-1"
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                value={scontoFornitore1}
+                                onChange={(e) =>
+                                  setScontoFornitore1(e.target.value)
+                                }
+                                placeholder="es. 55"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="f-sconto-fornitore-2" className="text-xs">
+                                Sconto 2 in cascata (%)
+                              </Label>
+                              <Input
+                                id="f-sconto-fornitore-2"
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                value={scontoFornitore2}
+                                onChange={(e) =>
+                                  setScontoFornitore2(e.target.value)
+                                }
+                                placeholder="es. 3"
+                              />
+                            </div>
+                          </div>
+                          {scontiAttivi ? (
+                            <div className="text-xs text-muted-foreground pt-1 border-t">
+                              <span className="font-medium">Acquisto netto calcolato:</span>{" "}
+                              <span className="font-semibold text-foreground">
+                                {formatCurrency(acquistoNetto)}
+                              </span>{" "}
+                              <span className="text-muted-foreground/80">
+                                ({formatCurrency(parseFloat(prezzoAcquisto) || 0)}
+                                {(parseFloat(scontoFornitore1) || 0) > 0
+                                  ? ` × (1 − ${parseFloat(scontoFornitore1)}%)`
+                                  : ""}
+                                {(parseFloat(scontoFornitore2) || 0) > 0
+                                  ? ` × (1 − ${parseFloat(scontoFornitore2)}%)`
+                                  : ""}
+                                )
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+
                         <div>
                           <Label htmlFor="f-markup-tipo">Tipo markup</Label>
                           <Select

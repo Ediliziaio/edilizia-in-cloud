@@ -65,6 +65,19 @@ export interface ArticleFamily {
   /** Valore markup (percentuale oppure euro al pezzo a seconda di markup_tipo). */
   markup_valore: number;
   /**
+   * Primo sconto in cascata (%) sul prezzo lordo del listino fornitore.
+   * Range [0, 100]. 0 = nessuno sconto. Aggiunto dalla migration
+   * 20260421000006. Ignorato se prezzo_base_mode !== "acquisto_markup".
+   * Esempio: 55 = -55%.
+   */
+  sconto_fornitore_1: number;
+  /**
+   * Secondo sconto in cascata (%) applicato DOPO il primo.
+   * Range [0, 100]. 0 = nessuno sconto.
+   * Esempio tipico serramentisti IT: 55% + 3% (il +3% è cumulativo dopo il 55%).
+   */
+  sconto_fornitore_2: number;
+  /**
    * IVA di VENDITA (%): aliquota addebitata al cliente in fattura.
    * Range [0, 100]. 0 = reverse charge / vendita estero.
    * Applicata a prezzo_base_vendita (che è al netto).

@@ -34,6 +34,9 @@ import {
   GridBulkImportDialog,
   type BulkParsedPayload,
 } from "./GridBulkImportDialog";
+import { applyMarkup, applyScontiFornitore } from "@/lib/priceMarkup";
+import { formatCurrency } from "@/lib/formatters";
+import type { MarkupTipo } from "@/types/articleFamily";
 
 interface Cell {
   prezzo_vendita: number;
@@ -61,6 +64,18 @@ interface Props {
    * Default: "vendita" per compat con chiamate storiche.
    */
   prezzoBaseMode?: "vendita" | "acquisto_markup";
+  /**
+   * Sconti fornitore in cascata (solo mode=acquisto_markup). Se almeno uno
+   * è > 0, il prezzo_acquisto di ogni cella è trattato come LORDO di listino
+   * e si calcola: netto = lordo × (1-s1/100) × (1-s2/100); vendita = netto × markup.
+   * Se 0/0, retrocompat: input = netto, vendita = netto × markup.
+   */
+  scontoFornitore1?: number;
+  scontoFornitore2?: number;
+  /** Tipo markup applicato all'acquisto netto. Default "none" (vendita = netto). */
+  markupTipo?: MarkupTipo;
+  /** Valore markup (% se markupTipo="percentuale", €/pz se "fisso_pz"). */
+  markupValore?: number;
 }
 
 export function FamilyGridEditor({
@@ -68,6 +83,10 @@ export function FamilyGridEditor({
   asseXLabel,
   asseYLabel,
   prezzoBaseMode = "vendita",
+  scontoFornitore1 = 0,
+  scontoFornitore2 = 0,
+  markupTipo = "none",
+  markupValore = 0,
 }: Props) {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
@@ -177,6 +196,28 @@ export function FamilyGridEditor({
     });
   };
 
+  // Flags per l'UI: sconti attivi e markup attivo. Stabili per riga → evitano
+  // ri-render inutili in ogni cell.
+  const scontiAttivi = scontoFornitore1 > 0 || scontoFornitore2 > 0;
+  const markupAttivo = markupTipo !== "none" && markupValore > 0;
+
+  /**
+   * Dato il prezzo di acquisto (LORDO se scontiAttivi, NETTO altrimenti)
+   * restituisce { netto, vendita }. Usato sia nel rendering delle celle che
+   * al salvataggio (prezzo_vendita = cache derivata).
+   */
+  const computeCellPrices = (prezzoAcquistoInput: number) => {
+    const netto = scontiAttivi
+      ? applyScontiFornitore(prezzoAcquistoInput, scontoFornitore1, scontoFornitore2)
+      : Math.max(0, prezzoAcquistoInput);
+    const vendita = applyMarkup({
+      prezzoAcquisto: netto,
+      markupTipo,
+      markupValore,
+    }).prezzoVendita;
+    return { netto, vendita };
+  };
+
   /**
    * Applica il payload del bulk import allo stato locale.
    *  - Unione ORDINATA degli assi: nuovi valori X/Y vengono aggiunti a quelli
@@ -240,12 +281,20 @@ export function FamilyGridEditor({
           if (!c) continue; // celle vuote = non persistite
           keptKeys.add(key);
           const existing = existingByKey.get(key);
+          // In mode=acquisto_markup il prezzo_vendita è CACHE DERIVATA da
+          // (lordo × sconti fornitore → netto × markup). Lo ricalcoliamo al
+          // save per garantire sempre coerenza col markup configurato sulla
+          // famiglia. In mode=vendita persistiamo l'input diretto.
+          const prezzoVenditaFinale =
+            prezzoBaseMode === "acquisto_markup"
+              ? computeCellPrices(c.prezzo_acquisto).vendita
+              : c.prezzo_vendita;
           const base: InsertRow = {
             company_id: companyId,
             family_id: familyId,
             valore_x: x,
             valore_y: y,
-            prezzo_vendita: c.prezzo_vendita,
+            prezzo_vendita: prezzoVenditaFinale,
             prezzo_acquisto: c.prezzo_acquisto,
           };
           if (existing) {
@@ -465,22 +514,55 @@ export function FamilyGridEditor({
                             <div className="flex items-center gap-1">
                               <div className="flex-1 flex flex-col gap-1">
                                 {prezzoBaseMode === "acquisto_markup" ? (
-                                  // Solo acquisto — vendita derivata dal markup
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="Acq. €"
-                                    value={c?.prezzo_acquisto ?? ""}
-                                    onChange={(e) =>
-                                      setCell(
-                                        x,
-                                        y,
-                                        "prezzo_acquisto",
-                                        parseFloat(e.target.value) || 0,
-                                      )
-                                    }
-                                    className="h-8 text-xs"
-                                  />
+                                  // Solo acquisto — netto + vendita derivati
+                                  <>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      placeholder={
+                                        scontiAttivi ? "Lordo €" : "Acq. €"
+                                      }
+                                      value={c?.prezzo_acquisto ?? ""}
+                                      onChange={(e) =>
+                                        setCell(
+                                          x,
+                                          y,
+                                          "prezzo_acquisto",
+                                          parseFloat(e.target.value) || 0,
+                                        )
+                                      }
+                                      className="h-7 text-xs"
+                                    />
+                                    {c && c.prezzo_acquisto > 0 ? (
+                                      <div className="text-[10px] leading-tight text-muted-foreground px-1">
+                                        {(() => {
+                                          const { netto, vendita } = computeCellPrices(
+                                            c.prezzo_acquisto,
+                                          );
+                                          return (
+                                            <>
+                                              {scontiAttivi ? (
+                                                <div>
+                                                  netto:{" "}
+                                                  <span className="font-medium text-foreground/80">
+                                                    {formatCurrency(netto)}
+                                                  </span>
+                                                </div>
+                                              ) : null}
+                                              {markupAttivo || scontiAttivi ? (
+                                                <div>
+                                                  vendita:{" "}
+                                                  <span className="font-semibold text-primary">
+                                                    {formatCurrency(vendita)}
+                                                  </span>
+                                                </div>
+                                              ) : null}
+                                            </>
+                                          );
+                                        })()}
+                                      </div>
+                                    ) : null}
+                                  </>
                                 ) : (
                                   // Entrambi — vendita sopra (principale), acquisto sotto (opzionale)
                                   <>

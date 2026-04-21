@@ -29,6 +29,36 @@ export interface MarkupInput {
   markupValore: number;
 }
 
+/**
+ * Calcola l'acquisto NETTO applicando due sconti in cascata al prezzo lordo
+ * di listino del fornitore.
+ *
+ * Esempio (tipico serramentisti IT, es. Finestra a Wasistas):
+ *   prezzoLordoFornitore: 1000, sconto1: 55, sconto2: 3
+ *   → 1000 × (1 - 0.55) = 450
+ *   → 450 × (1 - 0.03) = 436.50  ← acquisto netto
+ *
+ * Pure function: input negativi o NaN → 0, sconti vengono clampati a [0, 100].
+ */
+export function applyScontiFornitore(
+  prezzoLordo: number,
+  sconto1: number,
+  sconto2: number,
+): number {
+  const lordo = Math.max(0, sanitize(prezzoLordo));
+  const s1 = clamp(sanitize(sconto1), 0, 100);
+  const s2 = clamp(sanitize(sconto2), 0, 100);
+  const dopoS1 = lordo * (1 - s1 / 100);
+  const dopoS2 = dopoS1 * (1 - s2 / 100);
+  return Math.max(0, dopoS2);
+}
+
+function clamp(n: number, min: number, max: number): number {
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+
 export interface MarkupResult {
   /** Prezzo di vendita calcolato (sempre >= 0, mai negativo). */
   prezzoVendita: number;
@@ -87,6 +117,13 @@ export function applyMarkup(input: MarkupInput): MarkupResult {
  * Restituisce il prezzo di vendita "effettivo" per una famiglia, considerando
  * la sua strategia di prezzo (vendita diretta vs acquisto+markup).
  *
+ * Quando `prezzoBaseMode === "acquisto_markup"`:
+ *   1. Se sono passati `scontoFornitore1/2` (entrambi > 0 o entrambi definiti),
+ *      `prezzoAcquistoInput` viene trattato come prezzo LORDO di listino
+ *      fornitore: → applica cascata sconti → acquisto netto → markup → vendita.
+ *   2. Se sconti non passati o 0/0, `prezzoAcquistoInput` è già l'acquisto
+ *      netto (retrocompat col comportamento pre-feature): → markup → vendita.
+ *
  * Evita di duplicare il branching in ogni caller (FamilyEditor, pricing
  * pipeline, preview, ecc).
  */
@@ -96,12 +133,23 @@ export function resolvePrezzoVendita(args: {
   prezzoAcquistoInput: number;
   markupTipo: MarkupTipo;
   markupValore: number;
+  /** Primo sconto fornitore (%), opzionale. Default 0 = disabilitato. */
+  scontoFornitore1?: number;
+  /** Secondo sconto fornitore in cascata (%), opzionale. Default 0. */
+  scontoFornitore2?: number;
 }): number {
   if (args.prezzoBaseMode === "vendita") {
     return Math.max(0, sanitize(args.prezzoVenditaInput));
   }
+  // acquisto_markup: l'input è LORDO se almeno uno sconto > 0, altrimenti NETTO.
+  const s1 = sanitize(args.scontoFornitore1 ?? 0);
+  const s2 = sanitize(args.scontoFornitore2 ?? 0);
+  const acquistoNetto =
+    s1 > 0 || s2 > 0
+      ? applyScontiFornitore(args.prezzoAcquistoInput, s1, s2)
+      : Math.max(0, sanitize(args.prezzoAcquistoInput));
   return applyMarkup({
-    prezzoAcquisto: args.prezzoAcquistoInput,
+    prezzoAcquisto: acquistoNetto,
     markupTipo: args.markupTipo,
     markupValore: args.markupValore,
   }).prezzoVendita;
