@@ -32,6 +32,10 @@ import {
   Undo2,
   ImageOff,
   FolderSymlink,
+  ChevronDown,
+  ChevronRight,
+  Grid3x3,
+  Ruler,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -137,6 +141,35 @@ export function FamilyCatalog() {
     isLoading: loadingCestino,
     refetch: refetchCestino,
   } = useFamiliesCestino();
+
+  // Collapsed macrocategorie: persisted in localStorage così l'utente ritrova
+  // lo stesso layout al refresh. Uso Set<string> di macroId (incluso NO_MACRO).
+  // NOTE: se ls è bloccato (private mode) fallback a Set vuoto → tutto aperto.
+  const LS_KEY = "listino:collapsed-macros";
+  const [collapsedMacros, setCollapsedMacros] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggleMacro = (macroId: string) => {
+    setCollapsedMacros((prev) => {
+      const next = new Set(prev);
+      if (next.has(macroId)) next.delete(macroId);
+      else next.add(macroId);
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        // ignore: ls non disponibile
+      }
+      return next;
+    });
+  };
 
   // Mappe lookup
   const categoriaById = useMemo(
@@ -474,10 +507,29 @@ export function FamilyCatalog() {
         </Card>
       ) : (
         <div className="space-y-8">
-          {grouped.map((macroGroup) => (
+          {grouped.map((macroGroup) => {
+            const isCollapsed = collapsedMacros.has(macroGroup.macroId);
+            return (
             <section key={macroGroup.macroId} className="space-y-4">
-              {/* Header macrocategoria */}
-              <div className="flex items-center gap-2 pb-2 border-b-2 border-primary/20">
+              {/* Header macrocategoria — clickable toggle collapse/expand */}
+              <button
+                type="button"
+                onClick={() => toggleMacro(macroGroup.macroId)}
+                className="w-full flex items-center gap-2 pb-2 border-b-2 border-primary/20 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded transition-colors text-left group/macro"
+                aria-expanded={!isCollapsed}
+                aria-controls={`macro-panel-${macroGroup.macroId}`}
+              >
+                {isCollapsed ? (
+                  <ChevronRight
+                    className="h-5 w-5 text-primary/70 group-hover/macro:text-primary transition-transform"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ChevronDown
+                    className="h-5 w-5 text-primary/70 group-hover/macro:text-primary transition-transform"
+                    aria-hidden="true"
+                  />
+                )}
                 <Folder className="h-5 w-5 text-primary" aria-hidden="true" />
                 <h3 className="text-lg font-semibold tracking-tight">
                   {macroGroup.macroNome}
@@ -486,10 +538,11 @@ export function FamilyCatalog() {
                   {macroGroup.totalItems}{" "}
                   {macroGroup.totalItems === 1 ? "articolo" : "articoli"}
                 </Badge>
-              </div>
+              </button>
 
-              {/* Categorie dentro la macrocategoria */}
-              <div className="space-y-6 pl-0 sm:pl-2">
+              {/* Categorie dentro la macrocategoria — nascosto se collassato */}
+              {!isCollapsed && (
+              <div id={`macro-panel-${macroGroup.macroId}`} className="space-y-6 pl-0 sm:pl-2">
                 {macroGroup.categorie.map((catGroup) => (
                   <div key={catGroup.categoriaId} className="space-y-2">
                     <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
@@ -498,7 +551,7 @@ export function FamilyCatalog() {
                         ({catGroup.items.length})
                       </span>
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {catGroup.items.map((f) => {
                         const nAssi = f.axes.length;
                         const nValori = f.axes.reduce(
@@ -510,8 +563,8 @@ export function FamilyCatalog() {
                             key={f.id}
                             className={
                               isAdmin
-                                ? "cursor-pointer hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
-                                : ""
+                                ? "group relative cursor-pointer hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all flex flex-col"
+                                : "flex flex-col"
                             }
                             onClick={
                               isAdmin
@@ -538,10 +591,11 @@ export function FamilyCatalog() {
                             }
                           >
                             <CardHeader className="pb-3">
-                              {/* Thumbnail articolo: se presente mostra in alto,
-                                  altrimenti placeholder grigio con icona. */}
-                              <div className="relative -mt-3 sm:-mt-4 -mx-6 mb-3 aspect-[16/9] bg-muted rounded-t-lg overflow-hidden">
-                                {f.immagine_url ? (
+                              {/* Thumbnail articolo: visibile solo se esiste un
+                                  immagine_url, così niente placeholder vuoto
+                                  che sprecava spazio verticale prezioso. */}
+                              {f.immagine_url ? (
+                                <div className="relative -mt-3 sm:-mt-4 -mx-6 mb-3 aspect-[4/3] bg-muted rounded-t-lg overflow-hidden">
                                   <img
                                     src={f.immagine_url}
                                     alt={`Anteprima ${f.nome}`}
@@ -553,17 +607,13 @@ export function FamilyCatalog() {
                                         "none";
                                     }}
                                   />
-                                ) : (
-                                  <div
-                                    className="flex items-center justify-center w-full h-full text-muted-foreground/40"
-                                    aria-hidden="true"
-                                  >
-                                    <Package className="h-10 w-10" />
-                                  </div>
-                                )}
-                              </div>
+                                </div>
+                              ) : null}
                               <div className="flex items-start justify-between gap-2">
-                                <CardTitle className="text-base leading-tight break-words">
+                                <CardTitle
+                                  className="text-sm sm:text-base leading-tight line-clamp-2 min-w-0 break-words"
+                                  title={f.nome}
+                                >
                                   {f.nome}
                                 </CardTitle>
                                 <Badge
@@ -574,25 +624,44 @@ export function FamilyCatalog() {
                                 </Badge>
                               </div>
                               {f.descrizione ? (
-                                <CardDescription className="line-clamp-2">
+                                <CardDescription
+                                  className="line-clamp-1"
+                                  title={f.descrizione}
+                                >
                                   {f.descrizione}
                                 </CardDescription>
                               ) : null}
                             </CardHeader>
-                            <CardContent className="pt-0 space-y-2">
-                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                <span>
-                                  {nAssi} {nAssi === 1 ? "asse" : "assi"}
+                            <CardContent className="pt-0 space-y-2 mt-auto">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                <span
+                                  className="inline-flex items-center gap-1"
+                                  title="Unità di misura"
+                                >
+                                  <Ruler
+                                    className="h-3 w-3"
+                                    aria-hidden="true"
+                                  />
+                                  {f.unit_of_measure}
                                 </span>
-                                <span aria-hidden="true">·</span>
-                                <span>
-                                  {nValori} {nValori === 1 ? "valore" : "valori"}
-                                </span>
-                                <span aria-hidden="true">·</span>
-                                <span>UM {f.unit_of_measure}</span>
+                                {nAssi > 0 && (
+                                  <span
+                                    className="inline-flex items-center gap-1"
+                                    title={`${nAssi} ${nAssi === 1 ? "asse" : "assi"} · ${nValori} ${nValori === 1 ? "valore" : "valori"}`}
+                                  >
+                                    <Grid3x3
+                                      className="h-3 w-3"
+                                      aria-hidden="true"
+                                    />
+                                    {nAssi}×{nValori}
+                                  </span>
+                                )}
                               </div>
                               {isAdmin && (
-                                <div className="flex gap-1 pt-2 border-t">
+                                <div
+                                  className="flex gap-1 pt-2 border-t md:opacity-0 md:translate-y-1 md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-focus-within:opacity-100 md:group-focus-within:translate-y-0 md:transition-all"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   <Button
                                     size="sm"
                                     variant="ghost"
@@ -781,8 +850,10 @@ export function FamilyCatalog() {
                   </div>
                 ))}
               </div>
+              )}
             </section>
-          ))}
+            );
+          })}
         </div>
       )}
 
