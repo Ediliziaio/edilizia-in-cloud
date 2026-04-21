@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -136,7 +136,7 @@ export function useCompanyDetail(id: string | undefined) {
     }
   }, [company?.id]);
 
-  const { data: teamData } = useQuery({
+  const { data: teamData, isFetching: isTeamFetching } = useQuery({
     queryKey: queryKeys.companyDetail.team(id),
     queryFn: async () => {
       if (!id) return null;
@@ -146,11 +146,16 @@ export function useCompanyDetail(id: string | undefined) {
         supabase.from("salespeople").select("*").eq("company_id", id),
         supabase.from("employees").select("*").eq("company_id", id),
       ]);
+      if (profilesRes.error) throw profilesRes.error;
+      if (permissionsRes.error) throw permissionsRes.error;
+      if (salespeopleRes.error) throw salespeopleRes.error;
+      if (employeesRes.error) throw employeesRes.error;
       const profiles = profilesRes.data || [];
       const profileIds = profiles.map((p) => p.id);
       let roles: { user_id: string; role: string }[] = [];
       if (profileIds.length > 0) {
-        const { data: rolesData } = await supabase.from("user_roles").select("user_id, role").in("user_id", profileIds);
+        const { data: rolesData, error: rolesError } = await supabase.from("user_roles").select("user_id, role").in("user_id", profileIds);
+        if (rolesError) throw rolesError;
         roles = rolesData || [];
       }
       const admins = profiles.filter((p) => roles.some((r) => r.user_id === p.id && r.role === "company_admin"));
@@ -164,8 +169,26 @@ export function useCompanyDetail(id: string | undefined) {
       };
     },
     enabled: !!id,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
+
+  const refreshTeamData = useCallback(async () => {
+    if (!id) return;
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesUserCounts }),
+      queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] }),
+    ]);
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: queryKeys.companyDetail.team(id), type: "active" }),
+      queryClient.refetchQueries({ queryKey: queryKeys.companyDetail.detail(id), type: "active" }),
+    ]);
+  }, [id, queryClient]);
 
   const { data: currentPlan } = useQuery({
     queryKey: queryKeys.companyDetail.plan(company?.subscription_plan_id),
@@ -419,7 +442,7 @@ export function useCompanyDetail(id: string | undefined) {
         headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione staff");
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
+      await refreshTeamData();
       toast.success("Staff creato con successo");
       return { temporaryPassword: resp.data.temporary_password };
     } catch (err: unknown) {
@@ -451,7 +474,7 @@ export function useCompanyDetail(id: string | undefined) {
       };
       const { error } = await supabase.from("staff_permissions").update(syncedPermissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
+      await refreshTeamData();
       toast.success("Permessi aggiornati");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
@@ -484,7 +507,7 @@ export function useCompanyDetail(id: string | undefined) {
     },
     onSuccess: () => {
       setCreateSalespersonOpen(false);
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
+      void refreshTeamData();
       toast.success("Venditore creato");
     },
     onError: (err: Error) => {
@@ -508,7 +531,7 @@ export function useCompanyDetail(id: string | undefined) {
     },
     onSuccess: () => {
       setCreateEmployeeOpen(false);
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
+      void refreshTeamData();
       toast.success("Dipendente creato");
     },
     onError: (err: Error) => {
@@ -531,7 +554,7 @@ export function useCompanyDetail(id: string | undefined) {
         body, headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione account");
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.team(id) });
+      await refreshTeamData();
       setPasswordDialog({ open: true, password: resp.data.temp_password, name, email });
       toast.success("Account creato");
     } catch (err: unknown) {
@@ -722,7 +745,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   return {
     // Data
-    company, stats, isLoading, isError, refetch, teamData, currentPlan, subscriptionLogs, currentSubscription, plans, recentOrders, recentTickets, monthlyOrders, daysSinceLastOrder, form,
+    company, stats, isLoading, isError, refetch, teamData, isTeamFetching, refreshTeamData, currentPlan, subscriptionLogs, currentSubscription, plans, recentOrders, recentTickets, monthlyOrders, daysSinceLastOrder, form,
     checkoutUrl,
     // UI state
     changePlanDialog, setChangePlanDialog, selectedPlanId, setSelectedPlanId, isSaving, sameAsLegal, setSameAsLegal,

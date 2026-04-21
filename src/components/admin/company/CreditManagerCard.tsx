@@ -266,26 +266,26 @@ export function CreditManagerCard({ companyId }: Props) {
         if (!Number.isInteger(amount)) {
           throw new Error("Per render i crediti devono essere interi");
         }
-        const { data, error } = await supabase.functions.invoke("admin-adjust-credits", {
-          body: {
-            company_id: companyId,
-            service: "render",
-            amount: signedAmount, // delta integer (negativo per deduct)
-            reason: adjustReason.trim(),
-          },
-        });
-        if (error) {
-          const message = await getFunctionErrorMessage(error);
-          if (isRenderRpcMissing(message)) {
-            return fallbackAdjustRenderCredits({
-              companyId,
-              delta: signedAmount,
-              reason: adjustReason.trim(),
-              userId: user?.id,
-            });
+        const { data, error } = await supabase.rpc("adjust_render_credits_atomic" as never, {
+          p_company_id: companyId,
+          p_delta: signedAmount,
+          p_reason: adjustReason.trim(),
+          p_adjusted_by: user?.id ?? null,
+        } as never);
+
+        if (error || (data as { error?: string } | null)?.error) {
+          const message = error?.message || (data as { error?: string } | null)?.error || "RPC render non disponibile";
+          if (!isRenderRpcMissing(message)) {
+            console.warn("[CreditManagerCard] Render RPC failed, using direct fallback:", message);
           }
-          throw new Error(message);
+          return fallbackAdjustRenderCredits({
+            companyId,
+            delta: signedAmount,
+            reason: adjustReason.trim(),
+            userId: user?.id,
+          });
         }
+
         const payload = data as {
           error?: string;
           balance_before?: number;

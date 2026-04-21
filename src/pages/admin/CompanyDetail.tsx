@@ -208,7 +208,9 @@ export default function CompanyDetail() {
       const { error } = await supabase.functions.invoke("delete-company-user", { body: { userId } });
       if (error) throw error;
       toast.success(`${name} eliminato`);
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(id) });
+      await h.refreshTeamData();
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesUserCounts });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
       toast.error("Errore eliminazione utente", { description: msg });
@@ -365,6 +367,8 @@ export default function CompanyDetail() {
             onResetPassword={handleResetPassword}
             isDeletingUser={isDeletingUser}
             isResettingPassword={isResettingPassword}
+            isRefreshing={h.isTeamFetching}
+            onRefresh={() => void h.refreshTeamData()}
           />
         </TabsContent>
 

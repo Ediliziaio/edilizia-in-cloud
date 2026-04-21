@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Shield, UserCheck, TrendingUp, HardHat, Plus, Loader2, KeyRound,
-  Search, MoreHorizontal, Trash2, Key, Users, UserX, Clock,
+  Search, MoreHorizontal, Trash2, Key, Users, UserX, Clock, RefreshCw,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
@@ -42,6 +42,8 @@ interface CompanyTeamTabProps {
   onResetPassword?: (userId: string, name: string) => void;
   isDeletingUser?: boolean;
   isResettingPassword?: boolean;
+  isRefreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 function getActivePermissions(permissions: any) {
@@ -72,6 +74,7 @@ export function CompanyTeamTab({
   onCreateStaff, onCreateSalesperson, onCreateEmployee,
   onEditPermissions, onCreateAccount, creatingAccountFor,
   onDeleteUser, onResetPassword, isDeletingUser, isResettingPassword,
+  isRefreshing, onRefresh,
 }: CompanyTeamTabProps) {
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -96,7 +99,7 @@ export function CompanyTeamTab({
     );
   }, [teamData]);
 
-  const withoutAccount = totalTeam - withAccount;
+  const withoutAccount = Math.max(0, totalTeam - withAccount);
 
   return (
     <div className="space-y-6">
@@ -106,35 +109,48 @@ export function CompanyTeamTab({
           <Card className="px-4 py-2.5 flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium">{totalTeam}</span>
-            <span className="text-xs text-muted-foreground">Totali</span>
+            <span className="text-xs text-muted-foreground">Persone totali</span>
           </Card>
           <Card className="px-4 py-2.5 flex items-center gap-2">
             <UserCheck className="h-4 w-4 text-emerald-600" />
             <span className="text-sm font-medium">{withAccount}</span>
-            <span className="text-xs text-muted-foreground">Con account</span>
+            <span className="text-xs text-muted-foreground">Account login</span>
           </Card>
           {withoutAccount > 0 && (
             <Card className="px-4 py-2.5 flex items-center gap-2">
               <UserX className="h-4 w-4 text-amber-600" />
               <span className="text-sm font-medium">{withoutAccount}</span>
-              <span className="text-xs text-muted-foreground">Senza account</span>
+              <span className="text-xs text-muted-foreground">Senza login</span>
             </Card>
           )}
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca per nome o email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex w-full sm:w-auto gap-2">
+          {onRefresh && (
+            <Button variant="outline" size="icon" onClick={onRefresh} disabled={isRefreshing} title="Aggiorna team">
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </Button>
+          )}
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca per nome o email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
       </div>
 
       {/* Badges summary */}
       <Card>
-        <CardContent className="py-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Composizione team</CardTitle>
+          <CardDescription>
+            Il totale include admin, staff, venditori e dipendenti. Gli account login sono solo le persone che possono accedere alla piattaforma.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0 pb-4">
           <div className="flex items-center gap-3 flex-wrap">
             <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">{filtered.admins.length} Admin</Badge>
             <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{filtered.staff.length} Staff</Badge>
@@ -467,7 +483,7 @@ export function CompanyTeamTab({
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina {deleteTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              L'utente verrà rimosso dall'azienda e il suo account sarà eliminato. Questa azione è irreversibile.
+              L'account login verrà rimosso dall'azienda. Se è collegato a un venditore o dipendente, la scheda operativa resta nel team come persona senza login.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
