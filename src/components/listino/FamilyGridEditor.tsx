@@ -214,10 +214,13 @@ export function FamilyGridEditor({
         existingByKey.set(`${r.valore_x}_${r.valore_y}`, r);
       }
 
-      // Costruisci payload upsert: preserva `id` per celle già esistenti
-      // (→ UPDATE), lascia id assente per le nuove (→ INSERT con uuid auto).
-      type UpsertRow = {
-        id?: string;
+      // Costruisci payloads distinti per INSERT (nuove celle, no id) e UPDATE
+      // (celle esistenti, con id). Splittare è necessario perché PostgREST
+      // in un singolo .upsert() con shape miste propaga le chiavi: le righe
+      // senza `id` ricevono `id: NULL` dal client → violazione NOT NULL del PK
+      // (la DEFAULT gen_random_uuid() non si applica quando il valore è
+      // esplicitamente NULL).
+      type InsertRow = {
         company_id: string;
         family_id: string;
         valore_x: number;
@@ -225,7 +228,10 @@ export function FamilyGridEditor({
         prezzo_vendita: number;
         prezzo_acquisto: number;
       };
-      const upsertRows: UpsertRow[] = [];
+      type UpdateRow = InsertRow & { id: string };
+
+      const toInsert: InsertRow[] = [];
+      const toUpdate: UpdateRow[] = [];
       const keptKeys = new Set<string>();
       for (const x of xAxis) {
         for (const y of yAxis) {
@@ -234,15 +240,19 @@ export function FamilyGridEditor({
           if (!c) continue; // celle vuote = non persistite
           keptKeys.add(key);
           const existing = existingByKey.get(key);
-          upsertRows.push({
-            ...(existing ? { id: existing.id } : {}),
+          const base: InsertRow = {
             company_id: companyId,
             family_id: familyId,
             valore_x: x,
             valore_y: y,
             prezzo_vendita: c.prezzo_vendita,
             prezzo_acquisto: c.prezzo_acquisto,
-          });
+          };
+          if (existing) {
+            toUpdate.push({ ...base, id: existing.id });
+          } else {
+            toInsert.push(base);
+          }
         }
       }
 
@@ -254,13 +264,21 @@ export function FamilyGridEditor({
         if (!keptKeys.has(key)) idsToDelete.push(r.id);
       }
 
-      // Step 1: upsert PRIMA → nessuna finestra vuota. Se fallisce, il DB
-      // resta nello stato precedente (ok) e il delete non parte.
-      if (upsertRows.length > 0) {
-        const { error: upErr } = await supabase
+      // Step 1a: INSERT delle celle nuove (DB genera id via DEFAULT).
+      if (toInsert.length > 0) {
+        const { error: insErr } = await supabase
           .from("listino_griglia")
-          .upsert(upsertRows);
-        if (upErr) throw new Error(`Errore salvataggio celle: ${upErr.message}`);
+          .insert(toInsert);
+        if (insErr) throw new Error(`Errore inserimento celle: ${insErr.message}`);
+      }
+
+      // Step 1b: UPDATE delle celle esistenti via upsert-by-id (tutte le righe
+      // hanno `id`, quindi la shape è consistente e PostgREST non pad con NULL).
+      if (toUpdate.length > 0) {
+        const { error: updErr } = await supabase
+          .from("listino_griglia")
+          .upsert(toUpdate);
+        if (updErr) throw new Error(`Errore aggiornamento celle: ${updErr.message}`);
       }
 
       // Step 2: delete DOPO, solo celle effettivamente rimosse dall'utente.
@@ -270,14 +288,14 @@ export function FamilyGridEditor({
           .delete()
           .in("id", idsToDelete);
         if (delErr) {
-          // Upsert è andato a buon fine ma il delete ha fallito: la griglia
-          // contiene tutti i valori validi + eventuali celle stale. L'utente
-          // può rilanciare il salvataggio in sicurezza.
+          // Le scritture sono andate a buon fine ma il delete ha fallito: la
+          // griglia contiene tutti i valori validi + eventuali celle stale.
+          // L'utente può rilanciare il salvataggio in sicurezza.
           throw new Error(`Errore rimozione celle obsolete: ${delErr.message}`);
         }
       }
 
-      return upsertRows.length;
+      return toInsert.length + toUpdate.length;
     },
     onSuccess: (count) => {
       toast.success(`Griglia salvata: ${count} celle`);
