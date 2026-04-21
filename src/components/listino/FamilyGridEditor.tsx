@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Save, Loader2 } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +30,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  GridBulkImportDialog,
+  type BulkParsedPayload,
+} from "./GridBulkImportDialog";
 
 interface Cell {
   prezzo_vendita: number;
@@ -83,6 +87,7 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
   const [cells, setCells] = useState<Map<string, Cell>>(new Map());
   const [newX, setNewX] = useState("");
   const [newY, setNewY] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // Bootstrap dallo stato server
   useEffect(() => {
@@ -155,6 +160,32 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
       const next = new Map(prev);
       const curr = next.get(`${x}_${y}`) ?? { prezzo_vendita: 0, prezzo_acquisto: 0 };
       next.set(`${x}_${y}`, { ...curr, [field]: value });
+      return next;
+    });
+  };
+
+  /**
+   * Applica il payload del bulk import allo stato locale.
+   *  - Unione ORDINATA degli assi: nuovi valori X/Y vengono aggiunti a quelli
+   *    già presenti (non sovrascritti), così l'utente può mergere più
+   *    importazioni sullo stesso articolo.
+   *  - Per ogni cella parsata: scrive SOLO nel campo target scelto dall'utente
+   *    (vendita o acquisto), preservando l'altro valore se esistente.
+   *  - NON salva sul DB: l'utente rivede la matrice e clicca "Salva griglia".
+   */
+  const applyBulk = (payload: BulkParsedPayload) => {
+    const mergedX = Array.from(new Set([...xAxis, ...payload.xAxis])).sort((a, b) => a - b);
+    const mergedY = Array.from(new Set([...yAxis, ...payload.yAxis])).sort((a, b) => a - b);
+
+    setXAxis(mergedX);
+    setYAxis(mergedY);
+
+    setCells((prev) => {
+      const next = new Map(prev);
+      for (const [key, value] of payload.values.entries()) {
+        const curr = next.get(key) ?? { prezzo_vendita: 0, prezzo_acquisto: 0 };
+        next.set(key, { ...curr, [payload.targetField]: value });
+      }
       return next;
     });
   };
@@ -260,10 +291,26 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Matrice prezzi {asseXLabel} × {asseYLabel}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Definisci le taglie standard. Ogni cella contiene prezzo vendita (€) e acquisto (€). Celle vuote = taglia non disponibile.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-base">
+              Matrice prezzi {asseXLabel} × {asseYLabel}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Definisci le taglie standard. Ogni cella contiene prezzo vendita (€) e acquisto (€). Celle vuote = taglia non disponibile.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setBulkOpen(true)}
+            className="shrink-0"
+          >
+            <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
+            Importa da testo
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Asse X */}
@@ -452,6 +499,14 @@ export function FamilyGridEditor({ familyId, asseXLabel, asseYLabel }: Props) {
           </Button>
         </div>
       </CardContent>
+
+      <GridBulkImportDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        onApply={applyBulk}
+        asseXLabel={asseXLabel}
+        asseYLabel={asseYLabel}
+      />
     </Card>
   );
 }
