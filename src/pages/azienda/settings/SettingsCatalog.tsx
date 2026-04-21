@@ -1,60 +1,74 @@
 /**
- * Preventivatore Verticalizzato Serramentisti — FASE 4.7
+ * Preventivatore Verticalizzato Serramentisti — Catalogo listino.
  *
- * Pagina catalogo listino con tab switcher:
- *  - Famiglie (default, nuovo preventivatore verticalizzato)
- *  - Articoli singoli (legacy, ArticleCatalog)
+ * Gerarchia a 3 livelli:
+ *   MACROCATEGORIA (es. INFISSO MODELLO 1)
+ *     └─ CATEGORIA (es. FINESTRA 1 ANTA)
+ *         └─ ARTICOLO (ex "famiglia", con prezzi/assi/varianti)
  *
- * Lo switch tra le due viste è gestito tramite query string ?tab=famiglie|articoli
- * così il tab sopravvive a refresh + è condivisibile.
+ * UI:
+ *  - Header: pulsanti "Gestisci categorie" + "Import Excel/CSV" + "Import AI da PDF".
+ *  - Contenuto: catalogo articoli raggruppato per macrocategoria → categoria.
+ *  - Niente più tab "Articoli singoli": creando un articolo puoi già definire
+ *    il prezzo puntuale, non serve un'altra vista separata.
  */
 
-import { Link, useSearchParams } from "react-router-dom";
-import { ArticleCatalog } from "@/components/settings/ArticleCatalog";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { FamilyCatalog } from "@/components/listino/FamilyCatalog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MacroCategorieManager } from "@/components/listino/MacroCategorieManager";
 import { Button } from "@/components/ui/button";
-import { Upload, Sparkles } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Upload, Sparkles, FolderTree } from "lucide-react";
 
 export default function SettingsCatalog() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get("tab") ?? "famiglie";
-
-  const handleChange = (value: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("tab", value);
-    setSearchParams(next, { replace: true });
-  };
+  const [showCategorieDialog, setShowCategorieDialog] = useState(false);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowCategorieDialog(true)}
+        >
+          <FolderTree className="h-4 w-4 mr-2" aria-hidden="true" />
+          Gestisci categorie
+        </Button>
         <Button asChild variant="outline" size="sm">
           <Link to="/azienda/impostazioni/listino/import">
-            <Upload className="h-4 w-4 mr-2" />
+            <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
             Import Excel/CSV
           </Link>
         </Button>
         <Button asChild size="sm">
           <Link to="/azienda/impostazioni/listino/import">
-            <Sparkles className="h-4 w-4 mr-2" />
+            <Sparkles className="h-4 w-4 mr-2" aria-hidden="true" />
             Import AI da PDF
           </Link>
         </Button>
       </div>
 
-      <Tabs value={tab} onValueChange={handleChange}>
-        <TabsList>
-          <TabsTrigger value="famiglie">Famiglie</TabsTrigger>
-          <TabsTrigger value="articoli">Articoli singoli</TabsTrigger>
-        </TabsList>
-        <TabsContent value="famiglie" className="mt-4">
-          <FamilyCatalog />
-        </TabsContent>
-        <TabsContent value="articoli" className="mt-4">
-          <ArticleCatalog />
-        </TabsContent>
-      </Tabs>
+      <FamilyCatalog />
+
+      <Dialog open={showCategorieDialog} onOpenChange={setShowCategorieDialog}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gestione categorie</DialogTitle>
+            <DialogDescription>
+              Organizza il listino in macrocategorie e categorie. Gli articoli
+              saranno raggruppati automaticamente in base a questa struttura.
+            </DialogDescription>
+          </DialogHeader>
+          <MacroCategorieManager />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

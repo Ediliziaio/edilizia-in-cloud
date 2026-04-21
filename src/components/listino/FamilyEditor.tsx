@@ -15,7 +15,7 @@
  * Preview prezzo live (FamilyPricePreview) affiancata dallo Step 3 in poi.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -24,6 +24,7 @@ import {
   Loader2,
   Save,
   CopyPlus,
+  FolderTree,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +32,8 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useFamily } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
 import { useAuth } from "@/contexts/AuthContext";
+import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
+import { useListinoCategorie } from "@/hooks/useListinoCategorie";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,16 +54,19 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { FamilyAxesEditor } from "./FamilyAxesEditor";
 import { FamilyGridEditor } from "./FamilyGridEditor";
 import { FamilyPricePreview } from "./FamilyPricePreview";
+import { MacroCategorieManager } from "./MacroCategorieManager";
 import type { ModalitaPrezzoBase } from "@/types/articleFamily";
-
-interface Categoria {
-  id: string;
-  nome: string;
-}
 
 interface Tariffa {
   id: string;
@@ -93,9 +99,11 @@ export function FamilyEditor() {
   const { family, isLoading: loadingFamily } = useFamily(isNew ? null : id);
 
   const [activeStep, setActiveStep] = useState("1");
+  const [showCategorieManager, setShowCategorieManager] = useState(false);
 
   // ── Form state Step 1 ────────────────────────────────────────────────────
   const [nome, setNome] = useState("");
+  const [macrocategoriaId, setMacrocategoriaId] = useState<string | "none">("none");
   const [categoriaId, setCategoriaId] = useState<string | "none">("none");
   const [descrizione, setDescrizione] = useState("");
   const [modalita, setModalita] = useState<ModalitaPrezzoBase>("griglia");
@@ -116,11 +124,19 @@ export function FamilyEditor() {
   // cascade + QUANTITY sync. Se false, la posa resta indipendente.
   const [posaLinked, setPosaLinked] = useState<boolean>(true);
 
+  // ── Query: macrocategorie + categorie + tariffe ────────────────────────
+  const { macrocategorie } = useListinoMacrocategorie();
+  const { categorie } = useListinoCategorie();
+
   // Bootstrap da family caricata
   useEffect(() => {
     if (family) {
       setNome(family.nome);
+      const cat = family.categoria_id
+        ? categorie.find((c) => c.id === family.categoria_id)
+        : null;
       setCategoriaId(family.categoria_id ?? "none");
+      setMacrocategoriaId(cat?.macrocategoria_id ?? "none");
       setDescrizione(family.descrizione ?? "");
       setModalita(family.modalita_prezzo_base);
       setUnitOfMeasure(family.unit_of_measure);
@@ -136,22 +152,28 @@ export function FamilyEditor() {
       const pl = (family as unknown as { posa_linked?: boolean | null }).posa_linked;
       setPosaLinked(pl ?? true);
     }
-  }, [family]);
+  }, [family, categorie]);
 
-  // ── Query: categorie + tariffe ──────────────────────────────────────────
-  const { data: categorie = [] } = useQuery({
-    queryKey: ["listino-categorie-for-editor", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("listino_categorie")
-        .select("id, nome")
-        .eq("company_id", companyId!)
-        .order("sort_order", { ascending: true });
-      if (error) throw new Error(error.message);
-      return (data ?? []) as Categoria[];
-    },
-  });
+  // Categorie filtrate per macrocategoria selezionata
+  const categorieFiltered = useMemo(() => {
+    if (macrocategoriaId === "none") {
+      // Nessuna macro selezionata → mostra solo quelle orfane
+      return categorie.filter((c) => c.macrocategoria_id === null);
+    }
+    return categorie.filter((c) => c.macrocategoria_id === macrocategoriaId);
+  }, [categorie, macrocategoriaId]);
+
+  // Se la macrocategoria cambia e la categoria corrente non appartiene a
+  // quella macro, resetta la selezione.
+  useEffect(() => {
+    if (categoriaId === "none") return;
+    const cat = categorie.find((c) => c.id === categoriaId);
+    if (!cat) return;
+    const macroOfCat = cat.macrocategoria_id ?? "none";
+    if (macroOfCat !== macrocategoriaId) {
+      setCategoriaId("none");
+    }
+  }, [macrocategoriaId, categoriaId, categorie]);
 
   const { data: tariffe = [] } = useQuery({
     queryKey: ["tariffe-for-editor", companyId],
@@ -199,7 +221,7 @@ export function FamilyEditor() {
           sort_order: 0,
           custom_field_values: {},
         });
-        toast.success("Famiglia creata");
+        toast.success("Articolo creato");
         // Redirect a /:id per continuare editing
         navigate(`/azienda/impostazioni/listino/famiglie/${created.id}`, {
           replace: true,
@@ -207,7 +229,7 @@ export function FamilyEditor() {
         return created.id;
       } else if (family) {
         await updateFamily.mutateAsync({ id: family.id, patch: payload });
-        toast.success("Famiglia aggiornata");
+        toast.success("Articolo aggiornato");
         return family.id;
       }
     } catch (err) {
@@ -229,7 +251,7 @@ export function FamilyEditor() {
         sourceId: family.id,
         newName: `${family.nome} (copia)`,
       });
-      toast.success("Famiglia duplicata");
+      toast.success("Articolo duplicato");
       navigate(`/azienda/impostazioni/listino/famiglie/${newId}`);
     } catch (err) {
       toast.error("Errore duplicazione", {
@@ -242,7 +264,7 @@ export function FamilyEditor() {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
-        Caricamento famiglia…
+        Caricamento articolo…
       </div>
     );
   }
@@ -251,7 +273,7 @@ export function FamilyEditor() {
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <p className="font-medium">Famiglia non trovata</p>
+          <p className="font-medium">Articolo non trovato</p>
           <Button
             className="mt-4"
             variant="outline"
@@ -274,11 +296,11 @@ export function FamilyEditor() {
             onClick={() => navigate("/azienda/impostazioni/listino/famiglie")}
           >
             <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
-            Famiglie
+            Articoli
           </Button>
           <div className="min-w-0">
             <h1 className="text-xl font-semibold truncate">
-              {isNew ? "Nuova famiglia" : family?.nome}
+              {isNew ? "Nuovo articolo" : family?.nome}
             </h1>
             {!isNew && family ? (
               <p className="text-xs text-muted-foreground">
@@ -328,7 +350,7 @@ export function FamilyEditor() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <Label htmlFor="f-nome">Nome famiglia *</Label>
+                    <Label htmlFor="f-nome">Nome articolo *</Label>
                     <Input
                       id="f-nome"
                       value={nome}
@@ -336,25 +358,78 @@ export function FamilyEditor() {
                       placeholder="es. Finestra PVC 2 ante"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="f-categoria">Categoria</Label>
-                    <Select
-                      value={categoriaId}
-                      onValueChange={(v) => setCategoriaId(v)}
-                    >
-                      <SelectTrigger id="f-categoria">
-                        <SelectValue placeholder="Nessuna" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nessuna categoria</SelectItem>
-                        {categorie.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="f-macrocategoria">Macrocategoria</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-1 text-xs"
+                          onClick={() => setShowCategorieManager(true)}
+                        >
+                          <FolderTree className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                          Gestisci
+                        </Button>
+                      </div>
+                      <Select
+                        value={macrocategoriaId}
+                        onValueChange={(v) => setMacrocategoriaId(v)}
+                      >
+                        <SelectTrigger id="f-macrocategoria">
+                          <SelectValue placeholder="Nessuna" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— Nessuna —</SelectItem>
+                          {macrocategorie.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="f-categoria">Categoria</Label>
+                      <Select
+                        value={categoriaId}
+                        onValueChange={(v) => setCategoriaId(v)}
+                      >
+                        <SelectTrigger id="f-categoria">
+                          <SelectValue
+                            placeholder={
+                              categorieFiltered.length === 0
+                                ? "Crea prima una categoria"
+                                : "Nessuna"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— Nessuna —</SelectItem>
+                          {categorieFiltered.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {macrocategoriaId !== "none" && categorieFiltered.length === 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Nessuna categoria in questa macrocategoria.{" "}
+                          <button
+                            type="button"
+                            className="underline hover:text-foreground"
+                            onClick={() => setShowCategorieManager(true)}
+                          >
+                            Creane una
+                          </button>
+                        </p>
+                      )}
+                    </div>
                   </div>
+
                   <div>
                     <Label htmlFor="f-descrizione">Descrizione</Label>
                     <Textarea
@@ -465,7 +540,7 @@ export function FamilyEditor() {
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                      {isNew ? "Crea famiglia" : "Salva dati base"}
+                      {isNew ? "Crea articolo" : "Salva dati base"}
                     </>
                   )}
                 </Button>
@@ -615,10 +690,24 @@ export function FamilyEditor() {
               {family ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Riepilogo famiglia</CardTitle>
+                    <CardTitle className="text-base">Riepilogo articolo</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     <Row label="Nome" value={family.nome} />
+                    <Row
+                      label="Macrocategoria"
+                      value={
+                        (() => {
+                          const cat = family.categoria_id
+                            ? categorie.find((c) => c.id === family.categoria_id)
+                            : null;
+                          const macroId = cat?.macrocategoria_id;
+                          return macroId
+                            ? macrocategorie.find((m) => m.id === macroId)?.nome ?? "—"
+                            : "Nessuna";
+                        })()
+                      }
+                    />
                     <Row
                       label="Categoria"
                       value={
@@ -701,6 +790,20 @@ export function FamilyEditor() {
           )}
         </div>
       </div>
+
+      {/* Dialog gestione macrocategorie/categorie (aperto da sezione Step 1) */}
+      <Dialog open={showCategorieManager} onOpenChange={setShowCategorieManager}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gestione categorie</DialogTitle>
+            <DialogDescription>
+              Crea macrocategorie e categorie. Saranno immediatamente disponibili
+              nel menu a tendina.
+            </DialogDescription>
+          </DialogHeader>
+          <MacroCategorieManager />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
