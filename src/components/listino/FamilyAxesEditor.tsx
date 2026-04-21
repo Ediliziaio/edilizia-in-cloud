@@ -100,13 +100,63 @@ function maggiorazioneBadgeClass(tipo: MaggiorazioneTipo): string {
   }
 }
 
-const MAGGIORAZIONE_OPTIONS: Array<{ value: MaggiorazioneTipo; label: string }> = [
-  { value: "none", label: "Nessuna" },
-  { value: "percentuale", label: "% sul prezzo base" },
-  { value: "fisso_pz", label: "€ fissi per pezzo" },
-  { value: "fisso_mq", label: "€ fissi al mq" },
-  { value: "fisso_ml", label: "€ fissi al ml" },
-  { value: "fisso_mc", label: "€ fissi al mc" },
+const MAGGIORAZIONE_OPTIONS: Array<{
+  value: MaggiorazioneTipo;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: "none",
+    label: "Nessuna",
+    hint: "Stesso prezzo del valore default — nessun ricarico.",
+  },
+  {
+    value: "percentuale",
+    label: "% sul prezzo base",
+    hint: "Ricarico proporzionale al prezzo. Ideale per varianti strutturali (colore, apertura).",
+  },
+  {
+    value: "fisso_pz",
+    label: "€ fissi per pezzo",
+    hint: "Importo fisso per unità venduta. Indipendente da taglia e mq.",
+  },
+  {
+    value: "fisso_mq",
+    label: "€ fissi al m²",
+    hint: "Moltiplicato per la superficie del serramento (es. vetri).",
+  },
+  {
+    value: "fisso_ml",
+    label: "€ fissi al metro lineare",
+    hint: "Moltiplicato per la larghezza (es. davanzali, coprifili).",
+  },
+  {
+    value: "fisso_mc",
+    label: "€ fissi al m³",
+    hint: "Moltiplicato per il volume (raro, usato per imballaggi).",
+  },
+];
+
+/**
+ * Suggerimenti rapidi per il nome asse — mostrati come chip sopra l'input
+ * nella creazione manuale. Copertura tipica serramenti / porte / persiane.
+ */
+const AXIS_NAME_SUGGESTIONS: Array<{
+  nome: string;
+  icona: string;
+  hint: string;
+}> = [
+  { nome: "Colore", icona: "🎨", hint: "Finitura/colorazione esterna" },
+  { nome: "Vetro", icona: "🪟", hint: "Tipologia di vetrata" },
+  { nome: "Apertura", icona: "↔️", hint: "Tipo apertura/meccanismo" },
+  { nome: "Materiale", icona: "🪵", hint: "Materiale del pannello/struttura" },
+  { nome: "Finitura", icona: "✨", hint: "Rivestimento superficiale" },
+  { nome: "Ferramenta", icona: "🔧", hint: "Tipo ferramenta/maniglia" },
+  { nome: "Verso apertura", icona: "↩️", hint: "Destra/sinistra/reversibile" },
+  { nome: "Maniglia", icona: "✋", hint: "Tipologia maniglia/pomolo" },
+  { nome: "Chiusura", icona: "🔐", hint: "Cilindro/defender/smart lock" },
+  { nome: "Meccanismo", icona: "⚙️", hint: "Manuale o motorizzato" },
+  { nome: "Taglia", icona: "📏", hint: "Dimensioni preimpostate" },
 ];
 
 function slugifyCodice(s: string): string {
@@ -917,6 +967,33 @@ function AxisFormDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {/* Chips suggerimenti rapidi nome asse: compilano sia nome che codice
+              (lo slugify si aggancia on-name-change nella textbox sottostante). */}
+          {!editing ? (
+            <div className="space-y-1.5">
+              <div className="text-xs text-muted-foreground">
+                Suggerimenti rapidi
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {AXIS_NAME_SUGGESTIONS.map((sug) => (
+                  <button
+                    key={sug.nome}
+                    type="button"
+                    onClick={() => {
+                      setNome(sug.nome);
+                      setCodice(slugifyCodice(sug.nome));
+                      setCodiceManuallyEdited(false);
+                    }}
+                    className="text-[11px] px-2 py-0.5 rounded-full border bg-muted/40 hover:bg-primary/10 hover:border-primary transition"
+                    title={sug.hint}
+                  >
+                    {sug.icona} {sug.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <label htmlFor="axis-nome" className="text-sm font-medium">Nome</label>
             <Input
@@ -934,7 +1011,14 @@ function AxisFormDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="axis-codice" className="text-sm font-medium">Codice</label>
+            <label htmlFor="axis-codice" className="text-sm font-medium">
+              Codice
+              {codice && !codiceManuallyEdited ? (
+                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                  (auto-generato dal nome)
+                </span>
+              ) : null}
+            </label>
             <Input
               id="axis-codice"
               value={codice}
@@ -963,29 +1047,63 @@ function AxisFormDialog({
               onChange={(e) => setDescrizione(e.target.value)}
               rows={2}
               className="resize-none"
+              placeholder="Dettaglio visibile ai configuratori (tooltip, aiuto contestuale)…"
             />
           </div>
+          {/* Tipo asse come cards cliccabili: aumenta la leggibilità rispetto
+              a un select opaco, specialmente per utenti non-tecnici. */}
           <div className="space-y-1.5">
-            <label htmlFor="axis-tipo" className="text-sm font-medium">Tipo</label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as AxisTipo)}>
-              <SelectTrigger id="axis-tipo" className="h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="discrete">Lista di valori (discrete)</SelectItem>
-                <SelectItem value="boolean">Sì / No (boolean)</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="text-sm font-medium">Tipo di asse</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTipo("discrete")}
+                aria-pressed={tipo === "discrete"}
+                className={`text-left p-2.5 rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  tipo === "discrete"
+                    ? "border-primary bg-primary/5"
+                    : "hover:border-foreground/30"
+                }`}
+              >
+                <div className="text-xs sm:text-sm font-medium">
+                  📋 Lista di valori
+                </div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                  Più opzioni (es. bianco/antracite/noce)
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipo("boolean")}
+                aria-pressed={tipo === "boolean"}
+                className={`text-left p-2.5 rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  tipo === "boolean"
+                    ? "border-primary bg-primary/5"
+                    : "hover:border-foreground/30"
+                }`}
+              >
+                <div className="text-xs sm:text-sm font-medium">
+                  ⏼ Sì / No
+                </div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                  Solo attivo/disattivo (es. "con fori ventilazione")
+                </div>
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 py-1">
+          <div className="flex items-start gap-2 py-1 p-2.5 rounded-md border bg-muted/30">
             <Checkbox
               id="obbl"
               checked={obbligatorio}
               onCheckedChange={(c) => setObbligatorio(c === true)}
-              className="h-5 w-5"
+              className="h-5 w-5 mt-0.5"
             />
-            <label htmlFor="obbl" className="text-sm cursor-pointer select-none">
-              Obbligatorio (richiede selezione nel preventivo)
+            <label htmlFor="obbl" className="text-sm cursor-pointer select-none flex-1">
+              <span className="font-medium">Obbligatorio</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                Se attivo, richiede una selezione esplicita nel preventivo e
+                deve avere almeno un valore "default".
+              </span>
             </label>
           </div>
         </div>
@@ -1214,38 +1332,69 @@ function ValueFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {/* Hint contestuale sul tipo selezionato: aiuta a capire quando
+                  scegliere ogni opzione senza dover indovinare. */}
+              <p className="text-[11px] text-muted-foreground pt-0.5">
+                {MAGGIORAZIONE_OPTIONS.find((o) => o.value === magTipo)?.hint}
+              </p>
             </div>
             {magTipo !== "none" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label htmlFor="val-mag-vendita" className="text-xs text-muted-foreground">
-                    Valore vendita
-                  </label>
-                  <Input
-                    id="val-mag-vendita"
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={magValore}
-                    onChange={(e) => setMagValore(e.target.value)}
-                    className="h-10 font-mono"
-                  />
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="val-mag-vendita"
+                      className="text-xs text-muted-foreground flex items-center gap-1"
+                    >
+                      Valore vendita
+                      <span className="text-[10px] text-primary">(listino)</span>
+                    </label>
+                    <Input
+                      id="val-mag-vendita"
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      value={magValore}
+                      onChange={(e) => setMagValore(e.target.value)}
+                      className="h-10 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="val-mag-acquisto"
+                      className="text-xs text-muted-foreground flex items-center gap-1"
+                    >
+                      Valore acquisto
+                      <span className="text-[10px] text-muted-foreground">
+                        (costo fornitore)
+                      </span>
+                    </label>
+                    <Input
+                      id="val-mag-acquisto"
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      value={magAcquisto}
+                      onChange={(e) => setMagAcquisto(e.target.value)}
+                      className="h-10 font-mono"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label htmlFor="val-mag-acquisto" className="text-xs text-muted-foreground">
-                    Valore acquisto
-                  </label>
-                  <Input
-                    id="val-mag-acquisto"
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={magAcquisto}
-                    onChange={(e) => setMagAcquisto(e.target.value)}
-                    className="h-10 font-mono"
-                  />
-                </div>
-              </div>
+                <p className="text-[11px] text-muted-foreground">
+                  La differenza fra <strong>vendita</strong> e{" "}
+                  <strong>acquisto</strong> è il margine per il serramentista
+                  su questo valore.
+                </p>
+
+                {/* Preview prezzo live: aiuta a validare il valore inserito
+                    evitando errori grossolani (un "+5" percentuale letto come
+                    "+500%" su un'interfaccia opaca). */}
+                <PricePreviewRow
+                  tipo={magTipo}
+                  vendita={parseFloat(magValore) || 0}
+                  acquisto={parseFloat(magAcquisto) || 0}
+                />
+              </>
             ) : null}
           </div>
         </div>
@@ -1294,4 +1443,106 @@ function ValueFormDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+// ── Preview prezzo live per il ValueFormDialog ───────────────────────────
+//
+// Mostra l'effetto della maggiorazione su esempi concreti: per
+// percentuali un prezzo base fittizio di 1000 €, per fissi una tabella
+// con le unità tipiche.
+
+function PricePreviewRow({
+  tipo,
+  vendita,
+  acquisto,
+}: {
+  tipo: MaggiorazioneTipo;
+  vendita: number;
+  acquisto: number;
+}) {
+  // Formatter EUR coerente con il resto dell'app
+  const eur = (n: number) =>
+    new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 2,
+    }).format(n);
+
+  if (tipo === "percentuale") {
+    const base = 1000;
+    const incV = (base * vendita) / 100;
+    const incA = (base * acquisto) / 100;
+    const finV = base + incV;
+    const finA = base + incA;
+    const mrg = finV - finA;
+    return (
+      <div className="rounded-md border bg-background p-2 text-[11px] space-y-1">
+        <div className="font-medium text-foreground">
+          Esempio su prezzo base {eur(base)}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Vendita → </span>
+          <span className="font-mono">
+            {eur(base)} + {vendita}% = <strong>{eur(finV)}</strong>
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Acquisto → </span>
+          <span className="font-mono">
+            {eur(base)} + {acquisto}% = <strong>{eur(finA)}</strong>
+          </span>
+        </div>
+        <div className="flex items-center justify-between pt-0.5 border-t">
+          <span className="text-muted-foreground">Margine per pz</span>
+          <span className="font-mono font-semibold text-primary">
+            {eur(mrg)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (
+    tipo === "fisso_pz" ||
+    tipo === "fisso_mq" ||
+    tipo === "fisso_ml" ||
+    tipo === "fisso_mc"
+  ) {
+    const unita =
+      tipo === "fisso_pz"
+        ? "pz"
+        : tipo === "fisso_mq"
+          ? "m²"
+          : tipo === "fisso_ml"
+            ? "ml"
+            : "m³";
+    const margine = vendita - acquisto;
+    return (
+      <div className="rounded-md border bg-background p-2 text-[11px] space-y-1">
+        <div className="font-medium text-foreground">
+          Esempio con 1 {unita}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Ricarico vendita</span>
+          <span className="font-mono font-semibold">
+            +{eur(vendita)} / {unita}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Ricarico acquisto</span>
+          <span className="font-mono">
+            +{eur(acquisto)} / {unita}
+          </span>
+        </div>
+        <div className="flex items-center justify-between pt-0.5 border-t">
+          <span className="text-muted-foreground">Margine per {unita}</span>
+          <span className="font-mono font-semibold text-primary">
+            {eur(margine)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
