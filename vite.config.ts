@@ -20,46 +20,16 @@ export default defineConfig(() => ({
     react(),
     ...(isMobile ? [] : [VitePWA({
       registerType: "autoUpdate",
-      injectRegister: "auto",
+      // Do not inject /registerSW.js. With the current Vite/Rolldown build the
+      // external register file can be referenced without being emitted, causing
+      // a production MIME error on first load. Keep the generated SW available,
+      // but let the app opt into registration explicitly later.
+      injectRegister: false,
       includeAssets: ["favicon.ico", "robots.txt", "icons/apple-touch-icon.png"],
-      manifest: {
-        name: "Edilizia in Cloud",
-        short_name: "EdiliziaIC",
-        description: "Gestionale completo per imprese edili italiane",
-        theme_color: "#0a0a0f",
-        background_color: "#0a0a0f",
-        display: "standalone",
-        orientation: "portrait",
-        scope: "/",
-        start_url: "/",
-        lang: "it",
-        categories: ["business", "productivity"],
-        icons: [
-          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-        ],
-        shortcuts: [
-          {
-            name: "Cantieri",
-            short_name: "Cantieri",
-            url: "/azienda/cantieri",
-            icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
-          },
-          {
-            name: "Giornale Lavori",
-            short_name: "Giornale",
-            url: "/azienda/giornale-lavori",
-            icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
-          },
-          {
-            name: "Clienti",
-            short_name: "Clienti",
-            url: "/azienda/clienti",
-            icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
-          },
-        ],
-      },
+      // The app already ships public/manifest.json. Disabling plugin manifest
+      // injection avoids an extra /manifest.webmanifest reference that was not
+      // emitted under Rolldown.
+      manifest: false,
       workbox: {
         // sw-push-handler.js: gestione eventi push Web Push API (MP5)
         // Incluso via importScripts nel SW generato da Vite PWA.
@@ -119,6 +89,10 @@ export default defineConfig(() => ({
     },
   },
   build: {
+    // Move generated bundles away from /assets. Cloudflare currently has a few
+    // poisoned immutable cache entries under /assets/* that return index.html
+    // with a JS URL. A new assets directory gives every bundle a clean URL.
+    assetsDir: "assets-v2",
     chunkSizeWarningLimit: 1500,
     // ─────────────────────────────────────────────────────────────
     // modulePreload filtrato (Velocity V3, Sprint 1.A)

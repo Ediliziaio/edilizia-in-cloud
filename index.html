@@ -3,6 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- SW Emergency Recovery — must run before Vite module scripts are injected -->
+    <script>
+      // Skip SW recovery entirely on Capacitor native — there are no service workers
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        /* native: no-op */
+      } else
+      (function () {
+        function nukeAndReload() {
+          Promise.all([
+            'serviceWorker' in navigator
+              ? navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  return Promise.all(regs.map(function (r) { return r.unregister(); }));
+                })
+              : Promise.resolve(),
+            (typeof caches !== 'undefined' && caches.keys)
+              ? caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                })
+              : Promise.resolve()
+          ]).then(function () { location.reload(); }).catch(function () { location.reload(); });
+        }
+
+        // Increment DEPLOY_KEY whenever a forced SW reset is needed.
+        var DEPLOY_KEY = 'sw_reset_v6';
+        try {
+          if (!localStorage.getItem(DEPLOY_KEY) && 'serviceWorker' in navigator) {
+            localStorage.setItem(DEPLOY_KEY, '1');
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              if (regs.length > 0) nukeAndReload();
+            }).catch(function () {});
+          }
+        } catch (e) {}
+
+        var _recovered = sessionStorage.getItem('_sw_rec');
+        function onError(msg) {
+          if (_recovered) return;
+          var isChunkError =
+            msg.indexOf('Unexpected token') !== -1 ||
+            msg.indexOf('<!DOCTYPE') !== -1 ||
+            msg.indexOf('Failed to fetch dynamically imported') !== -1 ||
+            msg.indexOf('Importing a module script failed') !== -1 ||
+            msg.indexOf('Unable to preload CSS') !== -1 ||
+            msg.indexOf('Loading chunk') !== -1 ||
+            msg.indexOf('ChunkLoadError') !== -1 ||
+            msg.indexOf('MIME type') !== -1 ||
+            msg.indexOf('module script') !== -1 ||
+            msg.indexOf('SECRET_INTERNALS') !== -1 ||
+            msg.indexOf('before initialization') !== -1;
+          if (isChunkError) {
+            _recovered = '1';
+            sessionStorage.setItem('_sw_rec', '1');
+            nukeAndReload();
+          }
+        }
+        window.addEventListener('error', function (e) {
+          onError((e && e.message) || '');
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          onError((e && e.reason && e.reason.message) || String((e && e.reason) || ''));
+        }, true);
+      })();
+    </script>
     <title>Gestionale Edilizia Cloud | Software per Imprese Edili</title>
     <meta name="description" content="Il software cloud per imprese edili italiane. Gestisci cantieri, preventivi, fatturazione e squadre in un'unica piattaforma AI. Prova gratis.">
     <meta name="author" content="Edilizia in Cloud" />
@@ -318,71 +380,6 @@
 
   <body>
     <div id="root"></div>
-    <!-- SW Emergency Recovery — runs inline before any module loads -->
-    <script>
-      // Skip SW recovery entirely on Capacitor native — there are no service workers
-      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-        /* native: no-op */
-      } else
-      (function () {
-        function nukeAndReload() {
-          Promise.all([
-            'serviceWorker' in navigator
-              ? navigator.serviceWorker.getRegistrations().then(function (regs) {
-                  return Promise.all(regs.map(function (r) { return r.unregister(); }));
-                })
-              : Promise.resolve(),
-            (typeof caches !== 'undefined' && caches.keys)
-              ? caches.keys().then(function (keys) {
-                  return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-                })
-              : Promise.resolve()
-          ]).then(function () { location.reload(); }).catch(function () { location.reload(); });
-        }
-
-        // ── PROACTIVE: nuke old SWs on first load after this deploy ──────────
-        // Unregisters ALL service workers + clears ALL caches once per deploy.
-        // This breaks any stale-SW poison loop before it can corrupt JS loading.
-        // Increment DEPLOY_KEY whenever a forced SW reset is needed.
-        var DEPLOY_KEY = 'sw_reset_v5';
-        try {
-          if (!localStorage.getItem(DEPLOY_KEY) && 'serviceWorker' in navigator) {
-            localStorage.setItem(DEPLOY_KEY, '1');
-            navigator.serviceWorker.getRegistrations().then(function (regs) {
-              if (regs.length > 0) nukeAndReload();
-            }).catch(function () {});
-          }
-        } catch (e) {}
-
-        // ── REACTIVE: catch JS errors caused by SW serving index.html as JS ──
-        // Covers: SyntaxError from <!doctype>, chunk load failures, import errors.
-        var _recovered = sessionStorage.getItem('_sw_rec');
-        function onError(msg) {
-          if (_recovered) return;
-          var isChunkError =
-            msg.indexOf('Unexpected token') !== -1 ||
-            msg.indexOf('<!DOCTYPE') !== -1 ||
-            msg.indexOf('Failed to fetch dynamically imported') !== -1 ||
-            msg.indexOf('Importing a module script failed') !== -1 ||
-            msg.indexOf('Unable to preload CSS') !== -1 ||
-            msg.indexOf('Loading chunk') !== -1 ||
-            msg.indexOf('ChunkLoadError') !== -1 ||
-            msg.indexOf('SECRET_INTERNALS') !== -1 ||
-            msg.indexOf('before initialization') !== -1;
-          if (isChunkError) {
-            _recovered = '1';
-            sessionStorage.setItem('_sw_rec', '1');
-            nukeAndReload();
-          }
-        }
-        window.addEventListener('error', function (e) {
-          onError((e && e.message) || '');
-        }, true);
-        window.addEventListener('unhandledrejection', function (e) {
-          onError((e && e.reason && e.reason.message) || String((e && e.reason) || ''));
-        }, true);
-      })();
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
