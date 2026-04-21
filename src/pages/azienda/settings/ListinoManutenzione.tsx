@@ -1,18 +1,23 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
-import { Plus, Pencil, Trash2, Zap } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Sparkles, Flame, Zap as ZapIcon,
+  Sun, Bath, PaintBucket, Cloud, Construction, Shovel, Waves, CheckCircle2,
+  Search,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -74,35 +79,286 @@ const CATEGORIE_INTERVENTO: { value: CategoriaIntervento; label: string; color: 
 const UNITA_OPTIONS = ["intervento", "ora", "mq", "ml", "giorno"];
 const IVA_OPTIONS = [0, 4, 5, 10, 22];
 
-// ─── Default seed data ────────────────────────────────────────────────────────
+// ─── Preset templates ─────────────────────────────────────────────────────────
+/**
+ * Id dei preset listino disponibili. Ogni impianto/intervento/tariffa può
+ * appartenere a più preset (es. "Condizionatore split" è utile sia al
+ * termoidraulico sia al bagno moderno). L'admin può importare uno o più preset
+ * con un click dal dialog template, oppure scegliere singole voci.
+ */
+type PresetListinoId =
+  | "termoidraulica" | "elettrico" | "bagno" | "fotovoltaico"
+  | "pittura" | "tetti_ripasso" | "tetti_rifacimento" | "scavi" | "piscine";
 
-const DEFAULT_TIPI_IMPIANTO = [
-  { nome: "Caldaia",              icona: "🔥", ordine: 1 },
-  { nome: "Condizionatore",       icona: "❄️", ordine: 2 },
-  { nome: "Impianto Idraulico",   icona: "💧", ordine: 3 },
-  { nome: "Impianto Elettrico",   icona: "⚡", ordine: 4 },
-  { nome: "Fotovoltaico",         icona: "☀️", ordine: 5 },
+interface ImpiantoSeed {
+  nome: string;
+  icona: string;
+  ordine: number;
+  presets: PresetListinoId[];
+}
+
+interface InterventoSeed {
+  nome: string;
+  categoria: CategoriaIntervento;
+  durata_stimata_h: number;
+  presets: PresetListinoId[];
+}
+
+interface TariffaListinoSeed {
+  impianto: string;
+  intervento: string;
+  prezzo: number;
+  unita: string;
+  iva_pct: number;
+  presets: PresetListinoId[];
+}
+
+/**
+ * Catalogo impianti pre-compilato. Ogni riga ha uno o più `presets` che la
+ * agganciano ai template. L'ordine è solo di default: l'utente può
+ * riordinare in seguito.
+ */
+const STANDARD_IMPIANTI: ImpiantoSeed[] = [
+  // Termoidraulica / elettrico (classici)
+  { nome: "Caldaia",              icona: "🔥", ordine: 10,  presets: ["termoidraulica"] },
+  { nome: "Condizionatore",       icona: "❄️", ordine: 20,  presets: ["termoidraulica", "bagno"] },
+  { nome: "Impianto Idraulico",   icona: "💧", ordine: 30,  presets: ["termoidraulica", "bagno"] },
+  { nome: "Pompa di calore",      icona: "🌡️", ordine: 35,  presets: ["termoidraulica"] },
+  { nome: "Impianto Elettrico",   icona: "⚡", ordine: 40,  presets: ["elettrico", "bagno"] },
+  { nome: "Quadro elettrico",     icona: "🔌", ordine: 45,  presets: ["elettrico"] },
+  { nome: "Allarme / antifurto",  icona: "🚨", ordine: 50,  presets: ["elettrico"] },
+  { nome: "Videosorveglianza",    icona: "📹", ordine: 55,  presets: ["elettrico"] },
+  // Bagno
+  { nome: "Sanitari",             icona: "🚽", ordine: 60,  presets: ["bagno"] },
+  { nome: "Box doccia / vasca",   icona: "🛁", ordine: 65,  presets: ["bagno"] },
+  { nome: "Rubinetteria",         icona: "🚿", ordine: 70,  presets: ["bagno"] },
+  // Fotovoltaico
+  { nome: "Impianto Fotovoltaico",icona: "☀️", ordine: 80,  presets: ["fotovoltaico"] },
+  { nome: "Inverter FV",          icona: "🔋", ordine: 85,  presets: ["fotovoltaico"] },
+  { nome: "Sistema di accumulo",  icona: "🔋", ordine: 90,  presets: ["fotovoltaico"] },
+  // Pittura / pareti
+  { nome: "Pareti interne",       icona: "🖌️", ordine: 100, presets: ["pittura"] },
+  { nome: "Facciate esterne",     icona: "🏢", ordine: 105, presets: ["pittura"] },
+  { nome: "Infissi in legno",     icona: "🚪", ordine: 110, presets: ["pittura"] },
+  // Tetti
+  { nome: "Copertura a falda",    icona: "🏠", ordine: 120, presets: ["tetti_ripasso", "tetti_rifacimento"] },
+  { nome: "Canali di gronda",     icona: "🌧️", ordine: 125, presets: ["tetti_ripasso", "tetti_rifacimento"] },
+  { nome: "Lucernari",            icona: "🪟", ordine: 130, presets: ["tetti_rifacimento"] },
+  { nome: "Comignoli",            icona: "🏭", ordine: 135, presets: ["tetti_ripasso", "tetti_rifacimento"] },
+  // Scavi
+  { nome: "Area di cantiere",     icona: "⛏️", ordine: 140, presets: ["scavi"] },
+  { nome: "Sottoservizi",         icona: "🚧", ordine: 145, presets: ["scavi"] },
+  // Piscine
+  { nome: "Vasca piscina",        icona: "🏊", ordine: 150, presets: ["piscine"] },
+  { nome: "Impianto filtraggio",  icona: "⚙️", ordine: 155, presets: ["piscine"] },
+  { nome: "Illuminazione piscina",icona: "💡", ordine: 160, presets: ["piscine"] },
 ];
 
-const DEFAULT_TIPI_INTERVENTO = [
-  { nome: "Manutenzione ordinaria", categoria: "ordinaria" as CategoriaIntervento,    durata_stimata_h: 2 },
-  { nome: "Riparazione guasto",     categoria: "emergenza" as CategoriaIntervento,    durata_stimata_h: 3 },
-  { nome: "Sopralluogo",            categoria: "sopralluogo" as CategoriaIntervento,  durata_stimata_h: 1 },
-  { nome: "Installazione",          categoria: "installazione" as CategoriaIntervento,durata_stimata_h: 6 },
+/**
+ * Catalogo interventi pre-compilato. Ciascun intervento ha un nome specifico
+ * al contesto del preset (es. "Pulizia pannelli FV") così che nel listino
+ * risulti chiaro quale servizio stiamo offrendo.
+ */
+const STANDARD_INTERVENTI: InterventoSeed[] = [
+  // Generici (termoidraulica + elettrico)
+  { nome: "Manutenzione ordinaria", categoria: "ordinaria",    durata_stimata_h: 2, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "piscine"] },
+  { nome: "Riparazione guasto",     categoria: "emergenza",    durata_stimata_h: 3, presets: ["termoidraulica", "elettrico", "bagno"] },
+  { nome: "Sopralluogo",            categoria: "sopralluogo",  durata_stimata_h: 1, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "pittura", "tetti_ripasso", "tetti_rifacimento", "scavi", "piscine"] },
+  { nome: "Installazione",          categoria: "installazione",durata_stimata_h: 6, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "piscine"] },
+  // Fotovoltaico specifici
+  { nome: "Pulizia pannelli FV",    categoria: "ordinaria",    durata_stimata_h: 3, presets: ["fotovoltaico"] },
+  { nome: "Controllo producibilità",categoria: "ordinaria",    durata_stimata_h: 2, presets: ["fotovoltaico"] },
+  { nome: "Sostituzione inverter",  categoria: "emergenza",    durata_stimata_h: 4, presets: ["fotovoltaico"] },
+  // Pittura specifici
+  { nome: "Ritocco localizzato",    categoria: "ordinaria",    durata_stimata_h: 2, presets: ["pittura"] },
+  { nome: "Tinteggiatura completa", categoria: "installazione",durata_stimata_h: 8, presets: ["pittura"] },
+  { nome: "Rasatura + stucco",      categoria: "installazione",durata_stimata_h: 4, presets: ["pittura"] },
+  // Tetti ripasso
+  { nome: "Pulizia canali",         categoria: "ordinaria",    durata_stimata_h: 2, presets: ["tetti_ripasso"] },
+  { nome: "Ripasso coppi",          categoria: "ordinaria",    durata_stimata_h: 4, presets: ["tetti_ripasso"] },
+  { nome: "Trattamento antimuschio",categoria: "ordinaria",    durata_stimata_h: 3, presets: ["tetti_ripasso"] },
+  { nome: "Sostituzione coppi rotti", categoria: "emergenza",  durata_stimata_h: 2, presets: ["tetti_ripasso"] },
+  // Tetti rifacimento
+  { nome: "Rimozione manto",        categoria: "installazione",durata_stimata_h: 8, presets: ["tetti_rifacimento"] },
+  { nome: "Posa nuovo manto",       categoria: "installazione",durata_stimata_h: 10,presets: ["tetti_rifacimento"] },
+  { nome: "Impermeabilizzazione",   categoria: "installazione",durata_stimata_h: 6, presets: ["tetti_rifacimento", "piscine", "bagno"] },
+  // Scavi
+  { nome: "Sbancamento",            categoria: "installazione",durata_stimata_h: 8, presets: ["scavi"] },
+  { nome: "Scavo fondazione",       categoria: "installazione",durata_stimata_h: 6, presets: ["scavi"] },
+  { nome: "Reinterro",              categoria: "installazione",durata_stimata_h: 4, presets: ["scavi"] },
+  // Piscine
+  { nome: "Apertura stagionale",    categoria: "ordinaria",    durata_stimata_h: 4, presets: ["piscine"] },
+  { nome: "Chiusura invernale",     categoria: "ordinaria",    durata_stimata_h: 4, presets: ["piscine"] },
+  { nome: "Pulizia vasca",          categoria: "ordinaria",    durata_stimata_h: 2, presets: ["piscine"] },
+  { nome: "Controllo pH e clorazione", categoria: "ordinaria", durata_stimata_h: 1, presets: ["piscine"] },
 ];
 
-type DefaultTariffa = {
-  impianto: string; intervento: string;
-  prezzo: number; unita: string; iva_pct: number;
-};
+/**
+ * Catalogo tariffe standard. Ogni riga è una coppia impianto × intervento
+ * con prezzo di riferimento. Solo le tariffe con tutti e tre i campi
+ * (impianto, intervento, prezzo) saranno inserite; se mancano
+ * impianti/interventi del preset, vengono creati contestualmente.
+ */
+const STANDARD_TARIFFE_LISTINO: TariffaListinoSeed[] = [
+  // ─── TERMOIDRAULICA ─────────────────────────────────────────────────────────
+  { impianto: "Caldaia",            intervento: "Manutenzione ordinaria", prezzo: 120, unita: "intervento", iva_pct: 22, presets: ["termoidraulica"] },
+  { impianto: "Caldaia",            intervento: "Riparazione guasto",     prezzo: 80,  unita: "ora",        iva_pct: 22, presets: ["termoidraulica"] },
+  { impianto: "Caldaia",            intervento: "Sopralluogo",            prezzo: 60,  unita: "intervento", iva_pct: 22, presets: ["termoidraulica"] },
+  { impianto: "Condizionatore",     intervento: "Manutenzione ordinaria", prezzo: 90,  unita: "intervento", iva_pct: 22, presets: ["termoidraulica"] },
+  { impianto: "Condizionatore",     intervento: "Riparazione guasto",     prezzo: 90,  unita: "ora",        iva_pct: 22, presets: ["termoidraulica"] },
+  { impianto: "Condizionatore",     intervento: "Installazione",          prezzo: 280, unita: "intervento", iva_pct: 10, presets: ["termoidraulica"] },
+  { impianto: "Impianto Idraulico", intervento: "Riparazione guasto",     prezzo: 75,  unita: "ora",        iva_pct: 22, presets: ["termoidraulica"] },
+  { impianto: "Impianto Idraulico", intervento: "Sopralluogo",            prezzo: 55,  unita: "intervento", iva_pct: 22, presets: ["termoidraulica"] },
+  { impianto: "Pompa di calore",    intervento: "Manutenzione ordinaria", prezzo: 180, unita: "intervento", iva_pct: 22, presets: ["termoidraulica"] },
+  { impianto: "Pompa di calore",    intervento: "Installazione",          prezzo: 850, unita: "intervento", iva_pct: 10, presets: ["termoidraulica"] },
 
-const DEFAULT_TARIFFE: DefaultTariffa[] = [
-  { impianto: "Caldaia",        intervento: "Manutenzione ordinaria", prezzo: 120, unita: "intervento", iva_pct: 22 },
-  { impianto: "Caldaia",        intervento: "Riparazione guasto",     prezzo: 80,  unita: "ora",        iva_pct: 22 },
-  { impianto: "Caldaia",        intervento: "Sopralluogo",            prezzo: 60,  unita: "intervento", iva_pct: 22 },
-  { impianto: "Condizionatore", intervento: "Manutenzione ordinaria", prezzo: 90,  unita: "intervento", iva_pct: 22 },
-  { impianto: "Condizionatore", intervento: "Riparazione guasto",     prezzo: 90,  unita: "ora",        iva_pct: 22 },
-  { impianto: "Condizionatore", intervento: "Installazione",          prezzo: 280, unita: "intervento", iva_pct: 10 },
+  // ─── ELETTRICO ──────────────────────────────────────────────────────────────
+  { impianto: "Impianto Elettrico", intervento: "Manutenzione ordinaria", prezzo: 95,  unita: "intervento", iva_pct: 22, presets: ["elettrico"] },
+  { impianto: "Impianto Elettrico", intervento: "Riparazione guasto",     prezzo: 70,  unita: "ora",        iva_pct: 22, presets: ["elettrico"] },
+  { impianto: "Impianto Elettrico", intervento: "Sopralluogo",            prezzo: 55,  unita: "intervento", iva_pct: 22, presets: ["elettrico"] },
+  { impianto: "Quadro elettrico",   intervento: "Installazione",          prezzo: 450, unita: "intervento", iva_pct: 22, presets: ["elettrico"] },
+  { impianto: "Allarme / antifurto",intervento: "Installazione",          prezzo: 650, unita: "intervento", iva_pct: 22, presets: ["elettrico"] },
+  { impianto: "Allarme / antifurto",intervento: "Manutenzione ordinaria", prezzo: 80,  unita: "intervento", iva_pct: 22, presets: ["elettrico"] },
+  { impianto: "Videosorveglianza",  intervento: "Installazione",          prezzo: 850, unita: "intervento", iva_pct: 22, presets: ["elettrico"] },
+  { impianto: "Videosorveglianza",  intervento: "Manutenzione ordinaria", prezzo: 110, unita: "intervento", iva_pct: 22, presets: ["elettrico"] },
+
+  // ─── BAGNO ──────────────────────────────────────────────────────────────────
+  { impianto: "Sanitari",           intervento: "Installazione",          prezzo: 320, unita: "intervento", iva_pct: 10, presets: ["bagno"] },
+  { impianto: "Sanitari",           intervento: "Riparazione guasto",     prezzo: 85,  unita: "ora",        iva_pct: 22, presets: ["bagno"] },
+  { impianto: "Box doccia / vasca", intervento: "Installazione",          prezzo: 380, unita: "intervento", iva_pct: 10, presets: ["bagno"] },
+  { impianto: "Box doccia / vasca", intervento: "Riparazione guasto",     prezzo: 75,  unita: "ora",        iva_pct: 22, presets: ["bagno"] },
+  { impianto: "Rubinetteria",       intervento: "Installazione",          prezzo: 85,  unita: "intervento", iva_pct: 10, presets: ["bagno"] },
+  { impianto: "Rubinetteria",       intervento: "Riparazione guasto",     prezzo: 65,  unita: "ora",        iva_pct: 22, presets: ["bagno"] },
+  { impianto: "Impianto Idraulico", intervento: "Installazione",          prezzo: 550, unita: "intervento", iva_pct: 10, presets: ["bagno"] },
+  { impianto: "Box doccia / vasca", intervento: "Impermeabilizzazione",   prezzo: 35,  unita: "mq",         iva_pct: 10, presets: ["bagno"] },
+
+  // ─── FOTOVOLTAICO ───────────────────────────────────────────────────────────
+  { impianto: "Impianto Fotovoltaico", intervento: "Manutenzione ordinaria", prezzo: 180, unita: "intervento", iva_pct: 22, presets: ["fotovoltaico"] },
+  { impianto: "Impianto Fotovoltaico", intervento: "Pulizia pannelli FV",    prezzo: 6,   unita: "mq",         iva_pct: 22, presets: ["fotovoltaico"] },
+  { impianto: "Impianto Fotovoltaico", intervento: "Controllo producibilità",prezzo: 120, unita: "intervento", iva_pct: 22, presets: ["fotovoltaico"] },
+  { impianto: "Impianto Fotovoltaico", intervento: "Sopralluogo",            prezzo: 120, unita: "intervento", iva_pct: 22, presets: ["fotovoltaico"] },
+  { impianto: "Impianto Fotovoltaico", intervento: "Installazione",          prezzo: 1800,unita: "intervento", iva_pct: 10, presets: ["fotovoltaico"] },
+  { impianto: "Inverter FV",           intervento: "Sostituzione inverter",  prezzo: 380, unita: "intervento", iva_pct: 22, presets: ["fotovoltaico"] },
+  { impianto: "Sistema di accumulo",   intervento: "Installazione",          prezzo: 1200,unita: "intervento", iva_pct: 10, presets: ["fotovoltaico"] },
+
+  // ─── PITTURA ────────────────────────────────────────────────────────────────
+  { impianto: "Pareti interne",     intervento: "Tinteggiatura completa", prezzo: 9,   unita: "mq",         iva_pct: 22, presets: ["pittura"] },
+  { impianto: "Pareti interne",     intervento: "Ritocco localizzato",    prezzo: 85,  unita: "intervento", iva_pct: 22, presets: ["pittura"] },
+  { impianto: "Pareti interne",     intervento: "Rasatura + stucco",      prezzo: 12,  unita: "mq",         iva_pct: 22, presets: ["pittura"] },
+  { impianto: "Facciate esterne",   intervento: "Tinteggiatura completa", prezzo: 16,  unita: "mq",         iva_pct: 10, presets: ["pittura"] },
+  { impianto: "Facciate esterne",   intervento: "Sopralluogo",            prezzo: 120, unita: "intervento", iva_pct: 22, presets: ["pittura"] },
+  { impianto: "Infissi in legno",   intervento: "Tinteggiatura completa", prezzo: 32,  unita: "mq",         iva_pct: 22, presets: ["pittura"] },
+
+  // ─── RIPASSO TETTI ──────────────────────────────────────────────────────────
+  { impianto: "Copertura a falda",  intervento: "Ripasso coppi",          prezzo: 18,  unita: "mq",         iva_pct: 10, presets: ["tetti_ripasso"] },
+  { impianto: "Copertura a falda",  intervento: "Sostituzione coppi rotti",prezzo: 8,  unita: "pz",         iva_pct: 22, presets: ["tetti_ripasso"] },
+  { impianto: "Copertura a falda",  intervento: "Trattamento antimuschio",prezzo: 6,   unita: "mq",         iva_pct: 22, presets: ["tetti_ripasso"] },
+  { impianto: "Canali di gronda",   intervento: "Pulizia canali",         prezzo: 4,   unita: "ml",         iva_pct: 22, presets: ["tetti_ripasso"] },
+  { impianto: "Comignoli",          intervento: "Riparazione guasto",     prezzo: 140, unita: "intervento", iva_pct: 22, presets: ["tetti_ripasso"] },
+  { impianto: "Copertura a falda",  intervento: "Sopralluogo",            prezzo: 120, unita: "intervento", iva_pct: 22, presets: ["tetti_ripasso", "tetti_rifacimento"] },
+
+  // ─── RIFACIMENTO TETTI ──────────────────────────────────────────────────────
+  { impianto: "Copertura a falda",  intervento: "Rimozione manto",        prezzo: 14,  unita: "mq",         iva_pct: 10, presets: ["tetti_rifacimento"] },
+  { impianto: "Copertura a falda",  intervento: "Posa nuovo manto",       prezzo: 28,  unita: "mq",         iva_pct: 10, presets: ["tetti_rifacimento"] },
+  { impianto: "Copertura a falda",  intervento: "Impermeabilizzazione",   prezzo: 18,  unita: "mq",         iva_pct: 10, presets: ["tetti_rifacimento"] },
+  { impianto: "Canali di gronda",   intervento: "Installazione",          prezzo: 32,  unita: "ml",         iva_pct: 10, presets: ["tetti_rifacimento"] },
+  { impianto: "Lucernari",          intervento: "Installazione",          prezzo: 280, unita: "intervento", iva_pct: 10, presets: ["tetti_rifacimento"] },
+  { impianto: "Comignoli",          intervento: "Installazione",          prezzo: 180, unita: "intervento", iva_pct: 10, presets: ["tetti_rifacimento"] },
+
+  // ─── SCAVI ──────────────────────────────────────────────────────────────────
+  { impianto: "Area di cantiere",   intervento: "Sopralluogo",            prezzo: 180, unita: "intervento", iva_pct: 22, presets: ["scavi"] },
+  { impianto: "Area di cantiere",   intervento: "Sbancamento",            prezzo: 14,  unita: "mq",         iva_pct: 10, presets: ["scavi"] },
+  { impianto: "Area di cantiere",   intervento: "Scavo fondazione",       prezzo: 28,  unita: "ml",         iva_pct: 10, presets: ["scavi"] },
+  { impianto: "Area di cantiere",   intervento: "Reinterro",              prezzo: 9,   unita: "mq",         iva_pct: 10, presets: ["scavi"] },
+  { impianto: "Sottoservizi",       intervento: "Installazione",          prezzo: 32,  unita: "ml",         iva_pct: 10, presets: ["scavi"] },
+
+  // ─── PISCINE ────────────────────────────────────────────────────────────────
+  { impianto: "Vasca piscina",      intervento: "Sopralluogo",            prezzo: 250, unita: "intervento", iva_pct: 22, presets: ["piscine"] },
+  { impianto: "Vasca piscina",      intervento: "Installazione",          prezzo: 12000,unita: "intervento",iva_pct: 10, presets: ["piscine"] },
+  { impianto: "Vasca piscina",      intervento: "Impermeabilizzazione",   prezzo: 45,  unita: "mq",         iva_pct: 10, presets: ["piscine"] },
+  { impianto: "Vasca piscina",      intervento: "Apertura stagionale",    prezzo: 180, unita: "intervento", iva_pct: 22, presets: ["piscine"] },
+  { impianto: "Vasca piscina",      intervento: "Chiusura invernale",     prezzo: 160, unita: "intervento", iva_pct: 22, presets: ["piscine"] },
+  { impianto: "Vasca piscina",      intervento: "Pulizia vasca",          prezzo: 95,  unita: "intervento", iva_pct: 22, presets: ["piscine"] },
+  { impianto: "Vasca piscina",      intervento: "Controllo pH e clorazione", prezzo: 60, unita: "intervento", iva_pct: 22, presets: ["piscine"] },
+  { impianto: "Impianto filtraggio",intervento: "Manutenzione ordinaria", prezzo: 140, unita: "intervento", iva_pct: 22, presets: ["piscine"] },
+  { impianto: "Impianto filtraggio",intervento: "Installazione",          prezzo: 1800,unita: "intervento", iva_pct: 10, presets: ["piscine"] },
+  { impianto: "Illuminazione piscina", intervento: "Installazione",       prezzo: 180, unita: "intervento", iva_pct: 10, presets: ["piscine"] },
+];
+
+/**
+ * Definizione dei preset listino. Ogni card descrive un pacchetto di
+ * impianti + interventi + tariffe coerenti con un contesto specifico.
+ */
+const PRESET_LISTINO_CARDS: Array<{
+  id: PresetListinoId;
+  nome: string;
+  descrizione: string;
+  icon: typeof Sparkles;
+  iconClass: string;
+}> = [
+  {
+    id: "termoidraulica",
+    nome: "Termoidraulica",
+    descrizione: "Caldaie, condizionatori, pompe di calore e impianto idraulico — set classico assistenza termoidraulica.",
+    icon: Flame,
+    iconClass: "bg-orange-100 text-orange-700",
+  },
+  {
+    id: "elettrico",
+    nome: "Elettrico & sicurezza",
+    descrizione: "Impianti elettrici, quadri, allarmi e videosorveglianza con tariffe di manutenzione e installazione.",
+    icon: ZapIcon,
+    iconClass: "bg-yellow-100 text-yellow-700",
+  },
+  {
+    id: "bagno",
+    nome: "Ristrutturazione bagno",
+    descrizione: "Sanitari, box doccia, rubinetterie + impermeabilizzazioni — il pacchetto completo per un bagno nuovo.",
+    icon: Bath,
+    iconClass: "bg-cyan-100 text-cyan-700",
+  },
+  {
+    id: "fotovoltaico",
+    nome: "Fotovoltaico",
+    descrizione: "Installazione + manutenzione pannelli, pulizia, controllo producibilità, sostituzione inverter, accumulo.",
+    icon: Sun,
+    iconClass: "bg-amber-100 text-amber-700",
+  },
+  {
+    id: "pittura",
+    nome: "Pittura e decorazioni",
+    descrizione: "Tinteggiature interne/esterne, rasature, stucchi, verniciatura infissi — tariffe al mq e a corpo.",
+    icon: PaintBucket,
+    iconClass: "bg-fuchsia-100 text-fuchsia-700",
+  },
+  {
+    id: "tetti_ripasso",
+    nome: "Ripasso tetti",
+    descrizione: "Manutenzione coperture: ripasso coppi, pulizia canali, antimuschio, sostituzioni puntuali.",
+    icon: Cloud,
+    iconClass: "bg-sky-100 text-sky-700",
+  },
+  {
+    id: "tetti_rifacimento",
+    nome: "Rifacimento tetti",
+    descrizione: "Rimozione manto, posa nuovo manto, impermeabilizzazione, lucernari, comignoli, canali.",
+    icon: Construction,
+    iconClass: "bg-stone-200 text-stone-700",
+  },
+  {
+    id: "scavi",
+    nome: "Scavi a terra",
+    descrizione: "Sbancamento, scavo fondazione, reinterro, sottoservizi — tariffe al mq e al metro lineare.",
+    icon: Shovel,
+    iconClass: "bg-amber-100 text-amber-800",
+  },
+  {
+    id: "piscine",
+    nome: "Realizzazione piscine",
+    descrizione: "Costruzione vasca + impermeabilizzazione + apertura/chiusura stagionale + impianto filtraggio.",
+    icon: Waves,
+    iconClass: "bg-teal-100 text-teal-700",
+  },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -449,9 +705,9 @@ export default function ListinoManutenzione() {
   const [editingListino, setEditingListino] = useState<ListinoPrezzo | null>(null);
   const [deleteListinoId, setDeleteListinoId] = useState<string | null>(null);
 
-  // Demo seed state
+  // Template seed state
   const [creatingDemo, setCreatingDemo] = useState(false);
-  const [confirmDemo, setConfirmDemo] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
@@ -542,67 +798,98 @@ export default function ListinoManutenzione() {
     onError: (err: any) => toast.error(err.message),
   });
 
-  // ─── Demo seed ────────────────────────────────────────────────────────────
-
-  const handleCreaDemoClick = () => {
-    if (tipiImpianto.length > 0 || tipiIntervento.length > 0 || listino.length > 0) {
-      setConfirmDemo(true);
-    } else {
-      creaDemoData();
-    }
-  };
-
-  const creaDemoData = async () => {
+  // ─── Template seed ────────────────────────────────────────────────────────
+  /**
+   * Importa un sottoinsieme del catalogo standard (impianti + interventi +
+   * tariffe) filtrato per una selezione di preset e/o una selezione fine di
+   * singole tariffe. La funzione è idempotente: voci già presenti (matching
+   * per `nome` per impianti/interventi e per la coppia impianto-intervento
+   * per il listino) vengono saltate, così l'operazione è sicura anche se
+   * rilanciata a valle di un'importazione parziale.
+   */
+  const seedFromTemplate = async (params: {
+    selectedPresets: PresetListinoId[];
+    selectedTariffeKeys?: Set<string>; // `${impianto}::${intervento}` — override puntuale
+  }) => {
     if (!companyId) return;
+    const { selectedPresets, selectedTariffeKeys } = params;
+
+    // Se l'utente ha selezionato esplicitamente singole tariffe, usiamo quelle;
+    // altrimenti prendiamo tutte le tariffe dei preset attivi.
+    const tariffeTarget = selectedTariffeKeys && selectedTariffeKeys.size > 0
+      ? STANDARD_TARIFFE_LISTINO.filter((t) =>
+          selectedTariffeKeys.has(`${t.impianto}::${t.intervento}`))
+      : STANDARD_TARIFFE_LISTINO.filter((t) =>
+          t.presets.some((p) => selectedPresets.includes(p)));
+
+    if (tariffeTarget.length === 0) {
+      toast.info("Nessuna tariffa selezionata");
+      return;
+    }
+
+    // Impianti e interventi necessari: solo quelli referenziati dalle tariffe
+    // selezionate (così non creiamo righe inutili).
+    const impiantiNomi = new Set(tariffeTarget.map((t) => t.impianto));
+    const interventiNomi = new Set(tariffeTarget.map((t) => t.intervento));
+
     setCreatingDemo(true);
     try {
-      // 1. Insert tipi_impianto (skip existing by nome)
+      // 1. Inserisci gli impianti mancanti
       const existingImpNomi = new Set(tipiImpianto.map((t) => t.nome));
-      const impiantiToInsert = DEFAULT_TIPI_IMPIANTO
-        .filter((d) => !existingImpNomi.has(d.nome))
-        .map((d) => ({ ...d, company_id: companyId, attivo: true }));
+      const impiantiToInsert = STANDARD_IMPIANTI
+        .filter((d) => impiantiNomi.has(d.nome) && !existingImpNomi.has(d.nome))
+        .map((d) => ({
+          company_id: companyId,
+          nome: d.nome,
+          icona: d.icona,
+          ordine: d.ordine,
+          attivo: true,
+        }));
 
       let insertedImpianti: TipoImpianto[] = [];
       if (impiantiToInsert.length > 0) {
         const { data, error } = await (supabase.from("tipi_impianto") as any)
           .insert(impiantiToInsert).select("id, nome");
         if (error) throw error;
-        insertedImpianti = data ?? [];
+        insertedImpianti = (data ?? []) as TipoImpianto[];
       }
 
-      // 2. Insert tipi_intervento (skip existing by nome)
+      // 2. Inserisci gli interventi mancanti
       const existingIntNomi = new Set(tipiIntervento.map((t) => t.nome));
-      const interventiToInsert = DEFAULT_TIPI_INTERVENTO
-        .filter((d) => !existingIntNomi.has(d.nome))
-        .map((d) => ({ ...d, company_id: companyId, attivo: true }));
+      const interventiToInsert = STANDARD_INTERVENTI
+        .filter((d) => interventiNomi.has(d.nome) && !existingIntNomi.has(d.nome))
+        .map((d) => ({
+          company_id: companyId,
+          nome: d.nome,
+          categoria: d.categoria,
+          durata_stimata_h: d.durata_stimata_h,
+          attivo: true,
+        }));
 
       let insertedInterventi: TipoIntervento[] = [];
       if (interventiToInsert.length > 0) {
         const { data, error } = await (supabase.from("tipi_intervento") as any)
           .insert(interventiToInsert).select("id, nome");
         if (error) throw error;
-        insertedInterventi = data ?? [];
+        insertedInterventi = (data ?? []) as TipoIntervento[];
       }
 
-      // Build lookup maps (existing + newly inserted)
-      const allImpianti = [
-        ...tipiImpianto,
-        ...insertedImpianti,
-      ];
-      const allInterventi = [
-        ...tipiIntervento,
-        ...insertedInterventi,
-      ];
+      // 3. Build lookup: esistenti + appena inseriti
+      const impByNome = new Map<string, string>([
+        ...tipiImpianto.map((t) => [t.nome, t.id] as const),
+        ...insertedImpianti.map((t) => [t.nome, t.id] as const),
+      ]);
+      const intByNome = new Map<string, string>([
+        ...tipiIntervento.map((t) => [t.nome, t.id] as const),
+        ...insertedInterventi.map((t) => [t.nome, t.id] as const),
+      ]);
 
-      const impByNome = new Map(allImpianti.map((t) => [t.nome, t.id]));
-      const intByNome = new Map(allInterventi.map((t) => [t.nome, t.id]));
-
-      // 3. Insert listino_prezzi (skip existing combinations)
+      // 4. Inserisci le tariffe evitando duplicati
       const existingKeys = new Set(
-        listino.map((l) => `${l.tipo_impianto_id}::${l.tipo_intervento_id}`)
+        listino.map((l) => `${l.tipo_impianto_id}::${l.tipo_intervento_id}`),
       );
 
-      const listinoToInsert = DEFAULT_TARIFFE
+      const listinoToInsert = tariffeTarget
         .map((d) => {
           const impId = impByNome.get(d.impianto);
           const intId = intByNome.get(d.intervento);
@@ -621,7 +908,8 @@ export default function ListinoManutenzione() {
         .filter((x): x is NonNullable<typeof x> => x !== null);
 
       if (listinoToInsert.length > 0) {
-        const { error } = await (supabase.from("listino_prezzi") as any).insert(listinoToInsert);
+        const { error } = await (supabase.from("listino_prezzi") as any)
+          .insert(listinoToInsert);
         if (error) throw error;
       }
 
@@ -631,17 +919,17 @@ export default function ListinoManutenzione() {
 
       const totale = impiantiToInsert.length + interventiToInsert.length + listinoToInsert.length;
       if (totale === 0) {
-        toast.info("Tutti i dati demo sono già presenti");
+        toast.info("Tutti gli elementi del template sono già presenti");
       } else {
         toast.success(
-          `Dati demo creati: ${impiantiToInsert.length} impianti, ${interventiToInsert.length} interventi, ${listinoToInsert.length} tariffe`
+          `Template importato: ${impiantiToInsert.length} impianti, ${interventiToInsert.length} interventi, ${listinoToInsert.length} tariffe`,
         );
       }
+      setTemplateDialogOpen(false);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setCreatingDemo(false);
-      setConfirmDemo(false);
     }
   };
 
@@ -668,12 +956,12 @@ export default function ListinoManutenzione() {
         </div>
         <Button
           variant="outline"
-          onClick={handleCreaDemoClick}
+          onClick={() => setTemplateDialogOpen(true)}
           disabled={creatingDemo}
           className="shrink-0"
         >
-          <Zap className="h-4 w-4 mr-2" />
-          {creatingDemo ? "Creazione in corso..." : "Crea tariffe demo"}
+          <Sparkles className="h-4 w-4 mr-2" />
+          {creatingDemo ? "Importazione..." : "Importa da template"}
         </Button>
       </div>
 
@@ -730,7 +1018,7 @@ export default function ListinoManutenzione() {
                 ) : tipiImpianto.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      Nessun tipo impianto. Aggiungine uno o clicca "Crea tariffe demo".
+                      Nessun tipo impianto. Aggiungine uno o clicca "Importa da template".
                     </TableCell>
                   </TableRow>
                 ) : tipiImpianto.map((t) => (
@@ -798,7 +1086,7 @@ export default function ListinoManutenzione() {
                 ) : tipiIntervento.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      Nessun tipo intervento. Aggiungine uno o clicca "Crea tariffe demo".
+                      Nessun tipo intervento. Aggiungine uno o clicca "Importa da template".
                     </TableCell>
                   </TableRow>
                 ) : tipiIntervento.map((t) => {
@@ -857,7 +1145,7 @@ export default function ListinoManutenzione() {
           </div>
           {tipiImpianto.length === 0 || tipiIntervento.length === 0 ? (
             <div className="rounded-md border p-8 text-center text-muted-foreground">
-              Aggiungi prima almeno un tipo impianto e un tipo intervento, oppure clicca "Crea tariffe demo".
+              Aggiungi prima almeno un tipo impianto e un tipo intervento, oppure clicca "Importa da template".
             </div>
           ) : (
             <div className="rounded-md border overflow-x-auto">
@@ -882,7 +1170,7 @@ export default function ListinoManutenzione() {
                   ) : listino.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        Nessuna tariffa configurata. Aggiungine una o clicca "Crea tariffe demo".
+                        Nessuna tariffa configurata. Aggiungine una o clicca "Importa da template".
                       </TableCell>
                     </TableRow>
                   ) : listino.map((l) => (
@@ -1029,23 +1317,247 @@ export default function ListinoManutenzione() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Demo confirm ── */}
-      <AlertDialog open={confirmDemo} onOpenChange={setConfirmDemo}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Crea tariffe demo</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esistono già dei dati. Verranno aggiunti solo gli elementi mancanti (nessun duplicato verrà creato).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={creaDemoData} disabled={creatingDemo}>
-              {creatingDemo ? "Creazione..." : "Aggiungi dati demo"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ── Template picker ── */}
+      {templateDialogOpen && (
+        <StandardListinoDialog
+          open={templateDialogOpen}
+          onClose={() => setTemplateDialogOpen(false)}
+          existingCount={tipiImpianto.length + tipiIntervento.length + listino.length}
+          onImport={seedFromTemplate}
+          importing={creatingDemo}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Standard Listino Dialog (template picker) ────────────────────────────────
+/**
+ * Dialog "Importa da template" speculare a StandardTariffeDialog di
+ * SettingsTariffe. Permette all'admin di:
+ *  - scegliere uno o più preset professionali (card cliccabili) → importa in
+ *    blocco tutte le tariffe coerenti con quel preset.
+ *  - oppure accedere alla lista fine di tutte le ~70 tariffe standard e
+ *    selezionare con checkbox quelle di interesse.
+ *
+ * La funzione di import è idempotente: voci già presenti vengono saltate.
+ */
+function StandardListinoDialog({
+  open, onClose, existingCount, onImport, importing,
+}: {
+  open: boolean;
+  onClose: () => void;
+  existingCount: number;
+  onImport: (params: {
+    selectedPresets: PresetListinoId[];
+    selectedTariffeKeys?: Set<string>;
+  }) => void | Promise<void>;
+  importing: boolean;
+}) {
+  // Preset selezionati (default: 'termoidraulica' se l'azienda è vuota).
+  const [selectedPresets, setSelectedPresets] = useState<Set<PresetListinoId>>(
+    () => (existingCount === 0 ? new Set<PresetListinoId>(["termoidraulica"]) : new Set<PresetListinoId>()),
+  );
+  // Selezione fine sulle singole righe della lista.
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+  const [search, setSearch] = useState("");
+
+  const togglePreset = (id: PresetListinoId) => {
+    setSelectedPresets((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleTariffa = (key: string) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // Righe filtrate: per preset se selezionato qualcosa; altrimenti tutte.
+  // Ricerca su impianto / intervento.
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const base = selectedPresets.size > 0
+      ? STANDARD_TARIFFE_LISTINO.filter((t) =>
+          t.presets.some((p) => selectedPresets.has(p)))
+      : STANDARD_TARIFFE_LISTINO;
+    if (!q) return base;
+    return base.filter((t) =>
+      t.impianto.toLowerCase().includes(q) ||
+      t.intervento.toLowerCase().includes(q),
+    );
+  }, [selectedPresets, search]);
+
+  // Conteggio totale righe che verranno importate.
+  const countTotal = selectedKeys.size > 0
+    ? selectedKeys.size
+    : STANDARD_TARIFFE_LISTINO.filter((t) =>
+        t.presets.some((p) => selectedPresets.has(p))).length;
+
+  const handleImport = () => {
+    if (countTotal === 0) {
+      toast.info("Seleziona almeno un template o una tariffa");
+      return;
+    }
+    onImport({
+      selectedPresets: Array.from(selectedPresets),
+      selectedTariffeKeys: selectedKeys.size > 0 ? selectedKeys : undefined,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Importa da template
+          </DialogTitle>
+          <DialogDescription>
+            Scegli uno o più pacchetti professionali per popolare il listino in
+            blocco, oppure seleziona singole tariffe dalla lista. Voci già
+            esistenti non verranno duplicate.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-5 pr-1">
+          {/* ── Card preset ── */}
+          <div>
+            <div className="text-sm font-semibold mb-2">
+              Pacchetti professionali
+              {existingCount === 0 && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  (consigliato se parti da zero)
+                </span>
+              )}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {PRESET_LISTINO_CARDS.map((p) => {
+                const active = selectedPresets.has(p.id);
+                const Icon = p.icon;
+                const countPreset = STANDARD_TARIFFE_LISTINO.filter((t) =>
+                  t.presets.includes(p.id)).length;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => togglePreset(p.id)}
+                    className={`text-left rounded-lg border p-3 transition-colors ${
+                      active
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/40 hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className={`rounded-md p-1.5 ${p.iconClass}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold text-sm truncate">{p.nome}</div>
+                          {active && (
+                            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          {p.descrizione}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-1">
+                          {countPreset} tariffe
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Lista fine tariffe ── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-semibold">
+                Seleziona singole tariffe
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  (opzionale — sovrascrive la selezione dei pacchetti)
+                </span>
+              </div>
+              <div className="relative w-60">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Cerca impianto o intervento..."
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+            </div>
+            <div className="rounded-md border overflow-hidden">
+              <div className="max-h-[280px] overflow-y-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Impianto</TableHead>
+                      <TableHead>Intervento</TableHead>
+                      <TableHead className="w-24 text-right">Prezzo</TableHead>
+                      <TableHead className="w-16">IVA</TableHead>
+                      <TableHead className="w-20">Unità</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
+                          Nessuna tariffa trovata con i filtri correnti
+                        </TableCell>
+                      </TableRow>
+                    ) : rows.map((t) => {
+                      const key = `${t.impianto}::${t.intervento}`;
+                      return (
+                        <TableRow key={key}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedKeys.has(key)}
+                              onCheckedChange={() => toggleTariffa(key)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium text-sm">{t.impianto}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{t.intervento}</TableCell>
+                          <TableCell className="text-right text-sm">{formatCurrency(t.prezzo)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{t.iva_pct}%</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{t.unita}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="flex items-center justify-between gap-3 border-t pt-3">
+          <div className="text-xs text-muted-foreground">
+            {countTotal > 0
+              ? `${countTotal} tariffe da importare${existingCount > 0 ? " (duplicati ignorati)" : ""}`
+              : "Nessuna tariffa selezionata"}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>Annulla</Button>
+            <Button onClick={handleImport} disabled={importing || countTotal === 0}>
+              {importing ? "Importazione..." : `Importa ${countTotal > 0 ? countTotal : ""}`}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
