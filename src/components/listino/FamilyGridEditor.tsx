@@ -196,10 +196,9 @@ export function FamilyGridEditor({
     });
   };
 
-  // Flags per l'UI: sconti attivi e markup attivo. Stabili per riga → evitano
-  // ri-render inutili in ogni cell.
+  // Flag UI: sconti attivi = almeno uno dei due > 0. Stabile per riga →
+  // evita ri-render inutili nelle celle.
   const scontiAttivi = scontoFornitore1 > 0 || scontoFornitore2 > 0;
-  const markupAttivo = markupTipo !== "none" && markupValore > 0;
 
   /**
    * Dato il prezzo di acquisto (LORDO se scontiAttivi, NETTO altrimenti)
@@ -321,13 +320,27 @@ export function FamilyGridEditor({
         if (insErr) throw new Error(`Errore inserimento celle: ${insErr.message}`);
       }
 
-      // Step 1b: UPDATE delle celle esistenti via upsert-by-id (tutte le righe
-      // hanno `id`, quindi la shape è consistente e PostgREST non pad con NULL).
+      // Step 1b: UPDATE delle celle esistenti via .update().eq('id', id) in
+      // parallelo. NON si usa .upsert(): quando PostgREST vede un batch con
+      // shape normalizzata (ad es. colonna axis_config omessa e id assente in
+      // alcune normalizzazioni interne) pada a NULL, violando il PK. Con
+      // .update() puro su filtro id la query è UPDATE esplicito, zero
+      // ambiguità sulla constraint. Promise.all mantiene la latency bassa
+      // anche con griglie grandi (266 celle × ~50ms ≈ 500ms in parallelo).
       if (toUpdate.length > 0) {
-        const { error: updErr } = await supabase
-          .from("listino_griglia")
-          .upsert(toUpdate);
-        if (updErr) throw new Error(`Errore aggiornamento celle: ${updErr.message}`);
+        const updateResults = await Promise.all(
+          toUpdate.map(({ id, ...data }) =>
+            supabase
+              .from("listino_griglia")
+              .update(data)
+              .eq("id", id)
+              .eq("company_id", companyId),
+          ),
+        );
+        const firstErr = updateResults.find((r) => r.error)?.error;
+        if (firstErr) {
+          throw new Error(`Errore aggiornamento celle: ${firstErr.message}`);
+        }
       }
 
       // Step 2: delete DOPO, solo celle effettivamente rimosse dall'utente.
@@ -549,14 +562,16 @@ export function FamilyGridEditor({
                                                   </span>
                                                 </div>
                                               ) : null}
-                                              {markupAttivo || scontiAttivi ? (
-                                                <div>
-                                                  vendita:{" "}
-                                                  <span className="font-semibold text-primary">
-                                                    {formatCurrency(vendita)}
-                                                  </span>
-                                                </div>
-                                              ) : null}
+                                              {/* In mode=acquisto_markup mostriamo SEMPRE la vendita:
+                                                  è il valore che davvero finisce al cliente, anche
+                                                  quando coincide col netto (markup=none, sconti 0).
+                                                  Dato visivo cruciale per il serramentista. */}
+                                              <div>
+                                                vendita:{" "}
+                                                <span className="font-semibold text-primary">
+                                                  {formatCurrency(vendita)}
+                                                </span>
+                                              </div>
                                             </>
                                           );
                                         })()}

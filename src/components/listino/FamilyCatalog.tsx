@@ -31,6 +31,7 @@ import {
   Trash,
   Undo2,
   ImageOff,
+  FolderSymlink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +61,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import type {
   ArticleFamily,
   FamilyWithAxes,
@@ -100,6 +114,7 @@ export function FamilyCatalog() {
     restoreFamily,
     hardDeleteFamily,
     duplicateFamily,
+    updateFamily,
   } = useFamilyMutations();
   const { macrocategorie } = useListinoMacrocategorie();
   const { categorie, isError: categorieError, refetch: refetchCategorie } =
@@ -109,6 +124,11 @@ export function FamilyCatalog() {
   const [toDelete, setToDelete] = useState<FamilyWithAxes | null>(null);
   const [toDuplicate, setToDuplicate] = useState<FamilyWithAxes | null>(null);
   const [dupName, setDupName] = useState("");
+  // "Sposta" inline popover: id articolo aperto, selezione temporanea.
+  // Un solo popover aperto alla volta (string = family id, null = chiuso).
+  const [moveOpenId, setMoveOpenId] = useState<string | null>(null);
+  const [moveMacroId, setMoveMacroId] = useState<string>(NO_MACRO);
+  const [moveCatId, setMoveCatId] = useState<string>(NO_CAT);
   // Cestino
   const [cestinoOpen, setCestinoOpen] = useState(false);
   const [toHardDelete, setToHardDelete] = useState<ArticleFamily | null>(null);
@@ -231,6 +251,47 @@ export function FamilyCatalog() {
       });
     }
   };
+
+  /**
+   * Apre il popover "Sposta" preimpostando macro+cat correnti dell'articolo.
+   * Evita di caricare i valori a ogni apertura → UX più fluida.
+   */
+  const openMove = (f: FamilyWithAxes) => {
+    const currentCat = f.categoria_id ? categoriaById.get(f.categoria_id) : null;
+    setMoveMacroId(currentCat?.macrocategoria_id ?? NO_MACRO);
+    setMoveCatId(currentCat?.id ?? NO_CAT);
+    setMoveOpenId(f.id);
+  };
+
+  /**
+   * Applica lo spostamento: aggiorna solo categoria_id (la macrocategoria è
+   * derivata dalla categoria stessa). Se l'utente sceglie "Senza categoria",
+   * persistiamo NULL → l'articolo ricade nel gruppo "Senza macrocategoria".
+   */
+  const handleMove = async (familyId: string) => {
+    try {
+      const newCatId = moveCatId === NO_CAT ? null : moveCatId;
+      await updateFamily.mutateAsync({
+        id: familyId,
+        patch: { categoria_id: newCatId } as never,
+      });
+      toast.success("Articolo spostato");
+      setMoveOpenId(null);
+    } catch (err) {
+      toast.error("Errore spostamento", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
+  // Categorie filtrate per macro scelta nel popover "Sposta". Orfane (macro_id
+  // NULL) restano disponibili solo quando l'utente sceglie "Senza macro".
+  const moveCategorieDisponibili = useMemo(() => {
+    if (moveMacroId === NO_MACRO) {
+      return categorie.filter((c) => !c.macrocategoria_id);
+    }
+    return categorie.filter((c) => c.macrocategoria_id === moveMacroId);
+  }, [categorie, moveMacroId]);
 
   const handleRestore = async (id: string) => {
     try {
@@ -549,6 +610,151 @@ export function FamilyCatalog() {
                                     />
                                     <span className="hidden sm:inline">Duplica</span>
                                   </Button>
+                                  <Popover
+                                    open={moveOpenId === f.id}
+                                    onOpenChange={(open) => {
+                                      if (!open) setMoveOpenId(null);
+                                    }}
+                                  >
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-9 flex-1 sm:flex-initial"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openMove(f);
+                                        }}
+                                        aria-label={`Sposta ${f.nome}`}
+                                      >
+                                        <FolderSymlink
+                                          className="h-4 w-4 sm:mr-1"
+                                          aria-hidden="true"
+                                        />
+                                        <span className="hidden sm:inline">Sposta</span>
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      className="w-72"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="space-y-3">
+                                        <div>
+                                          <h4 className="font-medium text-sm">
+                                            Sposta articolo
+                                          </h4>
+                                          <p className="text-xs text-muted-foreground">
+                                            Scegli macrocategoria e categoria
+                                            di destinazione.
+                                          </p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label
+                                            htmlFor={`move-macro-${f.id}`}
+                                            className="text-xs"
+                                          >
+                                            Macrocategoria
+                                          </Label>
+                                          <Select
+                                            value={moveMacroId}
+                                            onValueChange={(v) => {
+                                              setMoveMacroId(v);
+                                              // Reset cat quando cambia macro:
+                                              // la cat corrente potrebbe non
+                                              // appartenere alla nuova macro.
+                                              setMoveCatId(NO_CAT);
+                                            }}
+                                          >
+                                            <SelectTrigger
+                                              id={`move-macro-${f.id}`}
+                                              className="h-9"
+                                            >
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value={NO_MACRO}>
+                                                Senza macrocategoria
+                                              </SelectItem>
+                                              {macrocategorie.map((m) => (
+                                                <SelectItem
+                                                  key={m.id}
+                                                  value={m.id}
+                                                >
+                                                  {m.nome}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label
+                                            htmlFor={`move-cat-${f.id}`}
+                                            className="text-xs"
+                                          >
+                                            Categoria
+                                          </Label>
+                                          <Select
+                                            value={moveCatId}
+                                            onValueChange={setMoveCatId}
+                                          >
+                                            <SelectTrigger
+                                              id={`move-cat-${f.id}`}
+                                              className="h-9"
+                                            >
+                                              <SelectValue placeholder="Nessuna" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value={NO_CAT}>
+                                                Senza categoria
+                                              </SelectItem>
+                                              {moveCategorieDisponibili.map(
+                                                (c) => (
+                                                  <SelectItem
+                                                    key={c.id}
+                                                    value={c.id}
+                                                  >
+                                                    {c.nome}
+                                                  </SelectItem>
+                                                ),
+                                              )}
+                                            </SelectContent>
+                                          </Select>
+                                          {moveCategorieDisponibili.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground">
+                                              Nessuna categoria in questa
+                                              macrocategoria.
+                                            </p>
+                                          ) : null}
+                                        </div>
+                                        <div className="flex justify-end gap-2 pt-1">
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setMoveOpenId(null)}
+                                            disabled={updateFamily.isPending}
+                                          >
+                                            Annulla
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={() => handleMove(f.id)}
+                                            disabled={updateFamily.isPending}
+                                          >
+                                            {updateFamily.isPending ? (
+                                              <Loader2
+                                                className="h-3.5 w-3.5 animate-spin"
+                                                aria-hidden="true"
+                                              />
+                                            ) : (
+                                              "Sposta"
+                                            )}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                   <Button
                                     size="sm"
                                     variant="ghost"
