@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         return errorResponse("L'importo deve essere diverso da zero", 400, corsH);
       }
 
-      const { data, error } = await supabaseAdmin.rpc("adjust_render_credits_atomic", {
+      let { data, error } = await supabaseAdmin.rpc("adjust_render_credits_atomic", {
         p_company_id: company_id,
         p_delta: deltaInt,
         p_reason: reason.trim(),
@@ -65,8 +65,26 @@ Deno.serve(async (req) => {
       });
 
       if (error) {
-        console.error("[admin-adjust-credits][render] RPC error:", error);
-        return errorResponse("Errore ricarica render: " + error.message, 500, corsH);
+        const isMissingDedicatedRpc =
+          /adjust_render_credits_atomic|function.*not.*found|schema cache|PGRST202/i.test(error.message);
+
+        if (isMissingDedicatedRpc) {
+          console.warn("[admin-adjust-credits][render] dedicated RPC unavailable, falling back:", error.message);
+          const fallback = await supabaseAdmin.rpc("adjust_credits_atomic", {
+            p_company_id:  company_id,
+            p_service:     "render",
+            p_amount:      deltaInt,
+            p_reason:      reason.trim(),
+            p_adjusted_by: userId,
+          });
+          data = fallback.data;
+          error = fallback.error;
+        }
+
+        if (error) {
+          console.error("[admin-adjust-credits][render] RPC error:", error);
+          return errorResponse("Errore ricarica render: " + error.message, 500, corsH);
+        }
       }
 
       const result = data as {
@@ -75,7 +93,11 @@ Deno.serve(async (req) => {
         balance_after?: number;
         delta_applied?: number;
         ledger_id?: string;
+        error?: string;
       };
+      if (result?.error) {
+        return errorResponse(result.error, 400, corsH);
+      }
       return jsonResponse({
         success:        true,
         service:        "render",

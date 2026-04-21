@@ -23,7 +23,7 @@ import { formatCurrency } from "@/lib/formatters";
  *
  * Sorgente: view `credit_transactions_unified` (migration 20260417000008).
  * Unifica ai_credit_transactions + email_credits_log + whatsapp_credits_log +
- * render_sessions in un unico stream con schema normalizzato
+ * render ledger/logs in un unico stream con schema normalizzato
  * (credit_type, direction, amount, balance_before/after, ...).
  *
  * Pensato per embed nella tab Abbonamento della pagina dettaglio azienda

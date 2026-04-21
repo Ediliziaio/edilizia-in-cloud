@@ -51,6 +51,25 @@ interface Props {
   companyId: string;
 }
 
+async function getFunctionErrorMessage(error: unknown): Promise<string> {
+  const fallback = error instanceof Error ? error.message : "Errore durante l'aggiornamento crediti";
+  const context = (error as { context?: unknown } | null)?.context;
+  if (context instanceof Response) {
+    try {
+      const payload = await context.clone().json() as { error?: string; message?: string };
+      return payload.error || payload.message || fallback;
+    } catch {
+      try {
+        const text = await context.clone().text();
+        return text || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+  }
+  return fallback;
+}
+
 export function CreditManagerCard({ companyId }: Props) {
   const queryClient = useQueryClient();
   const [adjustDialog, setAdjustDialog] = useState<{
@@ -174,7 +193,7 @@ export function CreditManagerCard({ companyId }: Props) {
             reason: adjustReason.trim(),
           },
         });
-        if (error) throw error;
+        if (error) throw new Error(await getFunctionErrorMessage(error));
         const payload = data as {
           error?: string;
           balance_before?: number;
@@ -199,7 +218,7 @@ export function CreditManagerCard({ companyId }: Props) {
           reason: adjustReason.trim(),
         },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error!);
       return { ...(data as { balance_before: number; balance_after: number }), wallet };
     },
