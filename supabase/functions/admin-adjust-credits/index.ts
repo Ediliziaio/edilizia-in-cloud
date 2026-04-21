@@ -9,6 +9,98 @@ const INT_SERVICES = ["render"] as const;
 const ALL_SERVICES = [...EUR_SERVICES, ...INT_SERVICES] as const;
 type Service = typeof ALL_SERVICES[number];
 
+function isMissingRpc(error: { message?: string } | null | undefined): boolean {
+  return /function.*not.*found|schema cache|PGRST202|Could not find the function/i.test(error?.message ?? "");
+}
+
+async function adjustRenderCreditsDirectly(
+  supabaseAdmin: any,
+  companyId: string,
+  delta: number,
+  reason: string,
+  adjustedBy: string,
+) {
+  const { data: row, error: readError } = await supabaseAdmin
+    .from("render_credits")
+    .select("balance,total_purchased,total_used")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (readError) throw readError;
+
+  const balanceBefore = Number(row?.balance ?? 0);
+  const balanceAfter = Math.max(0, balanceBefore + delta);
+  const deltaApplied = balanceAfter - balanceBefore;
+  const totalPurchased = Number(row?.total_purchased ?? 0) + Math.max(deltaApplied, 0);
+  const totalUsed = Number(row?.total_used ?? 0);
+
+  const writePayload = {
+    balance: balanceAfter,
+    total_purchased: totalPurchased,
+    total_used: totalUsed,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (row) {
+    const { error: updateError } = await supabaseAdmin
+      .from("render_credits")
+      .update(writePayload)
+      .eq("company_id", companyId);
+    if (updateError) throw updateError;
+  } else {
+    const { error: insertError } = await supabaseAdmin
+      .from("render_credits")
+      .insert({ company_id: companyId, ...writePayload });
+    if (insertError) throw insertError;
+  }
+
+  let ledgerId: string | null = null;
+  const { data: ledger, error: ledgerError } = await supabaseAdmin
+    .from("render_credit_ledger")
+    .insert({
+      company_id: companyId,
+      delta: deltaApplied,
+      balance_after: balanceAfter,
+      reason: "adjust_admin",
+      user_id: adjustedBy,
+      metadata: {
+        reason_text: reason,
+        delta_requested: delta,
+        fallback: "admin-adjust-credits-direct",
+      },
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (ledgerError) {
+    console.warn("[admin-adjust-credits][render] direct fallback ledger insert failed:", ledgerError.message);
+  } else {
+    ledgerId = ledger?.id ?? null;
+  }
+
+  const { error: auditError } = await supabaseAdmin
+    .from("admin_credit_adjustments")
+    .insert({
+      company_id: companyId,
+      service: "render",
+      amount_eur: deltaApplied,
+      reason,
+      created_by: adjustedBy,
+    });
+
+  if (auditError) {
+    console.warn("[admin-adjust-credits][render] direct fallback admin audit insert failed:", auditError.message);
+  }
+
+  return {
+    success: true,
+    balance_before: balanceBefore,
+    balance_after: balanceAfter,
+    delta_applied: deltaApplied,
+    ledger_id: ledgerId,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -65,8 +157,7 @@ Deno.serve(async (req) => {
       });
 
       if (error) {
-        const isMissingDedicatedRpc =
-          /adjust_render_credits_atomic|function.*not.*found|schema cache|PGRST202/i.test(error.message);
+        const isMissingDedicatedRpc = /adjust_render_credits_atomic/i.test(error.message) || isMissingRpc(error);
 
         if (isMissingDedicatedRpc) {
           console.warn("[admin-adjust-credits][render] dedicated RPC unavailable, falling back:", error.message);
@@ -82,8 +173,29 @@ Deno.serve(async (req) => {
         }
 
         if (error) {
-          console.error("[admin-adjust-credits][render] RPC error:", error);
-          return errorResponse("Errore ricarica render: " + error.message, 500, corsH);
+          const canUseDirectFallback =
+            isMissingRpc(error) ||
+            /Servizio non valido|Servizio non supportato|render/i.test(error.message);
+
+          if (canUseDirectFallback) {
+            try {
+              data = await adjustRenderCreditsDirectly(
+                supabaseAdmin,
+                company_id,
+                deltaInt,
+                reason.trim(),
+                userId,
+              );
+              error = null;
+            } catch (directError) {
+              console.error("[admin-adjust-credits][render] direct fallback error:", directError);
+              const directMessage = directError instanceof Error ? directError.message : String(directError);
+              return errorResponse("Errore ricarica render: " + directMessage, 500, corsH);
+            }
+          } else {
+            console.error("[admin-adjust-credits][render] RPC error:", error);
+            return errorResponse("Errore ricarica render: " + error.message, 500, corsH);
+          }
         }
       }
 

@@ -16,6 +16,7 @@ import {
   CreditCard, Plus, Minus, Loader2, Mail, Bot, MessageSquare, Palette,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * CreditManagerCard — gestione crediti per singola azienda nel tab Abbonamento
@@ -70,8 +71,88 @@ async function getFunctionErrorMessage(error: unknown): Promise<string> {
   return fallback;
 }
 
+function isRenderRpcMissing(message: string): boolean {
+  return /adjust_render_credits_atomic|schema cache|PGRST202|Could not find the function/i.test(message);
+}
+
+async function fallbackAdjustRenderCredits(params: {
+  companyId: string;
+  delta: number;
+  reason: string;
+  userId?: string;
+}) {
+  const { companyId, delta, reason, userId } = params;
+  const { data: row, error: readError } = await supabase
+    .from("render_credits")
+    .select("balance,total_purchased,total_used")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (readError) throw readError;
+
+  const balanceBefore = Number((row as { balance?: number } | null)?.balance ?? 0);
+  const balanceAfter = Math.max(0, balanceBefore + delta);
+  const deltaApplied = balanceAfter - balanceBefore;
+  const totalPurchased = Number((row as { total_purchased?: number } | null)?.total_purchased ?? 0) + Math.max(deltaApplied, 0);
+  const totalUsed = Number((row as { total_used?: number } | null)?.total_used ?? 0);
+  const payload = {
+    balance: balanceAfter,
+    total_purchased: totalPurchased,
+    total_used: totalUsed,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (row) {
+    const { error } = await supabase
+      .from("render_credits")
+      .update(payload)
+      .eq("company_id", companyId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("render_credits")
+      .insert({ company_id: companyId, ...payload });
+    if (error) throw error;
+  }
+
+  const { error: ledgerError } = await supabase
+    .from("render_credit_ledger" as never)
+    .insert({
+      company_id: companyId,
+      delta: deltaApplied,
+      balance_after: balanceAfter,
+      reason: "adjust_admin",
+      user_id: userId ?? null,
+      metadata: {
+        reason_text: reason,
+        delta_requested: delta,
+        fallback: "client-render-credit-adjust",
+      },
+    } as never);
+  if (ledgerError) console.warn("[CreditManagerCard] Render ledger fallback insert failed:", ledgerError.message);
+
+  const { error: auditError } = await supabase
+    .from("admin_credit_adjustments" as never)
+    .insert({
+      company_id: companyId,
+      service: "render",
+      amount_eur: deltaApplied,
+      reason,
+      created_by: userId ?? null,
+    } as never);
+  if (auditError) console.warn("[CreditManagerCard] Render audit fallback insert failed:", auditError.message);
+
+  return {
+    balance_before: balanceBefore,
+    balance_after: balanceAfter,
+    delta_applied: deltaApplied,
+    wallet: "render" as const,
+  };
+}
+
 export function CreditManagerCard({ companyId }: Props) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [adjustDialog, setAdjustDialog] = useState<{
     open: boolean;
     wallet: WalletKey | "";
@@ -193,7 +274,18 @@ export function CreditManagerCard({ companyId }: Props) {
             reason: adjustReason.trim(),
           },
         });
-        if (error) throw new Error(await getFunctionErrorMessage(error));
+        if (error) {
+          const message = await getFunctionErrorMessage(error);
+          if (isRenderRpcMissing(message)) {
+            return fallbackAdjustRenderCredits({
+              companyId,
+              delta: signedAmount,
+              reason: adjustReason.trim(),
+              userId: user?.id,
+            });
+          }
+          throw new Error(message);
+        }
         const payload = data as {
           error?: string;
           balance_before?: number;
