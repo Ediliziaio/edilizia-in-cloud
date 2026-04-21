@@ -1,18 +1,27 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVertical } from "@/hooks/useVertical";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
-import { Plus, Pencil, Trash2, Zap } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Zap, Search, Copy, MoreVertical, Calculator,
+  TrendingUp, Percent, Package, Activity, Archive, RotateCcw, Info,
+  Building2, Layers3, Wallet, CheckCircle2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Card, CardContent, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -24,6 +33,15 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
+import { useTableSort } from "@/hooks/useTableSort";
 import { TariffaVariantiEditor } from "@/components/settings/TariffaVariantiEditor";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 
@@ -43,14 +61,14 @@ interface Tariffa {
   company_id: string;
   nome: string;
   tipo: TipoTariffa;
-  // Legacy: colonna `unita` CHECK (pz/mq/ml/mc/h/piano/km/fisso). Resta per retro-compat.
+  /** Legacy: colonna `unita` CHECK (pz/mq/ml/mc/h/piano/km/fisso). Resta per retro-compat. */
   unita?: string;
-  // FASE 6: source-of-truth UM
+  /** FASE 6: source-of-truth UM. */
   unita_fatturazione?: UnitaFatturazione;
   prezzo_vendita?: number;
-  // Legacy alias di costo_interno
+  /** Legacy alias di costo_interno. */
   prezzo_costo?: number;
-  // FASE 6: costo interno (posatore, attrezzatura, etc.)
+  /** FASE 6: costo interno (posatore, attrezzatura, etc.). */
   costo_interno?: number;
   vertical_associato?: string | null;
   descrizione?: string | null;
@@ -60,22 +78,46 @@ interface Tariffa {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const TIPO_TABS: { value: TipoTariffa | "altro"; label: string }[] = [
-  { value: "posa", label: "Posa" },
-  { value: "manodopera", label: "Manodopera" },
-  { value: "trasporto", label: "Trasporto" },
-  { value: "tiro_piano", label: "Tiro Piano" },
-  { value: "smaltimento", label: "Smaltimento" },
-  { value: "nolo", label: "Nolo" },
-  { value: "sopralluogo", label: "Sopralluogo" },
-  { value: "progettazione", label: "Progettazione" },
-  { value: "ponteggio", label: "Ponteggio" },
-  { value: "lattoneria", label: "Lattoneria" },
-  { value: "sigillatura", label: "Sigillatura" },
-  { value: "contorno", label: "Contorno" },
-  { value: "falso_telaio", label: "Falso telaio" },
-  { value: "pratica", label: "Pratica" },
-  { value: "altro", label: "Altro" },
+/**
+ * Gruppi semantici per i tab. Riduciamo da 15 tab "piatti" a 5 gruppi
+ * concettuali: lavorazione (manodopera sul campo), logistica (trasporto,
+ * tiro, smaltimento), servizi tecnici (sopralluogo, progettazione, pratica),
+ * noli/ponteggi, accessori serramento (lattoneria, sigillatura, contorno,
+ * falso_telaio). "Altro" cattura il tail.
+ */
+interface TipoDef {
+  value: TipoTariffa;
+  label: string;
+  group: "lavorazione" | "logistica" | "servizi" | "nolo" | "serramento" | "altro";
+  hint: string;
+}
+
+const TIPO_DEFS: TipoDef[] = [
+  { value: "posa", label: "Posa", group: "lavorazione", hint: "Installazione prodotti (finestre, porte, pavimenti)" },
+  { value: "manodopera", label: "Manodopera", group: "lavorazione", hint: "Lavorazione generica a ore o a corpo" },
+  { value: "trasporto", label: "Trasporto", group: "logistica", hint: "Consegna in cantiere, fisso o al km" },
+  { value: "tiro_piano", label: "Tiro piano", group: "logistica", hint: "Movimentazione ai piani superiori" },
+  { value: "smaltimento", label: "Smaltimento", group: "logistica", hint: "Rimozione materiale dismesso" },
+  { value: "sopralluogo", label: "Sopralluogo", group: "servizi", hint: "Rilievo e misurazioni in cantiere" },
+  { value: "progettazione", label: "Progettazione", group: "servizi", hint: "Disegni, capitolati, pratiche tecniche" },
+  { value: "pratica", label: "Pratica", group: "servizi", hint: "Pratiche edilizie e bonus fiscali" },
+  { value: "nolo", label: "Nolo", group: "nolo", hint: "Noleggio attrezzature (trabattello, ponteggio)" },
+  { value: "ponteggio", label: "Ponteggio", group: "nolo", hint: "Ponteggio completo + montaggio" },
+  { value: "lattoneria", label: "Lattoneria", group: "serramento", hint: "Scossaline, gocciolatoi, canali" },
+  { value: "sigillatura", label: "Sigillatura", group: "serramento", hint: "Silicone perimetrale, schiuma" },
+  { value: "contorno", label: "Contorno", group: "serramento", hint: "Rivestimento/finitura perimetrale" },
+  { value: "falso_telaio", label: "Falso telaio", group: "serramento", hint: "Predisposizione controtelaio" },
+  { value: "altro", label: "Altro", group: "altro", hint: "Servizi non classificati altrove" },
+];
+
+const GROUP_DEFS: { value: TipoDef["group"] | "all"; label: string; icon: typeof Package }[] = [
+  { value: "all", label: "Tutte", icon: Layers3 },
+  { value: "lavorazione", label: "Lavorazione", icon: Activity },
+  { value: "logistica", label: "Logistica", icon: Package },
+  { value: "servizi", label: "Servizi", icon: Building2 },
+  { value: "nolo", label: "Nolo", icon: Wallet },
+  { value: "serramento", label: "Serramento", icon: Pencil },
+  { value: "altro", label: "Altro", icon: Info },
 ];
 
 /** Unità di fatturazione canoniche FASE 6 — la UM è FISSA alla creazione. */
@@ -122,23 +164,30 @@ function legacyUnitaFrom(u: UnitaFatturazione): string {
   }
 }
 
-// NOTE: categoria_prodotto and descrizione are NOT in the tariffe_aziendali schema.
-// attiva is NOT in the schema either — removed from all payloads.
+function tipoLabel(tipo: string): string {
+  return TIPO_DEFS.find((t) => t.value === tipo)?.label ?? tipo;
+}
+function tipoHint(tipo: string): string {
+  return TIPO_DEFS.find((t) => t.value === tipo)?.hint ?? "";
+}
+
+// NOTE: categoria_prodotto and descrizione sono NOT in the tariffe_aziendali schema.
+// attiva is NOT in the schema either — rimosso da tutti i payload.
 const DEFAULT_TARIFFE: Omit<Tariffa, "id" | "company_id">[] = [
-  { nome: "Posa finestra singola", tipo: "posa", unita: "pz", prezzo_vendita: 85, prezzo_costo: 55 },
-  { nome: "Posa porta interna", tipo: "posa", unita: "pz", prezzo_vendita: 65, prezzo_costo: 40 },
-  { nome: "Posa pavimento", tipo: "posa", unita: "mq", prezzo_vendita: 18, prezzo_costo: 11 },
-  { nome: "Posa rivestimento bagno", tipo: "posa", unita: "mq", prezzo_vendita: 22, prezzo_costo: 14 },
-  { nome: "Posa cappotto termico", tipo: "posa", unita: "mq", prezzo_vendita: 25, prezzo_costo: 16 },
-  { nome: "Manodopera generica", tipo: "posa", unita: "h", prezzo_vendita: 45, prezzo_costo: 30 },
-  { nome: "Trasporto fisso cantiere", tipo: "trasporto", unita: "fisso", prezzo_vendita: 65, prezzo_costo: 40 },
-  { nome: "Trasporto al km", tipo: "trasporto", unita: "km", prezzo_vendita: 0.8, prezzo_costo: 0.5 },
-  { nome: "Tiro al piano", tipo: "tiro_piano", unita: "piano", prezzo_vendita: 12, prezzo_costo: 8, piano_base: 1, prezzo_piano_aggiuntivo: 5 },
-  { nome: "Smaltimento serramento", tipo: "smaltimento", unita: "pz", prezzo_vendita: 22, prezzo_costo: 15 },
-  { nome: "Smaltimento porta", tipo: "smaltimento", unita: "pz", prezzo_vendita: 35, prezzo_costo: 22 },
-  { nome: "Smaltimento materiale", tipo: "smaltimento", unita: "mc", prezzo_vendita: 95, prezzo_costo: 70 },
-  { nome: "Trabattello giornaliero", tipo: "nolo", unita: "fisso", prezzo_vendita: 55, prezzo_costo: 35 },
-  { nome: "Ponteggio mq/sett", tipo: "nolo", unita: "mq", prezzo_vendita: 9, prezzo_costo: 6 },
+  { nome: "Posa finestra singola", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 85, costo_interno: 55, descrizione: "Installazione completa di finestra a battente o scorrevole" },
+  { nome: "Posa porta interna", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 65, costo_interno: 40, descrizione: "Posa di porta interna con cerniera e regolazione" },
+  { nome: "Posa pavimento", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 18, costo_interno: 11, descrizione: "Posa pavimento ceramica o gres con colla" },
+  { nome: "Posa rivestimento bagno", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 22, costo_interno: 14, descrizione: "Rivestimento mosaico o ceramica a parete" },
+  { nome: "Posa cappotto termico", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 25, costo_interno: 16, descrizione: "Cappotto EPS/XPS con rasatura base" },
+  { nome: "Manodopera generica", tipo: "manodopera", unita_fatturazione: "h", prezzo_vendita: 45, costo_interno: 30, descrizione: "Manodopera oraria per piccole lavorazioni" },
+  { nome: "Trasporto fisso cantiere", tipo: "trasporto", unita_fatturazione: "a_corpo", prezzo_vendita: 65, costo_interno: 40, descrizione: "Consegna unica in cantiere (zona locale)" },
+  { nome: "Trasporto al km", tipo: "trasporto", unita_fatturazione: "km", prezzo_vendita: 0.8, costo_interno: 0.5, descrizione: "Consegna a distanza, fatturata al km" },
+  { nome: "Tiro al piano", tipo: "tiro_piano", unita_fatturazione: "piano", prezzo_vendita: 12, costo_interno: 8, piano_base: 1, prezzo_piano_aggiuntivo: 5, descrizione: "Movimentazione ai piani (base + extra per piano)" },
+  { nome: "Smaltimento serramento", tipo: "smaltimento", unita_fatturazione: "pz", prezzo_vendita: 22, costo_interno: 15, descrizione: "Rimozione e conferimento in discarica" },
+  { nome: "Smaltimento porta", tipo: "smaltimento", unita_fatturazione: "pz", prezzo_vendita: 35, costo_interno: 22, descrizione: "Rimozione di porta e telaio esistenti" },
+  { nome: "Smaltimento materiale", tipo: "smaltimento", unita_fatturazione: "mc", prezzo_vendita: 95, costo_interno: 70, descrizione: "Materiale di risulta al metro cubo" },
+  { nome: "Trabattello giornaliero", tipo: "nolo", unita_fatturazione: "gg", prezzo_vendita: 55, costo_interno: 35, descrizione: "Noleggio trabattello a giornata" },
+  { nome: "Ponteggio mq/sett", tipo: "nolo", unita_fatturazione: "mq", prezzo_vendita: 9, costo_interno: 6, descrizione: "Ponteggio al mq settimanale" },
 ];
 
 function tipoBadgeClass(tipo: string) {
@@ -164,9 +213,18 @@ function tipoBadgeClass(tipo: string) {
 
 /** Colore semaforo margine: >=25% verde, >=15% giallo, altrimenti rosso. */
 function margineColor(margine: number): string {
-  if (margine >= 25) return "text-green-600";
-  if (margine >= 15) return "text-yellow-600";
-  return "text-red-600";
+  if (margine >= 25) return "text-emerald-600";
+  if (margine >= 15) return "text-amber-600";
+  return "text-rose-600";
+}
+
+/** Label umana del margine (es. "Ottimo", "Basso", "Sottocosto"). */
+function margineLabel(margine: number, hasCost: boolean): string {
+  if (!hasCost) return "n/d";
+  if (margine < 0) return "Sottocosto";
+  if (margine < 15) return "Basso";
+  if (margine < 25) return "Accettabile";
+  return "Ottimo";
 }
 
 function calcMargine(pv: number, pa: number) {
@@ -185,6 +243,117 @@ function TariffaVariantiSection({
   const { data: perms } = useUserPermissions();
   if (!perms?.can_view_costs) return null;
   return <TariffaVariantiEditor tariffaId={tariffaId} costoDefault={costoDefault} />;
+}
+
+// ─── KPI Header ───────────────────────────────────────────────────────────────
+function KpiHeader({
+  tariffe, isAdmin,
+}: { tariffe: Tariffa[]; isAdmin: boolean }) {
+  const kpi = useMemo(() => {
+    const totali = tariffe.length;
+    const attive = tariffe.filter((t) => t.attivo !== false).length;
+    const archiviate = totali - attive;
+    // Margine medio pesato per prezzo_vendita (solo tariffe con entrambi i valori)
+    let sumMarg = 0;
+    let countMarg = 0;
+    for (const t of tariffe) {
+      const pv = t.prezzo_vendita ?? 0;
+      const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
+      if (pv > 0 && pc > 0) {
+        sumMarg += calcMargine(pv, pc);
+        countMarg += 1;
+      }
+    }
+    const margineMedio = countMarg > 0 ? sumMarg / countMarg : 0;
+    // Top tipo
+    const byTipo = new Map<string, number>();
+    for (const t of tariffe) byTipo.set(t.tipo, (byTipo.get(t.tipo) ?? 0) + 1);
+    const topTipo = [...byTipo.entries()].sort((a, b) => b[1] - a[1])[0];
+    return { totali, attive, archiviate, margineMedio, countMarg, topTipo };
+  }, [tariffe]);
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Tariffe totali
+              </div>
+              <div className="mt-1 text-2xl font-bold">{kpi.totali}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {kpi.attive} attive · {kpi.archiviate} archiviate
+              </div>
+            </div>
+            <div className="rounded-lg bg-primary/10 p-2 text-primary">
+              <Layers3 className="h-5 w-5" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Attive
+              </div>
+              <div className="mt-1 text-2xl font-bold">{kpi.attive}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {kpi.totali > 0 ? `${((kpi.attive / kpi.totali) * 100).toFixed(0)}% del totale` : "—"}
+              </div>
+            </div>
+            <div className="rounded-lg bg-emerald-100 p-2 text-emerald-700">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      {isAdmin && (
+        <Card>
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Margine medio
+                </div>
+                <div className={`mt-1 text-2xl font-bold ${kpi.countMarg > 0 ? margineColor(kpi.margineMedio) : "text-muted-foreground"}`}>
+                  {kpi.countMarg > 0 ? `${kpi.margineMedio.toFixed(1)}%` : "—"}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  su {kpi.countMarg} tariffe con costi
+                </div>
+              </div>
+              <div className="rounded-lg bg-amber-100 p-2 text-amber-700">
+                <Percent className="h-5 w-5" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Tipo più usato
+              </div>
+              <div className="mt-1 text-2xl font-bold">
+                {kpi.topTipo ? tipoLabel(kpi.topTipo[0]) : "—"}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {kpi.topTipo ? `${kpi.topTipo[1]} tariffe` : "Nessuna tariffa ancora"}
+              </div>
+            </div>
+            <div className="rounded-lg bg-blue-100 p-2 text-blue-700">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 // ─── Tariffa Dialog ───────────────────────────────────────────────────────────
@@ -212,12 +381,19 @@ function TariffaDialog({
   );
   const [pianoBase, setPianoBase] = useState(String(editing?.piano_base ?? "1"));
   const [prezzoPianoAgg, setPrezzoPianoAgg] = useState(String(editing?.prezzo_piano_aggiuntivo ?? ""));
+  const [attivo, setAttivo] = useState<boolean>(editing?.attivo !== false);
   const [saving, setSaving] = useState(false);
 
   // Semaforo margine live
   const pvNum = parseFloat(prezzoVendita) || 0;
   const ciNum = parseFloat(costoInterno) || 0;
-  const margineLive = pvNum > 0 ? ((pvNum - ciNum) / pvNum) * 100 : 0;
+  const marginePerc = pvNum > 0 ? ((pvNum - ciNum) / pvNum) * 100 : 0;
+  const guadagnoUnit = pvNum - ciNum;
+
+  // Validazioni soft (non bloccanti — warning in UI)
+  const warnings: string[] = [];
+  if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) warnings.push("Il costo è ≥ del prezzo di vendita: margine negativo.");
+  if (pvNum === 0 && editing) warnings.push("Prezzo di vendita a zero — la tariffa non genererà importo in preventivo.");
 
   const handleSave = async () => {
     if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
@@ -233,6 +409,7 @@ function TariffaDialog({
         unita_fatturazione: unitaFatturazione,
         vertical_associato: verticalAssociato.trim() || null,
         prezzo_vendita: prezzoVendita.trim() !== "" ? parseFloat(prezzoVendita) : null,
+        attivo,
         piano_base: tipo === "tiro_piano"
           ? (pianoBase.trim() !== "" ? parseInt(pianoBase, 10) : 1)
           : null,
@@ -265,26 +442,43 @@ function TariffaDialog({
     }
   };
 
+  const umLabel = UM_FATTURAZIONE.find((u) => u.value === unitaFatturazione)?.label ?? unitaFatturazione;
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Modifica tariffa" : "Nuova tariffa"}</DialogTitle>
+          <DialogDescription>
+            {editing
+              ? "Modifica i dati della tariffa. L'unità di misura è fissa per le tariffe già usate in preventivo."
+              : "Compila i campi per creare una nuova tariffa di servizio o lavorazione."}
+          </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-4">
-          <div>
-            <Label>Nome *</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome tariffa" />
+          {/* Anagrafica */}
+          <div className="grid gap-3">
+            <div>
+              <Label>Nome *</Label>
+              <Input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Es. Posa finestra media (100×120)"
+              />
+            </div>
+            <div>
+              <Label>Descrizione</Label>
+              <Input
+                value={descrizione}
+                onChange={(e) => setDescrizione(e.target.value)}
+                placeholder="Dettagli visibili ai colleghi (es. include smontaggio)"
+              />
+            </div>
           </div>
-          <div>
-            <Label>Descrizione</Label>
-            <Input
-              value={descrizione}
-              onChange={(e) => setDescrizione(e.target.value)}
-              placeholder="Descrizione opzionale (visibile ai colleghi)"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* Tipo + Unità */}
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label>Tipo</Label>
               <Select value={tipo} onValueChange={(v) => {
@@ -296,18 +490,21 @@ function TariffaDialog({
               }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {TIPO_TABS.map((t) => (
+                  {TIPO_DEFS.map((t) => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <Info className="inline h-3 w-3 mr-1" />{tipoHint(tipo)}
+              </p>
             </div>
             <div>
               <Label>
                 Unità di fatturazione
                 {editing && (
                   <span className="ml-1 text-xs text-muted-foreground">
-                    (FISSA alla creazione, non modificabile per preventivi)
+                    (fissa)
                   </span>
                 )}
               </Label>
@@ -327,26 +524,43 @@ function TariffaDialog({
               </Select>
             </div>
           </div>
-          <div>
-            <Label>Vertical associato</Label>
-            <Select
-              value={verticalAssociato || "__none__"}
-              onValueChange={(v) => setVerticalAssociato(v === "__none__" ? "" : v)}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Globale (nessun vertical)</SelectItem>
-                <SelectItem value="serramentista">Serramentista</SelectItem>
-                <SelectItem value="generico">Generico</SelectItem>
-                <SelectItem value="edile">Edile</SelectItem>
-                <SelectItem value="impiantistica">Impiantistica</SelectItem>
-              </SelectContent>
-            </Select>
+
+          {/* Vertical + Attivo */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Vertical associato</Label>
+              <Select
+                value={verticalAssociato || "__none__"}
+                onValueChange={(v) => setVerticalAssociato(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Globale (nessun vertical)</SelectItem>
+                  <SelectItem value="serramentista">Serramentista</SelectItem>
+                  <SelectItem value="generico">Generico</SelectItem>
+                  <SelectItem value="edile">Edile</SelectItem>
+                  <SelectItem value="impiantistica">Impiantistica</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <Label>Stato</Label>
+                <div className="mt-1.5 flex items-center gap-2 rounded-md border px-3 py-2">
+                  <Switch checked={attivo} onCheckedChange={setAttivo} />
+                  <span className="text-sm">
+                    {attivo ? "Attiva (selezionabile in preventivo)" : "Archiviata"}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* Prezzi */}
+          <div className="grid gap-3 sm:grid-cols-2">
             {isAdmin && (
               <div>
-                <Label>Costo interno €</Label>
+                <Label>Costo interno (€ per {umLabel})</Label>
                 <Input
                   type="number"
                   min="0"
@@ -361,7 +575,7 @@ function TariffaDialog({
               </div>
             )}
             <div>
-              <Label>Prezzo vendita €</Label>
+              <Label>Prezzo vendita (€ per {umLabel})</Label>
               <Input
                 type="number"
                 min="0"
@@ -372,49 +586,123 @@ function TariffaDialog({
               />
             </div>
           </div>
-          {isAdmin && pvNum > 0 && (
-            <div className="rounded-lg border p-3 flex items-center justify-between bg-muted/30">
-              <span className="text-sm">Margine live</span>
-              <div className="flex items-center gap-2">
-                <span className={`text-lg font-semibold ${margineColor(margineLive)}`}>
-                  {margineLive.toFixed(1)}%
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  ({formatCurrency(pvNum - ciNum)} / unit.)
-                </span>
+
+          {/* Live example + margine */}
+          {(pvNum > 0 || (isAdmin && ciNum > 0)) && (
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Calculator className="h-4 w-4" />
+                Anteprima economica — 1 {umLabel}
               </div>
+              <div className="grid gap-2 text-sm sm:grid-cols-3">
+                {isAdmin && (
+                  <div className="rounded-md bg-background p-2 border">
+                    <div className="text-xs text-muted-foreground">Costo</div>
+                    <div className="font-semibold text-rose-600">{formatCurrency(ciNum)}</div>
+                  </div>
+                )}
+                <div className="rounded-md bg-background p-2 border">
+                  <div className="text-xs text-muted-foreground">Vendita</div>
+                  <div className="font-semibold">{formatCurrency(pvNum)}</div>
+                </div>
+                {isAdmin && (
+                  <div className="rounded-md bg-background p-2 border">
+                    <div className="text-xs text-muted-foreground">Guadagno</div>
+                    <div className={`font-semibold ${margineColor(marginePerc)}`}>
+                      {formatCurrency(guadagnoUnit)}
+                      {pvNum > 0 && (
+                        <span className="ml-1 text-xs font-normal">
+                          ({marginePerc.toFixed(1)}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {isAdmin && pvNum > 0 && ciNum > 0 && (
+                <div className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-xs border">
+                  <span className="text-muted-foreground">
+                    Giudizio margine:
+                  </span>
+                  <span className={`font-semibold ${margineColor(marginePerc)}`}>
+                    {margineLabel(marginePerc, true)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Tiro piano specifico */}
           {tipo === "tiro_piano" && (
-            <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/40 p-3">
-              <div>
-                <Label>Piano base (soglia)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={pianoBase}
-                  onChange={(e) => setPianoBase(e.target.value)}
-                  placeholder="1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Piani ≥ soglia aggiungono il prezzo extra
-                </p>
+            <div className="rounded-lg bg-purple-50 border border-purple-200 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-purple-800">
+                <Info className="h-4 w-4" />
+                Formula "Tiro al piano"
               </div>
-              <div>
-                <Label>Prezzo piano aggiuntivo €</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={prezzoPianoAgg}
-                  onChange={(e) => setPrezzoPianoAgg(e.target.value)}
-                  placeholder="0.00"
-                />
+              <p className="text-xs text-purple-700">
+                <strong>Piano 0 → base:</strong> prezzo vendita base × quantità.
+                <br />
+                <strong>Piani ≥ {pianoBase || "1"}:</strong> base + (piano − soglia) × prezzo piano aggiuntivo.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label>Piano base (soglia)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={pianoBase}
+                    onChange={(e) => setPianoBase(e.target.value)}
+                    placeholder="1"
+                  />
+                </div>
+                <div>
+                  <Label>Prezzo piano aggiuntivo €</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={prezzoPianoAgg}
+                    onChange={(e) => setPrezzoPianoAgg(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
+              {/* Preview per 1/3/5 piani */}
+              {pvNum > 0 && (
+                <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs">
+                  {[1, 3, 5].map((piano) => {
+                    const soglia = parseInt(pianoBase || "1", 10);
+                    const extra = parseFloat(prezzoPianoAgg) || 0;
+                    const excess = Math.max(0, piano - soglia);
+                    const totale = pvNum + excess * extra;
+                    return (
+                      <div key={piano} className="rounded-md bg-background border p-2">
+                        <div className="text-muted-foreground">Piano {piano}</div>
+                        <div className="font-semibold">{formatCurrency(totale)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
+
+          {/* Warnings */}
+          {warnings.length > 0 && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+              <ul className="space-y-1 text-xs text-amber-800">
+                {warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+              </ul>
+            </div>
+          )}
+
           {/* Sprint B — Varianti Costo Manodopera: visibile solo su tariffe esistenti e solo admin */}
-          {isAdmin && editing && <TariffaVariantiSection tariffaId={editing.id} costoDefault={editing.costo_interno ?? editing.prezzo_costo ?? null} />}
+          {isAdmin && editing && (
+            <TariffaVariantiSection
+              tariffaId={editing.id}
+              costoDefault={editing.costo_interno ?? editing.prezzo_costo ?? null}
+            />
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annulla</Button>
@@ -427,84 +715,314 @@ function TariffaDialog({
   );
 }
 
-// ─── TariffeTable (outside main component to avoid remount on every render) ───
+// ─── Standard Tariffe Picker Dialog ───────────────────────────────────────────
+function StandardTariffeDialog({
+  open, onClose, existing, companyId, onCreated,
+}: {
+  open: boolean; onClose: () => void; existing: Tariffa[];
+  companyId: string; onCreated: () => void;
+}) {
+  const existingNames = useMemo(() => new Set(existing.map((t) => t.nome)), [existing]);
+  const [selected, setSelected] = useState<Set<string>>(() => {
+    // Di default seleziona solo quelle non già esistenti
+    return new Set(DEFAULT_TARIFFE.filter((d) => !existingNames.has(d.nome)).map((d) => d.nome));
+  });
+  const [creating, setCreating] = useState(false);
+
+  const toggle = (nome: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(nome)) next.delete(nome);
+      else next.add(nome);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelected(new Set(DEFAULT_TARIFFE.filter((d) => !existingNames.has(d.nome)).map((d) => d.nome)));
+  const selectNone = () => setSelected(new Set());
+
+  const toCreate = DEFAULT_TARIFFE.filter((d) => selected.has(d.nome) && !existingNames.has(d.nome));
+
+  const handleCreate = async () => {
+    if (toCreate.length === 0) {
+      toast.info("Nessuna tariffa selezionata");
+      return;
+    }
+    setCreating(true);
+    try {
+      const payload = toCreate.map((d) => ({
+        ...d,
+        company_id: companyId,
+        // Allineiamo anche il campo legacy `unita` al nuovo unita_fatturazione
+        unita: d.unita_fatturazione ? legacyUnitaFrom(d.unita_fatturazione) : "pz",
+        // Allineiamo legacy prezzo_costo al costo_interno
+        prezzo_costo: d.costo_interno,
+      }));
+      const { error } = await supabase.from("tariffe_aziendali").insert(payload as never);
+      if (error) throw error;
+      toast.success(`${toCreate.length} tariffe create`);
+      onCreated();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Errore creazione tariffe");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // Raggruppa per tipo
+  const groups = useMemo(() => {
+    const g = new Map<string, Omit<Tariffa, "id" | "company_id">[]>();
+    for (const d of DEFAULT_TARIFFE) {
+      const arr = g.get(d.tipo) ?? [];
+      arr.push(d);
+      g.set(d.tipo, arr);
+    }
+    return [...g.entries()];
+  }, []);
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Crea tariffe standard</DialogTitle>
+          <DialogDescription>
+            Seleziona quali tariffe aggiungere alla tua azienda. Quelle già presenti sono disabilitate.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-center justify-between py-2">
+          <div className="text-sm text-muted-foreground">
+            {selected.size} / {DEFAULT_TARIFFE.length} selezionate · {toCreate.length} da creare
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={selectAll}>Seleziona tutte</Button>
+            <Button size="sm" variant="outline" onClick={selectNone}>Deseleziona</Button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {groups.map(([tipo, items]) => (
+            <div key={tipo}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${tipoBadgeClass(tipo)}`}>
+                  {tipoLabel(tipo)}
+                </span>
+                <span className="text-xs text-muted-foreground">{items.length} tariffe</span>
+              </div>
+              <div className="space-y-1">
+                {items.map((d) => {
+                  const alreadyExists = existingNames.has(d.nome);
+                  const isChecked = selected.has(d.nome);
+                  return (
+                    <label
+                      key={d.nome}
+                      className={`flex items-start gap-3 rounded-md border p-2.5 ${
+                        alreadyExists ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/30"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={isChecked && !alreadyExists}
+                        disabled={alreadyExists}
+                        onCheckedChange={() => !alreadyExists && toggle(d.nome)}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{d.nome}</span>
+                          {alreadyExists && (
+                            <Badge variant="secondary" className="text-xs">Già presente</Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {d.unita_fatturazione ?? d.unita} · {formatCurrency(d.prezzo_vendita ?? 0)}
+                            {d.costo_interno != null && (
+                              <span className="ml-1 text-muted-foreground/70">
+                                (costo {formatCurrency(d.costo_interno)})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {d.descrizione && (
+                          <div className="text-xs text-muted-foreground mt-0.5">{d.descrizione}</div>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button onClick={handleCreate} disabled={creating || toCreate.length === 0}>
+            {creating ? "Creazione..." : `Crea ${toCreate.length} tariffe`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── TariffeTable ────────────────────────────────────────────────────────────
 function TariffeTable({
-  items, isAdmin, colCount, onEdit, onDelete,
+  items, isAdmin, onEdit, onDelete, onToggleAttivo, onDuplica,
 }: {
   items: Tariffa[];
   isAdmin: boolean;
-  colCount: number;
   onEdit: (t: Tariffa) => void;
   onDelete: (id: string) => void;
+  onToggleAttivo: (t: Tariffa) => void;
+  onDuplica: (t: Tariffa) => void;
 }) {
+  // Accessori per il sort
+  const accessors = useMemo(() => ({
+    tipo: (t: Tariffa) => tipoLabel(t.tipo),
+    nome: (t: Tariffa) => t.nome.toLowerCase(),
+    unita: (t: Tariffa) => t.unita_fatturazione ?? t.unita ?? "",
+    prezzo_vendita: (t: Tariffa) => t.prezzo_vendita ?? 0,
+    costo: (t: Tariffa) => t.costo_interno ?? t.prezzo_costo ?? 0,
+    margine: (t: Tariffa) => {
+      const pv = t.prezzo_vendita ?? 0;
+      const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
+      return pv > 0 && pc > 0 ? calcMargine(pv, pc) : -Infinity;
+    },
+    attivo: (t: Tariffa) => (t.attivo !== false ? 1 : 0),
+  }), []);
+
+  const { sortConfig, toggleSort, sortedItems } = useTableSort(items, accessors);
+
+  const colCount = isAdmin ? 8 : 6;
+
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Tipo</TableHead>
-            <TableHead>Nome</TableHead>
-            <TableHead>UM</TableHead>
-            <TableHead>Prezzo vendita</TableHead>
-            {isAdmin && <TableHead>Prezzo costo</TableHead>}
-            {isAdmin && <TableHead>Margine %</TableHead>}
-            <TableHead className="text-right">Azioni</TableHead>
+            <SortableTableHead column="attivo" label="Stato" sortConfig={sortConfig} onSort={toggleSort} className="w-[90px]" />
+            <SortableTableHead column="tipo" label="Tipo" sortConfig={sortConfig} onSort={toggleSort} className="w-[130px]" />
+            <SortableTableHead column="nome" label="Nome" sortConfig={sortConfig} onSort={toggleSort} />
+            <SortableTableHead column="unita" label="UM" sortConfig={sortConfig} onSort={toggleSort} className="w-[80px]" />
+            <SortableTableHead column="prezzo_vendita" label="Vendita" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[130px]" />
+            {isAdmin && <SortableTableHead column="costo" label="Costo" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[130px]" />}
+            {isAdmin && <SortableTableHead column="margine" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="text-right w-[110px]" />}
+            <TableHead className="text-right w-[60px]">Azioni</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.length === 0 ? (
+          {sortedItems.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={colCount} className="text-center py-6 text-muted-foreground">
-                Nessuna tariffa in questa categoria. Clicca "Nuova tariffa" per aggiungerne una.
+              <TableCell colSpan={colCount} className="text-center py-10">
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <Layers3 className="h-8 w-8 opacity-40" />
+                  <p className="text-sm">Nessuna tariffa trovata.</p>
+                  <p className="text-xs">Prova a cambiare filtro o crea una nuova tariffa.</p>
+                </div>
               </TableCell>
             </TableRow>
-          ) : items.map((t) => {
+          ) : sortedItems.map((t) => {
             const pv = t.prezzo_vendita ?? 0;
-            // Preferisci costo_interno (FASE 6), cadi sul legacy prezzo_costo
             const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
+            const hasBoth = pv > 0 && pc > 0;
             const margine = calcMargine(pv, pc);
+            const isAttivo = t.attivo !== false;
             return (
-              <TableRow key={t.id}>
+              <TableRow key={t.id} className={!isAttivo ? "opacity-60" : undefined}>
+                <TableCell>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center">
+                          <Switch
+                            checked={isAttivo}
+                            onCheckedChange={() => onToggleAttivo(t)}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {isAttivo ? "Archivia tariffa" : "Riattiva tariffa"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableCell>
                 <TableCell>
                   <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${tipoBadgeClass(t.tipo)}`}>
-                    {TIPO_TABS.find((x) => x.value === t.tipo)?.label ?? t.tipo}
+                    {tipoLabel(t.tipo)}
                   </span>
                 </TableCell>
-                <TableCell className="font-medium">
-                  {t.nome}
-                  {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano
-                    </span>
+                <TableCell>
+                  <div className="font-medium">
+                    {t.nome}
+                    {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano oltre il {t.piano_base ?? 1}°
+                      </span>
+                    )}
+                  </div>
+                  {t.descrizione && (
+                    <div className="text-xs text-muted-foreground line-clamp-1">{t.descrizione}</div>
+                  )}
+                  {t.vertical_associato && (
+                    <div className="mt-0.5">
+                      <Badge variant="outline" className="text-[10px] font-normal h-4 px-1.5">
+                        {t.vertical_associato}
+                      </Badge>
+                    </div>
                   )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {t.unita_fatturazione ?? t.unita ?? "—"}
                 </TableCell>
-                <TableCell>{pv ? formatCurrency(pv) : "—"}</TableCell>
-                {isAdmin && <TableCell>{pc ? formatCurrency(pc) : "—"}</TableCell>}
+                <TableCell className="text-right font-medium">
+                  {pv ? formatCurrency(pv) : <span className="text-muted-foreground">—</span>}
+                </TableCell>
                 {isAdmin && (
-                  <TableCell>
-                    {pc && pv ? (
-                      <span className={`text-sm font-medium ${margineColor(margine)}`}>
+                  <TableCell className="text-right">
+                    {pc ? formatCurrency(pc) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                )}
+                {isAdmin && (
+                  <TableCell className="text-right">
+                    {hasBoth ? (
+                      <span className={`text-sm font-semibold ${margineColor(margine)}`}>
                         {margine.toFixed(1)}%
                       </span>
-                    ) : "—"}
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                 )}
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(t)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost" size="icon"
-                      className="text-destructive"
-                      onClick={() => onDelete(t.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit(t)}>
+                        <Pencil className="h-4 w-4 mr-2" />Modifica
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onDuplica(t)}>
+                        <Copy className="h-4 w-4 mr-2" />Duplica
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onToggleAttivo(t)}>
+                        {isAttivo ? (
+                          <><Archive className="h-4 w-4 mr-2" />Archivia</>
+                        ) : (
+                          <><RotateCcw className="h-4 w-4 mr-2" />Riattiva</>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => onDelete(t.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />Elimina
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             );
@@ -516,6 +1034,9 @@ function TariffeTable({
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+type StatoFilter = "all" | "attive" | "archiviate";
+type VerticalFilter = "all" | "current" | "global";
+
 export default function SettingsTariffe() {
   const { effectiveCompany, role } = useAuth();
   const { vertical: currentVertical } = useVertical();
@@ -523,14 +1044,14 @@ export default function SettingsTariffe() {
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<string>("posa");
+  const [activeGroup, setActiveGroup] = useState<TipoDef["group"] | "all">("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Tariffa | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [confirmStandard, setConfirmStandard] = useState(false);
-  const [creatingStandard, setCreatingStandard] = useState(false);
-  // FASE 6.3: filtro per vertical_associato
-  const [verticalFilter, setVerticalFilter] = useState<"all" | "current" | "global">("all");
+  const [standardOpen, setStandardOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [verticalFilter, setVerticalFilter] = useState<VerticalFilter>("all");
+  const [statoFilter, setStatoFilter] = useState<StatoFilter>("attive");
 
   const { data: tariffe = [], isLoading } = useQuery({
     queryKey: ["tariffe-aziendali-full", companyId],
@@ -565,79 +1086,109 @@ export default function SettingsTariffe() {
     },
   });
 
-  const createStandardTariffe = async (skipExisting = true) => {
-    setCreatingStandard(true);
-    try {
-      const existingNames = new Set(tariffe.map((t) => t.nome));
-      const toInsert = DEFAULT_TARIFFE
-        .filter((d) => !skipExisting || !existingNames.has(d.nome))
-        .map((d) => ({ ...d, company_id: companyId }));
-      if (!toInsert.length) {
-        toast.info("Tutte le tariffe standard sono già presenti");
-        return;
-      }
+  const toggleAttivoMutation = useMutation({
+    mutationFn: async (t: Tariffa) => {
+      const next = !(t.attivo !== false);
       const { error } = await supabase
         .from("tariffe_aziendali")
-        .insert(toInsert as never);
+        .update({ attivo: next } as never)
+        .eq("id", t.id)
+        .eq("company_id", companyId);
       if (error) throw error;
+      return next;
+    },
+    onSuccess: (next) => {
       queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] });
-      toast.success(`${toInsert.length} tariffe standard create`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore creazione tariffe");
-    } finally {
-      setCreatingStandard(false);
-      setConfirmStandard(false);
-    }
-  };
+      toast.success(next ? "Tariffa riattivata" : "Tariffa archiviata");
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Errore aggiornamento stato");
+    },
+  });
 
-  const handleCreateStandard = () => {
-    if (tariffe.length > 0) { setConfirmStandard(true); }
-    else { createStandardTariffe(false); }
-  };
+  const duplicaMutation = useMutation({
+    mutationFn: async (t: Tariffa) => {
+      const payload: Record<string, unknown> = {
+        company_id: companyId,
+        nome: `${t.nome} (copia)`,
+        descrizione: t.descrizione ?? null,
+        tipo: t.tipo,
+        unita: t.unita ?? null,
+        unita_fatturazione: t.unita_fatturazione ?? null,
+        vertical_associato: t.vertical_associato ?? null,
+        prezzo_vendita: t.prezzo_vendita ?? null,
+        costo_interno: t.costo_interno ?? t.prezzo_costo ?? 0,
+        prezzo_costo: t.prezzo_costo ?? t.costo_interno ?? 0,
+        piano_base: t.piano_base ?? null,
+        prezzo_piano_aggiuntivo: t.prezzo_piano_aggiuntivo ?? null,
+        attivo: true,
+      };
+      const { error } = await supabase.from("tariffe_aziendali").insert(payload as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] });
+      toast.success("Tariffa duplicata");
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Errore duplicazione");
+    },
+  });
 
   const openNew = () => { setEditing(null); setDialogOpen(true); };
   const openEdit = (t: Tariffa) => { setEditing(t); setDialogOpen(true); };
 
-  // Conosce già i valori fissi dei tab "principali": tutti i tab registrati in TIPO_TABS tranne "altro".
-  const knownTipi = TIPO_TABS.filter((t) => t.value !== "altro").map((t) => t.value as string);
+  // Filtri combinati
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tariffe.filter((t) => {
+      // stato
+      if (statoFilter === "attive" && t.attivo === false) return false;
+      if (statoFilter === "archiviate" && t.attivo !== false) return false;
+      // vertical
+      if (verticalFilter === "current" && t.vertical_associato !== currentVertical) return false;
+      if (verticalFilter === "global" && t.vertical_associato) return false;
+      // search
+      if (q) {
+        const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [tariffe, statoFilter, verticalFilter, currentVertical, search]);
 
-  const tariffeFiltered = tariffe.filter((t) => {
-    if (verticalFilter === "current") return t.vertical_associato === currentVertical;
-    if (verticalFilter === "global") return !t.vertical_associato;
-    return true; // "all"
-  });
+  // Raggruppamento per group (per i tab)
+  const byGroup = useMemo(() => {
+    const m: Record<string, Tariffa[]> = {};
+    for (const t of filtered) {
+      const def = TIPO_DEFS.find((x) => x.value === t.tipo);
+      const g = def?.group ?? "altro";
+      m[g] ??= [];
+      m[g].push(t);
+    }
+    return m;
+  }, [filtered]);
 
-  const tariffeByTipo = (tipo: string) =>
-    tariffeFiltered.filter((t) =>
-      tipo === "altro"
-        ? !knownTipi.includes(t.tipo)
-        : t.tipo === tipo
-    );
-
-  const colCount = isAdmin ? 7 : 5;
+  const tariffeForActiveGroup = activeGroup === "all"
+    ? filtered
+    : byGroup[activeGroup] ?? [];
 
   if (!companyId) return null;
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Tariffe Aziendali</h1>
-          <p className="text-muted-foreground text-sm">Gestisci le tariffe di posa, trasporto e servizi</p>
+          <p className="text-muted-foreground text-sm">
+            Gestisci tariffe di posa, manodopera, trasporto e servizi. Ogni tariffa ha un prezzo di vendita
+            {isAdmin ? " e un costo interno (solo admin)" : ""}.
+          </p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
-          <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as typeof verticalFilter)}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Filtra vertical" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutte le tariffe</SelectItem>
-              <SelectItem value="current">Solo vertical corrente ({currentVertical})</SelectItem>
-              <SelectItem value="global">Solo globali (nessun vertical)</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={handleCreateStandard} disabled={creatingStandard}>
-            <Zap className="h-4 w-4 mr-2" />Crea tariffe standard
+          <Button variant="outline" onClick={() => setStandardOpen(true)}>
+            <Zap className="h-4 w-4 mr-2" />Catalogo standard
           </Button>
           <Button onClick={openNew}>
             <Plus className="h-4 w-4 mr-2" />Nuova tariffa
@@ -645,29 +1196,121 @@ export default function SettingsTariffe() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      {/* KPI */}
+      <KpiHeader tariffe={tariffe} isAdmin={isAdmin} />
+
+      {/* Filter bar */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="grid gap-3 md:grid-cols-[1fr,auto,auto]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cerca per nome, descrizione o tipo…"
+                className="pl-9"
+              />
+            </div>
+            <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as StatoFilter)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="attive">Solo attive</SelectItem>
+                <SelectItem value="archiviate">Solo archiviate</SelectItem>
+                <SelectItem value="all">Tutte</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as VerticalFilter)}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Filtra vertical" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i vertical</SelectItem>
+                <SelectItem value="current">Solo {currentVertical || "corrente"}</SelectItem>
+                <SelectItem value="global">Solo globali</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs per gruppo + conteggio */}
+      <Tabs value={activeGroup} onValueChange={(v) => setActiveGroup(v as typeof activeGroup)}>
         <TabsList className="flex-wrap h-auto gap-1">
-          {TIPO_TABS.map((t) => (
-            <TabsTrigger key={t.value} value={t.value}>
-              {t.label}
-              {tariffeByTipo(t.value).length > 0 && (
-                <Badge variant="secondary" className="ml-1.5 text-xs">
-                  {tariffeByTipo(t.value).length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          ))}
+          {GROUP_DEFS.map((g) => {
+            const count = g.value === "all" ? filtered.length : (byGroup[g.value]?.length ?? 0);
+            const Icon = g.icon;
+            return (
+              <TabsTrigger key={g.value} value={g.value} className="gap-1.5">
+                <Icon className="h-3.5 w-3.5" />
+                {g.label}
+                {count > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {count}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
-        {TIPO_TABS.map((t) => (
-          <TabsContent key={t.value} value={t.value} className="mt-4">
-            {isLoading
-              ? <p className="text-center py-8 text-muted-foreground">Caricamento...</p>
-              : <TariffeTable items={tariffeByTipo(t.value)} isAdmin={isAdmin} colCount={colCount} onEdit={openEdit} onDelete={setDeleteId} />
-            }
-          </TabsContent>
-        ))}
+
+        <TabsContent value={activeGroup} className="mt-4">
+          {isLoading ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                Caricamento…
+              </CardContent>
+            </Card>
+          ) : tariffe.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center space-y-3">
+                <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                  <Layers3 className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Nessuna tariffa ancora</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Inizia creando le tariffe standard del tuo settore o aggiungine una nuova.
+                  </p>
+                </div>
+                <div className="flex justify-center gap-2">
+                  <Button variant="outline" onClick={() => setStandardOpen(true)}>
+                    <Zap className="h-4 w-4 mr-2" />Usa il catalogo standard
+                  </Button>
+                  <Button onClick={openNew}>
+                    <Plus className="h-4 w-4 mr-2" />Nuova tariffa
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <TariffeTable
+              items={tariffeForActiveGroup}
+              isAdmin={isAdmin}
+              onEdit={openEdit}
+              onDelete={setDeleteId}
+              onToggleAttivo={(t) => toggleAttivoMutation.mutate(t)}
+              onDuplica={(t) => duplicaMutation.mutate(t)}
+            />
+          )}
+        </TabsContent>
       </Tabs>
 
+      {/* Hint per amministratori (solo se ci sono tariffe) */}
+      {isAdmin && tariffe.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+          <Info className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <strong>Come si usa il margine:</strong> il margine mostrato è calcolato sul prezzo di vendita
+            (standard CFO). Per un margine industriale corretto punta al 25%+. Le tariffe archiviate non compaiono
+            nel preventivatore ma restano visibili qui e possono essere riattivate in qualsiasi momento.
+          </div>
+        </div>
+      )}
+
+      {/* Dialogs */}
       {dialogOpen && (
         <TariffaDialog
           key={editing?.id ?? "new"}
@@ -681,13 +1324,23 @@ export default function SettingsTariffe() {
         />
       )}
 
-      {/* Delete confirm */}
+      {standardOpen && (
+        <StandardTariffeDialog
+          open={standardOpen}
+          onClose={() => setStandardOpen(false)}
+          existing={tariffe}
+          companyId={companyId}
+          onCreated={() => queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] })}
+        />
+      )}
+
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina tariffa</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile. La tariffa verrà rimossa definitivamente.
+              Questa azione è irreversibile. Se preferisci puoi archiviare la tariffa:
+              non sarà più selezionabile nei nuovi preventivi ma potrai riattivarla in qualsiasi momento.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -696,25 +1349,7 @@ export default function SettingsTariffe() {
               className="bg-destructive text-destructive-foreground"
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
             >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Confirm standard tariffe */}
-      <AlertDialog open={confirmStandard} onOpenChange={setConfirmStandard}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Crea tariffe standard</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esistono già alcune tariffe. Verranno aggiunte solo le tariffe mancanti (quelle con lo stesso nome non verranno duplicate).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => createStandardTariffe(true)}>
-              Aggiungi mancanti
+              Elimina definitivamente
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
