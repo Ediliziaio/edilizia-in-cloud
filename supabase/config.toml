@@ -307,3 +307,22 @@ verify_jwt = false
 [functions.parse-matrix-image]
 verify_jwt = false
 
+# ───────────────────────────────────────────────────────────────
+# Funzioni Render AI: stesso motivo delle admin sopra.
+# Il runtime Supabase rifiuta i token ES256 che Supabase auth
+# emette nativamente, causando 401 UNAUTHORIZED_UNSUPPORTED_
+# TOKEN_ALGORITHM prima che il codice della funzione venga
+# eseguito. Le funzioni fanno auth internamente via
+# supabase.auth.getUser(authHeader). Verificato: tutte le 3
+# estraggono l'Authorization header e chiamano getUser() all'inizio
+# del handler, ritornando 401 se manca/è invalido.
+# ───────────────────────────────────────────────────────────────
+[functions.generate-render]
+verify_jwt = false
+
+[functions.analyze-window-photo]
+verify_jwt = false
+
+[functions.generate-floor-render]
+verify_jwt = false
+

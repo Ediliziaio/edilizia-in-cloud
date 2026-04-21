@@ -672,11 +672,6 @@ Deno.serve(async (req) => {
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
       const imgBlob = await imgResp.blob();
 
-      const form = new FormData();
-      form.append("model", providerConfig.model);
-      form.append("prompt", userPrompt);
-      form.append("image[]", imgBlob, "photo.jpg");
-      form.append("n", "1");
       // A5 fix: size output calcolata sulle dims ridotte (max 1600 lato lungo),
       // non sulle dims iPhone originali. Mai > 1600x1600.
       const renderSize = pickProviderSize(
@@ -684,25 +679,71 @@ Deno.serve(async (req) => {
         prepared.effective_height,
         "openai",
       ) ?? resolveRenderSize(target_width, target_height);
-      form.append("size", renderSize);
-      form.append("response_format", "b64_json");
 
-      const resp = await fetchWithRetry(
-        "https://api.openai.com/v1/images/edits",
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}` },
-          body: form,
-        },
-      );
+      // Build form factory so we can rebuild on retry (FormData non rispedibile)
+      const buildForm = (modelName: string) => {
+        const form = new FormData();
+        form.append("model", modelName);
+        form.append("prompt", userPrompt);
+        // Param name differisce: gpt-image-1 usa "image[]" (array, supporta multi
+        // input), dall-e-2 usa "image" singolo. Il file deve essere PNG/JPG < 4MB.
+        // dall-e-2 in /images/edits richiede tecnicamente un PNG quadrato + mask,
+        // ma l'endpoint accetta JPG senza mask trattando l'intera area come
+        // editabile — è quello che vogliamo qui (edit totale con prompt).
+        if (modelName === "dall-e-2") {
+          form.append("image", imgBlob, "photo.png");
+        } else {
+          form.append("image[]", imgBlob, "photo.jpg");
+        }
+        form.append("n", "1");
+        // dall-e-2 supporta solo size 256/512/1024 square, quindi forziamo 1024x1024
+        const sizeForModel = modelName === "dall-e-2" ? "1024x1024" : renderSize;
+        form.append("size", sizeForModel);
+        // dall-e-2 non accetta "response_format" con valore "b64_json" in /edits
+        // per alcuni client: lo teniamo su dall-e-2 perché in realtà è supportato;
+        // gpt-image-1 invece restituisce sempre b64, quindi il parametro è no-op.
+        if (modelName !== "gpt-image-1") {
+          form.append("response_format", "b64_json");
+        }
+        return form;
+      };
 
-      if (!resp.ok) {
-        const err = await resp.text();
-        throw new Error(`OpenAI error ${resp.status}: ${err.substring(0, 300)}`);
+      // Model fallback chain: se il modello configurato non è accessibile
+      // (Tier/verification mancante), OpenAI risponde "Invalid value: 'gpt-image-1'.
+      // Value must be 'dall-e-2'." → facciamo retry con dall-e-2 automaticamente.
+      // Questo evita che il demo / account non verificati vedano il render fallire
+      // senza spiegazioni.
+      const modelChain = [providerConfig.model];
+      if (providerConfig.model !== "dall-e-2") modelChain.push("dall-e-2");
+
+      let resp: Response | null = null;
+      let lastErr = "";
+      let modelUsed = providerConfig.model;
+      for (const m of modelChain) {
+        const r = await fetchWithRetry(
+          "https://api.openai.com/v1/images/edits",
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}` },
+            body: buildForm(m),
+          },
+        );
+        if (r.ok) {
+          resp = r;
+          modelUsed = m;
+          break;
+        }
+        const txt = await r.text();
+        lastErr = `OpenAI error ${r.status}: ${txt.substring(0, 300)}`;
+        // Retry solo se l'errore è model-access (invalid_value sul param model)
+        const isModelAccessIssue =
+          txt.includes("invalid_value") && txt.includes("\"model\"");
+        if (!isModelAccessIssue) throw new Error(lastErr);
       }
+      if (!resp) throw new Error(lastErr || "OpenAI: tutti i model tentati sono falliti");
 
       const oaiData = await resp.json();
-      providerRawResponse = oaiData as Record<string, unknown>;
+      providerRawResponse = { ...oaiData, _model_used: modelUsed } as Record<string, unknown>;
       const b64 = oaiData.data?.[0]?.b64_json;
       if (b64) imageData = `data:image/png;base64,${b64}`;
 
