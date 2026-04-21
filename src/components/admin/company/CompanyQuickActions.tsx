@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface QuickActionsProps {
   company: { id: string; name: string; email: string; status: string; trial_ends_at: string | null };
@@ -28,8 +29,25 @@ const statusLabels: Record<string, string> = {
 
 export function CompanyQuickActions({ company }: QuickActionsProps) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [confirmDialog, setConfirmDialog] = useState<{ status: string; label: string } | null>(null);
   const [confirmExtend, setConfirmExtend] = useState<number | null>(null);
+
+  const invalidateCompanies = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+    queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] });
+  };
+
+  const logCompanyAudit = async (action: string, details: Record<string, unknown>) => {
+    if (!user?.id) return;
+    await supabase.from("admin_audit_log").insert({
+      user_id: user.id,
+      action,
+      target_type: "company",
+      target_id: company.id,
+      details: { company_name: company.name, ...details },
+    });
+  };
 
   const statusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
@@ -38,9 +56,14 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq("id", company.id);
       if (error) throw error;
+      await logCompanyAudit("company_status_change", {
+        old_status: company.status,
+        new_status: newStatus,
+        source: "admin_companies_quick_actions",
+      });
     },
     onSuccess: (_, newStatus) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      invalidateCompanies();
       toast.success(`Stato aggiornato a "${statusLabels[newStatus] || newStatus}"`);
       setConfirmDialog(null);
     },
@@ -60,9 +83,15 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
         })
         .eq("id", company.id);
       if (error) throw error;
+      await logCompanyAudit("company_trial_extend", {
+        days,
+        old_trial_ends_at: company.trial_ends_at,
+        new_trial_ends_at: newEnd.toISOString(),
+        source: "admin_companies_quick_actions",
+      });
     },
     onSuccess: (_, days) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      invalidateCompanies();
       toast.success(`Trial esteso di ${days} giorni`);
       setConfirmExtend(null);
     },

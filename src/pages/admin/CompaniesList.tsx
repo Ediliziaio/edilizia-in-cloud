@@ -104,11 +104,21 @@ const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "tags", label: "Tag" },
 ];
 const DEFAULT_COLS: ColKey[] = ["sector", "plan", "mrr", "users", "orders", "lastAccess", "trial", "health", "tags"];
+const VALID_COLS = new Set<ColKey>(DEFAULT_COLS);
+
+function sanitizeOrSearchTerm(value: string): string {
+  return value.trim().replace(/[,%]/g, " ").replace(/\s+/g, " ");
+}
+
+function csvCell(value: unknown): string {
+  const raw = value == null ? "" : String(value);
+  return `"${raw.replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
+}
 
 export default function CompaniesList() {
   const { permissions } = useSuperAdminPermissions();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { impersonateCompany, profile, role, company } = useAuth();
+  const { impersonateCompany, profile, role, company, user } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
@@ -140,7 +150,11 @@ export default function CompaniesList() {
   const [visibleCols, setVisibleCols] = useState<ColKey[]>(() => {
     try {
       const saved = localStorage.getItem("companies_visible_cols");
-      if (saved) return JSON.parse(saved) as ColKey[];
+      if (saved) {
+        const parsed = JSON.parse(saved) as ColKey[];
+        const valid = parsed.filter((key): key is ColKey => VALID_COLS.has(key));
+        return valid.length ? valid : DEFAULT_COLS;
+      }
     } catch { /* storage non disponibile — silenzioso */ }
     return DEFAULT_COLS;
   });
@@ -240,6 +254,8 @@ export default function CompaniesList() {
       statusFilter,
       sectorFilter,
       planFilter,
+      healthFilter,
+      noPaymentFilter,
       serverSortColumn,
       sortDir,
       permissions.allowed_company_ids,
@@ -257,10 +273,12 @@ export default function CompaniesList() {
         )
         .eq("is_platform_admin_company", false);
 
-      // Server-side text search
-      if (debouncedSearch) {
+      // Server-side text search. `.or()` is comma-separated in PostgREST:
+      // sanitize pasted commas/percent signs so search cannot break the filter.
+      const searchTerm = sanitizeOrSearchTerm(debouncedSearch);
+      if (searchTerm) {
         query = query.or(
-          `name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%`
+          `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`
         );
       }
 
@@ -268,6 +286,31 @@ export default function CompaniesList() {
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
       if (sectorFilter !== "all") query = query.eq("sector", sectorFilter);
       if (planFilter !== "all") query = query.eq("subscription_plan_id", planFilter);
+      if (noPaymentFilter) {
+        query = query
+          .in("status", ["active", "trial"])
+          .or("payment_method.is.null,payment_method.eq.none,payment_method.eq.");
+      }
+
+      if (healthFilter !== "all") {
+        const { data: healthRows, error: healthErr } = await supabase.rpc("get_company_health_data");
+        if (healthErr) throw healthErr;
+        const matchingIds = ((healthRows || []) as CompanyHealthData[])
+          .filter((h) => {
+            const input = {
+              order_count: Number(h.order_count) || 0,
+              user_count: Number(h.user_count) || 0,
+              has_customers: !!h.has_customers,
+              has_staff: !!h.has_staff,
+              orders_last_30d: h.orders_last_30d,
+              last_order_date: h.last_order_date,
+            };
+            return calculateHealthScore(input).health === healthFilter;
+          })
+          .map((h) => h.company_id);
+        if (matchingIds.length === 0) return { data: [], totalCount: 0 };
+        query = query.in("id", matchingIds);
+      }
 
       // Segment filters (Feature 6)
       query = applyFiltersToQuery(query, segmentFilters);
@@ -479,19 +522,13 @@ export default function CompaniesList() {
   // Reset to page 1 whenever server-side filter/sort params change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, sortKey, sortDir]);
+  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir]);
 
-  // Client-side post-filters applied on the current page only (health and noPayment require cross-query data)
+  // Health/no-payment filters are pushed into the server query so pagination
+  // and counts stay coherent across the whole dataset.
   const filteredCompanies = useMemo(() => {
-    if (healthFilter === "all" && !noPaymentFilter) return companies;
-    return companies.filter((company) => {
-      const matchesHealth = healthFilter === "all" || (healthData[company.id]?.health === healthFilter);
-      const matchesNoPayment = !noPaymentFilter ||
-        ((company.status === "active" || company.status === "trial") &&
-          (!company.payment_method || company.payment_method === "none" || company.payment_method === ""));
-      return matchesHealth && matchesNoPayment;
-    });
-  }, [companies, healthFilter, noPaymentFilter, healthData]);
+    return companies;
+  }, [companies]);
 
   // Client-side sort for sort keys that require cross-query data (mrr, orders, users, lastAccess)
   const pagedCompanies = useMemo(() => {
@@ -521,6 +558,10 @@ export default function CompaniesList() {
   const totalPages = Math.max(1, Math.ceil(serverTotalCount / SERVER_PAGE_SIZE));
 
   const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter;
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [currentPage, debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir, segmentFilters]);
 
   // Smart filter presets — use allCompaniesSummary so counts reflect the full dataset, not just the current page
   const filterPresets: FilterPreset[] = useMemo(() => {
@@ -589,7 +630,7 @@ export default function CompaniesList() {
         apply: () => applyPreset({ status: "active", sort: "lastAccess", dir: "asc" }, "inactive"),
       },
     ];
-  }, [companies, healthData, lastAccessData, setInputSearch, setSearchParams]);
+  }, [allCompaniesSummary, healthData, lastAccessData, setInputSearch, setSearchParams]);
 
   const clearAllFilters = useCallback(() => {
     setInputSearch("");
@@ -620,8 +661,12 @@ export default function CompaniesList() {
 
   const toggleSelectAll = useCallback(() => {
     setSelectedIds((prev) => {
-      if (prev.size === pagedCompanies.length) return new Set();
-      return new Set(pagedCompanies.map((c) => c.id));
+      const pageIds = pagedCompanies.map((c) => c.id);
+      const allPageSelected = pageIds.length > 0 && pageIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
     });
   }, [pagedCompanies]);
 
@@ -633,11 +678,17 @@ export default function CompaniesList() {
     const rows = exportList.map((c) => {
       const plan = c.subscription_plans as { id: string; name: string; price_monthly: number } | null;
       return [
-        `"${c.name}"`, `"${c.email}"`, `"${sectorLabels[c.sector] || c.sector}"`, `"${plan?.name || "—"}"`,
-        c.status, (orderStats[c.id]?.count || 0), (userCounts[c.id] || 0),
-        plan?.price_monthly || 0, `"${c.stripe_customer_id || ""}"`,
-        format(new Date(c.created_at), "dd/MM/yyyy"),
-        c.trial_ends_at ? format(new Date(c.trial_ends_at), "dd/MM/yyyy") : "",
+        csvCell(c.name),
+        csvCell(c.email),
+        csvCell(sectorLabels[c.sector] || c.sector),
+        csvCell(plan?.name || "—"),
+        csvCell(c.status),
+        csvCell(orderStats[c.id]?.count || 0),
+        csvCell(userCounts[c.id] || 0),
+        csvCell(plan?.price_monthly || 0),
+        csvCell(c.stripe_customer_id || ""),
+        csvCell(format(new Date(c.created_at), "dd/MM/yyyy")),
+        csvCell(c.trial_ends_at ? format(new Date(c.trial_ends_at), "dd/MM/yyyy") : ""),
       ].join(",");
     });
     const csv = [headers.join(","), ...rows].join("\n");
@@ -701,8 +752,20 @@ export default function CompaniesList() {
         .update({ status, updated_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
+      if (user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id,
+          action: "company_status_change",
+          target_type: "company",
+          target_id: id,
+          details: { new_status: status, source: "admin_companies_list" },
+        });
+      }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] });
+    },
   });
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
@@ -1023,7 +1086,7 @@ export default function CompaniesList() {
                 <TableRow>
                   <TableHead className="w-10 px-2">
                     <Checkbox
-                      checked={selectedIds.size === pagedCompanies.length && pagedCompanies.length > 0}
+                      checked={pagedCompanies.length > 0 && pagedCompanies.every((c) => selectedIds.has(c.id))}
                       onCheckedChange={toggleSelectAll}
                       title={`Seleziona tutte le ${pagedCompanies.length} aziende in questa pagina`}
                     />

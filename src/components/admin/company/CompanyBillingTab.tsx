@@ -57,6 +57,25 @@ interface AdjustDialog {
 
 const PAGE_SIZE = 50;
 
+async function getFunctionErrorMessage(error: unknown): Promise<string> {
+  const fallback = error instanceof Error ? error.message : "Errore durante l'aggiornamento crediti";
+  const context = (error as { context?: unknown } | null)?.context;
+  if (context instanceof Response) {
+    try {
+      const payload = await context.clone().json() as { error?: string; message?: string };
+      return payload.error || payload.message || fallback;
+    } catch {
+      try {
+        const text = await context.clone().text();
+        return text || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+  }
+  return fallback;
+}
+
 export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -77,7 +96,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         .eq('company_id' as never, companyId as never)
         .eq('service' as never, 'plan' as never)
         .maybeSingle();
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       return data as {
         custom_plan_price_eur: number | null;
         override_notes: string | null;
@@ -104,7 +123,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
           is_enabled: true,
           updated_at: new Date().toISOString(),
         } as never, { onConflict: 'company_id,service' } as never);
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
     },
     onSuccess: () => {
       toast.success('Override prezzo salvato');
@@ -242,7 +261,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
           reason: adjustReason.trim(),
         },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
       return data;
     },

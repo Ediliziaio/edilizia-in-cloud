@@ -102,7 +102,7 @@ export function useCompanyDetail(id: string | undefined) {
         customersCount: profilesRes.count || 0,
         ticketsCount: ticketsRes.data?.length || 0,
         openTicketsCount: openTickets,
-        teamCount: profilesRes.data?.length || 0,
+        teamCount: profilesRes.count || 0,
       };
       return { company, stats };
     },

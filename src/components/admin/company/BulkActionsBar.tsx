@@ -20,6 +20,25 @@ interface BulkActionsBarProps {
   onClearSelection: () => void;
 }
 
+async function getFunctionErrorMessage(error: unknown): Promise<string> {
+  const fallback = error instanceof Error ? error.message : "Errore durante l'operazione";
+  const context = (error as { context?: unknown } | null)?.context;
+  if (context instanceof Response) {
+    try {
+      const payload = await context.clone().json() as { error?: string; message?: string };
+      return payload.error || payload.message || fallback;
+    } catch {
+      try {
+        const text = await context.clone().text();
+        return text || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+  }
+  return fallback;
+}
+
 export function BulkActionsBar({ selectedIds, companies, onClearSelection }: BulkActionsBarProps) {
   const queryClient = useQueryClient();
   const { profile } = useAuth();
@@ -37,6 +56,11 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
   const selectedCompanies = companies.filter((c) => selectedIds.has(c.id));
   const count = selectedIds.size;
 
+  const invalidateCompanies = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+    queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] });
+  };
+
   // Fetch plans for plan change dialog
   const { data: plans = [] } = useQuery({
     queryKey: queryKeys.admin.subscriptionPlans,
@@ -53,8 +77,9 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
   });
 
   const logAuditAction = async (action: string, details: Record<string, any>) => {
+    if (!profile?.id) return;
     await supabase.from("admin_audit_log").insert({
-      user_id: profile?.id || "",
+      user_id: profile.id,
       action,
       target_type: "company",
       details: { company_ids: Array.from(selectedIds), ...details } as any,
@@ -72,7 +97,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       await logAuditAction(`bulk_${status}`, { new_status: status, count: ids.length });
     },
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      invalidateCompanies();
       const labels: Record<string, string> = { suspended: "sospese", active: "riattivate" };
       toast.success(`${count} aziende ${labels[vars.status] || "aggiornate"}`);
       onClearSelection();
@@ -83,15 +108,19 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
   const bulkPlanMutation = useMutation({
     mutationFn: async ({ planId }: { planId: string }) => {
       const ids = Array.from(selectedIds);
-      const { error } = await supabase
-        .from("companies")
-        .update({ subscription_plan_id: planId, updated_at: new Date().toISOString() })
-        .in("id", ids);
-      if (error) throw error;
+      for (const companyId of ids) {
+        const { data, error } = await supabase.functions.invoke("admin-change-plan", {
+          body: { company_id: companyId, new_plan_id: planId },
+        });
+        if (error) throw new Error(await getFunctionErrorMessage(error));
+        if ((data as { error?: string } | null)?.error) {
+          throw new Error((data as { error: string }).error);
+        }
+      }
       await logAuditAction("bulk_change_plan", { new_plan_id: planId, count: ids.length });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      invalidateCompanies();
       toast.success(`Piano aggiornato per ${count} aziende`);
       onClearSelection();
       setPlanDialog(false);
@@ -128,7 +157,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       await logAuditAction("bulk_extend_trial", { days, count: ids.length });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      invalidateCompanies();
       toast.success(`Trial esteso di ${trialDays} giorni per ${count} aziende`);
       onClearSelection();
       setTrialDialog(false);
@@ -138,6 +167,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
 
   const bulkCsTaskMutation = useMutation({
     mutationFn: async () => {
+      if (!profile?.id) throw new Error("Profilo admin non disponibile");
       const ids = Array.from(selectedIds);
       const rows = ids.map((company_id) => ({
         company_id,
@@ -145,8 +175,8 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
         description: csDesc || null,
         priority: csPriority,
         due_date: csDueDate || null,
-        created_by: profile?.id || "",
-        assigned_to: profile?.id || "",
+        created_by: profile.id,
+        assigned_to: profile.id,
       }));
       const { error } = await supabase.from("cs_tasks" as never).insert(rows as never);
       if (error) throw error;
@@ -157,8 +187,9 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       toast.success(`CS Task creato per ${count} aziend${count === 1 ? "a" : "e"}`);
       setCsTaskDialog(false);
       setCsTitle(""); setCsDesc(""); setCsPriority("medium"); setCsDueDate("");
+      onClearSelection();
     },
-    onError: () => toast.error("Errore nella creazione CS Task"),
+    onError: (error: Error) => toast.error("Errore nella creazione CS Task", { description: error.message }),
   });
 
   const isPending = bulkStatusMutation.isPending || bulkPlanMutation.isPending || bulkExtendTrialMutation.isPending || bulkCsTaskMutation.isPending;

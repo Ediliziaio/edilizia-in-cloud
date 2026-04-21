@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { getSubdomainUrl, navigateToSubdomain } from "@/utils/subdomainNav";
 import { safeRedirect } from "@/utils/safeRedirect";
@@ -42,17 +42,42 @@ import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 
+const COMPANY_TABS = new Set([
+  "panoramica",
+  "dettagli",
+  "team",
+  "saas",
+  "abbonamento",
+  "billing",
+  "attivita",
+  "note",
+  "lifecycle",
+  "comunicazioni",
+  "email",
+  "supporto",
+  "onboarding",
+  "whitelabel",
+  "audit",
+]);
+
 export default function CompanyDetail() {
   const { permissions } = useSuperAdminPermissions();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const h = useCompanyDetail(id);
   const queryClient = useQueryClient();
   const { profile, role, company: saCompany } = useAuth();
-  const [activeTab, setActiveTab] = useState("panoramica");
+  const requestedTab = searchParams.get("tab") || "panoramica";
+  const safeRequestedTab = COMPANY_TABS.has(requestedTab) ? requestedTab : "panoramica";
+  const [activeTab, setActiveTab] = useState(safeRequestedTab);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(safeRequestedTab);
+  }, [safeRequestedTab]);
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
@@ -113,6 +138,15 @@ export default function CompanyDetail() {
 
   const totalTeam = (h.teamData?.admins.length || 0) + (h.teamData?.staff.length || 0) + (h.teamData?.salespeople.length || 0) + (h.teamData?.employees.length || 0);
 
+  const selectTab = (tab: string) => {
+    setActiveTab(tab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === "panoramica") next.delete("tab");
+      else next.set("tab", tab);
+      return next;
+    }, { replace: true });
+  };
 
   // Avvia impersonazione azienda con cross-subdomain handoff.
   // Stesso pattern di CompaniesList/AdminLayout: ottiene il token secure,
@@ -209,7 +243,7 @@ export default function CompanyDetail() {
         company={h.company}
         onBack={() => navigate("/admin/aziende")}
         onImpersonate={handleImpersonate}
-        onEdit={() => setActiveTab("dettagli")}
+        onEdit={() => selectTab("dettagli")}
         onSuspend={() => h.updateStatusMutation.mutate({ newStatus: "suspended", notes: "Sospeso manualmente" })}
         onReactivate={() => h.updateStatusMutation.mutate({ newStatus: "active", notes: "Riattivato manualmente" })}
         onDelete={handleDeleteCompany}
@@ -239,7 +273,11 @@ export default function CompanyDetail() {
         onClose={() => setOverrideDialogOpen(false)}
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={selectTab}
+        className="space-y-4"
+      >
         <TabsList className="flex flex-wrap h-auto gap-1 p-1 overflow-x-auto">
           <TabsTrigger value="panoramica" className="gap-1.5">
             <Eye className="h-3.5 w-3.5" /> Panoramica
