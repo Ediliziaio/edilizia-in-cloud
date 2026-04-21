@@ -19,10 +19,22 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Package, Loader2, CopyPlus, Trash2, Info, Folder } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Package,
+  Loader2,
+  CopyPlus,
+  Trash2,
+  Info,
+  Folder,
+  Trash,
+  Undo2,
+  ImageOff,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useFamilies } from "@/hooks/useFamilies";
+import { useFamilies, useFamiliesCestino } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
@@ -48,7 +60,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { FamilyWithAxes, ModalitaPrezzoBase } from "@/types/articleFamily";
+import type {
+  ArticleFamily,
+  FamilyWithAxes,
+  ModalitaPrezzoBase,
+} from "@/types/articleFamily";
 
 const MODALITA_LABEL: Record<ModalitaPrezzoBase, string> = {
   pz: "A pezzo",
@@ -79,7 +95,12 @@ export function FamilyCatalog() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const { families, isLoading: loadingFamilies } = useFamilies();
-  const { deleteFamily, duplicateFamily } = useFamilyMutations();
+  const {
+    deleteFamily,
+    restoreFamily,
+    hardDeleteFamily,
+    duplicateFamily,
+  } = useFamilyMutations();
   const { macrocategorie } = useListinoMacrocategorie();
   const { categorie, isError: categorieError, refetch: refetchCategorie } =
     useListinoCategorie();
@@ -88,6 +109,14 @@ export function FamilyCatalog() {
   const [toDelete, setToDelete] = useState<FamilyWithAxes | null>(null);
   const [toDuplicate, setToDuplicate] = useState<FamilyWithAxes | null>(null);
   const [dupName, setDupName] = useState("");
+  // Cestino
+  const [cestinoOpen, setCestinoOpen] = useState(false);
+  const [toHardDelete, setToHardDelete] = useState<ArticleFamily | null>(null);
+  const {
+    cestino,
+    isLoading: loadingCestino,
+    refetch: refetchCestino,
+  } = useFamiliesCestino();
 
   // Mappe lookup
   const categoriaById = useMemo(
@@ -191,13 +220,53 @@ export function FamilyCatalog() {
     if (!toDelete) return;
     try {
       await deleteFamily.mutateAsync(toDelete.id);
-      toast.success("Articolo disattivato");
+      toast.success("Articolo eliminato", {
+        description:
+          "Spostato nel cestino. Verra' rimosso definitivamente fra 15 giorni.",
+      });
       setToDelete(null);
     } catch (err) {
-      toast.error("Errore disattivazione", {
+      toast.error("Errore eliminazione", {
         description: err instanceof Error ? err.message : "Errore sconosciuto",
       });
     }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await restoreFamily.mutateAsync(id);
+      toast.success("Articolo ripristinato");
+    } catch (err) {
+      toast.error("Errore ripristino", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
+  const handleHardDelete = async () => {
+    if (!toHardDelete) return;
+    try {
+      await hardDeleteFamily.mutateAsync(toHardDelete.id);
+      toast.success("Articolo eliminato definitivamente");
+      setToHardDelete(null);
+    } catch (err) {
+      toast.error("Errore eliminazione definitiva", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
+  /**
+   * Formatta il conto alla rovescia (15gg dalla cancellazione).
+   * Se la data è nel passato (edge case teorico), mostra "oggi".
+   */
+  const formatTempoResiduo = (deletedAt: string): string => {
+    const delta = Date.now() - new Date(deletedAt).getTime();
+    const giorniPassati = Math.floor(delta / (1000 * 60 * 60 * 24));
+    const giorniResidui = Math.max(0, 15 - giorniPassati);
+    if (giorniResidui <= 0) return "eliminazione imminente";
+    if (giorniResidui === 1) return "1 giorno residuo";
+    return `${giorniResidui} giorni residui`;
   };
 
   const isLoading = loadingFamilies;
@@ -227,13 +296,37 @@ export function FamilyCatalog() {
             />
           </div>
           {isAdmin && (
-            <Button
-              onClick={() => navigate("/azienda/impostazioni/listino/famiglie/nuova")}
-              className="h-10 w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-              Nuovo articolo
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCestinoOpen(true);
+                  void refetchCestino();
+                }}
+                className="h-10 w-full sm:w-auto"
+                aria-label={`Apri cestino (${cestino.length} elementi)`}
+              >
+                <Trash className="h-4 w-4 mr-2" aria-hidden="true" />
+                Cestino
+                {cestino.length > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 px-1.5 py-0 h-5 text-[10px]"
+                  >
+                    {cestino.length}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() =>
+                  navigate("/azienda/impostazioni/listino/famiglie/nuova")
+                }
+                className="h-10 w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                Nuovo articolo
+              </Button>
+            </>
           )}
         </div>
       </header>
@@ -384,6 +477,30 @@ export function FamilyCatalog() {
                             }
                           >
                             <CardHeader className="pb-3">
+                              {/* Thumbnail articolo: se presente mostra in alto,
+                                  altrimenti placeholder grigio con icona. */}
+                              <div className="relative -mt-3 sm:-mt-4 -mx-6 mb-3 aspect-[16/9] bg-muted rounded-t-lg overflow-hidden">
+                                {f.immagine_url ? (
+                                  <img
+                                    src={f.immagine_url}
+                                    alt={`Anteprima ${f.nome}`}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      // Fallback: nascondi img se URL invalido
+                                      (e.target as HTMLImageElement).style.display =
+                                        "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="flex items-center justify-center w-full h-full text-muted-foreground/40"
+                                    aria-hidden="true"
+                                  >
+                                    <Package className="h-10 w-10" />
+                                  </div>
+                                )}
+                              </div>
                               <div className="flex items-start justify-between gap-2">
                                 <CardTitle className="text-base leading-tight break-words">
                                   {f.nome}
@@ -440,13 +557,13 @@ export function FamilyCatalog() {
                                       e.stopPropagation();
                                       setToDelete(f);
                                     }}
-                                    aria-label={`Disattiva ${f.nome}`}
+                                    aria-label={`Elimina ${f.nome}`}
                                   >
                                     <Trash2
                                       className="h-4 w-4 sm:mr-1"
                                       aria-hidden="true"
                                     />
-                                    <span className="hidden sm:inline">Disattiva</span>
+                                    <span className="hidden sm:inline">Elimina</span>
                                   </Button>
                                 </div>
                               )}
@@ -540,10 +657,14 @@ export function FamilyCatalog() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disattivare &quot;{toDelete?.nome}&quot;?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Eliminare &quot;{toDelete?.nome}&quot;?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              L&apos;articolo verrà nascosto dai nuovi preventivi ma resterà nei preventivi
-              storici che lo usano. Potrai riattivarlo in futuro.
+              L&apos;articolo verrà spostato nel <strong>cestino per 15 giorni</strong>,
+              poi eliminato definitivamente dal database. Potrai ripristinarlo
+              in qualunque momento prima della scadenza. I preventivi storici
+              che lo usano restano invariati.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -560,11 +681,191 @@ export function FamilyCatalog() {
             >
               {deleteFamily.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-                  Disattivazione…
+                  <Loader2
+                    className="h-4 w-4 mr-2 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Eliminazione…
                 </>
               ) : (
-                "Disattiva"
+                "Elimina"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog Cestino: lista articoli soft-deleted + restore + hard-delete */}
+      <Dialog
+        open={cestinoOpen}
+        onOpenChange={(open) => {
+          if (restoreFamily.isPending || hardDeleteFamily.isPending) return;
+          setCestinoOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash className="h-5 w-5" aria-hidden="true" />
+              Cestino articoli
+            </DialogTitle>
+            <DialogDescription>
+              Gli articoli eliminati vengono conservati per{" "}
+              <strong>15 giorni</strong>, poi rimossi definitivamente dal
+              database. Ripristinali in un click o eliminali subito senza
+              aspettare.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 py-2">
+            {loadingCestino ? (
+              <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden="true" />
+                Caricamento cestino…
+              </div>
+            ) : cestino.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
+                <ImageOff className="h-10 w-10 mb-3 opacity-40" aria-hidden="true" />
+                <p className="text-sm font-medium">Il cestino è vuoto</p>
+                <p className="text-xs mt-1">
+                  Gli articoli eliminati appariranno qui per 15 giorni.
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y" aria-label="Articoli nel cestino">
+                {cestino.map((f) => (
+                  <li
+                    key={f.id}
+                    className="py-3 flex items-start gap-3"
+                  >
+                    {/* Thumbnail mini */}
+                    <div className="w-12 h-12 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
+                      {f.immagine_url ? (
+                        <img
+                          src={f.immagine_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Package
+                          className="h-5 w-5 text-muted-foreground/40"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{f.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Eliminato il{" "}
+                        {f.deleted_at
+                          ? new Date(f.deleted_at).toLocaleDateString("it-IT", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—"}
+                        {" · "}
+                        <span className="text-amber-700 dark:text-amber-400 font-medium">
+                          {f.deleted_at
+                            ? formatTempoResiduo(f.deleted_at)
+                            : ""}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8"
+                        onClick={() => void handleRestore(f.id)}
+                        disabled={
+                          restoreFamily.isPending || hardDeleteFamily.isPending
+                        }
+                        aria-label={`Ripristina ${f.nome}`}
+                      >
+                        <Undo2 className="h-4 w-4 sm:mr-1" aria-hidden="true" />
+                        <span className="hidden sm:inline">Ripristina</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setToHardDelete(f)}
+                        disabled={
+                          restoreFamily.isPending || hardDeleteFamily.isPending
+                        }
+                        aria-label={`Elimina definitivamente ${f.nome}`}
+                      >
+                        <Trash2
+                          className="h-4 w-4 sm:mr-1"
+                          aria-hidden="true"
+                        />
+                        <span className="hidden sm:inline">Elimina</span>
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCestinoOpen(false)}
+              className="h-10"
+              disabled={restoreFamily.isPending || hardDeleteFamily.isPending}
+            >
+              Chiudi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog conferma hard-delete dal cestino */}
+      <AlertDialog
+        open={!!toHardDelete}
+        onOpenChange={(open) => {
+          if (hardDeleteFamily.isPending) return;
+          if (!open) setToHardDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Eliminare definitivamente &quot;{toHardDelete?.nome}&quot;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione è <strong>irreversibile</strong>. L&apos;articolo e
+              tutti i suoi assi/valori verranno rimossi subito dal database
+              invece di attendere la scadenza dei 15 giorni. I preventivi
+              storici che lo usano restano invariati (i dati sono già stati
+              snapshottati).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+            <AlertDialogCancel
+              disabled={hardDeleteFamily.isPending}
+              className="h-10 mt-0 w-full sm:w-auto"
+            >
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleHardDelete}
+              disabled={hardDeleteFamily.isPending}
+              className="h-10 w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {hardDeleteFamily.isPending ? (
+                <>
+                  <Loader2
+                    className="h-4 w-4 mr-2 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Eliminazione…
+                </>
+              ) : (
+                "Elimina definitivamente"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

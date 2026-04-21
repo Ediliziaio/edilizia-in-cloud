@@ -15,7 +15,7 @@
  * Preview prezzo live (FamilyPricePreview) affiancata dallo Step 3 in poi.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -25,12 +25,16 @@ import {
   Save,
   CopyPlus,
   FolderTree,
+  Upload,
+  ImageIcon,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useFamily } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
+import { useArticleImageUpload } from "@/hooks/useArticleImageUpload";
 import { useAuth } from "@/contexts/AuthContext";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
@@ -139,6 +143,17 @@ export function FamilyEditor() {
   const [macrocategoriaId, setMacrocategoriaId] = useState<string | "none">("none");
   const [categoriaId, setCategoriaId] = useState<string | "none">("none");
   const [descrizione, setDescrizione] = useState("");
+  /**
+   * URL pubblico dell'immagine articolo (bucket `article-images`).
+   * NULL = usa placeholder grigio in UI (FamilyCatalog). Persistito in
+   * `article_families.immagine_url`. Upload gestito via hook
+   * useArticleImageUpload; salvataggio URL integrato nella mutation
+   * createFamily/updateFamily insieme agli altri campi di Step 1.
+   */
+  const [immagineUrl, setImmagineUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { upload: uploadImage, remove: removeImage, isUploading, isRemoving } =
+    useArticleImageUpload();
   const [modalita, setModalita] = useState<ModalitaPrezzoBase>("griglia");
   const [unitOfMeasure, setUnitOfMeasure] = useState("pz");
   const [vatRate, setVatRate] = useState("22");
@@ -179,6 +194,7 @@ export function FamilyEditor() {
       setCategoriaId(family.categoria_id ?? "none");
       setMacrocategoriaId(cat?.macrocategoria_id ?? "none");
       setDescrizione(family.descrizione ?? "");
+      setImmagineUrl(family.immagine_url ?? null);
       setModalita(family.modalita_prezzo_base);
       setUnitOfMeasure(family.unit_of_measure);
       setVatRate(String(family.vat_rate));
@@ -270,6 +286,92 @@ export function FamilyEditor() {
     });
   }, [prezzoBaseMode, prezzoAcquisto, markupTipo, markupValore]);
 
+  // ── Upload immagine articolo ─────────────────────────────────────────────
+  //
+  // Flusso in due fasi:
+  //  1) Se l'articolo è NUOVO (non ancora salvato) → salva prima la base
+  //     (saveBase) per ottenere un ID, poi carica l'immagine con quell'ID.
+  //     Salva di nuovo per persistire `immagine_url`.
+  //  2) Se è già esistente → upload diretto + persistenza URL in DB.
+  //
+  // L'upload usa il bucket `article-images` con path {company_id}/{family_id}
+  // (vedi migration 20260421000005).
+  const handleImageSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Se articolo nuovo → prima salvataggio base per ottenere un ID
+    let familyId = family?.id ?? null;
+    if (!familyId) {
+      if (!nome.trim()) {
+        toast.error("Serve un nome", {
+          description: "Inserisci il nome dell'articolo prima di caricare un'immagine.",
+        });
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      const savedId = await saveBase();
+      if (!savedId) {
+        // saveBase ha già mostrato un toast di errore
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      familyId = savedId;
+    }
+
+    const result = await uploadImage(familyId, file);
+    if (!result.ok) {
+      toast.error("Errore upload immagine", { description: result.error });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setImmagineUrl(result.url);
+
+    // Persisti subito immagine_url sulla riga famiglia così il refresh e il
+    // catalogo lo vedono senza dover aspettare un save manuale.
+    try {
+      await updateFamily.mutateAsync({
+        id: familyId,
+        patch: { immagine_url: result.url },
+      });
+      toast.success("Immagine caricata");
+    } catch (err) {
+      toast.error("Errore salvataggio URL immagine", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleImageRemove = async () => {
+    if (!family?.id) {
+      // Articolo non ancora salvato → basta resettare lo state locale
+      setImmagineUrl(null);
+      return;
+    }
+    const result = await removeImage(family.id);
+    if (!result.ok) {
+      toast.error("Errore rimozione immagine", { description: result.error });
+      return;
+    }
+    setImmagineUrl(null);
+    try {
+      await updateFamily.mutateAsync({
+        id: family.id,
+        patch: { immagine_url: null },
+      });
+      toast.success("Immagine rimossa");
+    } catch (err) {
+      toast.error("Errore aggiornamento", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
   // ── Salvataggio Step 1 (crea/aggiorna dati base) ───────────────────────
   const saveBase = async (): Promise<string | null> => {
     const vertical =
@@ -308,6 +410,7 @@ export function FamilyEditor() {
       prezzo_base_acquisto: prezzoAcquistoNum,
       markup_tipo: markupTipo,
       markup_valore: parseFloat(markupValore) || 0,
+      immagine_url: immagineUrl,
       posa_tariffa_default_id: posaTariffaId === "none" ? null : posaTariffaId,
       posa_quantita_default: parseFloat(posaQuantita) || 1,
       posa_linked: posaLinked,
@@ -318,7 +421,6 @@ export function FamilyEditor() {
         const created = await createFamily.mutateAsync({
           ...payload,
           vertical,
-          immagine_url: null,
           pdf_scheda_url: null,
           griglia_unita: "mm",
           attivo: true,
@@ -541,6 +643,104 @@ export function FamilyEditor() {
                       value={descrizione}
                       onChange={(e) => setDescrizione(e.target.value)}
                       rows={2}
+                    />
+                  </div>
+
+                  {/* Upload immagine articolo — opzionale ma utile per il
+                      riconoscimento visivo nell'elenco e in preventivo. */}
+                  <div>
+                    <Label>Immagine articolo (opzionale)</Label>
+                    <p className="text-xs text-muted-foreground mt-1 mb-2">
+                      Carica una foto rappresentativa — es. cassonetto, finestra
+                      2 ante, controtelaio, ecc. Apparirà nell&apos;elenco articoli
+                      e nel preventivo. Max 3 MB, formati PNG/JPG/WEBP.
+                    </p>
+                    <div className="flex items-start gap-4">
+                      {/* Preview */}
+                      <div className="h-28 w-28 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/50 shrink-0">
+                        {immagineUrl ? (
+                          <img
+                            src={immagineUrl}
+                            alt={`Preview ${nome || "articolo"}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                            <ImageIcon className="h-7 w-7" aria-hidden="true" />
+                            <span className="text-[10px]">Nessuna foto</span>
+                          </div>
+                        )}
+                      </div>
+                      {/* Azioni */}
+                      <div className="flex-1 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9"
+                          disabled={isUploading || isRemoving}
+                          onClick={() => fileInputRef.current?.click()}
+                          aria-label={
+                            immagineUrl
+                              ? "Cambia immagine articolo"
+                              : "Carica immagine articolo"
+                          }
+                        >
+                          {isUploading ? (
+                            <>
+                              <Loader2
+                                className="h-4 w-4 mr-2 animate-spin"
+                                aria-hidden="true"
+                              />
+                              Caricamento…
+                            </>
+                          ) : (
+                            <>
+                              <Upload
+                                className="h-4 w-4 mr-2"
+                                aria-hidden="true"
+                              />
+                              {immagineUrl ? "Cambia foto" : "Carica foto"}
+                            </>
+                          )}
+                        </Button>
+                        {immagineUrl && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 text-destructive hover:text-destructive"
+                            disabled={isUploading || isRemoving}
+                            onClick={() => void handleImageRemove()}
+                            aria-label="Rimuovi immagine articolo"
+                          >
+                            {isRemoving ? (
+                              <>
+                                <Loader2
+                                  className="h-4 w-4 mr-2 animate-spin"
+                                  aria-hidden="true"
+                                />
+                                Rimozione…
+                              </>
+                            ) : (
+                              <>
+                                <X
+                                  className="h-4 w-4 mr-2"
+                                  aria-hidden="true"
+                                />
+                                Rimuovi
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(e) => void handleImageSelect(e)}
+                      className="hidden"
                     />
                   </div>
 

@@ -86,6 +86,12 @@ export interface ArticleFamily {
   attivo: boolean;
   sort_order: number;
   custom_field_values: Record<string, unknown>;
+  /**
+   * Timestamp soft-delete. NULL = riga attiva/archiviata. NOT NULL = cestino,
+   * verra' purgata dopo 15 giorni dal job pg_cron. Aggiunto dalla migration
+   * 20260421000004.
+   */
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }

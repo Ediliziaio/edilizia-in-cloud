@@ -102,13 +102,27 @@ export function useFamilyMutations() {
       captureVelocityError("families.update", err, { companyId }),
   });
 
+  /**
+   * Sposta la famiglia nel cestino (soft delete).
+   *
+   * Imposta `deleted_at = NOW()`: la riga scompare dal listino ma resta nel
+   * DB. Dopo 15 giorni viene purgata dal job pg_cron
+   * `cleanup-cestino-article-families-15gg` (migration 20260421000004).
+   *
+   * Preserva le referenze nei `quote_items` storici: il preventivatore
+   * snapshotta sempre i dati della famiglia al momento della creazione della
+   * riga, quindi l'eliminazione non rompe preventivi esistenti.
+   *
+   * Cambiato nel Apr 2026: in precedenza usava `attivo=false` (archiviazione
+   * silenziosa). Ora la user-intent "elimina" è mappata su un vero soft
+   * delete con retention 15gg + possibilità di restore dal cestino UI.
+   */
   const deleteFamily = useMutation({
     mutationFn: async (familyId: string) => {
       if (!companyId) throw new Error("Azienda non identificata");
-      // Soft delete: attivo=false (preserva referenze in quote_items storici)
       const { error } = await supabase
         .from("article_families" as never)
-        .update({ attivo: false })
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", familyId)
         .eq("company_id", companyId);
       if (error) throw new Error(error.message);
@@ -117,6 +131,56 @@ export function useFamilyMutations() {
     onSuccess: (id) => invalidate(id),
     onError: (err: Error) =>
       captureVelocityError("families.delete", err, { companyId }),
+  });
+
+  /**
+   * Ripristina una famiglia dal cestino (deleted_at=NULL).
+   *
+   * Idempotente: se la famiglia è già attiva non fa nulla di dannoso. Non
+   * tocca `attivo` per lasciare all'utente il controllo (una famiglia
+   * archiviata manualmente con attivo=false resta archiviata dopo restore).
+   */
+  const restoreFamily = useMutation({
+    mutationFn: async (familyId: string) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      const { error } = await supabase
+        .from("article_families" as never)
+        .update({ deleted_at: null })
+        .eq("id", familyId)
+        .eq("company_id", companyId);
+      if (error) throw new Error(error.message);
+      return familyId;
+    },
+    onSuccess: (id) => invalidate(id),
+    onError: (err: Error) =>
+      captureVelocityError("families.restore", err, { companyId }),
+  });
+
+  /**
+   * Elimina definitivamente la famiglia (DELETE hard). Usato dalla UI del
+   * cestino per "vuotare manualmente" prima dei 15 giorni. Cascade su
+   * `article_family_axes` e `article_family_axis_values` tramite FK ON DELETE
+   * CASCADE.
+   *
+   * Attenzione: i preventivi storici NON vengono toccati (snapshot nei
+   * quote_items), ma ogni futuro accesso al dettaglio famiglia restituirà
+   * null — assicurarsi che l'UI gestisca questo caso (già presente in
+   * useFamily che ritorna null su missing).
+   */
+  const hardDeleteFamily = useMutation({
+    mutationFn: async (familyId: string) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      const { error } = await supabase
+        .from("article_families" as never)
+        .delete()
+        .eq("id", familyId)
+        .eq("company_id", companyId);
+      if (error) throw new Error(error.message);
+      return familyId;
+    },
+    onSuccess: (id) => invalidate(id),
+    onError: (err: Error) =>
+      captureVelocityError("families.hardDelete", err, { companyId }),
   });
 
   /** Duplica una famiglia con assi+valori (clone profondo). */
@@ -332,6 +396,8 @@ export function useFamilyMutations() {
     createFamily,
     updateFamily,
     deleteFamily,
+    restoreFamily,
+    hardDeleteFamily,
     duplicateFamily,
     createAxis,
     updateAxis,

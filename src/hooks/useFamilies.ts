@@ -24,6 +24,9 @@ import type {
  * Carica tutte le famiglie attive della company corrente, con gli assi e i
  * valori annidati. Ordinamento: famiglie per sort_order, assi per sort_order,
  * valori per sort_order.
+ *
+ * IMPORTANT: filtra `deleted_at IS NULL` per escludere gli elementi nel
+ * cestino (soft-delete). Per la lista cestino usare `useFamiliesCestino`.
  */
 export function useFamilies() {
   const companyId = useEffectiveCompanyId();
@@ -43,6 +46,7 @@ export function useFamilies() {
         )
         .eq("company_id", companyId!)
         .eq("attivo", true)
+        .is("deleted_at", null)
         .order("sort_order", { ascending: true });
       if (error) throw new Error(error.message);
 
@@ -125,6 +129,44 @@ export function useFamily(familyId: string | null | undefined) {
 
   return {
     family: query.data ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+/**
+ * Carica le famiglie nel cestino (soft-deleted). Verranno purgate
+ * automaticamente 15 giorni dopo la cancellazione dal job pg_cron
+ * `cleanup-cestino-article-families-15gg`. Fino ad allora l'utente puo'
+ * ripristinarle da UI.
+ *
+ * NOTA: non carica assi/valori — il cestino è una vista light per scelta
+ * (nome + data cancellazione + immagine sono sufficienti per decidere
+ * ripristino/eliminazione definitiva).
+ */
+export function useFamiliesCestino() {
+  const companyId = useEffectiveCompanyId();
+
+  const query = useQuery({
+    queryKey: [...queryKeys.articleFamilies.all, "cestino", companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<ArticleFamily[]> => {
+      const { data, error } = await supabase
+        .from("article_families" as never)
+        .select("*")
+        .eq("company_id", companyId!)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as unknown as ArticleFamily[];
+    },
+    staleTime: 30 * 1000,
+  });
+
+  return {
+    cestino: query.data ?? [],
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,
