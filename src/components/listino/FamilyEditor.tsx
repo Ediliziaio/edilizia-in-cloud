@@ -582,14 +582,9 @@ export function FamilyEditor() {
                               key={iva.value}
                               value={String(iva.value)}
                             >
-                              <span className="flex items-center gap-2">
-                                <span className="font-medium">{iva.label}</span>
-                                {iva.hint ? (
-                                  <span className="text-xs text-muted-foreground">
-                                    — {iva.hint}
-                                  </span>
-                                ) : null}
-                              </span>
+                              {iva.hint
+                                ? `${iva.label} — ${iva.hint}`
+                                : iva.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -628,8 +623,12 @@ export function FamilyEditor() {
               <div className="flex justify-end">
                 <Button
                   onClick={async () => {
-                    const id = await saveBase();
-                    if (id && !isNew) setActiveStep("2");
+                    const savedId = await saveBase();
+                    // Dopo il salvataggio (sia creazione che update) avanziamo
+                    // sempre allo Step 2. Per la creazione `isNew` nel closure
+                    // è ancora `true` ma il re-render lo porterà a `false` in
+                    // batch con questo setActiveStep (i tabs 2-5 si abilitano).
+                    if (savedId) setActiveStep("2");
                   }}
                   disabled={!canSaveBase || saving}
                 >
