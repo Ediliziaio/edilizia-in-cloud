@@ -911,16 +911,234 @@ export function FamilyEditor() {
             {/* STEP 2 — Prezzo */}
             <TabsContent value="2" className="space-y-4 mt-4">
               {modalita === "griglia" && family ? (
-                <FamilyGridEditor
-                  familyId={family.id}
-                  asseXLabel={grigliaXLabel}
-                  asseYLabel={grigliaYLabel}
-                  prezzoBaseMode={prezzoBaseMode}
-                  scontoFornitore1={parseFloat(scontoFornitore1) || 0}
-                  scontoFornitore2={parseFloat(scontoFornitore2) || 0}
-                  markupTipo={markupTipo}
-                  markupValore={parseFloat(markupValore) || 0}
-                />
+                <>
+                  {/* Parametri prezzo famiglia: sconti fornitore + markup.
+                      In modalità griglia il prezzo di vendita di ogni cella
+                      viene derivato dal prezzo di acquisto × cascata sconti ×
+                      markup. Questo blocco permette di configurarli senza
+                      dover uscire dalla tab. */}
+                  <Card className="border-primary/30 bg-primary/5">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        Parametri prezzo famiglia
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Sconti fornitore e markup applicati su <strong>tutte</strong>{" "}
+                        le celle della matrice. Modificali e clicca{" "}
+                        <em>Salva parametri</em> per ricalcolare la vendita.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Modalità prezzo */}
+                      <div>
+                        <Label>Modalità gestione prezzo</Label>
+                        <RadioGroup
+                          value={prezzoBaseMode}
+                          onValueChange={(v) =>
+                            setPrezzoBaseMode(v as PrezzoBaseMode)
+                          }
+                          className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2"
+                        >
+                          {PREZZO_MODE_CARDS.map((m) => (
+                            <label
+                              key={m.value}
+                              htmlFor={`grid-price-mode-${m.value}`}
+                              className={`flex gap-3 p-3 border rounded-md cursor-pointer transition-all ${prezzoBaseMode === m.value ? "border-primary ring-2 ring-primary/20 bg-background" : "hover:border-primary/50 bg-background"}`}
+                            >
+                              <RadioGroupItem
+                                id={`grid-price-mode-${m.value}`}
+                                value={m.value}
+                                className="mt-0.5"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm">
+                                  {m.label}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {m.descrizione}
+                                </div>
+                              </div>
+                            </label>
+                          ))}
+                        </RadioGroup>
+                      </div>
+
+                      {/* Sconti + markup visibili solo in acquisto_markup */}
+                      {prezzoBaseMode === "acquisto_markup" ? (
+                        <>
+                          <div className="rounded-md border bg-background p-3 space-y-2">
+                            <Label className="text-sm font-medium">
+                              Sconti fornitore in cascata
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Se i prezzi nelle celle della griglia sono il{" "}
+                              <strong>lordo listino fornitore</strong>, inserisci
+                              qui la scontistica. Es. "55% + 3%". Lascia 0/0 se
+                              hai già inserito l'acquisto netto.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              <div>
+                                <Label
+                                  htmlFor="grid-sconto-fornitore-1"
+                                  className="text-xs"
+                                >
+                                  Sconto 1 (%)
+                                </Label>
+                                <Input
+                                  id="grid-sconto-fornitore-1"
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  max="100"
+                                  value={scontoFornitore1}
+                                  onChange={(e) =>
+                                    setScontoFornitore1(e.target.value)
+                                  }
+                                  placeholder="es. 55"
+                                />
+                              </div>
+                              <div>
+                                <Label
+                                  htmlFor="grid-sconto-fornitore-2"
+                                  className="text-xs"
+                                >
+                                  Sconto 2 cascata (%)
+                                </Label>
+                                <Input
+                                  id="grid-sconto-fornitore-2"
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  max="100"
+                                  value={scontoFornitore2}
+                                  onChange={(e) =>
+                                    setScontoFornitore2(e.target.value)
+                                  }
+                                  placeholder="es. 3"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="grid-markup-tipo">Tipo markup</Label>
+                              <Select
+                                value={markupTipo}
+                                onValueChange={(v) =>
+                                  setMarkupTipo(v as MarkupTipo)
+                                }
+                              >
+                                <SelectTrigger id="grid-markup-tipo">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">
+                                    Nessun ricarico
+                                  </SelectItem>
+                                  <SelectItem value="percentuale">
+                                    Percentuale (%)
+                                  </SelectItem>
+                                  <SelectItem value="fisso_pz">
+                                    Euro al pezzo (€)
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            {markupTipo !== "none" ? (
+                              <div>
+                                <Label htmlFor="grid-markup-valore">
+                                  {markupTipo === "percentuale"
+                                    ? "Markup (%)"
+                                    : "Markup (€/pz)"}
+                                </Label>
+                                <Input
+                                  id="grid-markup-valore"
+                                  type="number"
+                                  step={
+                                    markupTipo === "percentuale" ? "0.1" : "0.01"
+                                  }
+                                  min="0"
+                                  value={markupValore}
+                                  onChange={(e) =>
+                                    setMarkupValore(e.target.value)
+                                  }
+                                  placeholder={
+                                    markupTipo === "percentuale"
+                                      ? "es. 100"
+                                      : "es. 120"
+                                  }
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {/* Formula live */}
+                          <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">
+                              Formula:
+                            </span>{" "}
+                            lordo ×{" "}
+                            {(parseFloat(scontoFornitore1) || 0) > 0
+                              ? `(1 − ${parseFloat(scontoFornitore1)}%)`
+                              : "1"}{" "}
+                            ×{" "}
+                            {(parseFloat(scontoFornitore2) || 0) > 0
+                              ? `(1 − ${parseFloat(scontoFornitore2)}%)`
+                              : "1"}{" "}
+                            ×{" "}
+                            {markupTipo === "percentuale"
+                              ? `(1 + ${parseFloat(markupValore) || 0}%)`
+                              : markupTipo === "fisso_pz"
+                                ? `(+ ${formatCurrency(parseFloat(markupValore) || 0)} fissi/pz)`
+                                : "1 (no markup)"}{" "}
+                            = vendita
+                          </div>
+                        </>
+                      ) : (
+                        <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
+                          In modalità <strong>vendita diretta</strong> il prezzo
+                          di ogni cella è quello finale al cliente: nessuno
+                          sconto o markup applicato dal sistema.
+                        </div>
+                      )}
+
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          onClick={saveBase}
+                          disabled={!canSaveBase || saving}
+                          size="sm"
+                        >
+                          {saving ? (
+                            <>
+                              <Loader2
+                                className="h-4 w-4 mr-2 animate-spin"
+                                aria-hidden="true"
+                              />
+                              Salvataggio…
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" aria-hidden="true" />
+                              Salva parametri
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <FamilyGridEditor
+                    familyId={family.id}
+                    asseXLabel={grigliaXLabel}
+                    asseYLabel={grigliaYLabel}
+                    prezzoBaseMode={prezzoBaseMode}
+                    scontoFornitore1={parseFloat(scontoFornitore1) || 0}
+                    scontoFornitore2={parseFloat(scontoFornitore2) || 0}
+                    markupTipo={markupTipo}
+                    markupValore={parseFloat(markupValore) || 0}
+                  />
+                </>
               ) : (
                 <Card>
                   <CardHeader>

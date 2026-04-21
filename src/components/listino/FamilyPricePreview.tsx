@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { applyScontiFornitore, applyMarkup } from "@/lib/priceMarkup";
 import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
 
 interface GridCell {
@@ -91,39 +92,61 @@ export function FamilyPricePreview({ family }: Props) {
     const q = parseFloat(quantita) || 1;
     const warnings: string[] = [];
 
-    // Prezzo base secondo modalità
-    let base = 0;
-    let baseAcquisto = 0;
+    // Flag: strategia prezzo a livello famiglia.
+    const isAcquistoMarkup = family.prezzo_base_mode === "acquisto_markup";
+    const s1 = Number(family.sconto_fornitore_1 ?? 0);
+    const s2 = Number(family.sconto_fornitore_2 ?? 0);
+    const scontiAttivi = s1 > 0 || s2 > 0;
+
+    // Step 1 — prezzo base LORDO (o prezzoVendita diretto) secondo modalità_prezzo_base
+    let baseLordoAcquisto = 0; // listino fornitore se mode=acquisto_markup
+    let baseVendita = 0; // solo se mode=vendita diretta
     if (family.modalita_prezzo_base === "griglia") {
       const cell = gridCells.find((c) => c.valore_x === w && c.valore_y === h);
       if (cell) {
-        base = Number(cell.prezzo_vendita);
-        baseAcquisto = Number(cell.prezzo_acquisto);
+        baseVendita = Number(cell.prezzo_vendita);
+        baseLordoAcquisto = Number(cell.prezzo_acquisto);
       } else {
         warnings.push(
           `Cella ${w}×${h} non in griglia — usato fallback prezzo_base (${formatEur(family.prezzo_base_vendita)}).`,
         );
-        base = Number(family.prezzo_base_vendita);
-        baseAcquisto = Number(family.prezzo_base_acquisto);
+        baseVendita = Number(family.prezzo_base_vendita);
+        baseLordoAcquisto = Number(family.prezzo_base_acquisto);
       }
     } else if (family.modalita_prezzo_base === "mq") {
       const mq = (w * h) / 1_000_000; // mm² → m²
-      base = Number(family.prezzo_base_vendita) * mq;
-      baseAcquisto = Number(family.prezzo_base_acquisto) * mq;
+      baseVendita = Number(family.prezzo_base_vendita) * mq;
+      baseLordoAcquisto = Number(family.prezzo_base_acquisto) * mq;
     } else {
-      base = Number(family.prezzo_base_vendita);
-      baseAcquisto = Number(family.prezzo_base_acquisto);
+      baseVendita = Number(family.prezzo_base_vendita);
+      baseLordoAcquisto = Number(family.prezzo_base_acquisto);
     }
 
-    // Applica maggiorazioni — prima le percentuali, poi le fisse (convenzione)
-    // Ma la spec non è esplicita; scegliamo ordine: first all percentuali sui base,
-    // poi fisse additive. Semplice, deterministico.
-    let prezzoVendita = base;
-    let prezzoAcquisto = baseAcquisto;
+    // Step 2 — applica cascata sconti fornitore (solo se mode=acquisto_markup)
+    //   lordo × (1 - s1/100) × (1 - s2/100) = netto
+    const baseNettoAcquisto = isAcquistoMarkup && scontiAttivi
+      ? applyScontiFornitore(baseLordoAcquisto, s1, s2)
+      : baseLordoAcquisto; // se no sconti, "lordo" coincide con netto
+
+    // Step 3 — ricalcola vendita da markup sul netto (quando mode=acquisto_markup)
+    //   Questo rende il simulatore coerente con la policy famiglia, evitando
+    //   di mostrare valori stale se la grid è stata salvata prima di cambiare
+    //   markup/sconti.
+    const baseVenditaCalcolata = isAcquistoMarkup
+      ? applyMarkup({
+          prezzoAcquisto: baseNettoAcquisto,
+          markupTipo: family.markup_tipo,
+          markupValore: Number(family.markup_valore ?? 0),
+        }).prezzoVendita
+      : baseVendita;
+
+    // Step 4 — applica maggiorazioni assi su vendita e acquisto NETTO
+    let prezzoVendita = baseVenditaCalcolata;
+    let prezzoAcquisto = baseNettoAcquisto;
 
     const mq = (w * h) / 1_000_000;
-    const ml = w / 1000; // larghezza in metri
-    const mc = (w * h * 1000) / 1_000_000_000; // placeholder; la prof. non è nella famiglia
+    const ml = w / 1000;
+    const mc = (w * h * 1000) / 1_000_000_000;
 
     // Pass 1: percentuali
     for (const ax of family.axes) {
@@ -168,8 +191,23 @@ export function FamilyPricePreview({ family }: Props) {
     const margine = totVendita - totAcquisto;
     const marginePerc = totVendita > 0 ? (margine / totVendita) * 100 : 0;
 
+    // Dati per il breakdown tabellare (solo mode=acquisto_markup)
+    const breakdown = isAcquistoMarkup
+      ? {
+          lordo: baseLordoAcquisto,
+          dopoS1: s1 > 0 ? baseLordoAcquisto * (1 - s1 / 100) : baseLordoAcquisto,
+          netto: baseNettoAcquisto,
+          s1,
+          s2,
+          markupTipo: family.markup_tipo,
+          markupValore: Number(family.markup_valore ?? 0),
+          venditaBase: baseVenditaCalcolata,
+          maggiorazioneEuro: prezzoVendita - baseVenditaCalcolata,
+        }
+      : null;
+
     return {
-      base,
+      base: baseVenditaCalcolata,
       prezzoVendita,
       prezzoAcquisto,
       totVendita,
@@ -178,6 +216,7 @@ export function FamilyPricePreview({ family }: Props) {
       marginePerc,
       warnings,
       mq,
+      breakdown,
     };
   }, [family, gridCells, selection, larghezza, altezza, quantita]);
 
@@ -280,26 +319,96 @@ export function FamilyPricePreview({ family }: Props) {
           </div>
         ) : null}
 
+        {/* Breakdown tabellare per mode=acquisto_markup */}
+        {result.breakdown ? (
+          <div className="border rounded-md overflow-hidden bg-background">
+            <div className="bg-muted/40 px-3 py-1.5 text-xs font-medium">
+              Breakdown prezzo (acquisto → vendita)
+            </div>
+            <div className="divide-y text-sm">
+              <div className="flex justify-between px-3 py-1.5">
+                <span className="text-muted-foreground">Listino fornitore (lordo)</span>
+                <span className="font-mono">{formatEur(result.breakdown.lordo)}</span>
+              </div>
+              {result.breakdown.s1 > 0 ? (
+                <div className="flex justify-between px-3 py-1.5 text-emerald-700 dark:text-emerald-400">
+                  <span>− Sconto 1 ({result.breakdown.s1}%)</span>
+                  <span className="font-mono">
+                    −{formatEur(result.breakdown.lordo - result.breakdown.dopoS1)}
+                  </span>
+                </div>
+              ) : null}
+              {result.breakdown.s2 > 0 ? (
+                <div className="flex justify-between px-3 py-1.5 text-emerald-700 dark:text-emerald-400">
+                  <span>− Sconto 2 cascata ({result.breakdown.s2}%)</span>
+                  <span className="font-mono">
+                    −{formatEur(result.breakdown.dopoS1 - result.breakdown.netto)}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex justify-between px-3 py-1.5 bg-muted/20 font-medium">
+                <span>= Acquisto netto</span>
+                <span className="font-mono">{formatEur(result.breakdown.netto)}</span>
+              </div>
+              {result.breakdown.markupTipo !== "none" ? (
+                <div className="flex justify-between px-3 py-1.5 text-amber-700 dark:text-amber-400">
+                  <span>
+                    + Markup{" "}
+                    {result.breakdown.markupTipo === "percentuale"
+                      ? `${result.breakdown.markupValore}%`
+                      : `${formatEur(result.breakdown.markupValore)}/pz`}
+                  </span>
+                  <span className="font-mono">
+                    +{formatEur(result.breakdown.venditaBase - result.breakdown.netto)}
+                  </span>
+                </div>
+              ) : null}
+              {Math.abs(result.breakdown.maggiorazioneEuro) > 0.001 ? (
+                <div className="flex justify-between px-3 py-1.5 text-indigo-700 dark:text-indigo-400">
+                  <span>+ Maggiorazioni assi</span>
+                  <span className="font-mono">
+                    {result.breakdown.maggiorazioneEuro >= 0 ? "+" : ""}
+                    {formatEur(result.breakdown.maggiorazioneEuro)}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex justify-between px-3 py-1.5 bg-primary/10 font-semibold">
+                <span>= Vendita unitaria</span>
+                <span className="font-mono text-primary">
+                  {formatEur(result.prezzoVendita)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="border-t pt-3 space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Prezzo base</span>
-            <span className="font-mono">{formatEur(result.base)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Vendita unitario</span>
-            <span className="font-mono">{formatEur(result.prezzoVendita)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Acquisto unitario</span>
-            <span className="font-mono text-muted-foreground">{formatEur(result.prezzoAcquisto)}</span>
-          </div>
+          {!result.breakdown ? (
+            <>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Prezzo base</span>
+                <span className="font-mono">{formatEur(result.base)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Vendita unitario</span>
+                <span className="font-mono">{formatEur(result.prezzoVendita)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Acquisto unitario</span>
+                <span className="font-mono text-muted-foreground">
+                  {formatEur(result.prezzoAcquisto)}
+                </span>
+              </div>
+            </>
+          ) : null}
           <div className="flex justify-between font-semibold border-t pt-1">
             <span>Totale vendita ({quantita} pz)</span>
             <span className="font-mono text-primary">{formatEur(result.totVendita)}</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">
-              Margine: {formatEur(result.margine)} ({result.marginePerc.toFixed(1)}%)
+              Margine: {formatEur(result.margine)} ({result.marginePerc.toFixed(1)}%
+              {result.breakdown ? " su vendita, vs netto" : ""})
             </span>
             {showDims ? (
               <span className="text-muted-foreground">
