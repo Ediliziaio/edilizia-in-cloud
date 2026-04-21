@@ -101,17 +101,24 @@ export function FamilyPricePreview({ family }: Props) {
     // Step 1 — prezzo base LORDO (o prezzoVendita diretto) secondo modalità_prezzo_base
     let baseLordoAcquisto = 0; // listino fornitore se mode=acquisto_markup
     let baseVendita = 0; // solo se mode=vendita diretta
+    // M4 (audit): flag che indica se siamo caduti in fallback su prezzo_base_*
+    //   (vs lookup griglia diretto). In quel caso la vendita "diretta" deve
+    //   essere trattata come baseline, ma se siamo in acquisto_markup dobbiamo
+    //   comunque applicare il markup — coerenza con la policy famiglia.
+    let inFallback = false;
     if (family.modalita_prezzo_base === "griglia") {
       const cell = gridCells.find((c) => c.valore_x === w && c.valore_y === h);
       if (cell) {
         baseVendita = Number(cell.prezzo_vendita);
         baseLordoAcquisto = Number(cell.prezzo_acquisto);
       } else {
-        warnings.push(
-          `Cella ${w}×${h} non in griglia — usato fallback prezzo_base (${formatEur(family.prezzo_base_vendita)}).`,
-        );
+        inFallback = true;
         baseVendita = Number(family.prezzo_base_vendita);
         baseLordoAcquisto = Number(family.prezzo_base_acquisto);
+        const fbMsg = isAcquistoMarkup
+          ? `Cella ${w}×${h} non in griglia — uso fallback acquisto base ${formatEur(baseLordoAcquisto)}; il markup sarà riapplicato per ricalcolare la vendita.`
+          : `Cella ${w}×${h} non in griglia — uso fallback prezzo_base_vendita (${formatEur(baseVendita)}).`;
+        warnings.push(fbMsg);
       }
     } else if (family.modalita_prezzo_base === "mq") {
       const mq = (w * h) / 1_000_000; // mm² → m²
@@ -120,6 +127,17 @@ export function FamilyPricePreview({ family }: Props) {
     } else {
       baseVendita = Number(family.prezzo_base_vendita);
       baseLordoAcquisto = Number(family.prezzo_base_acquisto);
+    }
+
+    // M4 (audit): degrade graceful quando siamo in fallback, in acquisto_markup
+    //   e l'admin NON ha impostato `prezzo_base_acquisto`. In quel caso
+    //   `baseLordoAcquisto` è 0 e dopo applyMarkup la vendita diventerebbe 0 —
+    //   esperienza pessima. Preferiamo usare direttamente `prezzo_base_vendita`
+    //   e avvisare che il markup non è stato applicato.
+    if (inFallback && isAcquistoMarkup && baseLordoAcquisto === 0 && baseVendita > 0) {
+      warnings.push(
+        "prezzo_base_acquisto a 0: uso direttamente prezzo_base_vendita del fallback (markup non applicato).",
+      );
     }
 
     // Step 2 — applica cascata sconti fornitore (solo se mode=acquisto_markup)
@@ -132,7 +150,10 @@ export function FamilyPricePreview({ family }: Props) {
     //   Questo rende il simulatore coerente con la policy famiglia, evitando
     //   di mostrare valori stale se la grid è stata salvata prima di cambiare
     //   markup/sconti.
-    const baseVenditaCalcolata = isAcquistoMarkup
+    //   M4 (audit): se siamo in fallback e non c'è acquisto, non possiamo
+    //   applicare il markup — cadiamo su `baseVendita` direttamente.
+    const canApplyMarkup = isAcquistoMarkup && baseNettoAcquisto > 0;
+    const baseVenditaCalcolata = canApplyMarkup
       ? applyMarkup({
           prezzoAcquisto: baseNettoAcquisto,
           markupTipo: family.markup_tipo,

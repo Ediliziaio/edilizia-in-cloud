@@ -671,8 +671,24 @@ function TariffaDialog({
   if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) warnings.push("Il costo è ≥ del prezzo di vendita: margine negativo.");
   if (pvNum === 0 && editing) warnings.push("Prezzo di vendita a zero — la tariffa non genererà importo in preventivo.");
 
+  // Validazioni HARD — bloccano il submit
+  // M1 (audit): evitare di persistere margini negativi o tariffe nuove senza prezzo.
+  //   - Per tariffe esistenti lasciamo passare prezzo=0 (archive di fatto)
+  //   - Per nuove tariffe forziamo prezzo>0 (non ha senso creare una tariffa a zero)
+  //   - Per admin, margine negativo blocca (uso il `>=` perché = non ha senso commerciale)
+  const blockReason: string | null = (() => {
+    if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) {
+      return "Il costo è ≥ del prezzo di vendita. Correggi prima di salvare.";
+    }
+    if (!editing && pvNum <= 0) {
+      return "Il prezzo di vendita deve essere maggiore di 0 per una nuova tariffa.";
+    }
+    return null;
+  })();
+
   const handleSave = async () => {
     if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
+    if (blockReason) { toast.error(blockReason); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -981,8 +997,13 @@ function TariffaDialog({
           )}
         </div>
         <DialogFooter>
+          {blockReason && (
+            <div className="mr-auto text-xs text-rose-600 self-center">
+              ⚠ {blockReason}
+            </div>
+          )}
           <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || !!blockReason}>
             {saving ? "Salvataggio..." : "Salva"}
           </Button>
         </DialogFooter>
@@ -1716,14 +1737,20 @@ export default function SettingsTariffe() {
         </TabsContent>
       </Tabs>
 
-      {/* Hint per amministratori (solo se ci sono tariffe) */}
-      {isAdmin && tariffe.length > 0 && (
+      {/* Hint margine — m2 (audit): visibile anche al first-run, non solo
+          quando l'utente ha già creato tariffe. Serve a educare l'admin sulla
+          semantica del margine PRIMA che popoli il catalogo. */}
+      {isAdmin && (
         <div className="flex items-start gap-2 rounded-lg border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
           <Info className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
-            <strong>Come si usa il margine:</strong> il margine mostrato è calcolato sul prezzo di vendita
-            (standard CFO). Per un margine industriale corretto punta al 25%+. Le tariffe archiviate non compaiono
-            nel preventivatore ma restano visibili qui e possono essere riattivate in qualsiasi momento.
+            <strong>Come si usa il margine:</strong> è calcolato sul prezzo di
+            vendita (standard CFO: <code>margine% = (vendita − costo) / vendita × 100</code>).
+            Punta al <span className="text-emerald-700 font-medium">25%+</span> per una
+            redditività industriale sana. Sotto il <span className="text-amber-700 font-medium">15%</span>
+            la tariffa è a rischio, sotto <span className="text-rose-700 font-medium">0%</span> è
+            in perdita e il salvataggio viene bloccato. Le tariffe archiviate non compaiono
+            nel preventivatore ma restano riattivabili.
           </div>
         </div>
       )}

@@ -914,6 +914,9 @@ export default function ListinoManutenzione() {
     selectedTariffeKeys?: Set<string>; // `${impianto}::${intervento}` — override puntuale
   }) => {
     if (!companyId) return;
+    // M3 (audit): guard lato parent. Se creatingDemo è già true (click rapido
+    // che scavalca il disabled), evitiamo il secondo batch in corso.
+    if (creatingDemo) return;
     const { selectedPresets, selectedTariffeKeys } = params;
 
     // Se l'utente ha selezionato esplicitamente singole tariffe, usiamo quelle;
@@ -1382,43 +1385,89 @@ export default function ListinoManutenzione() {
 
       {/* ── Delete Confirmations ── */}
 
+      {/* m1 (audit): counter cascade — quante tariffe di listino saranno
+          impattate dall'eliminazione del tipo. Calcoliamo client-side sul
+          `listino` già caricato. Post-B2 il DB ha FK RESTRICT, quindi
+          l'eliminazione con count > 0 fallirà con errore 23503 — preveniamo
+          lato UI mostrando il counter e disabilitando il button. */}
       <AlertDialog open={!!deleteImpiantoId} onOpenChange={(v) => !v && setDeleteImpiantoId(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Elimina tipo impianto</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione è irreversibile. Il tipo impianto e le tariffe associate potrebbero essere compromesse.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground"
-              onClick={() => deleteImpiantoId && deleteImpiantoMutation.mutate(deleteImpiantoId)}
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          {(() => {
+            const impiantoInUso = listino.filter((l) => l.tipo_impianto_id === deleteImpiantoId).length;
+            const blocked = impiantoInUso > 0;
+            const impiantoNome = tipiImpianto.find((t) => t.id === deleteImpiantoId)?.nome ?? "questo tipo";
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Elimina tipo impianto</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {blocked ? (
+                      <>
+                        <span className="text-rose-700 font-medium">Impossibile eliminare.</span>{" "}
+                        Ci sono <strong>{impiantoInUso}</strong>{" "}
+                        {impiantoInUso === 1 ? "tariffa di listino associata" : "tariffe di listino associate"} a
+                        {" "}<em>{impiantoNome}</em>.
+                        Rimuovi prima le tariffe, oppure <strong>disattiva</strong> il tipo dall'interruttore in lista
+                        (il tipo non compare più nel preventivatore ma preserva lo storico).
+                      </>
+                    ) : (
+                      <>Questa azione è irreversibile. Nessuna tariffa è attualmente collegata a <em>{impiantoNome}</em>.</>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground"
+                    disabled={blocked}
+                    onClick={() => !blocked && deleteImpiantoId && deleteImpiantoMutation.mutate(deleteImpiantoId)}
+                  >
+                    Elimina
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={!!deleteInterventoId} onOpenChange={(v) => !v && setDeleteInterventoId(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Elimina tipo intervento</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione è irreversibile. Il tipo intervento e le tariffe associate potrebbero essere compromesse.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground"
-              onClick={() => deleteInterventoId && deleteInterventoMutation.mutate(deleteInterventoId)}
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          {(() => {
+            const interventoInUso = listino.filter((l) => l.tipo_intervento_id === deleteInterventoId).length;
+            const blocked = interventoInUso > 0;
+            const interventoNome = tipiIntervento.find((t) => t.id === deleteInterventoId)?.nome ?? "questo tipo";
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Elimina tipo intervento</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {blocked ? (
+                      <>
+                        <span className="text-rose-700 font-medium">Impossibile eliminare.</span>{" "}
+                        Ci sono <strong>{interventoInUso}</strong>{" "}
+                        {interventoInUso === 1 ? "tariffa di listino associata" : "tariffe di listino associate"} a
+                        {" "}<em>{interventoNome}</em>.
+                        Rimuovi prima le tariffe, oppure <strong>disattiva</strong> il tipo.
+                      </>
+                    ) : (
+                      <>Questa azione è irreversibile. Nessuna tariffa è attualmente collegata a <em>{interventoNome}</em>.</>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground"
+                    disabled={blocked}
+                    onClick={() => !blocked && deleteInterventoId && deleteInterventoMutation.mutate(deleteInterventoId)}
+                  >
+                    Elimina
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
         </AlertDialogContent>
       </AlertDialog>
 
@@ -1540,6 +1589,11 @@ function StandardListinoDialog({
         t.presets.some((p) => selectedPresets.has(p))).length;
 
   const handleImport = () => {
+    // M3 (audit): guard anti-double-click. Se il React state `importing` non è
+    // ancora diventato true, un secondo click qui prima del re-render avvierebbe
+    // due batch concorrenti. Usare un early-return esplicito è più robusto del
+    // solo `disabled` sul Button.
+    if (importing) return;
     if (countTotal === 0) {
       toast.info("Seleziona almeno un template o una tariffa");
       return;
@@ -1551,8 +1605,21 @@ function StandardListinoDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <Dialog
+      open={open}
+      // M3 (audit): durante l'import non permettere chiusura (backdrop/ESC).
+      // Proteggiamo l'utente dal chiudere a metà importazione, che
+      // lascerebbe uno stato parziale senza feedback.
+      onOpenChange={(next) => {
+        if (importing) return;
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        onEscapeKeyDown={(e) => { if (importing) e.preventDefault(); }}
+        onPointerDownOutside={(e) => { if (importing) e.preventDefault(); }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />

@@ -46,8 +46,8 @@
  * griglia" per persistere.
  */
 
-import { useMemo, useRef, useState } from "react";
-import { Upload, AlertCircle, CheckCircle2, Sparkles, Loader2, Image as ImageIcon, FileText } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Upload, AlertCircle, CheckCircle2, Sparkles, Loader2, Image as ImageIcon, FileText, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -63,6 +63,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -225,11 +226,32 @@ export function GridBulkImportDialog({
     outputTokens?: number;
     cellCount: number;
   } | null>(null);
+  // m3 (audit): quando i valori arrivano dall'AI, l'utente DEVE confermare
+  //   esplicitamente di aver verificato ogni cella — il parser può fraintendere
+  //   cifre, decimali o intestazioni, e valori sbagliati si propagano a cascata
+  //   su vendita/margini. Finché il checkbox non è spuntato, "Applica" resta
+  //   disabilitato.
+  const [aiConfirmed, setAiConfirmed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const result = useMemo(() => parse(text), [text]);
   const hasContent = text.trim().length > 0;
-  const canApply = hasContent && !result.fatalError && result.cells.length > 0;
+  const needsAiConfirm = aiInfo !== null;
+  const canApply =
+    hasContent &&
+    !result.fatalError &&
+    result.cells.length > 0 &&
+    (!needsAiConfirm || aiConfirmed);
+
+  // Se l'utente svuota la textarea (es. cancella tutto per incollare una
+  // matrice diversa) o chiude il tab immagine, smontiamo il flag AI: non
+  // avrebbe senso chiedere la conferma su dati che l'AI non ha (più) prodotto.
+  useEffect(() => {
+    if (!hasContent && aiInfo) {
+      setAiInfo(null);
+      setAiConfirmed(false);
+    }
+  }, [hasContent, aiInfo]);
 
   const resetAll = () => {
     setText("");
@@ -238,10 +260,14 @@ export function GridBulkImportDialog({
     setAiError(null);
     setAiInfo(null);
     setAiLoading(false);
+    setAiConfirmed(false);
   };
 
   const handleFileSelect = (file: File | null) => {
     setAiError(null);
+    // Nuova immagine ⇒ l'AI dovrà ri-analizzare: invalidiamo la precedente
+    // conferma così il bottone "Applica" torna a richiederla.
+    setAiConfirmed(false);
     if (!file) {
       setImageFile(null);
       setImagePreview(null);
@@ -271,6 +297,9 @@ export function GridBulkImportDialog({
     setAiLoading(true);
     setAiError(null);
     setAiInfo(null);
+    // Ogni nuova analisi produce un payload diverso: la conferma precedente
+    // non può più essere considerata valida.
+    setAiConfirmed(false);
     try {
       const { base64, mimeType } = await fileToBase64(imageFile);
       const { data, error } = await supabase.functions.invoke<AiParseResponse>("parse-matrix-image", {
@@ -563,7 +592,7 @@ export function GridBulkImportDialog({
             </Alert>
           )}
 
-          {canApply && (
+          {hasContent && !result.fatalError && result.cells.length > 0 && (
             <Alert>
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               <AlertDescription className="space-y-1">
@@ -587,12 +616,17 @@ export function GridBulkImportDialog({
                     </ul>
                   </details>
                 )}
+                {needsAiConfirm && !aiConfirmed && (
+                  <div className="text-xs text-amber-700 dark:text-amber-400 pt-1">
+                    ⚠ Conferma la verifica dei valori AI per abilitare "Applica".
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}
 
           {/* Preview tabella parsata — comune */}
-          {canApply && (
+          {hasContent && !result.fatalError && result.cells.length > 0 && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">Anteprima matrice:</Label>
               <div className="border rounded-md overflow-x-auto max-h-[300px]">
@@ -634,6 +668,40 @@ export function GridBulkImportDialog({
                 </table>
               </div>
             </div>
+          )}
+
+          {/* m3 (audit): conferma obbligatoria quando i valori vengono dall'AI.
+              Il parser può sbagliare singole cifre, confondere decimali IT/EN,
+              saltare righe nascoste da border nell'immagine — errori subdoli che
+              si propagano su vendita/margine/preventivi. Forziamo l'operatore a
+              dichiarare esplicitamente di aver controllato la preview prima di
+              applicare. Il checkbox è bloccante: "Applica" resta disabilitato. */}
+          {needsAiConfirm && hasContent && !result.fatalError && result.cells.length > 0 && (
+            <Alert variant="destructive" className="border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200">
+              <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+              <AlertDescription className="space-y-2">
+                <div className="font-medium">
+                  Verifica i valori letti dall'AI prima di applicare.
+                </div>
+                <div className="text-xs">
+                  L'estrazione automatica può fraintendere cifre (es. <strong>7</strong> vs{" "}
+                  <strong>1</strong>), decimali IT/EN, o saltare righe. Valori errati entreranno
+                  nel motore prezzi e impatteranno vendita, margine e preventivi. Controlla
+                  l'anteprima sopra, correggi eventuali celle nel tab "Testo", poi conferma.
+                </div>
+                <label className="flex items-start gap-2 pt-1 cursor-pointer select-none">
+                  <Checkbox
+                    id="ai-confirmed"
+                    checked={aiConfirmed}
+                    onCheckedChange={(v) => setAiConfirmed(v === true)}
+                    className="mt-0.5 border-amber-600 data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
+                  />
+                  <span className="text-xs font-medium">
+                    Ho verificato tutti i valori estratti dall'AI e confermo che sono corretti.
+                  </span>
+                </label>
+              </AlertDescription>
+            </Alert>
           )}
         </div>
 

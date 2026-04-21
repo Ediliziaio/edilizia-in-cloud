@@ -90,6 +90,15 @@ export function useCategorieMutations() {
     void qc.invalidateQueries({ queryKey: ["listino-categorie-for-families", companyId] });
     void qc.invalidateQueries({ queryKey: ["listino-categorie-for-editor", companyId] });
     void qc.invalidateQueries({ queryKey: ["catalog-categories", companyId] });
+    // M2 (audit): quando una categoria cambia (rename/riassegna macro), le view
+    // famiglie e article-templates mostrano il nome stale finché non si
+    // rigenera la cache. Invalidiamo tutte le query family-scoped.
+    void qc.invalidateQueries({ queryKey: ["article_families"] });
+    void qc.invalidateQueries({ queryKey: ["families"] });
+    void qc.invalidateQueries({ queryKey: ["article-templates-pro", companyId] });
+    void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
+    void qc.invalidateQueries({ queryKey: ["article-templates"] });
+    void qc.invalidateQueries({ queryKey: ["catalog", "article-templates", companyId] });
   };
 
   const create = useMutation({

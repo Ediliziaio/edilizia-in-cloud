@@ -88,6 +88,14 @@ export function useMacrocategorieMutations() {
     void qc.invalidateQueries({ queryKey: ["listino-categorie-for-families", companyId] });
     void qc.invalidateQueries({ queryKey: ["listino-categorie-for-editor", companyId] });
     void qc.invalidateQueries({ queryKey: ["catalog-categories", companyId] });
+    // M2 (audit): quando una macrocategoria cambia, categorie → famiglie →
+    // article-templates ereditano il cambio. Invalida tutto il sottoalbero.
+    void qc.invalidateQueries({ queryKey: ["article_families"] });
+    void qc.invalidateQueries({ queryKey: ["families"] });
+    void qc.invalidateQueries({ queryKey: ["article-templates-pro", companyId] });
+    void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
+    void qc.invalidateQueries({ queryKey: ["article-templates"] });
+    void qc.invalidateQueries({ queryKey: ["catalog", "article-templates", companyId] });
   };
 
   const create = useMutation({
