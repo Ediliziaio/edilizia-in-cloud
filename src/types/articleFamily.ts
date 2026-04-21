@@ -64,7 +64,19 @@ export interface ArticleFamily {
   markup_tipo: MarkupTipo;
   /** Valore markup (percentuale oppure euro al pezzo a seconda di markup_tipo). */
   markup_valore: number;
+  /**
+   * IVA di VENDITA (%): aliquota addebitata al cliente in fattura.
+   * Range [0, 100]. 0 = reverse charge / vendita estero.
+   * Applicata a prezzo_base_vendita (che è al netto).
+   */
   vat_rate: number;
+  /**
+   * IVA di ACQUISTO (%): aliquota pagata al fornitore.
+   * Range [0, 100]. 0 = acquisto intra-UE / estero con reverse charge.
+   * Può differire da vat_rate — tipico quando si compra estero (0%) e si
+   * rivende in Italia (22%). Aggiunta dalla migration 20260421000003.
+   */
+  vat_rate_acquisto: number;
   unit_of_measure: string;
   posa_tariffa_default_id: string | null;
   posa_quantita_default: number;

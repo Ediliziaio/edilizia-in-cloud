@@ -142,6 +142,10 @@ export function FamilyEditor() {
   const [modalita, setModalita] = useState<ModalitaPrezzoBase>("griglia");
   const [unitOfMeasure, setUnitOfMeasure] = useState("pz");
   const [vatRate, setVatRate] = useState("22");
+  // IVA di acquisto: pagata al fornitore. Separata da vatRate (IVA vendita)
+  // perché in scenari intra-UE/estero l'acquisto è al 0% (reverse charge)
+  // ma la vendita al cliente italiano resta al 22%. Migration 20260421000003.
+  const [vatRateAcquisto, setVatRateAcquisto] = useState("22");
   const [grigliaXLabel, setGrigliaXLabel] = useState("Larghezza (mm)");
   const [grigliaYLabel, setGrigliaYLabel] = useState("Altezza (mm)");
 
@@ -178,6 +182,12 @@ export function FamilyEditor() {
       setModalita(family.modalita_prezzo_base);
       setUnitOfMeasure(family.unit_of_measure);
       setVatRate(String(family.vat_rate));
+      // vat_rate_acquisto può mancare su righe pre-migration → fallback a
+      // vat_rate (assunzione: IVA acquisto = IVA vendita fino alla separazione).
+      const fxAcq = family as unknown as { vat_rate_acquisto?: number | null };
+      setVatRateAcquisto(
+        String(fxAcq.vat_rate_acquisto ?? family.vat_rate ?? 22),
+      );
       setGrigliaXLabel(family.griglia_asse_x_label);
       setGrigliaYLabel(family.griglia_asse_y_label);
       setPrezzoVendita(String(family.prezzo_base_vendita));
@@ -268,6 +278,14 @@ export function FamilyEditor() {
     // resta per proteggerci da stringhe vuote, ma 0 è un valore valido.
     const parsedVat = parseFloat(vatRate);
     const vat_rate = Number.isFinite(parsedVat) ? parsedVat : 22;
+    // IVA acquisto: persistita solo quando mode=acquisto_markup ha senso
+    // differenziarla. In mode=vendita la rimandiamo uguale a IVA vendita per
+    // coerenza (niente dati sporchi nel DB).
+    const parsedVatAcq = parseFloat(vatRateAcquisto);
+    const vat_rate_acquisto =
+      prezzoBaseMode === "acquisto_markup" && Number.isFinite(parsedVatAcq)
+        ? parsedVatAcq
+        : vat_rate;
 
     const prezzoAcquistoNum = parseFloat(prezzoAcquisto) || 0;
     const prezzoVenditaNum =
@@ -282,6 +300,7 @@ export function FamilyEditor() {
       modalita_prezzo_base: modalita,
       unit_of_measure: unitOfMeasure,
       vat_rate,
+      vat_rate_acquisto,
       griglia_asse_x_label: grigliaXLabel,
       griglia_asse_y_label: grigliaYLabel,
       prezzo_base_mode: prezzoBaseMode,
@@ -571,7 +590,7 @@ export function FamilyEditor() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="f-iva">IVA %</Label>
+                      <Label htmlFor="f-iva">IVA vendita %</Label>
                       <Select value={vatRate} onValueChange={setVatRate}>
                         <SelectTrigger id="f-iva">
                           <SelectValue />
@@ -589,12 +608,11 @@ export function FamilyEditor() {
                           ))}
                         </SelectContent>
                       </Select>
-                      {parseFloat(vatRate) === 0 ? (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          IVA 0% tipica di acquisti intracomunitari / esteri con
-                          inversione contabile (reverse charge).
-                        </p>
-                      ) : null}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {parseFloat(vatRate) === 0
+                          ? "IVA 0% tipica di vendite estero / reverse charge."
+                          : "Aliquota fatturata al cliente. I prezzi sono sempre al netto IVA."}
+                      </p>
                     </div>
                   </div>
 
@@ -724,7 +742,7 @@ export function FamilyEditor() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <Label htmlFor="f-prezzo-acquisto">
-                              Prezzo di acquisto (€)
+                              Prezzo di acquisto (€, netto)
                             </Label>
                             <Input
                               id="f-prezzo-acquisto"
@@ -737,33 +755,66 @@ export function FamilyEditor() {
                               }
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                              Costo dal fornitore (listino).
+                              Costo dal fornitore al netto di IVA.
                             </p>
                           </div>
                           <div>
-                            <Label htmlFor="f-markup-tipo">Tipo markup</Label>
+                            <Label htmlFor="f-iva-acquisto">
+                              IVA acquisto %
+                            </Label>
                             <Select
-                              value={markupTipo}
-                              onValueChange={(v) =>
-                                setMarkupTipo(v as MarkupTipo)
-                              }
+                              value={vatRateAcquisto}
+                              onValueChange={setVatRateAcquisto}
                             >
-                              <SelectTrigger id="f-markup-tipo">
+                              <SelectTrigger id="f-iva-acquisto">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="none">
-                                  Nessun ricarico
-                                </SelectItem>
-                                <SelectItem value="percentuale">
-                                  Percentuale (%)
-                                </SelectItem>
-                                <SelectItem value="fisso_pz">
-                                  Euro al pezzo (€)
-                                </SelectItem>
+                                {IVA_OPTIONS.map((iva) => (
+                                  <SelectItem
+                                    key={iva.value}
+                                    value={String(iva.value)}
+                                  >
+                                    {iva.hint
+                                      ? `${iva.label} — ${iva.hint}`
+                                      : iva.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {parseFloat(vatRateAcquisto) === 0
+                                ? "Acquisto intra-UE / estero: reverse charge."
+                                : "Aliquota pagata al fornitore (fattura acquisto)."}
+                            </p>
                           </div>
+                        </div>
+                        <div>
+                          <Label htmlFor="f-markup-tipo">Tipo markup</Label>
+                          <Select
+                            value={markupTipo}
+                            onValueChange={(v) =>
+                              setMarkupTipo(v as MarkupTipo)
+                            }
+                          >
+                            <SelectTrigger
+                              id="f-markup-tipo"
+                              className="max-w-xs"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">
+                                Nessun ricarico
+                              </SelectItem>
+                              <SelectItem value="percentuale">
+                                Percentuale (%)
+                              </SelectItem>
+                              <SelectItem value="fisso_pz">
+                                Euro al pezzo (€)
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
 
                         {markupTipo !== "none" ? (
@@ -974,13 +1025,23 @@ export function FamilyEditor() {
                     <Row label="Modalità prezzo" value={family.modalita_prezzo_base} />
                     <Row label="UM" value={family.unit_of_measure} />
                     <Row
-                      label="IVA"
+                      label="IVA vendita"
                       value={
                         family.vat_rate === 0
                           ? "0% (estero / reverse charge)"
                           : `${family.vat_rate}%`
                       }
                     />
+                    {prezzoBaseMode === "acquisto_markup" ? (
+                      <Row
+                        label="IVA acquisto"
+                        value={
+                          parseFloat(vatRateAcquisto) === 0
+                            ? "0% (reverse charge)"
+                            : `${parseFloat(vatRateAcquisto)}%`
+                        }
+                      />
+                    ) : null}
                     <Row
                       label="Gestione prezzo"
                       value={
