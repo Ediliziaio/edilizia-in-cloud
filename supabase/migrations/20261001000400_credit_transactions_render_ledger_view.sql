@@ -7,6 +7,60 @@
 -- huge prompt text from appearing as a transaction description.
 -- ============================================================================
 
+CREATE TABLE IF NOT EXISTS public.render_credit_ledger (
+  id            uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id    uuid         NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  delta         integer      NOT NULL,
+  balance_after integer      NOT NULL CHECK (balance_after >= 0),
+  reason        text         NOT NULL
+    CHECK (reason IN ('consume', 'adjust_admin', 'topup', 'refund', 'seed', 'correction')),
+  session_id    uuid,
+  user_id       uuid,
+  revenue_eur   numeric(10,4) DEFAULT 0,
+  purchase_id   uuid,
+  metadata      jsonb,
+  created_at    timestamptz  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rcl_company_created
+  ON public.render_credit_ledger(company_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_rcl_session
+  ON public.render_credit_ledger(session_id)
+  WHERE session_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_rcl_reason
+  ON public.render_credit_ledger(reason);
+
+CREATE TABLE IF NOT EXISTS public.render_credits_log (
+  id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id     uuid        NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  type           text        NOT NULL DEFAULT 'deduct',
+  amount         integer     NOT NULL,
+  balance_before integer     NOT NULL DEFAULT 0,
+  balance_after  integer     NOT NULL DEFAULT 0,
+  description    text,
+  session_id     uuid,
+  metadata       jsonb,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_render_credits_log_company
+  ON public.render_credits_log(company_id);
+
+CREATE INDEX IF NOT EXISTS idx_render_credits_log_created
+  ON public.render_credits_log(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_render_credits_log_session
+  ON public.render_credits_log(session_id)
+  WHERE session_id IS NOT NULL;
+
+ALTER TABLE public.render_credit_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.render_credits_log ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT ON public.render_credit_ledger TO authenticated;
+GRANT SELECT ON public.render_credits_log TO authenticated;
+
 CREATE OR REPLACE VIEW public.credit_transactions_unified AS
   -- AI
   SELECT
