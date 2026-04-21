@@ -18,6 +18,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
+import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
 
 interface PlanForm {
   name: string;
@@ -57,6 +58,37 @@ const emptyForm: PlanForm = {
   stripe_price_yearly_id: "",
 };
 
+interface PlanUsageStats {
+  assignedCompanies: number;
+  accessCompanies: number;
+  payingCompanies: number;
+  complimentaryCompanies: number;
+  paidMrr: number;
+}
+
+const emptyUsage: PlanUsageStats = {
+  assignedCompanies: 0,
+  accessCompanies: 0,
+  payingCompanies: 0,
+  complimentaryCompanies: 0,
+  paidMrr: 0,
+};
+
+function slugifyPlan(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function parseNumberInput(value: string, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export default function SubscriptionPlans() {
   const { permissions: saPermissions } = useSuperAdminPermissions();
   const { toast } = useToast();
@@ -95,18 +127,56 @@ export default function SubscriptionPlans() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: planRevenue = {} } = useQuery({
+    queryKey: ["admin-plan-paid-revenue"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, status, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(id, name, price_monthly, price_yearly)")
+        .eq("is_platform_admin_company", false)
+        .not("subscription_plan_id", "is", null)
+        .limit(5000);
+      if (error) throw error;
+
+      const usage: Record<string, PlanUsageStats> = {};
+      for (const row of data ?? []) {
+        const planId = row.subscription_plan_id;
+        if (!planId) continue;
+        usage[planId] = usage[planId] ?? { ...emptyUsage };
+        usage[planId].assignedCompanies += 1;
+        if (row.status === "active" || row.status === "trial") {
+          usage[planId].accessCompanies += 1;
+        }
+        if (isRevenueEligibleCompany(row)) {
+          usage[planId].payingCompanies += 1;
+          usage[planId].paidMrr += getCompanyMonthlyRevenue(row);
+        } else if (row.status === "active" && getCompanyMonthlyRevenue(row) > 0) {
+          usage[planId].complimentaryCompanies += 1;
+        }
+      }
+      return usage;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const stats = useMemo(() => {
-    if (!plans) return { activePlans: 0, subscribedCompanies: 0, estimatedMrr: 0 };
+    if (!plans) return { activePlans: 0, subscribedCompanies: 0, payingCompanies: 0, paidMrr: 0 };
     const activePlans = plans.filter((p) => p.is_active).length;
     const counts = companyCounts || {};
-    const subscribedCompanies = Object.values(counts).reduce((s, n) => s + n, 0);
-    const estimatedMrr = plans.reduce((sum, p) => sum + (p.price_monthly > 0 ? p.price_monthly * (counts[p.id] || 0) : 0), 0);
-    return { activePlans, subscribedCompanies, estimatedMrr };
-  }, [plans, companyCounts]);
+    const usageRows = Object.values(planRevenue);
+    const subscribedCompanies = usageRows.length > 0
+      ? usageRows.reduce((sum, row) => sum + row.accessCompanies, 0)
+      : Object.values(counts).reduce((s, n) => s + n, 0);
+    const payingCompanies = usageRows.reduce((sum, row) => sum + row.payingCompanies, 0);
+    const paidMrr = usageRows.reduce((sum, row) => sum + row.paidMrr, 0);
+    return { activePlans, subscribedCompanies, payingCompanies, paidMrr };
+  }, [plans, companyCounts, planRevenue]);
 
   const saveMutation = useMutation({
     mutationFn: async (plan: PlanForm & { id?: string }) => {
       if (!saPermissions.can_manage_plans) throw new Error("Non hai i permessi per gestire i piani");
+      const cleanName = plan.name.trim();
+      const cleanSlug = slugifyPlan(plan.slug || plan.name);
       // Shape del record da persistere su subscription_plans.
       // Manteniamo il tipo esplicito per evitare `any` e allinearci alla
       // colonna SQL (features JSONB array, included_modules text[] — entrambi
@@ -130,9 +200,9 @@ export default function SubscriptionPlans() {
         stripe_price_yearly_id: string | null;
       }
       const payload: PlanDbRow = {
-        name: plan.name,
-        slug: plan.slug,
-        description: plan.description || null,
+        name: cleanName,
+        slug: cleanSlug,
+        description: plan.description.trim() || null,
         price_monthly: plan.price_monthly,
         price_yearly: plan.price_yearly,
         max_orders: plan.max_orders,
@@ -166,6 +236,8 @@ export default function SubscriptionPlans() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-plan-usage"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-plan-paid-revenue"] });
       setDialogOpen(false);
       toast({ title: editingId ? "Piano aggiornato" : "Piano creato" });
     },
@@ -182,6 +254,7 @@ export default function SubscriptionPlans() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-plan-paid-revenue"] });
       toast({ title: "Stato aggiornato" });
     },
     onError: (error) => {
@@ -238,16 +311,33 @@ export default function SubscriptionPlans() {
     setDialogOpen(true);
   };
 
+  const handleNameChange = (name: string) => {
+    setForm((prev) => {
+      const previousAutoSlug = slugifyPlan(prev.name);
+      const shouldRefreshSlug = !editingId && (!prev.slug || prev.slug === previousAutoSlug);
+      return {
+        ...prev,
+        name,
+        slug: shouldRefreshSlug ? slugifyPlan(name) : prev.slug,
+      };
+    });
+  };
+
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
   const [pendingSave, setPendingSave] = useState<(PlanForm & { id?: string }) | null>(null);
 
   const handleSave = () => {
-    if (!form.name || !form.slug) {
+    const cleanSlug = slugifyPlan(form.slug || form.name);
+    if (!form.name.trim() || !cleanSlug) {
       toast({ title: "Compila nome e slug", variant: "destructive" });
       return;
     }
+    if (form.price_monthly < 0 || form.price_yearly < 0) {
+      toast({ title: "I prezzi non possono essere negativi", variant: "destructive" });
+      return;
+    }
     const features = featuresText.split("\n").map((f) => f.trim()).filter(Boolean);
-    const payload = { ...form, features, id: editingId || undefined };
+    const payload = { ...form, slug: cleanSlug, features, id: editingId || undefined };
 
     // If editing an existing plan with active companies, show confirmation
     const usageCount = editingId ? (companyCounts?.[editingId] ?? 0) : 0;
@@ -307,7 +397,7 @@ export default function SubscriptionPlans() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Piani Attivi</CardTitle>
@@ -319,7 +409,7 @@ export default function SubscriptionPlans() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Aziende Abbonate</CardTitle>
+            <CardTitle className="text-sm font-medium">Aziende con accesso</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -328,11 +418,20 @@ export default function SubscriptionPlans() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">MRR Stimato</CardTitle>
+            <CardTitle className="text-sm font-medium">Aziende paganti</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.payingCompanies}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">MRR pagante</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.estimatedMrr)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.paidMrr)}</div>
           </CardContent>
         </Card>
       </div>
@@ -340,6 +439,11 @@ export default function SubscriptionPlans() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {plans?.map((plan) => {
           const features = Array.isArray(plan.features) ? (plan.features as string[]) : [];
+          const usage: PlanUsageStats = {
+            ...emptyUsage,
+            assignedCompanies: companyCounts?.[plan.id] ?? 0,
+            ...(planRevenue[plan.id] ?? {}),
+          };
           return (
             <Card key={plan.id} className={`relative ${!plan.is_active ? "opacity-60" : ""}`}>
               <CardHeader>
@@ -353,11 +457,22 @@ export default function SubscriptionPlans() {
                   )}
                 </div>
                 <CardDescription>{plan.description || plan.slug}</CardDescription>
-                {(companyCounts?.[plan.id] ?? 0) > 0 && (
-                  <Badge variant="secondary" className="mt-1 w-fit gap-1">
-                    <Building2 className="h-3 w-3" />
-                    {companyCounts![plan.id]} aziende
-                  </Badge>
+                {usage.assignedCompanies > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <Badge variant="secondary" className="w-fit gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {usage.assignedCompanies} assegnate
+                    </Badge>
+                    <Badge variant={usage.payingCompanies > 0 ? "default" : "outline"} className="w-fit gap-1">
+                      <Users className="h-3 w-3" />
+                      {usage.payingCompanies} paganti
+                    </Badge>
+                    {usage.complimentaryCompanies > 0 && (
+                      <Badge variant="outline" className="w-fit text-amber-700 border-amber-300">
+                        {usage.complimentaryCompanies} accessi non paganti
+                      </Badge>
+                    )}
+                  </div>
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
@@ -370,6 +485,11 @@ export default function SubscriptionPlans() {
                 <p className="text-sm text-muted-foreground">
                   {formatCurrency(plan.price_yearly)}/anno
                 </p>
+                {usage.assignedCompanies > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    MRR pagante del piano: <span className="font-medium text-foreground">{formatCurrency(usage.paidMrr)}</span>
+                  </p>
+                )}
 
                 {/* Limits */}
                 <div className="space-y-2 pt-2 border-t">
@@ -430,6 +550,7 @@ export default function SubscriptionPlans() {
                     variant="outline"
                     size="sm"
                     className="flex-1 min-w-[110px]"
+                    disabled={toggleActiveMutation.isPending}
                     onClick={() => toggleActiveMutation.mutate({ id: plan.id, is_active: !plan.is_active })}
                   >
                     {plan.is_active ? "Disattiva" : "Attiva"}
@@ -450,14 +571,14 @@ export default function SubscriptionPlans() {
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nome *</Label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Es. Pro" />
+                <Input value={form.name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Es. Pro" />
               </div>
               <div className="space-y-2">
                 <Label>Slug *</Label>
-                <Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="Es. pro" />
+                <Input value={form.slug} onChange={(e) => setForm({ ...form, slug: slugifyPlan(e.target.value) })} placeholder="Es. pro" />
               </div>
             </div>
 
@@ -466,36 +587,36 @@ export default function SubscriptionPlans() {
               <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descrizione del piano" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Prezzo Mensile (€)</Label>
-                <Input type="number" min="0" step="0.01" value={form.price_monthly} onChange={(e) => setForm({ ...form, price_monthly: parseFloat(e.target.value) || 0 })} />
+                <Input type="number" min="0" step="0.01" value={form.price_monthly} onChange={(e) => setForm({ ...form, price_monthly: parseNumberInput(e.target.value, 0) })} />
               </div>
               <div className="space-y-2">
                 <Label>Prezzo Annuale (€)</Label>
-                <Input type="number" min="0" step="0.01" value={form.price_yearly} onChange={(e) => setForm({ ...form, price_yearly: parseFloat(e.target.value) || 0 })} />
+                <Input type="number" min="0" step="0.01" value={form.price_yearly} onChange={(e) => setForm({ ...form, price_yearly: parseNumberInput(e.target.value, 0) })} />
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label>Max Ordini (-1 = illimitati)</Label>
-                <Input type="number" value={form.max_orders} onChange={(e) => setForm({ ...form, max_orders: parseInt(e.target.value) || -1 })} />
+                <Input type="number" value={form.max_orders} onChange={(e) => setForm({ ...form, max_orders: parseNumberInput(e.target.value, -1) })} />
               </div>
               <div className="space-y-2">
                 <Label>Max Utenti (-1 = illimitati)</Label>
-                <Input type="number" value={form.max_users} onChange={(e) => setForm({ ...form, max_users: parseInt(e.target.value) || -1 })} />
+                <Input type="number" value={form.max_users} onChange={(e) => setForm({ ...form, max_users: parseNumberInput(e.target.value, -1) })} />
               </div>
               <div className="space-y-2">
                 <Label>Max Storage (MB)</Label>
-                <Input type="number" value={form.max_storage_mb} onChange={(e) => setForm({ ...form, max_storage_mb: parseInt(e.target.value) || 500 })} />
+                <Input type="number" value={form.max_storage_mb} onChange={(e) => setForm({ ...form, max_storage_mb: parseNumberInput(e.target.value, 500) })} />
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label>Giorni di Trial</Label>
-                <Input type="number" min="0" max="365" value={form.trial_days} onChange={(e) => setForm({ ...form, trial_days: parseInt(e.target.value) || 0 })} />
+                <Input type="number" min="0" max="365" value={form.trial_days} onChange={(e) => setForm({ ...form, trial_days: parseNumberInput(e.target.value, 0) })} />
                 <p className="text-xs text-muted-foreground">Giorni di prova gratuita per nuove aziende</p>
               </div>
             </div>
@@ -505,10 +626,10 @@ export default function SubscriptionPlans() {
               <Textarea value={featuresText} onChange={(e) => setFeaturesText(e.target.value)} placeholder={"Gestione ordini\nSupporto prioritario\nReport avanzati"} rows={4} />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Posizione</Label>
-                <Input type="number" min="0" value={form.position} onChange={(e) => setForm({ ...form, position: parseInt(e.target.value) || 0 })} />
+                <Input type="number" min="0" value={form.position} onChange={(e) => setForm({ ...form, position: parseNumberInput(e.target.value, 0) })} />
               </div>
               <div className="flex items-center gap-3 pt-6">
                 <Switch checked={form.is_active} onCheckedChange={(checked) => setForm({ ...form, is_active: checked })} />
@@ -519,7 +640,7 @@ export default function SubscriptionPlans() {
             {/* Moduli inclusi */}
             <div className="space-y-3 pt-2 border-t">
               <Label className="text-base font-semibold">Moduli inclusi nel piano</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {ALL_MODULES.map((mod) => (
                   <div key={mod.key} className="flex items-center justify-between rounded-lg border p-3">
                     <div className="flex items-center gap-2">
@@ -550,7 +671,7 @@ export default function SubscriptionPlans() {
                   <Label>Stripe Product ID</Label>
                   <Input value={form.stripe_product_id} onChange={(e) => setForm({ ...form, stripe_product_id: e.target.value })} placeholder="prod_..." />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Stripe Price Monthly ID</Label>
                     <Input value={form.stripe_price_monthly_id} onChange={(e) => setForm({ ...form, stripe_price_monthly_id: e.target.value })} placeholder="price_..." />

@@ -71,10 +71,6 @@ async function getFunctionErrorMessage(error: unknown): Promise<string> {
   return fallback;
 }
 
-function isRenderRpcMissing(message: string): boolean {
-  return /adjust_render_credits_atomic|schema cache|PGRST202|Could not find the function/i.test(message);
-}
-
 async function fallbackAdjustRenderCredits(params: {
   companyId: string;
   delta: number;
@@ -262,22 +258,26 @@ export function CreditManagerCard({ companyId }: Props) {
       const signedAmount = adjustDialog.direction === "deduct" ? -amount : amount;
 
       if (wallet === "render") {
-        // Render è intero: l'edge fn richiede un delta integer (param `amount`)
+        // Render è intero: passa dall'edge function con service role.
+        // L'edge function prova la RPC atomica e, se Supabase non l'ha ancora
+        // in schema cache, usa il fallback diretto server-side.
         if (!Number.isInteger(amount)) {
           throw new Error("Per render i crediti devono essere interi");
         }
-        const { data, error } = await supabase.rpc("adjust_render_credits_atomic" as never, {
-          p_company_id: companyId,
-          p_delta: signedAmount,
-          p_reason: adjustReason.trim(),
-          p_adjusted_by: user?.id ?? null,
-        } as never);
+        const { data, error } = await supabase.functions.invoke("admin-adjust-credits", {
+          body: {
+            company_id: companyId,
+            service: "render",
+            amount: signedAmount,
+            reason: adjustReason.trim(),
+          },
+        });
 
         if (error || (data as { error?: string } | null)?.error) {
-          const message = error?.message || (data as { error?: string } | null)?.error || "RPC render non disponibile";
-          if (!isRenderRpcMissing(message)) {
-            console.warn("[CreditManagerCard] Render RPC failed, using direct fallback:", message);
-          }
+          const message = error
+            ? await getFunctionErrorMessage(error)
+            : (data as { error?: string } | null)?.error || "Ricarica render non disponibile";
+          console.warn("[CreditManagerCard] Render edge adjust failed, using client fallback:", message);
           return fallbackAdjustRenderCredits({
             companyId,
             delta: signedAmount,

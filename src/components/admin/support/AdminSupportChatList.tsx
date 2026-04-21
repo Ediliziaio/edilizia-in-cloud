@@ -65,7 +65,9 @@ function getSLAStatus(conversation: SLAConversation): {
   variant: 'default' | 'secondary' | 'destructive' | 'outline';
 } {
   const ageHours = (Date.now() - new Date(conversation.created_at).getTime()) / 3600000;
-  if (conversation.status === 'risolto') return { label: 'Risolto', variant: 'secondary' };
+  if (conversation.status === 'risolto' || conversation.status === 'resolved' || conversation.status === 'closed') {
+    return { label: 'Risolto', variant: 'secondary' };
+  }
   if (conversation.first_response_at) {
     const respHours =
       (new Date(conversation.first_response_at).getTime() -
@@ -99,13 +101,6 @@ const priorityOrder: Record<string, number> = {
   high: 1,
   normal: 2,
   low: 3,
-};
-
-const priorityLabels: Record<string, string> = {
-  low: "Bassa",
-  normal: "Normale",
-  high: "Alta",
-  urgent: "Urgente",
 };
 
 export function AdminSupportChatList() {
@@ -147,7 +142,8 @@ export function AdminSupportChatList() {
       const { data, error } = await supabase
         .from("support_messages")
         .select("id, company_id, sender_role, message, created_at")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(2000);
       if (error) throw error;
       return (data ?? []) as SupportMessage[];
     },
@@ -161,6 +157,7 @@ export function AdminSupportChatList() {
       const { data, error } = await supabase
         .from("companies")
         .select("id, name")
+        .eq("is_platform_admin_company", false)
         .order("name");
       if (error) throw error;
       return (data ?? []) as Company[];
@@ -379,7 +376,16 @@ export function AdminSupportChatList() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <span>Errore nel caricamento dei dati di assistenza.</span>
-            <Button variant="outline" size="sm" onClick={() => refetchMessages()} className="ml-2 gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchMessages();
+                queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesForSupport });
+                queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
+              }}
+              className="ml-2 gap-1"
+            >
               <RefreshCw className="h-3 w-3" /> Riprova
             </Button>
           </AlertDescription>

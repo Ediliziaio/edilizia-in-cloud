@@ -9,15 +9,36 @@ import { MessageSquare } from "lucide-react";
 export default function GlobalTickets() {
   const { permissions } = useSuperAdminPermissions();
 
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["admin-support-unread-count"],
+  const { data: unansweredCount = 0 } = useQuery({
+    queryKey: ["admin-support-unanswered-count"],
     queryFn: async () => {
-      const { count } = await supabase
-        .from("support_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("sender_role", "company")
-        .is("read_at", null);
-      return count || 0;
+      const [messagesRes, conversationsRes] = await Promise.all([
+        supabase
+          .from("support_messages")
+          .select("company_id, sender_role, created_at")
+          .order("created_at", { ascending: false })
+          .limit(1000),
+        supabase
+          .from("support_conversations")
+          .select("company_id, status"),
+      ]);
+      if (messagesRes.error) throw messagesRes.error;
+      if (conversationsRes.error) throw conversationsRes.error;
+
+      const statusByCompany = new Map(
+        (conversationsRes.data ?? []).map((conversation) => [conversation.company_id, conversation.status])
+      );
+      const latestByCompany = new Map<string, { sender_role: string }>();
+      for (const message of messagesRes.data ?? []) {
+        if (!latestByCompany.has(message.company_id)) {
+          latestByCompany.set(message.company_id, { sender_role: message.sender_role });
+        }
+      }
+
+      return Array.from(latestByCompany.entries()).filter(([companyId, message]) => {
+        const status = statusByCompany.get(companyId) || "open";
+        return message.sender_role !== "super_admin" && status !== "resolved" && status !== "closed";
+      }).length;
     },
     refetchInterval: 30000,
     enabled: permissions.can_manage_tickets,
@@ -32,9 +53,9 @@ export default function GlobalTickets() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">Assistenza Aziende</h1>
-            {unreadCount > 0 && (
+            {unansweredCount > 0 && (
               <Badge variant="destructive" className="text-xs">
-                {unreadCount} non {unreadCount === 1 ? "letto" : "letti"}
+                {unansweredCount} da rispondere
               </Badge>
             )}
           </div>

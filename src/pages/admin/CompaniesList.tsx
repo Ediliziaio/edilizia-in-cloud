@@ -38,6 +38,7 @@ import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFi
 import { CompanySegmentFilters } from "@/components/admin/company/CompanySegmentFilters";
 import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
 import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
+import { toast } from "sonner";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
@@ -92,7 +93,6 @@ type HealthFilter = "all" | "healthy" | "at_risk" | "critical";
 type ColKey = "sector" | "plan" | "mrr" | "users" | "orders" | "lastAccess" | "trial" | "health" | "tags";
 type SavedView = { name: string; params: string };
 
-const PAGE_SIZE = 25;
 const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "sector", label: "Settore" },
   { key: "plan", label: "Piano" },
@@ -106,6 +106,41 @@ const ALL_COLUMNS: { key: ColKey; label: string }[] = [
 ];
 const DEFAULT_COLS: ColKey[] = ["sector", "plan", "mrr", "users", "orders", "lastAccess", "trial", "health", "tags"];
 const VALID_COLS = new Set<ColKey>(DEFAULT_COLS);
+const NO_PAYMENT_METHODS = new Set([
+  "",
+  "none",
+  "free",
+  "trial",
+  "gift",
+  "gifted",
+  "gratis",
+  "omaggio",
+  "manual_free",
+  "complimentary",
+  "comp",
+]);
+const STATUS_LABELS_MAP: Record<string, string> = {
+  trial: "Trial",
+  active: "Attivo",
+  suspended: "Sospeso",
+  expired: "Scaduto",
+};
+const HEALTH_LABELS_MAP: Record<string, string> = {
+  healthy: "Healthy",
+  at_risk: "A rischio",
+  critical: "Critico",
+};
+
+function isNoPaymentAccessCompany(company: {
+  status?: string | null;
+  payment_method?: string | null;
+  stripe_subscription_status?: string | null;
+}) {
+  if (company.status !== "active" && company.status !== "trial") return false;
+  const method = String(company.payment_method ?? "").trim().toLowerCase();
+  const stripeStatus = String(company.stripe_subscription_status ?? "").trim().toLowerCase();
+  return NO_PAYMENT_METHODS.has(method) || (method === "stripe" && stripeStatus !== "active");
+}
 
 function sanitizeOrSearchTerm(value: string): string {
   return value.trim().replace(/[,%]/g, " ").replace(/\s+/g, " ");
@@ -290,7 +325,7 @@ export default function CompaniesList() {
       if (noPaymentFilter) {
         query = query
           .in("status", ["active", "trial"])
-          .or("payment_method.is.null,payment_method.eq.none,payment_method.eq.");
+          .or("payment_method.is.null,payment_method.eq.,payment_method.eq.none,payment_method.eq.free,payment_method.eq.trial,payment_method.eq.gift,payment_method.eq.gifted,payment_method.eq.gratis,payment_method.eq.omaggio,payment_method.eq.manual_free,payment_method.eq.complimentary,payment_method.eq.comp,and(payment_method.eq.stripe,stripe_subscription_status.is.null),and(payment_method.eq.stripe,stripe_subscription_status.neq.active)");
       }
 
       if (healthFilter !== "all") {
@@ -523,7 +558,7 @@ export default function CompaniesList() {
   // Reset to page 1 whenever server-side filter/sort params change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir]);
+  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir, segmentFilters]);
 
   // Health/no-payment filters are pushed into the server query so pagination
   // and counts stay coherent across the whole dataset.
@@ -562,7 +597,7 @@ export default function CompaniesList() {
 
   const totalPages = Math.max(1, Math.ceil(serverTotalCount / SERVER_PAGE_SIZE));
 
-  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter;
+  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter || segmentActiveCount > 0;
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -580,9 +615,7 @@ export default function CompaniesList() {
       (h) => h && (h.health === "at_risk" || h.health === "critical")
     ).length;
 
-    const noPayment = allCompaniesSummary.filter((c) =>
-      (c.status === "active" || c.status === "trial") && !isRevenueEligibleCompany(c)
-    ).length;
+    const noPayment = allCompaniesSummary.filter(isNoPaymentAccessCompany).length;
 
     const inactive = allCompaniesSummary.filter((c) => {
       const la = lastAccessData[c.id];
@@ -639,20 +672,19 @@ export default function CompaniesList() {
   const clearAllFilters = useCallback(() => {
     setInputSearch("");
     setSearchParams(new URLSearchParams(), { replace: true });
+    setSegmentFilters(EMPTY_FILTERS);
     setActivePreset(null);
   }, [setSearchParams]);
 
-  // Active filter labels
-  const statusLabelsMap: Record<string, string> = { trial: "Trial", active: "Attivo", suspended: "Sospeso", expired: "Scaduto" };
-  const healthLabelsMap: Record<string, string> = { healthy: "Healthy", at_risk: "A rischio", critical: "Critico" };
   const activeFiltersList = useMemo(() => [
     { key: "search", label: "Cerca", value: inputSearch, onClear: () => setInputSearch("") },
-    { key: "status", label: "Stato", value: statusFilter === "all" ? "all" : (statusLabelsMap[statusFilter] || statusFilter), onClear: () => setFilter({ status: null }) },
+    { key: "status", label: "Stato", value: statusFilter === "all" ? "all" : (STATUS_LABELS_MAP[statusFilter] || statusFilter), onClear: () => setFilter({ status: null }) },
     { key: "sector", label: "Settore", value: sectorFilter === "all" ? "all" : (sectorLabels[sectorFilter] || sectorFilter), onClear: () => setFilter({ sector: null }) },
     { key: "plan", label: "Piano", value: planFilter === "all" ? "all" : (uniquePlans.find((p) => p.id === planFilter)?.name || planFilter), onClear: () => setFilter({ plan: null }) },
-    { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (healthLabelsMap[healthFilter] || healthFilter), onClear: () => setFilter({ health: null }) },
+    { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (HEALTH_LABELS_MAP[healthFilter] || healthFilter), onClear: () => setFilter({ health: null }) },
     { key: "noPayment", label: "Senza pagamento", value: noPaymentFilter ? "attivo" : "all", onClear: () => setFilter({ noPayment: null }) },
-  ], [inputSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, uniquePlans, setFilter]);
+    { key: "segments", label: "Segmenti", value: segmentActiveCount > 0 ? `${segmentActiveCount} attivi` : "all", onClear: () => setSegmentFilters(EMPTY_FILTERS) },
+  ], [inputSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, uniquePlans, setFilter, segmentActiveCount]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -769,6 +801,11 @@ export default function CompaniesList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
       queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.revenueIntelligence() });
+      toast.success("Stato azienda aggiornato");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Impossibile aggiornare lo stato azienda");
     },
   });
 
@@ -816,6 +853,10 @@ export default function CompaniesList() {
         companies={allCompaniesSummary.map((c) => ({
           id: c.id,
           status: c.status,
+          payment_method: c.payment_method,
+          stripe_customer_id: c.stripe_customer_id,
+          stripe_subscription_status: c.stripe_subscription_status,
+          is_platform_admin_company: c.is_platform_admin_company,
           subscription_plans: c.subscription_plans as { price_monthly: number } | null,
         }))}
         healthData={healthData}
@@ -1023,6 +1064,8 @@ export default function CompaniesList() {
             const status = (company.status || "trial") as CompanyStatus;
             const cfg = statusConfig[status] || statusConfig.trial;
             const plan = company.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+            const countsAsRevenue = isRevenueEligibleCompany(company);
+            const monthlyRevenue = getCompanyMonthlyRevenue(company);
             const hd = healthData[company.id];
             return (
               <Card
@@ -1048,7 +1091,11 @@ export default function CompaniesList() {
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Badge variant={cfg.variant} className="text-[10px] px-1.5 py-0">{cfg.label}</Badge>
                         {plan && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{plan.name}</Badge>}
-                        {plan && <span className="text-xs font-semibold text-emerald-600">{formatCurrency(plan.price_monthly)}/m</span>}
+                        {plan && (
+                          <span className={`text-xs font-semibold ${countsAsRevenue ? "text-emerald-600" : "text-muted-foreground"}`}>
+                            {countsAsRevenue ? `${formatCurrency(monthlyRevenue)}/m` : "MRR escluso"}
+                          </span>
+                        )}
                         {hd && (
                           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
                             hd.health === "healthy" ? "border-green-500/30 text-green-700 bg-green-50" :
@@ -1176,6 +1223,7 @@ export default function CompaniesList() {
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select
                             value={status}
+                            disabled={updateStatusMutation.isPending}
                             onValueChange={(v) => updateStatusMutation.mutate({ id: company.id, status: v })}
                           >
                             <SelectTrigger className="h-7 w-[110px] text-xs border-0 shadow-none px-1">

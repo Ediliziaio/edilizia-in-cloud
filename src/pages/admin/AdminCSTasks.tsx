@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,8 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 
 interface CSTask {
   id: string;
@@ -35,8 +37,10 @@ interface CSTask {
 
 export default function AdminCSTasks() {
   const { user } = useAuth();
+  const { permissions } = useSuperAdminPermissions();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const canManageTasks = permissions.can_manage_companies || permissions.can_manage_tickets;
   const [showNew, setShowNew] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("open");
   const [newTitle, setNewTitle] = useState("");
@@ -59,6 +63,7 @@ export default function AdminCSTasks() {
       if (error) throw error;
       return (data || []) as unknown as CSTask[];
     },
+    enabled: canManageTasks,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -68,25 +73,34 @@ export default function AdminCSTasks() {
       const { data, error } = await supabase
         .from("companies")
         .select("id, name")
+        .eq("is_platform_admin_company", false)
         .order("name");
       if (error) throw error;
       return data || [];
     },
+    enabled: canManageTasks,
     staleTime: 5 * 60 * 1000,
   });
 
   const createTask = useMutation({
     mutationFn: async () => {
+      const title = newTitle.trim();
+      const description = newDesc.trim();
+      if (!user?.id) throw new Error("Sessione admin non disponibile. Ricarica la pagina e riprova.");
+      if (!newCompanyId) throw new Error("Seleziona un'azienda.");
+      if (!title) throw new Error("Inserisci un titolo per il task.");
+
       const { error } = await supabase
         .from("cs_tasks" as never)
         .insert({
           company_id: newCompanyId,
-          title: newTitle,
-          description: newDesc || null,
+          title,
+          description: description || null,
+          task_type: "manual",
           priority: newPriority,
           due_date: newDueDate || null,
-          created_by: user!.id,
-          assigned_to: user!.id,
+          created_by: user.id,
+          assigned_to: user.id,
         } as never);
       if (error) throw error;
     },
@@ -95,9 +109,13 @@ export default function AdminCSTasks() {
       setNewTitle("");
       setNewDesc("");
       setNewCompanyId("");
+      setNewPriority("medium");
       setNewDueDate("");
       setShowNew(false);
       toast.success("Task CS creato");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Impossibile creare il task CS");
     },
   });
 
@@ -115,9 +133,24 @@ export default function AdminCSTasks() {
       queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
       toast.success("Task aggiornato");
     },
+    onError: (error) => {
+      toast.error(error.message || "Impossibile aggiornare il task");
+    },
   });
 
-  const companyMap = new Map(companies.map((c) => [c.id, c.name]));
+  const companyMap = useMemo(() => new Map(companies.map((c) => [c.id, c.name])), [companies]);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const isOverdue = useCallback((task: CSTask) =>
+    task.status !== "completed" && !!task.due_date && task.due_date.slice(0, 10) < todayKey,
+  [todayKey]);
+
+  const taskStats = useMemo(() => {
+    const open = tasks.filter((task) => task.status === "open").length;
+    const inProgress = tasks.filter((task) => task.status === "in_progress").length;
+    const urgent = tasks.filter((task) => task.priority === "high" && task.status !== "completed").length;
+    const overdue = tasks.filter(isOverdue).length;
+    return { open, inProgress, urgent, overdue };
+  }, [tasks, isOverdue]);
 
   const priorityBadge = (p: string) => {
     if (p === "high") return <Badge variant="destructive" className="text-xs">Alta</Badge>;
@@ -130,6 +163,8 @@ export default function AdminCSTasks() {
     if (s === "in_progress") return <Clock className="h-4 w-4 text-amber-600" />;
     return <AlertCircle className="h-4 w-4 text-blue-600" />;
   };
+
+  if (!canManageTasks) return <AccessDenied />;
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -194,12 +229,41 @@ export default function AdminCSTasks() {
                   </div>
                 </div>
                 <Button onClick={() => createTask.mutate()} disabled={!newTitle.trim() || !newCompanyId || createTask.isPending} className="w-full">
-                  Crea Task
+                  {createTask.isPending ? "Creazione..." : "Crea Task"}
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Aperti</p>
+            <p className="text-2xl font-semibold">{taskStats.open}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">In lavorazione</p>
+            <p className="text-2xl font-semibold">{taskStats.inProgress}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Alta priorità</p>
+            <p className="text-2xl font-semibold">{taskStats.urgent}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Scaduti</p>
+            <p className={`text-2xl font-semibold ${taskStats.overdue > 0 ? "text-destructive" : ""}`}>
+              {taskStats.overdue}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -229,7 +293,17 @@ export default function AdminCSTasks() {
               </button>
             </div>
           ) : tasks.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">Nessun task trovato</p>
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <CheckCircle className="h-9 w-9 text-muted-foreground" />
+              <div>
+                <p className="font-medium">Nessun task trovato</p>
+                <p className="text-sm text-muted-foreground">Crea un follow-up CS o cambia filtro.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setShowNew(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nuovo Task
+              </Button>
+            </div>
           ) : isMobile ? (
             <div className="divide-y">
               {tasks.map((task) => (
@@ -244,17 +318,24 @@ export default function AdminCSTasks() {
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground pl-6">
                     <span>{companyMap.get(task.company_id) || "—"}</span>
-                    <span>{task.due_date ? format(new Date(task.due_date), "dd/MM/yy") : ""}</span>
+                    <span className={isOverdue(task) ? "text-destructive font-medium" : ""}>
+                      {task.due_date ? format(new Date(task.due_date), "dd/MM/yy") : ""}
+                    </span>
                   </div>
+                  {isOverdue(task) && (
+                    <div className="pl-6">
+                      <Badge variant="destructive" className="text-xs">Scaduto</Badge>
+                    </div>
+                  )}
                   <div className="pl-6">
                     {task.status === "open" && (
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "in_progress" })}>Inizia</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ id: task.id, status: "in_progress" })}>Inizia</Button>
                     )}
                     {task.status === "in_progress" && (
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "completed" })}>Completa</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ id: task.id, status: "completed" })}>Completa</Button>
                     )}
                     {task.status === "completed" && (
-                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "open" })}>Riapri</Button>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ id: task.id, status: "open" })}>Riapri</Button>
                     )}
                   </div>
                 </div>
@@ -285,8 +366,11 @@ export default function AdminCSTasks() {
                     </TableCell>
                     <TableCell className="text-sm">{companyMap.get(task.company_id) || "—"}</TableCell>
                     <TableCell>{priorityBadge(task.priority)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {task.due_date ? format(new Date(task.due_date), "dd/MM/yy") : "—"}
+                    <TableCell className={`text-sm ${isOverdue(task) ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                      <div className="flex items-center gap-2">
+                        <span>{task.due_date ? format(new Date(task.due_date), "dd/MM/yy") : "—"}</span>
+                        {isOverdue(task) && <Badge variant="destructive" className="text-[10px]">Scaduto</Badge>}
+                      </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {format(new Date(task.created_at), "dd/MM", { locale: it })}
@@ -294,17 +378,17 @@ export default function AdminCSTasks() {
                     <TableCell>
                       <div className="flex gap-1">
                         {task.status === "open" && (
-                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "in_progress" })}>
+                          <Button variant="outline" size="sm" className="h-7 text-xs" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ id: task.id, status: "in_progress" })}>
                             Inizia
                           </Button>
                         )}
                         {task.status === "in_progress" && (
-                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "completed" })}>
+                          <Button variant="outline" size="sm" className="h-7 text-xs" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ id: task.id, status: "completed" })}>
                             Completa
                           </Button>
                         )}
                         {task.status === "completed" && (
-                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: task.id, status: "open" })}>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ id: task.id, status: "open" })}>
                             Riapri
                           </Button>
                         )}

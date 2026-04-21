@@ -84,6 +84,8 @@ function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { 
       setShowWarning(false);
       setShowConfirm(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.revenueIntelligence() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] });
     },
     onError: () => toast.error("Errore nell'estensione del trial"),
   });
@@ -175,7 +177,7 @@ export default function CompanyLifecycle() {
   const suspendedCompanies = healthScores.filter((h) => h.status === "suspended");
 
   const filterBySearch = (list: typeof healthScores) =>
-    list.filter((c) => c.companyName.toLowerCase().includes(search.toLowerCase()));
+    list.filter((c) => String(c.companyName ?? "").toLowerCase().includes(search.toLowerCase()));
 
   const filteredTrial = filterBySearch(trialCompanies);
   const filteredExpired = filterBySearch(expiredCompanies);
@@ -200,7 +202,7 @@ export default function CompanyLifecycle() {
       </div>
 
       <Tabs defaultValue="trial">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="trial">
             Trial attivi ({trialCompanies.length})
           </TabsTrigger>
@@ -227,7 +229,7 @@ export default function CompanyLifecycle() {
               return (
                 <Card key={company.companyId}>
                   <CardContent className="pt-6">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-3">
                           <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
@@ -252,7 +254,7 @@ export default function CompanyLifecycle() {
                         </div>
                         <OnboardingProgress steps={steps} />
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         <TrialExtensionButton companyId={company.companyId} currentEnd={company.trialEndsAt} extensionsCount={company.trialExtensionsCount} />
                         <Button size="sm" variant="ghost" asChild>
                           <Link to={`/admin/aziende/${company.companyId}`}>
@@ -275,7 +277,7 @@ export default function CompanyLifecycle() {
             filteredActive.map((company) => (
               <Card key={company.companyId}>
                 <CardContent className="pt-6">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
@@ -313,7 +315,7 @@ export default function CompanyLifecycle() {
             filteredSuspended.map((company) => (
               <Card key={company.companyId}>
                 <CardContent className="pt-6">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
@@ -330,7 +332,7 @@ export default function CompanyLifecycle() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                       {company.trialEndsAt && (
                         <TrialExtensionButton companyId={company.companyId} currentEnd={company.trialEndsAt} extensionsCount={company.trialExtensionsCount} />
                       )}
@@ -356,7 +358,7 @@ export default function CompanyLifecycle() {
               return (
                 <Card key={company.companyId}>
                   <CardContent className="pt-6">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-3">
                           <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center">
@@ -376,7 +378,7 @@ export default function CompanyLifecycle() {
                         </div>
                         <OnboardingProgress steps={steps} />
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         <TrialExtensionButton companyId={company.companyId} currentEnd={company.trialEndsAt} extensionsCount={company.trialExtensionsCount} />
                         <Button size="sm" variant="ghost" asChild>
                           <Link to={`/admin/aziende/${company.companyId}`}>
