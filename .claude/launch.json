@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "edilizia-dev",
-      "runtimeExecutable": "/Users/florinandriciuc/.bun/bin/bun",
+      "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 8080
     }
