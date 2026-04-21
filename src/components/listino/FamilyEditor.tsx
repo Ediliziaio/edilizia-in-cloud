@@ -66,7 +66,13 @@ import { FamilyAxesEditor } from "./FamilyAxesEditor";
 import { FamilyGridEditor } from "./FamilyGridEditor";
 import { FamilyPricePreview } from "./FamilyPricePreview";
 import { MacroCategorieManager } from "./MacroCategorieManager";
-import type { ModalitaPrezzoBase } from "@/types/articleFamily";
+import type {
+  ModalitaPrezzoBase,
+  PrezzoBaseMode,
+  MarkupTipo,
+} from "@/types/articleFamily";
+import { applyMarkup, resolvePrezzoVendita } from "@/lib/priceMarkup";
+import { formatCurrency } from "@/lib/formatters";
 
 interface Tariffa {
   id: string;
@@ -86,7 +92,34 @@ const MODALITA_CARDS: Array<{
 ];
 
 const UM_OPTIONS = ["pz", "mq", "ml", "mc", "kg", "a_corpo"];
-const IVA_OPTIONS = [4, 5, 10, 22];
+// IVA 0% serve per acquisti intracomunitari / esteri con inversione contabile
+// (reverse charge). Le altre aliquote sono quelle italiane standard.
+const IVA_OPTIONS: Array<{ value: number; label: string; hint?: string }> = [
+  { value: 0, label: "0%", hint: "Estero / inversione contabile" },
+  { value: 4, label: "4%", hint: "Beni di prima necessità" },
+  { value: 5, label: "5%", hint: "Aliquota ridotta" },
+  { value: 10, label: "10%", hint: "Aliquota ridotta" },
+  { value: 22, label: "22%", hint: "Ordinaria" },
+];
+
+const PREZZO_MODE_CARDS: Array<{
+  value: PrezzoBaseMode;
+  label: string;
+  descrizione: string;
+}> = [
+  {
+    value: "vendita",
+    label: "Prezzo di vendita",
+    descrizione:
+      "Carico direttamente il prezzo finale al cliente. Nessun margine calcolato.",
+  },
+  {
+    value: "acquisto_markup",
+    label: "Prezzo di acquisto + markup",
+    descrizione:
+      "Carico il prezzo del fornitore. Il prezzo di vendita viene calcolato automaticamente.",
+  },
+];
 
 export function FamilyEditor() {
   const { id } = useParams<{ id: string }>();
@@ -112,9 +145,13 @@ export function FamilyEditor() {
   const [grigliaXLabel, setGrigliaXLabel] = useState("Larghezza (mm)");
   const [grigliaYLabel, setGrigliaYLabel] = useState("Altezza (mm)");
 
-  // Step 2
+  // Step 2 — prezzi + strategia markup
+  const [prezzoBaseMode, setPrezzoBaseMode] =
+    useState<PrezzoBaseMode>("vendita");
   const [prezzoVendita, setPrezzoVendita] = useState("0");
   const [prezzoAcquisto, setPrezzoAcquisto] = useState("0");
+  const [markupTipo, setMarkupTipo] = useState<MarkupTipo>("none");
+  const [markupValore, setMarkupValore] = useState("0");
 
   // Step 4
   const [posaTariffaId, setPosaTariffaId] = useState<string | "none">("none");
@@ -145,6 +182,17 @@ export function FamilyEditor() {
       setGrigliaYLabel(family.griglia_asse_y_label);
       setPrezzoVendita(String(family.prezzo_base_vendita));
       setPrezzoAcquisto(String(family.prezzo_base_acquisto));
+      // Nuovi campi dalla migration 20260421000002. Fino alla rigenerazione
+      // dei types potrebbero non essere presenti sull'oggetto — fallback
+      // ai default del DB ('vendita'/'none'/0).
+      const fx = family as unknown as {
+        prezzo_base_mode?: PrezzoBaseMode | null;
+        markup_tipo?: MarkupTipo | null;
+        markup_valore?: number | null;
+      };
+      setPrezzoBaseMode(fx.prezzo_base_mode ?? "vendita");
+      setMarkupTipo(fx.markup_tipo ?? "none");
+      setMarkupValore(String(fx.markup_valore ?? 0));
       setPosaTariffaId(family.posa_tariffa_default_id ?? "none");
       setPosaQuantita(String(family.posa_quantita_default));
       // `posa_linked` arriva dalla migration Step 3; fino alla rigenerazione
@@ -189,21 +237,58 @@ export function FamilyEditor() {
     },
   });
 
+  // Prezzo vendita effettivo: calcolato da acquisto+markup se mode dice così,
+  // oppure input diretto. Serve sia al salvataggio che alla preview inline.
+  const prezzoVenditaCalcolato = useMemo(
+    () =>
+      resolvePrezzoVendita({
+        prezzoBaseMode,
+        prezzoVenditaInput: parseFloat(prezzoVendita) || 0,
+        prezzoAcquistoInput: parseFloat(prezzoAcquisto) || 0,
+        markupTipo,
+        markupValore: parseFloat(markupValore) || 0,
+      }),
+    [prezzoBaseMode, prezzoVendita, prezzoAcquisto, markupTipo, markupValore],
+  );
+
+  const markupPreview = useMemo(() => {
+    if (prezzoBaseMode !== "acquisto_markup") return null;
+    return applyMarkup({
+      prezzoAcquisto: parseFloat(prezzoAcquisto) || 0,
+      markupTipo,
+      markupValore: parseFloat(markupValore) || 0,
+    });
+  }, [prezzoBaseMode, prezzoAcquisto, markupTipo, markupValore]);
+
   // ── Salvataggio Step 1 (crea/aggiorna dati base) ───────────────────────
   const saveBase = async (): Promise<string | null> => {
     const vertical =
       (effectiveCompany as { vertical?: string } | null)?.vertical ?? "generico";
+    // IVA: accetta 0 (estero/reverse charge). Il vecchio fallback a 22 su NaN
+    // resta per proteggerci da stringhe vuote, ma 0 è un valore valido.
+    const parsedVat = parseFloat(vatRate);
+    const vat_rate = Number.isFinite(parsedVat) ? parsedVat : 22;
+
+    const prezzoAcquistoNum = parseFloat(prezzoAcquisto) || 0;
+    const prezzoVenditaNum =
+      prezzoBaseMode === "acquisto_markup"
+        ? prezzoVenditaCalcolato // cache derivata, tenuta allineata al markup
+        : parseFloat(prezzoVendita) || 0;
+
     const payload = {
       nome: nome.trim(),
       categoria_id: categoriaId === "none" ? null : categoriaId,
       descrizione: descrizione.trim() || null,
       modalita_prezzo_base: modalita,
       unit_of_measure: unitOfMeasure,
-      vat_rate: parseFloat(vatRate) || 22,
+      vat_rate,
       griglia_asse_x_label: grigliaXLabel,
       griglia_asse_y_label: grigliaYLabel,
-      prezzo_base_vendita: parseFloat(prezzoVendita) || 0,
-      prezzo_base_acquisto: parseFloat(prezzoAcquisto) || 0,
+      prezzo_base_mode: prezzoBaseMode,
+      prezzo_base_vendita: prezzoVenditaNum,
+      prezzo_base_acquisto: prezzoAcquistoNum,
+      markup_tipo: markupTipo,
+      markup_valore: parseFloat(markupValore) || 0,
       posa_tariffa_default_id: posaTariffaId === "none" ? null : posaTariffaId,
       posa_quantita_default: parseFloat(posaQuantita) || 1,
       posa_linked: posaLinked,
@@ -492,13 +577,29 @@ export function FamilyEditor() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {IVA_OPTIONS.map((v) => (
-                            <SelectItem key={v} value={String(v)}>
-                              {v}%
+                          {IVA_OPTIONS.map((iva) => (
+                            <SelectItem
+                              key={iva.value}
+                              value={String(iva.value)}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="font-medium">{iva.label}</span>
+                                {iva.hint ? (
+                                  <span className="text-xs text-muted-foreground">
+                                    — {iva.hint}
+                                  </span>
+                                ) : null}
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {parseFloat(vatRate) === 0 ? (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          IVA 0% tipica di acquisti intracomunitari / esteri con
+                          inversione contabile (reverse charge).
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -560,35 +661,191 @@ export function FamilyEditor() {
                   <CardHeader>
                     <CardTitle className="text-base">Prezzo base</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Applicato come moltiplicatore o valore fisso a seconda della modalità scelta.
+                      Scegli come gestire il prezzo: direttamente quello di
+                      vendita o quello di acquisto con un markup.
                     </p>
                   </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-3">
+                  <CardContent className="space-y-4">
+                    {/* Selettore modalità prezzo */}
                     <div>
-                      <Label htmlFor="f-prezzo-vendita">Prezzo vendita</Label>
-                      <Input
-                        id="f-prezzo-vendita"
-                        type="number"
-                        step="0.01"
-                        value={prezzoVendita}
-                        onChange={(e) => setPrezzoVendita(e.target.value)}
-                      />
+                      <Label>Modalità gestione prezzo</Label>
+                      <RadioGroup
+                        value={prezzoBaseMode}
+                        onValueChange={(v) =>
+                          setPrezzoBaseMode(v as PrezzoBaseMode)
+                        }
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2"
+                      >
+                        {PREZZO_MODE_CARDS.map((m) => (
+                          <label
+                            key={m.value}
+                            htmlFor={`price-mode-${m.value}`}
+                            className={`flex gap-3 p-3 border rounded-md cursor-pointer transition-all ${prezzoBaseMode === m.value ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "hover:border-primary/50"}`}
+                          >
+                            <RadioGroupItem
+                              id={`price-mode-${m.value}`}
+                              value={m.value}
+                              className="mt-0.5"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm">
+                                {m.label}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {m.descrizione}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </RadioGroup>
                     </div>
-                    <div>
-                      <Label htmlFor="f-prezzo-acquisto">Prezzo acquisto</Label>
-                      <Input
-                        id="f-prezzo-acquisto"
-                        type="number"
-                        step="0.01"
-                        value={prezzoAcquisto}
-                        onChange={(e) => setPrezzoAcquisto(e.target.value)}
-                      />
-                    </div>
-                    <div className="col-span-2 flex justify-end">
-                      <Button onClick={saveBase} disabled={!canSaveBase || saving}>
+
+                    {/* Branch: prezzo vendita diretto */}
+                    {prezzoBaseMode === "vendita" ? (
+                      <div>
+                        <Label htmlFor="f-prezzo-vendita">
+                          Prezzo di vendita (€)
+                        </Label>
+                        <Input
+                          id="f-prezzo-vendita"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={prezzoVendita}
+                          onChange={(e) => setPrezzoVendita(e.target.value)}
+                          className="max-w-xs"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Prezzo finale al cliente. Nessun margine calcolato.
+                        </p>
+                      </div>
+                    ) : (
+                      /* Branch: acquisto + markup → vendita derivata */
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="f-prezzo-acquisto">
+                              Prezzo di acquisto (€)
+                            </Label>
+                            <Input
+                              id="f-prezzo-acquisto"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={prezzoAcquisto}
+                              onChange={(e) =>
+                                setPrezzoAcquisto(e.target.value)
+                              }
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Costo dal fornitore (listino).
+                            </p>
+                          </div>
+                          <div>
+                            <Label htmlFor="f-markup-tipo">Tipo markup</Label>
+                            <Select
+                              value={markupTipo}
+                              onValueChange={(v) =>
+                                setMarkupTipo(v as MarkupTipo)
+                              }
+                            >
+                              <SelectTrigger id="f-markup-tipo">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">
+                                  Nessun ricarico
+                                </SelectItem>
+                                <SelectItem value="percentuale">
+                                  Percentuale (%)
+                                </SelectItem>
+                                <SelectItem value="fisso_pz">
+                                  Euro al pezzo (€)
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        {markupTipo !== "none" ? (
+                          <div className="max-w-xs">
+                            <Label htmlFor="f-markup-valore">
+                              {markupTipo === "percentuale"
+                                ? "Markup (%)"
+                                : "Markup (€/pz)"}
+                            </Label>
+                            <Input
+                              id="f-markup-valore"
+                              type="number"
+                              step={
+                                markupTipo === "percentuale" ? "0.1" : "0.01"
+                              }
+                              min="0"
+                              value={markupValore}
+                              onChange={(e) =>
+                                setMarkupValore(e.target.value)
+                              }
+                              placeholder={
+                                markupTipo === "percentuale"
+                                  ? "es. 45"
+                                  : "es. 120"
+                              }
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {markupTipo === "percentuale"
+                                ? "Ricarico in percentuale sul prezzo di acquisto."
+                                : "Ricarico fisso in euro per ogni pezzo."}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {/* Preview calcolo vendita */}
+                        <div className="rounded-md border bg-muted/30 p-3">
+                          <div className="text-xs text-muted-foreground mb-1">
+                            Prezzo di vendita calcolato
+                          </div>
+                          <div className="flex items-baseline gap-3 flex-wrap">
+                            <div className="text-2xl font-semibold">
+                              {formatCurrency(prezzoVenditaCalcolato)}
+                            </div>
+                            {markupPreview && markupPreview.prezzoVendita > 0 ? (
+                              <div className="text-xs text-muted-foreground flex gap-3 flex-wrap">
+                                <span>
+                                  Margine:{" "}
+                                  <span className="font-medium text-foreground">
+                                    {formatCurrency(markupPreview.margineEuro)}
+                                  </span>
+                                </span>
+                                {markupPreview.marginePercentualeSuVendita !==
+                                null ? (
+                                  <span>
+                                    Su vendita:{" "}
+                                    <span className="font-medium text-foreground">
+                                      {markupPreview.marginePercentualeSuVendita.toFixed(
+                                        1,
+                                      )}
+                                      %
+                                    </span>
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        onClick={saveBase}
+                        disabled={!canSaveBase || saving}
+                      >
                         {saving ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
+                            <Loader2
+                              className="h-4 w-4 mr-2 animate-spin"
+                              aria-hidden="true"
+                            />
                             Salvataggio…
                           </>
                         ) : (
@@ -717,7 +974,51 @@ export function FamilyEditor() {
                     />
                     <Row label="Modalità prezzo" value={family.modalita_prezzo_base} />
                     <Row label="UM" value={family.unit_of_measure} />
-                    <Row label="IVA" value={`${family.vat_rate}%`} />
+                    <Row
+                      label="IVA"
+                      value={
+                        family.vat_rate === 0
+                          ? "0% (estero / reverse charge)"
+                          : `${family.vat_rate}%`
+                      }
+                    />
+                    <Row
+                      label="Gestione prezzo"
+                      value={
+                        prezzoBaseMode === "vendita"
+                          ? "Vendita diretta"
+                          : "Acquisto + markup"
+                      }
+                    />
+                    {prezzoBaseMode === "acquisto_markup" ? (
+                      <>
+                        <Row
+                          label="Prezzo acquisto"
+                          value={formatCurrency(
+                            parseFloat(prezzoAcquisto) || 0,
+                          )}
+                        />
+                        <Row
+                          label="Markup"
+                          value={
+                            markupTipo === "none"
+                              ? "Nessuno"
+                              : markupTipo === "percentuale"
+                                ? `+${parseFloat(markupValore) || 0}%`
+                                : `+${formatCurrency(parseFloat(markupValore) || 0)}/pz`
+                          }
+                        />
+                        <Row
+                          label="Prezzo vendita calcolato"
+                          value={formatCurrency(prezzoVenditaCalcolato)}
+                        />
+                      </>
+                    ) : (
+                      <Row
+                        label="Prezzo vendita"
+                        value={formatCurrency(parseFloat(prezzoVendita) || 0)}
+                      />
+                    )}
                     <Row
                       label="Posa"
                       value={

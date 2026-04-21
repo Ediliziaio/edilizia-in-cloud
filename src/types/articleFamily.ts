@@ -10,6 +10,26 @@
 /** Modalità di calcolo prezzo a livello famiglia. */
 export type ModalitaPrezzoBase = "pz" | "mq" | "griglia" | "misura_libera";
 
+/**
+ * Strategia di gestione del prezzo base.
+ *  - "vendita":         l'utente carica direttamente il prezzo di vendita
+ *                       (nessun margine calcolato). Tipico delle aziende
+ *                       che impongono un prezzo di cartellino fisso.
+ *  - "acquisto_markup": l'utente carica il prezzo di ACQUISTO dal fornitore
+ *                       e definisce un markup (percentuale o fisso €/pz).
+ *                       Il prezzo di vendita viene derivato tramite
+ *                       `applyMarkup()` (src/lib/priceMarkup.ts).
+ */
+export type PrezzoBaseMode = "vendita" | "acquisto_markup";
+
+/**
+ * Tipo di markup applicato quando prezzo_base_mode = "acquisto_markup".
+ *  - "none":        nessun ricarico (vendita = acquisto).
+ *  - "percentuale": vendita = acquisto * (1 + markup_valore/100).
+ *  - "fisso_pz":    vendita = acquisto + markup_valore (€ al pezzo).
+ */
+export type MarkupTipo = "none" | "percentuale" | "fisso_pz";
+
 /** Tipo di maggiorazione applicata da un valore di asse. */
 export type MaggiorazioneTipo =
   | "none"
@@ -32,8 +52,18 @@ export interface ArticleFamily {
   immagine_url: string | null;
   pdf_scheda_url: string | null;
   modalita_prezzo_base: ModalitaPrezzoBase;
+  /**
+   * Strategia gestione prezzo: "vendita" diretto o "acquisto_markup" con
+   * calcolo derivato. Aggiunto dalla migration 20260421000002. Retrocompat:
+   * righe pre-migration hanno "vendita" per default.
+   */
+  prezzo_base_mode: PrezzoBaseMode;
   prezzo_base_vendita: number;
   prezzo_base_acquisto: number;
+  /** Tipo markup quando prezzo_base_mode="acquisto_markup". */
+  markup_tipo: MarkupTipo;
+  /** Valore markup (percentuale oppure euro al pezzo a seconda di markup_tipo). */
+  markup_valore: number;
   vat_rate: number;
   unit_of_measure: string;
   posa_tariffa_default_id: string | null;
