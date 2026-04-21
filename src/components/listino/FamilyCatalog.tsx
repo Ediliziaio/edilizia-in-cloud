@@ -44,6 +44,7 @@ import {
   Wrench,
   ShoppingCart,
   ArrowDownRight,
+  MoreVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -74,10 +75,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   HoverCard,
   HoverCardContent,
@@ -225,9 +228,11 @@ export function FamilyCatalog() {
   const [toDelete, setToDelete] = useState<FamilyWithAxes | null>(null);
   const [toDuplicate, setToDuplicate] = useState<FamilyWithAxes | null>(null);
   const [dupName, setDupName] = useState("");
-  // "Sposta" inline popover: id articolo aperto, selezione temporanea.
-  // Un solo popover aperto alla volta (string = family id, null = chiuso).
-  const [moveOpenId, setMoveOpenId] = useState<string | null>(null);
+  // "Sposta" dialog: l'articolo selezionato (null = chiuso) e la selezione
+  // temporanea macro/cat controllata. Era un Popover annidato nella Card, ma
+  // creava overflow orizzontale con 3 bottoni in orizzontale su griglia
+  // densa. Un Dialog esterno e' piu' pulito e allineato a Duplica/Elimina.
+  const [toMove, setToMove] = useState<FamilyWithAxes | null>(null);
   const [moveMacroId, setMoveMacroId] = useState<string>(NO_MACRO);
   const [moveCatId, setMoveCatId] = useState<string>(NO_CAT);
   // Cestino
@@ -383,14 +388,14 @@ export function FamilyCatalog() {
   };
 
   /**
-   * Apre il popover "Sposta" preimpostando macro+cat correnti dell'articolo.
+   * Apre il Dialog "Sposta" preimpostando macro+cat correnti dell'articolo.
    * Evita di caricare i valori a ogni apertura → UX più fluida.
    */
   const openMove = (f: FamilyWithAxes) => {
     const currentCat = f.categoria_id ? categoriaById.get(f.categoria_id) : null;
     setMoveMacroId(currentCat?.macrocategoria_id ?? NO_MACRO);
     setMoveCatId(currentCat?.id ?? NO_CAT);
-    setMoveOpenId(f.id);
+    setToMove(f);
   };
 
   /**
@@ -406,7 +411,7 @@ export function FamilyCatalog() {
         patch: { categoria_id: newCatId } as never,
       });
       toast.success("Articolo spostato");
-      setMoveOpenId(null);
+      setToMove(null);
     } catch (err) {
       toast.error("Errore spostamento", {
         description: err instanceof Error ? err.message : "Errore sconosciuto",
@@ -655,17 +660,11 @@ export function FamilyCatalog() {
                       const catName = catGroup.categoriaNome;
                       const macroName = macroGroup.macroNome;
                       const econ = computeEconomics(f);
-                      // Disabilita la HoverCard quando per questa card e' aperto
-                      // il Popover "Sposta": evita che l'anteprima si sovrapponga
-                      // al popover di selezione macrocategoria/categoria.
-                      const hoverOpenProps =
-                        moveOpenId === f.id ? { open: false } : {};
                       return (
                         <HoverCard
                           key={f.id}
                           openDelay={2000}
                           closeDelay={150}
-                          {...hoverOpenProps}
                         >
                           <HoverCardTrigger asChild>
                           <Card
@@ -775,192 +774,88 @@ export function FamilyCatalog() {
                                   </span>
                                 )}
                               </div>
-                              {isAdmin && (
-                                <div
-                                  className="flex gap-1 pt-2 border-t md:opacity-0 md:translate-y-1 md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-focus-within:opacity-100 md:group-focus-within:translate-y-0 md:transition-all"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-9 flex-1 sm:flex-initial"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setToDuplicate(f);
-                                      setDupName(`${f.nome} (copia)`);
-                                    }}
-                                    aria-label={`Duplica ${f.nome}`}
-                                  >
-                                    <CopyPlus
-                                      className="h-4 w-4 sm:mr-1"
-                                      aria-hidden="true"
-                                    />
-                                    <span className="hidden sm:inline">Duplica</span>
-                                  </Button>
-                                  <Popover
-                                    open={moveOpenId === f.id}
-                                    onOpenChange={(open) => {
-                                      if (!open) setMoveOpenId(null);
-                                    }}
-                                  >
-                                    <PopoverTrigger asChild>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-9 flex-1 sm:flex-initial"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openMove(f);
-                                        }}
-                                        aria-label={`Sposta ${f.nome}`}
-                                      >
-                                        <FolderSymlink
-                                          className="h-4 w-4 sm:mr-1"
-                                          aria-hidden="true"
-                                        />
-                                        <span className="hidden sm:inline">Sposta</span>
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                      className="w-72"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <div className="space-y-3">
-                                        <div>
-                                          <h4 className="font-medium text-sm">
-                                            Sposta articolo
-                                          </h4>
-                                          <p className="text-xs text-muted-foreground">
-                                            Scegli macrocategoria e categoria
-                                            di destinazione.
-                                          </p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          <Label
-                                            htmlFor={`move-macro-${f.id}`}
-                                            className="text-xs"
-                                          >
-                                            Macrocategoria
-                                          </Label>
-                                          <Select
-                                            value={moveMacroId}
-                                            onValueChange={(v) => {
-                                              setMoveMacroId(v);
-                                              // Reset cat quando cambia macro:
-                                              // la cat corrente potrebbe non
-                                              // appartenere alla nuova macro.
-                                              setMoveCatId(NO_CAT);
-                                            }}
-                                          >
-                                            <SelectTrigger
-                                              id={`move-macro-${f.id}`}
-                                              className="h-9"
-                                            >
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value={NO_MACRO}>
-                                                Senza macrocategoria
-                                              </SelectItem>
-                                              {macrocategorie.map((m) => (
-                                                <SelectItem
-                                                  key={m.id}
-                                                  value={m.id}
-                                                >
-                                                  {m.nome}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          <Label
-                                            htmlFor={`move-cat-${f.id}`}
-                                            className="text-xs"
-                                          >
-                                            Categoria
-                                          </Label>
-                                          <Select
-                                            value={moveCatId}
-                                            onValueChange={setMoveCatId}
-                                          >
-                                            <SelectTrigger
-                                              id={`move-cat-${f.id}`}
-                                              className="h-9"
-                                            >
-                                              <SelectValue placeholder="Nessuna" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value={NO_CAT}>
-                                                Senza categoria
-                                              </SelectItem>
-                                              {moveCategorieDisponibili.map(
-                                                (c) => (
-                                                  <SelectItem
-                                                    key={c.id}
-                                                    value={c.id}
-                                                  >
-                                                    {c.nome}
-                                                  </SelectItem>
-                                                ),
-                                              )}
-                                            </SelectContent>
-                                          </Select>
-                                          {moveCategorieDisponibili.length === 0 ? (
-                                            <p className="text-xs text-muted-foreground">
-                                              Nessuna categoria in questa
-                                              macrocategoria.
-                                            </p>
-                                          ) : null}
-                                        </div>
-                                        <div className="flex justify-end gap-2 pt-1">
-                                          <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => setMoveOpenId(null)}
-                                            disabled={updateFamily.isPending}
-                                          >
-                                            Annulla
-                                          </Button>
-                                          <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => handleMove(f.id)}
-                                            disabled={updateFamily.isPending}
-                                          >
-                                            {updateFamily.isPending ? (
-                                              <Loader2
-                                                className="h-3.5 w-3.5 animate-spin"
-                                                aria-hidden="true"
-                                              />
-                                            ) : (
-                                              "Sposta"
-                                            )}
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-9 flex-1 sm:flex-initial text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setToDelete(f);
-                                    }}
-                                    aria-label={`Elimina ${f.nome}`}
-                                  >
-                                    <Trash2
-                                      className="h-4 w-4 sm:mr-1"
-                                      aria-hidden="true"
-                                    />
-                                    <span className="hidden sm:inline">Elimina</span>
-                                  </Button>
-                                </div>
-                              )}
                             </CardContent>
+                            {/* Kebab menu (⋮) in top-right della Card: compatta
+                                le 3 azioni (Duplica/Sposta/Elimina) in un
+                                singolo trigger che non sforza lo spazio
+                                orizzontale. Su desktop: hidden finche' la card
+                                non e' in hover/focus (coerente con l'idea di
+                                UI pulita). Su mobile/touch: sempre visibile
+                                perche' non c'e' hover. */}
+                            {isAdmin && (
+                              <div
+                                className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:transition-opacity"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm shadow-sm hover:bg-background border border-border/40"
+                                      onClick={(e) => e.stopPropagation()}
+                                      onKeyDown={(e) => {
+                                        // Impedisce che Enter/Space sul kebab
+                                        // triggeri la navigazione della Card.
+                                        if (e.key === "Enter" || e.key === " ") {
+                                          e.stopPropagation();
+                                        }
+                                      }}
+                                      aria-label={`Azioni per ${f.nome}`}
+                                    >
+                                      <MoreVertical
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                      />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setToDuplicate(f);
+                                        setDupName(`${f.nome} (copia)`);
+                                      }}
+                                    >
+                                      <CopyPlus
+                                        className="h-4 w-4 mr-2"
+                                        aria-hidden="true"
+                                      />
+                                      Duplica
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openMove(f);
+                                      }}
+                                    >
+                                      <FolderSymlink
+                                        className="h-4 w-4 mr-2"
+                                        aria-hidden="true"
+                                      />
+                                      Sposta
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setToDelete(f);
+                                      }}
+                                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                    >
+                                      <Trash2
+                                        className="h-4 w-4 mr-2"
+                                        aria-hidden="true"
+                                      />
+                                      Elimina
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            )}
                           </Card>
                           </HoverCardTrigger>
                           <HoverCardContent
@@ -1270,6 +1165,105 @@ export function FamilyCatalog() {
                 </>
               ) : (
                 "Duplica"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog sposta articolo (cambio macrocategoria/categoria).
+          Era un Popover inline sulla Card ma creava overflow su griglia
+          densa; convertito a Dialog per coerenza con Duplica/Elimina. */}
+      <Dialog
+        open={!!toMove}
+        onOpenChange={(open) => {
+          if (updateFamily.isPending) return;
+          if (!open) setToMove(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sposta articolo</DialogTitle>
+            <DialogDescription>
+              Scegli macrocategoria e categoria di destinazione per{" "}
+              &quot;{toMove?.nome}&quot;.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="move-macro" className="text-xs">
+                Macrocategoria
+              </Label>
+              <Select
+                value={moveMacroId}
+                onValueChange={(v) => {
+                  setMoveMacroId(v);
+                  // Reset cat quando cambia macro: la cat corrente potrebbe
+                  // non appartenere alla nuova macro.
+                  setMoveCatId(NO_CAT);
+                }}
+              >
+                <SelectTrigger id="move-macro" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_MACRO}>Senza macrocategoria</SelectItem>
+                  {macrocategorie.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="move-cat" className="text-xs">
+                Categoria
+              </Label>
+              <Select value={moveCatId} onValueChange={setMoveCatId}>
+                <SelectTrigger id="move-cat" className="h-10">
+                  <SelectValue placeholder="Nessuna" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CAT}>Senza categoria</SelectItem>
+                  {moveCategorieDisponibili.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {moveCategorieDisponibili.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nessuna categoria in questa macrocategoria.
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setToMove(null)}
+              disabled={updateFamily.isPending}
+              className="h-10 w-full sm:w-auto"
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={() => toMove && handleMove(toMove.id)}
+              disabled={updateFamily.isPending}
+              className="h-10 w-full sm:w-auto"
+            >
+              {updateFamily.isPending ? (
+                <>
+                  <Loader2
+                    className="h-4 w-4 mr-2 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Spostamento…
+                </>
+              ) : (
+                "Sposta"
               )}
             </Button>
           </DialogFooter>
