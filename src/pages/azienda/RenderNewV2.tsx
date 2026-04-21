@@ -36,6 +36,22 @@ const MAX_POLL_SEC = 180;
 
 const STEP_LABELS = ["Foto", "Tipo", "Profilo", "Colori", "Opzioni", "Render"];
 
+function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Impossibile leggere le dimensioni della foto."));
+    };
+    img.src = url;
+  });
+}
+
 // ── Default wizard state ──────────────────────────────────────────────────────
 const INITIAL_STATE: WizardState = {
   tipo: "",
@@ -60,6 +76,7 @@ export default function RenderNewV2() {
   const [step, setStep] = useState(1);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoDimensions, setPhotoDimensions] = useState<{ width: number; height: number } | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
@@ -91,7 +108,7 @@ export default function RenderNewV2() {
   // ── File handling ──────────────────────────────────────────────────────────
   const handleFileChange = (f: File | null) => {
     if (!f) {
-      setPhoto(null); setPhotoPreview(null); setPhotoPath(null); setSessionId(null);
+      setPhoto(null); setPhotoPreview(null); setPhotoDimensions(null); setPhotoPath(null); setSessionId(null);
       return;
     }
     if (f.size > 20 * 1024 * 1024) {
@@ -100,8 +117,12 @@ export default function RenderNewV2() {
     }
     setPhoto(f);
     setPhotoPreview(URL.createObjectURL(f));
+    setPhotoDimensions(null);
     setPhotoPath(null);
     setSessionId(null);
+    void readImageDimensions(f)
+      .then(setPhotoDimensions)
+      .catch(() => setPhotoDimensions(null));
   };
 
   // ── Upload + create session (when user clicks "Avanti" from step 1) ────────
@@ -242,6 +263,8 @@ export default function RenderNewV2() {
         body: {
           session_id: sessionId,
           config,
+          target_width: photoDimensions?.width,
+          target_height: photoDimensions?.height,
         },
       });
 
@@ -268,7 +291,7 @@ export default function RenderNewV2() {
       setGenerateError(message);
       toast.error(message);
     }
-  }, [sessionId, companyId, state, queryClient]);
+  }, [sessionId, companyId, state, photoDimensions, queryClient]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }

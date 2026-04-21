@@ -22,7 +22,7 @@ const MATERIAL_PHYSICS: Record<string, string> = {
 // ── APERTURA_DESCRIPTION ──────────────────────────────────────────────────────
 const APERTURA_DESCRIPTION: Record<string, string> = {
   battente_1_anta: "single-leaf inward-opening casement window — ONE sash panel hinged on the LEFT or RIGHT side, operated by a single lever handle on the opposite stile, 2 hinges visible on the hinge side stile (top and bottom), center-of-glass gasket line visible",
-  battente_2_ante: "double-leaf inward-opening casement window — TWO equal sash panels meeting at center, each hinged on its outer side stile, 2 hinges per sash = 4 hinges total (2 visible on left stile, 2 on right stile), each sash has its own lever handle near the center meeting stile, center rebate/espagnolette bolt visible where panels meet",
+  battente_2_ante: "double-leaf inward-opening casement window — TWO equal sash panels meeting at center, exactly 2 visible hinges total on the window (one upper hinge and one lower hinge on the hinge-side stile), lever handle near the center meeting stile, center rebate/espagnolette bolt visible where panels meet",
   battente_3_ante: "triple-leaf casement window — THREE panels, typically center panel fixed (no hinges, no handle) flanked by two opening sashes each with 2 hinges and a handle, visible central fixed mullion and two moving sash dividers",
   scorrevole: "horizontal sliding window — two or more panels sliding on visible aluminum top rail and bottom track, each panel has a flush pull handle or recessed grip, no hinges visible, only sliding hardware guides at top corners",
   scorrevole_alzante: "lift-and-slide large door/window — very large glass panels (typically 1.5-3m wide each), bottom track system with lifting hardware visible, heavy-duty multi-point lock handle on leading edge, no exposed hinges, minimal frame profile at panel edges",
@@ -187,7 +187,7 @@ function buildPromptFromConfig(session: any): {
   const blocks: Record<string, string> = {};
 
   // Block A
-  blocks.A = `[BLOCK A – ROLE & MISSION]\nYou are a SURGICAL PHOTOREALISTIC IMAGE EDITOR for architectural visualization. Your ONLY task: replace EXACTLY the specified building elements while leaving EVERYTHING ELSE 100% pixel-perfect identical. This is PRECISE SURGICAL REPLACEMENT, not artistic interpretation.\n\nCRITICAL RENDERING RULES:\n1. If the frame color is a SOLID RAL color: render perfectly uniform flat color with NO wood grain, NO natural texture variation, NO organic patterns. Only the specified finish texture (matte/glossy/satin) is allowed.\n2. If the frame color is a WOOD EFFECT laminate: render realistic wood grain pattern with natural color variation, visible grain direction running along the frame length, knot patterns, and subtle depth — as a high-quality laminate film applied over PVC or aluminum substrate.\n3. Never mix these two modes — a RAL color must never show grain, and a wood effect must always show grain.\n4. Handle hardware must match the exact style and finish specified — do not default to generic lever handles.\n5. Frame profile style (nodo ridotto, minimal, classic) must be accurately represented in sight-line width and edge geometry.\n6. If cinghia/motor mode is specified, render the appropriate operating mechanism.\n7. If a transformation is requested, accurately depict the new opening type while preserving the original wall opening dimensions.\n8. All shadows, reflections, and ambient occlusion must be physically correct for the new elements.\n9. CASSONETTO — if marked ✅ REPLACE in BLOCK C, the roller shutter box ABOVE the window MUST be rendered in the exact specified color/finish.\n10. TAPPARELLA — if marked ✅ REPLACE in BLOCK C, every slat of the roller shutter MUST be rendered in the exact specified color/finish.\n11. Output image dimensions must match input image dimensions exactly.`;
+  blocks.A = `[BLOCK A – ROLE & MISSION]\nYou are a SURGICAL PHOTOREALISTIC IMAGE EDITOR for architectural visualization. Your ONLY task: replace EXACTLY the specified window frame/door-window frame and explicitly requested accessories while leaving EVERYTHING ELSE 100% pixel-perfect identical. This is PRECISE SURGICAL REPLACEMENT, not artistic interpretation.\n\nEDIT MASK RULE:\nOnly pixels belonging to the existing infisso area may change: frame, sash, glass edges, handles, hinges, gaskets, and accessories explicitly marked ✅ REPLACE. Do not repaint, redesign, relight, crop, expand, clean, sharpen, beautify, or reinterpret the surrounding room/facade.\n\nCRITICAL RENDERING RULES:\n1. Preserve the original photo composition, crop, aspect ratio, camera angle, lens perspective, focal length feel, exposure, white balance, noise/grain, and image format. The output must look like the same real photo after only the infisso was replaced.\n2. If the frame color is a SOLID RAL color: render perfectly uniform flat color with NO wood grain, NO natural texture variation, NO organic patterns. Only the specified finish texture (matte/glossy/satin) is allowed.\n3. If the frame color is a WOOD EFFECT laminate: render realistic wood grain pattern with natural color variation, visible grain direction running along the frame length, knot patterns, and subtle depth — as a high-quality laminate film applied over PVC or aluminum substrate.\n4. Never mix these two modes — a RAL color must never show grain, and a wood effect must always show grain.\n5. Handle hardware must match the exact style and finish specified — do not default to generic lever handles.\n6. Frame profile style (nodo ridotto, minimal, classic) must be accurately represented in sight-line width and edge geometry.\n7. If cinghia/motor mode is specified, render the appropriate operating mechanism.\n8. If a transformation is requested, accurately depict the new opening type while preserving the original wall opening dimensions.\n9. All shadows, reflections, and ambient occlusion must be physically correct for the new elements and match the original light direction.\n10. CASSONETTO — if marked ✅ REPLACE in BLOCK C, the roller shutter box ABOVE the window MUST be rendered in the exact specified color/finish.\n11. TAPPARELLA — if marked ✅ REPLACE in BLOCK C, every slat of the roller shutter MUST be rendered in the exact specified color/finish.\n12. For a double-leaf/two-sash window, render exactly 2 visible hinges total, not 4.\n13. Output image dimensions and aspect ratio must match input image dimensions as closely as the provider allows; never intentionally crop or pad.`;
 
   // Block B
   blocks.B = `[BLOCK B – EXISTING ELEMENTS INVENTORY]\nWindow/door type: ${APERTURA_DESCRIPTION[analisi.tipo_apertura] || analisi.tipo_apertura}\nCurrent material: ${analisi.materiale_attuale}, Color: ${analisi.colore_attuale}, Condition: ${analisi.condizioni}\nPanels: ${analisi.num_ante_attuale}, Frame depth: ${analisi.spessore_telaio}\nGlass: ${analisi.tipo_vetro_attuale}\nRoller box: ${analisi.presenza_cassonetto ? "YES — " + analisi.tipo_cassonetto : "NOT PRESENT"}\nShutter: ${analisi.presenza_tapparella ? "YES" : "NOT PRESENT"}\nBuilding: ${analisi.stile_edificio}, Wall: ${analisi.materiale_muro} (${analisi.colore_muro})\nSill: ${analisi.presenza_davanzale ? "YES" : "NO"}, Bars: ${analisi.presenza_inferriata ? "YES" : "NO"}\nFloor: ${analisi.piano}, Light: ${analisi.luce}, Angle: ${analisi.angolo_ripresa}`;
@@ -267,10 +267,14 @@ function buildPromptFromConfig(session: any): {
   // Block E
   if (sost.infissi) {
     const numAnte = nuovoInfisso.num_ante || analisi.num_ante_attuale || 1;
-    const cerPerAnta = cerniere.num_per_anta || 2;
-    const cerTotal = cerPerAnta * numAnte;
+    const isTwoLeafCasement = numAnte === 2 || analisi.tipo_apertura === "battente_2_ante";
+    const cerPerAnta = isTwoLeafCasement ? 1 : (cerniere.num_per_anta || 2);
+    const cerTotal = isTwoLeafCasement ? 2 : cerPerAnta * numAnte;
     const cerTipo = CERNIERA_DESC[cerniere.tipo] || cerniere.tipo || "standard hinge";
     const cerColore = CERNIERA_COLORE_DESC[cerniere.colore] || cerniere.colore || "silver";
+    const hingeRule = isTwoLeafCasement
+      ? "CRITICAL TWO-LEAF RULE: render EXACTLY 2 visible hinges total for the whole double-leaf window: one upper hinge and one lower hinge on the hinge-side stile. Do NOT render 4 hinges."
+      : `Total hinges: ${cerTotal} (${cerPerAnta} per sash × ${numAnte} sash${numAnte > 1 ? "es" : ""})`;
     let stileTelaioPart = "";
     const stileTelaio = nuovoInfisso.stile_telaio;
     if (stileTelaio && STILE_TELAIO_DESC[stileTelaio]) {
@@ -279,7 +283,7 @@ function buildPromptFromConfig(session: any): {
         stileTelaioPart += `\nHANDLE PLACEMENT OVERRIDE: lever handle MUST be at exact vertical CENTER of sash height.`;
       }
     }
-    blocks.E = `[BLOCK E – FRAME PROFILE & HINGE GEOMETRY]\nProfile system: ${profiloSize[profilo.dimensione] || profilo.dimensione || "standard"}\nEdge shape: ${profiloForma[profilo.forma] || profilo.forma || "standard"}${stileTelaioPart}\nPanels: ${numAnte}\n\nHINGE DETAIL:\nTotal hinges: ${cerTotal} (${cerPerAnta} per sash × ${numAnte} sash${numAnte > 1 ? "es" : ""})\nHinge type: ${cerTipo}\nHinge finish: ${cerColore}\nHinge placement: top ~200mm from top rail, bottom ~200mm from bottom rail`;
+    blocks.E = `[BLOCK E – FRAME PROFILE & HINGE GEOMETRY]\nProfile system: ${profiloSize[profilo.dimensione] || profilo.dimensione || "standard"}\nEdge shape: ${profiloForma[profilo.forma] || profilo.forma || "standard"}${stileTelaioPart}\nPanels: ${numAnte}\n\nHINGE DETAIL:\n${hingeRule}\nHinge type: ${cerTipo}\nHinge finish: ${cerColore}\nHinge placement: top ~200mm from top rail, bottom ~200mm from bottom rail\nHinges must be small, correctly scaled, aligned with the frame rebate, and casting believable micro-shadows.`;
   } else {
     blocks.E = `[BLOCK E – FRAME PROFILE — SKIPPED]\nFrame replacement not requested.`;
   }
@@ -360,14 +364,14 @@ function buildPromptFromConfig(session: any): {
     const wallExceptionNote = isStripping
       ? `\n\n⚠️ WALL EXCEPTION (strap removal):\nThe small rectangular strap-winder box area on the interior wall (and its exit slot on the exterior) is the ONE allowed wall modification — fill seamlessly with matching plaster/paint. Every other square centimeter of wall remains pixel-identical.`
       : "";
-    blocks.J = `[BLOCK J – PIXEL-PERFECT ENVIRONMENT PRESERVATION]\nThe following MUST remain 100% unchanged:\n- Wall: color (${analisi.colore_muro}), material (${analisi.materiale_muro}), texture, aging, stains\n- Window sill: ${analisi.presenza_davanzale ? "KEEP" : "NOT PRESENT — do not add"}\n- Security bars: ${analisi.presenza_inferriata ? "KEEP all bars" : "NOT PRESENT — do not add"}\n- Camera perspective: exact (${analisi.angolo_ripresa})\n- Surroundings: every pipe, cable, drain, crack, plant, neighboring window\n- Sky/background: identical\n- Lighting: same direction (${analisi.luce})${wallExceptionNote}`;
+    blocks.J = `[BLOCK J – PIXEL-PERFECT ENVIRONMENT PRESERVATION]\nThe following MUST remain 100% unchanged:\n- Photo format: same aspect ratio, same orientation, same crop, same framing; do not zoom in or zoom out\n- Wall: color (${analisi.colore_muro}), material (${analisi.materiale_muro}), texture, aging, stains\n- Window opening: same position, same size, same reveal depth, same lintel/jamb/sill geometry\n- Window sill: ${analisi.presenza_davanzale ? "KEEP" : "NOT PRESENT — do not add"}\n- Security bars: ${analisi.presenza_inferriata ? "KEEP all bars" : "NOT PRESENT — do not add"}\n- Camera perspective: exact (${analisi.angolo_ripresa}); keep all vertical/horizontal lines and vanishing points\n- Surroundings: every pipe, cable, drain, crack, plant, neighboring window, floor, furniture, curtain, reflection outside the infisso area\n- Sky/background: identical\n- Lighting: same direction (${analisi.luce}), same exposure and color temperature${wallExceptionNote}`;
   }
 
   // Block K
-  blocks.K = `[BLOCK K – PHOTOREALISTIC LIGHTING & SHADOWS]\nLighting: ${analisi.luce}\nRequired shadows:\n- Frame shadow into wall rebate (~15-25mm depth)\n- Hinge shadow from each knuckle\n- Handle shadow on frame face\n- ${analisi.presenza_cassonetto ? "Cassonetto shadow onto wall below" : "No cassonetto shadow"}\n- Glass reflection matching scene light direction\n- Ambient occlusion in wall-to-frame rebate transition`;
+  blocks.K = `[BLOCK K – PHOTOREALISTIC LIGHTING & SHADOWS]\nLighting: ${analisi.luce}\nRequired realism:\n- The result must be indistinguishable from a real window installation photograph, not a catalog render\n- Match original sensor noise, sharpness, slight blur, compression, white balance, and exposure\n- Frame shadow into wall rebate (~15-25mm depth)\n- Hinge shadow from each knuckle, correctly tiny and localized\n- Handle shadow on frame face\n- ${analisi.presenza_cassonetto ? "Cassonetto shadow onto wall below" : "No cassonetto shadow"}\n- Glass reflection matching scene light direction and original surroundings\n- Ambient occlusion in wall-to-frame rebate transition\n- Preserve existing reflections outside the edited glass/frame area`;
 
   // Block L
-  blocks.L = `[BLOCK L – ABSOLUTE NEGATIVE CONSTRAINTS]\nNEVER:\n- Change wall color, texture, or any facade element not requested\n- Alter camera perspective\n- Add elements absent in original (plants, people, extra windows)\n- Change sky/weather\n- Produce cartoon/CGI artifacts\n- Add text/watermarks\n- Distort window proportions\n- Add hinges to fixed lights\n- Add shutters/cassonetto if not requested AND none existed\n- Show wood grain on solid RAL color\n- Show flat color on wood-effect laminate\n- Change image dimensions`;
+  blocks.L = `[BLOCK L – ABSOLUTE NEGATIVE CONSTRAINTS]\nNEVER:\n- Change wall color, texture, furniture, facade, floor, ceiling, curtains, sky, vegetation, neighboring buildings, or any element not requested\n- Alter camera perspective, crop, framing, image orientation, or aspect ratio\n- Add elements absent in original (plants, people, extra windows, decorations, furniture)\n- Change sky/weather\n- Produce cartoon/CGI artifacts, plastic-looking fake render, over-smoothed AI texture, warped geometry\n- Add text/watermarks\n- Distort window proportions or wall opening dimensions\n- Add hinges to fixed lights\n- Add 4 hinges on a two-leaf window; two-leaf windows must show exactly 2 visible hinges total\n- Add shutters/cassonetto if not requested AND none existed\n- Show wood grain on solid RAL color\n- Show flat color on wood-effect laminate\n- Change image dimensions`;
 
   // Block M — Transformation
   if (trasformazione?.attiva && trasformazione.da && trasformazione.a) {
@@ -403,8 +407,11 @@ function buildPromptFromConfig(session: any): {
   if (sost.infissi && ferramenta.maniglia_stile) {
     items.push(`☐ HANDLE → ${ferramenta.maniglia_stile} in ${ferramenta.colore_hardware_finish || "chrome"} — visible on each sash`);
   }
+  if (sost.infissi && (nuovoInfisso.num_ante === 2 || analisi.tipo_apertura === "battente_2_ante")) {
+    items.push(`☐ TWO-LEAF HINGES → exactly 2 visible hinges total, not 4`);
+  }
   items.push(`☐ WALL, SILL, SURROUNDINGS → KEEP 100% identical`);
-  items.push(`☐ IMAGE DIMENSIONS → output MUST match original exactly`);
+  items.push(`☐ PHOTO FORMAT → same crop, orientation, aspect ratio, and dimensions as the original as closely as the provider allows`);
   blocks.N = `[BLOCK N – FINAL PRESERVATION CHECKLIST]\nVerify EVERY item before outputting. Regenerate if any item is wrong.\n\n${items.join("\n")}`;
 
   const systemPrompt = blocks.A;
@@ -413,9 +420,9 @@ function buildPromptFromConfig(session: any): {
   userParts.push(blocks.N);
   if (notes) userParts.push(`[ADDITIONAL NOTES]\n${notes}`);
   const userPrompt = userParts.join("\n\n");
-  const negativePrompt = "cartoon, illustration, sketch, drawing, watermark, text overlay, blurry, distorted perspective, different building, changed wall color, unrealistic lighting, 3D render, CGI artifacts, missing hinges, wrong handle style, wood grain on RAL solid color, flat color on wood-effect laminate, cassonetto unchanged when replacement was requested, wrong image dimensions";
+  const negativePrompt = "cartoon, illustration, sketch, drawing, watermark, text overlay, blurry, distorted perspective, different building, changed wall color, changed room, changed facade, changed surroundings, cropped image, zoomed image, padded image, altered aspect ratio, unrealistic lighting, 3D render, CGI artifacts, plastic fake window, over-smoothed AI texture, warped geometry, missing hinges, four hinges on two-leaf window, wrong handle style, wood grain on RAL solid color, flat color on wood-effect laminate, cassonetto unchanged when replacement was requested, wrong image dimensions";
 
-  return { systemPrompt, userPrompt, negativePrompt, promptVersion: "6.0.0", blocks };
+  return { systemPrompt, userPrompt, negativePrompt, promptVersion: "6.1.0", blocks };
 }
 
 // ── resolveRenderSize ─────────────────────────────────────────────────────────
