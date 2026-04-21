@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useVertical } from "@/hooks/useVertical";
+import { useVertical, type Vertical } from "@/hooks/useVertical";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import {
@@ -186,6 +186,41 @@ type PresetId =
   | "essenziale" | "serramentista" | "edile" | "impiantista" | "servizi"
   | "bagno" | "fotovoltaico" | "pittura" | "tetti_ripasso" | "tetti_rifacimento"
   | "scavi" | "piscine";
+
+/**
+ * Mappa il `vertical` dell'azienda ai `PresetId` di tariffe da pre-selezionare.
+ * Invocata solo alla prima apertura del dialog quando `existing.length === 0`.
+ *
+ * Razionale:
+ *  - `serramentista`, `tende_da_sole`, `vetrate` → `serramentista` (installazione
+ *    e manodopera di serramenti, tende e vetrate sono molto simili).
+ *  - `tetti` → `tetti_ripasso` (ordinario più frequente).
+ *  - `bagno` → `bagno`.
+ *  - `ristrutturazione` → `edile` (ampio, tutto murario/fissaggi).
+ *  - `caldaie`, `clima` → `impiantista` (posa + manutenzione impianti).
+ *  - `generico` → `essenziale` (selezione minima trasversale, come default
+ *    storico: non rompiamo il comportamento pre-FASE 1.2).
+ */
+function getDefaultPresetForVerticalTariffe(vertical: Vertical): PresetId {
+  switch (vertical) {
+    case "serramentista":
+    case "tende_da_sole":
+    case "vetrate":
+      return "serramentista";
+    case "tetti":
+      return "tetti_ripasso";
+    case "bagno":
+      return "bagno";
+    case "ristrutturazione":
+      return "edile";
+    case "caldaie":
+    case "clima":
+      return "impiantista";
+    case "generico":
+    default:
+      return "essenziale";
+  }
+}
 
 interface TariffaSeed extends Omit<Tariffa, "id" | "company_id"> {
   presets: PresetId[];
@@ -967,18 +1002,25 @@ function TariffaDialog({
  * Le tariffe già esistenti (match per nome) sono disabilitate e non duplicabili.
  */
 function StandardTariffeDialog({
-  open, onClose, existing, companyId, onCreated,
+  open, onClose, existing, companyId, onCreated, vertical,
 }: {
   open: boolean; onClose: () => void; existing: Tariffa[];
   companyId: string; onCreated: () => void;
+  /** Vertical dell'azienda — guida la pre-selezione del preset al first-run. */
+  vertical: Vertical;
 }) {
   const existingNames = useMemo(() => new Set(existing.map((t) => t.nome)), [existing]);
 
-  // Default: se l'azienda è "vuota", pre-seleziona il preset Essenziale.
+  // Default: se l'azienda è "vuota", pre-seleziona il preset coerente col
+  // vertical dell'azienda (caduta su "essenziale" se vertical non mappa a
+  // niente di specifico — è il comportamento storico pre-FASE 1.2).
   const [selected, setSelected] = useState<Set<string>>(() => {
     if (existing.length === 0) {
-      const essenziale = STANDARD_TARIFFE.filter((d) => d.presets.includes("essenziale")).map((d) => d.nome);
-      return new Set(essenziale);
+      const presetId = getDefaultPresetForVerticalTariffe(vertical);
+      const presetRows = STANDARD_TARIFFE
+        .filter((d) => d.presets.includes(presetId))
+        .map((d) => d.nome);
+      return new Set(presetRows);
     }
     return new Set();
   });
@@ -1707,6 +1749,7 @@ export default function SettingsTariffe() {
           existing={tariffe}
           companyId={companyId}
           onCreated={() => queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] })}
+          vertical={currentVertical ?? "generico"}
         />
       )}
 

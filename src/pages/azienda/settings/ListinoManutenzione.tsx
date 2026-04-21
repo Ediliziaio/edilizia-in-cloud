@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useVertical, type Vertical } from "@/hooks/useVertical";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import {
   Plus, Pencil, Trash2, Sparkles, Flame, Zap as ZapIcon,
   Sun, Bath, PaintBucket, Cloud, Construction, Shovel, Waves, CheckCircle2,
-  Search,
+  Search, ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -41,7 +43,18 @@ interface TipoImpianto {
   attivo: boolean;
 }
 
-type CategoriaIntervento = "ordinaria" | "emergenza" | "installazione" | "sopralluogo" | "altro";
+/**
+ * Allineato al CHECK constraint DB (migration 20260814000001_listino_prezzi.sql):
+ *   categoria IN ('manutenzione_ordinaria','manutenzione_straordinaria',
+ *                  'guasto','installazione','sopralluogo').
+ * DEFAULT DB = 'manutenzione_ordinaria'.
+ */
+type CategoriaIntervento =
+  | "manutenzione_ordinaria"
+  | "manutenzione_straordinaria"
+  | "guasto"
+  | "installazione"
+  | "sopralluogo";
 
 interface TipoIntervento {
   id: string;
@@ -57,9 +70,19 @@ interface ListinoPrezzo {
   company_id: string;
   tipo_impianto_id: string;
   tipo_intervento_id: string;
-  prezzo: number;
-  iva_pct: number;
+  /** Nome DB reale: migration 20260814000001 usa `prezzo_base NUMERIC(10,2)`. */
+  prezzo_base: number;
+  /** Nome DB reale: `iva_percentuale INTEGER CHECK IN (0,4,10,22)`. */
+  iva_percentuale: number;
+  /** CHECK DB: unita IN ('intervento','ora','mq','ml','pz'). */
   unita: string;
+  /** Permette di disattivare una riga senza cancellarla. DEFAULT true. */
+  attivo: boolean;
+  /** Note libere (opzionale). */
+  note: string | null;
+  /** Finestra di validità (opzionale): se valorizzata, il prezzo è attivo solo nel range. */
+  valido_dal: string | null;
+  valido_al: string | null;
   tipo_impianto?: TipoImpianto;
   tipo_intervento?: TipoIntervento;
 }
@@ -69,15 +92,29 @@ interface ListinoPrezzo {
 const ICONE_IMPIANTO = ["🔥", "🌡️", "💧", "⚡", "☀️", "🔧", "🏠", "❄️", "🛠️", "⚙️"];
 
 const CATEGORIE_INTERVENTO: { value: CategoriaIntervento; label: string; color: string }[] = [
-  { value: "ordinaria",    label: "Ordinaria",    color: "bg-green-100 text-green-700" },
-  { value: "emergenza",    label: "Emergenza",    color: "bg-red-100 text-red-700" },
-  { value: "installazione",label: "Installazione",color: "bg-blue-100 text-blue-700" },
-  { value: "sopralluogo",  label: "Sopralluogo",  color: "bg-yellow-100 text-yellow-700" },
-  { value: "altro",        label: "Altro",        color: "bg-gray-100 text-gray-700" },
+  { value: "manutenzione_ordinaria",     label: "Manutenzione ordinaria",     color: "bg-green-100 text-green-700" },
+  { value: "manutenzione_straordinaria", label: "Manutenzione straordinaria", color: "bg-amber-100 text-amber-700" },
+  { value: "guasto",                     label: "Guasto / emergenza",         color: "bg-red-100 text-red-700" },
+  { value: "installazione",              label: "Installazione",              color: "bg-blue-100 text-blue-700" },
+  { value: "sopralluogo",                label: "Sopralluogo",                color: "bg-yellow-100 text-yellow-700" },
 ];
 
-const UNITA_OPTIONS = ["intervento", "ora", "mq", "ml", "giorno"];
-const IVA_OPTIONS = [0, 4, 5, 10, 22];
+/**
+ * Allineati ai CHECK DB (migration 20260814000001_listino_prezzi.sql L.37-38):
+ *   iva_percentuale IN (0,4,10,22)  — niente 5% (non esiste in IT)
+ *   unita IN ('intervento','ora','mq','ml','pz') — niente "giorno"
+ */
+const UNITA_OPTIONS = ["intervento", "ora", "mq", "ml", "pz"] as const;
+const IVA_OPTIONS = [0, 4, 10, 22] as const;
+
+/** Label user-friendly per l'unità. */
+const UNITA_LABEL: Record<(typeof UNITA_OPTIONS)[number], string> = {
+  intervento: "A intervento",
+  ora: "Ora",
+  mq: "Metro quadro",
+  ml: "Metro lineare",
+  pz: "Pezzo",
+};
 
 // ─── Preset templates ─────────────────────────────────────────────────────────
 /**
@@ -89,6 +126,46 @@ const IVA_OPTIONS = [0, 4, 5, 10, 22];
 type PresetListinoId =
   | "termoidraulica" | "elettrico" | "bagno" | "fotovoltaico"
   | "pittura" | "tetti_ripasso" | "tetti_rifacimento" | "scavi" | "piscine";
+
+/**
+ * Mappa il `vertical` dell'azienda ai preset di listino manutenzione che
+ * saranno pre-selezionati nel dialog "Importa da template".
+ *
+ * Razionale delle scelte:
+ *  - `caldaie` / `clima` → `termoidraulica` (include pompe di calore, VRF,
+ *    caldaie, radiatori — tutti gli impianti idronici + raffreddamento).
+ *  - `tetti` → `tetti_ripasso` (manutenzione ordinaria è il caso d'uso
+ *    dominante; `tetti_rifacimento` è uno straordinario raro).
+ *  - `bagno` → `bagno` (sanitari, rubinetti, scarichi, box doccia).
+ *  - `ristrutturazione` → `pittura` + `bagno` + `elettrico` (lavori misti
+ *    tipici del ristrutturatore generico).
+ *  - `serramentista`, `tende_da_sole`, `vetrate`, `generico` → nessun preset
+ *    auto-selezionato perché non esiste un listino manutenzione dedicato a
+ *    quei settori; l'utente sceglierà manualmente se vuole comunque importare.
+ *
+ * Se in futuro si aggiungono nuovi preset (o nuovi vertical), aggiornare
+ * questa mappa tenendo presente che un vertical può mappare a PIÙ preset
+ * (vedi ristrutturazione).
+ */
+function getDefaultPresetsForVertical(vertical: Vertical): PresetListinoId[] {
+  switch (vertical) {
+    case "caldaie":
+    case "clima":
+      return ["termoidraulica"];
+    case "tetti":
+      return ["tetti_ripasso"];
+    case "bagno":
+      return ["bagno"];
+    case "ristrutturazione":
+      return ["pittura", "bagno", "elettrico"];
+    case "serramentista":
+    case "tende_da_sole":
+    case "vetrate":
+    case "generico":
+    default:
+      return [];
+  }
+}
 
 interface ImpiantoSeed {
   nome: string;
@@ -161,36 +238,36 @@ const STANDARD_IMPIANTI: ImpiantoSeed[] = [
  */
 const STANDARD_INTERVENTI: InterventoSeed[] = [
   // Generici (termoidraulica + elettrico)
-  { nome: "Manutenzione ordinaria", categoria: "ordinaria",    durata_stimata_h: 2, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "piscine"] },
-  { nome: "Riparazione guasto",     categoria: "emergenza",    durata_stimata_h: 3, presets: ["termoidraulica", "elettrico", "bagno"] },
-  { nome: "Sopralluogo",            categoria: "sopralluogo",  durata_stimata_h: 1, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "pittura", "tetti_ripasso", "tetti_rifacimento", "scavi", "piscine"] },
-  { nome: "Installazione",          categoria: "installazione",durata_stimata_h: 6, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "piscine"] },
+  { nome: "Manutenzione ordinaria", categoria: "manutenzione_ordinaria",     durata_stimata_h: 2, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "piscine"] },
+  { nome: "Riparazione guasto",     categoria: "guasto",                     durata_stimata_h: 3, presets: ["termoidraulica", "elettrico", "bagno"] },
+  { nome: "Sopralluogo",            categoria: "sopralluogo",                durata_stimata_h: 1, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "pittura", "tetti_ripasso", "tetti_rifacimento", "scavi", "piscine"] },
+  { nome: "Installazione",          categoria: "installazione",              durata_stimata_h: 6, presets: ["termoidraulica", "elettrico", "bagno", "fotovoltaico", "piscine"] },
   // Fotovoltaico specifici
-  { nome: "Pulizia pannelli FV",    categoria: "ordinaria",    durata_stimata_h: 3, presets: ["fotovoltaico"] },
-  { nome: "Controllo producibilità",categoria: "ordinaria",    durata_stimata_h: 2, presets: ["fotovoltaico"] },
-  { nome: "Sostituzione inverter",  categoria: "emergenza",    durata_stimata_h: 4, presets: ["fotovoltaico"] },
+  { nome: "Pulizia pannelli FV",    categoria: "manutenzione_ordinaria",     durata_stimata_h: 3, presets: ["fotovoltaico"] },
+  { nome: "Controllo producibilità",categoria: "manutenzione_ordinaria",     durata_stimata_h: 2, presets: ["fotovoltaico"] },
+  { nome: "Sostituzione inverter",  categoria: "guasto",                     durata_stimata_h: 4, presets: ["fotovoltaico"] },
   // Pittura specifici
-  { nome: "Ritocco localizzato",    categoria: "ordinaria",    durata_stimata_h: 2, presets: ["pittura"] },
-  { nome: "Tinteggiatura completa", categoria: "installazione",durata_stimata_h: 8, presets: ["pittura"] },
-  { nome: "Rasatura + stucco",      categoria: "installazione",durata_stimata_h: 4, presets: ["pittura"] },
+  { nome: "Ritocco localizzato",    categoria: "manutenzione_ordinaria",     durata_stimata_h: 2, presets: ["pittura"] },
+  { nome: "Tinteggiatura completa", categoria: "installazione",              durata_stimata_h: 8, presets: ["pittura"] },
+  { nome: "Rasatura + stucco",      categoria: "installazione",              durata_stimata_h: 4, presets: ["pittura"] },
   // Tetti ripasso
-  { nome: "Pulizia canali",         categoria: "ordinaria",    durata_stimata_h: 2, presets: ["tetti_ripasso"] },
-  { nome: "Ripasso coppi",          categoria: "ordinaria",    durata_stimata_h: 4, presets: ["tetti_ripasso"] },
-  { nome: "Trattamento antimuschio",categoria: "ordinaria",    durata_stimata_h: 3, presets: ["tetti_ripasso"] },
-  { nome: "Sostituzione coppi rotti", categoria: "emergenza",  durata_stimata_h: 2, presets: ["tetti_ripasso"] },
+  { nome: "Pulizia canali",         categoria: "manutenzione_ordinaria",     durata_stimata_h: 2, presets: ["tetti_ripasso"] },
+  { nome: "Ripasso coppi",          categoria: "manutenzione_straordinaria", durata_stimata_h: 4, presets: ["tetti_ripasso"] },
+  { nome: "Trattamento antimuschio",categoria: "manutenzione_ordinaria",     durata_stimata_h: 3, presets: ["tetti_ripasso"] },
+  { nome: "Sostituzione coppi rotti", categoria: "guasto",                   durata_stimata_h: 2, presets: ["tetti_ripasso"] },
   // Tetti rifacimento
-  { nome: "Rimozione manto",        categoria: "installazione",durata_stimata_h: 8, presets: ["tetti_rifacimento"] },
-  { nome: "Posa nuovo manto",       categoria: "installazione",durata_stimata_h: 10,presets: ["tetti_rifacimento"] },
-  { nome: "Impermeabilizzazione",   categoria: "installazione",durata_stimata_h: 6, presets: ["tetti_rifacimento", "piscine", "bagno"] },
+  { nome: "Rimozione manto",        categoria: "installazione",              durata_stimata_h: 8, presets: ["tetti_rifacimento"] },
+  { nome: "Posa nuovo manto",       categoria: "installazione",              durata_stimata_h: 10,presets: ["tetti_rifacimento"] },
+  { nome: "Impermeabilizzazione",   categoria: "installazione",              durata_stimata_h: 6, presets: ["tetti_rifacimento", "piscine", "bagno"] },
   // Scavi
-  { nome: "Sbancamento",            categoria: "installazione",durata_stimata_h: 8, presets: ["scavi"] },
-  { nome: "Scavo fondazione",       categoria: "installazione",durata_stimata_h: 6, presets: ["scavi"] },
-  { nome: "Reinterro",              categoria: "installazione",durata_stimata_h: 4, presets: ["scavi"] },
+  { nome: "Sbancamento",            categoria: "installazione",              durata_stimata_h: 8, presets: ["scavi"] },
+  { nome: "Scavo fondazione",       categoria: "installazione",              durata_stimata_h: 6, presets: ["scavi"] },
+  { nome: "Reinterro",              categoria: "installazione",              durata_stimata_h: 4, presets: ["scavi"] },
   // Piscine
-  { nome: "Apertura stagionale",    categoria: "ordinaria",    durata_stimata_h: 4, presets: ["piscine"] },
-  { nome: "Chiusura invernale",     categoria: "ordinaria",    durata_stimata_h: 4, presets: ["piscine"] },
-  { nome: "Pulizia vasca",          categoria: "ordinaria",    durata_stimata_h: 2, presets: ["piscine"] },
-  { nome: "Controllo pH e clorazione", categoria: "ordinaria", durata_stimata_h: 1, presets: ["piscine"] },
+  { nome: "Apertura stagionale",    categoria: "manutenzione_ordinaria",     durata_stimata_h: 4, presets: ["piscine"] },
+  { nome: "Chiusura invernale",     categoria: "manutenzione_ordinaria",     durata_stimata_h: 4, presets: ["piscine"] },
+  { nome: "Pulizia vasca",          categoria: "manutenzione_ordinaria",     durata_stimata_h: 2, presets: ["piscine"] },
+  { nome: "Controllo pH e clorazione", categoria: "manutenzione_ordinaria",  durata_stimata_h: 1, presets: ["piscine"] },
 ];
 
 /**
@@ -474,7 +551,7 @@ function InterventoDialog({
   companyId: string; onSaved: () => void;
 }) {
   const [nome, setNome] = useState(editing?.nome ?? "");
-  const [categoria, setCategoria] = useState<CategoriaIntervento>(editing?.categoria ?? "ordinaria");
+  const [categoria, setCategoria] = useState<CategoriaIntervento>(editing?.categoria ?? "manutenzione_ordinaria");
   const [durata, setDurata] = useState(String(editing?.durata_stimata_h ?? ""));
   const [attivo, setAttivo] = useState(editing?.attivo ?? true);
   const [saving, setSaving] = useState(false);
@@ -569,9 +646,11 @@ function ListinoDialog({
 }) {
   const [impiantoId, setImpiantoId] = useState(editing?.tipo_impianto_id ?? "");
   const [interventoId, setInterventoId] = useState(editing?.tipo_intervento_id ?? "");
-  const [prezzo, setPrezzo] = useState(String(editing?.prezzo ?? ""));
-  const [iva, setIva] = useState(String(editing?.iva_pct ?? "22"));
+  const [prezzo, setPrezzo] = useState(String(editing?.prezzo_base ?? ""));
+  const [iva, setIva] = useState(String(editing?.iva_percentuale ?? "22"));
   const [unita, setUnita] = useState(editing?.unita ?? "intervento");
+  const [attivo, setAttivo] = useState(editing?.attivo ?? true);
+  const [note, setNote] = useState(editing?.note ?? "");
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -584,9 +663,11 @@ function ListinoDialog({
         company_id: companyId,
         tipo_impianto_id: impiantoId,
         tipo_intervento_id: interventoId,
-        prezzo: parseFloat(prezzo),
-        iva_pct: parseFloat(iva),
+        prezzo_base: parseFloat(prezzo),
+        iva_percentuale: parseInt(iva, 10),
         unita,
+        attivo,
+        note: note.trim() || null,
       };
       if (editing) {
         const { error } = await (supabase.from("listino_prezzi") as any)
@@ -663,11 +744,26 @@ function ListinoDialog({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {UNITA_OPTIONS.map((u) => (
-                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                    <SelectItem key={u} value={u}>{UNITA_LABEL[u]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div>
+            <Label>Note (opzionale)</Label>
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Es. tariffa valida solo fuori orario"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <Label>Tariffa attiva</Label>
+            <Switch checked={attivo} onCheckedChange={setAttivo} />
+            <span className="text-xs text-muted-foreground">
+              {attivo ? "Visibile in preventivi e interventi" : "Nascosta (bozza)"}
+            </span>
           </div>
         </div>
         <DialogFooter>
@@ -684,9 +780,14 @@ function ListinoDialog({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function ListinoManutenzione() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, role } = useAuth();
+  const { vertical } = useVertical();
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();
+  // Solo admin azienda (e super admin) possono editare prezzi/tariffe. Un
+  // commerciale non ha mai titolo per modificare il listino: vedrebbe UI ma
+  // tutti i write fallirebbero via RLS generando solo toast di errore.
+  const isAdmin = role === "company_admin" || role === "super_admin";
 
   const [activeTab, setActiveTab] = useState("impianti");
 
@@ -743,7 +844,8 @@ export default function ListinoManutenzione() {
     queryFn: async () => {
       const { data, error } = await (supabase.from("listino_prezzi") as any)
         .select(`
-          id, company_id, tipo_impianto_id, tipo_intervento_id, prezzo, iva_pct, unita,
+          id, company_id, tipo_impianto_id, tipo_intervento_id,
+          prezzo_base, iva_percentuale, unita, attivo, note, valido_dal, valido_al,
           tipo_impianto:tipi_impianto(id, nome, icona),
           tipo_intervento:tipi_intervento(id, nome)
         `)
@@ -900,9 +1002,10 @@ export default function ListinoManutenzione() {
             company_id: companyId,
             tipo_impianto_id: impId,
             tipo_intervento_id: intId,
-            prezzo: d.prezzo,
-            iva_pct: d.iva_pct,
+            prezzo_base: d.prezzo,
+            iva_percentuale: d.iva_pct,
             unita: d.unita,
+            attivo: true,
           };
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -942,6 +1045,28 @@ export default function ListinoManutenzione() {
   };
 
   if (!companyId) return null;
+
+  if (!isAdmin) {
+    return (
+      <Card className="max-w-xl mx-auto mt-8">
+        <CardContent
+          className="py-10 flex flex-col items-center gap-4 text-center"
+          role="alert"
+          aria-live="polite"
+        >
+          <ShieldAlert className="h-12 w-12 text-amber-500" aria-hidden="true" />
+          <div>
+            <p className="font-medium">Accesso riservato</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Solo l&apos;amministratore dell&apos;azienda può modificare il
+              listino manutenzione. Se devi aggiornare un prezzo, chiedi al
+              titolare di farlo da questa pagina.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -1185,12 +1310,12 @@ export default function ListinoManutenzione() {
                         {l.tipo_intervento?.nome ?? <span className="text-muted-foreground italic">—</span>}
                       </TableCell>
                       <TableCell>
-                        {l.prezzo != null && l.prezzo > 0
-                          ? formatCurrency(l.prezzo)
+                        {l.prezzo_base != null && l.prezzo_base > 0
+                          ? formatCurrency(l.prezzo_base)
                           : <Badge className="bg-amber-100 text-amber-700 border-amber-200">€0</Badge>
                         }
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{l.iva_pct}%</TableCell>
+                      <TableCell className="text-muted-foreground">{l.iva_percentuale ?? 22}%</TableCell>
                       <TableCell className="text-muted-foreground">{l.unita}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -1325,6 +1450,7 @@ export default function ListinoManutenzione() {
           existingCount={tipiImpianto.length + tipiIntervento.length + listino.length}
           onImport={seedFromTemplate}
           importing={creatingDemo}
+          vertical={vertical}
         />
       )}
     </div>
@@ -1343,7 +1469,7 @@ export default function ListinoManutenzione() {
  * La funzione di import è idempotente: voci già presenti vengono saltate.
  */
 function StandardListinoDialog({
-  open, onClose, existingCount, onImport, importing,
+  open, onClose, existingCount, onImport, importing, vertical,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1353,10 +1479,22 @@ function StandardListinoDialog({
     selectedTariffeKeys?: Set<string>;
   }) => void | Promise<void>;
   importing: boolean;
+  /** Vertical dell'azienda corrente — usato per pre-selezionare i preset
+   *  "giusti" quando l'utente apre il dialog per la prima volta. */
+  vertical: Vertical;
 }) {
-  // Preset selezionati (default: 'termoidraulica' se l'azienda è vuota).
+  // Preset selezionati di default:
+  //   - azienda vuota (first run) → preset derivati dal vertical (se la mappa
+  //     ritorna qualcosa); se il vertical non ha mapping (es. serramentista),
+  //     la selezione parte vuota e l'utente sceglie manualmente.
+  //   - azienda già popolata → nessuna pre-selezione, per evitare di forzare
+  //     import duplicati implicitamente.
   const [selectedPresets, setSelectedPresets] = useState<Set<PresetListinoId>>(
-    () => (existingCount === 0 ? new Set<PresetListinoId>(["termoidraulica"]) : new Set<PresetListinoId>()),
+    () => {
+      if (existingCount !== 0) return new Set<PresetListinoId>();
+      const presets = getDefaultPresetsForVertical(vertical);
+      return new Set<PresetListinoId>(presets);
+    },
   );
   // Selezione fine sulle singole righe della lista.
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());

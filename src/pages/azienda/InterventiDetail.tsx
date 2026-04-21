@@ -10,13 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, MapPin, User, Calendar, Clock, FileText,
-  ExternalLink, Plus, AlertCircle, CheckCircle2, Loader2
+  ExternalLink, Plus, AlertCircle, CheckCircle2, Loader2, Tag
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { RapportinoForm } from "@/components/interventi/RapportinoForm";
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
+import { useListinoSuggerito } from "@/hooks/useListinoSuggerito";
+import { formatCurrency } from "@/lib/formatters";
 import type { Intervento, RapportinoIntervento } from "@/types/interventi";
 
 const STATO_CONFIG: Record<string, { label: string; color: string }> = {
@@ -42,7 +44,7 @@ export default function InterventiDetail() {
         .from("tickets")
         .select(`
           id, company_id, customer_id, order_id, subject, status, priority,
-          tipo, indirizzo_intervento, data_intervento_prevista,
+          tipo, category, impianto_id, indirizzo_intervento, data_intervento_prevista,
           data_intervento_effettiva, durata_ore, assigned_to, note_tecnico, created_at,
           internal_notes,
           assigned_profile:profiles!tickets_assigned_to_fkey(id, first_name, last_name),
@@ -52,6 +54,7 @@ export default function InterventiDetail() {
         .single();
       if (error) throw error;
       return data as Intervento & {
+        category: string | null;
         internal_notes: string | null;
         customer: { id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null } | null;
         assigned_profile: { id: string; first_name: string | null; last_name: string | null } | null;
@@ -92,26 +95,48 @@ export default function InterventiDetail() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Query tariffa oraria dalla configurazione aziendale
-  // Cerca tipo='posa' unita='h' (manodopera oraria)
+  // Query tariffa oraria dalla configurazione aziendale.
+  // Post-FASE 6 (migration 20260917000006) il CHECK `tipo` ammette anche
+  // 'manodopera' e altri — prima ammetteva solo 'posa'. Cerchiamo su entrambi
+  // per coerenza con tariffe create con la nuova denominazione, privilegiando
+  // l'unità `h` ma accettando anche `a_corpo`/`gg` che sono state mappate a `h`
+  // nel legacy. Usiamo `attivo` (colonna canonica post-FASE 6) con fallback su
+  // `attiva` via OR per retrocompat — righe create prima della migration
+  // possono avere `attivo=NULL`.
   const { data: tariffaOraria } = useQuery({
     queryKey: ['tariffa-oraria-interventi', effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return null;
       const { data } = await (supabase as any)
         .from('tariffe_aziendali')
-        .select('prezzo_vendita, nome')
+        .select('prezzo_vendita, nome, tipo, unita, unita_fatturazione')
         .eq('company_id', effectiveCompany.id)
-        .eq('tipo', 'posa')
-        .eq('unita', 'h')
-        .eq('attiva', true)
+        .in('tipo', ['posa', 'manodopera'])
+        .or('attivo.eq.true,attiva.eq.true')
         .order('prezzo_vendita', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return (data?.prezzo_vendita as number | null) ?? null;
+        .limit(20);
+      if (!data || data.length === 0) return null;
+      // Dato post-FASE 6: `unita_fatturazione` è la colonna nuova (h/pz/ml/mq/gg/a_corpo).
+      // Legacy: colonna `unita` mappata a fisso/h. Scegliamo la prima riga oraria:
+      const oraria = data.find((r: { unita?: string | null; unita_fatturazione?: string | null }) =>
+        r.unita_fatturazione === 'h' || r.unita === 'h',
+      );
+      return ((oraria ?? data[0])?.prezzo_vendita as number | null) ?? null;
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
+  });
+
+  // Lookup nel Listino Manutenzione (/azienda/impostazioni/listino-manutenzione).
+  // Fa matching by-name su tipo_impianto (da impianti_cliente.tipo_impianto)
+  // e tipo_intervento (da tickets.category). Degrade silenzioso se non trova
+  // match — in quel caso il box "Listino" non viene mostrato.
+  const { data: listinoSuggerito } = useListinoSuggerito({
+    companyId: effectiveCompany?.id ?? null,
+    ticketId: id ?? null,
+    impiantoId: intervento?.impianto_id ?? null,
+    category: intervento?.category ?? null,
+    clienteId: intervento?.customer_id ?? null,
   });
 
   const assegnaTecnicoMutation = useMutation({
@@ -288,6 +313,54 @@ export default function InterventiDetail() {
               </div>
             )}
           </div>
+
+          {/* Listino Manutenzione — prezzo configurato in Impostazioni > Listino Manutenzione.
+              Il match avviene per nome impianto + category del ticket. Se non c'è match
+              (es. la category non combacia con alcun tipo_intervento) il box non appare. */}
+          {listinoSuggerito && (
+            <div className="bg-white rounded-lg border border-emerald-200 p-4 space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                  <Tag className="h-4 w-4 text-emerald-600" />
+                  Listino Manutenzione
+                </h3>
+                {listinoSuggerito.da_override && (
+                  <Badge className="bg-amber-100 text-amber-800">Override cliente</Badge>
+                )}
+              </div>
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-2xl font-bold text-emerald-700">
+                  {formatCurrency(listinoSuggerito.prezzo)}
+                </span>
+                <span className="text-sm text-gray-500">
+                  / {listinoSuggerito.unita} · IVA {listinoSuggerito.iva}%
+                </span>
+                {listinoSuggerito.da_override &&
+                  listinoSuggerito.prezzo !== listinoSuggerito.prezzo_base && (
+                    <span className="text-xs text-gray-400 line-through">
+                      {formatCurrency(listinoSuggerito.prezzo_base)}
+                    </span>
+                  )}
+              </div>
+              <p className="text-xs text-gray-500">
+                Match: <span className="font-medium">{listinoSuggerito.impiantoNome}</span>
+                {' · '}
+                <span className="font-medium">{listinoSuggerito.interventoNome}</span>
+              </p>
+              {listinoSuggerito.note && (
+                <p className="text-xs text-gray-600 bg-emerald-50 rounded px-2 py-1">
+                  {listinoSuggerito.note}
+                </p>
+              )}
+              <Link
+                to="/azienda/impostazioni/listino-manutenzione"
+                className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Modifica listino
+              </Link>
+            </div>
+          )}
 
           {/* Assegnazione tecnico */}
           <div className="bg-white rounded-lg border p-4 space-y-3">

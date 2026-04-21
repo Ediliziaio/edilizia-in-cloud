@@ -11,6 +11,10 @@
  *  - Contenuto: catalogo articoli raggruppato per macrocategoria → categoria.
  *  - Niente più tab "Articoli singoli": creando un articolo puoi già definire
  *    il prezzo puntuale, non serve un'altra vista separata.
+ *
+ * Permission gating: solo `company_admin` / `super_admin` possono accedere
+ * (stesso pattern di WarehouseManager). Un commerciale non deve poter
+ * modificare il listino prezzi dell'azienda.
  */
 
 import { useState } from "react";
@@ -18,6 +22,7 @@ import { Link } from "react-router-dom";
 import { FamilyCatalog } from "@/components/listino/FamilyCatalog";
 import { MacroCategorieManager } from "@/components/listino/MacroCategorieManager";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -25,10 +30,35 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Upload, Sparkles, FolderTree } from "lucide-react";
+import { Upload, Sparkles, FolderTree, ShieldAlert } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsCatalog() {
   const [showCategorieDialog, setShowCategorieDialog] = useState(false);
+  const { role } = useAuth();
+  const isAdmin = role === "company_admin" || role === "super_admin";
+
+  if (!isAdmin) {
+    return (
+      <Card className="max-w-xl mx-auto mt-8">
+        <CardContent
+          className="py-10 flex flex-col items-center gap-4 text-center"
+          role="alert"
+          aria-live="polite"
+        >
+          <ShieldAlert className="h-12 w-12 text-amber-500" aria-hidden="true" />
+          <div>
+            <p className="font-medium">Accesso riservato</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Solo l&apos;amministratore dell&apos;azienda può modificare il
+              catalogo articoli e le categorie. Contatta il titolare se hai
+              bisogno di aggiungere nuove voci.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">
