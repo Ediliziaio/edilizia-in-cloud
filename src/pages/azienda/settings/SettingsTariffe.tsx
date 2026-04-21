@@ -8,7 +8,8 @@ import { formatCurrency } from "@/lib/formatters";
 import {
   Plus, Pencil, Trash2, Zap, Search, Copy, MoreVertical, Calculator,
   TrendingUp, Percent, Package, Activity, Archive, RotateCcw, Info,
-  Building2, Layers3, Wallet, CheckCircle2,
+  Building2, Layers3, Wallet, CheckCircle2, Hammer, HardHat, Wrench,
+  ClipboardList, Sparkles, Paintbrush,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,16 +80,18 @@ interface Tariffa {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 /**
- * Gruppi semantici per i tab. Riduciamo da 15 tab "piatti" a 5 gruppi
- * concettuali: lavorazione (manodopera sul campo), logistica (trasporto,
+ * Gruppi semantici per i tab. Riduciamo da 15 tab "piatti" a 6 gruppi
+ * concettuali: lavorazione (posa + manodopera sul campo), logistica (trasporto,
  * tiro, smaltimento), servizi tecnici (sopralluogo, progettazione, pratica),
- * noli/ponteggi, accessori serramento (lattoneria, sigillatura, contorno,
- * falso_telaio). "Altro" cattura il tail.
+ * noli/ponteggi, finiture (lattoneria, sigillatura, contorno, falso_telaio),
+ * altro. Il gruppo "finiture" include tutti gli accessori perimetrali del
+ * serramento — evitiamo l'etichetta "Serramento" perché ambigua rispetto al
+ * vertical aziendale.
  */
 interface TipoDef {
   value: TipoTariffa;
   label: string;
-  group: "lavorazione" | "logistica" | "servizi" | "nolo" | "serramento" | "altro";
+  group: "lavorazione" | "logistica" | "servizi" | "nolo" | "finiture" | "altro";
   hint: string;
 }
 
@@ -103,10 +106,10 @@ const TIPO_DEFS: TipoDef[] = [
   { value: "pratica", label: "Pratica", group: "servizi", hint: "Pratiche edilizie e bonus fiscali" },
   { value: "nolo", label: "Nolo", group: "nolo", hint: "Noleggio attrezzature (trabattello, ponteggio)" },
   { value: "ponteggio", label: "Ponteggio", group: "nolo", hint: "Ponteggio completo + montaggio" },
-  { value: "lattoneria", label: "Lattoneria", group: "serramento", hint: "Scossaline, gocciolatoi, canali" },
-  { value: "sigillatura", label: "Sigillatura", group: "serramento", hint: "Silicone perimetrale, schiuma" },
-  { value: "contorno", label: "Contorno", group: "serramento", hint: "Rivestimento/finitura perimetrale" },
-  { value: "falso_telaio", label: "Falso telaio", group: "serramento", hint: "Predisposizione controtelaio" },
+  { value: "lattoneria", label: "Lattoneria", group: "finiture", hint: "Scossaline, gocciolatoi, canali" },
+  { value: "sigillatura", label: "Sigillatura", group: "finiture", hint: "Silicone perimetrale, schiuma" },
+  { value: "contorno", label: "Contorno", group: "finiture", hint: "Rivestimento/finitura perimetrale" },
+  { value: "falso_telaio", label: "Falso telaio", group: "finiture", hint: "Predisposizione controtelaio" },
   { value: "altro", label: "Altro", group: "altro", hint: "Servizi non classificati altrove" },
 ];
 
@@ -116,7 +119,7 @@ const GROUP_DEFS: { value: TipoDef["group"] | "all"; label: string; icon: typeof
   { value: "logistica", label: "Logistica", icon: Package },
   { value: "servizi", label: "Servizi", icon: Building2 },
   { value: "nolo", label: "Nolo", icon: Wallet },
-  { value: "serramento", label: "Serramento", icon: Pencil },
+  { value: "finiture", label: "Finiture", icon: Paintbrush },
   { value: "altro", label: "Altro", icon: Info },
 ];
 
@@ -173,21 +176,131 @@ function tipoHint(tipo: string): string {
 
 // NOTE: categoria_prodotto and descrizione sono NOT in the tariffe_aziendali schema.
 // attiva is NOT in the schema either — rimosso da tutti i payload.
-const DEFAULT_TARIFFE: Omit<Tariffa, "id" | "company_id">[] = [
-  { nome: "Posa finestra singola", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 85, costo_interno: 55, descrizione: "Installazione completa di finestra a battente o scorrevole" },
-  { nome: "Posa porta interna", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 65, costo_interno: 40, descrizione: "Posa di porta interna con cerniera e regolazione" },
-  { nome: "Posa pavimento", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 18, costo_interno: 11, descrizione: "Posa pavimento ceramica o gres con colla" },
-  { nome: "Posa rivestimento bagno", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 22, costo_interno: 14, descrizione: "Rivestimento mosaico o ceramica a parete" },
-  { nome: "Posa cappotto termico", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 25, costo_interno: 16, descrizione: "Cappotto EPS/XPS con rasatura base" },
-  { nome: "Manodopera generica", tipo: "manodopera", unita_fatturazione: "h", prezzo_vendita: 45, costo_interno: 30, descrizione: "Manodopera oraria per piccole lavorazioni" },
-  { nome: "Trasporto fisso cantiere", tipo: "trasporto", unita_fatturazione: "a_corpo", prezzo_vendita: 65, costo_interno: 40, descrizione: "Consegna unica in cantiere (zona locale)" },
-  { nome: "Trasporto al km", tipo: "trasporto", unita_fatturazione: "km", prezzo_vendita: 0.8, costo_interno: 0.5, descrizione: "Consegna a distanza, fatturata al km" },
-  { nome: "Tiro al piano", tipo: "tiro_piano", unita_fatturazione: "piano", prezzo_vendita: 12, costo_interno: 8, piano_base: 1, prezzo_piano_aggiuntivo: 5, descrizione: "Movimentazione ai piani (base + extra per piano)" },
-  { nome: "Smaltimento serramento", tipo: "smaltimento", unita_fatturazione: "pz", prezzo_vendita: 22, costo_interno: 15, descrizione: "Rimozione e conferimento in discarica" },
-  { nome: "Smaltimento porta", tipo: "smaltimento", unita_fatturazione: "pz", prezzo_vendita: 35, costo_interno: 22, descrizione: "Rimozione di porta e telaio esistenti" },
-  { nome: "Smaltimento materiale", tipo: "smaltimento", unita_fatturazione: "mc", prezzo_vendita: 95, costo_interno: 70, descrizione: "Materiale di risulta al metro cubo" },
-  { nome: "Trabattello giornaliero", tipo: "nolo", unita_fatturazione: "gg", prezzo_vendita: 55, costo_interno: 35, descrizione: "Noleggio trabattello a giornata" },
-  { nome: "Ponteggio mq/sett", tipo: "nolo", unita_fatturazione: "mq", prezzo_vendita: 9, costo_interno: 6, descrizione: "Ponteggio al mq settimanale" },
+
+/**
+ * Id dei preset cataloghi disponibili. Ogni tariffa standard può appartenere
+ * a più preset (es. "Manodopera generica" è utile sia al serramentista sia
+ * all'edile). I preset sono indipendenti dal `vertical_associato` della
+ * tariffa (che è invece un campo DB).
+ */
+type PresetId = "essenziale" | "serramentista" | "edile" | "impiantista" | "servizi";
+
+interface TariffaSeed extends Omit<Tariffa, "id" | "company_id"> {
+  presets: PresetId[];
+}
+
+/**
+ * Catalogo tariffe standard pre-compilato. Ogni riga ha uno o più tag `presets`
+ * che permettono all'admin di importare in blocco solo le tariffe coerenti con
+ * il proprio mestiere. I prezzi sono riferimenti di mercato IT 2025 al netto
+ * IVA — ogni azienda dovrà calibrarli.
+ */
+const STANDARD_TARIFFE: TariffaSeed[] = [
+  // ─── POSA ──────────────────────────────────────────────────────────────────
+  { nome: "Posa finestra singola", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 85, costo_interno: 55, descrizione: "Finestra battente o scorrevole fino a 120×140 cm, regolazione completa", presets: ["essenziale", "serramentista"] },
+  { nome: "Posa portafinestra scorrevole", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 120, costo_interno: 80, descrizione: "Portafinestra scorrevole fino a 2 ante, registrazione carrelli", presets: ["serramentista"] },
+  { nome: "Posa alzante-scorrevole", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 220, costo_interno: 160, descrizione: "Sistema alzante-scorrevole grande luce, movimentazione + registrazione", presets: ["serramentista"] },
+  { nome: "Posa porta interna", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 65, costo_interno: 40, descrizione: "Porta interna battente, cerniere + maniglia + regolazione", presets: ["essenziale", "serramentista"] },
+  { nome: "Posa porta blindata", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 280, costo_interno: 180, descrizione: "Blindata classe 3+, fissaggio + registrazione serrature", presets: ["serramentista"] },
+  { nome: "Posa persiana", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 95, costo_interno: 60, descrizione: "Persiana battente in legno o alluminio, cardini + registro", presets: ["serramentista"] },
+  { nome: "Posa tapparella motorizzata", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 110, costo_interno: 70, descrizione: "Tapparella + motore tubolare + cablaggio + programmazione finecorsa", presets: ["serramentista"] },
+  { nome: "Posa cassonetto coibentato", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 75, costo_interno: 45, descrizione: "Cassonetto monoblocco pre-assemblato (non include muratura)", presets: ["serramentista"] },
+  { nome: "Posa zanzariera", tipo: "posa", unita_fatturazione: "pz", prezzo_vendita: 45, costo_interno: 28, descrizione: "Zanzariera verticale o laterale a rullo", presets: ["serramentista"] },
+  { nome: "Posa pavimento ceramica", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 18, costo_interno: 11, descrizione: "Ceramica o gres con colla cementizia su sottofondo pronto", presets: ["essenziale", "edile"] },
+  { nome: "Posa battiscopa", tipo: "posa", unita_fatturazione: "ml", prezzo_vendita: 6, costo_interno: 3.5, descrizione: "Battiscopa in legno, MDF o ceramica — taglio + silicone", presets: ["edile"] },
+  { nome: "Posa rivestimento bagno", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 22, costo_interno: 14, descrizione: "Ceramica a parete o mosaico, stuccatura inclusa", presets: ["essenziale", "edile"] },
+  { nome: "Posa cappotto termico", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 25, costo_interno: 16, descrizione: "Cappotto EPS/XPS con rasatura base + rete", presets: ["essenziale", "edile"] },
+
+  // ─── MANODOPERA ────────────────────────────────────────────────────────────
+  { nome: "Manodopera generica", tipo: "manodopera", unita_fatturazione: "h", prezzo_vendita: 45, costo_interno: 30, descrizione: "Aiuto operaio orario per piccole lavorazioni", presets: ["essenziale", "impiantista", "edile"] },
+  { nome: "Manodopera specializzata", tipo: "manodopera", unita_fatturazione: "h", prezzo_vendita: 60, costo_interno: 40, descrizione: "Operaio qualificato con abilitazioni (es. patentino saldatore)", presets: ["serramentista", "impiantista", "edile"] },
+  { nome: "Ora straordinaria", tipo: "manodopera", unita_fatturazione: "h", prezzo_vendita: 70, costo_interno: 50, descrizione: "Oltre l'orario ordinario o notturna (+50% rispetto base)", presets: ["serramentista", "impiantista", "edile"] },
+  { nome: "Giornata operaio", tipo: "manodopera", unita_fatturazione: "gg", prezzo_vendita: 320, costo_interno: 220, descrizione: "Giornata di 8 ore — operaio base con attrezzatura personale", presets: ["edile"] },
+
+  // ─── LOGISTICA ─────────────────────────────────────────────────────────────
+  { nome: "Trasporto fisso cantiere", tipo: "trasporto", unita_fatturazione: "a_corpo", prezzo_vendita: 65, costo_interno: 40, descrizione: "Consegna singola in cantiere (zona locale entro 30 km)", presets: ["essenziale", "serramentista", "edile", "impiantista"] },
+  { nome: "Trasporto al km", tipo: "trasporto", unita_fatturazione: "km", prezzo_vendita: 0.8, costo_interno: 0.5, descrizione: "Consegna extra-zona, fatturazione al km A/R", presets: ["essenziale", "serramentista", "edile", "impiantista"] },
+  { nome: "Tiro al piano", tipo: "tiro_piano", unita_fatturazione: "piano", prezzo_vendita: 12, costo_interno: 8, piano_base: 1, prezzo_piano_aggiuntivo: 5, descrizione: "Base + extra per piano senza ascensore", presets: ["essenziale", "serramentista", "edile"] },
+  { nome: "Tiro al piano con autoscala", tipo: "tiro_piano", unita_fatturazione: "piano", prezzo_vendita: 60, costo_interno: 45, piano_base: 1, prezzo_piano_aggiuntivo: 25, descrizione: "Autoscala + operatore per cantieri 4+ piani", presets: ["serramentista", "edile"] },
+  { nome: "Smaltimento serramento", tipo: "smaltimento", unita_fatturazione: "pz", prezzo_vendita: 22, costo_interno: 15, descrizione: "Rimozione serramento esistente + conferimento in discarica", presets: ["serramentista"] },
+  { nome: "Smaltimento porta", tipo: "smaltimento", unita_fatturazione: "pz", prezzo_vendita: 35, costo_interno: 22, descrizione: "Rimozione porta + telaio esistenti con sigillatura provvisoria", presets: ["serramentista"] },
+  { nome: "Smaltimento materiale edile", tipo: "smaltimento", unita_fatturazione: "mc", prezzo_vendita: 95, costo_interno: 70, descrizione: "Materiale di risulta al metro cubo (calcinacci, imballi)", presets: ["edile"] },
+
+  // ─── NOLO ──────────────────────────────────────────────────────────────────
+  { nome: "Trabattello giornaliero", tipo: "nolo", unita_fatturazione: "gg", prezzo_vendita: 55, costo_interno: 35, descrizione: "Noleggio trabattello standard fino a 6 m", presets: ["essenziale", "edile", "impiantista"] },
+  { nome: "Ponteggio mq/sett", tipo: "nolo", unita_fatturazione: "mq", prezzo_vendita: 9, costo_interno: 6, descrizione: "Ponteggio al mq settimanale (solo noleggio)", presets: ["essenziale", "edile"] },
+  { nome: "Ponteggio completo mq/mese", tipo: "ponteggio", unita_fatturazione: "mq", prezzo_vendita: 28, costo_interno: 20, descrizione: "Ponteggio + montaggio + smontaggio + PIMUS al mq/mese", presets: ["edile"] },
+  { nome: "Nolo minipala a caldo", tipo: "nolo", unita_fatturazione: "h", prezzo_vendita: 75, costo_interno: 55, descrizione: "Minipala con operatore abilitato", presets: ["edile"] },
+  { nome: "Nolo generatore", tipo: "nolo", unita_fatturazione: "gg", prezzo_vendita: 40, costo_interno: 25, descrizione: "Gruppo elettrogeno da cantiere 5–10 kVA", presets: ["edile", "impiantista"] },
+
+  // ─── FINITURE (lattoneria / sigillatura / contorno / falso telaio) ─────────
+  { nome: "Lattoneria soglia finestra", tipo: "lattoneria", unita_fatturazione: "ml", prezzo_vendita: 18, costo_interno: 11, descrizione: "Soglia esterna in alluminio verniciato a misura", presets: ["serramentista"] },
+  { nome: "Lattoneria scossalina", tipo: "lattoneria", unita_fatturazione: "ml", prezzo_vendita: 22, costo_interno: 13, descrizione: "Scossalina superiore alluminio/rame con piegatura a sagoma", presets: ["serramentista", "edile"] },
+  { nome: "Lattoneria canale di gronda", tipo: "lattoneria", unita_fatturazione: "ml", prezzo_vendita: 28, costo_interno: 17, descrizione: "Canale di gronda in lamiera zincata con pluviali", presets: ["edile"] },
+  { nome: "Sigillatura silicone perimetrale", tipo: "sigillatura", unita_fatturazione: "ml", prezzo_vendita: 4, costo_interno: 2.2, descrizione: "Silicone neutro + nastro primer perimetrale", presets: ["essenziale", "serramentista"] },
+  { nome: "Sigillatura poliuretanica", tipo: "sigillatura", unita_fatturazione: "ml", prezzo_vendita: 6, costo_interno: 3.5, descrizione: "Schiuma poliuretanica alta densità per tenuta aria/acqua", presets: ["serramentista"] },
+  { nome: "Contorno cartongesso", tipo: "contorno", unita_fatturazione: "ml", prezzo_vendita: 14, costo_interno: 8, descrizione: "Rivestimento cartongesso perimetrale + rasatura + angolari", presets: ["serramentista"] },
+  { nome: "Contorno intonachino", tipo: "contorno", unita_fatturazione: "ml", prezzo_vendita: 11, costo_interno: 6, descrizione: "Intonachino di ripristino perimetrale dopo smontaggio", presets: ["serramentista", "edile"] },
+  { nome: "Falso telaio acciaio zincato", tipo: "falso_telaio", unita_fatturazione: "pz", prezzo_vendita: 85, costo_interno: 55, descrizione: "Controtelaio standard in acciaio zincato + fissaggi", presets: ["serramentista"] },
+  { nome: "Falso telaio in legno", tipo: "falso_telaio", unita_fatturazione: "pz", prezzo_vendita: 65, costo_interno: 40, descrizione: "Controtelaio in legno d'abete sezione 7×2,5 cm", presets: ["serramentista"] },
+
+  // ─── SERVIZI TECNICI ───────────────────────────────────────────────────────
+  { nome: "Sopralluogo tecnico", tipo: "sopralluogo", unita_fatturazione: "a_corpo", prezzo_vendita: 80, costo_interno: 50, descrizione: "Rilievo misure + verifica vincoli tecnici in cantiere", presets: ["serramentista", "servizi", "edile"] },
+  { nome: "Sopralluogo condominio", tipo: "sopralluogo", unita_fatturazione: "a_corpo", prezzo_vendita: 150, costo_interno: 100, descrizione: "Sopralluogo con accesso condominiale + relazione", presets: ["serramentista", "servizi"] },
+  { nome: "Progettazione esecutiva", tipo: "progettazione", unita_fatturazione: "a_corpo", prezzo_vendita: 350, costo_interno: 200, descrizione: "Disegni esecutivi + capitolato tecnico", presets: ["servizi"] },
+  { nome: "Direzione lavori", tipo: "progettazione", unita_fatturazione: "gg", prezzo_vendita: 280, costo_interno: 180, descrizione: "Direzione lavori in cantiere con SAL", presets: ["servizi"] },
+  { nome: "Pratica CIL", tipo: "pratica", unita_fatturazione: "a_corpo", prezzo_vendita: 250, costo_interno: 150, descrizione: "Comunicazione Inizio Lavori comunale", presets: ["servizi", "serramentista"] },
+  { nome: "Pratica Ecobonus/Superbonus", tipo: "pratica", unita_fatturazione: "a_corpo", prezzo_vendita: 900, costo_interno: 550, descrizione: "Asseverazione tecnica + comunicazione ENEA + visti", presets: ["servizi", "serramentista"] },
+  { nome: "Certificazione energetica APE", tipo: "pratica", unita_fatturazione: "a_corpo", prezzo_vendita: 180, costo_interno: 110, descrizione: "APE post-intervento (unità abitativa)", presets: ["servizi"] },
+];
+
+/**
+ * Definizione dei preset cataloghi. Ogni preset raggruppa tariffe coerenti
+ * con un mestiere/profilo aziendale tipico. L'admin può importare uno o più
+ * preset (con un click) oppure pickare le singole voci manualmente.
+ */
+const PRESET_CATALOGHI: Array<{
+  id: PresetId;
+  nome: string;
+  descrizione: string;
+  icon: typeof Sparkles;
+  iconClass: string;
+}> = [
+  {
+    id: "essenziale",
+    nome: "Essenziale",
+    descrizione: "Set base universale: posa, manodopera, trasporto, tiro piano, smaltimento. Parti da qui se sei incerto.",
+    icon: Sparkles,
+    iconClass: "bg-primary/10 text-primary",
+  },
+  {
+    id: "serramentista",
+    nome: "Serramentista completo",
+    descrizione: "Posa finestre, porte, persiane, tapparelle + finiture (lattoneria, sigillatura, contorno, falso telaio) + pratiche bonus.",
+    icon: HardHat,
+    iconClass: "bg-emerald-100 text-emerald-700",
+  },
+  {
+    id: "edile",
+    nome: "Edile generico",
+    descrizione: "Posa pavimenti e rivestimenti, cappotto termico, ponteggi, noli, smaltimento materiale, manodopera specializzata.",
+    icon: Hammer,
+    iconClass: "bg-orange-100 text-orange-700",
+  },
+  {
+    id: "impiantista",
+    nome: "Impiantista",
+    descrizione: "Manodopera a ore (generica + specializzata), trasporti, nolo trabattello e generatore per interventi impianti.",
+    icon: Wrench,
+    iconClass: "bg-blue-100 text-blue-700",
+  },
+  {
+    id: "servizi",
+    nome: "Servizi tecnici",
+    descrizione: "Sopralluoghi, progettazione, direzione lavori, pratiche Ecobonus/Superbonus, APE.",
+    icon: ClipboardList,
+    iconClass: "bg-indigo-100 text-indigo-700",
+  },
 ];
 
 function tipoBadgeClass(tipo: string) {
@@ -716,6 +829,15 @@ function TariffaDialog({
 }
 
 // ─── Standard Tariffe Picker Dialog ───────────────────────────────────────────
+/**
+ * Dialog di import catalogo standard. Offre due modalità d'uso:
+ *   1. PRESET: card cliccabili che toggleano in blocco le tariffe del preset.
+ *      L'admin clicca "Serramentista completo" e tutte le tariffe serramentista
+ *      diventano pre-selezionate. Click di nuovo → si deselezionano.
+ *   2. PICKER FINE: lista raggruppata per tipo con checkbox singole, per chi
+ *      vuole scegliere una per una.
+ * Le tariffe già esistenti (match per nome) sono disabilitate e non duplicabili.
+ */
 function StandardTariffeDialog({
   open, onClose, existing, companyId, onCreated,
 }: {
@@ -723,9 +845,14 @@ function StandardTariffeDialog({
   companyId: string; onCreated: () => void;
 }) {
   const existingNames = useMemo(() => new Set(existing.map((t) => t.nome)), [existing]);
+
+  // Default: se l'azienda è "vuota", pre-seleziona il preset Essenziale.
   const [selected, setSelected] = useState<Set<string>>(() => {
-    // Di default seleziona solo quelle non già esistenti
-    return new Set(DEFAULT_TARIFFE.filter((d) => !existingNames.has(d.nome)).map((d) => d.nome));
+    if (existing.length === 0) {
+      const essenziale = STANDARD_TARIFFE.filter((d) => d.presets.includes("essenziale")).map((d) => d.nome);
+      return new Set(essenziale);
+    }
+    return new Set();
   });
   const [creating, setCreating] = useState(false);
 
@@ -738,10 +865,36 @@ function StandardTariffeDialog({
     });
   };
 
-  const selectAll = () => setSelected(new Set(DEFAULT_TARIFFE.filter((d) => !existingNames.has(d.nome)).map((d) => d.nome)));
+  /** Toggle preset: se tutte le tariffe selezionabili del preset sono già
+   *  selezionate → deseleziona le sole voci di quel preset; altrimenti aggiunge
+   *  quelle mancanti (senza toccare il resto della selezione). */
+  const togglePreset = (presetId: PresetId) => {
+    const items = STANDARD_TARIFFE.filter((d) => d.presets.includes(presetId) && !existingNames.has(d.nome));
+    const allSelected = items.length > 0 && items.every((d) => selected.has(d.nome));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        for (const d of items) next.delete(d.nome);
+      } else {
+        for (const d of items) next.add(d.nome);
+      }
+      return next;
+    });
+  };
+
+  /** Quante voci di questo preset sono attualmente selezionate (sul totale importabile). */
+  const presetStats = (presetId: PresetId) => {
+    const all = STANDARD_TARIFFE.filter((d) => d.presets.includes(presetId));
+    const importabili = all.filter((d) => !existingNames.has(d.nome));
+    const sel = importabili.filter((d) => selected.has(d.nome)).length;
+    return { total: all.length, importabili: importabili.length, selected: sel };
+  };
+
+  const selectAll = () =>
+    setSelected(new Set(STANDARD_TARIFFE.filter((d) => !existingNames.has(d.nome)).map((d) => d.nome)));
   const selectNone = () => setSelected(new Set());
 
-  const toCreate = DEFAULT_TARIFFE.filter((d) => selected.has(d.nome) && !existingNames.has(d.nome));
+  const toCreate = STANDARD_TARIFFE.filter((d) => selected.has(d.nome) && !existingNames.has(d.nome));
 
   const handleCreate = async () => {
     if (toCreate.length === 0) {
@@ -750,14 +903,19 @@ function StandardTariffeDialog({
     }
     setCreating(true);
     try {
-      const payload = toCreate.map((d) => ({
-        ...d,
-        company_id: companyId,
-        // Allineiamo anche il campo legacy `unita` al nuovo unita_fatturazione
-        unita: d.unita_fatturazione ? legacyUnitaFrom(d.unita_fatturazione) : "pz",
-        // Allineiamo legacy prezzo_costo al costo_interno
-        prezzo_costo: d.costo_interno,
-      }));
+      const payload = toCreate.map((d) => {
+        // Il campo `presets` è solo client-side — non lo mandiamo al DB.
+        const { presets: _presets, ...rest } = d;
+        return {
+          ...rest,
+          company_id: companyId,
+          // Allineiamo anche il campo legacy `unita` al nuovo unita_fatturazione
+          unita: d.unita_fatturazione ? legacyUnitaFrom(d.unita_fatturazione) : "pz",
+          // Allineiamo legacy prezzo_costo al costo_interno
+          prezzo_costo: d.costo_interno,
+          attivo: true,
+        };
+      });
       const { error } = await supabase.from("tariffe_aziendali").insert(payload as never);
       if (error) throw error;
       toast.success(`${toCreate.length} tariffe create`);
@@ -770,38 +928,121 @@ function StandardTariffeDialog({
     }
   };
 
-  // Raggruppa per tipo
+  // Raggruppa per tipo per la lista fine
   const groups = useMemo(() => {
-    const g = new Map<string, Omit<Tariffa, "id" | "company_id">[]>();
-    for (const d of DEFAULT_TARIFFE) {
+    const g = new Map<string, TariffaSeed[]>();
+    for (const d of STANDARD_TARIFFE) {
       const arr = g.get(d.tipo) ?? [];
       arr.push(d);
       g.set(d.tipo, arr);
     }
-    return [...g.entries()];
+    // Ordina per ordine tipo definito in TIPO_DEFS
+    const tipoOrder = TIPO_DEFS.map((t) => t.value as string);
+    return [...g.entries()].sort(
+      (a, b) => tipoOrder.indexOf(a[0]) - tipoOrder.indexOf(b[0]),
+    );
   }, []);
+
+  const importabiliCount = STANDARD_TARIFFE.filter((d) => !existingNames.has(d.nome)).length;
+  const giaPresentiCount = STANDARD_TARIFFE.length - importabiliCount;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Crea tariffe standard</DialogTitle>
+          <DialogTitle>Catalogo tariffe standard</DialogTitle>
           <DialogDescription>
-            Seleziona quali tariffe aggiungere alla tua azienda. Quelle già presenti sono disabilitate.
+            Scegli un preset adatto al tuo mestiere per importare in blocco, oppure pick le singole voci.
+            Le tariffe già presenti (stesso nome) sono disabilitate.
+            {giaPresentiCount > 0 && (
+              <span className="ml-1 text-muted-foreground">
+                ({giaPresentiCount} di {STANDARD_TARIFFE.length} già presenti)
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center justify-between py-2">
-          <div className="text-sm text-muted-foreground">
-            {selected.size} / {DEFAULT_TARIFFE.length} selezionate · {toCreate.length} da creare
+        {/* ─── PRESET PICKER ─────────────────────────────────────────────── */}
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Preset cataloghi
           </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={selectAll}>Seleziona tutte</Button>
-            <Button size="sm" variant="outline" onClick={selectNone}>Deseleziona</Button>
+          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+            {PRESET_CATALOGHI.map((preset) => {
+              const stats = presetStats(preset.id);
+              const Icon = preset.icon;
+              const fullySelected = stats.importabili > 0 && stats.selected === stats.importabili;
+              const partially = stats.selected > 0 && stats.selected < stats.importabili;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => togglePreset(preset.id)}
+                  disabled={stats.importabili === 0}
+                  className={`text-left rounded-lg border p-3 transition-colors ${
+                    fullySelected
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : partially
+                        ? "border-primary/50 bg-primary/[0.02]"
+                        : "hover:bg-muted/40"
+                  } ${stats.importabili === 0 ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className={`rounded-md p-1.5 shrink-0 ${preset.iconClass}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{preset.nome}</span>
+                        {fullySelected && (
+                          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                        {preset.descrizione}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">
+                          {stats.importabili}/{stats.total} tariffe
+                        </Badge>
+                        {stats.selected > 0 && (
+                          <span className="text-primary font-medium">
+                            {stats.selected} selezionate
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
+        {/* ─── RIEPILOGO + AZIONI BULK ───────────────────────────────────── */}
+        <div className="flex items-center justify-between py-2 border-t border-b">
+          <div className="text-sm">
+            <span className="font-semibold">{toCreate.length}</span>
+            <span className="text-muted-foreground"> tariffe da importare</span>
+            <span className="text-muted-foreground text-xs ml-2">
+              (su {importabiliCount} disponibili)
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={selectAll} disabled={importabiliCount === 0}>
+              Seleziona tutte
+            </Button>
+            <Button size="sm" variant="ghost" onClick={selectNone} disabled={selected.size === 0}>
+              Azzera
+            </Button>
+          </div>
+        </div>
+
+        {/* ─── LISTA FINE PER TIPO ───────────────────────────────────────── */}
         <div className="space-y-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Tutte le tariffe
+          </div>
           {groups.map(([tipo, items]) => (
             <div key={tipo}>
               <div className="flex items-center gap-2 mb-2">
@@ -819,7 +1060,7 @@ function StandardTariffeDialog({
                       key={d.nome}
                       className={`flex items-start gap-3 rounded-md border p-2.5 ${
                         alreadyExists ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/30"
-                      }`}
+                      } ${isChecked && !alreadyExists ? "border-primary/40 bg-primary/[0.02]" : ""}`}
                     >
                       <Checkbox
                         checked={isChecked && !alreadyExists}
@@ -845,6 +1086,13 @@ function StandardTariffeDialog({
                         {d.descrizione && (
                           <div className="text-xs text-muted-foreground mt-0.5">{d.descrizione}</div>
                         )}
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {d.presets.map((p) => (
+                            <Badge key={p} variant="outline" className="h-4 px-1.5 text-[10px] font-normal">
+                              {PRESET_CATALOGHI.find((x) => x.id === p)?.nome ?? p}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     </label>
                   );
