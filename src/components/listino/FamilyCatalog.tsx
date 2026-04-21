@@ -36,6 +36,8 @@ import {
   ChevronRight,
   Grid3x3,
   Ruler,
+  Tag,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -70,6 +72,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import {
   Select,
   SelectContent,
@@ -540,27 +547,27 @@ export function FamilyCatalog() {
                 </Badge>
               </button>
 
-              {/* Categorie dentro la macrocategoria — nascosto se collassato */}
+              {/* Articoli dentro la macrocategoria — flat grid orizzontale.
+                  Le categorie non sono più sezioni separate: il nome della
+                  categoria diventa una chip inline sulla card, così la
+                  stessa riga ospita articoli di categorie diverse e si vede
+                  molto di più a parità di altezza pagina. */}
               {!isCollapsed && (
-              <div id={`macro-panel-${macroGroup.macroId}`} className="space-y-6 pl-0 sm:pl-2">
-                {macroGroup.categorie.map((catGroup) => (
-                  <div key={catGroup.categoriaId} className="space-y-2">
-                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                      <span>{catGroup.categoriaNome}</span>
-                      <span className="font-normal text-xs">
-                        ({catGroup.items.length})
-                      </span>
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {catGroup.items.map((f) => {
-                        const nAssi = f.axes.length;
-                        const nValori = f.axes.reduce(
-                          (sum, a) => sum + a.values.length,
-                          0,
-                        );
-                        return (
+              <div id={`macro-panel-${macroGroup.macroId}`} className="pl-0 sm:pl-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                  {macroGroup.categorie.flatMap((catGroup) =>
+                    catGroup.items.map((f) => {
+                      const nAssi = f.axes.length;
+                      const nValori = f.axes.reduce(
+                        (sum, a) => sum + a.values.length,
+                        0,
+                      );
+                      const catName = catGroup.categoriaNome;
+                      const macroName = macroGroup.macroNome;
+                      return (
+                        <HoverCard key={f.id} openDelay={2000} closeDelay={150}>
+                          <HoverCardTrigger asChild>
                           <Card
-                            key={f.id}
                             className={
                               isAdmin
                                 ? "group relative cursor-pointer hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all flex flex-col"
@@ -634,6 +641,16 @@ export function FamilyCatalog() {
                             </CardHeader>
                             <CardContent className="pt-0 space-y-2 mt-auto">
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                <span
+                                  className="inline-flex items-center gap-1 max-w-full"
+                                  title={`Categoria: ${catName}`}
+                                >
+                                  <Tag
+                                    className="h-3 w-3 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                  <span className="truncate">{catName}</span>
+                                </span>
                                 <span
                                   className="inline-flex items-center gap-1"
                                   title="Unità di misura"
@@ -844,12 +861,93 @@ export function FamilyCatalog() {
                               )}
                             </CardContent>
                           </Card>
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            className="w-80"
+                            side="top"
+                            align="start"
+                            sideOffset={8}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="space-y-3">
+                              {f.immagine_url ? (
+                                <img
+                                  src={f.immagine_url}
+                                  alt=""
+                                  className="w-full aspect-[4/3] rounded object-cover bg-muted"
+                                  loading="lazy"
+                                />
+                              ) : null}
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                                  <Folder
+                                    className="h-3 w-3 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                  <span className="truncate">{macroName}</span>
+                                  <span aria-hidden="true">›</span>
+                                  <span className="truncate">{catName}</span>
+                                </p>
+                                <h4 className="font-semibold text-sm leading-snug">
+                                  {f.nome}
+                                </h4>
+                                {f.descrizione ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    {f.descrizione}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <Badge variant="secondary" className="text-[10px]">
+                                  {MODALITA_LABEL[f.modalita_prezzo_base]}
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px]">
+                                  UM: {f.unit_of_measure}
+                                </Badge>
+                                {f.vat_rate != null ? (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    IVA {f.vat_rate}%
+                                  </Badge>
+                                ) : null}
+                              </div>
+                              {f.axes.length > 0 ? (
+                                <div className="space-y-1.5 pt-1 border-t">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1">
+                                    <Layers
+                                      className="h-3 w-3"
+                                      aria-hidden="true"
+                                    />
+                                    Assi di variazione
+                                  </p>
+                                  <ul className="space-y-0.5 text-xs">
+                                    {f.axes.map((a) => (
+                                      <li
+                                        key={a.id}
+                                        className="flex items-baseline justify-between gap-2"
+                                      >
+                                        <span className="truncate">{a.nome}</span>
+                                        <span className="text-muted-foreground shrink-0">
+                                          {a.values.length}{" "}
+                                          {a.values.length === 1
+                                            ? "valore"
+                                            : "valori"}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : null}
+                              <p className="text-[10px] text-muted-foreground/70 pt-1 border-t">
+                                Click per aprire il dettaglio articolo
+                              </p>
+                            </div>
+                          </HoverCardContent>
+                        </HoverCard>
                         );
-                      })}
-                    </div>
+                      })
+                    )}
                   </div>
-                ))}
-              </div>
+                </div>
               )}
             </section>
             );
