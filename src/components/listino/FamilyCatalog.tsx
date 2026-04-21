@@ -38,6 +38,12 @@ import {
   Ruler,
   Tag,
   Layers,
+  Euro,
+  TrendingUp,
+  Percent,
+  Wrench,
+  ShoppingCart,
+  ArrowDownRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,6 +96,7 @@ import type {
   FamilyWithAxes,
   ModalitaPrezzoBase,
 } from "@/types/articleFamily";
+import { applyScontiFornitore, applyMarkup } from "@/lib/priceMarkup";
 
 const MODALITA_LABEL: Record<ModalitaPrezzoBase, string> = {
   pz: "A pezzo",
@@ -97,6 +104,89 @@ const MODALITA_LABEL: Record<ModalitaPrezzoBase, string> = {
   griglia: "Griglia L×H",
   misura_libera: "Misura libera",
 };
+
+/** Formatter monetario EUR italiano (con 2 decimali). */
+const fmtEUR = new Intl.NumberFormat("it-IT", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/**
+ * Deriva i numeri economici "al pezzo" dalla famiglia, riusando la stessa
+ * pipeline di calcolo del FamilyEditor (priceMarkup.ts):
+ *
+ *  - prezzo_base_mode === 'vendita':
+ *      vendita = prezzo_base_vendita (input diretto)
+ *      acquisto netto = prezzo_base_acquisto (se presente, per info)
+ *      sconti fornitore ignorati (non applicabili in questa modalità)
+ *
+ *  - prezzo_base_mode === 'acquisto_markup':
+ *      acquisto lordo = prezzo_base_acquisto (listino fornitore)
+ *      acquisto netto = sconti in cascata sul lordo
+ *      vendita = applyMarkup(acquisto netto, markup_tipo, markup_valore)
+ *
+ * `marginePct` è calcolato su vendita (convenzione coerente con priceMarkup.ts),
+ * non su costo — questa è la "share" di ricarico rispetto al prezzo finale.
+ *
+ * Ritorna null per vendita/acquisto dove il dato è semanticamente assente (es.
+ * modalità "vendita" senza campo acquisto) per poter rendere la UI condizionale.
+ */
+interface EconomicsPreview {
+  venditaPz: number;
+  acquistoNettoPz: number | null;
+  acquistoLordoPz: number | null;
+  scontiApplicati: { s1: number; s2: number } | null;
+  margineEuro: number | null;
+  marginePct: number | null;
+  isMarkupMode: boolean;
+}
+
+function computeEconomics(f: FamilyWithAxes): EconomicsPreview {
+  const isMarkupMode = f.prezzo_base_mode === "acquisto_markup";
+  if (!isMarkupMode) {
+    // Vendita diretta: acquisto è info opzionale (può essere 0).
+    const venditaPz = Math.max(0, Number(f.prezzo_base_vendita) || 0);
+    const acquistoRaw = Math.max(0, Number(f.prezzo_base_acquisto) || 0);
+    const acquistoPz = acquistoRaw > 0 ? acquistoRaw : null;
+    const margineEuro = acquistoPz != null ? venditaPz - acquistoPz : null;
+    const marginePct =
+      margineEuro != null && venditaPz > 0
+        ? (margineEuro / venditaPz) * 100
+        : null;
+    return {
+      venditaPz,
+      acquistoNettoPz: acquistoPz,
+      acquistoLordoPz: null,
+      scontiApplicati: null,
+      margineEuro,
+      marginePct,
+      isMarkupMode: false,
+    };
+  }
+
+  // acquisto_markup: riutilizzo la stessa pipeline del FamilyEditor.
+  const acquistoLordo = Math.max(0, Number(f.prezzo_base_acquisto) || 0);
+  const s1 = Number(f.sconto_fornitore_1) || 0;
+  const s2 = Number(f.sconto_fornitore_2) || 0;
+  const acquistoNetto =
+    s1 > 0 || s2 > 0 ? applyScontiFornitore(acquistoLordo, s1, s2) : acquistoLordo;
+  const { prezzoVendita, margineEuro, marginePercentualeSuVendita } = applyMarkup({
+    prezzoAcquisto: acquistoNetto,
+    markupTipo: f.markup_tipo,
+    markupValore: Number(f.markup_valore) || 0,
+  });
+  return {
+    venditaPz: prezzoVendita,
+    acquistoNettoPz: acquistoNetto,
+    acquistoLordoPz: s1 > 0 || s2 > 0 ? acquistoLordo : null,
+    scontiApplicati: s1 > 0 || s2 > 0 ? { s1, s2 } : null,
+    margineEuro,
+    marginePct: marginePercentualeSuVendita,
+    isMarkupMode: true,
+  };
+}
 
 // Sentinel per raggruppamenti "senza X"
 const NO_MACRO = "__no_macro__";
@@ -564,14 +654,25 @@ export function FamilyCatalog() {
                       );
                       const catName = catGroup.categoriaNome;
                       const macroName = macroGroup.macroNome;
+                      const econ = computeEconomics(f);
+                      // Disabilita la HoverCard quando per questa card e' aperto
+                      // il Popover "Sposta": evita che l'anteprima si sovrapponga
+                      // al popover di selezione macrocategoria/categoria.
+                      const hoverOpenProps =
+                        moveOpenId === f.id ? { open: false } : {};
                       return (
-                        <HoverCard key={f.id} openDelay={2000} closeDelay={150}>
+                        <HoverCard
+                          key={f.id}
+                          openDelay={2000}
+                          closeDelay={150}
+                          {...hoverOpenProps}
+                        >
                           <HoverCardTrigger asChild>
                           <Card
                             className={
                               isAdmin
-                                ? "group relative cursor-pointer hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all flex flex-col"
-                                : "flex flex-col"
+                                ? "group relative h-full cursor-pointer hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all flex flex-col"
+                                : "h-full flex flex-col"
                             }
                             onClick={
                               isAdmin
@@ -906,10 +1007,163 @@ export function FamilyCatalog() {
                                 </Badge>
                                 {f.vat_rate != null ? (
                                   <Badge variant="outline" className="text-[10px]">
-                                    IVA {f.vat_rate}%
+                                    IVA vend. {f.vat_rate}%
+                                  </Badge>
+                                ) : null}
+                                {econ.isMarkupMode &&
+                                f.vat_rate_acquisto != null &&
+                                f.vat_rate_acquisto !== f.vat_rate ? (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    IVA acq. {f.vat_rate_acquisto}%
                                   </Badge>
                                 ) : null}
                               </div>
+                              {/* Sezione Economia — margini e costi al pezzo.
+                                  Visibile sempre che ci sia almeno un dato utile
+                                  (vendita > 0). Serve al commerciale che vuole
+                                  capire a colpo d'occhio margine e ricarico. */}
+                              {econ.venditaPz > 0 ? (
+                                <div className="space-y-1.5 pt-1 border-t">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1">
+                                    <Euro
+                                      className="h-3 w-3"
+                                      aria-hidden="true"
+                                    />
+                                    Economia · al{" "}
+                                    {f.unit_of_measure || "pz"}
+                                  </p>
+                                  <ul className="space-y-0.5 text-xs">
+                                    <li className="flex items-baseline justify-between gap-2">
+                                      <span className="text-muted-foreground inline-flex items-center gap-1">
+                                        <TrendingUp
+                                          className="h-3 w-3"
+                                          aria-hidden="true"
+                                        />
+                                        Vendita
+                                      </span>
+                                      <span className="font-semibold tabular-nums">
+                                        {fmtEUR.format(econ.venditaPz)}
+                                      </span>
+                                    </li>
+                                    {econ.acquistoNettoPz != null ? (
+                                      <li className="flex items-baseline justify-between gap-2">
+                                        <span className="text-muted-foreground inline-flex items-center gap-1">
+                                          <ShoppingCart
+                                            className="h-3 w-3"
+                                            aria-hidden="true"
+                                          />
+                                          Costo{econ.isMarkupMode ? " netto" : ""}
+                                        </span>
+                                        <span className="tabular-nums">
+                                          {fmtEUR.format(econ.acquistoNettoPz)}
+                                        </span>
+                                      </li>
+                                    ) : null}
+                                    {econ.acquistoLordoPz != null &&
+                                    econ.scontiApplicati ? (
+                                      <li className="flex items-baseline justify-between gap-2">
+                                        <span className="text-muted-foreground/80 inline-flex items-center gap-1 pl-4">
+                                          <ArrowDownRight
+                                            className="h-3 w-3"
+                                            aria-hidden="true"
+                                          />
+                                          Listino -{econ.scontiApplicati.s1}%
+                                          {econ.scontiApplicati.s2 > 0
+                                            ? ` -${econ.scontiApplicati.s2}%`
+                                            : ""}
+                                        </span>
+                                        <span className="text-muted-foreground/80 tabular-nums">
+                                          {fmtEUR.format(econ.acquistoLordoPz)}
+                                        </span>
+                                      </li>
+                                    ) : null}
+                                    {econ.margineEuro != null ? (
+                                      <li className="flex items-baseline justify-between gap-2">
+                                        <span className="text-muted-foreground inline-flex items-center gap-1">
+                                          <Percent
+                                            className="h-3 w-3"
+                                            aria-hidden="true"
+                                          />
+                                          Margine
+                                        </span>
+                                        <span
+                                          className={
+                                            econ.margineEuro > 0
+                                              ? "font-semibold tabular-nums text-emerald-600 dark:text-emerald-400"
+                                              : econ.margineEuro < 0
+                                                ? "font-semibold tabular-nums text-destructive"
+                                                : "font-semibold tabular-nums"
+                                          }
+                                        >
+                                          {fmtEUR.format(econ.margineEuro)}
+                                          {econ.marginePct != null
+                                            ? ` · ${econ.marginePct.toFixed(1)}%`
+                                            : ""}
+                                        </span>
+                                      </li>
+                                    ) : null}
+                                    {econ.isMarkupMode &&
+                                    f.markup_tipo !== "none" ? (
+                                      <li className="flex items-baseline justify-between gap-2">
+                                        <span className="text-muted-foreground inline-flex items-center gap-1">
+                                          <TrendingUp
+                                            className="h-3 w-3"
+                                            aria-hidden="true"
+                                          />
+                                          Markup
+                                        </span>
+                                        <span className="tabular-nums">
+                                          {f.markup_tipo === "percentuale"
+                                            ? `+${Number(f.markup_valore).toFixed(1)}%`
+                                            : `+${fmtEUR.format(Number(f.markup_valore) || 0)}/pz`}
+                                        </span>
+                                      </li>
+                                    ) : null}
+                                  </ul>
+                                </div>
+                              ) : null}
+                              {/* Manodopera: visibile solo in modalita' manuale
+                                  (per "tariffa" il prezzo dipende dalla tariffa
+                                  aziendale separata; per "nessuna" non c'e'
+                                  niente da mostrare). */}
+                              {f.manodopera_modalita === "manuale" &&
+                              (f.manodopera_prezzo_vendita > 0 ||
+                                f.manodopera_costo_acquisto > 0) ? (
+                                <div className="space-y-1.5 pt-1 border-t">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1">
+                                    <Wrench
+                                      className="h-3 w-3"
+                                      aria-hidden="true"
+                                    />
+                                    Manodopera · al {f.manodopera_unita}
+                                  </p>
+                                  <ul className="space-y-0.5 text-xs">
+                                    <li className="flex items-baseline justify-between gap-2">
+                                      <span className="text-muted-foreground">
+                                        Vendita
+                                      </span>
+                                      <span className="font-semibold tabular-nums">
+                                        {fmtEUR.format(
+                                          Number(f.manodopera_prezzo_vendita) || 0,
+                                        )}
+                                      </span>
+                                    </li>
+                                    {f.manodopera_costo_acquisto > 0 ? (
+                                      <li className="flex items-baseline justify-between gap-2">
+                                        <span className="text-muted-foreground">
+                                          Costo
+                                        </span>
+                                        <span className="tabular-nums">
+                                          {fmtEUR.format(
+                                            Number(f.manodopera_costo_acquisto) ||
+                                              0,
+                                          )}
+                                        </span>
+                                      </li>
+                                    ) : null}
+                                  </ul>
+                                </div>
+                              ) : null}
                               {f.axes.length > 0 ? (
                                 <div className="space-y-1.5 pt-1 border-t">
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1">
