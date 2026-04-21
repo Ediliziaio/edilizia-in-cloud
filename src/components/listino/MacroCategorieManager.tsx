@@ -76,6 +76,7 @@ import {
   useCategorieMutations,
   type ListinoCategoria,
 } from "@/hooks/useListinoCategorie";
+import { translateListinoError } from "@/lib/listinoErrors";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Helper tipi interni
@@ -166,12 +167,52 @@ export function MacroCategorieManager() {
     createCategoria.isPending ||
     updateCategoria.isPending;
 
+  // Validazione duplicati client-side: evita round-trip al DB per errori
+  // prevedibili (UNIQUE constraint su nome). Case-insensitive + trim.
+  const isDuplicateName = (
+    nome: string,
+    kind: "macro" | "cat",
+    excludeId?: string,
+  ): boolean => {
+    const normalized = nome.trim().toLocaleLowerCase("it-IT");
+    if (kind === "macro") {
+      return macrocategorie.some(
+        (m) =>
+          m.id !== excludeId &&
+          m.nome.trim().toLocaleLowerCase("it-IT") === normalized,
+      );
+    }
+    return categorie.some(
+      (c) =>
+        c.id !== excludeId &&
+        c.nome.trim().toLocaleLowerCase("it-IT") === normalized,
+    );
+  };
+
   const handleSubmit = async () => {
     const nome = formNome.trim();
     if (!nome) {
       toast.error("Nome obbligatorio");
       return;
     }
+
+    // Pre-check duplicati (UX: messaggio immediato invece di errore DB).
+    const isMacro = editMode.kind === "macro-new" || editMode.kind === "macro-edit";
+    const excludeId =
+      editMode.kind === "macro-edit"
+        ? editMode.row.id
+        : editMode.kind === "cat-edit"
+          ? editMode.row.id
+          : undefined;
+    if (isDuplicateName(nome, isMacro ? "macro" : "cat", excludeId)) {
+      toast.error(
+        isMacro
+          ? "Esiste già una macrocategoria con questo nome."
+          : "Esiste già una categoria con questo nome.",
+      );
+      return;
+    }
+
     try {
       if (editMode.kind === "macro-new") {
         await createMacrocategoria.mutateAsync({
@@ -205,8 +246,16 @@ export function MacroCategorieManager() {
       }
       closeForm();
     } catch (err) {
+      const { message, isTransient } = translateListinoError(err);
       toast.error("Errore salvataggio", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+        description: message,
+        // Su errori transitori (es. schema cache), suggerisci retry rapido.
+        ...(isTransient && {
+          action: {
+            label: "Riprova",
+            onClick: () => void handleSubmit(),
+          },
+        }),
       });
     }
   };
@@ -230,9 +279,8 @@ export function MacroCategorieManager() {
       }
       setToDelete(null);
     } catch (err) {
-      toast.error("Errore eliminazione", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
-      });
+      const { message } = translateListinoError(err);
+      toast.error("Errore eliminazione", { description: message });
     }
   };
 
@@ -285,13 +333,32 @@ export function MacroCategorieManager() {
             Caricamento…
           </div>
         ) : macrocategorie.length === 0 && orfane.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            <Folder className="h-8 w-8 mx-auto mb-2 opacity-60" aria-hidden="true" />
-            <p className="font-medium mb-1">Nessuna macrocategoria configurata</p>
-            <p>
-              Crea la prima macrocategoria (es. <em>INFISSO MODELLO 1</em>) per iniziare a
-              strutturare il listino.
-            </p>
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground space-y-3">
+            <Folder className="h-8 w-8 mx-auto opacity-60" aria-hidden="true" />
+            <div>
+              <p className="font-medium mb-1 text-foreground">
+                Nessuna macrocategoria configurata
+              </p>
+              <p>
+                Crea la prima macrocategoria (es. <em>INFISSO MODELLO 1</em>) per iniziare
+                a strutturare il listino. Le categorie (es. <em>FINESTRA 1 ANTA</em>)
+                andranno al suo interno.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center pt-1">
+              <Button size="sm" onClick={() => openForm({ kind: "macro-new" })}>
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                Crea macrocategoria
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openForm({ kind: "cat-new", macrocategoriaId: null })}
+              >
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                Solo categoria (senza macro)
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
