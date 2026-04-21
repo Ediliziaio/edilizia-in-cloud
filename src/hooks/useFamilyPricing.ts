@@ -19,6 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
 import { queryKeys } from "@/lib/queryKeys";
+import { applyScontiFornitore, applyMarkup } from "@/lib/priceMarkup";
 import { round2 } from "./usePreventivoCosti";
 
 export interface GridPoint {
@@ -163,6 +164,37 @@ export function calcolaPrezzoFamiglia(
         prezzo_griglia_base = pv;
       }
       break;
+  }
+
+  // 1.5. Cascata sconti fornitore + markup on-read (mode=acquisto_markup)
+  //
+  //   La config famiglia (sconti + markup) è la SOURCE OF TRUTH: il cache
+  //   `cell.prezzo_vendita` (FamilyGridEditor) e `family.prezzo_base_vendita`
+  //   potrebbero essere stale se l'utente cambia markup/sconti SENZA
+  //   risalvare griglia/prezzi. Qui ricalcoliamo pv partendo dall'acquisto
+  //   LORDO (che resta invariato in DB), garantendo che il preventivo usi
+  //   SEMPRE la policy corrente.
+  //
+  //   Per mode="vendita" (prezzo diretto cliente) non tocchiamo nulla:
+  //   l'utente ha già definito pv esplicitamente.
+  if (family.prezzo_base_mode === "acquisto_markup") {
+    const s1 = Number(family.sconto_fornitore_1 ?? 0);
+    const s2 = Number(family.sconto_fornitore_2 ?? 0);
+    // pa qui può essere:
+    //  - LORDO (se sconti attivi: FamilyGridEditor scrive acquisto=lordo)
+    //  - NETTO (se sconti 0/0: retrocompat)
+    // applyScontiFornitore con 0/0 è identità → stesso risultato.
+    const nettoAcquisto = applyScontiFornitore(pa, s1, s2);
+    pv = applyMarkup({
+      prezzoAcquisto: nettoAcquisto,
+      markupTipo: family.markup_tipo,
+      markupValore: Number(family.markup_valore ?? 0),
+    }).prezzoVendita;
+    pa = nettoAcquisto;
+    // Aggiorna cache grid_base per il wizard
+    if (family.modalita_prezzo_base === "griglia") {
+      prezzo_griglia_base = pv;
+    }
   }
 
   // 2. + 3. Maggiorazioni in ordine sort_order degli assi

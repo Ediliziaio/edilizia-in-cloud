@@ -74,9 +74,17 @@ function makeFamily(overrides: Partial<FamilyWithAxes> = {}): FamilyWithAxes {
     immagine_url: null,
     pdf_scheda_url: null,
     modalita_prezzo_base: "pz",
+    // Default mode="vendita" per retrocompat con test pre-migration
+    // 20260421000002 (prezzo_base_mode). Le override possono bypassare.
+    prezzo_base_mode: "vendita",
     prezzo_base_vendita: 100,
     prezzo_base_acquisto: 60,
+    markup_tipo: "none",
+    markup_valore: 0,
+    sconto_fornitore_1: 0,
+    sconto_fornitore_2: 0,
     vat_rate: 22,
+    vat_rate_acquisto: 22,
     unit_of_measure: "pz",
     posa_tariffa_default_id: null,
     posa_quantita_default: 0,
@@ -86,6 +94,7 @@ function makeFamily(overrides: Partial<FamilyWithAxes> = {}): FamilyWithAxes {
     attivo: true,
     sort_order: 0,
     custom_field_values: {},
+    deleted_at: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     axes: [],
@@ -489,6 +498,208 @@ describe("calcolaPrezzoFamiglia — sort_order assi", () => {
     expect(r.unit_price_vendita).toBe(132);
     expect(r.maggiorazioni_applicate[0].axis_codice).toBe("b");
     expect(r.maggiorazioni_applicate[1].axis_codice).toBe("a");
+  });
+});
+
+/**
+ * Cascata sconti fornitore + markup applicata ON READ.
+ *
+ * Business case: famiglia "Finestra a Wasistas" in mode=acquisto_markup.
+ *   - Grid cells hanno prezzo_acquisto = LORDO listino fornitore
+ *   - Grid cells hanno prezzo_vendita = cache (potenzialmente stale)
+ *   - Famiglia ha sconto_fornitore_1=50, sconto_fornitore_2=3, markup=100%
+ *
+ * calcolaPrezzoFamiglia deve ricalcolare vendita dal LORDO:
+ *   lordo × (1-s1/100) × (1-s2/100) × (1+markup/100) = vendita
+ *
+ * Questo evita che un cambio di markup/sconti dalla famiglia richieda
+ * di ri-salvare tutta la griglia per riflettersi nel preventivo.
+ */
+describe("calcolaPrezzoFamiglia — mode=acquisto_markup cascata", () => {
+  it("griglia + sconti 50/3 + markup 100% → Finestra a Wasistas €1000 lordo → €970", () => {
+    const family = makeFamily({
+      modalita_prezzo_base: "griglia",
+      prezzo_base_mode: "acquisto_markup",
+      markup_tipo: "percentuale",
+      markup_valore: 100,
+      sconto_fornitore_1: 50,
+      sconto_fornitore_2: 3,
+    });
+    const griglia: GridPoint[] = [
+      {
+        valore_x: 1200,
+        valore_y: 1400,
+        prezzo_vendita: 9999, // cache STALE (deliberatamente sbagliata)
+        prezzo_acquisto_netto: 1000, // LORDO listino
+      },
+    ];
+    const r = calcolaPrezzoFamiglia(
+      {
+        family,
+        selections: {},
+        larghezza_mm: 1200,
+        altezza_mm: 1400,
+        quantita: 1,
+      },
+      griglia,
+    );
+    // netto = 1000 × 0.5 × 0.97 = 485
+    // vendita = 485 × 2 = 970
+    expect(r.unit_price_acquisto).toBeCloseTo(485, 2);
+    expect(r.unit_price_vendita).toBeCloseTo(970, 2);
+    expect(r.totale_vendita).toBeCloseTo(970, 2);
+    expect(r.totale_acquisto).toBeCloseTo(485, 2);
+    // Margine corretto: vendita - netto (non vendita - lordo)
+    const margine = r.totale_vendita - r.totale_acquisto;
+    expect(margine).toBeCloseTo(485, 2);
+  });
+
+  it("mode=acquisto_markup con sconti 0/0 → NO cascata, markup diretto", () => {
+    const family = makeFamily({
+      modalita_prezzo_base: "griglia",
+      prezzo_base_mode: "acquisto_markup",
+      markup_tipo: "percentuale",
+      markup_valore: 45,
+      sconto_fornitore_1: 0,
+      sconto_fornitore_2: 0,
+    });
+    const griglia: GridPoint[] = [
+      {
+        valore_x: 1200,
+        valore_y: 1400,
+        prezzo_vendita: 0,
+        prezzo_acquisto_netto: 100, // già netto
+      },
+    ];
+    const r = calcolaPrezzoFamiglia(
+      { family, selections: {}, larghezza_mm: 1200, altezza_mm: 1400, quantita: 1 },
+      griglia,
+    );
+    // Con sconti 0/0 applyScontiFornitore è identità: netto = 100
+    // vendita = 100 × 1.45 = 145
+    expect(r.unit_price_acquisto).toBe(100);
+    expect(r.unit_price_vendita).toBeCloseTo(145, 2);
+  });
+
+  it("mode=acquisto_markup + markup=none → vendita = netto (no margine)", () => {
+    const family = makeFamily({
+      modalita_prezzo_base: "griglia",
+      prezzo_base_mode: "acquisto_markup",
+      markup_tipo: "none",
+      markup_valore: 0,
+      sconto_fornitore_1: 30,
+      sconto_fornitore_2: 0,
+    });
+    const griglia: GridPoint[] = [
+      {
+        valore_x: 1000,
+        valore_y: 1000,
+        prezzo_vendita: 0,
+        prezzo_acquisto_netto: 200, // LORDO
+      },
+    ];
+    const r = calcolaPrezzoFamiglia(
+      { family, selections: {}, larghezza_mm: 1000, altezza_mm: 1000, quantita: 1 },
+      griglia,
+    );
+    // netto = 200 × 0.7 = 140, vendita = netto (no markup)
+    expect(r.unit_price_acquisto).toBeCloseTo(140, 2);
+    expect(r.unit_price_vendita).toBeCloseTo(140, 2);
+  });
+
+  it("mode=vendita ignora sconti/markup anche se configurati (retrocompat)", () => {
+    const family = makeFamily({
+      modalita_prezzo_base: "griglia",
+      prezzo_base_mode: "vendita",
+      // Sconti/markup presenti ma IGNORATI in mode=vendita
+      markup_tipo: "percentuale",
+      markup_valore: 999,
+      sconto_fornitore_1: 50,
+      sconto_fornitore_2: 3,
+    });
+    const griglia: GridPoint[] = [
+      {
+        valore_x: 1200,
+        valore_y: 1400,
+        prezzo_vendita: 300, // vendita diretta (rispettata)
+        prezzo_acquisto_netto: 180,
+      },
+    ];
+    const r = calcolaPrezzoFamiglia(
+      { family, selections: {}, larghezza_mm: 1200, altezza_mm: 1400, quantita: 1 },
+      griglia,
+    );
+    expect(r.unit_price_vendita).toBe(300);
+    expect(r.unit_price_acquisto).toBe(180);
+  });
+
+  it("mode=acquisto_markup su mq: lordo/mq × mq → netto totale → markup", () => {
+    // €/mq lordo listino × mq = lordo totale → sconti → netto → markup
+    const family = makeFamily({
+      modalita_prezzo_base: "mq",
+      prezzo_base_mode: "acquisto_markup",
+      prezzo_base_acquisto: 200, // lordo €200/mq
+      markup_tipo: "percentuale",
+      markup_valore: 50,
+      sconto_fornitore_1: 40,
+      sconto_fornitore_2: 0,
+    });
+    const r = calcolaPrezzoFamiglia({
+      family,
+      selections: {},
+      larghezza_mm: 1000,
+      altezza_mm: 1000,
+      quantita: 1,
+    });
+    // mq = 1, lordo_tot = 200, netto = 200 × 0.6 = 120, vendita = 120 × 1.5 = 180
+    expect(r.unit_price_acquisto).toBeCloseTo(120, 2);
+    expect(r.unit_price_vendita).toBeCloseTo(180, 2);
+  });
+
+  it("mode=acquisto_markup + maggiorazione asse percentuale applicata DOPO markup", () => {
+    const valColor = makeValue({
+      id: "val-rosso",
+      valore: "rosso",
+      maggiorazione_tipo: "percentuale",
+      maggiorazione_valore: 10, // +10% sul vendita
+      maggiorazione_acquisto: 10, // +10% sul netto
+    });
+    const axisColor = makeAxis({
+      codice: "colore",
+      values: [valColor],
+      sort_order: 1,
+    });
+    const family = makeFamily({
+      modalita_prezzo_base: "griglia",
+      prezzo_base_mode: "acquisto_markup",
+      markup_tipo: "percentuale",
+      markup_valore: 100,
+      sconto_fornitore_1: 50,
+      sconto_fornitore_2: 0,
+      axes: [axisColor],
+    });
+    const griglia: GridPoint[] = [
+      {
+        valore_x: 1000,
+        valore_y: 1000,
+        prezzo_vendita: 0,
+        prezzo_acquisto_netto: 1000, // LORDO
+      },
+    ];
+    const r = calcolaPrezzoFamiglia(
+      {
+        family,
+        selections: { colore: "val-rosso" },
+        larghezza_mm: 1000,
+        altezza_mm: 1000,
+        quantita: 1,
+      },
+      griglia,
+    );
+    // netto = 1000 × 0.5 = 500; vendita_base = 500 × 2 = 1000
+    // +10% maggiorazione: vendita = 1100, acquisto netto = 550
+    expect(r.unit_price_vendita).toBeCloseTo(1100, 2);
+    expect(r.unit_price_acquisto).toBeCloseTo(550, 2);
   });
 });
 
