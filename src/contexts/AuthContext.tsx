@@ -964,6 +964,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient,
   ]);
 
+  // ── Realtime: company_subscriptions ──────────────────────────────────────
+  // Analogo al listener su company_feature_overrides: quando il SuperAdmin
+  // cambia il piano di un'azienda (upgrade/downgrade/trial extension), la
+  // risoluzione delle feature deve essere ri-eseguita subito. Senza questo
+  // listener l'utente finale manteneva le feature del vecchio piano fino a
+  // scadenza staleTime (60s) o refresh manuale.
+  //
+  // Il cambio di piano NON tocca la tabella company_feature_overrides (che è
+  // il livello di priorità massima) — ma il plan_default della feature
+  // dipende direttamente dal plan_id. Questo secondo channel copre quel caso.
+  useEffect(() => {
+    const hasActiveImp = !!impersonatedCompanyId && !!impersonationToken;
+    const isImp = (state.role === "super_admin" && !!impersonatedCompanyId) || hasActiveImp;
+    const isPlatform = state.role?.startsWith("platform_") ?? false;
+    const effCompanyId = isImp
+      ? impersonatedCompanyId
+      : (state.role === "multi_company_user" || isPlatform) && multiCompanyState.selectedId
+        ? multiCompanyState.selectedId
+        : state.company?.id ?? null;
+
+    if (!effCompanyId || !state.user) return;
+
+    const channel = supabase
+      .channel(`company-subscriptions-${effCompanyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "company_subscriptions",
+          filter: `company_id=eq.${effCompanyId}`,
+        },
+        () => {
+          // Invalidation chain: feature-access dipende dal piano corrente via
+          // plan_feature_defaults + platform_feature_flags.plans_included.
+          // Invalidiamo anche le query di subscription/plan per riflettere il
+          // nuovo piano in sidebar (module gate) e impostazioni abbonamento.
+          queryClient.invalidateQueries({ queryKey: ["feature-access"] });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.featureFlags.companyResolved(effCompanyId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.featureFlags.companyOverrides(effCompanyId),
+          });
+          queryClient.invalidateQueries({ queryKey: ["company-subscription"] });
+          queryClient.invalidateQueries({ queryKey: ["subscription-limits"] });
+          queryClient.invalidateQueries({ queryKey: ["current-plan"] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [
+    state.user?.id,
+    state.role,
+    state.company?.id,
+    impersonatedCompanyId,
+    impersonationToken,
+    multiCompanyState.selectedId,
+    queryClient,
+  ]);
+
   // Fetch multi-company accesses for multi_company_user and platform roles
   useEffect(() => {
     async function fetchMultiCompanyAccesses() {
