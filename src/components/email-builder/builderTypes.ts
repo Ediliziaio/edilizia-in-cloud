@@ -71,11 +71,11 @@ export const DEFAULT_PROPS: Record<BlockType, BlockProps> = {
     align: "center",
   } as ImageProps,
   button: {
-    text: "Clicca qui",
+    text: "Apri piattaforma",
     url: "#",
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#1d4ed8",
     textColor: "#FFFFFF",
-    borderRadius: "4px",
+    borderRadius: "6px",
     align: "center",
   } as ButtonProps,
   divider: {
@@ -122,10 +122,16 @@ export function getColumnWidths(layout: ColumnLayout): string[] {
 }
 
 export const PERSONALIZATION_VARIABLES = [
-  { label: "Nome", tag: "{{contact.first_name}}" },
-  { label: "Cognome", tag: "{{contact.last_name}}" },
-  { label: "Email", tag: "{{contact.email}}" },
-  { label: "Telefono", tag: "{{contact.phone}}" },
+  { label: "Nome utente accesso", tag: "{{user.first_name}}" },
+  { label: "Cognome utente accesso", tag: "{{user.last_name}}" },
+  { label: "Nome completo utente", tag: "{{user.full_name}}" },
+  { label: "Email utente", tag: "{{user.email}}" },
+  { label: "Ruolo utente", tag: "{{user.role_label}}" },
+  { label: "Nome destinatario", tag: "{{recipient.first_name}}" },
+  { label: "Email destinatario", tag: "{{recipient.email}}" },
+  { label: "Nome contatto", tag: "{{contact.first_name}}" },
   { label: "Azienda", tag: "{{company.name}}" },
+  { label: "Link accesso", tag: "{{user.login_url}}" },
+  { label: "Link invito", tag: "{{user.invite_url}}" },
   { label: "Link disiscrizione", tag: "{{unsubscribe_url}}" },
 ] as const;

@@ -1,4 +1,5 @@
 import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown, Plus, Type, ImageIcon, MousePointerClick, Minus, Code } from "lucide-react";
+import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import DOMPurify from "dompurify";
 import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths, BlockType } from "./builderTypes";
 import { Button } from "@/components/ui/button";
@@ -23,12 +24,12 @@ interface BuilderBlockProps {
   onMoveDown: () => void;
   isFirst: boolean;
   isLast: boolean;
-  dragHandleProps?: Record<string, any>;
+  dragHandleProps?: DraggableSyntheticListeners;
   onAddChildBlock?: (parentId: string, colIndex: number, childType: BlockType) => void;
   onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
   onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
   selectedChildBlockId?: string | null;
-  onInlineEdit?: (blockId: string, partial: Record<string, any>) => void;
+  onInlineEdit?: (blockId: string, partial: Partial<BuilderBlockType["props"]>) => void;
 }
 
 export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelete, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId, onInlineEdit }: BuilderBlockProps) {
@@ -162,7 +163,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >
       {/* Hover toolbar */}
-      <div className={`absolute -top-3 right-1 z-10 flex items-center gap-0.5 bg-background border rounded-md shadow-sm px-1 py-0.5 transition-opacity ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+      <div className={`absolute -top-3 right-3 z-10 flex items-center gap-0.5 bg-background border rounded-md shadow-sm px-1 py-0.5 transition-opacity ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
         <div {...dragHandleProps} className="cursor-grab p-0.5">
           <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
         </div>
@@ -184,7 +185,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
         </Button>
       </div>
 
-      <div className="p-3">{renderContent()}</div>
+      <div className="p-4">{renderContent()}</div>
     </div>
   );
 }

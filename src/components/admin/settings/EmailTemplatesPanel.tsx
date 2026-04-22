@@ -161,7 +161,7 @@ function defaultVisualBlocksFor(templateKey: string): BuilderBlockType[] {
       id: makeBlockId("intro"),
       type: "text",
       props: {
-        content: "Ciao {{contact.first_name}},\n\nscrivi qui il contenuto del messaggio.",
+        content: "Ciao {{user.first_name}},\n\nscrivi qui il contenuto del messaggio.",
         fontSize: "16px",
         color: "#333333",
         textAlign: "left",
@@ -174,7 +174,7 @@ function defaultVisualBlocksFor(templateKey: string): BuilderBlockType[] {
       type: "button",
       props: {
         text: "Apri piattaforma",
-        url: "{{loginUrl}}",
+        url: "{{user.login_url}}",
         backgroundColor: "#1d4ed8",
         textColor: "#ffffff",
         borderRadius: "6px",
@@ -1232,8 +1232,8 @@ function VisualTemplateBuilder({
     : blocks.find((block) => block.id === selectedBlockId) ?? null;
 
   return (
-    <div className="overflow-hidden rounded-md border bg-background">
-      <div className="flex flex-col gap-3 border-b p-3 xl:flex-row xl:items-center xl:justify-between">
+    <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
+      <div className="flex flex-col gap-3 border-b bg-muted/20 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor="visual-subject">Oggetto *</Label>
           <Input
@@ -1272,7 +1272,7 @@ function VisualTemplateBuilder({
         </div>
       </div>
 
-      <div className="flex h-[720px] overflow-hidden">
+      <div className="flex h-[780px] overflow-hidden">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <BuilderSidebar />
           <BuilderCanvas

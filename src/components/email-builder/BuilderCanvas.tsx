@@ -17,7 +17,7 @@ interface BuilderCanvasProps {
   onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
   onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
   selectedChildBlockId?: string | null;
-  onInlineEdit?: (blockId: string, partial: Record<string, any>) => void;
+  onInlineEdit?: (blockId: string, partial: Partial<BuilderBlockType["props"]>) => void;
 }
 
 function SortableBlock({
@@ -37,7 +37,7 @@ function SortableBlock({
   onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
   onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
   selectedChildBlockId?: string | null;
-  onInlineEdit?: (blockId: string, partial: Record<string, any>) => void;
+  onInlineEdit?: (blockId: string, partial: Partial<BuilderBlockType["props"]>) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
 
@@ -74,19 +74,19 @@ export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplic
   const { setNodeRef, isOver } = useDroppable({ id: "canvas-drop" });
 
   return (
-    <div className="flex-1 overflow-auto flex justify-center py-6 px-4 bg-muted/30" onClick={() => onSelectBlock(null)}>
+    <div className="flex-1 overflow-auto flex justify-center bg-[#eef2f7] px-6 py-8" onClick={() => onSelectBlock(null)}>
       <div
         ref={setNodeRef}
-        className={`bg-background border rounded-md shadow-sm transition-all ${isOver ? "ring-2 ring-primary/50" : ""}`}
-        style={{ width: previewWidth, minHeight: "500px", maxWidth: "100%" }}
+        className={`bg-background border rounded-lg shadow-sm transition-all ${isOver ? "ring-2 ring-primary/50" : ""}`}
+        style={{ width: previewWidth, minHeight: "560px", maxWidth: "100%" }}
       >
         {blocks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[500px] text-muted-foreground gap-3">
+          <div className="flex flex-col items-center justify-center h-full min-h-[560px] text-muted-foreground gap-3">
             <Package className="h-12 w-12 opacity-30" />
             <p className="text-sm">Trascina un elemento qui per iniziare</p>
           </div>
         ) : (
-          <div className="p-4 space-y-1">
+          <div className="space-y-4 p-7 md:p-8">
             <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
               {blocks.map((block, i) => (
                 <SortableBlock

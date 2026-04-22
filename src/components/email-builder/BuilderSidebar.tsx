@@ -20,7 +20,7 @@ function DraggableItem({ type, layout, icon, label }: DraggableItemProps) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border border-border bg-background cursor-grab hover:border-primary/50 hover:bg-muted/50 transition-all select-none ${isDragging ? "opacity-40" : ""}`}
+      className={`flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-md border border-border bg-background p-3 cursor-grab hover:border-primary/50 hover:bg-primary/5 transition-all select-none ${isDragging ? "opacity-40" : ""}`}
     >
       {icon}
       <span className="text-[10px] font-medium text-muted-foreground leading-tight text-center">{label}</span>
@@ -88,15 +88,15 @@ const LAYOUTS: { layout: ColumnLayout; label: string; visual: React.ReactNode }[
 
 export function BuilderSidebar() {
   return (
-    <div className="w-[220px] border-r bg-background p-3 overflow-y-auto shrink-0">
+    <div className="w-[248px] border-r bg-background p-4 overflow-y-auto shrink-0">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Elementi</p>
-      <div className="grid grid-cols-3 gap-1.5 mb-5">
+      <div className="grid grid-cols-3 gap-2 mb-6">
         {ELEMENTS.map((el) => (
           <DraggableItem key={el.type} {...el} />
         ))}
       </div>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Layout</p>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-2 gap-2">
         {LAYOUTS.map((l) => (
           <DraggableItem key={l.layout} type="columns" layout={l.layout} icon={l.visual} label={l.label} />
         ))}

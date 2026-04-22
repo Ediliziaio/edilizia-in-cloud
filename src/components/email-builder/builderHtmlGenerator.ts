@@ -10,11 +10,18 @@ import {
   getColumnWidths,
 } from "./builderTypes";
 
+function normalizeTextContent(content: string): string {
+  return content
+    .split(/\n/)
+    .map((line) => line.trim() ? line : "&nbsp;")
+    .join("<br />");
+}
+
 function renderBlockHtml(block: BuilderBlock): string {
   switch (block.type) {
     case "text": {
       const p = block.props as TextProps;
-      return `<div style="font-family:${p.fontFamily},sans-serif;font-size:${p.fontSize};color:${p.color};text-align:${p.textAlign};font-weight:${p.fontWeight};line-height:1.5;padding:8px 0;">${p.content}</div>`;
+      return `<div style="font-family:${p.fontFamily},Arial,sans-serif;font-size:${p.fontSize};color:${p.color};text-align:${p.textAlign};font-weight:${p.fontWeight};line-height:1.6;padding:10px 0;">${normalizeTextContent(p.content)}</div>`;
     }
     case "image": {
       const p = block.props as ImageProps;
@@ -24,8 +31,8 @@ function renderBlockHtml(block: BuilderBlock): string {
     case "button": {
       const p = block.props as ButtonProps;
       const alignStyle = p.align === "center" ? "text-align:center;" : p.align === "right" ? "text-align:right;" : "text-align:left;";
-      return `<div style="${alignStyle}padding:8px 0;">
-        <a href="${p.url}" target="_blank" style="display:inline-block;background-color:${p.backgroundColor};color:${p.textColor};padding:12px 24px;border-radius:${p.borderRadius};text-decoration:none;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${p.text}</a>
+      return `<div style="${alignStyle}padding:14px 0;">
+        <a href="${p.url}" target="_blank" style="display:inline-block;background-color:${p.backgroundColor};color:${p.textColor};padding:13px 26px;border-radius:${p.borderRadius};text-decoration:none;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;line-height:1.2;">${p.text}</a>
       </div>`;
     }
     case "divider": {
@@ -34,7 +41,7 @@ function renderBlockHtml(block: BuilderBlock): string {
     }
     case "spacer": {
       const p = block.props as SpacerProps;
-      return `<div style="height:${p.height};"></div>`;
+      return `<div style="height:${p.height};line-height:${p.height};font-size:0;">&nbsp;</div>`;
     }
     case "html": {
       const p = block.props as HtmlProps;
@@ -47,7 +54,7 @@ function renderBlockHtml(block: BuilderBlock): string {
       const cols = widths.map((w, i) => {
         const colBlocks = children[i] || [];
         const inner = colBlocks.map(renderBlockHtml).join("");
-        return `<td style="width:${w};vertical-align:top;padding:0 ${parseInt(p.gap) / 2}px;">${inner || "&nbsp;"}</td>`;
+        return `<td style="width:${w};vertical-align:top;padding:0 ${parseInt(p.gap, 10) / 2}px;">${inner || "&nbsp;"}</td>`;
       }).join("");
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout:fixed;"><tr>${cols}</tr></table>`;
     }
@@ -70,9 +77,9 @@ export function generateEmailHtml(blocks: BuilderBlock[]): string {
 </head>
 <body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f4;">
-<tr><td align="center" style="padding:24px 0;">
-<table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;max-width:600px;width:100%;">
-<tr><td style="padding:24px;">
+<tr><td align="center" style="padding:32px 16px;">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;max-width:600px;width:100%;border-radius:8px;overflow:hidden;">
+<tr><td style="padding:36px;">
 ${body}
 </td></tr>
 </table>

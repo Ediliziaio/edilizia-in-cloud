@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Lock, Plus, Search, Trash2, Variable } from "lucide-react";
+import { Copy, Lock, Plus, Search, Trash2, UserRound, Variable } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -35,11 +35,108 @@ const SETTINGS_KEY = "platform_email_custom_fields";
 const QUERY_KEY = ["platform-email-custom-fields"] as const;
 
 const ADMIN_OBJECTS = [
+  { value: "user", label: "Utente destinatario" },
+  { value: "recipient", label: "Destinatario email" },
   { value: "platform", label: "Piattaforma" },
   { value: "admin", label: "Superadmin" },
   { value: "billing", label: "Billing" },
   { value: "support", label: "Supporto" },
   { value: "sales", label: "Vendite" },
+];
+
+const CUSTOM_ADMIN_OBJECTS = ADMIN_OBJECTS.filter(
+  (item) => item.value !== "user" && item.value !== "recipient",
+);
+
+const ACCESS_USER_FIELD_PRESETS: UnifiedField[] = [
+  {
+    id: "sys_access_user_first_name",
+    name: "Nome utente",
+    object: "Utente destinatario",
+    folder: "user",
+    folderColor: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    uniqueKey: "{{ user.first_name }}",
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType: "text",
+  },
+  {
+    id: "sys_access_user_last_name",
+    name: "Cognome utente",
+    object: "Utente destinatario",
+    folder: "user",
+    folderColor: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    uniqueKey: "{{ user.last_name }}",
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType: "text",
+  },
+  {
+    id: "sys_access_user_full_name",
+    name: "Nome completo utente",
+    object: "Utente destinatario",
+    folder: "user",
+    folderColor: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    uniqueKey: "{{ user.full_name }}",
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType: "text",
+  },
+  {
+    id: "sys_access_user_email",
+    name: "Email utente",
+    object: "Utente destinatario",
+    folder: "user",
+    folderColor: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    uniqueKey: "{{ user.email }}",
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType: "text",
+  },
+  {
+    id: "sys_access_user_role",
+    name: "Ruolo utente",
+    object: "Utente destinatario",
+    folder: "user",
+    folderColor: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    uniqueKey: "{{ user.role_label }}",
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType: "text",
+  },
+  {
+    id: "sys_access_user_login_url",
+    name: "Link accesso utente",
+    object: "Utente destinatario",
+    folder: "user",
+    folderColor: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    uniqueKey: "{{ user.login_url }}",
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType: "text",
+  },
+  {
+    id: "sys_recipient_first_name",
+    name: "Nome destinatario",
+    object: "Destinatario email",
+    folder: "recipient",
+    folderColor: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
+    uniqueKey: "{{ recipient.first_name }}",
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType: "text",
+  },
+  {
+    id: "sys_recipient_email",
+    name: "Email destinatario",
+    object: "Destinatario email",
+    folder: "recipient",
+    folderColor: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
+    uniqueKey: "{{ recipient.email }}",
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType: "text",
+  },
 ];
 
 const ADMIN_FIELD_PRESETS: UnifiedField[] = [
@@ -130,6 +227,8 @@ function folderBadgeClass(folder: string): string {
   if (folder === "admin") return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300";
   if (folder === "billing") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
   if (folder === "support") return "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300";
+  if (folder === "user") return "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300";
+  if (folder === "recipient") return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300";
   return "bg-muted text-muted-foreground";
 }
 
@@ -181,7 +280,7 @@ export function PlatformCustomFieldsPanel() {
       isSystem: false,
       fieldType: field.fieldType,
     }));
-    return [...BUILTIN_FIELDS, ...ADMIN_FIELD_PRESETS, ...adminCustom];
+    return [...ACCESS_USER_FIELD_PRESETS, ...BUILTIN_FIELDS, ...ADMIN_FIELD_PRESETS, ...adminCustom];
   }, [customFields]);
 
   const filtered = useMemo(() => {
@@ -267,7 +366,11 @@ export function PlatformCustomFieldsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-4">
+          <p className="text-xs text-blue-700">Utente che riceve accesso</p>
+          <p className="text-2xl font-semibold text-blue-950">{ACCESS_USER_FIELD_PRESETS.length}</p>
+        </div>
         <div className="rounded-md border p-4">
           <p className="text-xs text-muted-foreground">Campi sistema azienda</p>
           <p className="text-2xl font-semibold">{BUILTIN_FIELDS.length}</p>
@@ -346,7 +449,11 @@ export function PlatformCustomFieldsPanel() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {field.isSystem ? (
-                        <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                        field.folder === "user" || field.folder === "recipient" ? (
+                          <UserRound className="h-3.5 w-3.5 text-blue-600" />
+                        ) : (
+                          <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                        )
                       ) : (
                         <Variable className="h-3.5 w-3.5 text-primary" />
                       )}
@@ -403,7 +510,7 @@ export function PlatformCustomFieldsPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ADMIN_OBJECTS.map((item) => (
+                  {CUSTOM_ADMIN_OBJECTS.map((item) => (
                     <SelectItem key={item.value} value={item.value}>
                       {item.label}
                     </SelectItem>

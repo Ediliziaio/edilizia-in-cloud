@@ -83,6 +83,32 @@ describe("applyPlaceholders", () => {
       "{{foo-bar}}",
     );
   });
+
+  it("supporta placeholder puntati e alias utente destinatario", () => {
+    const out = applyPlaceholders(
+      "Ciao {{ user.first_name }} {{user.last_name}} - {{user.email}} - {{user.role_label}}",
+      {
+        recipientName: "Marco Rossi",
+        recipientEmail: "marco@example.com",
+        roleLabel: "Admin azienda",
+      },
+      false,
+    );
+    expect(out).toBe("Ciao Marco Rossi - marco@example.com - Admin azienda");
+  });
+
+  it("mappa contact.first_name e recipient.first_name dai dati legacy", () => {
+    const out = applyPlaceholders(
+      "{{contact.first_name}} / {{recipient.email}} / {{company.name}}",
+      {
+        recipientName: "Sara Bianchi",
+        email: "sara@example.com",
+        companyName: "Demo Azienda S.r.l.",
+      },
+      false,
+    );
+    expect(out).toBe("Sara / sara@example.com / Demo Azienda S.r.l.");
+  });
 });
 
 describe("extractPlaceholderKeys", () => {

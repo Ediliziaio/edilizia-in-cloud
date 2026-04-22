@@ -27,16 +27,65 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function splitFullName(value: unknown): { first?: string; last?: string; full?: string } {
+  if (typeof value !== "string") return {};
+  const full = value.trim();
+  if (!full) return {};
+  const parts = full.split(/\s+/);
+  return {
+    first: parts[0],
+    last: parts.length > 1 ? parts.slice(1).join(" ") : undefined,
+    full,
+  };
+}
+
+function coalesce(...values: unknown[]): unknown {
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+}
+
+function resolveAccessRecipientAlias(data: Record<string, unknown>, key: string): unknown {
+  const recipientName = splitFullName(
+    coalesce(data.recipientName, data.userName, data.fullName, data.name),
+  );
+
+  const aliases: Record<string, unknown> = {
+    "user.first_name": coalesce(data.userFirstName, data.firstName, data.recipientFirstName, recipientName.first),
+    "user.last_name": coalesce(data.userLastName, data.lastName, data.recipientLastName, recipientName.last),
+    "user.full_name": coalesce(data.userFullName, data.fullName, data.recipientName, recipientName.full),
+    "user.name": coalesce(data.userFullName, data.fullName, data.recipientName, recipientName.full),
+    "user.email": coalesce(data.userEmail, data.recipientEmail, data.email),
+    "user.role": coalesce(data.userRole, data.role, data.roleLabel),
+    "user.role_label": coalesce(data.userRoleLabel, data.roleLabel, data.userRole, data.role),
+    "user.login_url": coalesce(data.userLoginUrl, data.loginUrl, data.acceptUrl, data.verifyUrl),
+    "user.invite_url": coalesce(data.userInviteUrl, data.inviteUrl, data.acceptUrl),
+
+    "recipient.first_name": coalesce(data.recipientFirstName, data.firstName, data.userFirstName, recipientName.first),
+    "recipient.last_name": coalesce(data.recipientLastName, data.lastName, data.userLastName, recipientName.last),
+    "recipient.full_name": coalesce(data.recipientName, data.userFullName, data.fullName, recipientName.full),
+    "recipient.name": coalesce(data.recipientName, data.userFullName, data.fullName, recipientName.full),
+    "recipient.email": coalesce(data.recipientEmail, data.userEmail, data.email),
+
+    "contact.first_name": coalesce(data.contactFirstName, data.firstName, data.recipientFirstName, data.userFirstName, recipientName.first),
+    "contact.last_name": coalesce(data.contactLastName, data.lastName, data.recipientLastName, data.userLastName, recipientName.last),
+    "contact.full_name": coalesce(data.contactFullName, data.recipientName, data.userFullName, data.fullName, recipientName.full),
+    "contact.email": coalesce(data.contactEmail, data.recipientEmail, data.userEmail, data.email),
+
+    "company.name": coalesce(data.companyName, data.company_name),
+  };
+
+  return aliases[key];
+}
+
 function resolvePlaceholderValue(data: Record<string, unknown>, key: string): unknown {
   if (Object.prototype.hasOwnProperty.call(data, key)) return data[key];
   if (!key.includes(".")) return data[key];
 
   let cursor: unknown = data;
   for (const part of key.split(".")) {
-    if (!cursor || typeof cursor !== "object") return undefined;
+    if (!cursor || typeof cursor !== "object") return resolveAccessRecipientAlias(data, key);
     cursor = (cursor as Record<string, unknown>)[part];
   }
-  return cursor;
+  return cursor ?? resolveAccessRecipientAlias(data, key);
 }
 
 /**

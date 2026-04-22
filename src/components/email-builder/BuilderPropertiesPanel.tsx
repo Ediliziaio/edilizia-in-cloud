@@ -38,11 +38,11 @@ function VariableInsertButton({ onInsert }: { onInsert: (tag: string) => void })
           <Variable className="h-3 w-3 mr-1" /> Inserisci variabile
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="bg-background z-50">
+      <DropdownMenuContent className="bg-background z-50 max-h-[360px] w-[320px] overflow-y-auto">
         {PERSONALIZATION_VARIABLES.map((v) => (
           <DropdownMenuItem key={v.tag} onClick={() => onInsert(v.tag)}>
-            <span className="text-xs font-mono text-primary mr-2">{v.tag}</span>
-            <span className="text-xs text-muted-foreground">{v.label}</span>
+            <span className="mr-2 min-w-0 flex-1 truncate text-xs font-mono text-primary">{v.tag}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{v.label}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -53,17 +53,17 @@ function VariableInsertButton({ onInsert }: { onInsert: (tag: string) => void })
 export function BuilderPropertiesPanel({ block, onUpdate }: BuilderPropertiesPanelProps) {
   if (!block) {
     return (
-      <div className="w-[260px] border-l bg-background p-4 shrink-0 flex flex-col items-center justify-center text-muted-foreground gap-2">
+      <div className="w-[320px] border-l bg-background p-5 shrink-0 flex flex-col items-center justify-center text-muted-foreground gap-2">
         <MousePointerClick className="h-8 w-8 opacity-30" />
         <p className="text-xs text-center">Seleziona un elemento per<br />modificarne le proprietà</p>
       </div>
     );
   }
 
-  const update = (partial: Record<string, any>) => onUpdate(block.id, partial);
+  const update = (partial: Partial<BuilderBlock["props"]>) => onUpdate(block.id, partial);
 
   return (
-    <div className="w-[260px] border-l bg-background p-4 shrink-0 overflow-y-auto">
+    <div className="w-[320px] border-l bg-background p-5 shrink-0 overflow-y-auto">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
         Proprietà: {block.type === "columns" ? "Layout" : block.type}
       </p>
@@ -81,12 +81,12 @@ export function BuilderPropertiesPanel({ block, onUpdate }: BuilderPropertiesPan
   );
 }
 
-function TextProperties({ props, update }: { props: TextProps; update: (p: Record<string, any>) => void }) {
+function TextProperties({ props, update }: { props: TextProps; update: (p: Partial<TextProps>) => void }) {
   return (
     <>
       <div className="space-y-1.5">
         <Label className="text-xs">Contenuto</Label>
-        <Textarea className="min-h-[80px] text-sm" value={props.content} onChange={(e) => update({ content: e.target.value })} />
+        <Textarea className="min-h-[120px] text-sm" value={props.content} onChange={(e) => update({ content: e.target.value })} />
         <VariableInsertButton onInsert={(tag) => update({ content: props.content + " " + tag })} />
       </div>
       <div className="space-y-1.5">
@@ -123,7 +123,7 @@ function TextProperties({ props, update }: { props: TextProps; update: (p: Recor
   );
 }
 
-function ImageProperties({ props, update }: { props: ImageProps; update: (p: Record<string, any>) => void }) {
+function ImageProperties({ props, update }: { props: ImageProps; update: (p: Partial<ImageProps>) => void }) {
   return (
     <>
       <div className="space-y-1.5">
@@ -151,7 +151,7 @@ function ImageProperties({ props, update }: { props: ImageProps; update: (p: Rec
   );
 }
 
-function ButtonProperties({ props, update }: { props: ButtonProps; update: (p: Record<string, any>) => void }) {
+function ButtonProperties({ props, update }: { props: ButtonProps; update: (p: Partial<ButtonProps>) => void }) {
   return (
     <>
       <div className="space-y-1.5">
@@ -191,7 +191,7 @@ function ButtonProperties({ props, update }: { props: ButtonProps; update: (p: R
   );
 }
 
-function DividerProperties({ props, update }: { props: DividerProps; update: (p: Record<string, any>) => void }) {
+function DividerProperties({ props, update }: { props: DividerProps; update: (p: Partial<DividerProps>) => void }) {
   return (
     <>
       <div className="space-y-1.5">
@@ -213,7 +213,7 @@ function DividerProperties({ props, update }: { props: DividerProps; update: (p:
   );
 }
 
-function SpacerProperties({ props, update }: { props: SpacerProps; update: (p: Record<string, any>) => void }) {
+function SpacerProperties({ props, update }: { props: SpacerProps; update: (p: Partial<SpacerProps>) => void }) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs">Altezza</Label>
@@ -222,7 +222,7 @@ function SpacerProperties({ props, update }: { props: SpacerProps; update: (p: R
   );
 }
 
-function HtmlProperties({ props, update }: { props: HtmlProps; update: (p: Record<string, any>) => void }) {
+function HtmlProperties({ props, update }: { props: HtmlProps; update: (p: Partial<HtmlProps>) => void }) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs">Codice HTML</Label>
@@ -231,7 +231,7 @@ function HtmlProperties({ props, update }: { props: HtmlProps; update: (p: Recor
   );
 }
 
-function ColumnsProperties({ props, update }: { props: ColumnsProps; update: (p: Record<string, any>) => void }) {
+function ColumnsProperties({ props, update }: { props: ColumnsProps; update: (p: Partial<ColumnsProps>) => void }) {
   return (
     <>
       <div className="space-y-1.5">
