@@ -10,8 +10,8 @@ import {
   LayoutDashboard, Building, MessageSquare, CreditCard, Gift, Blocks,
   RefreshCw, LifeBuoy, Megaphone, Mail, Bot, ListChecks, ClipboardCheck,
   ShieldCheck, BarChart3, Users, Target, CalendarDays, Zap, MessageCircle,
-  LineChart, Ticket, FileText, Settings, TrendingUp, Database, BookOpen,
-  FileUp, ShieldAlert, AlertTriangle, TrendingDown, LayoutTemplate, GitBranch,
+  LineChart, Ticket, FileText, Settings, TrendingUp, BookOpen,
+  FileUp, ShieldAlert, AlertTriangle,
   Search, LogOut, Settings2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,39 +37,50 @@ const allSections: AppSection[] = [
     title: "Overview",
     items: [
       { icon: LayoutDashboard, label: "Dashboard", url: "/admin", color: "text-blue-600 bg-blue-50", permission: "can_view_platform_stats" },
-      { icon: LineChart, label: "Revenue", url: "/admin/revenue", color: "text-emerald-600 bg-emerald-50", permission: "billing_read" },
-      { icon: TrendingUp, label: "CS Dashboard", url: "/admin/cs-dashboard", color: "text-teal-600 bg-teal-50", permission: "can_impersonate" },
-      { icon: TrendingDown, label: "Cohort", url: "/admin/cohort", color: "text-purple-600 bg-purple-50", permission: "can_view_platform_stats" },
     ],
   },
   {
-    title: "Gestione Clienti",
+    title: "Aziende",
     items: [
       { icon: Building, label: "Aziende", url: "/admin/aziende", color: "text-indigo-600 bg-indigo-50", permission: "can_manage_companies" },
-      { icon: MessageSquare, label: "Assistenza", url: "/admin/ticket", color: "text-blue-600 bg-blue-50", permission: "can_manage_tickets" },
-      { icon: LifeBuoy, label: "Lifecycle", url: "/admin/lifecycle", color: "text-cyan-600 bg-cyan-50", permission: "can_manage_companies" },
-      { icon: ListChecks, label: "CS Onboarding", url: "/admin/customer-success", color: "text-green-600 bg-green-50", permission: "can_manage_companies" },
-      { icon: ClipboardCheck, label: "CS Tasks", url: "/admin/cs-tasks", color: "text-teal-600 bg-teal-50", permission: "can_manage_companies" },
-      { icon: BookOpen, label: "Playbook", url: "/admin/playbooks", color: "text-violet-600 bg-violet-50", permission: "can_manage_companies" },
-      { icon: FileUp, label: "Import CSV", url: "/admin/csv-import", color: "text-amber-600 bg-amber-50", permission: "can_manage_companies" },
-      { icon: AlertTriangle, label: "Alert Failure", url: "/admin/failure-alerts", color: "text-red-600 bg-red-50", permission: "can_manage_companies" },
     ],
   },
   {
-    title: "Piattaforma",
+    title: "Customer Success",
     items: [
+      { icon: TrendingUp, label: "CS Dashboard", url: "/admin/cs-dashboard", color: "text-teal-600 bg-teal-50", permission: "can_impersonate" },
+      { icon: MessageSquare, label: "Assistenza", url: "/admin/ticket", color: "text-blue-600 bg-blue-50", permission: "can_manage_tickets" },
+      { icon: LifeBuoy, label: "Lifecycle", url: "/admin/lifecycle", color: "text-cyan-600 bg-cyan-50", permission: "can_manage_companies" },
+      { icon: ClipboardCheck, label: "Task CS", url: "/admin/cs-tasks", color: "text-teal-600 bg-teal-50", permission: "can_manage_companies" },
+      { icon: ListChecks, label: "Onboarding", url: "/admin/customer-success", color: "text-green-600 bg-green-50", permission: "can_manage_companies" },
+      { icon: BookOpen, label: "Playbook", url: "/admin/playbooks", color: "text-violet-600 bg-violet-50", permission: "can_manage_companies" },
+    ],
+  },
+  {
+    title: "Revenue",
+    items: [
+      { icon: LineChart, label: "Revenue", url: "/admin/revenue", color: "text-emerald-600 bg-emerald-50", permission: "billing_read" },
       { icon: CreditCard, label: "Piani", url: "/admin/piani", color: "text-emerald-600 bg-emerald-50", permission: "can_manage_plans" },
+      { icon: FileText, label: "Fatture", url: "/admin/fatture", color: "text-slate-600 bg-slate-50", permission: "billing_read" },
+      { icon: Ticket, label: "Promo", url: "/admin/promo-codes", color: "text-amber-600 bg-amber-50", permission: "billing_write" },
+      { icon: Settings2, label: "Dunning", url: "/admin/dunning", color: "text-rose-600 bg-rose-50", permission: "billing_write" },
+    ],
+  },
+  {
+    title: "Prodotto",
+    items: [
       { icon: Blocks, label: "Feature Flags", url: "/admin/feature-flags", color: "text-orange-600 bg-orange-50", permission: "can_manage_companies" },
       { icon: Megaphone, label: "Annunci", url: "/admin/annunci", color: "text-pink-600 bg-pink-50", permission: "can_view_platform_stats" },
+    ],
+  },
+  {
+    title: "Operazioni",
+    items: [
       { icon: RefreshCw, label: "Sync Logs", url: "/admin/sync-logs", color: "text-slate-600 bg-slate-50", permission: "can_view_platform_stats" },
-      { icon: ShieldCheck, label: "GDPR", url: "/admin/gdpr", color: "text-green-600 bg-green-50", permission: "can_manage_companies" },
-      { icon: Ticket, label: "Codici Promo", url: "/admin/promo-codes", color: "text-amber-600 bg-amber-50", permission: "billing_write" },
-      { icon: FileText, label: "Storico Fatture", url: "/admin/fatture", color: "text-slate-600 bg-slate-50", permission: "billing_read" },
-      { icon: Settings2, label: "Dunning", url: "/admin/dunning", color: "text-rose-600 bg-rose-50", permission: "billing_write" },
-      { icon: LayoutTemplate, label: "Template Dunning", url: "/admin/dunning-templates", color: "text-pink-600 bg-pink-50", permission: "billing_write" },
-      { icon: Database, label: "CRM AEDIX", url: "/admin/crm", color: "text-indigo-600 bg-indigo-50", permission: "can_view_platform_stats" },
+      { icon: AlertTriangle, label: "Alert Failure", url: "/admin/failure-alerts", color: "text-red-600 bg-red-50", permission: "can_manage_companies" },
+      { icon: FileUp, label: "Import CSV", url: "/admin/csv-import", color: "text-amber-600 bg-amber-50", permission: "can_manage_companies" },
       { icon: ShieldAlert, label: "Audit Log", url: "/admin/audit-log", color: "text-gray-600 bg-gray-50", permission: "can_manage_companies" },
-      { icon: GitBranch, label: "Campagne AB", url: "/admin/campagne", color: "text-violet-600 bg-violet-50", permission: "can_manage_companies" },
+      { icon: ShieldCheck, label: "GDPR", url: "/admin/gdpr", color: "text-green-600 bg-green-50", permission: "can_manage_companies" },
     ],
   },
   {
@@ -86,7 +97,7 @@ const allSections: AppSection[] = [
     ],
   },
   {
-    title: "Programmi",
+    title: "Growth",
     items: [
       { icon: Gift, label: "Referral", url: "/admin/referral", color: "text-pink-600 bg-pink-50", permission: "can_manage_referrals" },
     ],
