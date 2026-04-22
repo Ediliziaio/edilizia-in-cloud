@@ -29,6 +29,7 @@ import { DashboardHeader } from "@/components/admin/dashboard/DashboardHeader";
 import { DashboardSkeleton } from "@/components/admin/dashboard/DashboardSkeleton";
 import { DashboardExport } from "@/components/admin/dashboard/DashboardExport";
 import { AdminPulseBar } from "@/components/admin/dashboard/AdminPulseBar";
+import { AdminGrowthAnalytics } from "@/components/admin/dashboard/AdminGrowthAnalytics";
 import {
   useDashboardLayout,
   SortableWidget,
@@ -138,6 +139,8 @@ export default function AdminDashboard() {
     switch (widgetId) {
       case "stat-cards":
         return <AdminStatCards stats={stats} />;
+      case "growth-analytics":
+        return <AdminGrowthAnalytics />;
       case "command-center":
         return (
           <AdminScaleCommandCenter

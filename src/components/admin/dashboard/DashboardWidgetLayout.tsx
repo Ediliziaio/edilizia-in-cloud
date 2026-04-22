@@ -27,6 +27,7 @@ const STORAGE_KEY = "adminDashboardLayout";
 
 export const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "stat-cards", label: "KPI Principali", category: "kpi", visible: true, span: 2 },
+  { id: "growth-analytics", label: "Growth Analytics", category: "charts", visible: true, span: 2 },
   { id: "command-center", label: "Centro operativo", category: "kpi", visible: true, span: 2 },
   { id: "revenue-kpis", label: "Revenue Intelligence", category: "kpi", visible: true, span: 2 },
   { id: "saas-metrics", label: "Metriche SaaS (ARPU/LTV/CAC)", category: "kpi", visible: true, span: 2 },
