@@ -1,9 +1,11 @@
 // generate-bathroom-render — Edge Function EiC
-// Render Bagno AI — Gemini direct (analysis + generation)
+// Render Bagno AI — Multi-Provider (OpenAI / Gemini)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { captureRealCost } from "../_shared/renderCost.ts";
+import { pickProviderSize } from "../_shared/renderImage.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +21,19 @@ type BathroomSessionRow = {
   configurazione: Record<string, unknown> | null;
   analisi_bagno: Record<string, unknown> | null;
   tipo_intervento: string | null;
+};
+
+type RenderProviderConfig = {
+  id: string;
+  provider_key: string;
+  model: string;
+  api_endpoint: string;
+  is_active?: boolean | null;
+  is_default?: boolean | null;
+  quality?: string | null;
+  cost_real_per_render?: number | null;
+  cost_billed_per_render?: number | null;
+  renders_generated?: number | null;
 };
 
 async function fetchWithTimeout(
@@ -101,22 +116,75 @@ function dataUrlToBytes(dataUrl: string): {
   return { bytes, mimeType, extension };
 }
 
-async function getGeminiApiKey(
+async function getProviderApiKey(
   supabase: ReturnType<typeof createClient>,
+  providerKey: string,
 ): Promise<string> {
   const { data: keyRow } = await supabase
     .from("platform_settings")
     .select("value")
-    .eq("key", "render_gemini_api_key")
+    .eq("key", `render_${providerKey}_api_key`)
     .maybeSingle();
 
-  return (
-    (keyRow as { value?: string } | null)?.value?.trim() ||
-    Deno.env.get("RENDER_GEMINI_API_KEY")?.trim() ||
-    Deno.env.get("GEMINI_API_KEY")?.trim() ||
-    Deno.env.get("GOOGLE_AI_API_KEY")?.trim() ||
-    ""
-  );
+  const envCandidates = providerKey === "gemini"
+    ? ["RENDER_GEMINI_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_API_KEY"]
+    : [`${providerKey.toUpperCase()}_API_KEY`];
+
+  for (const envName of envCandidates) {
+    const value = Deno.env.get(envName)?.trim();
+    if (value) return value;
+  }
+
+  return (keyRow as { value?: string } | null)?.value?.trim() || "";
+}
+
+async function getGeminiApiKey(
+  supabase: ReturnType<typeof createClient>,
+): Promise<string> {
+  return await getProviderApiKey(supabase, "gemini");
+}
+
+async function loadDefaultRenderProvider(
+  supabase: ReturnType<typeof createClient>,
+): Promise<RenderProviderConfig | null> {
+  const { data: providerConfig } = await supabase
+    .from("render_provider_config")
+    .select("*")
+    .eq("is_default", true)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  return (providerConfig as RenderProviderConfig | null) ?? null;
+}
+
+async function loadRenderProviderWithKey(
+  supabase: ReturnType<typeof createClient>,
+): Promise<{ providerConfig: RenderProviderConfig; apiKey: string }> {
+  const providerConfig = await loadDefaultRenderProvider(supabase);
+  if (!providerConfig) {
+    throw new Error("Nessun provider render attivo. Configurare in Admin > Impostazioni AI > Render.");
+  }
+
+  const apiKey = await getProviderApiKey(supabase, providerConfig.provider_key);
+  if (!apiKey) {
+    throw new Error(
+      `API key mancante per provider '${providerConfig.provider_key}'. ` +
+      `Configurarla in Admin > Impostazioni AI > Render o come Supabase secret ${providerConfig.provider_key.toUpperCase()}_API_KEY.`,
+    );
+  }
+
+  return { providerConfig, apiKey };
+}
+
+async function remoteImageUrlToDataUrl(url: string): Promise<string> {
+  const resp = await fetchWithTimeout(url, {}, 30_000);
+  if (!resp.ok) {
+    throw new Error(`Impossibile scaricare il risultato del provider (${resp.status})`);
+  }
+
+  const mimeType = (resp.headers.get("content-type") || "image/png").split(";")[0] || "image/png";
+  const buffer = await resp.arrayBuffer();
+  return `data:${mimeType};base64,${arrayBufferToBase64(buffer)}`;
 }
 
 async function downloadImageAsInlineData(imageUrl: string): Promise<{
@@ -677,15 +745,109 @@ ${notes}`);
 }
 
 async function requestBathroomRender(params: {
+  providerConfig: RenderProviderConfig;
   apiKey: string;
   systemPrompt: string;
   userPrompt: string;
-  originalImage: { mimeType: string; base64: string };
+  originalImage: { mimeType: string; base64: string; bytes: Uint8Array };
+  targetWidth?: number | null;
+  targetHeight?: number | null;
   strictNote?: string;
-}): Promise<{ dataUrl: string; aiData: Record<string, unknown> }> {
+}): Promise<{ dataUrl: string; aiData: Record<string, unknown>; modelUsed: string }> {
   const promptText = params.strictNote
     ? `${params.systemPrompt}\n\n${params.userPrompt}\n\n${params.strictNote}`
     : `${params.systemPrompt}\n\n${params.userPrompt}`;
+
+  if (params.providerConfig.provider_key === "openai") {
+    const renderSize = pickProviderSize(
+      params.targetWidth ?? null,
+      params.targetHeight ?? null,
+      "openai",
+    ) ?? "1024x1024";
+    const imageBlob = new Blob([params.originalImage.bytes], {
+      type: params.originalImage.mimeType || "image/jpeg",
+    });
+    const modelChain = [params.providerConfig.model || "gpt-image-1"];
+    if (modelChain[0] !== "dall-e-2") modelChain.push("dall-e-2");
+
+    const buildForm = (modelName: string) => {
+      const form = new FormData();
+      form.append("model", modelName);
+      form.append("prompt", promptText);
+      if (modelName === "dall-e-2") {
+        form.append("image", imageBlob, "bathroom.png");
+        form.append("size", "1024x1024");
+        form.append("response_format", "b64_json");
+      } else {
+        form.append("image[]", imageBlob, "bathroom.jpg");
+        form.append("size", renderSize);
+        if (params.providerConfig.quality) {
+          form.append("quality", params.providerConfig.quality);
+        }
+      }
+      form.append("n", "1");
+      return form;
+    };
+
+    let openAiResp: Response | null = null;
+    let lastErr = "";
+    let modelUsed = modelChain[0];
+
+    for (const modelName of modelChain) {
+      const resp = await fetchWithRetry(
+        params.providerConfig.api_endpoint || "https://api.openai.com/v1/images/edits",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${params.apiKey}` },
+          body: buildForm(modelName),
+        },
+        2,
+        2000,
+        120_000,
+      );
+
+      if (resp.ok) {
+        openAiResp = resp;
+        modelUsed = modelName;
+        break;
+      }
+
+      const errText = await resp.text();
+      lastErr = `OpenAI error ${resp.status}: ${errText.substring(0, 300)}`;
+      const isModelAccessIssue =
+        errText.includes("invalid_value") && errText.includes("\"model\"");
+      if (!isModelAccessIssue) throw new Error(lastErr);
+    }
+
+    if (!openAiResp) {
+      throw new Error(lastErr || "OpenAI: tutti i model tentati sono falliti");
+    }
+
+    const aiData = await openAiResp.json() as Record<string, unknown>;
+    let dataUrl = extractGeneratedImageData(aiData);
+    if (!dataUrl) {
+      const remoteUrl = (aiData.data as Array<{ url?: string }> | undefined)?.[0]?.url;
+      if (remoteUrl) {
+        dataUrl = await remoteImageUrlToDataUrl(remoteUrl);
+      }
+    }
+
+    if (!dataUrl) {
+      throw new Error("Nessuna immagine ricevuta da OpenAI");
+    }
+
+    return {
+      dataUrl,
+      aiData: { ...aiData, _model_used: modelUsed },
+      modelUsed,
+    };
+  }
+
+  if (params.providerConfig.provider_key !== "gemini") {
+    throw new Error(
+      `Provider '${params.providerConfig.provider_key}' non supportato. Selezionare OpenAI o Gemini.`,
+    );
+  }
 
   const geminiBody = {
     contents: [{
@@ -705,7 +867,7 @@ async function requestBathroomRender(params: {
     },
   };
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-generation:generateContent?key=${params.apiKey}`;
+  const geminiUrl = `${params.providerConfig.api_endpoint}/${params.providerConfig.model}:generateContent?key=${params.apiKey}`;
   const aiResp = await fetchWithRetry(
     geminiUrl,
     {
@@ -735,7 +897,11 @@ async function requestBathroomRender(params: {
     );
   }
 
-  return { dataUrl, aiData };
+  return {
+    dataUrl,
+    aiData,
+    modelUsed: params.providerConfig.model,
+  };
 }
 
 async function runBathroomAnalysis(params: {
@@ -964,11 +1130,14 @@ Deno.serve(async (req) => {
       );
     }
 
+    const { providerConfig, apiKey } = await loadRenderProviderWithKey(supabase);
+
     await supabase
       .from("render_bagno_sessions")
       .update({
         stato: "processing",
         processing_started_at: new Date().toISOString(),
+        provider_key: providerConfig.provider_key,
       })
       .eq("id", session_id);
 
@@ -990,11 +1159,6 @@ Deno.serve(async (req) => {
       imageUrl = signed.signedUrl;
     }
 
-    const geminiApiKey = await getGeminiApiKey(supabase);
-    if (!geminiApiKey) {
-      throw new Error("Gemini API key non configurata. Configurarla in Admin > Impostazioni AI > Render.");
-    }
-
     const originalImage = await downloadImageAsInlineData(imageUrl);
     const sourceDimensions =
       Number.isFinite(Number(target_width)) && Number.isFinite(Number(target_height)) &&
@@ -1012,10 +1176,13 @@ Deno.serve(async (req) => {
     );
 
     let renderResult = await requestBathroomRender({
-      apiKey: geminiApiKey,
+      providerConfig,
+      apiKey,
       systemPrompt,
       userPrompt,
       originalImage,
+      targetWidth: sourceDimensions?.width ?? null,
+      targetHeight: sourceDimensions?.height ?? null,
     });
 
     let uploadPayload = dataUrlToBytes(renderResult.dataUrl);
@@ -1024,10 +1191,13 @@ Deno.serve(async (req) => {
 
     if (firstMismatch) {
       renderResult = await requestBathroomRender({
-        apiKey: geminiApiKey,
+        providerConfig,
+        apiKey,
         systemPrompt,
         userPrompt,
         originalImage,
+        targetWidth: sourceDimensions?.width ?? null,
+        targetHeight: sourceDimensions?.height ?? null,
         strictNote: `[FORMAT CORRECTION]
 The previous attempt was not acceptable because of ${firstMismatch}.
 Regenerate the image keeping EXACT same orientation, framing, crop, visible room size, and apparent camera distance as the source photo.
@@ -1054,6 +1224,17 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
       .getPublicUrl(resultPath);
 
     const resultUrl = publicUrlData.publicUrl;
+    const modelUsed = renderResult.modelUsed || providerConfig.model;
+    const legacyCostReal = Number(providerConfig.cost_real_per_render ?? 0.04);
+    const capture = await captureRealCost({
+      supabase,
+      providerKey: providerConfig.provider_key,
+      model: modelUsed,
+      rawResponse: renderResult.aiData,
+      legacyFallbackEur: legacyCostReal,
+    });
+    const costReal = capture.cost_eur;
+    const costBilled = Number(providerConfig.cost_billed_per_render ?? 0.10);
 
     await supabase
       .from("render_bagno_sessions")
@@ -1063,19 +1244,24 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
         render_result_url: resultUrl,
         prompt_usato: userPrompt,
         prompt_version: promptVersion,
-        provider_key: "gemini",
-        model_used: "gemini-2.5-flash-image-generation",
-        cost_real: 0.04,
-        cost_billed: 0.10,
+        provider_key: providerConfig.provider_key,
+        model_used: modelUsed,
+        cost_real: costReal,
+        cost_billed: costBilled,
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
+
+    await supabase
+      .from("render_provider_config")
+      .update({ renders_generated: (providerConfig.renders_generated ?? 0) + 1 })
+      .eq("id", providerConfig.id);
 
     return jsonResponse({
       success: true,
       session_id,
       result_url: resultUrl,
-      provider: "gemini",
+      provider: providerConfig.provider_key,
       prompt_version: promptVersion,
     });
   } catch (err) {
