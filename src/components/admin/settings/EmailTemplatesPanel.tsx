@@ -13,7 +13,7 @@
 // ============================================================================
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
@@ -110,6 +110,7 @@ import {
   type EmailTemplateRow,
   type EmailTemplateHistoryRow,
   type EmailTemplateDesignJson,
+  type EmailTemplateUpsert,
 } from "@/hooks/useEmailTemplates";
 import { BuilderSidebar } from "@/components/email-builder/BuilderSidebar";
 import { BuilderCanvas } from "@/components/email-builder/BuilderCanvas";
@@ -128,6 +129,7 @@ import {
   type UnifiedField,
 } from "@/components/settings/CustomFieldsConfig";
 import { supabase } from "@/integrations/supabase/client";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
@@ -152,6 +154,7 @@ const PLACEHOLDER_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const PLATFORM_CUSTOM_FIELDS_KEY = "platform_email_custom_fields";
+const ADMIN_EMAIL_TEMPLATES_QUERY_KEY = ["admin-email-templates"] as const;
 
 interface PlatformEmailCustomField {
   id: string;
@@ -236,6 +239,7 @@ const ACCESS_USER_PLACEHOLDERS: PlaceholderDef[] = [
 ];
 
 type EditorTab = "visual" | "split" | "content" | "preview";
+type SaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
 
 const ADMIN_SYSTEM_PLACEHOLDERS: PlaceholderDef[] = [
   {
@@ -894,6 +898,7 @@ function HistoryList({
 
 // ── Main panel ──────────────────────────────────────────────────────────────
 export function EmailTemplatesPanel() {
+  const queryClient = useQueryClient();
   const templatesQuery = useEmailTemplates();
   const upsert = useUpsertEmailTemplate();
   const del = useDeleteEmailTemplate();
@@ -959,6 +964,9 @@ export function EmailTemplatesPanel() {
   const [designBlocks, setDesignBlocks] = useState<BuilderBlockType[]>([]);
   const [lastEditedMode, setLastEditedMode] = useState<"visual" | "html">("visual");
   const [activeEditorTab, setActiveEditorTab] = useState<EditorTab>("visual");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [autoSaving, setAutoSaving] = useState(false);
 
   // History drawer
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -969,6 +977,9 @@ export function EmailTemplatesPanel() {
   const [previewWarning, setPreviewWarning] = useState<string | null>(null);
 
   const htmlBodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const currentSelectionRef = useRef(`${selectedKey}::${selectedVariant}`);
+  const currentFingerprintRef = useRef("");
+  const saveRequestRef = useRef(0);
 
   const selectedMeta = TEMPLATE_META[selectedKey];
   const selectedRow = dbMap.get(`${selectedKey}::${selectedVariant}`);
@@ -980,6 +991,35 @@ export function EmailTemplatesPanel() {
     () => getAvailablePlaceholders(selectedMeta, platformCustomPlaceholders),
     [selectedMeta, platformCustomPlaceholders],
   );
+  const currentSaveInput = useMemo<EmailTemplateUpsert>(
+    () => ({
+      template_key: selectedKey,
+      role_variant: variantToDb(selectedVariant),
+      subject,
+      html_body: htmlBody,
+      text_body: textBody.trim() ? textBody : null,
+      design_json: lastEditedMode === "visual" ? blocksToDesign(designBlocks) : null,
+      enabled,
+      notes: notes.trim() ? notes : null,
+    }),
+    [designBlocks, enabled, htmlBody, lastEditedMode, notes, selectedKey, selectedVariant, subject, textBody],
+  );
+  const currentFingerprint = useMemo(
+    () => JSON.stringify(currentSaveInput),
+    [currentSaveInput],
+  );
+  const canPersistTemplate = Boolean(selectedKey && subject.trim() && htmlBody.trim());
+  const savePending = upsert.isPending || autoSaving;
+  const canManualSave = canPersistTemplate && dirty && !savePending;
+  const debouncedSaveFingerprint = useDebounced(currentFingerprint, 1200);
+
+  useEffect(() => {
+    currentSelectionRef.current = `${selectedKey}::${selectedVariant}`;
+  }, [selectedKey, selectedVariant]);
+
+  useEffect(() => {
+    currentFingerprintRef.current = currentFingerprint;
+  }, [currentFingerprint]);
 
   // ── Sync form quando cambia selezione o dati DB ──
   useEffect(() => {
@@ -1002,10 +1042,15 @@ export function EmailTemplatesPanel() {
       setLastEditedMode("visual");
     }
     setDirty(false);
+    setSaveStatus(selectedRow ? "saved" : "idle");
+    setLastSavedAt(selectedRow?.updated_at ?? null);
+    setAutoSaving(false);
     setPreviewHtml(null);
     setPreviewIsLocal(false);
     setPreviewWarning(null);
   }, [selectedKey, selectedVariant, selectedRow, selectedMeta]);
+
+  useBeforeUnload(dirty || savePending);
 
   // ── Live preview con debounce 500 ms ──
   const debouncedSubject = useDebounced(subject, 500);
@@ -1062,7 +1107,10 @@ export function EmailTemplatesPanel() {
   }, [activeEditorTab, debouncedSubject, debouncedHtml, debouncedText, selectedKey, selectedVariant, selectedMeta]);
 
   // ── Azioni form ──
-  const markDirty = useCallback(() => setDirty(true), []);
+  const markDirty = useCallback(() => {
+    setDirty(true);
+    setSaveStatus("unsaved");
+  }, []);
 
   const insertIntoHtml = useCallback(
     (snippet: string) => {
@@ -1098,22 +1146,138 @@ export function EmailTemplatesPanel() {
       `<ul style="margin:0 0 16px 0;padding-left:20px;">\n  <li>$SEL$</li>\n  <li></li>\n</ul>`,
     );
 
-  const handleSave = () => {
-    if (!selectedKey || !subject.trim() || !htmlBody.trim()) return;
-    upsert.mutate(
-      {
-        template_key: selectedKey,
-        role_variant: variantToDb(selectedVariant),
-        subject,
-        html_body: htmlBody,
-        text_body: textBody.trim() ? textBody : null,
-        design_json: lastEditedMode === "visual" ? blocksToDesign(designBlocks) : null,
-        enabled,
-        notes: notes.trim() ? notes : null,
-      },
-      { onSuccess: () => setDirty(false) },
-    );
-  };
+  const persistTemplateSilently = useCallback(
+    async (payload: EmailTemplateUpsert) => {
+      const { data, error } = await (supabase as unknown as {
+        from: (table: string) => {
+          upsert: (
+            row: Record<string, unknown>,
+            opts: { onConflict: string },
+          ) => {
+            select: () => {
+              single: () => Promise<{
+                data: EmailTemplateRow | null;
+                error: { message: string } | null;
+              }>;
+            };
+          };
+        };
+      })
+        .from("platform_email_templates")
+        .upsert(
+          {
+            template_key: payload.template_key,
+            role_variant: payload.role_variant ?? null,
+            subject: payload.subject,
+            html_body: payload.html_body,
+            text_body: payload.text_body ?? null,
+            design_json: payload.design_json ?? null,
+            enabled: payload.enabled ?? true,
+            notes: payload.notes ?? null,
+          },
+          { onConflict: "template_key,role_variant" },
+        )
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Salvataggio automatico non riuscito");
+      await queryClient.invalidateQueries({ queryKey: ADMIN_EMAIL_TEMPLATES_QUERY_KEY });
+      return data;
+    },
+    [queryClient],
+  );
+
+  const finalizeSaveForCurrentDraft = useCallback(
+    ({
+      fingerprint,
+      selectionKey,
+      updatedAt,
+      requestId,
+    }: {
+      fingerprint: string;
+      selectionKey: string;
+      updatedAt?: string | null;
+      requestId: number;
+    }) => {
+      if (saveRequestRef.current !== requestId) return;
+      if (currentSelectionRef.current !== selectionKey) return;
+      if (currentFingerprintRef.current === fingerprint) {
+        setDirty(false);
+        setSaveStatus("saved");
+        setLastSavedAt(updatedAt ?? new Date().toISOString());
+        return;
+      }
+      setSaveStatus("unsaved");
+    },
+    [],
+  );
+
+  const handleSave = useCallback(async () => {
+    if (!canPersistTemplate) return;
+    const payload = currentSaveInput;
+    const fingerprint = currentFingerprint;
+    const selectionKey = currentSelectionRef.current;
+    const requestId = saveRequestRef.current + 1;
+    saveRequestRef.current = requestId;
+    setSaveStatus("saving");
+    try {
+      const row = await upsert.mutateAsync(payload);
+      finalizeSaveForCurrentDraft({
+        fingerprint,
+        selectionKey,
+        updatedAt: row.updated_at,
+        requestId,
+      });
+    } catch {
+      if (saveRequestRef.current === requestId && currentSelectionRef.current === selectionKey) {
+        setSaveStatus("error");
+      }
+    }
+  }, [canPersistTemplate, currentFingerprint, currentSaveInput, finalizeSaveForCurrentDraft, upsert]);
+
+  useEffect(() => {
+    if (!dirty || !canPersistTemplate || savePending || saveStatus !== "unsaved") return;
+    if (debouncedSaveFingerprint !== currentFingerprint) return;
+
+    const payload = currentSaveInput;
+    const fingerprint = currentFingerprint;
+    const selectionKey = currentSelectionRef.current;
+    const requestId = saveRequestRef.current + 1;
+    saveRequestRef.current = requestId;
+    setAutoSaving(true);
+    setSaveStatus("saving");
+
+    void persistTemplateSilently(payload)
+      .then((row) => {
+        finalizeSaveForCurrentDraft({
+          fingerprint,
+          selectionKey,
+          updatedAt: row.updated_at,
+          requestId,
+        });
+      })
+      .catch(() => {
+        if (saveRequestRef.current === requestId && currentSelectionRef.current === selectionKey) {
+          setSaveStatus("error");
+        }
+      })
+      .finally(() => {
+        if (saveRequestRef.current === requestId && currentSelectionRef.current === selectionKey) {
+          setAutoSaving(false);
+        }
+      });
+  }, [
+    canPersistTemplate,
+    currentFingerprint,
+    currentSaveInput,
+    debouncedSaveFingerprint,
+    dirty,
+    finalizeSaveForCurrentDraft,
+    persistTemplateSilently,
+    savePending,
+    saveStatus,
+  ]);
 
   const handleResetToDefault = () => {
     if (!selectedRow) return;
@@ -1394,25 +1558,18 @@ export function EmailTemplatesPanel() {
                     markDirty();
                   }}
                   placeholders={availablePlaceholders}
-                  canSave={
-                    !!subject.trim() &&
-                    !!htmlBody.trim() &&
-                    dirty &&
-                    !upsert.isPending
-                  }
-                  saving={upsert.isPending}
-                  dirty={dirty}
+                  canSave={canManualSave}
+                  saving={savePending}
+                  saveStatus={saveStatus}
+                  lastSavedAt={lastSavedAt}
+                  hasSavedRow={!!selectedRow}
                   onSave={handleSave}
                 />
                 <ActionBar
-                  canSave={
-                    !!subject.trim() &&
-                    !!htmlBody.trim() &&
-                    dirty &&
-                    !upsert.isPending
-                  }
-                  saving={upsert.isPending}
-                  dirty={dirty}
+                  canSave={canManualSave}
+                  saving={savePending}
+                  saveStatus={saveStatus}
+                  lastSavedAt={lastSavedAt}
                   hasSavedRow={!!selectedRow}
                   deleting={del.isPending}
                   onSave={handleSave}
@@ -1461,14 +1618,10 @@ export function EmailTemplatesPanel() {
                   />
                 </div>
                 <ActionBar
-                  canSave={
-                    !!subject.trim() &&
-                    !!htmlBody.trim() &&
-                    dirty &&
-                    !upsert.isPending
-                  }
-                  saving={upsert.isPending}
-                  dirty={dirty}
+                  canSave={canManualSave}
+                  saving={savePending}
+                  saveStatus={saveStatus}
+                  lastSavedAt={lastSavedAt}
                   hasSavedRow={!!selectedRow}
                   deleting={del.isPending}
                   onSave={handleSave}
@@ -1508,14 +1661,10 @@ export function EmailTemplatesPanel() {
                   htmlRef={htmlBodyRef}
                 />
                 <ActionBar
-                  canSave={
-                    !!subject.trim() &&
-                    !!htmlBody.trim() &&
-                    dirty &&
-                    !upsert.isPending
-                  }
-                  saving={upsert.isPending}
-                  dirty={dirty}
+                  canSave={canManualSave}
+                  saving={savePending}
+                  saveStatus={saveStatus}
+                  lastSavedAt={lastSavedAt}
                   hasSavedRow={!!selectedRow}
                   deleting={del.isPending}
                   onSave={handleSave}
@@ -1550,7 +1699,9 @@ function VisualTemplateBuilder({
   placeholders,
   canSave,
   saving,
-  dirty,
+  saveStatus,
+  lastSavedAt,
+  hasSavedRow,
   onSave,
 }: {
   templateKey: string;
@@ -1561,7 +1712,9 @@ function VisualTemplateBuilder({
   placeholders: PlaceholderDef[];
   canSave: boolean;
   saving: boolean;
-  dirty: boolean;
+  saveStatus: SaveStatus;
+  lastSavedAt: string | null;
+  hasSavedRow: boolean;
   onSave: () => void;
 }) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -1900,18 +2053,13 @@ function VisualTemplateBuilder({
               placeholder="es. Ciao {{contact.first_name}}, benvenuto"
               className="max-w-2xl"
             />
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {dirty ? (
-                <span>Modifiche non salvate</span>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3 text-green-600" />
-                  Builder sincronizzato
-                </span>
-              )}
-            </div>
+            <SaveStatusIndicator
+                status={saveStatus}
+                lastSavedAt={lastSavedAt}
+                hasSavedRow={hasSavedRow}
+              />
           </div>
-        </div>
+	        </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="h-8" onClick={handleApplySuggestedLayout}>
             <Sparkles className="mr-2 h-4 w-4" />
@@ -2257,7 +2405,8 @@ function LivePreview({
 function ActionBar({
   canSave,
   saving,
-  dirty,
+  saveStatus,
+  lastSavedAt,
   hasSavedRow,
   deleting,
   onSave,
@@ -2265,7 +2414,8 @@ function ActionBar({
 }: {
   canSave: boolean;
   saving: boolean;
-  dirty: boolean;
+  saveStatus: SaveStatus;
+  lastSavedAt: string | null;
   hasSavedRow: boolean;
   deleting: boolean;
   onSave: () => void;
@@ -2311,17 +2461,70 @@ function ActionBar({
         </AlertDialog>
       )}
 
-      {dirty && (
-        <span className="text-xs text-muted-foreground ml-auto">
-          Modifiche non salvate
-        </span>
-      )}
-      {!dirty && hasSavedRow && (
-        <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
-          <CheckCircle2 className="h-3 w-3 text-green-600" />
-          Salvato
-        </span>
-      )}
+      <div className="ml-auto">
+        <SaveStatusIndicator
+          status={saveStatus}
+          lastSavedAt={lastSavedAt}
+          hasSavedRow={hasSavedRow}
+        />
+      </div>
     </div>
+  );
+}
+
+function SaveStatusIndicator({
+  status,
+  lastSavedAt,
+  hasSavedRow,
+}: {
+  status: SaveStatus;
+  lastSavedAt: string | null;
+  hasSavedRow: boolean;
+}) {
+  const formattedTime = lastSavedAt
+    ? new Date(lastSavedAt).toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  if (status === "saving") {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Salvataggio in corso...
+      </span>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <span className="text-xs text-destructive">
+        Errore salvataggio. Riprova o usa Salva ora.
+      </span>
+    );
+  }
+
+  if (status === "unsaved") {
+    return (
+      <span className="text-xs text-muted-foreground">
+        Modifiche non salvate
+      </span>
+    );
+  }
+
+  if (status === "saved") {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <CheckCircle2 className="h-3 w-3 text-green-600" />
+        {formattedTime ? `Salvato alle ${formattedTime}` : "Salvato"}
+      </span>
+    );
+  }
+
+  return (
+    <span className="text-xs text-muted-foreground">
+      {hasSavedRow ? "Builder sincronizzato" : "Default di sistema"}
+    </span>
   );
 }
