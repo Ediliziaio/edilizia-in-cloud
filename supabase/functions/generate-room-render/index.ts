@@ -3,6 +3,7 @@
 // Prompt Engine stanza-v1.0.0
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 
@@ -63,18 +64,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceKey);
-
-    // Auth check
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing Authorization header");
-
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    if (authErr || !user) throw new Error("Unauthorized");
+    const auth = await requireAuth(req, corsHeaders);
+    const supabase = auth.supabaseAdmin;
+    const user = { id: auth.userId };
 
     const body = await req.json();
     const { session_id, config, target_width, target_height } = body;
@@ -427,6 +419,7 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: unknown) {
+    if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : String(err);
     console.error("generate-room-render error:", message);
 

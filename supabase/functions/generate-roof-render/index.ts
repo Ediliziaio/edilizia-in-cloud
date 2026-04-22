@@ -3,6 +3,7 @@
 // Prompt Engine v1.0 — Roof renovation visualization
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 
@@ -185,30 +186,16 @@ const CORS = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  const supabase = createClient(
+  let supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+  let user = { id: "" };
 
   try {
-    // ── Auth ──────────────────────────────────────────────────────────────────
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "missing_auth", message: "Authorization header required" }),
-        { status: 401, headers: { ...CORS, "Content-Type": "application/json" } },
-      );
-    }
-
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
-    if (authErr || !user) {
-      return new Response(
-        JSON.stringify({ error: "invalid_auth", message: "Invalid or expired token" }),
-        { status: 401, headers: { ...CORS, "Content-Type": "application/json" } },
-      );
-    }
+    const auth = await requireAuth(req, CORS);
+    supabase = auth.supabaseAdmin;
+    user = { id: auth.userId };
 
     // ── Parse request ────────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
@@ -472,6 +459,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (err: unknown) {
+    if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[generate-roof-render] error:", msg);
 

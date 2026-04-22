@@ -2,6 +2,7 @@
 // Render Bagno AI — Multi-Provider (OpenAI / Gemini)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
@@ -1011,30 +1012,16 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: CORS });
   }
 
-  const supabase = createClient(
+  let supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+  let user = { id: "" };
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return jsonResponse(
-        { error: "missing_auth", message: "Authorization header required" },
-        401,
-      );
-    }
-
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
-
-    if (authErr || !user) {
-      return jsonResponse(
-        { error: "invalid_auth", message: "Invalid or expired token" },
-        401,
-      );
-    }
+    const auth = await requireAuth(req, CORS);
+    supabase = auth.supabaseAdmin;
+    user = { id: auth.userId };
 
     const body = await req.json().catch(() => ({}));
     const {
@@ -1260,6 +1247,7 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
       prompt_version: promptVersion,
     });
   } catch (err) {
+    if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : String(err);
     console.error("[generate-bathroom-render] error:", message);
 

@@ -2,12 +2,9 @@
 // Analizza foto finestre con Gemini 2.5 Flash
 // Restituisce FotoAnalisi JSON per il wizard RenderNew
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const SYSTEM_PROMPT = `You are an expert Italian window and door analyzer.
 Analyze the provided image and extract structured information about the window/door visible.
@@ -132,16 +129,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    if (authErr || !user) {
-      return new Response(
-        JSON.stringify({ error: "invalid_auth", message: "Token non valido" }),
-        { status: 401, headers: { ...corsH, "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await requireAuth(req, corsH);
+    const supabase = auth.supabaseAdmin;
+    const user = { id: auth.userId };
 
     // ── Parse body ──────────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
@@ -323,6 +313,7 @@ Deno.serve(async (req: Request) => {
     );
 
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error("[analyze-window-photo] Unhandled error:", err);
     return new Response(
       JSON.stringify({ error: "internal_error", message: String(err) }),
