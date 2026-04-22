@@ -136,7 +136,12 @@ export default function CompanyDetail() {
     ? (Array.isArray(h.currentPlan.included_modules) ? (h.currentPlan.included_modules as string[]) : ALL_MODULES.map((m) => m.key))
     : [];
 
-  const totalTeam = (h.teamData?.admins.length || 0) + (h.teamData?.staff.length || 0) + (h.teamData?.salespeople.length || 0) + (h.teamData?.employees.length || 0);
+  const people = new Set<string>();
+  h.teamData?.admins.forEach((member) => people.add(`user:${member.id}`));
+  h.teamData?.staff.forEach((member) => people.add(`user:${member.id}`));
+  h.teamData?.salespeople.forEach((member) => people.add(member.user_id ? `user:${member.user_id}` : `salesperson:${member.id}`));
+  h.teamData?.employees.forEach((member) => people.add(member.user_id ? `user:${member.user_id}` : `employee:${member.id}`));
+  const totalTeam = people.size;
 
   const selectTab = (tab: string) => {
     setActiveTab(tab);

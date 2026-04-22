@@ -25,6 +25,9 @@ dist-ssr
 /blob-report/
 /playwright/.cache/
 
+# Supabase CLI local cache
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

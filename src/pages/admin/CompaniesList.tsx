@@ -380,6 +380,8 @@ export default function CompaniesList() {
 
   // companies = current page data (allowed_company_ids already applied server-side)
   const companies = allCompanies;
+  const pageCompanyIds = useMemo(() => companies.map((c) => c.id), [companies]);
+  const pageCompanyIdsKey = pageCompanyIds.join(",");
 
   const { data: orderStats = {} } = useQuery({
     queryKey: queryKeys.admin.companiesOrderStats,
@@ -455,9 +457,14 @@ export default function CompaniesList() {
 
   // Company tags
   const { data: companyTags = {} } = useQuery({
-    queryKey: queryKeys.admin.companyTags,
+    queryKey: [...queryKeys.admin.companyTags, pageCompanyIdsKey],
     queryFn: async () => {
-      const { data, error } = await supabase.from("company_tags").select("id, company_id, tag, color, created_at").order("created_at");
+      if (pageCompanyIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("company_tags")
+        .select("id, company_id, tag, color, created_at")
+        .in("company_id", pageCompanyIds)
+        .order("created_at");
       if (error) throw error;
       const map: Record<string, Array<{ id: string; tag: string; color: string }>> = {};
       (data || []).forEach((row) => {
@@ -466,6 +473,7 @@ export default function CompaniesList() {
       });
       return map;
     },
+    enabled: pageCompanyIds.length > 0,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -473,13 +481,15 @@ export default function CompaniesList() {
 
   // Latest CRM notes per company
   const { data: latestNotes = {} } = useQuery({
-    queryKey: queryKeys.admin.companiesLatestNotes,
+    queryKey: [...queryKeys.admin.companiesLatestNotes, pageCompanyIdsKey],
     queryFn: async () => {
+      if (pageCompanyIds.length === 0) return {};
       const { data, error } = await supabase
         .from("company_notes")
         .select("company_id, content, created_at, author_id")
+        .in("company_id", pageCompanyIds)
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(500);
       if (error) throw error;
       // Shape delle righe letto dalla select() qui sopra — manteniamo
       // i tipi locali per evitare `any` sui callback e perché non vogliamo
@@ -519,6 +529,7 @@ export default function CompaniesList() {
       });
       return map;
     },
+    enabled: pageCompanyIds.length > 0,
     staleTime: 2 * 60 * 1000,
   });
 

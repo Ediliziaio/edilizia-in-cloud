@@ -114,7 +114,7 @@ export function useCompanyDetail(id: string | undefined) {
   const stats = companyData?.stats ?? null;
 
   // Reset form when company data loads
-  const resetFormWithCompany = (c: Company) => {
+  const resetFormWithCompany = useCallback((c: Company) => {
     form.reset({
       name: c.name, business_name: c.business_name || "", email: c.email,
       phone: c.phone || "", sector: c.sector as CompanySector,
@@ -126,7 +126,7 @@ export function useCompanyDetail(id: string | undefined) {
       operational_province: c.operational_province || "", operational_postal_code: c.operational_postal_code || "",
       notes: c.notes || "",
     });
-  };
+  }, [form]);
 
   const lastResetId = useRef<string | null>(null);
   useEffect(() => {
@@ -134,17 +134,23 @@ export function useCompanyDetail(id: string | undefined) {
       lastResetId.current = company.id;
       resetFormWithCompany(company);
     }
-  }, [company?.id]);
+  }, [company, resetFormWithCompany]);
 
   const { data: teamData, isFetching: isTeamFetching } = useQuery({
     queryKey: queryKeys.companyDetail.team(id),
     queryFn: async () => {
       if (!id) return null;
+      const pageTo = 4999;
       const [profilesRes, permissionsRes, salespeopleRes, employeesRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("company_id", id),
-        supabase.from("staff_permissions").select("*").eq("company_id", id),
-        supabase.from("salespeople").select("*").eq("company_id", id),
-        supabase.from("employees").select("*").eq("company_id", id),
+        supabase
+          .from("profiles")
+          .select("id, email, first_name, last_name, phone, created_at, last_login_at, company_id")
+          .eq("company_id", id)
+          .order("created_at", { ascending: true })
+          .range(0, pageTo),
+        supabase.from("staff_permissions").select("*").eq("company_id", id).range(0, pageTo),
+        supabase.from("salespeople").select("*").eq("company_id", id).order("created_at", { ascending: true }).range(0, pageTo),
+        supabase.from("employees").select("*").eq("company_id", id).order("created_at", { ascending: true }).range(0, pageTo),
       ]);
       if (profilesRes.error) throw profilesRes.error;
       if (permissionsRes.error) throw permissionsRes.error;
@@ -154,12 +160,35 @@ export function useCompanyDetail(id: string | undefined) {
       const profileIds = profiles.map((p) => p.id);
       let roles: { user_id: string; role: string }[] = [];
       if (profileIds.length > 0) {
-        const { data: rolesData, error: rolesError } = await supabase.from("user_roles").select("user_id, role").in("user_id", profileIds);
+        const { data: rolesData, error: rolesError } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", profileIds)
+          .range(0, pageTo);
         if (rolesError) throw rolesError;
         roles = rolesData || [];
       }
-      const admins = profiles.filter((p) => roles.some((r) => r.user_id === p.id && r.role === "company_admin"));
-      const staff = profiles.filter((p) => roles.some((r) => r.user_id === p.id && r.role === "company_staff"));
+      const rolesByUser = new Map<string, Set<string>>();
+      roles.forEach((row) => {
+        const current = rolesByUser.get(row.user_id) ?? new Set<string>();
+        current.add(row.role);
+        rolesByUser.set(row.user_id, current);
+      });
+      const hasRole = (userId: string, roleName: string) => rolesByUser.get(userId)?.has(roleName) ?? false;
+      const linkedOperationalUserIds = new Set<string>(
+        [
+          ...(salespeopleRes.data || []).map((s) => s.user_id),
+          ...(employeesRes.data || []).map((e) => e.user_id),
+        ].filter(Boolean) as string[],
+      );
+      const admins = profiles.filter((p) => hasRole(p.id, "company_admin"));
+      const staff = profiles.filter((p) => {
+        const userRoles = rolesByUser.get(p.id);
+        if (!userRoles?.has("company_staff")) return false;
+        if (userRoles.has("company_admin")) return false;
+        if (userRoles.has("salesperson") || userRoles.has("employee") || userRoles.has("subcontractor")) return false;
+        return !linkedOperationalUserIds.has(p.id);
+      });
       const permissionsMap = new Map((permissionsRes.data || []).map((p) => [p.user_id, p]));
       return {
         admins,

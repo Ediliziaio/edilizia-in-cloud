@@ -22,11 +22,39 @@ import { PERMISSION_LABELS, commissionTypeLabels } from "@/lib/adminConstants";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
+interface PersonFields {
+  id: string;
+  user_id?: string | null;
+  email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  created_at?: string | null;
+  last_login_at?: string | null;
+}
+
+interface StaffMember extends PersonFields {
+  permissions?: Partial<StaffPermissions> | null;
+}
+
+interface SalespersonMember extends PersonFields {
+  commission_type: string;
+  commission_value: number;
+  is_active?: boolean | null;
+}
+
+interface EmployeeMember extends PersonFields {
+  monthly_hours: number;
+  gross_salary: number;
+  net_salary: number;
+  is_active?: boolean | null;
+}
+
 interface TeamData {
-  admins: any[];
-  staff: any[];
-  salespeople: any[];
-  employees: any[];
+  admins: PersonFields[];
+  staff: StaffMember[];
+  salespeople: SalespersonMember[];
+  employees: EmployeeMember[];
 }
 
 interface CompanyTeamTabProps {
@@ -46,10 +74,10 @@ interface CompanyTeamTabProps {
   onRefresh?: () => void;
 }
 
-function getActivePermissions(permissions: any) {
+function getActivePermissions(permissions?: Partial<StaffPermissions> | null) {
   if (!permissions) return [];
   return Object.entries(PERMISSION_LABELS)
-    .filter(([key]) => permissions[key] === true)
+    .filter(([key]) => permissions[key as keyof StaffPermissions] === true)
     .map(([, label]) => label);
 }
 
@@ -61,10 +89,29 @@ function LastAccessBadge({ lastLoginAt }: { lastLoginAt?: string | null }) {
   return <Badge variant="outline" className="border-destructive/30 text-destructive text-xs gap-1"><Clock className="h-3 w-3" />{days}gg fa</Badge>;
 }
 
-function matchesSearch(member: any, query: string): boolean {
+function getDisplayName(member: PersonFields): string {
+  const name = `${member.first_name || ""} ${member.last_name || ""}`.trim();
+  return name || member.email || "Senza nome";
+}
+
+function getInitials(member: PersonFields): string {
+  const source = getDisplayName(member);
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return source.slice(0, 2).toUpperCase();
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return format(date, "dd/MM/yyyy");
+}
+
+function matchesSearch(member: PersonFields, query: string): boolean {
   if (!query) return true;
   const q = query.toLowerCase();
-  const name = `${member.first_name || ""} ${member.last_name || ""}`.toLowerCase();
+  const name = getDisplayName(member).toLowerCase();
   const email = (member.email || "").toLowerCase();
   return name.includes(q) || email.includes(q);
 }
@@ -73,7 +120,7 @@ export function CompanyTeamTab({
   teamData, totalTeam,
   onCreateStaff, onCreateSalesperson, onCreateEmployee,
   onEditPermissions, onCreateAccount, creatingAccountFor,
-  onDeleteUser, onResetPassword, isDeletingUser, isResettingPassword,
+  onDeleteUser, onResetPassword, isDeletingUser, isResettingPassword: _isResettingPassword,
   isRefreshing, onRefresh,
 }: CompanyTeamTabProps) {
   const [search, setSearch] = useState("");
@@ -91,12 +138,12 @@ export function CompanyTeamTab({
 
   const withAccount = useMemo(() => {
     if (!teamData) return 0;
-    return (
-      teamData.admins.length +
-      teamData.staff.length +
-      teamData.salespeople.filter((s) => s.user_id).length +
-      teamData.employees.filter((e) => e.user_id).length
-    );
+    const accountIds = new Set<string>();
+    teamData.admins.forEach((member) => accountIds.add(member.id));
+    teamData.staff.forEach((member) => accountIds.add(member.id));
+    teamData.salespeople.forEach((member) => { if (member.user_id) accountIds.add(member.user_id); });
+    teamData.employees.forEach((member) => { if (member.user_id) accountIds.add(member.user_id); });
+    return accountIds.size;
   }, [teamData]);
 
   const withoutAccount = Math.max(0, totalTeam - withAccount);
@@ -147,7 +194,7 @@ export function CompanyTeamTab({
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Composizione team</CardTitle>
           <CardDescription>
-            Il totale include admin, staff, venditori e dipendenti. Gli account login sono solo le persone che possono accedere alla piattaforma.
+            Totale calcolato su persone uniche: lo staff interno non include venditori o dipendenti che hanno un account operativo.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0 pb-4">
@@ -190,22 +237,22 @@ export function CompanyTeamTab({
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs font-bold">
-                          {admin.first_name[0]}{admin.last_name[0]}
+                          {getInitials(admin)}
                         </div>
-                        {admin.first_name} {admin.last_name}
+                        {getDisplayName(admin)}
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{admin.email}</TableCell>
                     <TableCell className="text-muted-foreground">{admin.phone || "—"}</TableCell>
                     <TableCell><LastAccessBadge lastLoginAt={admin.last_login_at} /></TableCell>
-                    <TableCell className="text-muted-foreground">{format(new Date(admin.created_at), "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(admin.created_at)}</TableCell>
                     {(onDeleteUser || onResetPassword) && (
                       <TableCell>
                         <MemberActions
                           userId={admin.user_id || admin.id}
-                          name={`${admin.first_name} ${admin.last_name}`}
+                          name={getDisplayName(admin)}
                           hasAccount
-                          onDelete={onDeleteUser ? () => setDeleteTarget({ id: admin.user_id || admin.id, name: `${admin.first_name} ${admin.last_name}` }) : undefined}
+                          onDelete={onDeleteUser ? () => setDeleteTarget({ id: admin.user_id || admin.id, name: getDisplayName(admin) }) : undefined}
                           onResetPassword={onResetPassword}
                         />
                       </TableCell>
@@ -248,18 +295,18 @@ export function CompanyTeamTab({
               <TableBody>
                 {filtered.staff.map((member) => {
                   const perms = getActivePermissions(member.permissions);
-                  const defaultPerms: StaffPermissions = Object.keys(DEFAULT_PERMISSIONS).reduce((acc, key) => {
-                    (acc as any)[key] = (member.permissions as any)?.[key] ?? false;
-                    return acc;
-                  }, { ...DEFAULT_PERMISSIONS });
+                  const defaultPerms: StaffPermissions = { ...DEFAULT_PERMISSIONS };
+                  (Object.keys(DEFAULT_PERMISSIONS) as Array<keyof StaffPermissions>).forEach((key) => {
+                    defaultPerms[key] = member.permissions?.[key] ?? false;
+                  });
                   return (
                     <TableRow key={member.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
-                            {member.first_name[0]}{member.last_name[0]}
+                            {getInitials(member)}
                           </div>
-                          {member.first_name} {member.last_name}
+                          {getDisplayName(member)}
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{member.email}</TableCell>
@@ -278,22 +325,22 @@ export function CompanyTeamTab({
                         </div>
                       </TableCell>
                       <TableCell><LastAccessBadge lastLoginAt={member.last_login_at} /></TableCell>
-                      <TableCell className="text-muted-foreground">{format(new Date(member.created_at), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(member.created_at)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => onEditPermissions({ id: member.id, name: `${member.first_name} ${member.last_name}`, permissions: defaultPerms })}
+                            onClick={() => onEditPermissions({ id: member.id, name: getDisplayName(member), permissions: defaultPerms })}
                           >
                             <Shield className="h-4 w-4 mr-1" /> Permessi
                           </Button>
                           {(onDeleteUser || onResetPassword) && (
                             <MemberActions
                               userId={member.id}
-                              name={`${member.first_name} ${member.last_name}`}
+                              name={getDisplayName(member)}
                               hasAccount
-                              onDelete={onDeleteUser ? () => setDeleteTarget({ id: member.id, name: `${member.first_name} ${member.last_name}` }) : undefined}
+                              onDelete={onDeleteUser ? () => setDeleteTarget({ id: member.id, name: getDisplayName(member) }) : undefined}
                               onResetPassword={onResetPassword}
                             />
                           )}
@@ -341,10 +388,10 @@ export function CompanyTeamTab({
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 text-xs font-bold">
-                          {sp.first_name[0]}{sp.last_name[0]}
+                          {getInitials(sp)}
                         </div>
                         <div>
-                          <p>{sp.first_name} {sp.last_name}</p>
+                          <p>{getDisplayName(sp)}</p>
                           {sp.email && <p className="text-xs text-muted-foreground">{sp.email}</p>}
                         </div>
                       </div>
@@ -367,7 +414,7 @@ export function CompanyTeamTab({
                             size="sm"
                             variant="ghost"
                             disabled={creatingAccountFor === sp.id}
-                            onClick={() => onCreateAccount("salesperson", sp.id, sp.email!, `${sp.first_name} ${sp.last_name}`)}
+                            onClick={() => onCreateAccount("salesperson", sp.id, sp.email!, getDisplayName(sp))}
                           >
                             {creatingAccountFor === sp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 mr-1" />}
                             Crea Account
@@ -376,9 +423,9 @@ export function CompanyTeamTab({
                         {sp.user_id && (onDeleteUser || onResetPassword) && (
                           <MemberActions
                             userId={sp.user_id}
-                            name={`${sp.first_name} ${sp.last_name}`}
+                            name={getDisplayName(sp)}
                             hasAccount
-                            onDelete={onDeleteUser ? () => setDeleteTarget({ id: sp.user_id, name: `${sp.first_name} ${sp.last_name}` }) : undefined}
+                            onDelete={onDeleteUser ? () => setDeleteTarget({ id: sp.user_id, name: getDisplayName(sp) }) : undefined}
                             onResetPassword={onResetPassword}
                           />
                         )}
@@ -427,10 +474,10 @@ export function CompanyTeamTab({
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold">
-                          {emp.first_name[0]}{emp.last_name[0]}
+                          {getInitials(emp)}
                         </div>
                         <div>
-                          <p>{emp.first_name} {emp.last_name}</p>
+                          <p>{getDisplayName(emp)}</p>
                           {emp.email && <p className="text-xs text-muted-foreground">{emp.email}</p>}
                         </div>
                       </div>
@@ -452,7 +499,7 @@ export function CompanyTeamTab({
                             size="sm"
                             variant="ghost"
                             disabled={creatingAccountFor === emp.id}
-                            onClick={() => onCreateAccount("employee", emp.id, emp.email!, `${emp.first_name} ${emp.last_name}`)}
+                            onClick={() => onCreateAccount("employee", emp.id, emp.email!, getDisplayName(emp))}
                           >
                             {creatingAccountFor === emp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 mr-1" />}
                             Crea Account
@@ -461,9 +508,9 @@ export function CompanyTeamTab({
                         {emp.user_id && (onDeleteUser || onResetPassword) && (
                           <MemberActions
                             userId={emp.user_id}
-                            name={`${emp.first_name} ${emp.last_name}`}
+                            name={getDisplayName(emp)}
                             hasAccount
-                            onDelete={onDeleteUser ? () => setDeleteTarget({ id: emp.user_id, name: `${emp.first_name} ${emp.last_name}` }) : undefined}
+                            onDelete={onDeleteUser ? () => setDeleteTarget({ id: emp.user_id, name: getDisplayName(emp) }) : undefined}
                             onResetPassword={onResetPassword}
                           />
                         )}
