@@ -10,6 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // ── Tipi locali (types.ts legacy, non rigenerato) ───────────────────────────
+/**
+ * Design JSON dell'editor visuale (Unlayer/react-email-editor).
+ * Struttura interna opaca — la libreria sa leggere/scrivere il proprio formato.
+ * Salvato come `unknown` per evitare tight coupling con la versione di Unlayer.
+ */
+export type EmailTemplateDesignJson = Record<string, unknown>;
+
 export interface EmailTemplateRow {
   id: string;
   template_key: string;
@@ -17,6 +24,11 @@ export interface EmailTemplateRow {
   subject: string;
   html_body: string;
   text_body: string | null;
+  /**
+   * Design del visual builder. Se NON null l'editor apre in modalità visuale.
+   * Se null (template legacy) apre solo in modalità HTML raw.
+   */
+  design_json: EmailTemplateDesignJson | null;
   enabled: boolean;
   version: number;
   notes: string | null;
@@ -31,6 +43,7 @@ export interface EmailTemplateUpsert {
   subject: string;
   html_body: string;
   text_body?: string | null;
+  design_json?: EmailTemplateDesignJson | null;
   enabled?: boolean;
   notes?: string | null;
 }
@@ -96,6 +109,7 @@ export function useUpsertEmailTemplate() {
             subject: input.subject,
             html_body: input.html_body,
             text_body: input.text_body ?? null,
+            design_json: input.design_json ?? null,
             enabled: input.enabled ?? true,
             notes: input.notes ?? null,
           },
@@ -207,6 +221,7 @@ export interface EmailTemplateHistoryRow {
   subject: string;
   html_body: string;
   text_body: string | null;
+  design_json: EmailTemplateDesignJson | null;
   enabled: boolean;
   version: number;
   notes: string | null;

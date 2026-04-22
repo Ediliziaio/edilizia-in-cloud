@@ -104,6 +104,7 @@
     "react-dom": "^18.3.1",
     "react-dropzone": "^15.0.0",
     "react-email": "^6.0.0",
+    "react-email-editor": "^1.8.0",
     "react-grid-layout": "^2.2.3",
     "react-hook-form": "^7.61.1",
     "react-leaflet": "^5.0.0",
