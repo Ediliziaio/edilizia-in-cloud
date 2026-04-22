@@ -238,6 +238,65 @@ export default function RenderBagnoNew() {
     }
   }, [photo, companyId, user, config, contactId, opportunityId]);
 
+  const startPolling = useCallback((sid: string) => {
+    if (pollRef.current) clearTimeout(pollRef.current);
+    if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    pollCountRef.current = 0;
+
+    dotsIntervalRef.current = setInterval(() => {
+      elapsedRef.current += 1;
+      setPollState(prev => ({
+        ...prev,
+        dots: (prev.dots + 1) % 4,
+        elapsedSec: elapsedRef.current,
+      }));
+    }, 1000);
+
+    const poll = async () => {
+      if (elapsedRef.current >= MAX_POLL_SEC) {
+        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        setGenerating(false);
+        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
+        setStep(3);
+        return;
+      }
+
+      const { data: sess } = await supabase
+        .from("render_bagno_sessions")
+        .select("stato, render_result_url")
+        .eq("id", sid)
+        .single();
+
+      const s = sess as { stato: string; render_result_url: string | null } | null;
+
+      if (s?.stato === "completato" && s.render_result_url) {
+        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        setResultUrl(s.render_result_url);
+        setGenerating(false);
+        queryClient.invalidateQueries({ queryKey: ["render-bagno-sessions", companyId] });
+        queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
+        queryClient.invalidateQueries({ queryKey: ["render-bagno-gallery", companyId] });
+        return;
+      }
+
+      if (s?.stato === "errore") {
+        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        setGenerating(false);
+        toast.error("Render fallito. Riprova.");
+        setStep(3);
+        return;
+      }
+
+      setPollState(prev => ({ ...prev, status: s?.stato ?? "processing" }));
+
+      const intervalIdx = Math.min(pollCountRef.current, POLL_INTERVALS.length - 1);
+      pollCountRef.current += 1;
+      pollRef.current = setTimeout(poll, POLL_INTERVALS[intervalIdx]);
+    };
+
+    poll();
+  }, [companyId, queryClient]);
+
   // ── Step 3 -> Step 4: start render ─────────────────────────────────
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId) return;
@@ -299,65 +358,6 @@ export default function RenderBagnoNew() {
     // Otherwise poll
     startPolling(sessionId);
   }, [sessionId, companyId, config, queryClient, generating, startPolling, photoMeta]);
-
-  const startPolling = useCallback((sid: string) => {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
-    pollCountRef.current = 0;
-
-    dotsIntervalRef.current = setInterval(() => {
-      elapsedRef.current += 1;
-      setPollState(prev => ({
-        ...prev,
-        dots: (prev.dots + 1) % 4,
-        elapsedSec: elapsedRef.current,
-      }));
-    }, 1000);
-
-    const poll = async () => {
-      if (elapsedRef.current >= MAX_POLL_SEC) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
-        setGenerating(false);
-        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
-        setStep(3);
-        return;
-      }
-
-      const { data: sess } = await supabase
-        .from("render_bagno_sessions")
-        .select("stato, render_result_url")
-        .eq("id", sid)
-        .single();
-
-      const s = sess as { stato: string; render_result_url: string | null } | null;
-
-      if (s?.stato === "completato" && s.render_result_url) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
-        setResultUrl(s.render_result_url);
-        setGenerating(false);
-        queryClient.invalidateQueries({ queryKey: ["render-bagno-sessions", companyId] });
-        queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
-        queryClient.invalidateQueries({ queryKey: ["render-bagno-gallery", companyId] });
-        return;
-      }
-
-      if (s?.stato === "errore") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
-        setGenerating(false);
-        toast.error("Render fallito. Riprova.");
-        setStep(3);
-        return;
-      }
-
-      setPollState(prev => ({ ...prev, status: s?.stato ?? "processing" }));
-
-      const intervalIdx = Math.min(pollCountRef.current, POLL_INTERVALS.length - 1);
-      pollCountRef.current += 1;
-      pollRef.current = setTimeout(poll, POLL_INTERVALS[intervalIdx]);
-    };
-
-    poll();
-  }, [companyId, queryClient]);
 
   // ── Save to gallery ────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
