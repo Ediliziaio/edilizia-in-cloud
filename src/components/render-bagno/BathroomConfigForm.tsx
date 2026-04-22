@@ -22,6 +22,7 @@ import type {
   TipoIntervento,
 } from "@/modules/render-bagno/lib/types";
 import { cn } from "@/lib/utils";
+export { DEFAULT_BATHROOM_CONFIG } from "@/components/render-bagno/defaultBathroomConfig";
 
 export type BathroomConfig = ConfigurazioneBagno;
 
