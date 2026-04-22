@@ -5,6 +5,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { captureRealCost } from "../_shared/renderCost.ts";
+import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 
 // ── FINISH_PHYSICS ───────────────────────────────────────────────────────────
 const FINISH_PHYSICS: Record<string, string> = {
@@ -215,6 +217,180 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+type RenderProviderConfig = {
+  id: string;
+  provider_key: string;
+  model: string;
+  api_endpoint: string;
+  is_active?: boolean | null;
+  is_default?: boolean | null;
+  quality?: string | null;
+  cost_real_per_render?: number | null;
+  cost_billed_per_render?: number | null;
+  renders_generated?: number | null;
+};
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function downloadImageAsInlineData(imageUrl: string): Promise<{
+  mimeType: string;
+  base64: string;
+  bytes: Uint8Array;
+}> {
+  const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
+  if (!imgResp.ok) {
+    throw new Error(`Impossibile scaricare l'immagine (${imgResp.status})`);
+  }
+  const mimeType = (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] || "image/jpeg";
+  const imgBuffer = await imgResp.arrayBuffer();
+  if (imgBuffer.byteLength === 0) {
+    throw new Error("L'immagine originale risulta vuota");
+  }
+  return {
+    mimeType,
+    base64: arrayBufferToBase64(imgBuffer),
+    bytes: new Uint8Array(imgBuffer),
+  };
+}
+
+async function remoteImageUrlToDataUrl(url: string): Promise<string> {
+  const resp = await fetchWithTimeout(url, {}, 30_000);
+  if (!resp.ok) {
+    throw new Error(`Impossibile scaricare il risultato del provider (${resp.status})`);
+  }
+  const mimeType = (resp.headers.get("content-type") || "image/png").split(";")[0] || "image/png";
+  const buffer = await resp.arrayBuffer();
+  return `data:${mimeType};base64,${arrayBufferToBase64(buffer)}`;
+}
+
+function dataUrlToBytes(dataUrl: string): {
+  bytes: Uint8Array;
+  mimeType: string;
+  extension: string;
+} {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+  if (!match) {
+    throw new Error("Formato immagine provider non valido");
+  }
+
+  const mimeType = match[1];
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const extension =
+    mimeType.includes("png") ? "png" :
+    mimeType.includes("webp") ? "webp" :
+    mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" :
+    "png";
+
+  return { bytes, mimeType, extension };
+}
+
+function extractGeneratedImageData(aiData: Record<string, unknown>): string | null {
+  const data = aiData.data as Array<Record<string, unknown>> | undefined;
+  const first = Array.isArray(data) ? data[0] : undefined;
+  const b64 = typeof first?.b64_json === "string" ? first.b64_json : null;
+  if (b64) {
+    return `data:image/png;base64,${b64}`;
+  }
+
+  const candidates = aiData.candidates as Array<Record<string, unknown>> | undefined;
+  const parts = candidates?.[0]?.content &&
+    typeof candidates[0].content === "object" &&
+    "parts" in candidates[0].content
+    ? (candidates[0].content as { parts?: Array<Record<string, unknown>> }).parts
+    : undefined;
+
+  for (const part of parts ?? []) {
+    const inlineData = part.inlineData as { mimeType?: string; data?: string } | undefined;
+    if (inlineData?.mimeType?.startsWith("image/") && inlineData.data) {
+      return `data:${inlineData.mimeType};base64,${inlineData.data}`;
+    }
+  }
+
+  return null;
+}
+
+function extractTextParts(payload: Record<string, unknown>): string {
+  const candidates = payload.candidates as Array<Record<string, unknown>> | undefined;
+  const parts = candidates?.[0]?.content &&
+    typeof candidates[0].content === "object" &&
+    "parts" in candidates[0].content
+    ? (candidates[0].content as { parts?: Array<Record<string, unknown>> }).parts
+    : undefined;
+
+  return (parts ?? [])
+    .map((part) => typeof part.text === "string" ? part.text : "")
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+async function getProviderApiKey(
+  supabase: ReturnType<typeof createClient>,
+  providerKey: string,
+): Promise<string> {
+  const { data: keyRow } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", `render_${providerKey}_api_key`)
+    .maybeSingle();
+
+  const envCandidates = providerKey === "gemini"
+    ? ["RENDER_GEMINI_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_API_KEY"]
+    : [`${providerKey.toUpperCase()}_API_KEY`];
+
+  for (const envName of envCandidates) {
+    const value = Deno.env.get(envName)?.trim();
+    if (value) return value;
+  }
+
+  return (keyRow as { value?: string } | null)?.value?.trim() || "";
+}
+
+async function loadDefaultRenderProvider(
+  supabase: ReturnType<typeof createClient>,
+): Promise<RenderProviderConfig | null> {
+  const { data: providerConfig } = await supabase
+    .from("render_provider_config")
+    .select("*")
+    .eq("is_default", true)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  return (providerConfig as RenderProviderConfig | null) ?? null;
+}
+
+async function loadRenderProviderWithKey(
+  supabase: ReturnType<typeof createClient>,
+): Promise<{ providerConfig: RenderProviderConfig; apiKey: string }> {
+  const providerConfig = await loadDefaultRenderProvider(supabase);
+  if (!providerConfig) {
+    throw new Error("Nessun provider render attivo. Configurare in Admin > Impostazioni AI > Render.");
+  }
+
+  const apiKey = await getProviderApiKey(supabase, providerConfig.provider_key);
+  if (!apiKey) {
+    throw new Error(
+      `API key mancante per provider '${providerConfig.provider_key}'. ` +
+      `Configurarla in Admin > Impostazioni AI > Render o come Supabase secret ${providerConfig.provider_key.toUpperCase()}_API_KEY.`,
+    );
+  }
+
+  return { providerConfig, apiKey };
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -246,9 +422,11 @@ Deno.serve(async (req) => {
 
     // ── Parse request ────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
-    const { session_id, config } = body as {
+    const { session_id, config, target_width, target_height } = body as {
       session_id?: string;
       config?: Record<string, unknown>;
+      target_width?: number;
+      target_height?: number;
     };
 
     if (!session_id) {
@@ -307,16 +485,19 @@ Deno.serve(async (req) => {
       .update({ status: "processing", processing_started_at: new Date().toISOString() })
       .eq("id", session_id);
 
-    // ── Signed URL for original photo ────────────────────────────────────
     const originalPath = session.original_photo_url as string;
-    let imageUrl = originalPath;
-
-    if (originalPath && !originalPath.startsWith("http")) {
-      const { data: signed } = await supabase.storage
-        .from("facciata-originals")
-        .createSignedUrl(originalPath, 600);
-      if (signed?.signedUrl) imageUrl = signed.signedUrl;
+    if (!originalPath) {
+      throw new Error("Foto originale della sessione mancante");
     }
+
+    const prepared = await prepareInputImage({
+      supabase,
+      bucket: "facciata-originals",
+      originalPath,
+      hintWidth: target_width,
+      hintHeight: target_height,
+    });
+    const originalImage = await downloadImageAsInlineData(prepared.url);
 
     // ── Build prompt ─────────────────────────────────────────────────────
     const renderConfig = config || (session.config as Record<string, unknown>) || {};
@@ -328,82 +509,128 @@ Deno.serve(async (req) => {
 
     const { systemPrompt, userPrompt, promptVersion, blocks } = buildFacadePrompt(sessionLike);
 
-    // ── Call AI via Lovable Gateway (Gemini) ─────────────────────────────
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")?.trim();
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY non configurata come Supabase edge secret.");
-    }
+    const { providerConfig, apiKey } = await loadRenderProviderWithKey(supabase);
 
-    const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-    const imgBuffer = await imgResp.arrayBuffer();
-    const imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
-
-    const gatewayBody = {
-      model: "google/gemini-2.5-flash-image",
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: userPrompt },
-            {
-              type: "image_url",
-              image_url: { url: `data:image/jpeg;base64,${imgB64}` },
-            },
-          ],
-        },
-      ],
-      max_tokens: 4096,
-    };
-
-    const gatewayResp = await fetchWithRetry(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        },
-        body: JSON.stringify(gatewayBody),
-      },
-    );
-
-    if (!gatewayResp.ok) {
-      const errText = await gatewayResp.text();
-      throw new Error(`Gateway error ${gatewayResp.status}: ${errText.substring(0, 300)}`);
-    }
-
-    const gatewayData = await gatewayResp.json();
-
-    // ── Extract image from response ──────────────────────────────────────
     let imageData: string | null = null;
-    const choices = gatewayData.choices || [];
-    for (const choice of choices) {
-      const content = choice.message?.content;
-      if (typeof content === "string" && content.startsWith("data:image/")) {
-        imageData = content;
-        break;
-      }
-      if (Array.isArray(content)) {
-        for (const part of content) {
-          if (part.type === "image_url" && part.image_url?.url) {
-            imageData = part.image_url.url;
-            break;
-          }
-        }
-        if (imageData) break;
-      }
-    }
+    let providerRawResponse: Record<string, unknown> = {};
+    let modelUsed = providerConfig.model;
 
-    // Fallback: check inline_data in Gemini-style response
-    if (!imageData) {
-      const parts = gatewayData.candidates?.[0]?.content?.parts ?? [];
-      for (const part of parts) {
-        if (part.inlineData?.mimeType?.startsWith("image/")) {
-          imageData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    if (providerConfig.provider_key === "openai") {
+      const renderSize = pickProviderSize(
+        prepared.effective_width,
+        prepared.effective_height,
+        "openai",
+      ) ?? "1024x1024";
+      const imageBlob = new Blob([originalImage.bytes], {
+        type: originalImage.mimeType || "image/jpeg",
+      });
+      const modelChain = [providerConfig.model || "gpt-image-1"];
+      if (modelChain[0] !== "dall-e-2") modelChain.push("dall-e-2");
+
+      const buildForm = (modelName: string) => {
+        const form = new FormData();
+        form.append("model", modelName);
+        form.append("prompt", `${systemPrompt}\n\n${userPrompt}`);
+        if (modelName === "dall-e-2") {
+          form.append("image", imageBlob, "facade.png");
+          form.append("size", "1024x1024");
+          form.append("response_format", "b64_json");
+        } else {
+          form.append("image[]", imageBlob, "facade.jpg");
+          form.append("size", renderSize);
+        }
+        form.append("n", "1");
+        return form;
+      };
+
+      let openAiResp: Response | null = null;
+      let lastErr = "";
+
+      for (const modelName of modelChain) {
+        const resp = await fetchWithRetry(
+          "https://api.openai.com/v1/images/edits",
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}` },
+            body: buildForm(modelName),
+          },
+        );
+
+        if (resp.ok) {
+          openAiResp = resp;
+          modelUsed = modelName;
           break;
         }
+
+        const errText = await resp.text();
+        lastErr = `OpenAI error ${resp.status}: ${errText.substring(0, 300)}`;
+        const isModelAccessIssue =
+          errText.includes("invalid_value") && errText.includes("\"model\"");
+        if (!isModelAccessIssue) throw new Error(lastErr);
       }
+
+      if (!openAiResp) {
+        throw new Error(lastErr || "OpenAI: tutti i model tentati sono falliti");
+      }
+
+      const openAiData = await openAiResp.json() as Record<string, unknown>;
+      providerRawResponse = { ...openAiData, _model_used: modelUsed };
+      imageData = extractGeneratedImageData(openAiData);
+      if (!imageData) {
+        const remoteUrl = (openAiData.data as Array<{ url?: string }> | undefined)?.[0]?.url;
+        if (remoteUrl) {
+          imageData = await remoteImageUrlToDataUrl(remoteUrl);
+        }
+      }
+    } else if (providerConfig.provider_key === "gemini") {
+      const geminiBody = {
+        contents: [{
+          parts: [
+            { text: `${systemPrompt}\n\n${userPrompt}` },
+            {
+              inline_data: {
+                mime_type: originalImage.mimeType,
+                data: originalImage.base64,
+              },
+            },
+          ],
+        }],
+        generationConfig: {
+          responseModalities: ["IMAGE", "TEXT"],
+          temperature: 1,
+        },
+      };
+
+      const geminiUrl = `${providerConfig.api_endpoint}/${providerConfig.model}:generateContent?key=${apiKey}`;
+      const resp = await fetchWithRetry(
+        geminiUrl,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(geminiBody),
+        },
+      );
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Gemini error ${resp.status}: ${errText.substring(0, 300)}`);
+      }
+
+      const geminiData = await resp.json() as Record<string, unknown>;
+      providerRawResponse = geminiData;
+      imageData = extractGeneratedImageData(geminiData);
+      if (!imageData) {
+        const providerText = extractTextParts(geminiData);
+        throw new Error(
+          providerText
+            ? `Il provider non ha restituito un'immagine renderizzabile: ${providerText.substring(0, 240)}`
+            : "Nessuna immagine ricevuta dal provider AI",
+        );
+      }
+    } else {
+      throw new Error(
+        `Provider '${providerConfig.provider_key}' non supportato. Selezionare OpenAI o Gemini.`,
+      );
     }
 
     if (!imageData) {
@@ -411,13 +638,15 @@ Deno.serve(async (req) => {
     }
 
     // ── Upload result to Storage ─────────────────────────────────────────
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const uint8 = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-    const resultPath = `${session.company_id}/${session_id}/render_${Date.now()}.png`;
+    const uploadPayload = dataUrlToBytes(imageData);
+    const resultPath = `${session.company_id}/${session_id}/render_${Date.now()}.${uploadPayload.extension}`;
 
     const { error: uploadErr } = await supabase.storage
       .from("facciata-results")
-      .upload(resultPath, uint8, { contentType: "image/png", upsert: true });
+      .upload(resultPath, uploadPayload.bytes, {
+        contentType: uploadPayload.mimeType,
+        upsert: true,
+      });
 
     if (uploadErr) {
       throw new Error(`Errore upload risultato: ${uploadErr.message}`);
@@ -429,6 +658,17 @@ Deno.serve(async (req) => {
 
     const resultUrl = publicUrlData.publicUrl;
 
+    const legacyCostReal = Number(providerConfig.cost_real_per_render ?? 0.04);
+    const capture = await captureRealCost({
+      supabase,
+      providerKey: providerConfig.provider_key,
+      model: modelUsed,
+      rawResponse: providerRawResponse,
+      legacyFallbackEur: legacyCostReal,
+    });
+    const costReal = capture.cost_eur;
+    const costBilled = Number(providerConfig.cost_billed_per_render ?? 0.10);
+
     // ── Update session: completed ────────────────────────────────────────
     await supabase
       .from("render_facciata_sessions")
@@ -439,20 +679,25 @@ Deno.serve(async (req) => {
         prompt_blocks: blocks,
         prompt_version: promptVersion,
         prompt_char_count: (systemPrompt + userPrompt).length,
-        provider_key: "gemini_gateway",
-        cost_real: 0.04,
-        cost_billed: 0.10,
+        provider_key: providerConfig.provider_key,
+        cost_real: costReal,
+        cost_billed: costBilled,
         config_snapshot: renderConfig,
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
+
+    await supabase
+      .from("render_provider_config")
+      .update({ renders_generated: (providerConfig.renders_generated ?? 0) + 1 })
+      .eq("id", providerConfig.id);
 
     return new Response(
       JSON.stringify({
         success: true,
         session_id,
         result_url: resultUrl,
-        provider: "gemini_gateway",
+        provider: providerConfig.provider_key,
         prompt_version: promptVersion,
       }),
       { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },

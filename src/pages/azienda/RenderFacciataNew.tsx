@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Upload, Image as ImageIcon, Loader2, Zap,
+  ArrowLeft, Upload, Loader2, Zap,
   CheckCircle2, Download, Share2, RefreshCw, Building2,
 } from "lucide-react";
 
@@ -20,6 +20,10 @@ import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazioneFacciata } from "@/modules/render-facciata/lib/types";
 import type { AnalisiFacciata } from "@/modules/render-facciata/lib/types";
+import {
+  getEdgeFunctionAuthHeaders,
+  resolveEdgeFunctionErrorMessage,
+} from "@/modules/render/lib/edgeFunctionClient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -49,7 +53,7 @@ export default function RenderFacciataNew() {
   const [opportunityId, setOpportunityId] = useState<string | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -161,11 +165,12 @@ export default function RenderFacciataNew() {
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config]);
+  }, [photo, companyId, user, config, contactId, opportunityId]);
 
   // ── Step 2 -> Step 3: start render ─────────────────────────────────────────
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId) return;
+    if (generating) return;
 
     setGenerating(true);
     setStep(3);
@@ -193,16 +198,22 @@ export default function RenderFacciataNew() {
     }
 
     // Invoke edge function
+    const headers = await getEdgeFunctionAuthHeaders();
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-facade-render", {
       body: {
         session_id: sessionId,
         config: config,
         ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
       },
+      headers,
     });
 
     if (fnErr || fnData?.error) {
-      const msg = fnErr?.message ?? fnData?.message ?? fnData?.error ?? "Generazione fallita";
+      const msg = await resolveEdgeFunctionErrorMessage({
+        error: fnErr,
+        data: fnData,
+        fallback: "Generazione fallita",
+      });
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -226,7 +237,7 @@ export default function RenderFacciataNew() {
 
     // Polling
     startPolling(sessionId);
-  }, [sessionId, companyId, config, photo, photoPreview, queryClient]);
+  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) clearTimeout(pollRef.current);

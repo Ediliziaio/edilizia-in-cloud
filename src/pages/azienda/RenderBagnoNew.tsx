@@ -321,6 +321,8 @@ export default function RenderBagnoNew() {
 
     const targetWidth = photoMeta?.width;
     const targetHeight = photoMeta?.height;
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    const token = authSession?.access_token;
 
     // Invoke generate-bathroom-render
     const { data: fnData, error: fnErr } = await supabase.functions.invoke(
@@ -330,11 +332,25 @@ export default function RenderBagnoNew() {
           session_id: sessionId,
           ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
         },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       },
     );
 
     if (fnErr || fnData?.error) {
-      const msg = fnErr?.message ?? fnData?.message ?? fnData?.error ?? "Generazione fallita";
+      let errBody: { error?: string; message?: string } | null = null;
+      try {
+        const ctx = (fnErr as unknown as { context?: unknown } | null)?.context;
+        if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
+      } catch {
+        // ignore parse error and fall back below
+      }
+      const msg =
+        errBody?.message ??
+        errBody?.error ??
+        fnErr?.message ??
+        fnData?.message ??
+        fnData?.error ??
+        "Generazione fallita";
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");

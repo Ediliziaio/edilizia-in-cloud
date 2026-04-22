@@ -29,6 +29,10 @@ import {
   type WizardState, type WizardTipo, type WizardProfilo, type WizardHw,
   type WizardCassMat, type WizardTapp,
 } from "@/modules/render/lib/configMapper";
+import {
+  getEdgeFunctionAuthHeaders,
+  resolveEdgeFunctionErrorMessage,
+} from "@/modules/render/lib/edgeFunctionClient";
 
 // ── Polling constants ─────────────────────────────────────────────────────────
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
@@ -227,6 +231,7 @@ export default function RenderNewV2() {
   // ── Generate render ────────────────────────────────────────────────────────
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId) return;
+    if (generating) return;
 
     let config;
     try {
@@ -259,6 +264,7 @@ export default function RenderNewV2() {
     }, 1000);
 
     try {
+      const headers = await getEdgeFunctionAuthHeaders();
       const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-render", {
         body: {
           session_id: sessionId,
@@ -266,10 +272,15 @@ export default function RenderNewV2() {
           target_width: photoDimensions?.width,
           target_height: photoDimensions?.height,
         },
+        headers,
       });
 
       if (fnErr || fnData?.error) {
-        throw new Error(fnErr?.message ?? fnData?.message ?? fnData?.error ?? "Generazione fallita");
+        throw new Error(await resolveEdgeFunctionErrorMessage({
+          error: fnErr,
+          data: fnData,
+          fallback: "Generazione fallita",
+        }));
       }
 
       // Synchronous response
@@ -291,7 +302,7 @@ export default function RenderNewV2() {
       setGenerateError(message);
       toast.error(message);
     }
-  }, [sessionId, companyId, state, photoDimensions, queryClient]);
+  }, [sessionId, companyId, state, photoDimensions, queryClient, startPolling, generating]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }

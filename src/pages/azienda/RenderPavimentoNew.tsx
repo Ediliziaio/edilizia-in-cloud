@@ -22,6 +22,10 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import type { ConfigurazionePavimento, AnalisiPavimento } from "@/modules/render-pavimento/lib/types";
+import {
+  getEdgeFunctionAuthHeaders,
+  resolveEdgeFunctionErrorMessage,
+} from "@/modules/render/lib/edgeFunctionClient";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -49,7 +53,7 @@ export default function RenderPavimentoNew() {
   // ── Step 1: Photo ──────────────────────────────────────────────────────
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [contactId, setContactId] = useState<string | null>(null);
   const [opportunityId, setOpportunityId] = useState<string | null>(null);
@@ -172,11 +176,12 @@ export default function RenderPavimentoNew() {
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config]);
+  }, [photo, companyId, user, config, contactId, opportunityId]);
 
   // ── Step 2 -> Step 3: start render ─────────────────────────────────────
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId) return;
+    if (generating) return;
 
     setGenerating(true);
     setStep(3);
@@ -200,10 +205,11 @@ export default function RenderPavimentoNew() {
         await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); });
         targetWidth = img.naturalWidth || undefined;
         targetHeight = img.naturalHeight || undefined;
-      } catch (_) { /* ignore */ }
+      } catch { /* ignore */ }
     }
 
     // Invoca generate-floor-render
+    const headers = await getEdgeFunctionAuthHeaders();
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-floor-render", {
       body: {
         action: "render",
@@ -211,10 +217,15 @@ export default function RenderPavimentoNew() {
         config: config,
         ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
       },
+      headers,
     });
 
     if (fnErr || fnData?.error) {
-      const msg = fnErr?.message ?? fnData?.message ?? fnData?.error ?? "Generazione fallita";
+      const msg = await resolveEdgeFunctionErrorMessage({
+        error: fnErr,
+        data: fnData,
+        fallback: "Generazione fallita",
+      });
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -236,7 +247,7 @@ export default function RenderPavimentoNew() {
     }
 
     startPolling(sessionId);
-  }, [sessionId, companyId, config, photo, photoPreview, queryClient]);
+  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -308,7 +319,7 @@ export default function RenderPavimentoNew() {
       a.href = URL.createObjectURL(blob);
       a.download = `render_pavimento_${Date.now()}.png`;
       a.click();
-    } catch (_) {
+    } catch {
       toast.error("Download fallito");
     }
   }, [resultUrls]);

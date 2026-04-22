@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
-import { pickProviderSize } from "../_shared/renderImage.ts";
+import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -781,9 +781,6 @@ async function requestBathroomRender(params: {
       } else {
         form.append("image[]", imageBlob, "bathroom.jpg");
         form.append("size", renderSize);
-        if (params.providerConfig.quality) {
-          form.append("quality", params.providerConfig.quality);
-        }
       }
       form.append("n", "1");
       return form;
@@ -795,7 +792,7 @@ async function requestBathroomRender(params: {
 
     for (const modelName of modelChain) {
       const resp = await fetchWithRetry(
-        params.providerConfig.api_endpoint || "https://api.openai.com/v1/images/edits",
+        "https://api.openai.com/v1/images/edits",
         {
           method: "POST",
           headers: { Authorization: `Bearer ${params.apiKey}` },
@@ -931,7 +928,7 @@ async function runBathroomAnalysis(params: {
 
   const geminiApiKey = await getGeminiApiKey(supabase);
   if (!geminiApiKey) {
-    throw new Error("Gemini API key non configurata per il render bagno");
+    return {};
   }
 
   const { mimeType, base64 } = await downloadImageAsInlineData(imageUrl);
@@ -1146,24 +1143,22 @@ Deno.serve(async (req) => {
       throw new Error("Foto originale della sessione mancante");
     }
 
-    let imageUrl = originalPath;
-    if (!originalPath.startsWith("http")) {
-      const { data: signed, error: signedErr } = await supabase.storage
-        .from("bagno-originals")
-        .createSignedUrl(originalPath, 600);
+    const prepared = await prepareInputImage({
+      supabase,
+      bucket: "bagno-originals",
+      originalPath,
+      hintWidth: target_width,
+      hintHeight: target_height,
+    });
 
-      if (signedErr || !signed?.signedUrl) {
-        throw new Error(`Signed URL originale non disponibile: ${signedErr?.message || "missing signed url"}`);
-      }
-
-      imageUrl = signed.signedUrl;
-    }
-
-    const originalImage = await downloadImageAsInlineData(imageUrl);
+    const originalImage = await downloadImageAsInlineData(prepared.url);
     const sourceDimensions =
       Number.isFinite(Number(target_width)) && Number.isFinite(Number(target_height)) &&
       Number(target_width) > 0 && Number(target_height) > 0
-        ? { width: Number(target_width), height: Number(target_height) }
+        ? {
+            width: prepared.effective_width ?? Number(target_width),
+            height: prepared.effective_height ?? Number(target_height),
+          }
         : detectImageDimensions(originalImage.bytes);
 
     const { systemPrompt, userPrompt, promptVersion } = buildBathroomPromptServer(

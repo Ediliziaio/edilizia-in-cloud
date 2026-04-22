@@ -29,6 +29,10 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import type { ConfigurazionePersiane } from "@/modules/render-persiane/lib/types";
+import {
+  getEdgeFunctionAuthHeaders,
+  resolveEdgeFunctionErrorMessage,
+} from "@/modules/render/lib/edgeFunctionClient";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -56,7 +60,7 @@ export default function RenderPersianeNew() {
   // ── Step 1: Photo ──────────────────────────────────────────────────────────
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -142,11 +146,12 @@ export default function RenderPersianeNew() {
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config]);
+  }, [photo, companyId, user, config, contactId, opportunityId]);
 
   // ── Step 2 -> Step 3: start render ─────────────────────────────────────────
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId) return;
+    if (generating) return;
 
     setGenerating(true);
     setStep(3);
@@ -173,12 +178,13 @@ export default function RenderPersianeNew() {
         });
         targetWidth = img.naturalWidth || undefined;
         targetHeight = img.naturalHeight || undefined;
-      } catch (_) {
+      } catch {
         /* ignore */
       }
     }
 
     // Invoca generate-shutter-render
+    const headers = await getEdgeFunctionAuthHeaders();
     const { data: fnData, error: fnErr } = await supabase.functions.invoke(
       "generate-shutter-render",
       {
@@ -189,12 +195,16 @@ export default function RenderPersianeNew() {
             ? { target_width: targetWidth, target_height: targetHeight }
             : {}),
         },
+        headers,
       },
     );
 
     if (fnErr || fnData?.error) {
-      const msg =
-        fnErr?.message ?? fnData?.message ?? fnData?.error ?? "Generazione fallita";
+      const msg = await resolveEdgeFunctionErrorMessage({
+        error: fnErr,
+        data: fnData,
+        fallback: "Generazione fallita",
+      });
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -221,7 +231,7 @@ export default function RenderPersianeNew() {
 
     // Polling
     startPolling(sessionId);
-  }, [sessionId, companyId, config, photo, photoPreview, queryClient]);
+  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
   const startPolling = useCallback(
     (sid: string) => {
@@ -311,7 +321,7 @@ export default function RenderPersianeNew() {
       a.href = URL.createObjectURL(blob);
       a.download = `render_persiane_${Date.now()}.png`;
       a.click();
-    } catch (_) {
+    } catch {
       toast.error("Download fallito");
     }
   }, [resultUrls]);
