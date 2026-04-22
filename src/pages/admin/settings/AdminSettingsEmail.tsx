@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmailTestPanel } from "@/components/admin/settings/EmailTestPanel";
-import { Settings, Send, BarChart3, Ban, Gauge, FileText, PenLine } from "lucide-react";
+import { Settings, Send, BarChart3, Ban, Gauge, FileText, PenLine, Variable } from "lucide-react";
 
 const EmailSettingsTab          = lazy(() => import("@/components/admin/settings/EmailSettingsTab"));
 const EmailDeliverabilityDashboard = lazy(() =>
@@ -25,6 +25,10 @@ const PlatformEmailSignaturePanel = lazy(() =>
   import("@/components/admin/settings/PlatformEmailSignaturePanel")
     .then((m) => ({ default: m.PlatformEmailSignaturePanel })),
 );
+const PlatformCustomFieldsPanel = lazy(() =>
+  import("@/components/admin/settings/PlatformCustomFieldsPanel")
+    .then((m) => ({ default: m.PlatformCustomFieldsPanel })),
+);
 
 export default function AdminSettingsEmail() {
   return (
@@ -45,6 +49,10 @@ export default function AdminSettingsEmail() {
           <TabsTrigger value="templates" className="gap-2">
             <FileText className="h-4 w-4" />
             Template
+          </TabsTrigger>
+          <TabsTrigger value="custom-fields" className="gap-2">
+            <Variable className="h-4 w-4" />
+            Campi personalizzati
           </TabsTrigger>
           <TabsTrigger value="signature" className="gap-2">
             <PenLine className="h-4 w-4" />
@@ -77,6 +85,12 @@ export default function AdminSettingsEmail() {
         <TabsContent value="templates">
           <Suspense fallback={<Skeleton className="h-[500px]" />}>
             <EmailTemplatesPanel />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="custom-fields">
+          <Suspense fallback={<Skeleton className="h-[500px]" />}>
+            <PlatformCustomFieldsPanel />
           </Suspense>
         </TabsContent>
 

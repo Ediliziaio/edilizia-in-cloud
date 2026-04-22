@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
 /* ───── types ───── */
-interface UnifiedField {
+export interface UnifiedField {
   id: string;
   name: string;
   object: string;
@@ -38,8 +38,18 @@ interface UnifiedField {
   section?: string;
 }
 
+interface MarketingCustomFieldRow {
+  id: string;
+  name: string;
+  object_type: string;
+  section: string | null;
+  created_at: string;
+  field_type: string;
+  options: string[] | null;
+}
+
 /* ───── folder colors & labels ───── */
-const FOLDER_COLORS: Record<string, string> = {
+export const FOLDER_COLORS: Record<string, string> = {
   contact: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
   general_info: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   additional_info: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
@@ -85,7 +95,7 @@ const FOLDER_COLORS: Record<string, string> = {
   tariffa: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   catalog_category: "bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300",
 };
-const FOLDER_LABELS: Record<string, string> = {
+export const FOLDER_LABELS: Record<string, string> = {
   contact: "Contatto",
   general_info: "General Info",
   additional_info: "Additional Info",
@@ -138,7 +148,7 @@ function sysField(id: string, name: string, object: string, folder: string, uniq
 }
 
 /* ───── built-in fields ───── */
-const BUILTIN_FIELDS: UnifiedField[] = [
+export const BUILTIN_FIELDS: UnifiedField[] = [
   // ══════════════════════════════════════
   // ── Contatto ──
   // ══════════════════════════════════════
@@ -757,7 +767,7 @@ const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_tar_attiva",           "Attiva",                "Tariffa", "tariffa", "{{ tariffa.attiva }}"),
 ];
 
-const FIELD_TYPES = [
+export const FIELD_TYPES = [
   { value: "text", label: "Testo" },
   { value: "number", label: "Numero" },
   { value: "date", label: "Data" },
@@ -803,7 +813,7 @@ const CANTIERE_SECTIONS: Record<string, { value: string; label: string }[]> = {
   catalog_category:      [{ value: "catalog_category",      label: "Categoria Listino" }],
 };
 
-const GROUP_OPTIONS = [
+export const GROUP_OPTIONS = [
   { value: "all", label: "Tutto" },
   { value: "contact", label: "Contatto" },
   { value: "opportunity", label: "Opportunità" },
@@ -849,7 +859,7 @@ const GROUP_OPTIONS = [
   { value: "catalog_category",      label: "Categoria Listino" },
 ];
 
-const OBJECT_NAME_MAP: Record<string, string> = {
+export const OBJECT_NAME_MAP: Record<string, string> = {
   contact: "Contatto",
   opportunity: "Opportunità",
   appointment: "Appuntamento",
@@ -894,7 +904,7 @@ const OBJECT_NAME_MAP: Record<string, string> = {
   catalog_category: "Categoria Listino",
 };
 
-function toSnakeCase(s: string) {
+export function toSnakeCase(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
 
@@ -933,7 +943,7 @@ export function CustomFieldsConfig() {
   });
 
   const allFields = useMemo<UnifiedField[]>(() => {
-    const custom: UnifiedField[] = customFields.map((f: any) => {
+    const custom: UnifiedField[] = (customFields as MarketingCustomFieldRow[]).map((f) => {
       const objectName = OBJECT_NAME_MAP[f.object_type] ?? f.object_type;
       const templateNs = f.object_type; // es. 'ordini_variazione'
       return {
@@ -1016,7 +1026,7 @@ export function CustomFieldsConfig() {
       setObjectType("contact");
       setOptionsInput("");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
@@ -1028,7 +1038,7 @@ export function CustomFieldsConfig() {
       queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
       toast.success("Campo eliminato");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const copyKey = (key: string) => {

@@ -13,6 +13,8 @@
 // ============================================================================
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { DndContext, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import {
   Card,
   CardContent,
@@ -70,6 +72,11 @@ import {
   List,
   History,
   UserCog,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 
 import {
@@ -86,7 +93,19 @@ import {
   useRollbackEmailTemplate,
   type EmailTemplateRow,
   type EmailTemplateHistoryRow,
+  type EmailTemplateDesignJson,
 } from "@/hooks/useEmailTemplates";
+import { BuilderSidebar } from "@/components/email-builder/BuilderSidebar";
+import { BuilderCanvas } from "@/components/email-builder/BuilderCanvas";
+import { BuilderPropertiesPanel } from "@/components/email-builder/BuilderPropertiesPanel";
+import {
+  createBlock,
+  type BlockType,
+  type BuilderBlock as BuilderBlockType,
+  type ColumnLayout,
+} from "@/components/email-builder/builderTypes";
+import { generateEmailBodyHtml } from "@/components/email-builder/builderHtmlGenerator";
+import { BUILTIN_FIELDS } from "@/components/settings/CustomFieldsConfig";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
@@ -119,17 +138,98 @@ function variantToDb(v: string): string | null {
   return v === DEFAULT_VARIANT ? null : v;
 }
 
-/** Placeholder default HTML quando il super_admin parte da zero. */
-function defaultHtmlBodyFor(templateKey: string): string {
-  const meta = TEMPLATE_META[templateKey];
-  if (!meta) return "";
-  return `<h1 style="margin:0 0 16px 0;font-size:24px;font-weight:700;color:#1a1a1a;">
-  ${meta.label}
-</h1>
-<p style="margin:0 0 16px 0;">
-  Testo principale del messaggio.
-</p>`;
+function makeBlockId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
+
+function defaultVisualBlocksFor(templateKey: string): BuilderBlockType[] {
+  const meta = TEMPLATE_META[templateKey];
+  return [
+    {
+      id: makeBlockId("title"),
+      type: "text",
+      props: {
+        content: meta?.label ?? "Titolo email",
+        fontSize: "24px",
+        color: "#1a1a1a",
+        textAlign: "left",
+        fontFamily: "Arial",
+        fontWeight: "bold",
+      },
+    },
+    {
+      id: makeBlockId("intro"),
+      type: "text",
+      props: {
+        content: "Ciao {{contact.first_name}},\n\nscrivi qui il contenuto del messaggio.",
+        fontSize: "16px",
+        color: "#333333",
+        textAlign: "left",
+        fontFamily: "Arial",
+        fontWeight: "normal",
+      },
+    },
+    {
+      id: makeBlockId("button"),
+      type: "button",
+      props: {
+        text: "Apri piattaforma",
+        url: "{{loginUrl}}",
+        backgroundColor: "#1d4ed8",
+        textColor: "#ffffff",
+        borderRadius: "6px",
+        align: "left",
+      },
+    },
+  ];
+}
+
+function htmlToVisualBlocks(html: string, templateKey: string): BuilderBlockType[] {
+  if (!html.trim()) return defaultVisualBlocksFor(templateKey);
+  return [
+    {
+      id: makeBlockId("legacy-html"),
+      type: "html",
+      props: { code: html },
+    },
+  ];
+}
+
+function designToBlocks(design: EmailTemplateDesignJson | null, fallbackHtml: string, templateKey: string): BuilderBlockType[] {
+  const maybeBlocks = design?.blocks;
+  if (Array.isArray(maybeBlocks)) return maybeBlocks as BuilderBlockType[];
+  return fallbackHtml.trim() ? htmlToVisualBlocks(fallbackHtml, templateKey) : defaultVisualBlocksFor(templateKey);
+}
+
+function blocksToDesign(blocks: BuilderBlockType[]): EmailTemplateDesignJson {
+  return {
+    engine: "eic-email-builder",
+    version: 1,
+    blocks: blocks as unknown as Record<string, unknown>[],
+  };
+}
+
+const PREVIEW_WIDTHS = {
+  desktop: "600px",
+  tablet: "480px",
+  mobile: "320px",
+} as const;
+
+const BUILTIN_FIELD_MOCKS = BUILTIN_FIELDS.reduce<Record<string, string>>((acc, field) => {
+  const key = field.uniqueKey.replace(/[{}]/g, "").trim();
+  acc[key] = field.name;
+  return acc;
+}, {
+  "contact.first_name": "Marco",
+  "contact.last_name": "Rossi",
+  "contact.email": "marco.rossi@example.com",
+  "company.name": "Rossi Costruzioni SRL",
+  "platform.name": "Edilizia in Cloud",
+  "platform.support_email": "support@ediliziaincloud.com",
+  "admin.first_name": "Florin",
+  "billing.mrr": "149,00 EUR",
+  "billing.trial_end_date": "30/04/2026",
+});
 
 /** Debounce hook: ritorna un valore che si aggiorna solo dopo `delay` ms di stabilità. */
 function useDebounced<T>(value: T, delay: number): T {
@@ -369,6 +469,8 @@ export function EmailTemplatesPanel() {
   const [notes, setNotes] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [dirty, setDirty] = useState(false);
+  const [designBlocks, setDesignBlocks] = useState<BuilderBlockType[]>([]);
+  const [lastEditedMode, setLastEditedMode] = useState<"visual" | "html">("visual");
 
   // History drawer
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -389,12 +491,17 @@ export function EmailTemplatesPanel() {
       setTextBody(selectedRow.text_body ?? "");
       setNotes(selectedRow.notes ?? "");
       setEnabled(selectedRow.enabled);
+      setDesignBlocks(designToBlocks(selectedRow.design_json, selectedRow.html_body, selectedKey));
+      setLastEditedMode(selectedRow.design_json ? "visual" : "html");
     } else {
       setSubject(selectedMeta?.label ?? "");
-      setHtmlBody(defaultHtmlBodyFor(selectedKey));
+      const blocks = defaultVisualBlocksFor(selectedKey);
+      setDesignBlocks(blocks);
+      setHtmlBody(generateEmailBodyHtml(blocks));
       setTextBody("");
       setNotes("");
       setEnabled(true);
+      setLastEditedMode("visual");
     }
     setDirty(false);
     setPreviewHtml(null);
@@ -417,7 +524,10 @@ export function EmailTemplatesPanel() {
         subject: debouncedSubject,
         htmlBody: debouncedHtml,
         textBody: debouncedText.trim() ? debouncedText : null,
-        mockProps: selectedMeta?.mockProps ?? {},
+        mockProps: {
+          ...BUILTIN_FIELD_MOCKS,
+          ...(selectedMeta?.mockProps ?? {}),
+        },
         roleVariant: variantToDb(selectedVariant),
       },
       {
@@ -441,11 +551,13 @@ export function EmailTemplatesPanel() {
       const el = htmlBodyRef.current;
       if (!el) {
         setHtmlBody((prev) => `${prev}${snippet.replace("$SEL$", "")}`);
+        setLastEditedMode("html");
         markDirty();
         return;
       }
       const { next, caret } = insertAtCursor(el, snippet);
       setHtmlBody(next);
+      setLastEditedMode("html");
       markDirty();
       // ripristina focus + cursore dopo il re-render
       requestAnimationFrame(() => {
@@ -477,6 +589,7 @@ export function EmailTemplatesPanel() {
         subject,
         html_body: htmlBody,
         text_body: textBody.trim() ? textBody : null,
+        design_json: lastEditedMode === "visual" ? blocksToDesign(designBlocks) : null,
         enabled,
         notes: notes.trim() ? notes : null,
       },
@@ -727,21 +840,56 @@ export function EmailTemplatesPanel() {
           </CardHeader>
 
           <CardContent>
-            <Tabs defaultValue="split" className="space-y-4">
+            <Tabs defaultValue="visual" className="space-y-4">
               <TabsList>
+                <TabsTrigger value="visual" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Design visuale
+                </TabsTrigger>
                 <TabsTrigger value="split" className="gap-2">
                   <Eye className="h-4 w-4" />
-                  Editor + Anteprima
+                  HTML + Anteprima
                 </TabsTrigger>
                 <TabsTrigger value="content" className="gap-2">
                   <Code2 className="h-4 w-4" />
-                  Solo editor
+                  HTML avanzato
                 </TabsTrigger>
                 <TabsTrigger value="preview" className="gap-2">
                   <Eye className="h-4 w-4" />
                   Solo anteprima
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="visual" className="space-y-4">
+                <VisualTemplateBuilder
+                  subject={subject}
+                  setSubject={(v) => {
+                    setSubject(v);
+                    markDirty();
+                  }}
+                  blocks={designBlocks}
+                  setBlocks={(blocks) => {
+                    setDesignBlocks(blocks);
+                    setHtmlBody(generateEmailBodyHtml(blocks));
+                    setLastEditedMode("visual");
+                    markDirty();
+                  }}
+                />
+                <ActionBar
+                  canSave={
+                    !!subject.trim() &&
+                    !!htmlBody.trim() &&
+                    dirty &&
+                    !upsert.isPending
+                  }
+                  saving={upsert.isPending}
+                  dirty={dirty}
+                  hasSavedRow={!!selectedRow}
+                  deleting={del.isPending}
+                  onSave={handleSave}
+                  onReset={handleResetToDefault}
+                />
+              </TabsContent>
 
               {/* ── TAB SPLIT: editor sx + preview dx, live ── */}
               <TabsContent value="split" className="space-y-4">
@@ -755,6 +903,7 @@ export function EmailTemplatesPanel() {
                     htmlBody={htmlBody}
                     setHtmlBody={(v) => {
                       setHtmlBody(v);
+                      setLastEditedMode("html");
                       markDirty();
                     }}
                     textBody={textBody}
@@ -808,6 +957,7 @@ export function EmailTemplatesPanel() {
                   htmlBody={htmlBody}
                   setHtmlBody={(v) => {
                     setHtmlBody(v);
+                    setLastEditedMode("html");
                     markDirty();
                   }}
                   textBody={textBody}
@@ -855,6 +1005,302 @@ export function EmailTemplatesPanel() {
             </Tabs>
           </CardContent>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+function VisualTemplateBuilder({
+  subject,
+  setSubject,
+  blocks,
+  setBlocks,
+}: {
+  subject: string;
+  setSubject: (value: string) => void;
+  blocks: BuilderBlockType[];
+  setBlocks: (blocks: BuilderBlockType[]) => void;
+}) {
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedChildBlock, setSelectedChildBlock] = useState<BuilderBlockType | null>(null);
+  const [previewMode, setPreviewMode] = useState<keyof typeof PREVIEW_WIDTHS>("desktop");
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [undoStack, setUndoStack] = useState<BuilderBlockType[][]>([]);
+  const [redoStack, setRedoStack] = useState<BuilderBlockType[][]>([]);
+  const isUndoRedoAction = useRef(false);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const updateBlocks = useCallback(
+    (next: BuilderBlockType[]) => {
+      if (!isUndoRedoAction.current) {
+        setUndoStack((prev) => [...prev.slice(-24), blocks]);
+        setRedoStack([]);
+      }
+      isUndoRedoAction.current = false;
+      setBlocks(next);
+    },
+    [blocks, setBlocks],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const previous = undoStack[undoStack.length - 1];
+    setUndoStack((stack) => stack.slice(0, -1));
+    setRedoStack((stack) => [...stack, blocks]);
+    isUndoRedoAction.current = true;
+    setBlocks(previous);
+  }, [blocks, setBlocks, undoStack]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setRedoStack((stack) => stack.slice(0, -1));
+    setUndoStack((stack) => [...stack, blocks]);
+    isUndoRedoAction.current = true;
+    setBlocks(next);
+  }, [blocks, redoStack, setBlocks]);
+
+  const handleAddChildBlock = useCallback(
+    (parentId: string, colIndex: number, childType: BlockType) => {
+      const next = blocks.map((block) => {
+        if (block.id !== parentId) return block;
+        const children = block.children ? block.children.map((col) => [...col]) : [];
+        if (children[colIndex]) children[colIndex].push(createBlock(childType));
+        return { ...block, children };
+      });
+      updateBlocks(next);
+    },
+    [blocks, updateBlocks],
+  );
+
+  const handleDeleteChildBlock = useCallback(
+    (parentId: string, colIndex: number, childId: string) => {
+      const next = blocks.map((block) => {
+        if (block.id !== parentId) return block;
+        const children = block.children
+          ? block.children.map((col, index) => (index === colIndex ? col.filter((child) => child.id !== childId) : [...col]))
+          : [];
+        return { ...block, children };
+      });
+      updateBlocks(next);
+      if (selectedChildBlock?.id === childId) setSelectedChildBlock(null);
+    },
+    [blocks, selectedChildBlock, updateBlocks],
+  );
+
+  const handleSelectBlock = useCallback((id: string | null) => {
+    setSelectedBlockId(id);
+    setSelectedChildBlock(null);
+  }, []);
+
+  const handleSelectChildBlock = useCallback((child: BuilderBlockType) => {
+    setSelectedBlockId(null);
+    setSelectedChildBlock(child);
+  }, []);
+
+  const handleUpdateChildBlockProps = useCallback(
+    (blockId: string, partial: Record<string, unknown>) => {
+      const next = blocks.map((block) => {
+        if (!block.children) return block;
+        return {
+          ...block,
+          children: block.children.map((col) =>
+            col.map((child) =>
+              child.id === blockId ? { ...child, props: { ...child.props, ...partial } } : child,
+            ),
+          ),
+        };
+      });
+      updateBlocks(next);
+      setSelectedChildBlock((prev) =>
+        prev && prev.id === blockId ? { ...prev, props: { ...prev.props, ...partial } } : prev,
+      );
+    },
+    [blocks, updateBlocks],
+  );
+
+  const handleInlineEdit = useCallback(
+    (blockId: string, partial: Record<string, unknown>) => {
+      const isRoot = blocks.some((block) => block.id === blockId);
+      if (isRoot) {
+        updateBlocks(
+          blocks.map((block) =>
+            block.id === blockId ? { ...block, props: { ...block.props, ...partial } } : block,
+          ),
+        );
+        return;
+      }
+      handleUpdateChildBlockProps(blockId, partial);
+    },
+    [blocks, handleUpdateChildBlockProps, updateBlocks],
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragId(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeData = active.data?.current;
+    if (activeData?.type) {
+      const blockType = activeData.type as BlockType;
+      const newBlock = createBlock(blockType);
+      if (blockType === "columns" && activeData.layout) {
+        (newBlock.props as { layout: ColumnLayout }).layout = activeData.layout as ColumnLayout;
+        const colCount = activeData.layout === "1" ? 1 : String(activeData.layout).split("-").length;
+        newBlock.children = Array.from({ length: colCount }, (): BuilderBlockType[] => []);
+      }
+      const overIndex = blocks.findIndex((block) => block.id === over.id);
+      const next = [...blocks];
+      if (overIndex >= 0) next.splice(overIndex, 0, newBlock);
+      else next.push(newBlock);
+      updateBlocks(next);
+      handleSelectBlock(newBlock.id);
+      return;
+    }
+
+    if (active.id !== over.id) {
+      const oldIndex = blocks.findIndex((block) => block.id === active.id);
+      const newIndex = blocks.findIndex((block) => block.id === over.id);
+      if (oldIndex >= 0 && newIndex >= 0) updateBlocks(arrayMove(blocks, oldIndex, newIndex));
+    }
+  };
+
+  const handleDuplicateBlock = (blockId: string) => {
+    const index = blocks.findIndex((block) => block.id === blockId);
+    if (index < 0) return;
+    const original = blocks[index];
+    const duplicate: BuilderBlockType = {
+      ...original,
+      id: makeBlockId("block"),
+      props: { ...original.props },
+      children: original.children?.map((col) =>
+        col.map((child) => ({ ...child, id: makeBlockId("block"), props: { ...child.props } })),
+      ),
+    };
+    const next = [...blocks];
+    next.splice(index + 1, 0, duplicate);
+    updateBlocks(next);
+    handleSelectBlock(duplicate.id);
+  };
+
+  const handleDeleteBlock = (blockId: string) => {
+    updateBlocks(blocks.filter((block) => block.id !== blockId));
+    if (selectedBlockId === blockId) handleSelectBlock(null);
+  };
+
+  const handleMoveBlock = (blockId: string, direction: "up" | "down") => {
+    const index = blocks.findIndex((block) => block.id === blockId);
+    const nextIndex = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || nextIndex < 0 || nextIndex >= blocks.length) return;
+    updateBlocks(arrayMove(blocks, index, nextIndex));
+  };
+
+  const handleUpdateBlockProps = (blockId: string, partial: Record<string, unknown>) => {
+    const next = blocks.map((block) => {
+      if (block.id !== blockId) return block;
+      const updated: BuilderBlockType = { ...block, props: { ...block.props, ...partial } };
+      if (block.type === "columns" && partial.layout && partial.layout !== (block.props as { layout?: string }).layout) {
+        const newColCount = partial.layout === "1" ? 1 : String(partial.layout).split("-").length;
+        const oldChildren = block.children ?? [];
+        const newChildren: BuilderBlockType[][] = [];
+        for (let i = 0; i < newColCount; i += 1) newChildren.push(oldChildren[i] ? [...oldChildren[i]] : []);
+        for (let i = newColCount; i < oldChildren.length; i += 1) {
+          if (oldChildren[i]?.length) newChildren[newColCount - 1].push(...oldChildren[i]);
+        }
+        updated.children = newChildren;
+      }
+      return updated;
+    });
+    updateBlocks(next);
+  };
+
+  const resolvedSelectedBlock = selectedChildBlock
+    ? (() => {
+        for (const block of blocks) {
+          if (!block.children) continue;
+          for (const col of block.children) {
+            const found = col.find((child) => child.id === selectedChildBlock.id);
+            if (found) return found;
+          }
+        }
+        return selectedChildBlock;
+      })()
+    : blocks.find((block) => block.id === selectedBlockId) ?? null;
+
+  return (
+    <div className="overflow-hidden rounded-md border bg-background">
+      <div className="flex flex-col gap-3 border-b p-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <Label htmlFor="visual-subject">Oggetto *</Label>
+          <Input
+            id="visual-subject"
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+            placeholder="es. Ciao {{contact.first_name}}, benvenuto"
+            className="max-w-2xl"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={undoStack.length === 0} onClick={handleUndo} title="Annulla">
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={redoStack.length === 0} onClick={handleRedo} title="Ripristina">
+            <Redo2 className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center rounded-md border">
+            {([
+              { mode: "desktop" as const, icon: Monitor, label: "Desktop" },
+              { mode: "tablet" as const, icon: Tablet, label: "Tablet" },
+              { mode: "mobile" as const, icon: Smartphone, label: "Mobile" },
+            ]).map(({ mode, icon: Icon, label }) => (
+              <Button
+                key={mode}
+                variant={previewMode === mode ? "default" : "ghost"}
+                size="icon"
+                className="h-8 w-8 rounded-none first:rounded-l-md last:rounded-r-md"
+                onClick={() => setPreviewMode(mode)}
+                title={label}
+              >
+                <Icon className="h-4 w-4" />
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex h-[720px] overflow-hidden">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <BuilderSidebar />
+          <BuilderCanvas
+            blocks={blocks}
+            selectedBlockId={selectedBlockId}
+            onSelectBlock={handleSelectBlock}
+            onDuplicateBlock={handleDuplicateBlock}
+            onDeleteBlock={handleDeleteBlock}
+            onMoveBlock={handleMoveBlock}
+            previewWidth={PREVIEW_WIDTHS[previewMode]}
+            onAddChildBlock={handleAddChildBlock}
+            onDeleteChildBlock={handleDeleteChildBlock}
+            onSelectChildBlock={handleSelectChildBlock}
+            selectedChildBlockId={selectedChildBlock?.id ?? null}
+            onInlineEdit={handleInlineEdit}
+          />
+          <DragOverlay>
+            {activeDragId ? (
+              <div className="rounded-md border-2 border-dashed border-primary bg-primary/10 px-4 py-2 text-xs font-medium text-primary">
+                Rilascia sul canvas
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+        <BuilderPropertiesPanel
+          block={resolvedSelectedBlock}
+          onUpdate={selectedChildBlock ? handleUpdateChildBlockProps : handleUpdateBlockProps}
+        />
       </div>
     </div>
   );

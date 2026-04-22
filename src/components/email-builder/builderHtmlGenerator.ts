@@ -56,8 +56,12 @@ function renderBlockHtml(block: BuilderBlock): string {
   }
 }
 
+export function generateEmailBodyHtml(blocks: BuilderBlock[]): string {
+  return blocks.map(renderBlockHtml).join("");
+}
+
 export function generateEmailHtml(blocks: BuilderBlock[]): string {
-  const body = blocks.map(renderBlockHtml).join("");
+  const body = generateEmailBodyHtml(blocks);
   return `<!DOCTYPE html>
 <html>
 <head>

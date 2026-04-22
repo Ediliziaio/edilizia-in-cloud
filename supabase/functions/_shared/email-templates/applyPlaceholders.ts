@@ -10,8 +10,8 @@
 // conservativa: l'utente vede subito il mismatch invece di ricevere testo vuoto).
 // ============================================================================
 
-/** Pattern globale `{{ nome }}` con whitespace interno opzionale. */
-const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
+/** Pattern globale `{{ nome }}` / `{{ contact.first_name }}` con whitespace interno opzionale. */
+const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\}\}/g;
 
 /**
  * Escape HTML per evitare injection quando i placeholder vengono iniettati
@@ -25,6 +25,18 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function resolvePlaceholderValue(data: Record<string, unknown>, key: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(data, key)) return data[key];
+  if (!key.includes(".")) return data[key];
+
+  let cursor: unknown = data;
+  for (const part of key.split(".")) {
+    if (!cursor || typeof cursor !== "object") return undefined;
+    cursor = (cursor as Record<string, unknown>)[part];
+  }
+  return cursor;
 }
 
 /**
@@ -41,7 +53,7 @@ export function applyPlaceholders(
   escape: boolean,
 ): string {
   return template.replace(PLACEHOLDER_PATTERN, (match, key: string) => {
-    const raw = data[key];
+    const raw = resolvePlaceholderValue(data, key);
     if (raw === undefined || raw === null) {
       // Placeholder non matchato → lascia il token in chiaro così il bug
       // è immediatamente visibile nell'email (e nel preview).
