@@ -1,0 +1,73 @@
+import type { ConfigurazioneBagno } from "@/modules/render-bagno/lib/types";
+
+export const DEFAULT_BATHROOM_CONFIG: ConfigurazioneBagno = {
+  tipo_intervento: "restyling_completo",
+  sostituzione: {
+    piastrelle_parete: true,
+    pavimento: true,
+    doccia: false,
+    vasca: false,
+    mobile_bagno: false,
+    sanitari: false,
+    rubinetteria: false,
+    parete_colore: false,
+    illuminazione: false,
+  },
+  piastrelle_parete: {
+    attivo: true,
+    effetto: "marmo_carrara",
+    formato: "60x120",
+    posa: "sfalsata",
+    fuga_colore: "grigio chiaro",
+    altezza_rivestimento: "fino al soffitto",
+  },
+  pavimento: {
+    attivo: true,
+    effetto: "cemento_grigio",
+    formato: "60x60",
+    posa: "dritta",
+    fuga_colore: "grigio",
+  },
+  doccia: {
+    attivo: false,
+    tipo: "walk_in",
+    box_vetro: "trasparente",
+    piatto: "filo_pavimento",
+    profilo: "nero_opaco",
+    soffione: "pioggia_soffitto",
+  },
+  vasca: {
+    attivo: false,
+    tipo: "freestanding_ovale",
+    materiale: "acrilico_bianco",
+    rubinetteria_vasca: "a_pavimento",
+  },
+  vanity: {
+    attivo: false,
+    stile: "sospeso_moderno",
+    colore: "bianco opaco",
+    piano: "marmo_bianco",
+    lavabo: "integrato",
+    larghezza_cm: 100,
+  },
+  sanitari: {
+    attivo: false,
+    azione_wc: "sostituisci",
+    tipo_wc: "rimless_sospeso",
+    azione_bidet: "sostituisci",
+    tipo_bidet: "sospeso",
+    colore: "bianco",
+  },
+  rubinetteria: {
+    attivo: false,
+    finitura: "nero_opaco",
+    stile: "quadro_moderno",
+  },
+  parete: {
+    attivo: false,
+    azione: "tinta_unita",
+    colore_hex: "#F5F5F0",
+  },
+  illuminazione_tipo: "",
+  note_libere: "",
+};

@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+import { Check } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -15,126 +17,188 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Card, CardContent } from "@/components/ui/card";
 import type {
   ConfigurazioneBagno,
   TipoIntervento,
 } from "@/modules/render-bagno/lib/types";
+import { cn } from "@/lib/utils";
 
-// Re-export type as BathroomConfig alias
 export type BathroomConfig = ConfigurazioneBagno;
 
-// ── Default config ──────────────────────────────────────────────────
-export const DEFAULT_BATHROOM_CONFIG: BathroomConfig = {
-  tipo_intervento: "restyling_completo",
-  sostituzione: {
-    piastrelle_parete: true,
-    pavimento: true,
-    doccia: false,
-    vasca: false,
-    mobile_bagno: false,
-    sanitari: false,
-    rubinetteria: false,
-    parete_colore: false,
-    illuminazione: false,
-  },
-  piastrelle_parete: {
-    attivo: true,
-    effetto: "marmo_carrara",
-    formato: "60x120",
-    posa: "sfalsata",
-    fuga_colore: "grigio chiaro",
-    altezza_rivestimento: "fino al soffitto",
-  },
-  pavimento: {
-    attivo: true,
-    effetto: "cemento_grigio",
-    formato: "60x60",
-    posa: "dritta",
-    fuga_colore: "grigio",
-  },
-  doccia: {
-    attivo: false,
-    tipo: "walk_in",
-    box_vetro: "trasparente",
-    piatto: "filo_pavimento",
-    profilo: "nero_opaco",
-    soffione: "pioggia_soffitto",
-  },
-  vasca: {
-    attivo: false,
-    tipo: "freestanding_ovale",
-    materiale: "acrilico_bianco",
-    rubinetteria_vasca: "a_pavimento",
-  },
-  vanity: {
-    attivo: false,
-    stile: "sospeso_moderno",
-    colore: "bianco opaco",
-    piano: "marmo_bianco",
-    lavabo: "integrato",
-    larghezza_cm: 100,
-  },
-  sanitari: {
-    attivo: false,
-    azione_wc: "sostituisci",
-    tipo_wc: "rimless_sospeso",
-    azione_bidet: "sostituisci",
-    tipo_bidet: "sospeso",
-    colore: "bianco",
-  },
-  rubinetteria: {
-    attivo: false,
-    finitura: "nero_opaco",
-    stile: "quadro_moderno",
-  },
-  parete: {
-    attivo: false,
-    azione: "tinta_unita",
-    colore_hex: "#F5F5F0",
-  },
-  illuminazione_tipo: "",
-  note_libere: "",
+type VisualOption = {
+  value: string;
+  label: string;
+  hint?: string;
+  previewStyle: CSSProperties;
 };
 
-// ── Intervention cards ──────────────────────────────────────────────
-const INTERVENTO_OPTIONS: { value: TipoIntervento; label: string; desc: string }[] = [
-  { value: "restyling_piastrelle", label: "Restyling piastrelle", desc: "Solo cambio piastrelle" },
-  { value: "restyling_completo", label: "Restyling completo", desc: "Piastrelle + arredi + sanitari" },
-  { value: "demolizione_parziale", label: "Demolizione parziale", desc: "Modifiche strutturali parziali" },
-  { value: "demolizione_completa", label: "Demolizione completa", desc: "Rifacimento totale del bagno" },
+function marbleStyle(base: string, vein: string, accent: string): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: [
+      "linear-gradient(135deg, rgba(255,255,255,0.82), rgba(255,255,255,0.2))",
+      `repeating-linear-gradient(118deg, transparent 0 22px, ${vein} 22px 26px, transparent 26px 54px)`,
+      `radial-gradient(circle at 24% 28%, ${accent} 0 10%, transparent 10% 100%)`,
+      "radial-gradient(circle at 78% 62%, rgba(255,255,255,0.55) 0 8%, transparent 8% 100%)",
+    ].join(", "),
+    backgroundSize: "100% 100%, 180px 180px, 160px 160px, 180px 180px",
+  };
+}
+
+function cementStyle(base: string, grain: string): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: [
+      `linear-gradient(145deg, rgba(255,255,255,0.18), ${grain})`,
+      "radial-gradient(circle at 18% 26%, rgba(255,255,255,0.18) 0 3%, transparent 3% 100%)",
+      "radial-gradient(circle at 70% 68%, rgba(0,0,0,0.1) 0 4%, transparent 4% 100%)",
+      "repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 2px, transparent 2px 26px)",
+    ].join(", "),
+    backgroundSize: "100% 100%, 72px 72px, 92px 92px, 100% 100%",
+  };
+}
+
+function woodStyle(base: string, grainLight: string, grainDark: string): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: [
+      `linear-gradient(90deg, ${grainLight}, ${grainDark}, ${grainLight})`,
+      "repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 6px, transparent 6px 14px, rgba(0,0,0,0.08) 14px 16px, transparent 16px 28px)",
+      "radial-gradient(circle at 18% 50%, rgba(80,50,25,0.18) 0 5%, transparent 5% 100%)",
+    ].join(", "),
+    backgroundSize: "100% 100%, 180px 100%, 120px 120px",
+  };
+}
+
+function solidStyle(base: string, sheen = "rgba(255,255,255,0.18)"): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: `linear-gradient(145deg, ${sheen}, rgba(255,255,255,0.02) 48%, rgba(0,0,0,0.08) 100%)`,
+  };
+}
+
+function stoneStyle(base: string, shadow: string): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: [
+      `linear-gradient(135deg, rgba(255,255,255,0.18), ${shadow})`,
+      "repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 3px, transparent 3px 18px)",
+      "repeating-linear-gradient(90deg, rgba(0,0,0,0.06) 0 2px, transparent 2px 16px)",
+    ].join(", "),
+  };
+}
+
+function mosaicStyle(base: string, accent: string): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: [
+      `radial-gradient(circle, ${accent} 0 46%, transparent 48%)`,
+      "linear-gradient(0deg, rgba(255,255,255,0.85), rgba(255,255,255,0.85))",
+    ].join(", "),
+    backgroundSize: "18px 18px, 18px 18px",
+    backgroundPosition: "0 0, 0 0",
+  };
+}
+
+function zelligeStyle(base: string, edge: string): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: [
+      `linear-gradient(135deg, rgba(255,255,255,0.4), ${edge})`,
+      "repeating-linear-gradient(0deg, rgba(255,255,255,0.8) 0 2px, transparent 2px 22px)",
+      "repeating-linear-gradient(90deg, rgba(255,255,255,0.8) 0 2px, transparent 2px 22px)",
+      "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.3) 0 12%, transparent 12% 100%)",
+    ].join(", "),
+    backgroundSize: "100% 100%, 24px 24px, 24px 24px, 100% 100%",
+  };
+}
+
+function resinStyle(base: string, accent: string): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: [
+      `linear-gradient(135deg, rgba(255,255,255,0.16), ${accent})`,
+      "radial-gradient(circle at 24% 30%, rgba(255,255,255,0.18) 0 6%, transparent 6% 100%)",
+      "repeating-linear-gradient(135deg, rgba(255,255,255,0.04) 0 14px, rgba(0,0,0,0.03) 14px 28px)",
+    ].join(", "),
+  };
+}
+
+function finishStyle(base: string, highlight: string): CSSProperties {
+  return {
+    backgroundColor: base,
+    backgroundImage: `linear-gradient(135deg, ${highlight}, rgba(255,255,255,0.08) 40%, rgba(0,0,0,0.22) 100%)`,
+  };
+}
+
+const TILE_EFFECTS: VisualOption[] = [
+  { value: "marmo_carrara", label: "Marmo Carrara", hint: "Bianco elegante con venature grigie", previewStyle: marbleStyle("#e9edf1", "rgba(127,140,151,0.34)", "rgba(190,198,207,0.3)") },
+  { value: "marmo_calacatta", label: "Marmo Calacatta", hint: "Bianco caldo con venature decise", previewStyle: marbleStyle("#f2efe8", "rgba(140,122,80,0.28)", "rgba(222,207,168,0.32)") },
+  { value: "marmo_sahara_noir", label: "Sahara Noir", hint: "Nero lucido con venature oro", previewStyle: marbleStyle("#151515", "rgba(193,148,70,0.36)", "rgba(255,224,150,0.18)") },
+  { value: "marmo_marquinia", label: "Marmo Marquinia", hint: "Nero con venature bianche", previewStyle: marbleStyle("#17191d", "rgba(233,236,241,0.34)", "rgba(255,255,255,0.18)") },
+  { value: "marmo_verde_guatemala", label: "Verde Guatemala", hint: "Verde profondo effetto luxury", previewStyle: marbleStyle("#1d4338", "rgba(215,235,225,0.32)", "rgba(92,149,130,0.24)") },
+  { value: "marmo_statuario", label: "Marmo Statuario", hint: "Bianco luminoso e scenografico", previewStyle: marbleStyle("#f8f8f6", "rgba(137,145,154,0.38)", "rgba(240,221,188,0.22)") },
+  { value: "marmo_emperador", label: "Marmo Emperador", hint: "Marrone caldo con venature crema", previewStyle: marbleStyle("#5a4338", "rgba(229,210,191,0.28)", "rgba(139,89,58,0.18)") },
+  { value: "cemento_grigio", label: "Cemento grigio", hint: "Minimal e contemporaneo", previewStyle: cementStyle("#989c9f", "rgba(91,95,99,0.38)") },
+  { value: "cemento_bianco", label: "Cemento bianco", hint: "Pulito, morbido, luminoso", previewStyle: cementStyle("#e6e3db", "rgba(175,171,160,0.3)") },
+  { value: "cemento_antracite", label: "Cemento antracite", hint: "Scuro e deciso", previewStyle: cementStyle("#383d43", "rgba(21,24,28,0.4)") },
+  { value: "legno_rovere_chiaro", label: "Rovere chiaro", hint: "Caldo e naturale", previewStyle: woodStyle("#cda36f", "rgba(242,210,164,0.24)", "rgba(120,74,34,0.28)") },
+  { value: "legno_rovere_scuro", label: "Rovere scuro", hint: "Materico e caldo", previewStyle: woodStyle("#8d623f", "rgba(184,137,96,0.28)", "rgba(84,50,28,0.34)") },
+  { value: "legno_wenge", label: "Legno wenge", hint: "Profondo e sofisticato", previewStyle: woodStyle("#3b2b22", "rgba(91,68,51,0.2)", "rgba(17,10,7,0.34)") },
+  { value: "ardesia", label: "Ardesia", hint: "Pietra scura molto moderna", previewStyle: stoneStyle("#3a4148", "rgba(18,22,27,0.34)") },
+  { value: "travertino", label: "Travertino", hint: "Beige classico e accogliente", previewStyle: stoneStyle("#d8c6aa", "rgba(164,141,112,0.28)") },
+  { value: "basalto", label: "Basalto", hint: "Pietra vulcanica compatta", previewStyle: stoneStyle("#2f3439", "rgba(10,13,16,0.3)") },
+  { value: "mono_bianco", label: "Bianco monocromo", hint: "Pulito e senza tempo", previewStyle: solidStyle("#fcfcfb") },
+  { value: "mono_nero", label: "Nero monocromo", hint: "Molto deciso", previewStyle: solidStyle("#121315", "rgba(255,255,255,0.12)") },
+  { value: "mono_grigio", label: "Grigio monocromo", hint: "Neutro e versatile", previewStyle: solidStyle("#aeb3b7") },
+  { value: "mono_verde_salvia", label: "Verde salvia", hint: "Rilassante e premium", previewStyle: solidStyle("#9faf9a") },
+  { value: "mono_blu_navy", label: "Blu navy", hint: "Elegante con forte carattere", previewStyle: solidStyle("#23344d") },
+  { value: "mono_terracotta", label: "Terracotta", hint: "Caldo e mediterraneo", previewStyle: solidStyle("#c96f45") },
+  { value: "mono_greige", label: "Greige", hint: "Neutro caldo molto attuale", previewStyle: solidStyle("#c7bdb2") },
+  { value: "mosaico_esagoni", label: "Mosaico esagoni", hint: "Geometrico e decorativo", previewStyle: mosaicStyle("#f8f7f3", "#9fa6ae") },
+  { value: "mosaico_penny", label: "Mosaico penny", hint: "Retro ma curato", previewStyle: mosaicStyle("#fbfaf8", "#b5a18d") },
+  { value: "zellige", label: "Zellige", hint: "Artigianale e luminoso", previewStyle: zelligeStyle("#c7d6d8", "rgba(110,127,130,0.28)") },
+  { value: "cotto_toscano", label: "Cotto toscano", hint: "Molto caldo e autentico", previewStyle: zelligeStyle("#bc6f46", "rgba(126,66,33,0.32)") },
+  { value: "resina_spatolata", label: "Resina spatolata", hint: "Continua, senza fughe", previewStyle: resinStyle("#c8c2b8", "rgba(100,90,78,0.2)") },
+  { value: "pietra_ardesia", label: "Pietra ardesia", hint: "Materica con rilievo", previewStyle: stoneStyle("#252a30", "rgba(6,8,10,0.44)") },
 ];
 
-const TILE_EFFECTS = [
-  { value: "marmo_carrara", label: "Marmo Carrara" },
-  { value: "marmo_calacatta", label: "Marmo Calacatta" },
-  { value: "marmo_sahara_noir", label: "Marmo Sahara Noir" },
-  { value: "marmo_marquinia", label: "Marmo Marquinia" },
-  { value: "marmo_verde_guatemala", label: "Marmo Verde Guatemala" },
-  { value: "marmo_statuario", label: "Marmo Statuario" },
-  { value: "marmo_emperador", label: "Marmo Emperador" },
-  { value: "cemento_grigio", label: "Cemento grigio" },
-  { value: "cemento_bianco", label: "Cemento bianco" },
-  { value: "cemento_antracite", label: "Cemento antracite" },
-  { value: "legno_rovere_chiaro", label: "Legno rovere chiaro" },
-  { value: "legno_rovere_scuro", label: "Legno rovere scuro" },
-  { value: "legno_wenge", label: "Legno wenge" },
-  { value: "ardesia", label: "Ardesia" },
-  { value: "travertino", label: "Travertino" },
-  { value: "basalto", label: "Basalto" },
-  { value: "mono_bianco", label: "Bianco monocromo" },
-  { value: "mono_nero", label: "Nero monocromo" },
-  { value: "mono_grigio", label: "Grigio monocromo" },
-  { value: "mono_verde_salvia", label: "Verde salvia" },
-  { value: "mono_blu_navy", label: "Blu navy" },
-  { value: "mono_terracotta", label: "Terracotta" },
-  { value: "mono_greige", label: "Greige" },
-  { value: "mosaico_esagoni", label: "Mosaico esagoni" },
-  { value: "mosaico_penny", label: "Mosaico penny" },
-  { value: "zellige", label: "Zellige" },
-  { value: "cotto_toscano", label: "Cotto toscano" },
-  { value: "resina_spatolata", label: "Resina spatolata" },
-  { value: "pietra_ardesia", label: "Pietra ardesia" },
+const VANITY_TOP_OPTIONS: VisualOption[] = [
+  { value: "marmo_bianco", label: "Marmo bianco", hint: "Chiaro e premium", previewStyle: marbleStyle("#eef1f4", "rgba(142,151,161,0.3)", "rgba(201,208,215,0.2)") },
+  { value: "marmo_nero", label: "Marmo nero", hint: "Scuro scenografico", previewStyle: marbleStyle("#16171a", "rgba(238,241,245,0.28)", "rgba(160,160,160,0.15)") },
+  { value: "quarzo", label: "Quarzo", hint: "Compatto e uniforme", previewStyle: stoneStyle("#d6d6d3", "rgba(115,115,110,0.18)") },
+  { value: "legno", label: "Legno", hint: "Naturale e accogliente", previewStyle: woodStyle("#b57f54", "rgba(220,175,130,0.24)", "rgba(98,62,31,0.3)") },
+  { value: "ceramica", label: "Ceramica", hint: "Pulita e pratica", previewStyle: solidStyle("#f4f4f2") },
+];
+
+const FAUCET_FINISH_OPTIONS: VisualOption[] = [
+  { value: "cromo", label: "Cromo", hint: "Lucido a specchio", previewStyle: finishStyle("#bdc7d0", "rgba(255,255,255,0.72)") },
+  { value: "nero_opaco", label: "Nero opaco", hint: "Grafico e contemporaneo", previewStyle: finishStyle("#1f2227", "rgba(255,255,255,0.18)") },
+  { value: "oro_spazzolato", label: "Oro spazzolato", hint: "Caldo e luxury", previewStyle: finishStyle("#caa35b", "rgba(255,255,255,0.45)") },
+  { value: "oro_rosa", label: "Oro rosa", hint: "Morbido e ricercato", previewStyle: finishStyle("#c88c7f", "rgba(255,255,255,0.42)") },
+  { value: "acciaio_spazzolato", label: "Acciaio spazzolato", hint: "Tecnico e sobrio", previewStyle: finishStyle("#91989f", "rgba(255,255,255,0.38)") },
+];
+
+const SANITARY_COLOR_OPTIONS: VisualOption[] = [
+  { value: "bianco", label: "Bianco", hint: "Classico", previewStyle: solidStyle("#fbfbfa") },
+  { value: "grigio_chiaro", label: "Grigio chiaro", hint: "Soft", previewStyle: solidStyle("#d7dade") },
+  { value: "nero_opaco", label: "Nero opaco", hint: "Strong look", previewStyle: solidStyle("#17181c", "rgba(255,255,255,0.1)") },
+];
+
+const QUICK_PAINT_PRESETS = [
+  { label: "Bianco caldo", value: "#F5F5F0" },
+  { label: "Greige", value: "#D7CFC3" },
+  { label: "Sabbia", value: "#D9C6A5" },
+  { label: "Salvia", value: "#AAB8A1" },
+  { label: "Blu polvere", value: "#9FAFC4" },
+  { label: "Antracite", value: "#4A4E55" },
+];
+
+const INTERVENTO_OPTIONS: { value: TipoIntervento; label: string; desc: string }[] = [
+  { value: "restyling_piastrelle", label: "Restyling piastrelle", desc: "Cambia superfici mantenendo il resto quasi invariato" },
+  { value: "restyling_completo", label: "Restyling completo", desc: "Stesso bagno, look completamente rinnovato" },
+  { value: "demolizione_parziale", label: "Demolizione parziale", desc: "Modifiche piu profonde solo in alcune zone" },
+  { value: "demolizione_completa", label: "Demolizione completa", desc: "Rifacimento totale con layout rivisto" },
 ];
 
 const TILE_FORMATS = [
@@ -164,81 +228,217 @@ interface Props {
   onChange: (config: BathroomConfig) => void;
 }
 
-export function BathroomConfigForm({ value, onChange }: Props) {
-  const update = (partial: Partial<BathroomConfig>) =>
-    onChange({ ...value, ...partial });
+function findVisualOption(options: VisualOption[], current: string): VisualOption {
+  return options.find((option) => option.value === current) ?? {
+    value: current,
+    label: current.replace(/_/g, " "),
+    hint: "Anteprima materiale selezionato",
+    previewStyle: solidStyle("#d7d7d7"),
+  };
+}
+
+function VisualOptionGrid(props: {
+  label: string;
+  helper?: string;
+  options: VisualOption[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { label, helper, options, value, onChange } = props;
 
   return (
-    <div className="space-y-4">
-      {/* ── Tipo intervento ──────────────────────────────────────── */}
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label className="text-xs">{label}</Label>
+        {helper ? <span className="text-[11px] text-muted-foreground">{helper}</span> : null}
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "group relative overflow-hidden rounded-xl border text-left transition-all",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                selected
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-border/70 hover:border-primary/40 hover:bg-muted/40",
+              )}
+            >
+              <div
+                className="h-16 w-full border-b border-black/5"
+                style={option.previewStyle}
+                aria-hidden="true"
+              />
+              <div className="space-y-1 px-2.5 py-2">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-medium leading-tight">{option.label}</span>
+                  {selected ? <Check className="mt-0.5 h-3.5 w-3.5 text-primary" /> : null}
+                </div>
+                {option.hint ? (
+                  <p className="line-clamp-2 text-[10px] leading-tight text-muted-foreground">
+                    {option.hint}
+                  </p>
+                ) : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
+  const wallOption = findVisualOption(TILE_EFFECTS, value.piastrelle_parete.effetto);
+  const floorOption = findVisualOption(TILE_EFFECTS, value.pavimento.effetto);
+  const vanityTop = findVisualOption(VANITY_TOP_OPTIONS, value.vanity.piano);
+  const faucetFinish = findVisualOption(FAUCET_FINISH_OPTIONS, value.rubinetteria.finitura);
+  const sanitaryColor = findVisualOption(SANITARY_COLOR_OPTIONS, value.sanitari.colore);
+  const wallPaint = value.parete.colore_hex || "#F5F5F0";
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border/70 bg-background">
+      <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-muted/30 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold">Anteprima look bagno</p>
+          <p className="text-xs text-muted-foreground">
+            Visuale rapida dei materiali scelti. Il render finale manterra stanza, taglio foto e proporzioni originali.
+          </p>
+        </div>
+        <div className="rounded-full bg-cyan-500/10 px-3 py-1 text-[11px] font-medium text-cyan-700 dark:text-cyan-300">
+          Stesso bagno, look nuovo
+        </div>
+      </div>
+
+      <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-white shadow-sm">
+          <div className="relative aspect-[16/10]">
+            <div className="absolute inset-x-0 top-0 h-[64%]" style={value.sostituzione.piastrelle_parete ? wallOption.previewStyle : solidStyle(wallPaint)} />
+            <div className="absolute inset-x-0 bottom-0 h-[36%]" style={value.sostituzione.pavimento ? floorOption.previewStyle : cementStyle("#b6b6b3", "rgba(100,100,96,0.16)")} />
+            <div className="absolute left-1/2 top-[15%] h-[49%] w-px bg-black/10" />
+            <div className="absolute left-[9%] top-[20%] h-[17%] w-[16%] rounded-lg border border-white/70 bg-white/75 shadow-sm" />
+            <div className="absolute left-[11%] top-[23%] h-[11%] w-[12%] rounded-sm bg-white/90 shadow-inner" />
+
+            <div className="absolute bottom-[17%] left-[11%] h-[24%] w-[30%] rounded-t-2xl border border-black/5 shadow-lg" style={value.sostituzione.mobile_bagno ? solidStyle(value.vanity.colore || "#ffffff") : solidStyle("#ede7df")}>
+              <div className="absolute inset-x-[8%] top-0 h-[26%] rounded-t-[14px]" style={value.sostituzione.mobile_bagno ? vanityTop.previewStyle : marbleStyle("#efefef", "rgba(130,130,130,0.18)", "rgba(190,190,190,0.15)")} />
+              <div className="absolute left-[30%] top-[8%] h-[18%] w-[40%] rounded-[999px] border border-black/10 bg-white/90" />
+              <div className="absolute left-[17%] top-[44%] h-[4%] w-[66%] rounded-full bg-black/8" />
+            </div>
+
+            <div className="absolute bottom-[22%] right-[14%] h-[30%] w-[18%] rounded-t-[32px] border border-black/8 shadow-md" style={value.sostituzione.sanitari ? sanitaryColor.previewStyle : solidStyle("#fbfbfa")} />
+            <div className="absolute bottom-[22%] right-[34%] h-[26%] w-[14%] rounded-t-[18px] border border-black/8 shadow-sm" style={value.sostituzione.sanitari ? sanitaryColor.previewStyle : solidStyle("#fbfbfa")} />
+
+            <div className="absolute right-[6%] top-[14%] h-[48%] w-[28%] rounded-[22px] border border-white/70 bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.4)] backdrop-blur-[1px]" />
+            <div className="absolute right-[31%] top-[16%] h-[44%] w-1 rounded-full" style={value.sostituzione.rubinetteria ? faucetFinish.previewStyle : finishStyle("#cfd5dc", "rgba(255,255,255,0.72)")} />
+            <div className="absolute right-[32.5%] top-[15%] h-[4%] w-[7%] rounded-full" style={value.sostituzione.rubinetteria ? faucetFinish.previewStyle : finishStyle("#cfd5dc", "rgba(255,255,255,0.72)")} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Parete</p>
+            <p className="text-sm font-semibold">{wallOption.label}</p>
+            <p className="text-[11px] text-muted-foreground">{wallOption.hint}</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Pavimento</p>
+            <p className="text-sm font-semibold">{floorOption.label}</p>
+            <p className="text-[11px] text-muted-foreground">{floorOption.hint}</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Punti forti</p>
+            <ul className="space-y-1 text-[11px] text-muted-foreground">
+              <li>- Il render deve mantenere lo stesso bagno e la stessa inquadratura.</li>
+              <li>- Le modifiche riguardano solo gli elementi che attivi qui sotto.</li>
+              <li>- Anche una foto verticale deve restare verticale nel risultato.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function BathroomConfigForm({ value, onChange }: Props) {
+  const update = (partial: Partial<BathroomConfig>) => onChange({ ...value, ...partial });
+
+  return (
+    <div className="space-y-5">
+      <BathroomMoodPreview value={value} />
+
       <div>
-        <Label className="text-sm font-semibold mb-2 block">Tipo intervento</Label>
-        <div className="grid grid-cols-2 gap-2">
+        <Label className="mb-2 block text-sm font-semibold">Tipo intervento</Label>
+        <div className="grid gap-2 sm:grid-cols-2">
           {INTERVENTO_OPTIONS.map((opt) => (
-            <Card
+            <button
               key={opt.value}
-              className={`cursor-pointer transition-all ${
+              type="button"
+              className={cn(
+                "rounded-xl border px-3 py-3 text-left transition-all",
                 value.tipo_intervento === opt.value
-                  ? "border-primary ring-1 ring-primary bg-primary/5"
-                  : "hover:border-primary/30"
-              }`}
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-border/70 hover:border-primary/30 hover:bg-muted/30",
+              )}
               onClick={() => update({ tipo_intervento: opt.value })}
             >
-              <CardContent className="p-3">
-                <p className="text-xs font-semibold">{opt.label}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{opt.desc}</p>
-              </CardContent>
-            </Card>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">{opt.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{opt.desc}</p>
+                </div>
+                {value.tipo_intervento === opt.value ? (
+                  <span className="rounded-full bg-primary/10 p-1 text-primary">
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                ) : null}
+              </div>
+            </button>
           ))}
         </div>
       </div>
 
-      <Accordion type="multiple" defaultValue={["piastrelle_parete", "pavimento"]} className="space-y-1">
-        {/* ── Piastrelle parete ─────────────────────────────────── */}
-        <AccordionItem value="piastrelle_parete" className="border rounded-lg px-3">
-          <div className="flex items-center gap-2 py-2">
-              <Switch
-                checked={value.sostituzione.piastrelle_parete}
-                onCheckedChange={(v) =>
-                  update({
-                    sostituzione: { ...value.sostituzione, piastrelle_parete: v },
-                    piastrelle_parete: { ...value.piastrelle_parete, attivo: v },
-                  })
-                }
-              />
-              <AccordionTrigger className="text-sm flex-1 py-0">
-                <span>Piastrelle parete</span>
-              </AccordionTrigger>
+      <Accordion type="multiple" defaultValue={["piastrelle_parete", "pavimento"]} className="space-y-2">
+        <AccordionItem value="piastrelle_parete" className="rounded-xl border px-3">
+          <div className="flex items-center gap-2 py-2.5">
+            <Switch
+              checked={value.sostituzione.piastrelle_parete}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, piastrelle_parete: checked },
+                  piastrelle_parete: { ...value.piastrelle_parete, attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm">
+              <span>Piastrelle parete</span>
+            </AccordionTrigger>
           </div>
-          <AccordionContent className="space-y-3 pb-3">
-            <div>
-              <Label className="text-xs">Effetto</Label>
-              <Select
-                value={value.piastrelle_parete.effetto}
-                onValueChange={(v) =>
-                  update({ piastrelle_parete: { ...value.piastrelle_parete, effetto: v } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TILE_EFFECTS.map((e) => (
-                    <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <AccordionContent className="space-y-3 pb-4">
+            <VisualOptionGrid
+              label="Effetto"
+              helper="Tocca il materiale per vedere subito il mood"
+              options={TILE_EFFECTS}
+              value={value.piastrelle_parete.effetto}
+              onChange={(effect) =>
+                update({ piastrelle_parete: { ...value.piastrelle_parete, effetto: effect } })
+              }
+            />
             <div>
               <Label className="text-xs">Formato</Label>
               <Select
                 value={value.piastrelle_parete.formato}
-                onValueChange={(v) =>
-                  update({ piastrelle_parete: { ...value.piastrelle_parete, formato: v } })
+                onValueChange={(format) =>
+                  update({ piastrelle_parete: { ...value.piastrelle_parete, formato: format } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {TILE_FORMATS.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  {TILE_FORMATS.map((format) => (
+                    <SelectItem key={format.value} value={format.value}>{format.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -247,14 +447,14 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Posa</Label>
               <Select
                 value={value.piastrelle_parete.posa}
-                onValueChange={(v) =>
-                  update({ piastrelle_parete: { ...value.piastrelle_parete, posa: v } })
+                onValueChange={(posa) =>
+                  update({ piastrelle_parete: { ...value.piastrelle_parete, posa } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {POSA_OPTIONS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  {POSA_OPTIONS.map((posa) => (
+                    <SelectItem key={posa.value} value={posa.value}>{posa.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -263,8 +463,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Colore fuga</Label>
               <Input
                 value={value.piastrelle_parete.fuga_colore}
-                onChange={(e) =>
-                  update({ piastrelle_parete: { ...value.piastrelle_parete, fuga_colore: e.target.value } })
+                onChange={(event) =>
+                  update({ piastrelle_parete: { ...value.piastrelle_parete, fuga_colore: event.target.value } })
                 }
                 placeholder="es. grigio chiaro"
               />
@@ -273,8 +473,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Altezza rivestimento</Label>
               <Select
                 value={value.piastrelle_parete.altezza_rivestimento || "fino al soffitto"}
-                onValueChange={(v) =>
-                  update({ piastrelle_parete: { ...value.piastrelle_parete, altezza_rivestimento: v } })
+                onValueChange={(height) =>
+                  update({ piastrelle_parete: { ...value.piastrelle_parete, altezza_rivestimento: height } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -289,51 +489,43 @@ export function BathroomConfigForm({ value, onChange }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* ── Pavimento ─────────────────────────────────────────── */}
-        <AccordionItem value="pavimento" className="border rounded-lg px-3">
-          <div className="flex items-center gap-2 py-2">
-              <Switch
-                checked={value.sostituzione.pavimento}
-                onCheckedChange={(v) =>
-                  update({
-                    sostituzione: { ...value.sostituzione, pavimento: v },
-                    pavimento: { ...value.pavimento, attivo: v },
-                  })
-                }
-              />
-              <AccordionTrigger className="text-sm flex-1 py-0">
-                <span>Pavimento</span>
-              </AccordionTrigger>
+        <AccordionItem value="pavimento" className="rounded-xl border px-3">
+          <div className="flex items-center gap-2 py-2.5">
+            <Switch
+              checked={value.sostituzione.pavimento}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, pavimento: checked },
+                  pavimento: { ...value.pavimento, attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm">
+              <span>Pavimento</span>
+            </AccordionTrigger>
           </div>
-          <AccordionContent className="space-y-3 pb-3">
-            <div>
-              <Label className="text-xs">Effetto</Label>
-              <Select
-                value={value.pavimento.effetto}
-                onValueChange={(v) =>
-                  update({ pavimento: { ...value.pavimento, effetto: v } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TILE_EFFECTS.map((e) => (
-                    <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <AccordionContent className="space-y-3 pb-4">
+            <VisualOptionGrid
+              label="Effetto"
+              helper="Così capisci subito il carattere del nuovo pavimento"
+              options={TILE_EFFECTS}
+              value={value.pavimento.effetto}
+              onChange={(effect) =>
+                update({ pavimento: { ...value.pavimento, effetto: effect } })
+              }
+            />
             <div>
               <Label className="text-xs">Formato</Label>
               <Select
                 value={value.pavimento.formato}
-                onValueChange={(v) =>
-                  update({ pavimento: { ...value.pavimento, formato: v } })
+                onValueChange={(format) =>
+                  update({ pavimento: { ...value.pavimento, formato: format } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {TILE_FORMATS.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  {TILE_FORMATS.map((format) => (
+                    <SelectItem key={format.value} value={format.value}>{format.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -342,14 +534,14 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Posa</Label>
               <Select
                 value={value.pavimento.posa}
-                onValueChange={(v) =>
-                  update({ pavimento: { ...value.pavimento, posa: v } })
+                onValueChange={(posa) =>
+                  update({ pavimento: { ...value.pavimento, posa } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {POSA_OPTIONS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  {POSA_OPTIONS.map((posa) => (
+                    <SelectItem key={posa.value} value={posa.value}>{posa.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -358,8 +550,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Colore fuga</Label>
               <Input
                 value={value.pavimento.fuga_colore}
-                onChange={(e) =>
-                  update({ pavimento: { ...value.pavimento, fuga_colore: e.target.value } })
+                onChange={(event) =>
+                  update({ pavimento: { ...value.pavimento, fuga_colore: event.target.value } })
                 }
                 placeholder="es. grigio"
               />
@@ -367,29 +559,28 @@ export function BathroomConfigForm({ value, onChange }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* ── Doccia ────────────────────────────────────────────── */}
-        <AccordionItem value="doccia" className="border rounded-lg px-3">
-          <div className="flex items-center gap-2 py-2">
-              <Switch
-                checked={value.sostituzione.doccia}
-                onCheckedChange={(v) =>
-                  update({
-                    sostituzione: { ...value.sostituzione, doccia: v },
-                    doccia: { ...value.doccia, attivo: v },
-                  })
-                }
-              />
-              <AccordionTrigger className="text-sm flex-1 py-0">
-                <span>Doccia</span>
-              </AccordionTrigger>
+        <AccordionItem value="doccia" className="rounded-xl border px-3">
+          <div className="flex items-center gap-2 py-2.5">
+            <Switch
+              checked={value.sostituzione.doccia}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, doccia: checked },
+                  doccia: { ...value.doccia, attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm">
+              <span>Doccia</span>
+            </AccordionTrigger>
           </div>
-          <AccordionContent className="space-y-3 pb-3">
+          <AccordionContent className="space-y-3 pb-4">
             <div>
               <Label className="text-xs">Tipo</Label>
               <Select
                 value={value.doccia.tipo}
-                onValueChange={(v) =>
-                  update({ doccia: { ...value.doccia, tipo: v as BathroomConfig["doccia"]["tipo"] } })
+                onValueChange={(type) =>
+                  update({ doccia: { ...value.doccia, tipo: type as BathroomConfig["doccia"]["tipo"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -405,8 +596,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Vetro box</Label>
               <Select
                 value={value.doccia.box_vetro}
-                onValueChange={(v) =>
-                  update({ doccia: { ...value.doccia, box_vetro: v as BathroomConfig["doccia"]["box_vetro"] } })
+                onValueChange={(glass) =>
+                  update({ doccia: { ...value.doccia, box_vetro: glass as BathroomConfig["doccia"]["box_vetro"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -422,15 +613,15 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Piatto doccia</Label>
               <Select
                 value={value.doccia.piatto}
-                onValueChange={(v) =>
-                  update({ doccia: { ...value.doccia, piatto: v as BathroomConfig["doccia"]["piatto"] } })
+                onValueChange={(tray) =>
+                  update({ doccia: { ...value.doccia, piatto: tray as BathroomConfig["doccia"]["piatto"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="filo_pavimento">Filo pavimento</SelectItem>
-                  <SelectItem value="rialzato_3cm">Rialzato 3cm</SelectItem>
-                  <SelectItem value="rialzato_5cm">Rialzato 5cm</SelectItem>
+                  <SelectItem value="rialzato_3cm">Rialzato 3 cm</SelectItem>
+                  <SelectItem value="rialzato_5cm">Rialzato 5 cm</SelectItem>
                   <SelectItem value="pietra">Pietra</SelectItem>
                 </SelectContent>
               </Select>
@@ -439,8 +630,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Profilo</Label>
               <Select
                 value={value.doccia.profilo}
-                onValueChange={(v) =>
-                  update({ doccia: { ...value.doccia, profilo: v as BathroomConfig["doccia"]["profilo"] } })
+                onValueChange={(profile) =>
+                  update({ doccia: { ...value.doccia, profilo: profile as BathroomConfig["doccia"]["profilo"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -456,8 +647,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Soffione</Label>
               <Select
                 value={value.doccia.soffione}
-                onValueChange={(v) =>
-                  update({ doccia: { ...value.doccia, soffione: v as BathroomConfig["doccia"]["soffione"] } })
+                onValueChange={(showerhead) =>
+                  update({ doccia: { ...value.doccia, soffione: showerhead as BathroomConfig["doccia"]["soffione"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -472,29 +663,28 @@ export function BathroomConfigForm({ value, onChange }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* ── Vasca ─────────────────────────────────────────────── */}
-        <AccordionItem value="vasca" className="border rounded-lg px-3">
-          <div className="flex items-center gap-2 py-2">
-              <Switch
-                checked={value.sostituzione.vasca}
-                onCheckedChange={(v) =>
-                  update({
-                    sostituzione: { ...value.sostituzione, vasca: v },
-                    vasca: { ...value.vasca, attivo: v },
-                  })
-                }
-              />
-              <AccordionTrigger className="text-sm flex-1 py-0">
-                <span>Vasca</span>
-              </AccordionTrigger>
+        <AccordionItem value="vasca" className="rounded-xl border px-3">
+          <div className="flex items-center gap-2 py-2.5">
+            <Switch
+              checked={value.sostituzione.vasca}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, vasca: checked },
+                  vasca: { ...value.vasca, attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm">
+              <span>Vasca</span>
+            </AccordionTrigger>
           </div>
-          <AccordionContent className="space-y-3 pb-3">
+          <AccordionContent className="space-y-3 pb-4">
             <div>
               <Label className="text-xs">Tipo</Label>
               <Select
                 value={value.vasca.tipo}
-                onValueChange={(v) =>
-                  update({ vasca: { ...value.vasca, tipo: v as BathroomConfig["vasca"]["tipo"] } })
+                onValueChange={(type) =>
+                  update({ vasca: { ...value.vasca, tipo: type as BathroomConfig["vasca"]["tipo"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -510,8 +700,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Materiale</Label>
               <Select
                 value={value.vasca.materiale}
-                onValueChange={(v) =>
-                  update({ vasca: { ...value.vasca, materiale: v as BathroomConfig["vasca"]["materiale"] } })
+                onValueChange={(material) =>
+                  update({ vasca: { ...value.vasca, materiale: material as BathroomConfig["vasca"]["materiale"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -527,8 +717,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Rubinetteria vasca</Label>
               <Select
                 value={value.vasca.rubinetteria_vasca}
-                onValueChange={(v) =>
-                  update({ vasca: { ...value.vasca, rubinetteria_vasca: v as BathroomConfig["vasca"]["rubinetteria_vasca"] } })
+                onValueChange={(tap) =>
+                  update({ vasca: { ...value.vasca, rubinetteria_vasca: tap as BathroomConfig["vasca"]["rubinetteria_vasca"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -542,29 +732,28 @@ export function BathroomConfigForm({ value, onChange }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* ── Mobile bagno ──────────────────────────────────────── */}
-        <AccordionItem value="mobile_bagno" className="border rounded-lg px-3">
-          <div className="flex items-center gap-2 py-2">
-              <Switch
-                checked={value.sostituzione.mobile_bagno}
-                onCheckedChange={(v) =>
-                  update({
-                    sostituzione: { ...value.sostituzione, mobile_bagno: v },
-                    vanity: { ...value.vanity, attivo: v },
-                  })
-                }
-              />
-              <AccordionTrigger className="text-sm flex-1 py-0">
-                <span>Mobile bagno</span>
-              </AccordionTrigger>
+        <AccordionItem value="mobile_bagno" className="rounded-xl border px-3">
+          <div className="flex items-center gap-2 py-2.5">
+            <Switch
+              checked={value.sostituzione.mobile_bagno}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, mobile_bagno: checked },
+                  vanity: { ...value.vanity, attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm">
+              <span>Mobile bagno</span>
+            </AccordionTrigger>
           </div>
-          <AccordionContent className="space-y-3 pb-3">
+          <AccordionContent className="space-y-3 pb-4">
             <div>
               <Label className="text-xs">Stile</Label>
               <Select
                 value={value.vanity.stile}
-                onValueChange={(v) =>
-                  update({ vanity: { ...value.vanity, stile: v as BathroomConfig["vanity"]["stile"] } })
+                onValueChange={(style) =>
+                  update({ vanity: { ...value.vanity, stile: style as BathroomConfig["vanity"]["stile"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -580,36 +769,27 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Colore mobile</Label>
               <Input
                 value={value.vanity.colore}
-                onChange={(e) =>
-                  update({ vanity: { ...value.vanity, colore: e.target.value } })
+                onChange={(event) =>
+                  update({ vanity: { ...value.vanity, colore: event.target.value } })
                 }
                 placeholder="es. bianco opaco, rovere naturale"
               />
             </div>
-            <div>
-              <Label className="text-xs">Piano</Label>
-              <Select
-                value={value.vanity.piano}
-                onValueChange={(v) =>
-                  update({ vanity: { ...value.vanity, piano: v as BathroomConfig["vanity"]["piano"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="marmo_bianco">Marmo bianco</SelectItem>
-                  <SelectItem value="marmo_nero">Marmo nero</SelectItem>
-                  <SelectItem value="quarzo">Quarzo</SelectItem>
-                  <SelectItem value="legno">Legno</SelectItem>
-                  <SelectItem value="ceramica">Ceramica</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <VisualOptionGrid
+              label="Piano"
+              helper="Anteprima rapida del top del mobile bagno"
+              options={VANITY_TOP_OPTIONS}
+              value={value.vanity.piano}
+              onChange={(top) =>
+                update({ vanity: { ...value.vanity, piano: top as BathroomConfig["vanity"]["piano"] } })
+              }
+            />
             <div>
               <Label className="text-xs">Lavabo</Label>
               <Select
                 value={value.vanity.lavabo}
-                onValueChange={(v) =>
-                  update({ vanity: { ...value.vanity, lavabo: v as BathroomConfig["vanity"]["lavabo"] } })
+                onValueChange={(basin) =>
+                  update({ vanity: { ...value.vanity, lavabo: basin as BathroomConfig["vanity"]["lavabo"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -625,8 +805,8 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               <Label className="text-xs">Larghezza (cm)</Label>
               <Select
                 value={String(value.vanity.larghezza_cm)}
-                onValueChange={(v) =>
-                  update({ vanity: { ...value.vanity, larghezza_cm: Number(v) as BathroomConfig["vanity"]["larghezza_cm"] } })
+                onValueChange={(width) =>
+                  update({ vanity: { ...value.vanity, larghezza_cm: Number(width) as BathroomConfig["vanity"]["larghezza_cm"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -642,29 +822,28 @@ export function BathroomConfigForm({ value, onChange }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* ── Sanitari ──────────────────────────────────────────── */}
-        <AccordionItem value="sanitari" className="border rounded-lg px-3">
-          <div className="flex items-center gap-2 py-2">
-              <Switch
-                checked={value.sostituzione.sanitari}
-                onCheckedChange={(v) =>
-                  update({
-                    sostituzione: { ...value.sostituzione, sanitari: v },
-                    sanitari: { ...value.sanitari, attivo: v },
-                  })
-                }
-              />
-              <AccordionTrigger className="text-sm flex-1 py-0">
-                <span>Sanitari</span>
-              </AccordionTrigger>
+        <AccordionItem value="sanitari" className="rounded-xl border px-3">
+          <div className="flex items-center gap-2 py-2.5">
+            <Switch
+              checked={value.sostituzione.sanitari}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, sanitari: checked },
+                  sanitari: { ...value.sanitari, attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm">
+              <span>Sanitari</span>
+            </AccordionTrigger>
           </div>
-          <AccordionContent className="space-y-3 pb-3">
+          <AccordionContent className="space-y-3 pb-4">
             <div>
               <Label className="text-xs">WC</Label>
               <Select
                 value={value.sanitari.azione_wc}
-                onValueChange={(v) =>
-                  update({ sanitari: { ...value.sanitari, azione_wc: v as BathroomConfig["sanitari"]["azione_wc"] } })
+                onValueChange={(action) =>
+                  update({ sanitari: { ...value.sanitari, azione_wc: action as BathroomConfig["sanitari"]["azione_wc"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -674,13 +853,13 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            {value.sanitari.azione_wc === "sostituisci" && (
+            {value.sanitari.azione_wc === "sostituisci" ? (
               <div>
                 <Label className="text-xs">Tipo WC</Label>
                 <Select
                   value={value.sanitari.tipo_wc}
-                  onValueChange={(v) =>
-                    update({ sanitari: { ...value.sanitari, tipo_wc: v as BathroomConfig["sanitari"]["tipo_wc"] } })
+                  onValueChange={(type) =>
+                    update({ sanitari: { ...value.sanitari, tipo_wc: type as BathroomConfig["sanitari"]["tipo_wc"] } })
                   }
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -691,13 +870,13 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                   </SelectContent>
                 </Select>
               </div>
-            )}
+            ) : null}
             <div>
               <Label className="text-xs">Bidet</Label>
               <Select
                 value={value.sanitari.azione_bidet}
-                onValueChange={(v) =>
-                  update({ sanitari: { ...value.sanitari, azione_bidet: v as BathroomConfig["sanitari"]["azione_bidet"] } })
+                onValueChange={(action) =>
+                  update({ sanitari: { ...value.sanitari, azione_bidet: action as BathroomConfig["sanitari"]["azione_bidet"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -708,13 +887,13 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            {value.sanitari.azione_bidet === "sostituisci" && (
+            {value.sanitari.azione_bidet === "sostituisci" ? (
               <div>
                 <Label className="text-xs">Tipo bidet</Label>
                 <Select
                   value={value.sanitari.tipo_bidet || "sospeso"}
-                  onValueChange={(v) =>
-                    update({ sanitari: { ...value.sanitari, tipo_bidet: v as "sospeso" | "a_terra" } })
+                  onValueChange={(type) =>
+                    update({ sanitari: { ...value.sanitari, tipo_bidet: type as "sospeso" | "a_terra" } })
                   }
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -724,67 +903,49 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                   </SelectContent>
                 </Select>
               </div>
-            )}
-            <div>
-              <Label className="text-xs">Colore sanitari</Label>
-              <Select
-                value={value.sanitari.colore}
-                onValueChange={(v) =>
-                  update({ sanitari: { ...value.sanitari, colore: v as BathroomConfig["sanitari"]["colore"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bianco">Bianco</SelectItem>
-                  <SelectItem value="grigio_chiaro">Grigio chiaro</SelectItem>
-                  <SelectItem value="nero_opaco">Nero opaco</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            ) : null}
+            <VisualOptionGrid
+              label="Colore sanitari"
+              options={SANITARY_COLOR_OPTIONS}
+              value={value.sanitari.colore}
+              onChange={(color) =>
+                update({ sanitari: { ...value.sanitari, colore: color as BathroomConfig["sanitari"]["colore"] } })
+              }
+            />
           </AccordionContent>
         </AccordionItem>
 
-        {/* ── Rubinetteria ──────────────────────────────────────── */}
-        <AccordionItem value="rubinetteria" className="border rounded-lg px-3">
-          <div className="flex items-center gap-2 py-2">
-              <Switch
-                checked={value.sostituzione.rubinetteria}
-                onCheckedChange={(v) =>
-                  update({
-                    sostituzione: { ...value.sostituzione, rubinetteria: v },
-                    rubinetteria: { ...value.rubinetteria, attivo: v },
-                  })
-                }
-              />
-              <AccordionTrigger className="text-sm flex-1 py-0">
-                <span>Rubinetteria</span>
-              </AccordionTrigger>
+        <AccordionItem value="rubinetteria" className="rounded-xl border px-3">
+          <div className="flex items-center gap-2 py-2.5">
+            <Switch
+              checked={value.sostituzione.rubinetteria}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, rubinetteria: checked },
+                  rubinetteria: { ...value.rubinetteria, attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm">
+              <span>Rubinetteria</span>
+            </AccordionTrigger>
           </div>
-          <AccordionContent className="space-y-3 pb-3">
-            <div>
-              <Label className="text-xs">Finitura</Label>
-              <Select
-                value={value.rubinetteria.finitura}
-                onValueChange={(v) =>
-                  update({ rubinetteria: { ...value.rubinetteria, finitura: v as BathroomConfig["rubinetteria"]["finitura"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cromo">Cromo</SelectItem>
-                  <SelectItem value="nero_opaco">Nero opaco</SelectItem>
-                  <SelectItem value="oro_spazzolato">Oro spazzolato</SelectItem>
-                  <SelectItem value="oro_rosa">Oro rosa</SelectItem>
-                  <SelectItem value="acciaio_spazzolato">Acciaio spazzolato</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <AccordionContent className="space-y-3 pb-4">
+            <VisualOptionGrid
+              label="Finitura"
+              helper="Così la rubinetteria resta coerente in tutto il bagno"
+              options={FAUCET_FINISH_OPTIONS}
+              value={value.rubinetteria.finitura}
+              onChange={(finish) =>
+                update({ rubinetteria: { ...value.rubinetteria, finitura: finish as BathroomConfig["rubinetteria"]["finitura"] } })
+              }
+            />
             <div>
               <Label className="text-xs">Stile</Label>
               <Select
                 value={value.rubinetteria.stile}
-                onValueChange={(v) =>
-                  update({ rubinetteria: { ...value.rubinetteria, stile: v as BathroomConfig["rubinetteria"]["stile"] } })
+                onValueChange={(style) =>
+                  update({ rubinetteria: { ...value.rubinetteria, stile: style as BathroomConfig["rubinetteria"]["stile"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -799,29 +960,28 @@ export function BathroomConfigForm({ value, onChange }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* ── Pareti non piastrellate ───────────────────────────── */}
-        <AccordionItem value="parete_colore" className="border rounded-lg px-3">
-          <div className="flex items-center gap-2 py-2">
-              <Switch
-                checked={value.sostituzione.parete_colore}
-                onCheckedChange={(v) =>
-                  update({
-                    sostituzione: { ...value.sostituzione, parete_colore: v },
-                    parete: { ...value.parete, attivo: v },
-                  })
-                }
-              />
-              <AccordionTrigger className="text-sm flex-1 py-0">
-                <span>Pareti non piastrellate</span>
-              </AccordionTrigger>
+        <AccordionItem value="parete_colore" className="rounded-xl border px-3">
+          <div className="flex items-center gap-2 py-2.5">
+            <Switch
+              checked={value.sostituzione.parete_colore}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, parete_colore: checked },
+                  parete: { ...value.parete, attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm">
+              <span>Pareti non piastrellate</span>
+            </AccordionTrigger>
           </div>
-          <AccordionContent className="space-y-3 pb-3">
+          <AccordionContent className="space-y-3 pb-4">
             <div>
               <Label className="text-xs">Azione</Label>
               <Select
                 value={value.parete.azione}
-                onValueChange={(v) =>
-                  update({ parete: { ...value.parete, azione: v as BathroomConfig["parete"]["azione"] } })
+                onValueChange={(action) =>
+                  update({ parete: { ...value.parete, azione: action as BathroomConfig["parete"]["azione"] } })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -832,41 +992,64 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            {(value.parete.azione === "tinta_unita" || value.parete.azione === "lastra_decorativa") && (
-              <div>
-                <Label className="text-xs">Colore</Label>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="color"
-                    value={value.parete.colore_hex || "#F5F5F0"}
-                    onChange={(e) =>
-                      update({ parete: { ...value.parete, colore_hex: e.target.value } })
-                    }
-                    className="w-8 h-8 rounded border cursor-pointer"
-                  />
-                  <Input
-                    value={value.parete.colore_hex || "#F5F5F0"}
-                    onChange={(e) =>
-                      update({ parete: { ...value.parete, colore_hex: e.target.value } })
-                    }
-                    className="flex-1"
-                    placeholder="#F5F5F0"
-                  />
+            {value.parete.azione === "tinta_unita" || value.parete.azione === "lastra_decorativa" ? (
+              <>
+                <div>
+                  <Label className="text-xs">Preset colore rapidi</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {QUICK_PAINT_PRESETS.map((preset) => {
+                      const selected = (value.parete.colore_hex || "#F5F5F0").toLowerCase() === preset.value.toLowerCase();
+                      return (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          className={cn(
+                            "flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition-all",
+                            selected ? "border-primary bg-primary/5" : "border-border/70 hover:border-primary/30 hover:bg-muted/30",
+                          )}
+                          onClick={() => update({ parete: { ...value.parete, colore_hex: preset.value } })}
+                        >
+                          <span className="h-6 w-6 rounded-full border border-black/10" style={{ backgroundColor: preset.value }} />
+                          <span className="text-xs font-medium">{preset.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+                <div>
+                  <Label className="text-xs">Colore</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={value.parete.colore_hex || "#F5F5F0"}
+                      onChange={(event) =>
+                        update({ parete: { ...value.parete, colore_hex: event.target.value } })
+                      }
+                      className="h-10 w-10 cursor-pointer rounded border"
+                    />
+                    <Input
+                      value={value.parete.colore_hex || "#F5F5F0"}
+                      onChange={(event) =>
+                        update({ parete: { ...value.parete, colore_hex: event.target.value } })
+                      }
+                      className="flex-1"
+                      placeholder="#F5F5F0"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : null}
           </AccordionContent>
         </AccordionItem>
       </Accordion>
 
-      {/* ── Note libere ──────────────────────────────────────────── */}
       <div>
         <Label className="text-xs font-semibold">Note libere</Label>
         <Textarea
           value={value.note_libere || ""}
-          onChange={(e) => update({ note_libere: e.target.value })}
-          placeholder="Indicazioni aggiuntive per l'AI (es. 'stile scandinavo minimalista', 'aggiungi specchio rotondo sopra il lavabo')"
-          rows={3}
+          onChange={(event) => update({ note_libere: event.target.value })}
+          placeholder="Indicazioni aggiuntive per l'AI, ad esempio: 'mantieni il bagno molto luminoso', 'stile hotel di lusso ma realistico', 'niente elementi decorativi extra'."
+          rows={4}
           className="mt-1"
         />
       </div>

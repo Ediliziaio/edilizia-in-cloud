@@ -122,6 +122,7 @@ async function getGeminiApiKey(
 async function downloadImageAsInlineData(imageUrl: string): Promise<{
   mimeType: string;
   base64: string;
+  bytes: Uint8Array;
 }> {
   const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
   if (!imgResp.ok) {
@@ -138,7 +139,154 @@ async function downloadImageAsInlineData(imageUrl: string): Promise<{
   return {
     mimeType,
     base64: arrayBufferToBase64(imgBuffer),
+    bytes: new Uint8Array(imgBuffer),
   };
+}
+
+function readUint32BE(bytes: Uint8Array, offset: number): number {
+  return (
+    (bytes[offset] << 24) |
+    (bytes[offset + 1] << 16) |
+    (bytes[offset + 2] << 8) |
+    bytes[offset + 3]
+  ) >>> 0;
+}
+
+function detectImageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 16) return null;
+
+  // PNG
+  if (
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    if (bytes.length < 24) return null;
+    return {
+      width: readUint32BE(bytes, 16),
+      height: readUint32BE(bytes, 20),
+    };
+  }
+
+  // JPEG
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 8 < bytes.length) {
+      if (bytes[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+
+      while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+      const marker = bytes[offset];
+      offset += 1;
+
+      if (marker === 0xd9 || marker === 0xda) break;
+      if (offset + 1 >= bytes.length) break;
+
+      const length = (bytes[offset] << 8) | bytes[offset + 1];
+      if (length < 2 || offset + length > bytes.length) break;
+
+      const isSofMarker =
+        (marker >= 0xc0 && marker <= 0xc3) ||
+        (marker >= 0xc5 && marker <= 0xc7) ||
+        (marker >= 0xc9 && marker <= 0xcb) ||
+        (marker >= 0xcd && marker <= 0xcf);
+
+      if (isSofMarker && offset + 6 < bytes.length) {
+        return {
+          height: (bytes[offset + 3] << 8) | bytes[offset + 4],
+          width: (bytes[offset + 5] << 8) | bytes[offset + 6],
+        };
+      }
+
+      offset += length;
+    }
+  }
+
+  // WEBP
+  if (
+    bytes.length >= 30 &&
+    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+  ) {
+    const chunkType = String.fromCharCode(...bytes.slice(12, 16));
+
+    if (chunkType === "VP8X" && bytes.length >= 30) {
+      const width = 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16);
+      const height = 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16);
+      return { width, height };
+    }
+
+    if (chunkType === "VP8 " && bytes.length >= 30) {
+      const width = (bytes[26] | (bytes[27] << 8)) & 0x3fff;
+      const height = (bytes[28] | (bytes[29] << 8)) & 0x3fff;
+      if (width > 0 && height > 0) return { width, height };
+    }
+
+    if (chunkType === "VP8L" && bytes.length >= 25) {
+      const b0 = bytes[21];
+      const b1 = bytes[22];
+      const b2 = bytes[23];
+      const b3 = bytes[24];
+      const width = 1 + (((b1 & 0x3f) << 8) | b0);
+      const height = 1 + (((b3 & 0x0f) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6));
+      if (width > 0 && height > 0) return { width, height };
+    }
+  }
+
+  return null;
+}
+
+function orientationFromDimensions(width: number, height: number): "portrait" | "landscape" | "square" {
+  if (width === height) return "square";
+  return width > height ? "landscape" : "portrait";
+}
+
+function describeFormatLock(width?: number | null, height?: number | null): {
+  text: string;
+  orientation: "portrait" | "landscape" | "square" | null;
+} {
+  if (!width || !height || width <= 0 || height <= 0) {
+    return {
+      text: "Keep exactly the same crop, orientation, visible room coverage, and aspect ratio as the source image.",
+      orientation: null,
+    };
+  }
+
+  const orientation = orientationFromDimensions(width, height);
+  const orientationLabel =
+    orientation === "portrait" ? "portrait / vertical" :
+    orientation === "landscape" ? "landscape / horizontal" :
+    "square";
+
+  return {
+    text: `Source image size is ${width}x${height}px (${orientationLabel}). Output MUST remain ${orientationLabel} with the same framing, visible wall/floor coverage, camera distance, and aspect ratio ${width}:${height}.`,
+    orientation,
+  };
+}
+
+function describeFormatMismatch(
+  expected: { width: number; height: number } | null,
+  actual: { width: number; height: number } | null,
+): string | null {
+  if (!expected || !actual) return null;
+
+  const expectedOrientation = orientationFromDimensions(expected.width, expected.height);
+  const actualOrientation = orientationFromDimensions(actual.width, actual.height);
+  if (expectedOrientation !== actualOrientation && expectedOrientation !== "square") {
+    return `orientation mismatch (${expectedOrientation} expected, got ${actualOrientation})`;
+  }
+
+  const expectedRatio = expected.width / expected.height;
+  const actualRatio = actual.width / actual.height;
+  const diff = Math.abs(expectedRatio - actualRatio) / expectedRatio;
+  if (diff > 0.08) {
+    return `aspect ratio mismatch (${expected.width}:${expected.height} expected, got ${actual.width}:${actual.height})`;
+  }
+
+  return null;
 }
 
 function extractTextParts(payload: Record<string, unknown>): string {
@@ -307,6 +455,14 @@ function buildBathroomPromptServer(session: Record<string, unknown>): {
   systemPrompt: string;
   userPrompt: string;
   promptVersion: string;
+}
+function buildBathroomPromptServer(
+  session: Record<string, unknown>,
+  imageLock?: { width?: number | null; height?: number | null },
+): {
+  systemPrompt: string;
+  userPrompt: string;
+  promptVersion: string;
 } {
   const config = (session.configurazione || session.config || {}) as Record<string, unknown>;
   const analisi = (session.analisi_bagno || {}) as Record<string, unknown>;
@@ -325,6 +481,65 @@ function buildBathroomPromptServer(session: Record<string, unknown>): {
   const sanitari = getSection("sanitari");
   const rubinetteria = getSection("rubinetteria");
   const parete = getSection("parete");
+  const formatLock = describeFormatLock(imageLock?.width, imageLock?.height);
+
+  const effectDescriptions: Record<string, string> = {
+    marmo_carrara: "Carrara marble, soft white base with elegant grey veining, polished luxury finish",
+    marmo_calacatta: "Calacatta marble, warm white base with bold gold-grey veining, premium statement look",
+    marmo_sahara_noir: "Sahara Noir marble, deep black polished marble with dramatic gold veining",
+    marmo_marquinia: "Nero Marquinia marble, black polished stone with crisp white veins",
+    marmo_verde_guatemala: "Verde Guatemala marble, deep emerald green stone with natural veining",
+    marmo_statuario: "Statuario marble, bright white slab with sweeping grey veining, very high-end look",
+    marmo_emperador: "Emperador marble, rich brown marble with warm cream veining",
+    cemento_grigio: "grey cement-effect porcelain, matte and contemporary",
+    cemento_bianco: "white cement-effect porcelain, soft matte and luminous",
+    cemento_antracite: "anthracite cement-effect porcelain, dark matte minimal look",
+    legno_rovere_chiaro: "light oak wood-effect surface with realistic linear grain",
+    legno_rovere_scuro: "dark oak wood-effect surface with richer warm grain",
+    legno_wenge: "wenge dark wood-effect surface, dense grain and deep tone",
+    ardesia: "slate stone effect, dark layered texture with subtle relief",
+    travertino: "travertine stone effect, warm beige limestone with gentle movement",
+    basalto: "basalt stone effect, compact volcanic dark stone look",
+    mono_bianco: "solid monochrome white finish, uniform and clean",
+    mono_nero: "solid monochrome black finish, deep and graphic",
+    mono_grigio: "solid monochrome grey finish, neutral and modern",
+    mono_verde_salvia: "solid sage-green finish, soft premium spa feeling",
+    mono_blu_navy: "solid navy-blue finish, dramatic and elegant",
+    mono_terracotta: "solid terracotta finish, warm Mediterranean character",
+    mono_greige: "solid greige finish, refined warm neutral",
+    mosaico_esagoni: "hexagonal mosaic with visible geometric grout grid",
+    mosaico_penny: "penny mosaic with small round modules and clear grout rhythm",
+    zellige: "handmade zellige ceramic with glossy irregular artisanal surface",
+    cotto_toscano: "Tuscan cotto effect with warm earthy handcrafted tone",
+    resina_spatolata: "continuous troweled resin surface with no visible joints",
+    pietra_ardesia: "split-face slate wall texture with strong depth and relief",
+  };
+
+  const posaDescriptions: Record<string, string> = {
+    dritta: "straight aligned grid layout",
+    sfalsata: "running bond / offset layout",
+    diagonale: "45-degree diagonal layout",
+    spina_pesce: "herringbone layout",
+    spina_ungherese: "Hungarian herringbone layout",
+    chevron: "chevron layout",
+    casuale: "mixed irregular layout",
+  };
+
+  const vanityTopDescriptions: Record<string, string> = {
+    marmo_bianco: "white marble countertop with visible natural veining",
+    marmo_nero: "black marble countertop with strong contrast veining",
+    quarzo: "engineered quartz countertop, refined and uniform",
+    legno: "sealed wood countertop with warm grain",
+    ceramica: "ceramic countertop, clean and smooth glazed surface",
+  };
+
+  const faucetFinishDescriptions: Record<string, string> = {
+    cromo: "polished chrome mirror finish",
+    nero_opaco: "matte black powder-coated finish",
+    oro_spazzolato: "brushed warm gold finish",
+    oro_rosa: "rose gold satin metallic finish",
+    acciaio_spazzolato: "brushed stainless steel finish",
+  };
 
   const systemPrompt = `You are a SURGICAL PHOTOREALISTIC IMAGE EDITOR specialized in bathroom renovation visualization. Your only task is to replace exactly the requested bathroom elements while leaving everything else identical to the original photo.
 
@@ -332,10 +547,12 @@ NON-NEGOTIABLE RULES:
 1. Keep the same camera angle, lens, room proportions, lighting direction, and framing.
 2. Keep all non-selected elements pixel-consistent with the source photo.
 3. Preserve the exact environment: walls not selected for edit, windows, doors, ceiling, accessories, reflections, shadows, and perspective.
-4. The output must keep the same overall composition and aspect ratio as the input image.
-5. Materials must look physically real: tile joints, reflections, grout, ceramic, glass, metal, and stone must behave correctly.
-6. Never invent extra furniture, decor, or architectural changes not explicitly requested.
-7. Never produce CGI, illustration, or stylized output. The image must look like a real bathroom photograph after renovation.`;
+4. ${formatLock.text}
+5. The result must be the SAME real bathroom after renovation, not a different bathroom inspired by it.
+6. Never zoom in, zoom out, widen the room, move wall corners, or reduce/enlarge visible floor and ceiling coverage.
+7. Materials must look physically real: tile joints, reflections, grout, ceramic, glass, metal, and stone must behave correctly.
+8. Never invent extra furniture, decor, or architectural changes not explicitly requested.
+9. Never produce CGI, illustration, or stylized output. The image must look like a real bathroom photograph after renovation.`;
 
   const blocks: string[] = [];
 
@@ -354,6 +571,11 @@ Current faucets: ${analisi.rubinetteria_attuale || "unknown"}
 Lighting: ${analisi.illuminazione_attuale || "unknown"}
 Conservation: ${analisi.stato_conservazione || "unknown"}
 ${analisi.note ? `Notes: ${analisi.note}` : ""}`);
+
+  blocks.push(`[FORMAT LOCK]
+${formatLock.text}
+Keep the same visible bathroom coverage in frame: same amount of floor, side walls, ceiling, shower zone, vanity zone, and sanitary positions unless replacement was explicitly requested.
+Do NOT shrink the bathroom inside the frame, do NOT add empty margins, and do NOT crop any side differently from the source.`);
 
   const interventionLabels: Record<string, string> = {
     restyling_piastrelle: "Tile restyling only",
@@ -377,18 +599,18 @@ ${interventionLabels[tipoIntervento] || tipoIntervento}`);
 
   if (sost.piastrelle_parete && pp.attivo) {
     blocks.push(`[NEW WALL TILES]
-Effect: ${pp.effetto}
+Effect: ${effectDescriptions[String(pp.effetto)] || pp.effetto}
 Format: ${pp.formato}
-Laying pattern: ${pp.posa}
+Laying pattern: ${posaDescriptions[String(pp.posa)] || pp.posa}
 Grout color: ${pp.fuga_colore}
 Coverage height: ${pp.altezza_rivestimento || "full height"}`);
   }
 
   if (sost.pavimento && pv.attivo) {
     blocks.push(`[NEW FLOOR]
-Effect: ${pv.effetto}
+Effect: ${effectDescriptions[String(pv.effetto)] || pv.effetto}
 Format: ${pv.formato}
-Laying pattern: ${pv.posa}
+Laying pattern: ${posaDescriptions[String(pv.posa)] || pv.posa}
 Grout color: ${pv.fuga_colore}`);
   }
 
@@ -412,7 +634,7 @@ Faucet: ${vasca.rubinetteria_vasca}`);
     blocks.push(`[NEW VANITY]
 Style: ${vanity.stile}
 Color: ${vanity.colore}
-Countertop: ${vanity.piano}
+Countertop: ${vanityTopDescriptions[String(vanity.piano)] || vanity.piano}
 Basin: ${vanity.lavabo}
 Width: ${vanity.larghezza_cm}cm`);
   }
@@ -426,7 +648,7 @@ Color: ${sanitari.colore}`);
 
   if (sost.rubinetteria && rubinetteria.attivo) {
     blocks.push(`[NEW FAUCETS]
-Finish: ${rubinetteria.finitura}
+Finish: ${faucetFinishDescriptions[String(rubinetteria.finitura)] || rubinetteria.finitura}
 Style: ${rubinetteria.stile}
 All visible faucets and shower fittings must share this finish.`);
   }
@@ -439,7 +661,8 @@ Color: ${parete.colore_hex || "keep current"}`);
 
   blocks.push(`[ABSOLUTE PRESERVATION]
 Keep room geometry, camera perspective, lighting, reflections, and all untouched elements consistent with the original.
-Do not widen the room, do not move sanitary positions unless the intervention explicitly requires replacement, and do not change doors, windows, ceiling, or decorative accessories.`);
+Do not widen the room, do not move sanitary positions unless the intervention explicitly requires replacement, and do not change doors, windows, ceiling, or decorative accessories.
+Do not alter image orientation, aspect ratio, or perceived camera distance.`);
 
   if (notes) {
     blocks.push(`[ADDITIONAL NOTES]
@@ -449,8 +672,70 @@ ${notes}`);
   return {
     systemPrompt,
     userPrompt: blocks.join("\n\n"),
-    promptVersion: "1.1.0",
+    promptVersion: "1.2.0",
   };
+}
+
+async function requestBathroomRender(params: {
+  apiKey: string;
+  systemPrompt: string;
+  userPrompt: string;
+  originalImage: { mimeType: string; base64: string };
+  strictNote?: string;
+}): Promise<{ dataUrl: string; aiData: Record<string, unknown> }> {
+  const promptText = params.strictNote
+    ? `${params.systemPrompt}\n\n${params.userPrompt}\n\n${params.strictNote}`
+    : `${params.systemPrompt}\n\n${params.userPrompt}`;
+
+  const geminiBody = {
+    contents: [{
+      parts: [
+        { text: promptText },
+        {
+          inline_data: {
+            mime_type: params.originalImage.mimeType,
+            data: params.originalImage.base64,
+          },
+        },
+      ],
+    }],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"],
+      temperature: 0.7,
+    },
+  };
+
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-generation:generateContent?key=${params.apiKey}`;
+  const aiResp = await fetchWithRetry(
+    geminiUrl,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geminiBody),
+    },
+    2,
+    2000,
+    120_000,
+  );
+
+  if (!aiResp.ok) {
+    const errText = await aiResp.text();
+    throw new Error(`Gemini render error ${aiResp.status}: ${errText.substring(0, 300)}`);
+  }
+
+  const aiData = await aiResp.json() as Record<string, unknown>;
+  const dataUrl = extractGeneratedImageData(aiData);
+
+  if (!dataUrl) {
+    const providerText = extractTextParts(aiData);
+    throw new Error(
+      providerText
+        ? `Il provider non ha restituito un'immagine renderizzabile: ${providerText.substring(0, 240)}`
+        : "Nessuna immagine ricevuta dal provider AI",
+    );
+  }
+
+  return { dataUrl, aiData };
 }
 
 async function runBathroomAnalysis(params: {
@@ -593,10 +878,14 @@ Deno.serve(async (req) => {
       action,
       session_id,
       image_url,
+      target_width,
+      target_height,
     } = body as {
       action?: string;
       session_id?: string;
       image_url?: string;
+      target_width?: number;
+      target_height?: number;
     };
 
     if (action === "analyze") {
@@ -701,67 +990,52 @@ Deno.serve(async (req) => {
       imageUrl = signed.signedUrl;
     }
 
-    const { systemPrompt, userPrompt, promptVersion } = buildBathroomPromptServer({
-      ...session,
-      configurazione: session.configurazione || {},
-      analisi_bagno: session.analisi_bagno || {},
-    });
-
     const geminiApiKey = await getGeminiApiKey(supabase);
     if (!geminiApiKey) {
       throw new Error("Gemini API key non configurata. Configurarla in Admin > Impostazioni AI > Render.");
     }
 
     const originalImage = await downloadImageAsInlineData(imageUrl);
-    const geminiBody = {
-      contents: [{
-        parts: [
-          { text: `${systemPrompt}\n\n${userPrompt}` },
-          {
-            inline_data: {
-              mime_type: originalImage.mimeType,
-              data: originalImage.base64,
-            },
-          },
-        ],
-      }],
-      generationConfig: {
-        responseModalities: ["TEXT", "IMAGE"],
-        temperature: 1,
-      },
-    };
+    const sourceDimensions =
+      Number.isFinite(Number(target_width)) && Number.isFinite(Number(target_height)) &&
+      Number(target_width) > 0 && Number(target_height) > 0
+        ? { width: Number(target_width), height: Number(target_height) }
+        : detectImageDimensions(originalImage.bytes);
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-generation:generateContent?key=${geminiApiKey}`;
-    const aiResp = await fetchWithRetry(
-      geminiUrl,
+    const { systemPrompt, userPrompt, promptVersion } = buildBathroomPromptServer(
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(geminiBody),
+        ...session,
+        configurazione: session.configurazione || {},
+        analisi_bagno: session.analisi_bagno || {},
       },
-      2,
-      2000,
-      120_000,
+      sourceDimensions ?? undefined,
     );
 
-    if (!aiResp.ok) {
-      const errText = await aiResp.text();
-      throw new Error(`Gemini render error ${aiResp.status}: ${errText.substring(0, 300)}`);
+    let renderResult = await requestBathroomRender({
+      apiKey: geminiApiKey,
+      systemPrompt,
+      userPrompt,
+      originalImage,
+    });
+
+    let uploadPayload = dataUrlToBytes(renderResult.dataUrl);
+    const firstAttemptDimensions = detectImageDimensions(uploadPayload.bytes);
+    const firstMismatch = describeFormatMismatch(sourceDimensions ?? null, firstAttemptDimensions);
+
+    if (firstMismatch) {
+      renderResult = await requestBathroomRender({
+        apiKey: geminiApiKey,
+        systemPrompt,
+        userPrompt,
+        originalImage,
+        strictNote: `[FORMAT CORRECTION]
+The previous attempt was not acceptable because of ${firstMismatch}.
+Regenerate the image keeping EXACT same orientation, framing, crop, visible room size, and apparent camera distance as the source photo.
+The bathroom must occupy the same image area as the source. No zooming out, no zooming in, no padding, no crop change.`,
+      });
+      uploadPayload = dataUrlToBytes(renderResult.dataUrl);
     }
 
-    const aiData = await aiResp.json() as Record<string, unknown>;
-    const generatedDataUrl = extractGeneratedImageData(aiData);
-
-    if (!generatedDataUrl) {
-      const providerText = extractTextParts(aiData);
-      throw new Error(
-        providerText
-          ? `Il provider non ha restituito un'immagine renderizzabile: ${providerText.substring(0, 240)}`
-          : "Nessuna immagine ricevuta dal provider AI",
-      );
-    }
-
-    const uploadPayload = dataUrlToBytes(generatedDataUrl);
     const resultPath = `${session.company_id}/${session_id}/render_bagno_${Date.now()}.${uploadPayload.extension}`;
 
     const { error: uploadErr } = await supabase.storage

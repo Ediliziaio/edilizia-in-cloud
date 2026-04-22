@@ -16,9 +16,9 @@ import {
 
 import {
   BathroomConfigForm,
-  DEFAULT_BATHROOM_CONFIG,
   type BathroomConfig,
 } from "@/components/render-bagno/BathroomConfigForm";
+import { DEFAULT_BATHROOM_CONFIG } from "@/components/render-bagno/defaultBathroomConfig";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
@@ -32,6 +32,12 @@ interface PollState {
   dots: number;
   elapsedSec: number;
   status: string;
+}
+
+interface PhotoMeta {
+  width: number;
+  height: number;
+  orientation: "portrait" | "landscape" | "square";
 }
 
 // ── Polling intervals (exponential backoff) ──────────────────────────
@@ -51,6 +57,7 @@ export default function RenderBagnoNew() {
   // ── Step 1: Photo ──────────────────────────────────────────────────
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoMeta, setPhotoMeta] = useState<PhotoMeta | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +95,12 @@ export default function RenderBagnoNew() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
+
   // ── File handling ──────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,13 +109,30 @@ export default function RenderBagnoNew() {
       toast.error("File troppo grande (max 20 MB)");
       return;
     }
+    const previewUrl = URL.createObjectURL(file);
     setPhoto(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoPreview(previewUrl);
     setAnalisi(null);
     setAnalysisError(undefined);
     setSessionId(null);
     setResultUrl(null);
     setSavedToGallery(false);
+    setPhotoMeta(null);
+
+    const image = new window.Image();
+    image.onload = () => {
+      const width = image.naturalWidth || 0;
+      const height = image.naturalHeight || 0;
+      if (width > 0 && height > 0) {
+        setPhotoMeta({
+          width,
+          height,
+          orientation: width === height ? "square" : width > height ? "landscape" : "portrait",
+        });
+      }
+    };
+    image.onerror = () => setPhotoMeta(null);
+    image.src = previewUrl;
   };
 
   // ── Step 1 -> Step 2: upload + analyze ─────────────────────────────
@@ -230,10 +260,18 @@ export default function RenderBagnoNew() {
       })
       .eq("id", sessionId);
 
+    const targetWidth = photoMeta?.width;
+    const targetHeight = photoMeta?.height;
+
     // Invoke generate-bathroom-render
     const { data: fnData, error: fnErr } = await supabase.functions.invoke(
       "generate-bathroom-render",
-      { body: { session_id: sessionId } },
+      {
+        body: {
+          session_id: sessionId,
+          ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
+        },
+      },
     );
 
     if (fnErr || fnData?.error) {
@@ -260,7 +298,7 @@ export default function RenderBagnoNew() {
 
     // Otherwise poll
     startPolling(sessionId);
-  }, [sessionId, companyId, config, queryClient, generating, startPolling]);
+  }, [sessionId, companyId, config, queryClient, generating, startPolling, photoMeta]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -370,6 +408,10 @@ export default function RenderBagnoNew() {
   // RENDER
   // ═══════════════════════════════════════════════════════════════════
 
+  const photoMetaLabel = photoMeta
+    ? `${photoMeta.orientation === "portrait" ? "Verticale" : photoMeta.orientation === "landscape" ? "Orizzontale" : "Quadrata"} · ${photoMeta.width}x${photoMeta.height}`
+    : null;
+
   return (
     <div className="space-y-6 max-w-2xl mx-auto pb-12">
       {/* ── Header ────────────────────────────────────────────────── */}
@@ -433,12 +475,19 @@ export default function RenderBagnoNew() {
             </CardHeader>
             <CardContent>
               {photoPreview ? (
-                <div className="relative rounded-lg overflow-hidden">
-                  <img
-                    src={photoPreview}
-                    alt="Foto caricata"
-                    className="w-full max-h-80 object-cover"
-                  />
+                <div className="relative overflow-hidden rounded-lg border border-border/60 bg-muted/20">
+                  <div className="flex max-h-[34rem] min-h-[240px] items-center justify-center">
+                    <img
+                      src={photoPreview}
+                      alt="Foto caricata"
+                      className="max-h-[34rem] w-full object-contain"
+                    />
+                  </div>
+                  {photoMetaLabel ? (
+                    <div className="absolute left-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white">
+                      {photoMetaLabel}
+                    </div>
+                  ) : null}
                   <Button
                     variant="secondary"
                     size="sm"
@@ -446,6 +495,7 @@ export default function RenderBagnoNew() {
                     onClick={() => {
                       setPhoto(null);
                       setPhotoPreview(null);
+                      setPhotoMeta(null);
                       setAnalisi(null);
                       setAnalysisError(undefined);
                     }}
@@ -465,7 +515,7 @@ export default function RenderBagnoNew() {
                   <div className="text-center">
                     <p className="font-semibold">Carica foto del bagno</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      JPG, PNG, WEBP - Max 20 MB - Inquadratura ampia per risultati ottimali
+                      JPG, PNG, WEBP - Max 20 MB - Verticale resta verticale, orizzontale resta orizzontale
                     </p>
                   </div>
                   <Button variant="outline" size="sm" type="button">
@@ -492,6 +542,7 @@ export default function RenderBagnoNew() {
                 <li>Luce naturale o ben illuminato</li>
                 <li>Senza persone o oggetti che ostruiscano la visuale</li>
                 <li>Risoluzione almeno 800x600 px</li>
+                <li>Non serve rifare la foto: il render deve rispettare il formato originale</li>
               </ul>
             </CardContent>
           </Card>
@@ -525,10 +576,17 @@ export default function RenderBagnoNew() {
         <div className="space-y-4">
           {/* Foto preview */}
           {photoPreview && (
-            <div className="rounded-xl overflow-hidden h-40 relative">
-              <img src={photoPreview} alt="Bagno" className="w-full h-full object-cover" />
+            <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
+              <div className="flex max-h-[22rem] min-h-[180px] items-center justify-center">
+                <img src={photoPreview} alt="Bagno" className="max-h-[22rem] w-full object-contain" />
+              </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
               <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto caricata</div>
+              {photoMetaLabel ? (
+                <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white">
+                  {photoMetaLabel}
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -626,12 +684,26 @@ export default function RenderBagnoNew() {
         <div className="space-y-4">
           {/* Foto preview compatta */}
           {photoPreview && (
-            <div className="rounded-xl overflow-hidden h-32 relative">
-              <img src={photoPreview} alt="Bagno" className="w-full h-full object-cover" />
+            <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
+              <div className="flex max-h-[18rem] min-h-[160px] items-center justify-center">
+                <img src={photoPreview} alt="Bagno" className="max-h-[18rem] w-full object-contain" />
+              </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
               <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto originale</div>
+              {photoMetaLabel ? (
+                <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white">
+                  {photoMetaLabel}
+                </div>
+              ) : null}
             </div>
           )}
+
+          <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-sm dark:border-cyan-900 dark:bg-cyan-950/20">
+            <p className="font-medium text-cyan-900 dark:text-cyan-200">Obiettivo del render bagno</p>
+            <p className="mt-1 text-cyan-800/80 dark:text-cyan-200/80">
+              Il risultato deve essere lo stesso bagno rivisitato: stessa prospettiva, stesso taglio foto e stesso orientamento dell&apos;immagine originale.
+            </p>
+          </div>
 
           <Card>
             <CardHeader>
@@ -688,7 +760,9 @@ export default function RenderBagnoNew() {
             <Card>
               <CardContent className="py-3">
                 <p className="text-xs text-muted-foreground mb-2">Foto originale caricata</p>
-                <img src={photoPreview} alt="Originale" className="w-full max-h-52 object-cover rounded-lg" />
+                <div className="flex max-h-[18rem] min-h-[180px] items-center justify-center overflow-hidden rounded-lg bg-muted/20">
+                  <img src={photoPreview} alt="Originale" className="max-h-[18rem] w-full object-contain" />
+                </div>
               </CardContent>
             </Card>
           )}
@@ -808,7 +882,7 @@ export default function RenderBagnoNew() {
                 setStep(1);
                 setPhoto(null);
                 setPhotoPreview(null);
-                setPhotoPath(null);
+                setPhotoMeta(null);
                 setAnalisi(null);
                 setAnalysisError(undefined);
                 setSessionId(null);
