@@ -98,7 +98,7 @@ export default function MarketingDashboard() {
     <div className="space-y-3">
       <DashboardSelectorBar title="Dashboard Marketing" />
 
-      <ApiHealthBanner filter={["meta", "email"]} />
+      <ApiHealthBanner filter={["meta", "email_marketing"]} />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

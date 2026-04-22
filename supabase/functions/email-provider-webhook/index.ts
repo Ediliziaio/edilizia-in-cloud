@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
   normalizeEvents as normalizeEventsShared,
   type NormalizedEvent,
@@ -25,7 +26,9 @@ Deno.serve(async (req) => {
 
   // Verifica token segreto webhook (SEC-012)
   // Il provider deve includere ?secret=TOKEN nell'URL o l'header x-webhook-secret
-  const webhookSecret = Deno.env.get("WEBHOOK_SECRET");
+  const webhookSecret =
+    Deno.env.get("WEBHOOK_SECRET") ||
+    await getPlatformSetting("email_provider_webhook_secret");
   if (webhookSecret) {
     const reqUrl = new URL(req.url);
     const providedSecret =

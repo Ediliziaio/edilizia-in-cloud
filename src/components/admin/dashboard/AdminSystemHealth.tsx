@@ -21,6 +21,13 @@ interface HealthMetric {
   recorded_at: string;
 }
 
+interface CalendarSyncLogEntry {
+  status: string | null;
+  connections_synced: number | null;
+  connections_failed: number | null;
+  started_at: string;
+}
+
 export function AdminSystemHealth() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-system-health-v2"],
@@ -49,7 +56,7 @@ export function AdminSystemHealth() {
       ]);
 
       const metrics = (metricsRes.data || []) as HealthMetric[];
-      const syncLogs = syncLogsRes.data || [];
+      const syncLogs = (syncLogsRes.data || []) as CalendarSyncLogEntry[];
       const rateLimitHits = (rateLimitRes.data || []) as HealthMetric[];
 
       // Edge function call metrics
@@ -88,7 +95,7 @@ export function AdminSystemHealth() {
 
       // Sync health
       const syncTotal = syncLogs.length;
-      const syncFailed = syncLogs.filter((l: any) => l.status === "error" || l.status === "failed").length;
+      const syncFailed = syncLogs.filter((log) => log.status === "error" || log.status === "failed").length;
       const syncSuccessRate = syncTotal > 0 ? Math.round(((syncTotal - syncFailed) / syncTotal) * 100) : 100;
 
       return {
@@ -226,6 +233,7 @@ interface IntegrationResult {
   last_seen: string | null;
   response_ms: number | null;
   error: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 const INTEGRATION_LABELS: Record<string, string> = {
@@ -234,8 +242,8 @@ const INTEGRATION_LABELS: Record<string, string> = {
   openai: "OpenAI",
   gemini: "Gemini Render AI",
   cloudflare: "Cloudflare",
-  sendgrid: "SendGrid",
-  elastic_email: "Elastic Email",
+  email_marketing: "Email Marketing",
+  email_transactional: "Email Transazionale",
   elevenlabs: "ElevenLabs",
   telnyx: "Telnyx",
   gocardless: "GoCardless",
@@ -245,6 +253,10 @@ const INTEGRATION_LABELS: Record<string, string> = {
 
 function IntegrationBadge({ integration }: { integration: IntegrationResult }) {
   const label = INTEGRATION_LABELS[integration.name] ?? integration.name;
+  const providerLabel =
+    typeof integration.metadata?.provider_label === "string"
+      ? integration.metadata.provider_label
+      : null;
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   const isDownLong =
     integration.status === "down" &&
@@ -270,6 +282,11 @@ function IntegrationBadge({ integration }: { integration: IntegrationResult }) {
           {integration.status}
         </span>
       </div>
+      {providerLabel && (
+        <p className="text-xs text-muted-foreground">
+          Provider: {providerLabel}
+        </p>
+      )}
       {integration.response_ms !== null && (
         <p className="text-xs text-muted-foreground">{integration.response_ms}ms</p>
       )}

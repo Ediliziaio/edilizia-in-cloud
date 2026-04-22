@@ -8,7 +8,20 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Eye, EyeOff, Send, XCircle, Loader2, Info, Circle, Copy } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  Copy,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Info,
+  Loader2,
+  Send,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,6 +54,60 @@ const PROVIDERS = [
 ];
 
 type ConnectionStatus = "configured" | "tested_ok" | "tested_fail" | "not_configured";
+type ProviderHealthStatus = "healthy" | "degraded" | "down" | "unconfigured";
+
+interface EmailHealthPayload {
+  email_streams?: Partial<Record<"marketing" | "transactional", {
+    provider: string;
+    providerLabel: string;
+    status: ProviderHealthStatus;
+    responseMs: number | null;
+    error: string | null;
+    webhookSecretConfigured: boolean;
+    webhookSecretSource: "env" | "platform_settings" | "missing";
+  }>>;
+}
+
+const PROVIDER_DOCS: Partial<Record<(typeof PROVIDERS)[number]["value"], string>> = {
+  elastic_email: "https://help.elasticemail.com/en/articles/2376694-how-to-send-emails-via-api",
+  sendgrid: "https://www.twilio.com/docs/sendgrid/api-reference/mail-send/mail-send",
+  resend: "https://resend.com/docs/api-reference/emails/send-email",
+  brevo: "https://developers.brevo.com/reference/sendtransacemail",
+  mailgun: "https://documentation.mailgun.com/docs/mailgun/api-reference/send/mailgun/messages/post-v3--domain-name--messages",
+};
+
+const PROVIDER_ENDPOINT_HINTS: Record<"marketing" | "transactional", Partial<Record<(typeof PROVIDERS)[number]["value"], string>>> = {
+  marketing: {
+    elastic_email: "POST /v4/emails",
+    sendgrid: "POST /v3/mail/send",
+    resend: "POST /emails",
+    brevo: "POST /v3/smtp/email",
+    mailgun: "POST /v3/<domain>/messages",
+  },
+  transactional: {
+    elastic_email: "POST /v4/emails/transactional",
+    sendgrid: "POST /v3/mail/send",
+    resend: "POST /emails",
+    brevo: "POST /v3/smtp/email",
+    mailgun: "POST /v3/<domain>/messages",
+  },
+};
+
+const healthBadge = (status?: ProviderHealthStatus) => {
+  switch (status) {
+    case "healthy":
+      return <Badge className="gap-1 bg-green-600"><CheckCircle2 className="h-3 w-3" /> API OK</Badge>;
+    case "degraded":
+      return <Badge variant="secondary" className="gap-1"><AlertTriangle className="h-3 w-3" /> Degraded</Badge>;
+    case "down":
+      return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Down</Badge>;
+    default:
+      return <Badge variant="outline" className="gap-1">Non verificato</Badge>;
+  }
+};
+
+const getProviderLabel = (value: string) =>
+  PROVIDERS.find((provider) => provider.value === value)?.label || value;
 
 export function EmailProviderConfig({ stream }: Props) {
   const queryClient = useQueryClient();
@@ -102,6 +169,16 @@ export function EmailProviderConfig({ stream }: Props) {
     },
   });
 
+  const { data: health } = useQuery<EmailHealthPayload>({
+    queryKey: queryKeys.apiHealth.all,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("check-api-health");
+      if (error) throw error;
+      return data as EmailHealthPayload;
+    },
+    staleTime: 60_000,
+  });
+
   useEffect(() => {
     if (settings) {
       const get = (k: string) => settings.find((s) => s.key === k)?.value || "";
@@ -126,6 +203,10 @@ export function EmailProviderConfig({ stream }: Props) {
   };
 
   const connStatus = getConnectionStatus();
+  const streamHealth = health?.email_streams?.[stream];
+  const providerDocsUrl = PROVIDER_DOCS[provider];
+  const endpointHint = PROVIDER_ENDPOINT_HINTS[stream][provider];
+  const senderReady = !!fromAddress.trim() && (provider !== "mailgun" || !!domain.trim());
 
   const statusBadge = () => {
     switch (connStatus.status) {
@@ -172,7 +253,16 @@ export function EmailProviderConfig({ stream }: Props) {
         { key: domainKey, value: domain.trim() },
       ];
       for (const pair of pairs) {
-        if (!pair.value) continue;
+        if (!pair.value) {
+          if (pair.key !== providerKey) {
+            const { error } = await supabase
+              .from("platform_settings" as never)
+              .delete()
+              .eq("key" as never, pair.key as never);
+            if (error) throw error;
+          }
+          continue;
+        }
         const { error } = await supabase
           .from("platform_settings" as never)
           .upsert(
@@ -182,6 +272,7 @@ export function EmailProviderConfig({ stream }: Props) {
         if (error) throw error;
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.platformSettingsEmail() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apiHealth.all });
       toast.success(`Provider ${STREAM_LABELS[stream].title} salvato`);
     } catch (err) {
       logger.error("save email provider failed", err);
@@ -294,6 +385,81 @@ export function EmailProviderConfig({ stream }: Props) {
           </Alert>
         )}
 
+        {streamHealth && streamHealth.provider !== provider && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Hai cambiato provider ma non hai ancora salvato. La diagnostica API qui sotto si riferisce a
+              <strong> {streamHealth.providerLabel}</strong>, cioe al provider attualmente attivo in produzione.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {streamHealth && !streamHealth.webhookSecretConfigured && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Il webhook email non e protetto o non e configurato: senza secret gli eventi open/click/bounce possono fallire.
+              Usa la scheda webhook globale qui sopra per completare la configurazione.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid gap-3 lg:grid-cols-3">
+          <div className="rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Diagnostica provider</p>
+              {healthBadge(streamHealth?.status)}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Provider attivo: {streamHealth?.providerLabel || getProviderLabel(provider)}
+            </p>
+            {typeof streamHealth?.responseMs === "number" && (
+              <p className="text-xs text-muted-foreground">Tempo risposta check: {streamHealth.responseMs}ms</p>
+            )}
+            {streamHealth?.error && (
+              <p className="mt-1 text-xs text-destructive">{streamHealth.error}</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Webhook</p>
+              <Badge variant={streamHealth?.webhookSecretConfigured ? "default" : "destructive"} className="gap-1">
+                <ShieldCheck className="h-3 w-3" />
+                {streamHealth?.webhookSecretConfigured ? "Pronto" : "Da configurare"}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Secret sorgente: {streamHealth?.webhookSecretSource === "env"
+                ? "Supabase Secret"
+                : streamHealth?.webhookSecretSource === "platform_settings"
+                  ? "Piattaforma"
+                  : "Assente"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Per Elastic Email servono Notification settings con URL completa e piano PRO.
+            </p>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Sender operativo</p>
+              <Badge variant={senderReady ? "default" : "secondary"} className="gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                {senderReady ? "Completo" : "Da completare"}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Endpoint check: {endpointHint || "n/d"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Mittente: {fromAddress || "non impostato"}
+              {provider === "mailgun" && ` · Dominio: ${domain || "non impostato"}`}
+            </p>
+          </div>
+        </div>
+
         {/* Row 1: Provider + API Key */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -357,9 +523,39 @@ export function EmailProviderConfig({ stream }: Props) {
           )}
         </div>
 
+        {provider === "elastic_email" && (
+          <div className="rounded-lg border p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">Supporto Elastic Email</p>
+                <p className="text-xs text-muted-foreground">
+                  Lato marketing usiamo l&apos;endpoint ufficiale piu adatto al bulk e teniamo il tracking applicativo sotto controllo.
+                </p>
+              </div>
+              {providerDocsUrl && (
+                <a
+                  href={providerDocsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  Docs ufficiali
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+            <ul className="mt-3 grid gap-1 text-xs text-muted-foreground">
+              <li>1. API key con permesso <strong>SendHttp</strong>.</li>
+              <li>2. Dominio mittente verificato con SPF + DKIM; tracking CNAME consigliato.</li>
+              <li>3. Notification settings: Sent, Opened, Clicked, Unsubscribed, Complaints, Bounce/Error.</li>
+              <li>4. Se cambi provider o key, salva e poi rilancia subito un test invio.</li>
+            </ul>
+          </div>
+        )}
+
         {/* Webhook URL (read-only) */}
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">URL Webhook (da configurare nel provider)</Label>
+          <Label className="text-xs text-muted-foreground">Base webhook URL</Label>
           <div className="flex items-center gap-2">
             <Input
               readOnly
@@ -370,6 +566,9 @@ export function EmailProviderConfig({ stream }: Props) {
               <Copy className="h-4 w-4" />
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Il link completo con `secret` lo trovi nella configurazione webhook globale. Qui manteniamo la base tecnica per lo stream {stream}.
+          </p>
         </div>
 
         {/* Test + Save */}

@@ -18,7 +18,7 @@ const EmailMarketing = () => {
 
   return (
     <div className="space-y-6">
-      <ApiHealthBanner filter={["email"]} />
+      <ApiHealthBanner filter={["email_marketing"]} />
 
       <div>
         <h1 className="text-2xl font-bold text-foreground">Email Marketing</h1>

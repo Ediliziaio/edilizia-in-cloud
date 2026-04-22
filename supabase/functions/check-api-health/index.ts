@@ -7,7 +7,21 @@ interface IntegrationResult {
   last_seen: string | null;
   response_ms: number | null;
   error: string | null;
+  metadata?: Record<string, unknown> | null;
 }
+
+type EmailProvider =
+  | "elastic_email"
+  | "sendgrid"
+  | "brevo"
+  | "resend"
+  | "mailgun";
+
+type EmailProbeResult = {
+  status: IntegrationResult["status"];
+  response_ms: number | null;
+  error: string | null;
+};
 
 async function pingWithLatency(url: string, options?: RequestInit): Promise<{ ok: boolean; status: number; latency_ms: number; error?: string }> {
   const start = Date.now();
@@ -16,6 +30,145 @@ async function pingWithLatency(url: string, options?: RequestInit): Promise<{ ok
     return { ok: res.ok, status: res.status, latency_ms: Date.now() - start };
   } catch (e) {
     return { ok: false, status: 0, latency_ms: Date.now() - start, error: (e as Error).message };
+  }
+}
+
+const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
+  elastic_email: "Elastic Email",
+  sendgrid: "SendGrid",
+  brevo: "Brevo",
+  resend: "Resend",
+  mailgun: "Mailgun",
+};
+
+function normalizeEmailProvider(value: string | undefined, fallback: EmailProvider): EmailProvider {
+  switch ((value || "").trim().toLowerCase()) {
+    case "elasticemail":
+    case "elastic_email":
+      return "elastic_email";
+    case "sendgrid":
+      return "sendgrid";
+    case "sendinblue":
+    case "brevo":
+      return "brevo";
+    case "resend":
+      return "resend";
+    case "mailgun":
+      return "mailgun";
+    default:
+      return fallback;
+  }
+}
+
+function classifyEmailProbe(ping: Awaited<ReturnType<typeof pingWithLatency>>): EmailProbeResult {
+  if (ping.ok || [400, 405, 409, 415, 422].includes(ping.status)) {
+    return { status: "healthy", response_ms: ping.latency_ms, error: null };
+  }
+  if ([401, 403, 429].includes(ping.status)) {
+    return {
+      status: "degraded",
+      response_ms: ping.latency_ms,
+      error: ping.error || `HTTP ${ping.status}`,
+    };
+  }
+  return {
+    status: "down",
+    response_ms: ping.latency_ms,
+    error: ping.error || `HTTP ${ping.status}`,
+  };
+}
+
+async function probeEmailProvider(
+  provider: EmailProvider,
+  apiKey: string,
+  stream: "marketing" | "transactional",
+  domain?: string | null,
+): Promise<EmailProbeResult> {
+  if (!apiKey) {
+    return {
+      status: "unconfigured",
+      response_ms: null,
+      error: "API key not configured",
+    };
+  }
+
+  switch (provider) {
+    case "elastic_email": {
+      const endpoint = stream === "marketing"
+        ? "https://api.elasticemail.com/v4/emails"
+        : "https://api.elasticemail.com/v4/emails/transactional";
+      const ping = await pingWithLatency(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-ElasticEmail-ApiKey": apiKey,
+        },
+        body: "{}",
+      });
+      return classifyEmailProbe(ping);
+    }
+
+    case "sendgrid": {
+      const ping = await pingWithLatency("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: "{}",
+      });
+      return classifyEmailProbe(ping);
+    }
+
+    case "brevo": {
+      const ping = await pingWithLatency("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": apiKey,
+        },
+        body: "{}",
+      });
+      return classifyEmailProbe(ping);
+    }
+
+    case "resend": {
+      const ping = await pingWithLatency("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: "{}",
+      });
+      return classifyEmailProbe(ping);
+    }
+
+    case "mailgun": {
+      if (!domain) {
+        return {
+          status: "unconfigured",
+          response_ms: null,
+          error: "Mailgun domain not configured",
+        };
+      }
+      const ping = await pingWithLatency(`https://api.mailgun.net/v3/${domain}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${btoa(`api:${apiKey}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "",
+      });
+      if (ping.status === 404) {
+        return {
+          status: "degraded",
+          response_ms: ping.latency_ms,
+          error: "Mailgun domain non trovato o non autorizzato",
+        };
+      }
+      return classifyEmailProbe(ping);
+    }
   }
 }
 
@@ -66,7 +219,12 @@ Deno.serve(async (req) => {
       "meta_app_id",
       "meta_app_secret",
       "email_marketing_api_key",
+      "email_marketing_provider",
+      "email_marketing_domain",
       "email_transactional_api_key",
+      "email_transactional_provider",
+      "email_transactional_domain",
+      "email_provider_webhook_secret",
       "elevenlabs_api_key",
       "whatsapp_verify_token",
       "telnyx_api_key",
@@ -183,23 +341,80 @@ Deno.serve(async (req) => {
       results.push({ name: "cloudflare", status: "unconfigured", last_seen: null, response_ms: null, error: "API token not configured" });
     }
 
-    // ── SendGrid / Elastic Email ───────────────────────────────────────────
-    const emailTransKey = settingsMap["email_transactional_api_key"] || Deno.env.get("EMAIL_TRANSACTIONAL_API_KEY");
-    if (emailTransKey) {
-      const ping = await pingWithLatency("https://api.sendgrid.com/v3/user/profile", {
-        headers: { Authorization: `Bearer ${emailTransKey}` },
-      });
-      const isElasticEmail = emailTransKey.length < 40; // rough heuristic
-      results.push({
-        name: isElasticEmail ? "elastic_email" : "sendgrid",
-        status: ping.ok ? "healthy" : ping.status === 401 ? "degraded" : "down",
-        last_seen: now,
-        response_ms: ping.latency_ms,
-        error: ping.ok ? null : (ping.error || `HTTP ${ping.status}`),
-      });
-    } else {
-      results.push({ name: "sendgrid", status: "unconfigured", last_seen: null, response_ms: null, error: "API key not configured" });
-    }
+    // ── Email providers (stream-aware, provider-aware) ─────────────────────
+    const webhookSecretSource = Deno.env.get("WEBHOOK_SECRET")
+      ? "env"
+      : settingsMap["email_provider_webhook_secret"]
+        ? "platform_settings"
+        : "missing";
+    const webhookSecretConfigured = webhookSecretSource !== "missing";
+
+    const emailStreams = {
+      marketing: {
+        provider: normalizeEmailProvider(
+          settingsMap["email_marketing_provider"],
+          "elastic_email",
+        ),
+        apiKey:
+          settingsMap["email_marketing_api_key"] ||
+          Deno.env.get("EMAIL_MARKETING_API_KEY") ||
+          "",
+        domain: settingsMap["email_marketing_domain"] || null,
+      },
+      transactional: {
+        provider: normalizeEmailProvider(
+          settingsMap["email_transactional_provider"],
+          "resend",
+        ),
+        apiKey:
+          settingsMap["email_transactional_api_key"] ||
+          Deno.env.get("EMAIL_TRANSACTIONAL_API_KEY") ||
+          "",
+        domain: settingsMap["email_transactional_domain"] || null,
+      },
+    } as const;
+
+    const marketingProbe = await probeEmailProvider(
+      emailStreams.marketing.provider,
+      emailStreams.marketing.apiKey,
+      "marketing",
+      emailStreams.marketing.domain,
+    );
+    const transactionalProbe = await probeEmailProvider(
+      emailStreams.transactional.provider,
+      emailStreams.transactional.apiKey,
+      "transactional",
+      emailStreams.transactional.domain,
+    );
+
+    results.push({
+      name: "email_marketing",
+      status: marketingProbe.status,
+      last_seen: marketingProbe.status === "unconfigured" ? null : now,
+      response_ms: marketingProbe.response_ms,
+      error: marketingProbe.error,
+      metadata: {
+        provider: emailStreams.marketing.provider,
+        provider_label: EMAIL_PROVIDER_LABELS[emailStreams.marketing.provider],
+        stream: "marketing",
+        webhook_secret_configured: webhookSecretConfigured,
+        webhook_secret_source: webhookSecretSource,
+      },
+    });
+    results.push({
+      name: "email_transactional",
+      status: transactionalProbe.status,
+      last_seen: transactionalProbe.status === "unconfigured" ? null : now,
+      response_ms: transactionalProbe.response_ms,
+      error: transactionalProbe.error,
+      metadata: {
+        provider: emailStreams.transactional.provider,
+        provider_label: EMAIL_PROVIDER_LABELS[emailStreams.transactional.provider],
+        stream: "transactional",
+        webhook_secret_configured: webhookSecretConfigured,
+        webhook_secret_source: webhookSecretSource,
+      },
+    });
 
     // ── ElevenLabs ────────────────────────────────────────────────────────
     const elevenKey = settingsMap["elevenlabs_api_key"] || Deno.env.get("ELEVENLABS_API_KEY");
@@ -306,9 +521,9 @@ Deno.serve(async (req) => {
       whatsapp: results.find((r) => r.name === "meta_whatsapp")?.status === "healthy",
       googlemaps: results.find((r) => r.name === "google_maps")?.status === "healthy",
       meta: results.find((r) => r.name === "meta_whatsapp")?.status === "healthy",
-      email: results.find((r) => r.name === "sendgrid" || r.name === "elastic_email")?.status === "healthy",
-      email_marketing: !!(settingsMap["email_marketing_api_key"] || Deno.env.get("EMAIL_MARKETING_API_KEY")),
-      email_transactional: !!(emailTransKey),
+      email: marketingProbe.status === "healthy",
+      email_marketing: marketingProbe.status === "healthy",
+      email_transactional: transactionalProbe.status === "healthy",
       elevenlabs: results.find((r) => r.name === "elevenlabs")?.status === "healthy",
       openai: results.find((r) => r.name === "openai")?.status === "healthy",
       gemini: results.find((r) => r.name === "gemini")?.status === "healthy",
@@ -317,7 +532,34 @@ Deno.serve(async (req) => {
     };
 
     return new Response(
-      JSON.stringify({ integrations: results, ...legacy }),
+      JSON.stringify({
+        integrations: results,
+        email_streams: {
+          marketing: {
+            provider: emailStreams.marketing.provider,
+            providerLabel: EMAIL_PROVIDER_LABELS[emailStreams.marketing.provider],
+            status: marketingProbe.status,
+            responseMs: marketingProbe.response_ms,
+            error: marketingProbe.error,
+            webhookSecretConfigured,
+            webhookSecretSource,
+          },
+          transactional: {
+            provider: emailStreams.transactional.provider,
+            providerLabel: EMAIL_PROVIDER_LABELS[emailStreams.transactional.provider],
+            status: transactionalProbe.status,
+            responseMs: transactionalProbe.response_ms,
+            error: transactionalProbe.error,
+            webhookSecretConfigured,
+            webhookSecretSource,
+          },
+        },
+        email_webhook: {
+          secretConfigured: webhookSecretConfigured,
+          secretSource: webhookSecretSource,
+        },
+        ...legacy,
+      }),
       { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (error) {

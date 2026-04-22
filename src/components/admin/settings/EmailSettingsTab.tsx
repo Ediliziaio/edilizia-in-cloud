@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, DollarSign, BarChart3, ScrollText, MessageSquare } from "lucide-react";
 import { EmailProviderConfig } from "./email/EmailProviderConfig";
+import { EmailWebhookConfig } from "./email/EmailWebhookConfig";
 import { EmailPricingConfig } from "./email/EmailPricingConfig";
 import { EmailDashboard } from "./email/EmailDashboard";
 import { EmailDeliveryLog } from "./email/EmailDeliveryLog";
@@ -28,6 +29,7 @@ export default function EmailSettingsTab() {
       </TabsList>
 
       <TabsContent value="providers" className="space-y-6">
+        <EmailWebhookConfig />
         <EmailProviderConfig stream="marketing" />
         <EmailProviderConfig stream="transactional" />
       </TabsContent>

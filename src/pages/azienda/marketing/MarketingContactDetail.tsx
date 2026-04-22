@@ -455,7 +455,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
       <div className="px-3 pt-2">
-        <ApiHealthBanner filter={["whatsapp", "email"]} />
+        <ApiHealthBanner filter={["whatsapp", "email_marketing"]} />
       </div>
       <div className="flex flex-1 overflow-hidden">
       {/* ══════════ LEFT COLUMN ══════════ */}
