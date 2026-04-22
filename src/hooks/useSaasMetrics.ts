@@ -60,13 +60,14 @@ export function useSaasMetrics() {
     queryKey: ["churn-data"],
     staleTime: 5 * 60 * 1_000,
     queryFn: async () => {
-      // Count cancellazioni nell'ultimo mese
+      // Count cancellazioni nell'ultimo mese. Il webhook Stripe registra
+      // "subscription_canceled"; teniamo anche le varianti legacy.
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const { count: cancellazioni } = await supabase
         .from("subscription_logs")
         .select("id", { count: "exact", head: true })
-        .eq("event_type", "cancelled")
+        .in("event_type", ["cancelled", "canceled", "subscription_canceled"])
         .gte("created_at", thirtyDaysAgo.toISOString());
       const { data: companies } = await supabase
         .from("companies")

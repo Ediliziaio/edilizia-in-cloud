@@ -13,6 +13,7 @@
 // ============================================================================
 
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -115,23 +116,25 @@ function MiniList(props: {
         ) : (
           <ul className="space-y-1.5">
             {rows.map((r, i) => (
-              <li
-                key={r.company_id}
-                className="flex items-center justify-between text-sm gap-2 px-2 py-1.5 rounded hover:bg-accent/40"
-              >
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className="text-xs font-mono text-muted-foreground w-5 flex-none">
-                    {i + 1}.
-                  </span>
-                  <span className="truncate">{r.company_name}</span>
-                </div>
-                {r.marginTone && typeof r.marginValue === "number" ? (
-                  <Badge variant="outline" className={`font-mono text-xs ${marginBadgeClass(r.marginValue)}`}>
-                    {r.value}
-                  </Badge>
-                ) : (
-                  <span className="font-mono text-xs tabular-nums">{r.value}</span>
-                )}
+              <li key={r.company_id}>
+                <Link
+                  to={`/admin/aziende/${r.company_id}`}
+                  className="flex items-center justify-between text-sm gap-2 px-2 py-1.5 rounded hover:bg-accent/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-xs font-mono text-muted-foreground w-5 flex-none">
+                      {i + 1}.
+                    </span>
+                    <span className="truncate">{r.company_name}</span>
+                  </div>
+                  {r.marginTone && typeof r.marginValue === "number" ? (
+                    <Badge variant="outline" className={`font-mono text-xs ${marginBadgeClass(r.marginValue)}`}>
+                      {r.value}
+                    </Badge>
+                  ) : (
+                    <span className="font-mono text-xs tabular-nums">{r.value}</span>
+                  )}
+                </Link>
               </li>
             ))}
           </ul>
@@ -165,6 +168,11 @@ export function RenderEconomicsTab() {
   const topMargin = globalQ.data?.top_5_by_margin ?? [];
   const botMargin = globalQ.data?.bottom_5_by_margin ?? [];
   const companies = companiesQ.data ?? [];
+  const totalRenders = totals?.total_renders ?? 0;
+  const avgCostPerRender = totalRenders > 0 ? (totals?.total_cost ?? 0) / totalRenders : 0;
+  const avgRevenuePerRender = totalRenders > 0 ? (totals?.total_revenue ?? 0) / totalRenders : 0;
+  const avgMarginPerRender = totalRenders > 0 ? (totals?.total_margin ?? 0) / totalRenders : 0;
+  const negativeShare = companies.length > 0 ? (negativeCount / companies.length) * 100 : 0;
 
   const dailyFormatted = useMemo(() => {
     const daily = globalQ.data?.daily ?? [];
@@ -195,6 +203,7 @@ export function RenderEconomicsTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="7">Ultimi 7 giorni</SelectItem>
+              <SelectItem value="14">Ultimi 14 giorni</SelectItem>
               <SelectItem value="30">Ultimi 30 giorni</SelectItem>
               <SelectItem value="90">Ultimi 90 giorni</SelectItem>
             </SelectContent>
@@ -231,7 +240,16 @@ export function RenderEconomicsTab() {
           <AlertDescription className="text-amber-800">
             <span className="font-semibold">{negativeCount}</span>
             {negativeCount === 1 ? " azienda" : " aziende"} con margine negativo nel periodo.
-            Rivedi pricing o fallback provider.
+            Incidenza: <span className="font-semibold">{negativeShare.toFixed(1)}%</span>. Rivedi pricing o fallback provider.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!isLoading && totalRenders > 0 && negativeCount === 0 && (
+        <Alert className="border-emerald-200 bg-emerald-50">
+          <TrendingUp className="h-4 w-4 text-emerald-600" />
+          <AlertDescription className="text-emerald-700">
+            Tutte le aziende con attività render nel periodo hanno margine non negativo.
           </AlertDescription>
         </Alert>
       )}
@@ -244,10 +262,10 @@ export function RenderEconomicsTab() {
       ) : (
         <>
           {/* KPI globali */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
             <KpiCard
               label="Render totali"
-              value={num(totals?.total_renders ?? 0)}
+              value={num(totalRenders)}
               icon={ImageIcon}
               tone="neutral"
             />
@@ -280,6 +298,24 @@ export function RenderEconomicsTab() {
               value={num(negativeCount)}
               icon={AlertTriangle}
               tone={negativeCount > 0 ? "negative" : "neutral"}
+            />
+            <KpiCard
+              label="Ricavo/render"
+              value={eur4(avgRevenuePerRender)}
+              icon={DollarSign}
+              tone="positive"
+            />
+            <KpiCard
+              label="Costo/render"
+              value={eur4(avgCostPerRender)}
+              icon={TrendingDown}
+              tone="warning"
+            />
+            <KpiCard
+              label="Margine/render"
+              value={eur4(avgMarginPerRender)}
+              icon={avgMarginPerRender >= 0 ? TrendingUp : TrendingDown}
+              tone={avgMarginPerRender >= 0 ? "positive" : "negative"}
             />
           </div>
 
@@ -459,7 +495,11 @@ export function RenderEconomicsTab() {
                     <TableBody>
                       {companies.map((c) => (
                         <TableRow key={c.company_id}>
-                          <TableCell className="font-medium">{c.company_name}</TableCell>
+                          <TableCell className="font-medium">
+                            <Link to={`/admin/aziende/${c.company_id}`} className="hover:underline">
+                              {c.company_name}
+                            </Link>
+                          </TableCell>
                           <TableCell className="text-right font-mono">{num(c.renders_count)}</TableCell>
                           <TableCell className="text-right font-mono">{eur(c.cost_total_eur)}</TableCell>
                           <TableCell className="text-right font-mono">{eur(c.revenue_total_eur)}</TableCell>

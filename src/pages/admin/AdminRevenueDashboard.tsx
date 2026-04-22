@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
@@ -16,15 +17,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   TrendingUp, DollarSign, Users, RefreshCw, Loader2,
   AlertTriangle, CheckCircle2, ArrowUpDown, BarChart3, Sparkles,
+  Gift, ShieldCheck, Activity, Percent,
 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { RenderEconomicsTab } from "@/components/admin/RenderEconomicsTab";
-import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
+import {
+  getAdminRevenueBreakdown,
+  getCompanyMonthlyRevenue,
+  isRevenueEligibleCompany,
+} from "@/lib/adminRevenue";
 
 function fmt(value: number): string {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value);
+}
+
+function fmtCompact(value: number): string {
+  return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 // ─── Types ────────────────────────────────────────────────
@@ -57,13 +81,21 @@ interface PlanBreakdown {
   name: string;
   count: number;
   mrr: number;
+  arpu: number;
+  sharePct: number;
 }
 
 interface RevenueData {
   mrr: number;
   arr: number;
   byPlan: PlanBreakdown[];
-  activeCount: number;
+  payingCount: number;
+  totalCompanies: number;
+  accessActiveCompanies: number;
+  nonPayingActiveCompanies: number;
+  freeActiveCompanies: number;
+  excludedMrr: number;
+  arpu: number;
 }
 
 interface MrrSnapshot {
@@ -95,22 +127,39 @@ function useRevenueDashboard() {
       if (subsRes.error) throw subsRes.error;
 
       const plans = (plansRes.data ?? []) as Plan[];
-      const paidCompanies = ((subsRes.data ?? []) as RevenueCompany[]).filter(isRevenueEligibleCompany);
+      const companies = (subsRes.data ?? []) as RevenueCompany[];
+      const revenueBreakdown = getAdminRevenueBreakdown(companies);
+      const paidCompanies = companies.filter(isRevenueEligibleCompany);
 
-      const mrr = paidCompanies.reduce((sum, company) => sum + getCompanyMonthlyRevenue(company), 0);
+      const mrr = revenueBreakdown.mrr;
 
       const byPlan: PlanBreakdown[] = plans
         .map((p) => {
           const companiesForPlan = paidCompanies.filter((c) => c.subscription_plan_id === p.id);
+          const planMrr = companiesForPlan.reduce((sum, company) => sum + getCompanyMonthlyRevenue(company), 0);
           return {
             name: p.name,
             count: companiesForPlan.length,
-            mrr: companiesForPlan.reduce((sum, company) => sum + getCompanyMonthlyRevenue(company), 0),
+            mrr: planMrr,
+            arpu: companiesForPlan.length > 0 ? planMrr / companiesForPlan.length : 0,
+            sharePct: mrr > 0 ? (planMrr / mrr) * 100 : 0,
           };
         })
-        .filter((p) => p.count > 0);
+        .filter((p) => p.count > 0)
+        .sort((a, b) => b.mrr - a.mrr);
 
-      return { mrr, arr: mrr * 12, byPlan, activeCount: paidCompanies.length };
+      return {
+        mrr,
+        arr: mrr * 12,
+        byPlan,
+        payingCount: revenueBreakdown.payingCompanies,
+        totalCompanies: revenueBreakdown.totalCompanies,
+        accessActiveCompanies: revenueBreakdown.accessActiveCompanies,
+        nonPayingActiveCompanies: revenueBreakdown.nonPayingActiveCompanies,
+        freeActiveCompanies: revenueBreakdown.freeActiveCompanies,
+        excludedMrr: revenueBreakdown.excludedMrr,
+        arpu: revenueBreakdown.payingCompanies > 0 ? mrr / revenueBreakdown.payingCompanies : 0,
+      };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -138,10 +187,12 @@ function RevenueTab() {
   const { data, isLoading, refetch, isFetching } = useRevenueDashboard();
 
   const kpis = [
-    { label: "MRR Corrente Pagante", value: fmt(data?.mrr ?? 0), icon: DollarSign, color: "text-emerald-600" },
-    { label: "ARR Proiettato", value: fmt(data?.arr ?? 0), icon: TrendingUp, color: "text-blue-600" },
-    { label: "Abbonamenti Paganti", value: String(data?.activeCount ?? 0), icon: Users, color: "text-primary" },
+    { label: "MRR pagante", value: fmt(data?.mrr ?? 0), sub: "Solo aziende con pagamento reale", icon: DollarSign, color: "text-emerald-600" },
+    { label: "ARR", value: fmt(data?.arr ?? 0), sub: "Proiezione annuale pagante", icon: TrendingUp, color: "text-blue-600" },
+    { label: "Aziende paganti", value: String(data?.payingCount ?? 0), sub: `${data?.accessActiveCompanies ?? 0} con accesso attivo`, icon: ShieldCheck, color: "text-primary" },
+    { label: "ARPU", value: fmt(data?.arpu ?? 0), sub: "Ricavo medio mensile", icon: Percent, color: "text-violet-600" },
   ];
+  const hasNonPayingAccess = (data?.nonPayingActiveCompanies ?? 0) > 0 || (data?.freeActiveCompanies ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -158,51 +209,134 @@ function RevenueTab() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {hasNonPayingAccess && (
+            <Alert className="border-amber-300 bg-amber-50">
+              <Gift className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <span className="font-semibold">{data?.nonPayingActiveCompanies ?? 0}</span> aziende attive non paganti
+                e <span className="font-semibold">{data?.freeActiveCompanies ?? 0}</span> su piano gratuito sono escluse dal MRR.
+                Valore teorico escluso: <span className="font-semibold">{fmt(data?.excludedMrr ?? 0)}/mese</span>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
             {kpis.map((k) => (
               <Card key={k.label}>
-                <CardContent className="p-6 flex items-center gap-4">
+                <CardContent className="p-4 md:p-5 flex items-center gap-3">
                   <div className="rounded-full bg-muted p-3">
                     <k.icon className={`h-5 w-5 ${k.color}`} />
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">{k.label}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">{k.label}</p>
                     <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
+                    <p className="text-xs text-muted-foreground truncate">{k.sub}</p>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Breakdown per Piano</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(data?.byPlan ?? []).length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nessun abbonamento attivo</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2">Piano</th>
-                      <th className="text-right py-2">Aziende</th>
-                      <th className="text-right py-2">MRR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(data?.byPlan ?? []).map((p) => (
-                      <tr key={p.name} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{p.name}</td>
-                        <td className="py-2 text-right">{p.count}</td>
-                        <td className="py-2 text-right font-mono">{fmt(p.mrr)}</td>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">MRR per piano</CardTitle>
+                <CardDescription>Distribuzione del ricavo mensile realmente pagante</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(data?.byPlan ?? []).length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">Nessun abbonamento pagante</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={data?.byPlan ?? []} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                      <YAxis tickFormatter={fmtCompact} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                      <Tooltip
+                        formatter={(value: number, name: string) => [
+                          name === "count" ? value : fmt(value),
+                          name === "count" ? "Aziende" : "MRR",
+                        ]}
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                      />
+                      <Bar dataKey="mrr" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Breakdown operativo</CardTitle>
+                <CardDescription>Quota MRR, ARPU e numero aziende</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                {(data?.byPlan ?? []).length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">Nessun abbonamento pagante</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="text-left px-4 py-2">Piano</th>
+                        <th className="text-right px-4 py-2">Aziende</th>
+                        <th className="text-right px-4 py-2">MRR</th>
+                        <th className="text-right px-4 py-2">Quota</th>
+                        <th className="text-right px-4 py-2">ARPU</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
+                    </thead>
+                    <tbody>
+                      {(data?.byPlan ?? []).map((p) => (
+                        <tr key={p.name} className="border-b last:border-0">
+                          <td className="px-4 py-2 font-medium">{p.name}</td>
+                          <td className="px-4 py-2 text-right">{p.count}</td>
+                          <td className="px-4 py-2 text-right font-mono">{fmt(p.mrr)}</td>
+                          <td className="px-4 py-2 text-right">{p.sharePct.toFixed(1)}%</td>
+                          <td className="px-4 py-2 text-right font-mono">{fmt(p.arpu)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                Copertura pagante
+              </div>
+              <p className="mt-2 text-2xl font-bold">
+                {data && data.accessActiveCompanies > 0
+                  ? `${Math.round((data.payingCount / data.accessActiveCompanies) * 100)}%`
+                  : "0%"}
+              </p>
+              <p className="text-xs text-muted-foreground">Paganti su aziende con accesso attivo</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Aziende totali
+              </div>
+              <p className="mt-2 text-2xl font-bold">{data?.totalCompanies ?? 0}</p>
+              <p className="text-xs text-muted-foreground">Escluse aziende tecniche di piattaforma</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Gift className="h-4 w-4 text-muted-foreground" />
+                MRR escluso
+              </div>
+              <p className="mt-2 text-2xl font-bold text-amber-600">{fmt(data?.excludedMrr ?? 0)}</p>
+              <p className="text-xs text-muted-foreground">Valore teorico non pagante</p>
+            </div>
+          </div>
         </>
       )}
     </div>
@@ -217,28 +351,15 @@ function ReconciliationTab() {
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-stripe-mrr`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
-        }
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-      return res.json() as Promise<{
+      const { data, error } = await supabase.functions.invoke("sync-stripe-mrr");
+      if (error) throw new Error(error.message);
+      return data as {
         mrr_stripe: number;
         mrr_interno: number;
         discrepanza: number;
         aziende_stripe: number;
         data: string;
-      }>;
+      };
     },
     onSuccess: (result) => {
       const disc = result.discrepanza / 100;
@@ -430,9 +551,9 @@ function LTVCACTab() {
     ltvCacRatio >= 1 ? "text-yellow-600" :
     "text-destructive";
   const ratioLabel =
-    ltvCacRatio >= 3 ? "✅ Ottimo (≥3x)" :
-    ltvCacRatio >= 1 ? "⚠️ Accettabile (1–3x)" :
-    ltvCacRatio > 0 ? "🔴 Critico (<1x)" : "—";
+    ltvCacRatio >= 3 ? "Ottimo (>=3x)" :
+    ltvCacRatio >= 1 ? "Accettabile (1-3x)" :
+    ltvCacRatio > 0 ? "Critico (<1x)" : "—";
 
   const handleSave = () => {
     const spesaEur = parseFloat(formSpesa);
@@ -616,8 +737,20 @@ function LTVCACTab() {
 
 // ─── Main Page ────────────────────────────────────────────
 
+const REVENUE_TABS = new Set(["revenue", "reconciliation", "ltv-cac", "render-economics"]);
+
 export default function AdminRevenueDashboard() {
   const { permissions } = useSuperAdminPermissions();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab") ?? "revenue";
+  const activeTab = REVENUE_TABS.has(requestedTab) ? requestedTab : "revenue";
+
+  const handleTabChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", value);
+    setSearchParams(next, { replace: true });
+  };
+
   if (!permissions.billing_read) return <AccessDenied />;
 
   return (
@@ -627,7 +760,7 @@ export default function AdminRevenueDashboard() {
         <p className="text-muted-foreground">Dati finanziari aggregati e riconciliazione Stripe</p>
       </div>
 
-      <Tabs defaultValue="revenue">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="revenue" className="gap-2">
             <TrendingUp className="h-4 w-4" />
