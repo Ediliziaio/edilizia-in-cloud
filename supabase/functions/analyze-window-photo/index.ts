@@ -32,6 +32,81 @@ const USER_PROMPT = `Analyze this window/door photo and return ONLY a JSON objec
 
 Respond with ONLY the JSON object. No extra text.`;
 
+const BATHROOM_SYSTEM_PROMPT = `You are an expert Italian bathroom analyzer.
+Analyze the provided bathroom image and extract structured information about the visible room.
+You MUST respond with a valid JSON object only — no markdown, no explanation, just pure JSON.`;
+
+const BATHROOM_USER_PROMPT = `Analyze this bathroom photo and return ONLY a JSON object with these exact fields:
+
+{
+  "tipo_stanza": string,
+  "dimensione_stimata": string,
+  "altezza_stimata": string,
+  "piastrelle_parete_attuali": string,
+  "pavimento_attuale": string,
+  "colori_dominanti": array of short color strings,
+  "presenza_doccia": boolean,
+  "tipo_doccia": string or null,
+  "presenza_vasca": boolean,
+  "presenza_mobile": boolean,
+  "tipo_mobile": string or null,
+  "sanitari_tipo": string or null,
+  "rubinetteria_attuale": string or null,
+  "illuminazione_attuale": string or null,
+  "stato_conservazione": one of: "buono"|"discreto"|"da_ristrutturare",
+  "note": string
+}
+
+Respond with ONLY the JSON object. No extra text.`;
+
+function stringOrDefault(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function booleanOrDefault(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "si", "sì", "yes", "1"].includes(normalized)) return true;
+    if (["false", "no", "0"].includes(normalized)) return false;
+  }
+  if (typeof value === "number") return value !== 0;
+  return fallback;
+}
+
+function normalizeBathroomAnalysis(input: Record<string, unknown>): Record<string, unknown> {
+  const colors = Array.isArray(input.colori_dominanti)
+    ? input.colori_dominanti.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+
+  const conservation = typeof input.stato_conservazione === "string"
+    ? input.stato_conservazione.trim().toLowerCase().replace(/\s+/g, "_")
+    : "";
+
+  return {
+    tipo_stanza: stringOrDefault(input.tipo_stanza, "bagno"),
+    dimensione_stimata: stringOrDefault(input.dimensione_stimata, "dimensione non identificata"),
+    altezza_stimata: stringOrDefault(input.altezza_stimata, "altezza non identificata"),
+    piastrelle_parete_attuali: stringOrDefault(input.piastrelle_parete_attuali, "non identificabili"),
+    pavimento_attuale: stringOrDefault(input.pavimento_attuale, "non identificabile"),
+    colori_dominanti: colors.slice(0, 8),
+    presenza_doccia: booleanOrDefault(input.presenza_doccia, false),
+    tipo_doccia: stringOrUndefined(input.tipo_doccia),
+    presenza_vasca: booleanOrDefault(input.presenza_vasca, false),
+    presenza_mobile: booleanOrDefault(input.presenza_mobile, false),
+    tipo_mobile: stringOrUndefined(input.tipo_mobile),
+    sanitari_tipo: stringOrUndefined(input.sanitari_tipo),
+    rubinetteria_attuale: stringOrUndefined(input.rubinetteria_attuale),
+    illuminazione_attuale: stringOrUndefined(input.illuminazione_attuale),
+    stato_conservazione: conservation === "buono" || conservation === "da_ristrutturare" ? conservation : "discreto",
+    note: stringOrUndefined(input.note),
+  };
+}
+
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
 
@@ -70,7 +145,8 @@ Deno.serve(async (req: Request) => {
 
     // ── Parse body ──────────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
-    const { image_url, session_id } = body as { image_url?: string; session_id?: string };
+    const { image_url, session_id, mode } = body as { image_url?: string; session_id?: string; mode?: string };
+    const analyzeMode = (mode || "window").trim().toLowerCase();
 
     if (!image_url) {
       return new Response(
@@ -127,7 +203,11 @@ Deno.serve(async (req: Request) => {
     const geminiBody = {
       contents: [{
         parts: [
-          { text: SYSTEM_PROMPT + "\n\n" + USER_PROMPT },
+          {
+            text: analyzeMode === "bathroom"
+              ? `${BATHROOM_SYSTEM_PROMPT}\n\n${BATHROOM_USER_PROMPT}`
+              : `${SYSTEM_PROMPT}\n\n${USER_PROMPT}`,
+          },
           { inline_data: { mime_type: mimeType, data: imgB64 } },
         ],
       }],
@@ -175,6 +255,9 @@ Deno.serve(async (req: Request) => {
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("Nessun JSON trovato nella risposta");
       fotoAnalisi = JSON.parse(jsonMatch[0]);
+      if (analyzeMode === "bathroom") {
+        fotoAnalisi = normalizeBathroomAnalysis(fotoAnalisi);
+      }
     } catch (_err) {
       return new Response(
         JSON.stringify({
@@ -193,8 +276,11 @@ Deno.serve(async (req: Request) => {
     // a qualsiasi autenticato di sovrascrivere foto_analisi di sessioni altrui
     // semplicemente conoscendo l'UUID.
     if (session_id) {
+      const sessionTable = analyzeMode === "bathroom" ? "render_bagno_sessions" : "render_sessions";
+      const analysisColumn = analyzeMode === "bathroom" ? "analisi_bagno" : "foto_analisi";
+
       const { data: sess } = await supabase
-        .from("render_sessions")
+        .from(sessionTable)
         .select("company_id")
         .eq("id", session_id)
         .maybeSingle();
@@ -222,13 +308,17 @@ Deno.serve(async (req: Request) => {
       }
 
       await supabase
-        .from("render_sessions")
-        .update({ foto_analisi: fotoAnalisi })
+        .from(sessionTable)
+        .update({ [analysisColumn]: fotoAnalisi })
         .eq("id", session_id);
     }
 
     return new Response(
-      JSON.stringify({ success: true, foto_analisi: fotoAnalisi }),
+      JSON.stringify(
+        analyzeMode === "bathroom"
+          ? { success: true, analisi_bagno: fotoAnalisi }
+          : { success: true, foto_analisi: fotoAnalisi },
+      ),
       { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
     );
 

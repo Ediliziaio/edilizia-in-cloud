@@ -51,7 +51,6 @@ export default function RenderBagnoNew() {
   // ── Step 1: Photo ──────────────────────────────────────────────────
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -102,7 +101,8 @@ export default function RenderBagnoNew() {
     setAnalisi(null);
     setAnalysisError(undefined);
     setSessionId(null);
-    setPhotoPath(null);
+    setResultUrl(null);
+    setSavedToGallery(false);
   };
 
   // ── Step 1 -> Step 2: upload + analyze ─────────────────────────────
@@ -118,7 +118,6 @@ export default function RenderBagnoNew() {
         .from("bagno-originals")
         .upload(path, photo, { contentType: photo.type, upsert: true });
       if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
 
       // 2. Crea sessione render_bagno_sessions
       const { data: sess, error: sessErr } = await supabase
@@ -140,17 +139,20 @@ export default function RenderBagnoNew() {
       setSessionId(sid);
 
       // 3. Signed URL per analisi
-      const { data: signed } = await supabase.storage
+      const { data: signed, error: signedErr } = await supabase.storage
         .from("bagno-originals")
         .createSignedUrl(path, 300);
       const imageUrl = signed?.signedUrl ?? "";
+      if (signedErr || !imageUrl) {
+        throw new Error(`Signed URL non disponibile: ${signedErr?.message ?? "URL immagine mancante"}`);
+      }
 
       setStep(2);
 
-      // 4. Analisi in background (reuse analyze-window-photo)
-      if (imageUrl) {
-        setAnalysisLoading(true);
-        setAnalysisError(undefined);
+        // 4. Analisi in background (bathroom-specific edge function)
+        if (imageUrl) {
+          setAnalysisLoading(true);
+          setAnalysisError(undefined);
 
         // Update session status
         await supabase
@@ -161,8 +163,8 @@ export default function RenderBagnoNew() {
         try {
           const { data: { session: authSession } } = await supabase.auth.getSession();
           const token = authSession?.access_token;
-          const resp = await supabase.functions.invoke("analyze-window-photo", {
-            body: { image_url: imageUrl, session_id: sid, mode: "bathroom" },
+          const resp = await supabase.functions.invoke("generate-bathroom-render", {
+            body: { action: "analyze", image_url: imageUrl, session_id: sid },
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           if (resp.error) {
@@ -176,8 +178,7 @@ export default function RenderBagnoNew() {
             throw new Error(errBody?.error ?? errBody?.message ?? resp.error.message ?? "Errore");
           }
 
-          // The analyze function may return foto_analisi or analisi_bagno
-          const analysisData = resp.data?.analisi_bagno || resp.data?.foto_analisi || resp.data;
+          const analysisData = resp.data?.analisi_bagno || resp.data?.analisi || resp.data;
           if (analysisData) {
             setAnalisi(analysisData as AnalisiBagno);
 
@@ -191,7 +192,7 @@ export default function RenderBagnoNew() {
               .eq("id", sid);
           }
         } catch (err) {
-          setAnalysisError(`Analisi AI non disponibile: ${String(err)}`);
+          setAnalysisError(`Analisi AI non disponibile: ${err instanceof Error ? err.message : String(err)}`);
           await supabase
             .from("render_bagno_sessions")
             .update({ stato: "analysis_done" })
@@ -205,7 +206,7 @@ export default function RenderBagnoNew() {
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config]);
+  }, [photo, companyId, user, config, contactId, opportunityId]);
 
   // ── Step 3 -> Step 4: start render ─────────────────────────────────
   const startRender = useCallback(async () => {
@@ -259,7 +260,7 @@ export default function RenderBagnoNew() {
 
     // Otherwise poll
     startPolling(sessionId);
-  }, [sessionId, companyId, config, queryClient, generating]);
+  }, [sessionId, companyId, config, queryClient, generating, startPolling]);
 
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -353,7 +354,7 @@ export default function RenderBagnoNew() {
       a.href = URL.createObjectURL(blob);
       a.download = `render_bagno_${Date.now()}.png`;
       a.click();
-    } catch (_) {
+    } catch {
       toast.error("Download fallito");
     }
   }, [resultUrl]);
