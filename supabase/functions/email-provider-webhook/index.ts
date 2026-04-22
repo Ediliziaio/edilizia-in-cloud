@@ -1,5 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import {
+  normalizeEvents as normalizeEventsShared,
+  type NormalizedEvent,
+} from "../_shared/webhookNormalizers.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -63,15 +67,21 @@ Deno.serve(async (req) => {
       return new Response("No body", { status: 400, headers: corsHeaders });
     }
 
-    // Normalize events
-    const events = normalizeEvents(rawBody, stream);
+    // Normalize events (shared pure module, unit-tested)
+    const events = normalizeEventsShared(rawBody, stream);
 
     // Process each event
     for (const event of events) {
       const now = new Date().toISOString();
 
+      // Track the owning company + stream for the event (derived from
+      // email_delivery_log). Used below to scope the suppression row per-company
+      // when the event is an unsubscribe.
+      let deliveryCompanyId: string | null = null;
+      let deliveryStream: string | null = null;
+
       if (event.providerMessageId) {
-        // Find the email_log by provider_message_id
+        // Find the email_log by provider_message_id (legacy marketing table)
         const { data: log } = await adminClient
           .from("email_logs")
           .select("id, status")
@@ -121,10 +131,28 @@ Deno.serve(async (req) => {
         // Mirror status updates on the unified email_delivery_log so the
         // SuperAdmin dashboard, audit log and P&L all reflect provider events
         // for transactional sends (which don't live in email_logs).
+        // Also fetches company_id + stream so we can scope suppressions below.
+        const { data: deliveryRows } = await adminClient
+          .from("email_delivery_log")
+          .select("id, company_id, stream")
+          .eq("provider_id", event.providerMessageId)
+          .limit(1);
+
+        if (deliveryRows && deliveryRows.length > 0) {
+          deliveryCompanyId = (deliveryRows[0].company_id as string | null) ?? null;
+          deliveryStream = (deliveryRows[0].stream as string | null) ?? null;
+        }
+
         const deliveryUpdate: Record<string, unknown> = {};
         switch (event.type) {
           case "delivered":
             deliveryUpdate.status = "delivered";
+            break;
+          case "opened":
+            deliveryUpdate.opened_at = now;
+            break;
+          case "clicked":
+            deliveryUpdate.clicked_at = now;
             break;
           case "bounced":
             deliveryUpdate.status = "bounced";
@@ -150,20 +178,64 @@ Deno.serve(async (req) => {
         }
       }
 
-      // BUG-03: Hard bounce or spam → mark contact as unsubscribed to prevent future sends
-      if ((event.type === "bounced" || event.type === "spam") && event.email) {
-        await adminClient
-          .from("marketing_contacts")
-          .update({ email_unsubscribed: true, email_unsubscribed_at: now })
-          .eq("email", event.email);
+      // ── Suppression upsert (dual-provider spec) ─────────────────────────
+      // hard_bounce  → GLOBAL suppression (invalid address, blocks every send)
+      // spam_complaint → GLOBAL suppression (user flagged as spam)
+      // unsubscribe → PER-COMPANY suppression (only blocks marketing from that
+      //               company; transactional keeps working — e.g. password reset)
+      //
+      // Reason values and UNIQUE NULLS NOT DISTINCT constraint are enforced by
+      // migration 20260422000003_email_suppressions_company_scope.sql.
+      if (event.email) {
+        let supReason: "hard_bounce" | "spam_complaint" | "unsubscribe" | null = null;
+        let supCompanyId: string | null = null;
 
-        // GAP-13: Add to global suppression list (upsert — ignore if already present)
-        await adminClient
-          .from("email_suppressions")
-          .upsert(
-            { email: event.email, reason: event.type === "bounced" ? "bounce" : "spam", suppressed_at: now },
-            { onConflict: "email", ignoreDuplicates: true }
-          );
+        if (event.type === "bounced" && event.isHardBounce === true) {
+          supReason = "hard_bounce";
+          supCompanyId = null; // globale
+        } else if (event.type === "spam") {
+          supReason = "spam_complaint";
+          supCompanyId = null; // globale
+        } else if (event.type === "unsubscribed") {
+          supReason = "unsubscribe";
+          // Per-company: risaliamo dalla delivery_log (o email_logs se
+          // non trovato sopra). Se nessun match → scope globale (safer default).
+          supCompanyId = deliveryCompanyId;
+        }
+
+        if (supReason) {
+          const suppressionRow: Record<string, unknown> = {
+            email: event.email,
+            company_id: supCompanyId,
+            reason: supReason,
+            suppressed_at: now,
+            source_provider: event.provider ?? null,
+            source_event_id: event.providerMessageId ?? null,
+            metadata: {
+              stream: deliveryStream ?? stream,
+              isHardBounce: event.isHardBounce ?? null,
+              reason_raw: event.reason ?? null,
+            },
+          };
+          const { error: supErr } = await adminClient
+            .from("email_suppressions")
+            .upsert(suppressionRow, {
+              onConflict: "company_id,email_normalized,reason",
+              ignoreDuplicates: true,
+            });
+          if (supErr) {
+            console.error("[email-provider-webhook] suppression upsert error:", supErr);
+          }
+
+          // BUG-03: mantieni marketing_contacts sync per hard bounce / spam
+          // (evita di rimandare la newsletter a indirizzi chiaramente cattivi).
+          if (supReason === "hard_bounce" || supReason === "spam_complaint") {
+            await adminClient
+              .from("marketing_contacts")
+              .update({ email_unsubscribed: true, email_unsubscribed_at: now })
+              .eq("email", event.email);
+          }
+        }
       }
 
       // S0.6: su HARD bounce rifondi il credito email al wallet dell'azienda.
@@ -208,142 +280,6 @@ Deno.serve(async (req) => {
   }
 });
 
-interface NormalizedEvent {
-  type: "delivered" | "opened" | "clicked" | "bounced" | "spam" | "unsubscribed" | "dropped" | "deferred" | "unknown";
-  providerMessageId?: string;
-  email?: string;
-  reason?: string;
-  timestamp?: string;
-  /**
-   * true = hard bounce (permanent, indirizzo invalido). Rifondiamo il credito.
-   * false = soft bounce (temporaneo, il provider riproverà).
-   * undefined = ambiguo, no refund.
-   */
-  isHardBounce?: boolean;
-}
-
-function normalizeEvents(body: any, stream: string): NormalizedEvent[] {
-  // SendGrid sends an array of events.
-  // Hard bounce detection: SendGrid marks `type: 'bounce'` con `bounce_classification`,
-  // oppure `type: 'blocked'` = soft. `event: 'bounce'` + `bounce_classification` in {"Invalid Address"} = hard.
-  if (Array.isArray(body)) {
-    return body.map((ev: any) => ({
-      type: mapSendGridEvent(ev.event),
-      providerMessageId: ev.sg_message_id?.split(".")?.[0],
-      email: ev.email,
-      reason: ev.reason || ev.response,
-      timestamp: ev.timestamp ? new Date(ev.timestamp * 1000).toISOString() : undefined,
-      isHardBounce: ev.event === "bounce"
-        ? (ev.type === "bounce"
-          || String(ev.bounce_classification || "").toLowerCase().includes("invalid")
-          || String(ev.reason || "").toLowerCase().includes("does not exist"))
-        : undefined,
-    }));
-  }
-
-  // Brevo: distingue hard_bounce vs soft_bounce esplicitamente
-  if (body.event && body["message-id"]) {
-    return [{
-      type: mapBrevoEvent(body.event),
-      providerMessageId: body["message-id"],
-      email: body.email,
-      reason: body.reason,
-      timestamp: body.date,
-      isHardBounce: body.event === "hard_bounce" ? true
-        : body.event === "soft_bounce" ? false
-        : undefined,
-    }];
-  }
-
-  // Elastic Email: bounce_category "HardBounce" / "Hard" = hard
-  if (body.status && body.msgID) {
-    const cat = String(body.error_category || body.bounce_category || "").toLowerCase();
-    return [{
-      type: mapElasticEvent(body.status),
-      providerMessageId: body.msgID,
-      email: body.to,
-      reason: body.error_category,
-      timestamp: body.date,
-      isHardBounce: body.status === "Bounced"
-        ? (cat.includes("hard") || cat.includes("noMailbox") || cat.includes("badaddress") ? true : undefined)
-        : undefined,
-    }];
-  }
-
-  // Mailgun: `severity: permanent` = hard, `severity: temporary` = soft
-  if (body["event-data"] || body.event) {
-    const ev = body["event-data"] || body;
-    const severity = String(ev.severity || ev["delivery-status"]?.severity || "").toLowerCase();
-    return [{
-      type: mapMailgunEvent(ev.event),
-      providerMessageId: ev.message?.headers?.["message-id"],
-      email: ev.recipient,
-      reason: ev["delivery-status"]?.description,
-      timestamp: ev.timestamp ? new Date(Number(ev.timestamp) * 1000).toISOString() : undefined,
-      isHardBounce: ev.event === "failed"
-        ? (severity === "permanent" ? true : severity === "temporary" ? false : undefined)
-        : undefined,
-    }];
-  }
-
-  // Resend: bounce.type "Permanent" / "Transient"
-  if (body.type && body.data) {
-    const btype = String(body.data?.bounce?.type || "").toLowerCase();
-    return [{
-      type: mapResendEvent(body.type),
-      providerMessageId: body.data?.email_id,
-      email: body.data?.to?.[0],
-      reason: body.data?.bounce?.message,
-      timestamp: body.created_at,
-      isHardBounce: body.type === "email.bounced"
-        ? (btype === "permanent" ? true : btype === "transient" ? false : undefined)
-        : undefined,
-    }];
-  }
-
-  return [];
-}
-
-function mapSendGridEvent(event: string): NormalizedEvent["type"] {
-  const map: Record<string, NormalizedEvent["type"]> = {
-    delivered: "delivered", open: "opened", click: "clicked",
-    bounce: "bounced", spamreport: "spam", unsubscribe: "unsubscribed",
-    dropped: "dropped", deferred: "deferred",
-  };
-  return map[event] || "unknown";
-}
-
-function mapBrevoEvent(event: string): NormalizedEvent["type"] {
-  const map: Record<string, NormalizedEvent["type"]> = {
-    delivered: "delivered", opened: "opened", click: "clicked",
-    hard_bounce: "bounced", soft_bounce: "bounced", complaint: "spam",
-    unsubscribed: "unsubscribed",
-  };
-  return map[event] || "unknown";
-}
-
-function mapElasticEvent(status: string): NormalizedEvent["type"] {
-  const map: Record<string, NormalizedEvent["type"]> = {
-    Sent: "delivered", Opened: "opened", Clicked: "clicked",
-    Bounced: "bounced", Complaint: "spam", Unsubscribed: "unsubscribed",
-    Error: "dropped",
-  };
-  return map[status] || "unknown";
-}
-
-function mapMailgunEvent(event: string): NormalizedEvent["type"] {
-  const map: Record<string, NormalizedEvent["type"]> = {
-    delivered: "delivered", opened: "opened", clicked: "clicked",
-    failed: "bounced", complained: "spam", unsubscribed: "unsubscribed",
-  };
-  return map[event] || "unknown";
-}
-
-function mapResendEvent(type: string): NormalizedEvent["type"] {
-  const map: Record<string, NormalizedEvent["type"]> = {
-    "email.delivered": "delivered", "email.opened": "opened",
-    "email.clicked": "clicked", "email.bounced": "bounced",
-    "email.complained": "spam",
-  };
-  return map[type] || "unknown";
-}
+// Tipi e logica di normalizzazione spostati in _shared/webhookNormalizers.ts
+// (pure TS, zero dipendenze Deno/esm.sh) per poter essere unit-testati via
+// vitest da src/test/logic/webhookNormalizers.test.ts.

@@ -17,6 +17,8 @@ export interface UnifiedEmailArgs {
   to: string | string[];
   subject: string;
   html: string;
+  /** Optional plain-text alternative. Callers using templates should pass the text version. */
+  text?: string;
   /** Semantic template identifier — stored in `email_delivery_log.template_type`. */
   templateName?: string;
   /** Link log row to a campaign (marketing stream). */
@@ -29,6 +31,21 @@ export interface UnifiedEmailArgs {
   adminClient?: SupabaseClient;
   /** Freeform metadata persisted on each log row. */
   metadata?: Record<string, unknown>;
+  /**
+   * Pre-resolved sender. When provided, the internal `company_email_domains`
+   * lookup is skipped and these values are used verbatim.
+   * Used by `send-transactional-v2` which relies on `_shared/resolveSender.ts`
+   * for stream-aware dual-provider (Resend / SendGrid / Elastic Email) routing.
+   */
+  senderOverride?: {
+    from: string;
+    replyTo?: string;
+    customDomainId?: string | null;
+    customDomain?: string | null;
+    usingCustomDomain?: boolean;
+    /** Provenance string persisted in the log metadata (e.g. "platform_default", "custom_domain_transactional"). */
+    source?: string;
+  };
 }
 
 export interface UnifiedEmailResult extends EmailSendResult {
@@ -168,17 +185,29 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
     }
   }
 
-  // ── 3b. Resolve custom sender domain (Sprint 7) ──────────────────────────
-  // If the company has a verified + active custom domain in
-  // public.company_email_domains, override the default `from:` so emails
-  // leave from noreply@<dominio-azienda> instead of the platform domain.
+  // ── 3b. Resolve custom sender domain ─────────────────────────────────────
+  // Priority: `senderOverride` (when passed by `send-transactional-v2` etc.)
+  // → verified + active row in `company_email_domains` (Sprint 7 single-domain)
+  // → platform default from provider settings.
   let fromAddress = settings.fromDefault;
   let customDomain: string | null = null;
-  if (args.companyId) {
+  let customDomainId: string | null = null;
+  let senderSource = "platform_default";
+  let effectiveReplyTo = args.replyTo;
+  let usingCustomDomain = false;
+
+  if (args.senderOverride) {
+    fromAddress        = args.senderOverride.from;
+    customDomain       = args.senderOverride.customDomain ?? null;
+    customDomainId     = args.senderOverride.customDomainId ?? null;
+    usingCustomDomain  = Boolean(args.senderOverride.usingCustomDomain);
+    senderSource       = args.senderOverride.source ?? "override";
+    effectiveReplyTo   = args.senderOverride.replyTo ?? effectiveReplyTo;
+  } else if (args.companyId) {
     try {
       const { data: domainRow } = await admin
         .from("company_email_domains")
-        .select("domain, from_email, from_name, is_verified, is_active")
+        .select("id, domain, from_email, from_name, is_verified, is_active")
         .eq("company_id", args.companyId)
         .eq("is_active", true)
         .maybeSingle();
@@ -188,7 +217,10 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
         fromAddress = domainRow.from_name
           ? `${domainRow.from_name} <${email}>`
           : email;
-        customDomain = domainRow.domain;
+        customDomain      = domainRow.domain;
+        customDomainId    = (domainRow.id as string | undefined) ?? null;
+        usingCustomDomain = true;
+        senderSource      = "custom_domain_legacy";
       }
     } catch {
       /* best-effort: fall back to platform default */
@@ -203,7 +235,8 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
       to:      recipients,
       subject: args.subject,
       html:    args.html,
-      replyTo: args.replyTo,
+      text:    args.text,
+      replyTo: effectiveReplyTo,
       attachments: args.attachments,
     }, { domain: customDomain ?? settings.domain ?? undefined });
   } catch (e) {
@@ -221,7 +254,13 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
         error_message: msg,
         cost_eur:      0,
         charged_eur:   shouldCharge ? pricePerEmail : 0,
-        metadata:      { provider_exception: true, ...args.metadata },
+        metadata: {
+          provider_exception: true,
+          sender_source:       senderSource,
+          custom_domain_id:    customDomainId,
+          using_custom_domain: usingCustomDomain,
+          ...args.metadata,
+        },
       });
     }
     return {
@@ -262,6 +301,9 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
         is_free: isFree,
         template_name: args.templateName ?? null,
         custom_domain: customDomain,
+        custom_domain_id: customDomainId,
+        using_custom_domain: usingCustomDomain,
+        sender_source: senderSource,
         from_address: fromAddress,
         ...args.metadata,
       },

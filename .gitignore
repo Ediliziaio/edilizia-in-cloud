@@ -40,3 +40,6 @@ supabase/.temp/
 *.sw?
 # bun.lock è committato per Cloudflare Pages build detection
 package-lock.json
+
+# Masterprompt reference docs (user-local, non committare)
+Masterprompt_*.docx

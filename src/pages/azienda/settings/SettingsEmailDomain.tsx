@@ -19,12 +19,15 @@ import {
 import {
   Copy, CheckCircle2, XCircle, Loader2, RefreshCw, Trash2, Globe, Sparkles, AlertTriangle,
 } from "lucide-react";
+import { ProviderGuideAccordion } from "@/components/email/ProviderGuideAccordion";
 
 interface DnsRecord {
-  type: "TXT" | "CNAME";
+  type: "TXT" | "CNAME" | "MX";
   host: string;
   value: string;
-  provider: "elastic_email" | "sendgrid";
+  /** Priority MX — solo Resend ha record MX per return-path SES. */
+  priority?: number;
+  provider: "elastic_email" | "sendgrid" | "resend";
   purpose: string;
   verified: boolean;
 }
@@ -34,10 +37,12 @@ interface DomainStatus {
   domain: string;
   from_email: string;
   from_name: string | null;
+  // Elastic Email (marketing)
   ee_domain_added: boolean;
   ee_spf_verified: boolean;
   ee_dkim_verified: boolean;
   ee_tracking_verified: boolean;
+  // SendGrid (transactional legacy)
   sg_domain_id: string | null;
   sg_cname_1_host: string | null;
   sg_cname_1_value: string | null;
@@ -48,10 +53,36 @@ interface DomainStatus {
   sg_cname_3_host: string | null;
   sg_cname_3_value: string | null;
   sg_cname_3_valid: boolean;
+  // Resend (transactional new default)
+  resend_domain_id: string | null;
+  resend_status:
+    | "pending"
+    | "verifying"
+    | "verified"
+    | "failed"
+    | "temporary_failure"
+    | "not_started";
+  resend_region: string;
+  // Stato aggregato
   is_verified: boolean;
   is_active: boolean;
   verified_at: string | null;
 }
+
+const PROVIDER_LABEL: Record<DnsRecord["provider"], string> = {
+  elastic_email: "Elastic Email",
+  sendgrid: "SendGrid",
+  resend: "Resend",
+};
+
+const PROVIDER_BADGE_VARIANT: Record<
+  DnsRecord["provider"],
+  "default" | "secondary" | "outline"
+> = {
+  elastic_email: "secondary", // marketing
+  sendgrid: "default",        // transactional legacy
+  resend: "default",          // transactional new
+};
 
 interface DomainResponse {
   domain: DomainStatus | null;
@@ -77,9 +108,14 @@ function DnsRow({ record }: { record: DnsRecord }) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-mono text-xs">{record.type}</Badge>
-          <Badge variant={record.provider === "elastic_email" ? "secondary" : "default"} className="text-xs">
-            {record.provider === "elastic_email" ? "Elastic Email" : "SendGrid"}
+          <Badge variant={PROVIDER_BADGE_VARIANT[record.provider]} className="text-xs">
+            {PROVIDER_LABEL[record.provider]}
           </Badge>
+          {typeof record.priority === "number" && (
+            <Badge variant="outline" className="text-xs">
+              Priorità {record.priority}
+            </Badge>
+          )}
           <span className="text-xs text-muted-foreground">{record.purpose}</span>
         </div>
         {record.verified ? (
@@ -147,7 +183,10 @@ export default function SettingsEmailDomain() {
       toast.success("Dominio registrato. Ora configura i record DNS.");
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
-    onError: (err: any) => toast.error(err?.message ?? "Errore durante l'aggiunta del dominio"),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Errore durante l'aggiunta del dominio";
+      toast.error(msg);
+    },
   });
 
   const verifyMutation = useMutation({
@@ -166,7 +205,10 @@ export default function SettingsEmailDomain() {
       }
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
-    onError: (err: any) => toast.error(err?.message ?? "Errore durante la verifica"),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Errore durante la verifica";
+      toast.error(msg);
+    },
   });
 
   const removeMutation = useMutation({
@@ -181,7 +223,10 @@ export default function SettingsEmailDomain() {
       toast.success("Dominio rimosso");
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
-    onError: (err: any) => toast.error(err?.message ?? "Errore durante la rimozione"),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Errore durante la rimozione";
+      toast.error(msg);
+    },
   });
 
   if (!companyId) {
@@ -352,8 +397,9 @@ export default function SettingsEmailDomain() {
         <CardHeader>
           <CardTitle className="text-base">Record DNS da inserire</CardTitle>
           <CardDescription>
-            Il dominio si considera verificato solo quando <strong>tutti</strong> i record sono validi
-            su entrambi i provider (Elastic Email per il marketing, SendGrid per il transazionale).
+            Il dominio si considera verificato quando <strong>Elastic Email</strong> (marketing) è OK{" "}
+            e <strong>almeno uno</strong> fra <strong>Resend</strong> o <strong>SendGrid</strong>{" "}
+            (transazionale) è OK. Così puoi migrare in modo graduale da SendGrid a Resend senza perdere lo stato verificato.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -361,7 +407,7 @@ export default function SettingsEmailDomain() {
           <Separator />
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-xs text-muted-foreground">
-              Hai già inserito i record? Clicca "Verifica DNS" per avviare il controllo su entrambi i provider.
+              Hai già inserito i record? Clicca "Verifica DNS" per avviare il controllo su tutti i provider configurati.
             </p>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => refetch()} disabled={verifyMutation.isPending}>
@@ -379,6 +425,20 @@ export default function SettingsEmailDomain() {
           </div>
         </CardContent>
       </Card>
+
+      {!domain.is_verified && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Come inserire i record DNS</CardTitle>
+            <CardDescription>
+              Scegli il tuo registrar per vedere istruzioni passo-passo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ProviderGuideAccordion />
+          </CardContent>
+        </Card>
+      )}
 
       {domain.is_verified && domain.is_active && (
         <Alert className="border-green-600">
