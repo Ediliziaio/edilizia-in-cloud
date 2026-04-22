@@ -1,0 +1,1153 @@
+// ============================================================================
+// EmailTemplatesPanel — Editor super_admin per template email transazionali
+// ============================================================================
+// Lista + editor + preview live dei template in `platform_email_templates`.
+//
+// Caratteristiche Fase 2:
+//   - Live preview con debounce 500 ms (nessun click "Genera")
+//   - Toolbar inserimento rapido (bold, link, lista, placeholder più usati)
+//   - Selettore variante ruolo (default / super_admin / company_admin / member)
+//   - Drawer cronologia revisioni + rollback a una versione specifica
+//   - Dirty tracking + guard su navigazione e selezione altri template
+//   - Responsive: sidebar collapsabile su schermi piccoli
+// ============================================================================
+
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  FileText,
+  Eye,
+  Save,
+  RotateCcw,
+  Loader2,
+  Info,
+  Sparkles,
+  CheckCircle2,
+  Code2,
+  Bold,
+  Link as LinkIcon,
+  List,
+  History,
+  UserCog,
+} from "lucide-react";
+
+import {
+  TEMPLATE_META,
+  EDITABLE_TEMPLATE_KEYS,
+  type PlaceholderDef,
+} from "@/lib/emailTemplates";
+import {
+  useEmailTemplates,
+  useUpsertEmailTemplate,
+  useDeleteEmailTemplate,
+  usePreviewEmailTemplate,
+  useEmailTemplateHistory,
+  useRollbackEmailTemplate,
+  type EmailTemplateRow,
+  type EmailTemplateHistoryRow,
+} from "@/hooks/useEmailTemplates";
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const CATEGORY_LABELS: Record<string, string> = {
+  onboarding: "Onboarding",
+  account: "Account",
+  documenti: "Documenti",
+  notifiche: "Notifiche",
+};
+
+const PLACEHOLDER_CATEGORY_LABELS: Record<string, string> = {
+  destinatario: "Destinatario",
+  contenuto: "Contenuto",
+  link: "Link",
+  azienda: "Azienda",
+};
+
+/** Varianti ruolo supportate (aggiungere qui nuove varianti). */
+const ROLE_VARIANTS: Array<{ value: string; label: string; hint: string }> = [
+  { value: "__default__", label: "Default (tutti i ruoli)", hint: "Usato se non esiste una variante specifica" },
+  { value: "super_admin", label: "Super admin", hint: "Solo admin di piattaforma" },
+  { value: "company_admin", label: "Admin azienda", hint: "Amministratori delle aziende clienti" },
+  { value: "company_member", label: "Membro azienda", hint: "Operai / collaboratori" },
+  { value: "client", label: "Cliente finale", hint: "Destinatari esterni (clienti delle aziende)" },
+];
+
+const DEFAULT_VARIANT = "__default__";
+
+/** Sentinel client-side → valore DB (NULL per default). */
+function variantToDb(v: string): string | null {
+  return v === DEFAULT_VARIANT ? null : v;
+}
+
+/** Placeholder default HTML quando il super_admin parte da zero. */
+function defaultHtmlBodyFor(templateKey: string): string {
+  const meta = TEMPLATE_META[templateKey];
+  if (!meta) return "";
+  return `<h1 style="margin:0 0 16px 0;font-size:24px;font-weight:700;color:#1a1a1a;">
+  ${meta.label}
+</h1>
+<p style="margin:0 0 16px 0;">
+  Testo principale del messaggio.
+</p>`;
+}
+
+/** Debounce hook: ritorna un valore che si aggiorna solo dopo `delay` ms di stabilità. */
+function useDebounced<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
+
+/** Inserisce testo in una textarea gestita da React preservando la selezione. */
+function insertAtCursor(
+  textarea: HTMLTextAreaElement,
+  insert: string,
+  selectionOffset?: number,
+): { next: string; caret: number } {
+  const { value, selectionStart, selectionEnd } = textarea;
+  const before = value.slice(0, selectionStart);
+  const selected = value.slice(selectionStart, selectionEnd);
+  const after = value.slice(selectionEnd);
+  const finalInsert = insert.includes("$SEL$")
+    ? insert.replace("$SEL$", selected || "")
+    : insert;
+  const next = `${before}${finalInsert}${after}`;
+  const caret = before.length + (selectionOffset ?? finalInsert.length);
+  return { next, caret };
+}
+
+// ── Sub-component: placeholder chip list ────────────────────────────────────
+function PlaceholderChips({
+  placeholders,
+  onInsert,
+}: {
+  placeholders: PlaceholderDef[];
+  onInsert: (key: string) => void;
+}) {
+  const byCategory = useMemo(() => {
+    const groups: Record<string, PlaceholderDef[]> = {};
+    for (const p of placeholders) {
+      (groups[p.category] ??= []).push(p);
+    }
+    return groups;
+  }, [placeholders]);
+
+  return (
+    <div className="space-y-3">
+      {Object.entries(byCategory).map(([cat, items]) => (
+        <div key={cat}>
+          <p className="text-xs font-medium text-muted-foreground mb-1.5">
+            {PLACEHOLDER_CATEGORY_LABELS[cat] ?? cat}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {items.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => onInsert(p.key)}
+                className="text-xs font-mono px-2 py-1 rounded-md bg-muted hover:bg-muted/80 border text-left transition-colors"
+                title={`${p.label}${p.required ? " (obbligatorio)" : ""} — es. ${p.example}`}
+              >
+                {`{{${p.key}}}`}
+                {p.required && (
+                  <span aria-label="Obbligatorio" className="ml-1 text-destructive">
+                    *
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Sub-component: history list ─────────────────────────────────────────────
+function HistoryList({
+  templateId,
+  onRollback,
+  onClose,
+}: {
+  templateId: string | null;
+  onRollback: (row: EmailTemplateHistoryRow) => void;
+  onClose: () => void;
+}) {
+  const historyQuery = useEmailTemplateHistory(templateId);
+
+  if (!templateId) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Nessuna cronologia disponibile: questo template non ha ancora una
+        personalizzazione salvata.
+      </p>
+    );
+  }
+
+  if (historyQuery.isLoading) {
+    return <Skeleton className="h-40 w-full" />;
+  }
+
+  if (historyQuery.error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          Errore caricamento cronologia: {(historyQuery.error as Error).message}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const rows = historyQuery.data ?? [];
+  if (rows.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Ancora nessuna modifica salvata dopo la prima versione.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div
+          key={row.id}
+          className="border rounded-md p-3 space-y-2 hover:bg-muted/30 transition-colors"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="text-xs">
+                  v{row.version}
+                </Badge>
+                <Badge
+                  variant={
+                    row.change_type === "restore"
+                      ? "default"
+                      : row.change_type === "delete"
+                        ? "destructive"
+                        : "secondary"
+                  }
+                  className="text-xs"
+                >
+                  {row.change_type === "update"
+                    ? "Modifica"
+                    : row.change_type === "restore"
+                      ? "Ripristino"
+                      : "Rimosso"}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(row.changed_at).toLocaleString("it-IT")}
+                </span>
+              </div>
+              <p className="text-sm mt-1 truncate font-medium">
+                {row.subject}
+              </p>
+              {row.notes && (
+                <p className="text-xs text-muted-foreground mt-0.5 italic line-clamp-2">
+                  {row.notes}
+                </p>
+              )}
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline" className="shrink-0">
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Ripristina
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Ripristinare la versione {row.version}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Il contenuto corrente verrà sostituito con lo snapshot
+                    del <strong>{new Date(row.changed_at).toLocaleString("it-IT")}</strong>.
+                    La versione attuale viene archiviata nella cronologia e
+                    puoi sempre tornare indietro.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      onRollback(row);
+                      onClose();
+                    }}
+                  >
+                    Ripristina versione {row.version}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Main panel ──────────────────────────────────────────────────────────────
+export function EmailTemplatesPanel() {
+  const templatesQuery = useEmailTemplates();
+  const upsert = useUpsertEmailTemplate();
+  const del = useDeleteEmailTemplate();
+  const preview = usePreviewEmailTemplate();
+  const rollback = useRollbackEmailTemplate();
+
+  // Map (template_key + role_variant) → row DB
+  const dbMap = useMemo(() => {
+    const m = new Map<string, EmailTemplateRow>();
+    for (const row of templatesQuery.data ?? []) {
+      const key = `${row.template_key}::${row.role_variant ?? "__default__"}`;
+      m.set(key, row);
+    }
+    return m;
+  }, [templatesQuery.data]);
+
+  /** Ritorna quante varianti esistono in DB per una template_key. */
+  const variantCountByKey = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const row of templatesQuery.data ?? []) {
+      m.set(row.template_key, (m.get(row.template_key) ?? 0) + 1);
+    }
+    return m;
+  }, [templatesQuery.data]);
+
+  // Selection
+  const [selectedKey, setSelectedKey] = useState<string>(EDITABLE_TEMPLATE_KEYS[0]);
+  const [selectedVariant, setSelectedVariant] = useState<string>(DEFAULT_VARIANT);
+
+  // Form state
+  const [subject, setSubject] = useState("");
+  const [htmlBody, setHtmlBody] = useState("");
+  const [textBody, setTextBody] = useState("");
+  const [notes, setNotes] = useState("");
+  const [enabled, setEnabled] = useState(true);
+  const [dirty, setDirty] = useState(false);
+
+  // History drawer
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  // Preview cache (HTML renderizzato)
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+
+  const htmlBodyRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const selectedMeta = TEMPLATE_META[selectedKey];
+  const selectedRow = dbMap.get(`${selectedKey}::${selectedVariant}`);
+
+  // ── Sync form quando cambia selezione o dati DB ──
+  useEffect(() => {
+    if (selectedRow) {
+      setSubject(selectedRow.subject);
+      setHtmlBody(selectedRow.html_body);
+      setTextBody(selectedRow.text_body ?? "");
+      setNotes(selectedRow.notes ?? "");
+      setEnabled(selectedRow.enabled);
+    } else {
+      setSubject(selectedMeta?.label ?? "");
+      setHtmlBody(defaultHtmlBodyFor(selectedKey));
+      setTextBody("");
+      setNotes("");
+      setEnabled(true);
+    }
+    setDirty(false);
+    setPreviewHtml(null);
+  }, [selectedKey, selectedVariant, selectedRow, selectedMeta]);
+
+  // ── Live preview con debounce 500 ms ──
+  const debouncedSubject = useDebounced(subject, 500);
+  const debouncedHtml = useDebounced(htmlBody, 500);
+  const debouncedText = useDebounced(textBody, 500);
+
+  useEffect(() => {
+    if (!debouncedSubject.trim() || !debouncedHtml.trim()) {
+      setPreviewHtml(null);
+      return;
+    }
+    // Evita race: salva il "current request id" in closure
+    let cancelled = false;
+    preview.mutate(
+      {
+        subject: debouncedSubject,
+        htmlBody: debouncedHtml,
+        textBody: debouncedText.trim() ? debouncedText : null,
+        mockProps: selectedMeta?.mockProps ?? {},
+        roleVariant: variantToDb(selectedVariant),
+      },
+      {
+        onSuccess: (data) => {
+          if (!cancelled) setPreviewHtml(data.html);
+        },
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+    // preview è stabile (hook result) — non serve in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSubject, debouncedHtml, debouncedText, selectedKey, selectedVariant]);
+
+  // ── Azioni form ──
+  const markDirty = useCallback(() => setDirty(true), []);
+
+  const insertIntoHtml = useCallback(
+    (snippet: string) => {
+      const el = htmlBodyRef.current;
+      if (!el) {
+        setHtmlBody((prev) => `${prev}${snippet.replace("$SEL$", "")}`);
+        markDirty();
+        return;
+      }
+      const { next, caret } = insertAtCursor(el, snippet);
+      setHtmlBody(next);
+      markDirty();
+      // ripristina focus + cursore dopo il re-render
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(caret, caret);
+      });
+    },
+    [markDirty],
+  );
+
+  const handleInsertPlaceholder = (key: string) => {
+    insertIntoHtml(`{{${key}}}`);
+  };
+
+  const handleFormatBold = () => insertIntoHtml(`<strong>$SEL$</strong>`);
+  const handleFormatLink = () =>
+    insertIntoHtml(`<a href="https://" style="color:#F97316;">$SEL$</a>`);
+  const handleFormatList = () =>
+    insertIntoHtml(
+      `<ul style="margin:0 0 16px 0;padding-left:20px;">\n  <li>$SEL$</li>\n  <li></li>\n</ul>`,
+    );
+
+  const handleSave = () => {
+    if (!selectedKey || !subject.trim() || !htmlBody.trim()) return;
+    upsert.mutate(
+      {
+        template_key: selectedKey,
+        role_variant: variantToDb(selectedVariant),
+        subject,
+        html_body: htmlBody,
+        text_body: textBody.trim() ? textBody : null,
+        enabled,
+        notes: notes.trim() ? notes : null,
+      },
+      { onSuccess: () => setDirty(false) },
+    );
+  };
+
+  const handleResetToDefault = () => {
+    if (!selectedRow) return;
+    del.mutate(selectedRow.id);
+  };
+
+  const handleRollback = (row: EmailTemplateHistoryRow) => {
+    rollback.mutate(row.id);
+  };
+
+  /** Guard quando si cambia template con modifiche non salvate. */
+  const handleSelectKey = (key: string) => {
+    if (dirty) {
+      const ok = window.confirm(
+        "Ci sono modifiche non salvate. Cambiare template le perderà. Continuare?",
+      );
+      if (!ok) return;
+    }
+    setSelectedKey(key);
+  };
+
+  const handleSelectVariant = (variant: string) => {
+    if (dirty) {
+      const ok = window.confirm(
+        "Ci sono modifiche non salvate. Cambiare variante le perderà. Continuare?",
+      );
+      if (!ok) return;
+    }
+    setSelectedVariant(variant);
+  };
+
+  // ── Render ──
+  if (templatesQuery.isLoading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-[320px_1fr]">
+        <Skeleton className="h-[500px]" />
+        <Skeleton className="h-[500px]" />
+      </div>
+    );
+  }
+
+  if (templatesQuery.error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          Errore nel caricamento dei template: {(templatesQuery.error as Error).message}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription className="text-sm">
+          Personalizza oggetto e corpo delle email transazionali. Le modifiche
+          sono salvate per variante di ruolo: se una variante specifica non
+          esiste, viene usato il <em>Default</em>. Il layout esterno (header,
+          logo, footer) è gestito automaticamente e identico per tutti.
+        </AlertDescription>
+      </Alert>
+
+      <div className="grid gap-4 md:grid-cols-[320px_1fr]">
+        {/* ── Sidebar lista ── */}
+        <Card className="h-fit md:sticky md:top-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Template disponibili
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-2">
+            <div className="space-y-1 max-h-[70vh] overflow-y-auto">
+              {EDITABLE_TEMPLATE_KEYS.map((key) => {
+                const meta = TEMPLATE_META[key];
+                if (!meta) return null;
+                const isSelected = key === selectedKey;
+                const variantCount = variantCountByKey.get(key) ?? 0;
+                const hasAnyOverride = variantCount > 0;
+                const defaultRow = dbMap.get(`${key}::${DEFAULT_VARIANT}`);
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleSelectKey(key)}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                      isSelected
+                        ? "bg-primary/10 border border-primary/30"
+                        : "hover:bg-muted/50 border border-transparent"
+                    }`}
+                    aria-pressed={isSelected}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{meta.label}</p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {CATEGORY_LABELS[meta.category] ?? meta.category}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {hasAnyOverride && (
+                          <Badge
+                            variant={
+                              defaultRow && !defaultRow.enabled
+                                ? "secondary"
+                                : "default"
+                            }
+                            className="text-xs h-5 gap-1"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            {variantCount > 1 ? `${variantCount} var.` : "Custom"}
+                          </Badge>
+                        )}
+                        {!hasAnyOverride && (
+                          <span className="text-xs text-muted-foreground">Default</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Editor principale ── */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-base">
+                  {selectedMeta?.label ?? selectedKey}
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  {selectedMeta?.description}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                {selectedRow && (
+                  <Badge variant="outline" className="text-xs">
+                    v{selectedRow.version}
+                  </Badge>
+                )}
+
+                {/* Bottone cronologia */}
+                <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+                  <SheetTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!selectedRow}
+                      title={
+                        selectedRow
+                          ? "Mostra cronologia revisioni"
+                          : "Disponibile dopo il primo salvataggio"
+                      }
+                    >
+                      <History className="h-4 w-4 mr-1" />
+                      Cronologia
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+                    <SheetHeader>
+                      <SheetTitle className="flex items-center gap-2">
+                        <History className="h-4 w-4" />
+                        Cronologia revisioni
+                      </SheetTitle>
+                      <SheetDescription>
+                        Ultime 50 modifiche al template{" "}
+                        <strong>{selectedMeta?.label}</strong>{" "}
+                        ({ROLE_VARIANTS.find((r) => r.value === selectedVariant)?.label}).
+                        Puoi ripristinare qualsiasi versione in un click.
+                      </SheetDescription>
+                    </SheetHeader>
+                    <div className="mt-4">
+                      <HistoryList
+                        templateId={selectedRow?.id ?? null}
+                        onRollback={handleRollback}
+                        onClose={() => setHistoryOpen(false)}
+                      />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id={`enabled-${selectedKey}-${selectedVariant}`}
+                    checked={enabled}
+                    onCheckedChange={(v) => {
+                      setEnabled(v);
+                      markDirty();
+                    }}
+                    aria-label="Personalizzazione attiva"
+                  />
+                  <Label
+                    htmlFor={`enabled-${selectedKey}-${selectedVariant}`}
+                    className="text-xs cursor-pointer"
+                  >
+                    {enabled ? "Attivo" : "Disattivato"}
+                  </Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Variant selector */}
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <UserCog className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-xs text-muted-foreground mr-1">
+                Variante ruolo:
+              </Label>
+              <Select value={selectedVariant} onValueChange={handleSelectVariant}>
+                <SelectTrigger className="w-[260px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_VARIANTS.map((r) => {
+                    const hasRow = dbMap.has(`${selectedKey}::${r.value}`);
+                    return (
+                      <SelectItem key={r.value} value={r.value}>
+                        <div className="flex items-center gap-2">
+                          {hasRow && (
+                            <span
+                              className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0"
+                              aria-label="Variante salvata"
+                            />
+                          )}
+                          <div>
+                            <p className="text-sm">{r.label}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {r.hint}
+                            </p>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <Tabs defaultValue="split" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="split" className="gap-2">
+                  <Eye className="h-4 w-4" />
+                  Editor + Anteprima
+                </TabsTrigger>
+                <TabsTrigger value="content" className="gap-2">
+                  <Code2 className="h-4 w-4" />
+                  Solo editor
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="gap-2">
+                  <Eye className="h-4 w-4" />
+                  Solo anteprima
+                </TabsTrigger>
+              </TabsList>
+
+              {/* ── TAB SPLIT: editor sx + preview dx, live ── */}
+              <TabsContent value="split" className="space-y-4">
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <EditorForm
+                    subject={subject}
+                    setSubject={(v) => {
+                      setSubject(v);
+                      markDirty();
+                    }}
+                    htmlBody={htmlBody}
+                    setHtmlBody={(v) => {
+                      setHtmlBody(v);
+                      markDirty();
+                    }}
+                    textBody={textBody}
+                    setTextBody={(v) => {
+                      setTextBody(v);
+                      markDirty();
+                    }}
+                    notes={notes}
+                    setNotes={(v) => {
+                      setNotes(v);
+                      markDirty();
+                    }}
+                    meta={selectedMeta}
+                    onInsertPlaceholder={handleInsertPlaceholder}
+                    onFormatBold={handleFormatBold}
+                    onFormatLink={handleFormatLink}
+                    onFormatList={handleFormatList}
+                    htmlRef={htmlBodyRef}
+                    compact
+                  />
+                  <LivePreview
+                    html={previewHtml}
+                    isLoading={preview.isPending}
+                    error={preview.error as Error | null}
+                  />
+                </div>
+                <ActionBar
+                  canSave={
+                    !!subject.trim() &&
+                    !!htmlBody.trim() &&
+                    dirty &&
+                    !upsert.isPending
+                  }
+                  saving={upsert.isPending}
+                  dirty={dirty}
+                  hasSavedRow={!!selectedRow}
+                  deleting={del.isPending}
+                  onSave={handleSave}
+                  onReset={handleResetToDefault}
+                />
+              </TabsContent>
+
+              {/* ── TAB CONTENT: solo editor a piena larghezza ── */}
+              <TabsContent value="content" className="space-y-4">
+                <EditorForm
+                  subject={subject}
+                  setSubject={(v) => {
+                    setSubject(v);
+                    markDirty();
+                  }}
+                  htmlBody={htmlBody}
+                  setHtmlBody={(v) => {
+                    setHtmlBody(v);
+                    markDirty();
+                  }}
+                  textBody={textBody}
+                  setTextBody={(v) => {
+                    setTextBody(v);
+                    markDirty();
+                  }}
+                  notes={notes}
+                  setNotes={(v) => {
+                    setNotes(v);
+                    markDirty();
+                  }}
+                  meta={selectedMeta}
+                  onInsertPlaceholder={handleInsertPlaceholder}
+                  onFormatBold={handleFormatBold}
+                  onFormatLink={handleFormatLink}
+                  onFormatList={handleFormatList}
+                  htmlRef={htmlBodyRef}
+                />
+                <ActionBar
+                  canSave={
+                    !!subject.trim() &&
+                    !!htmlBody.trim() &&
+                    dirty &&
+                    !upsert.isPending
+                  }
+                  saving={upsert.isPending}
+                  dirty={dirty}
+                  hasSavedRow={!!selectedRow}
+                  deleting={del.isPending}
+                  onSave={handleSave}
+                  onReset={handleResetToDefault}
+                />
+              </TabsContent>
+
+              {/* ── TAB PREVIEW: solo anteprima a piena larghezza ── */}
+              <TabsContent value="preview" className="space-y-3">
+                <LivePreview
+                  html={previewHtml}
+                  isLoading={preview.isPending}
+                  error={preview.error as Error | null}
+                  tall
+                />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ── Editor form (estratto) ──────────────────────────────────────────────────
+function EditorForm({
+  subject,
+  setSubject,
+  htmlBody,
+  setHtmlBody,
+  textBody,
+  setTextBody,
+  notes,
+  setNotes,
+  meta,
+  onInsertPlaceholder,
+  onFormatBold,
+  onFormatLink,
+  onFormatList,
+  htmlRef,
+  compact,
+}: {
+  subject: string;
+  setSubject: (v: string) => void;
+  htmlBody: string;
+  setHtmlBody: (v: string) => void;
+  textBody: string;
+  setTextBody: (v: string) => void;
+  notes: string;
+  setNotes: (v: string) => void;
+  meta: ReturnType<typeof TEMPLATE_META[string]> | undefined;
+  onInsertPlaceholder: (key: string) => void;
+  onFormatBold: () => void;
+  onFormatLink: () => void;
+  onFormatList: () => void;
+  htmlRef: React.MutableRefObject<HTMLTextAreaElement | null>;
+  compact?: boolean;
+}) {
+  return (
+    <div className={compact ? "space-y-4" : "grid gap-4 lg:grid-cols-[1fr_240px]"}>
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="subject">Oggetto *</Label>
+          <Input
+            id="subject"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="es. Benvenuto in {{companyName}}"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <Label htmlFor="htmlBody">Corpo HTML *</Label>
+            {/* Toolbar formatting */}
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2"
+                onClick={onFormatBold}
+                title="Grassetto"
+                aria-label="Grassetto"
+              >
+                <Bold className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2"
+                onClick={onFormatLink}
+                title="Link"
+                aria-label="Inserisci link"
+              >
+                <LinkIcon className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2"
+                onClick={onFormatList}
+                title="Elenco puntato"
+                aria-label="Elenco puntato"
+              >
+                <List className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+          <Textarea
+            id="htmlBody"
+            ref={htmlRef}
+            value={htmlBody}
+            onChange={(e) => setHtmlBody(e.target.value)}
+            rows={compact ? 12 : 14}
+            className="font-mono text-sm"
+            placeholder="<h1>Titolo</h1>..."
+            spellCheck={false}
+          />
+          <p className="text-xs text-muted-foreground">
+            Solo il <strong>contenuto centrale</strong>. Header/logo/footer sono
+            aggiunti dal layout.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="textBody">Testo plain (opzionale)</Label>
+          <Textarea
+            id="textBody"
+            value={textBody}
+            onChange={(e) => setTextBody(e.target.value)}
+            rows={4}
+            placeholder="Fallback testo per client che non supportano HTML. Se vuoto è generato automaticamente."
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="notes">Note interne (opzionale)</Label>
+          <Textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            placeholder="Es. testato su Gmail + Outlook 365 il 12/04"
+          />
+        </div>
+
+        {/* Placeholder chips inline in modo compact */}
+        {compact && meta && (
+          <div className="pt-2 border-t">
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              Placeholder disponibili
+            </p>
+            <PlaceholderChips
+              placeholders={meta.placeholders}
+              onInsert={onInsertPlaceholder}
+            />
+          </div>
+        )}
+      </div>
+
+      {!compact && (
+        <div className="lg:border-l lg:pl-4">
+          <p className="text-sm font-medium mb-2">Placeholder disponibili</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            Click per aggiungere al corpo. L'asterisco indica campi obbligatori.
+          </p>
+          {meta && (
+            <PlaceholderChips
+              placeholders={meta.placeholders}
+              onInsert={onInsertPlaceholder}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Live preview pane ───────────────────────────────────────────────────────
+function LivePreview({
+  html,
+  isLoading,
+  error,
+  tall,
+}: {
+  html: string | null;
+  isLoading: boolean;
+  error: Error | null;
+  tall?: boolean;
+}) {
+  const frameHeight = tall ? "h-[760px]" : "h-[600px]";
+
+  if (error) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">Anteprima</p>
+          {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+        </div>
+        <Alert variant="destructive">
+          <AlertDescription>Errore anteprima: {error.message}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium flex items-center gap-2">
+          Anteprima
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          ) : html ? (
+            <CheckCircle2 className="h-3 w-3 text-green-600" />
+          ) : null}
+        </p>
+        <p className="text-xs text-muted-foreground">Dati di esempio</p>
+      </div>
+
+      {html ? (
+        <div className={`rounded-md border overflow-hidden bg-white ${frameHeight}`}>
+          <iframe
+            srcDoc={html}
+            title="Anteprima email"
+            className="w-full h-full border-0"
+            sandbox=""
+          />
+        </div>
+      ) : (
+        <div
+          className={`rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground ${frameHeight} flex items-center justify-center`}
+        >
+          Scrivi oggetto e corpo per vedere l'anteprima.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Action bar ──────────────────────────────────────────────────────────────
+function ActionBar({
+  canSave,
+  saving,
+  dirty,
+  hasSavedRow,
+  deleting,
+  onSave,
+  onReset,
+}: {
+  canSave: boolean;
+  saving: boolean;
+  dirty: boolean;
+  hasSavedRow: boolean;
+  deleting: boolean;
+  onSave: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
+      <Button onClick={onSave} disabled={!canSave}>
+        {saving ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Save className="h-4 w-4 mr-2" />
+        )}
+        Salva personalizzazione
+      </Button>
+
+      {hasSavedRow && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" disabled={deleting}>
+              {deleting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4 mr-2" />
+              )}
+              Ripristina default
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Ripristinare il default?</AlertDialogTitle>
+              <AlertDialogDescription>
+                La personalizzazione corrente verrà rimossa e il template tornerà
+                al contenuto hardcoded di default. La cronologia salverà
+                comunque una copia dello stato attuale.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction onClick={onReset}>Ripristina</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {dirty && (
+        <span className="text-xs text-muted-foreground ml-auto">
+          Modifiche non salvate
+        </span>
+      )}
+      {!dirty && hasSavedRow && (
+        <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
+          <CheckCircle2 className="h-3 w-3 text-green-600" />
+          Salvato
+        </span>
+      )}
+    </div>
+  );
+}
