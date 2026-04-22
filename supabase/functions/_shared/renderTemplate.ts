@@ -9,6 +9,11 @@ import * as quoteSent from "./email-templates/quote-sent.ts";
 import * as passwordReset from "./email-templates/password-reset.ts";
 import * as invoiceDueSoon from "./email-templates/invoice-due-soon.ts";
 import * as userInvited from "./email-templates/user-invited.ts";
+import * as accountVerify from "./email-templates/account-verify.ts";
+import * as paymentReceived from "./email-templates/payment-received.ts";
+import { renderLayout } from "./email-templates/layout.ts";
+import { resolveTemplate } from "./email-templates/resolveTemplate.ts";
+import { applyPlaceholders, htmlToPlainText } from "./email-templates/applyPlaceholders.ts";
 
 /** Mappa template-name → renderer. Aggiungere qui nuovi template. */
 const TEMPLATE_REGISTRY = {
@@ -19,6 +24,8 @@ const TEMPLATE_REGISTRY = {
   password_reset: passwordReset.render,
   invoice_due_soon: invoiceDueSoon.render,
   user_invited: userInvited.render,
+  account_verify: accountVerify.render,
+  payment_received: paymentReceived.render,
 } as const;
 
 export type TemplateName = keyof typeof TEMPLATE_REGISTRY;
@@ -31,27 +38,69 @@ export const AVAILABLE_TEMPLATES: TemplateName[] = [
   "password_reset",
   "invoice_due_soon",
   "user_invited",
+  "account_verify",
+  "payment_received",
 ];
 
 /**
+ * Legge i default di piattaforma (firma, footer, support mail) da
+ * `platform_settings`. Mai throw: errore → defaults hardcoded EiC.
+ * Il risultato è una mappa piatta key→value delle sole chiavi email_*
+ * rilevanti per il branding.
+ */
+async function loadPlatformEmailDefaults(
+  adminClient: SupabaseClient,
+): Promise<Record<string, string>> {
+  try {
+    const { data, error } = await adminClient
+      .from("platform_settings")
+      .select("key, value")
+      .in("key", [
+        "email_default_from_name",
+        "email_default_footer_text",
+        "email_default_support_mail",
+        "email_signature_text",
+        "email_signature_html",
+      ]);
+
+    if (error || !data) return {};
+    const map: Record<string, string> = {};
+    for (const row of data as Array<{ key: string; value: string }>) {
+      if (row.key && typeof row.value === "string") map[row.key] = row.value;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Carica il branding dinamico per una company da company_email_preferences
- * + companies.name (fallback se preferences assenti).
+ * + companies.name. Se company senza override → fallback a platform_settings
+ * (firma/footer/support configurati dal SuperAdmin) → hardcoded EiC.
  */
 export async function loadBranding(
   companyId: string | null,
   adminClient: SupabaseClient,
   overrides?: { unsubscribeUrl?: string | null },
 ): Promise<Branding> {
-  // Default branding EiC
+  // Carica i default platform-wide in parallelo: servono sempre come fallback
+  const platformDefaults = await loadPlatformEmailDefaults(adminClient);
+
+  const fallbackCompanyName = platformDefaults.email_default_from_name || "EdiliziaInCloud";
+  const fallbackFooter = platformDefaults.email_default_footer_text || null;
+  const fallbackSupport = platformDefaults.email_default_support_mail || "support@ediliziaincloud.it";
+
+  // Default branding EiC (company senza id)
   const defaultBranding: Branding = {
-    companyName: "EdiliziaInCloud",
+    companyName: fallbackCompanyName,
     logoUrl: null,
     primaryColor: "#1E3A5F",
     secondaryColor: "#F97316",
-    footerText: null,
+    footerText: fallbackFooter,
     showPoweredBy: true,
     unsubscribeFooterHtml: null,
-    replyTo: "support@ediliziaincloud.it",
+    replyTo: fallbackSupport,
     unsubscribeUrl: overrides?.unsubscribeUrl ?? null,
   };
 
@@ -77,14 +126,20 @@ export async function loadBranding(
   const company = companyRes.data as { name?: string } | null;
 
   return {
-    companyName: (prefs?.sender_name as string | undefined) || company?.name || "EdiliziaInCloud",
+    companyName:
+      (prefs?.sender_name as string | undefined) ||
+      company?.name ||
+      fallbackCompanyName,
     logoUrl: (prefs?.logo_url as string | undefined) ?? null,
     primaryColor: (prefs?.primary_color as string | undefined) || "#1E3A5F",
     secondaryColor: (prefs?.secondary_color as string | undefined) || "#F97316",
-    footerText: (prefs?.footer_text as string | undefined) ?? null,
+    footerText:
+      (prefs?.footer_text as string | undefined) ?? fallbackFooter,
     showPoweredBy: prefs?.footer_show_powered_by !== false,
-    unsubscribeFooterHtml: (prefs?.unsubscribe_footer_html as string | undefined) ?? null,
-    replyTo: (prefs?.reply_to_email as string | undefined) || "support@ediliziaincloud.it",
+    unsubscribeFooterHtml:
+      (prefs?.unsubscribe_footer_html as string | undefined) ?? null,
+    replyTo:
+      (prefs?.reply_to_email as string | undefined) || fallbackSupport,
     unsubscribeUrl: overrides?.unsubscribeUrl ?? null,
   };
 }
@@ -107,6 +162,11 @@ export async function renderEmailTemplate<K extends TemplateName>(params: {
   adminClient?: SupabaseClient;
   brandingOverride?: Partial<Branding>;
   unsubscribeUrl?: string | null;
+  /**
+   * Variante per ruolo (es. "super_admin", "company_admin"). Se NULL o
+   * non matchata nel DB si ricade sul default.
+   */
+  roleVariant?: string | null;
 }): Promise<RenderedTemplate> {
   const admin = params.adminClient ?? createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -131,6 +191,32 @@ export async function renderEmailTemplate<K extends TemplateName>(params: {
     ...baseBranding,
     ...params.brandingOverride,
   };
+
+  // ── DB-first: controlla se il super_admin ha personalizzato il template ───
+  // Se presente, render del body con substitution + layout condiviso.
+  // Se assente o errore → fallback silenzioso al renderer hardcoded.
+  const override = await resolveTemplate(admin, params.templateName, params.roleVariant ?? null);
+  if (override) {
+    // Placeholder data: props + branding-derived (companyName ecc.)
+    const placeholderData: Record<string, unknown> = {
+      ...(params.props as Record<string, unknown>),
+      companyName: branding.companyName,
+    };
+
+    const innerBodyHtml = applyPlaceholders(override.html_body, placeholderData, true);
+    const subject = applyPlaceholders(override.subject, placeholderData, false);
+    const rawText = override.text_body
+      ? applyPlaceholders(override.text_body, placeholderData, false)
+      : htmlToPlainText(innerBodyHtml);
+
+    const html = renderLayout({
+      branding,
+      innerBodyHtml,
+      preheaderText: subject,
+    });
+
+    return { subject, html, text: rawText };
+  }
 
   return rendererFn(params.props, branding);
 }
