@@ -59,6 +59,18 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   FileText,
   Eye,
   Save,
@@ -77,6 +89,7 @@ import {
   Smartphone,
   Tablet,
   Undo2,
+  Variable,
   Redo2,
 } from "lucide-react";
 
@@ -593,6 +606,10 @@ function buildLocalPreviewHtml(subject: string, htmlBody: string, mockProps: Rec
 </html>`;
 }
 
+function placeholderTag(key: string) {
+  return key.trim().startsWith("{{") ? key.trim() : `{{${key.trim()}}}`;
+}
+
 /** Debounce hook: ritorna un valore che si aggiorna solo dopo `delay` ms di stabilità. */
 function useDebounced<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -691,6 +708,62 @@ function PlaceholderChips({
         </div>
       ))}
     </div>
+  );
+}
+
+function SubjectVariableButton({
+  placeholders,
+  onInsert,
+}: {
+  placeholders: PlaceholderDef[];
+  onInsert: (tag: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return placeholders;
+    return placeholders.filter((placeholder) =>
+      placeholder.key.toLowerCase().includes(normalized) ||
+      placeholder.label.toLowerCase().includes(normalized) ||
+      (placeholder.category ?? "").toLowerCase().includes(normalized),
+    );
+  }, [placeholders, query]);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs">
+          <Variable className="mr-1 h-3 w-3" />
+          Variabili
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="max-h-[340px] w-[320px] overflow-y-auto">
+        <div className="sticky top-0 z-10 border-b bg-background p-2">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => event.stopPropagation()}
+            placeholder="Cerca variabile"
+            className="h-8 text-xs"
+          />
+        </div>
+        {filtered.slice(0, 120).map((placeholder) => {
+          const tag = placeholderTag(placeholder.key);
+          return (
+            <DropdownMenuItem key={placeholder.key} onClick={() => onInsert(tag)}>
+              <span className="mr-2 min-w-0 flex-1 truncate font-mono text-xs text-primary">{tag}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{placeholder.label}</span>
+            </DropdownMenuItem>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="px-3 py-5 text-center text-xs text-muted-foreground">
+            Nessuna variabile trovata.
+          </div>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1321,6 +1394,15 @@ export function EmailTemplatesPanel() {
                     markDirty();
                   }}
                   placeholders={availablePlaceholders}
+                  canSave={
+                    !!subject.trim() &&
+                    !!htmlBody.trim() &&
+                    dirty &&
+                    !upsert.isPending
+                  }
+                  saving={upsert.isPending}
+                  dirty={dirty}
+                  onSave={handleSave}
                 />
                 <ActionBar
                   canSave={
@@ -1466,6 +1548,10 @@ function VisualTemplateBuilder({
   blocks,
   setBlocks,
   placeholders,
+  canSave,
+  saving,
+  dirty,
+  onSave,
 }: {
   templateKey: string;
   subject: string;
@@ -1473,15 +1559,28 @@ function VisualTemplateBuilder({
   blocks: BuilderBlockType[];
   setBlocks: (blocks: BuilderBlockType[]) => void;
   placeholders: PlaceholderDef[];
+  canSave: boolean;
+  saving: boolean;
+  dirty: boolean;
+  onSave: () => void;
 }) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedChildBlock, setSelectedChildBlock] = useState<BuilderBlockType | null>(null);
   const [previewMode, setPreviewMode] = useState<keyof typeof PREVIEW_WIDTHS>("desktop");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [undoStack, setUndoStack] = useState<BuilderBlockType[][]>([]);
   const [redoStack, setRedoStack] = useState<BuilderBlockType[][]>([]);
   const isUndoRedoAction = useRef(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const previewHtml = useMemo(
+    () => buildLocalPreviewHtml(
+      subject,
+      generateEmailBodyHtml(blocks),
+      getPreviewMockProps(TEMPLATE_META[templateKey]),
+    ),
+    [blocks, subject, templateKey],
+  );
 
   const updateBlocks = useCallback(
     (next: BuilderBlockType[]) => {
@@ -1512,6 +1611,38 @@ function VisualTemplateBuilder({
     isUndoRedoAction.current = true;
     setBlocks(next);
   }, [blocks, redoStack, setBlocks]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName;
+      const isEditable =
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        active?.isContentEditable;
+      const isMod = event.metaKey || event.ctrlKey;
+
+      if (isMod && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (canSave) onSave();
+        return;
+      }
+
+      if (!isMod || isEditable) return;
+
+      if (event.key.toLowerCase() === "z" && !event.shiftKey) {
+        event.preventDefault();
+        handleUndo();
+      } else if (event.key.toLowerCase() === "y" || (event.shiftKey && event.key.toLowerCase() === "z")) {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [canSave, handleRedo, handleUndo, onSave]);
 
   const handleAddChildBlock = useCallback(
     (parentId: string, colIndex: number, childType: BlockType) => {
@@ -1754,14 +1885,32 @@ function VisualTemplateBuilder({
     <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
       <div className="flex flex-col gap-3 border-b bg-muted/20 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0 flex-1 space-y-1.5">
-          <Label htmlFor="visual-subject">Oggetto *</Label>
-          <Input
-            id="visual-subject"
-            value={subject}
-            onChange={(event) => setSubject(event.target.value)}
-            placeholder="es. Ciao {{contact.first_name}}, benvenuto"
-            className="max-w-2xl"
-          />
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="visual-subject">Oggetto *</Label>
+            <SubjectVariableButton
+              placeholders={placeholders}
+              onInsert={(tag) => setSubject(subject ? `${subject} ${tag}` : tag)}
+            />
+          </div>
+          <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
+            <Input
+              id="visual-subject"
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              placeholder="es. Ciao {{contact.first_name}}, benvenuto"
+              className="max-w-2xl"
+            />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {dirty ? (
+                <span>Modifiche non salvate</span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 text-green-600" />
+                  Builder sincronizzato
+                </span>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="h-8" onClick={handleApplySuggestedLayout}>
@@ -1792,6 +1941,14 @@ function VisualTemplateBuilder({
               </Button>
             ))}
           </div>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => setPreviewOpen(true)}>
+            <Eye className="mr-2 h-4 w-4" />
+            Anteprima
+          </Button>
+          <Button size="sm" className="h-8" onClick={onSave} disabled={!canSave}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Salva
+          </Button>
         </div>
       </div>
 
@@ -1828,6 +1985,46 @@ function VisualTemplateBuilder({
           onAddQuickSection={handleAddQuickSection}
         />
       </div>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Anteprima template</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Preview completa del template con dati esempio utente, azienda e documento.
+            </p>
+            <div className="flex items-center rounded-md border">
+              {([
+                { mode: "desktop" as const, icon: Monitor, label: "Desktop" },
+                { mode: "tablet" as const, icon: Tablet, label: "Tablet" },
+                { mode: "mobile" as const, icon: Smartphone, label: "Mobile" },
+              ]).map(({ mode, icon: Icon, label }) => (
+                <Button
+                  key={`dialog-${mode}`}
+                  variant={previewMode === mode ? "default" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8 rounded-none first:rounded-l-md last:rounded-r-md"
+                  onClick={() => setPreviewMode(mode)}
+                  title={label}
+                >
+                  <Icon className="h-4 w-4" />
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-center rounded-md border bg-muted/20 p-4">
+            <iframe
+              srcDoc={previewHtml}
+              title="Anteprima template email"
+              className="h-[72vh] max-w-full rounded-md border bg-white"
+              style={{ width: PREVIEW_WIDTHS[previewMode] }}
+              sandbox=""
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1870,7 +2067,13 @@ function EditorForm({
     <div className={compact ? "space-y-4" : "grid gap-4 lg:grid-cols-[1fr_240px]"}>
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="subject">Oggetto *</Label>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <Label htmlFor="subject">Oggetto *</Label>
+            <SubjectVariableButton
+              placeholders={placeholders}
+              onInsert={(tag) => setSubject(subject ? `${subject} ${tag}` : tag)}
+            />
+          </div>
           <Input
             id="subject"
             value={subject}
