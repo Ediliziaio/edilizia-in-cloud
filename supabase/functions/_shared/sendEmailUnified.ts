@@ -7,6 +7,7 @@ import {
 } from "./emailProvider.ts";
 import { deductEmailCredits } from "./emailCredits.ts";
 import { logEmailDelivery } from "./email-log.ts";
+import { resolveSender } from "./resolveSender.ts";
 
 export type EmailStream = "marketing" | "transactional";
 
@@ -191,6 +192,7 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
   // → platform default from provider settings.
   let fromAddress = settings.fromDefault;
   let customDomain: string | null = null;
+  let providerDomain: string | null = null;
   let customDomainId: string | null = null;
   let senderSource = "platform_default";
   let effectiveReplyTo = args.replyTo;
@@ -199,29 +201,21 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
   if (args.senderOverride) {
     fromAddress        = args.senderOverride.from;
     customDomain       = args.senderOverride.customDomain ?? null;
+    providerDomain     = args.senderOverride.customDomain ?? null;
     customDomainId     = args.senderOverride.customDomainId ?? null;
     usingCustomDomain  = Boolean(args.senderOverride.usingCustomDomain);
     senderSource       = args.senderOverride.source ?? "override";
     effectiveReplyTo   = args.senderOverride.replyTo ?? effectiveReplyTo;
   } else if (args.companyId) {
     try {
-      const { data: domainRow } = await admin
-        .from("company_email_domains")
-        .select("id, domain, from_email, from_name, is_verified, is_active")
-        .eq("company_id", args.companyId)
-        .eq("is_active", true)
-        .maybeSingle();
-      if (domainRow?.is_verified && domainRow?.is_active) {
-        const localPart = (domainRow.from_email || "noreply").trim();
-        const email = `${localPart}@${domainRow.domain}`;
-        fromAddress = domainRow.from_name
-          ? `${domainRow.from_name} <${email}>`
-          : email;
-        customDomain      = domainRow.domain;
-        customDomainId    = (domainRow.id as string | undefined) ?? null;
-        usingCustomDomain = true;
-        senderSource      = "custom_domain_legacy";
-      }
+      const resolved = await resolveSender(args.companyId, args.stream, admin);
+      fromAddress = resolved.from;
+      providerDomain = resolved.domain;
+      customDomain = resolved.usingCustomDomain ? resolved.domain : null;
+      customDomainId = resolved.customDomainId ?? null;
+      usingCustomDomain = resolved.usingCustomDomain;
+      senderSource = resolved.source;
+      effectiveReplyTo = effectiveReplyTo ?? resolved.replyTo;
     } catch {
       /* best-effort: fall back to platform default */
     }
@@ -238,7 +232,11 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
       text:    args.text,
       replyTo: effectiveReplyTo,
       attachments: args.attachments,
-    }, { domain: customDomain ?? settings.domain ?? undefined });
+    }, {
+      domain: providerDomain ?? customDomain ?? settings.domain ?? undefined,
+      stream: args.stream,
+      disableNativeTracking: args.stream === "marketing",
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     for (const r of recipients) {

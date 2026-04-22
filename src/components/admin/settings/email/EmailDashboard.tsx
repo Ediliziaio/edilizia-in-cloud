@@ -30,6 +30,14 @@ interface TopCompany {
 
 type PeriodKey = "today" | "7d" | "30d" | "all";
 
+const PROVIDER_LABELS: Record<string, string> = {
+  elastic_email: "Elastic Email",
+  resend: "Resend",
+  sendgrid: "SendGrid",
+  brevo: "Brevo",
+  mailgun: "Mailgun",
+};
+
 const PERIODS: { key: PeriodKey; label: string }[] = [
   { key: "today", label: "Oggi" },
   { key: "7d", label: "7 giorni" },
@@ -103,6 +111,21 @@ export function EmailDashboard() {
         .eq("key", "credits_email_provider_cost")
         .maybeSingle();
       return parseFloat(data?.value || "0.001");
+    },
+  });
+
+  const { data: streamProviders } = useQuery({
+    queryKey: ["platform-email-provider-labels"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("key, value")
+        .in("key", ["email_marketing_provider", "email_transactional_provider"]);
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{ key: string; value: string }>;
+      const marketing = rows.find((row) => row.key === "email_marketing_provider")?.value ?? "elastic_email";
+      const transactional = rows.find((row) => row.key === "email_transactional_provider")?.value ?? "resend";
+      return { marketing, transactional };
     },
   });
 
@@ -220,7 +243,9 @@ export function EmailDashboard() {
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
                   <Send className="h-4 w-4 text-blue-600" />
-                  <CardTitle className="text-sm">Marketing — Elastic Email</CardTitle>
+                  <CardTitle className="text-sm">
+                    Marketing — {PROVIDER_LABELS[streamProviders?.marketing ?? "elastic_email"] ?? (streamProviders?.marketing ?? "Elastic Email")}
+                  </CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="grid grid-cols-3 gap-3">
@@ -242,7 +267,9 @@ export function EmailDashboard() {
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-amber-600" />
-                  <CardTitle className="text-sm">Transazionali — SendGrid</CardTitle>
+                  <CardTitle className="text-sm">
+                    Transazionali — {PROVIDER_LABELS[streamProviders?.transactional ?? "resend"] ?? (streamProviders?.transactional ?? "Resend")}
+                  </CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="grid grid-cols-4 gap-3">

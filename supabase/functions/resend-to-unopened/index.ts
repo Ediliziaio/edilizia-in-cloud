@@ -16,6 +16,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { resolveSender } from "../_shared/resolveSender.ts";
 
 // How many hours after campaign completion to re-send to non-openers
 const DEFAULT_RESEND_DELAY_HOURS = 24;
@@ -138,11 +139,17 @@ Deno.serve(async (req) => {
       if (insertError || !resendCamp) continue;
 
       const resendCampaignId = resendCamp.id;
+      const resolvedSender = campaign.sender_email
+        ? null
+        : await resolveSender(campaign.company_id, "marketing", adminClient).catch(() => null);
       const fromAddress = campaign.sender_email
         ? campaign.sender_name
           ? `${campaign.sender_name} <${campaign.sender_email}>`
           : campaign.sender_email
-        : settings.fromDefault;
+        : resolvedSender?.from ?? settings.fromDefault;
+      const providerDomain = campaign.sender_email?.includes("@")
+        ? campaign.sender_email.split("@").pop() ?? null
+        : resolvedSender?.domain ?? settings.domain ?? null;
 
       let sentCount = 0;
       let failedCount = 0;
@@ -178,7 +185,11 @@ Deno.serve(async (req) => {
                 "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
               },
             },
-            { domain: settings.domain }
+            {
+              domain: providerDomain ?? undefined,
+              stream: "marketing",
+              disableNativeTracking: true,
+            }
           );
 
           await adminClient.from("email_logs").insert({

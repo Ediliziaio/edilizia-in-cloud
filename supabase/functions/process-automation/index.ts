@@ -3,6 +3,7 @@ import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
+import { resolveSender } from "../_shared/resolveSender.ts";
 
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
@@ -1394,9 +1395,15 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       html = html.replace(/\{\{unsubscribe_url\}\}/g, unsubLink);
     }
 
+    const resolvedSender = cfg.from_email
+      ? null
+      : await resolveSender(companyId, stream, supabase).catch(() => null);
     const fromAddress = cfg.from_email
       ? cfg.from_name ? `${cfg.from_name} <${cfg.from_email}>` : cfg.from_email
-      : settings.fromDefault;
+      : resolvedSender?.from ?? settings.fromDefault;
+    const providerDomain = cfg.from_email?.includes("@")
+      ? cfg.from_email.split("@").pop() ?? null
+      : resolvedSender?.domain ?? settings.domain ?? null;
 
     // Deduct 1 credit for marketing emails (1 credit = cost per email from platform_settings)
     if (stream === "marketing") {
@@ -1424,7 +1431,11 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       to: [contact.email],
       subject,
       html,
-    }, { domain: settings.domain });
+    }, {
+      domain: providerDomain ?? undefined,
+      stream,
+      disableNativeTracking: stream === "marketing",
+    });
 
     // Log the send (email_logs tracks automation open/click)
     await supabase.from("email_logs").insert({

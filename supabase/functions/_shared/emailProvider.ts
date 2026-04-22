@@ -5,6 +5,7 @@ export interface EmailSendRequest {
   to: string[];
   subject: string;
   html: string;
+  text?: string;
   replyTo?: string;
   attachments?: { filename: string; content: string; type: string }[];
   headers?: Record<string, string>;
@@ -28,9 +29,10 @@ export interface EmailSendResult {
  */
 export async function loadProviderSettings(stream: "marketing" | "transactional" = "marketing") {
   const prefix = `email_${stream}`;
-  const provider = (await getPlatformSetting(`${prefix}_provider`)) || "sendgrid";
+  const providerDefault = stream === "marketing" ? "elastic_email" : "resend";
+  const provider = (await getPlatformSetting(`${prefix}_provider`)) || providerDefault;
   const apiKey = await getPlatformSetting(`${prefix}_api_key`);
-  const fromEmail = (await getPlatformSetting(`${prefix}_from_address`)) || "noreply@ediliziacloud.it";
+  const fromEmail = (await getPlatformSetting(`${prefix}_from_address`)) || "noreply@ediliziaincloud.it";
   const fromName = await getPlatformSetting(`${prefix}_from_name`);
   const domain = await getPlatformSetting(`${prefix}_domain`);
 
@@ -91,7 +93,11 @@ export async function sendViaProvider(
   provider: string,
   apiKey: string,
   req: EmailSendRequest,
-  opts?: { domain?: string }
+  opts?: {
+    domain?: string;
+    stream?: "marketing" | "transactional";
+    disableNativeTracking?: boolean;
+  }
 ): Promise<EmailSendResult> {
   let url: string;
   let headers: Record<string, string>;
@@ -100,6 +106,8 @@ export async function sendViaProvider(
 
   const fromEmail = extractEmail(req.from);
   const fromName = extractName(req.from);
+  const stream = opts?.stream ?? "transactional";
+  const disableNativeTracking = opts?.disableNativeTracking ?? (stream === "marketing");
 
   switch (provider) {
     case "sendgrid": {
@@ -121,6 +129,12 @@ export async function sendViaProvider(
           open_tracking: { enable: false },
         },
       };
+      if (req.text) {
+        (payload.content as Array<{ type: string; value: string }>).push({
+          type: "text/plain",
+          value: req.text,
+        });
+      }
       if (req.replyTo) payload.reply_to = { email: req.replyTo };
       if (req.headers) {
         (payload.personalizations as Record<string, unknown>[])[0].headers = req.headers;
@@ -156,6 +170,7 @@ export async function sendViaProvider(
         subject: req.subject,
         htmlContent: req.html,
       };
+      if (req.text) payload.textContent = req.text;
       if (req.replyTo) payload.replyTo = { email: req.replyTo };
       if (req.attachments?.length) {
         payload.attachment = req.attachments.map((a) => ({
@@ -170,26 +185,54 @@ export async function sendViaProvider(
 
     case "elastic_email":
     case "elasticemail": {
-      url = "https://api.elasticemail.com/v4/emails/transactional";
+      url = stream === "marketing"
+        ? "https://api.elasticemail.com/v4/emails"
+        : "https://api.elasticemail.com/v4/emails/transactional";
       headers = {
         "X-ElasticEmail-ApiKey": apiKey,
         "Content-Type": "application/json",
       };
-      const payload: Record<string, unknown> = {
-        Recipients: {
-          To: req.to.map((e) => e),
-        },
-        Content: {
-          From: fromName ? `${fromName} <${fromEmail}>` : fromEmail,
-          Subject: req.subject,
-          Body: [{ ContentType: "HTML", Content: req.html }],
-        },
-      };
-      if (req.replyTo) {
-        (payload.Content as Record<string, unknown>).ReplyTo = req.replyTo;
+      const bodyParts: Array<Record<string, string>> = [
+        { ContentType: "HTML", Charset: "utf-8", Content: req.html },
+      ];
+      if (req.text) {
+        bodyParts.push({ ContentType: "PlainText", Charset: "utf-8", Content: req.text });
       }
+      const content: Record<string, unknown> = {
+        From: fromName ? `${fromName} <${fromEmail}>` : fromEmail,
+        Subject: req.subject,
+        Body: bodyParts,
+      };
+      if (req.replyTo) content.ReplyTo = req.replyTo;
+      if (req.headers) content.Headers = req.headers;
+      if (req.attachments?.length) {
+        content.Attachments = req.attachments.map((a) => ({
+          BinaryContent: a.content,
+          Name: a.filename,
+          ContentType: a.type,
+        }));
+      }
+      const payload: Record<string, unknown> = stream === "marketing"
+        ? {
+            Recipients: req.to.map((email) => ({ Email: email })),
+            Content: content,
+            Options: disableNativeTracking
+              ? {
+                  TrackOpens: false,
+                  TrackClicks: false,
+                }
+              : undefined,
+          }
+        : {
+            Recipients: {
+              To: req.to.map((e) => e),
+            },
+            Content: content,
+          };
       body = JSON.stringify(payload);
-      extractId = (json) => (json as Record<string, unknown>).MessageID as string | undefined;
+      extractId = (json) =>
+        (json as Record<string, unknown>).MessageID as string | undefined ||
+        (json as Record<string, unknown>).TransactionID as string | undefined;
       break;
     }
 
@@ -204,6 +247,7 @@ export async function sendViaProvider(
       req.to.forEach((t) => formData.append("to", t));
       formData.append("subject", req.subject);
       formData.append("html", req.html);
+      if (req.text) formData.append("text", req.text);
       if (req.replyTo) formData.append("h:Reply-To", req.replyTo);
       // Disable native tracking
       formData.append("o:tracking", "no");
@@ -238,6 +282,7 @@ export async function sendViaProvider(
         subject: req.subject,
         html: req.html,
       };
+      if (req.text) payload.text = req.text;
       if (req.replyTo) payload.reply_to = req.replyTo;
       if (req.attachments?.length) {
         payload.attachments = req.attachments.map((a) => ({

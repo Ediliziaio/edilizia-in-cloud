@@ -53,9 +53,7 @@ export function EmailProviderConfig({ stream }: Props) {
   const lastTestKey = `${prefix}_last_test`;
   const lastTestStatusKey = `${prefix}_last_test_status`;
 
-  const allKeys = [providerKey, apiKeyKey, fromAddressKey, fromNameKey, domainKey, lastTestKey, lastTestStatusKey];
-
-  const [provider, setProvider] = useState(stream === "marketing" ? "elastic_email" : "sendgrid");
+  const [provider, setProvider] = useState(stream === "marketing" ? "elastic_email" : "resend");
   const [apiKey, setApiKey] = useState("");
   const [fromAddress, setFromAddress] = useState("");
   const [fromName, setFromName] = useState("");
@@ -113,7 +111,7 @@ export function EmailProviderConfig({ stream }: Props) {
       if (get(fromNameKey)) setFromName(get(fromNameKey));
       if (get(domainKey)) setDomain(get(domainKey));
     }
-  }, [settings]);
+  }, [apiKeyKey, domainKey, fromAddressKey, fromNameKey, providerKey, settings]);
 
   // Connection status badge
   const getConnectionStatus = (): { status: ConnectionStatus; lastTest?: string } => {
@@ -201,7 +199,7 @@ export function EmailProviderConfig({ stream }: Props) {
     setIsTesting(true);
     setTestResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke("send-test-email", {
+      const { error } = await supabase.functions.invoke("send-test-email", {
         body: {
           to: testEmail,
           campaignId: null,
@@ -283,6 +281,15 @@ export function EmailProviderConfig({ stream }: Props) {
             <AlertDescription className="text-xs text-blue-700 dark:text-blue-300">
               Le email transazionali sono messaggi di sistema inviati automaticamente: notifiche, conferme, reset password, inviti utente.
               Queste email non contano come crediti marketing e utilizzano un provider separato per garantire alta deliverability.
+            </AlertDescription>
+          </Alert>
+        )}
+        {stream === "marketing" && provider === "elastic_email" && (
+          <Alert className="border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800">
+            <Info className="h-4 w-4 text-emerald-600" />
+            <AlertDescription className="text-xs text-emerald-700 dark:text-emerald-300">
+              Elastic Email e il provider consigliato per campagne e newsletter. Configura una API key con permesso
+              <strong> SendHttp</strong>, imposta il webhook qui sotto e usa un dominio marketing verificato per massimizzare deliverability e tracking.
             </AlertDescription>
           </Alert>
         )}
