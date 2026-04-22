@@ -24,6 +24,12 @@
 /assets-v2/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Nuova namespace bundle dopo cache poisoning Cloudflare. Non usare immutable:
+# se durante un deploy la SPA fallback risponde HTML a un URL JS/CSS, il
+# browser deve poter revalidare e recuperare senza restare bloccato in bianco.
+/assets-v3/*
+  Cache-Control: public, max-age=0, must-revalidate
+
 # Never cache index.html — ensure fresh deploys load immediately
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate

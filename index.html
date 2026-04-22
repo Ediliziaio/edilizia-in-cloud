@@ -10,7 +10,10 @@
         /* native: no-op */
       } else
       (function () {
-        function nukeAndReload() {
+        function nukeAndReload(reason) {
+          try {
+            sessionStorage.setItem('_sw_rec_reason', reason || 'unknown');
+          } catch (e) {}
           Promise.all([
             'serviceWorker' in navigator
               ? navigator.serviceWorker.getRegistrations().then(function (regs) {
@@ -22,22 +25,32 @@
                   return Promise.all(keys.map(function (k) { return caches.delete(k); }));
                 })
               : Promise.resolve()
-          ]).then(function () { location.reload(); }).catch(function () { location.reload(); });
+          ]).then(function () {
+            var url = new URL(location.href);
+            url.searchParams.set('__recovery', Date.now().toString());
+            location.replace(url.toString());
+          }).catch(function () { location.reload(); });
         }
 
         // Increment DEPLOY_KEY whenever a forced SW reset is needed.
-        var DEPLOY_KEY = 'sw_reset_v6';
+        var DEPLOY_KEY = 'sw_reset_v8';
         try {
           if (!localStorage.getItem(DEPLOY_KEY) && 'serviceWorker' in navigator) {
             localStorage.setItem(DEPLOY_KEY, '1');
             navigator.serviceWorker.getRegistrations().then(function (regs) {
-              if (regs.length > 0) nukeAndReload();
+              if (regs.length > 0) nukeAndReload('new-deploy-key');
             }).catch(function () {});
           }
         } catch (e) {}
 
         var _recovered = sessionStorage.getItem('_sw_rec');
-        function onError(msg) {
+        function isAssetElement(target) {
+          if (!target || !target.tagName) return false;
+          var tag = String(target.tagName).toLowerCase();
+          var src = target.src || target.href || '';
+          return (tag === 'script' || tag === 'link') && /\/assets-v\d+\//.test(src);
+        }
+        function onError(msg, target) {
           if (_recovered) return;
           var isChunkError =
             msg.indexOf('Unexpected token') !== -1 ||
@@ -50,18 +63,19 @@
             msg.indexOf('MIME type') !== -1 ||
             msg.indexOf('module script') !== -1 ||
             msg.indexOf('SECRET_INTERNALS') !== -1 ||
-            msg.indexOf('before initialization') !== -1;
+            msg.indexOf('before initialization') !== -1 ||
+            isAssetElement(target);
           if (isChunkError) {
             _recovered = '1';
             sessionStorage.setItem('_sw_rec', '1');
-            nukeAndReload();
+            nukeAndReload('asset-load-error');
           }
         }
         window.addEventListener('error', function (e) {
-          onError((e && e.message) || '');
+          onError((e && e.message) || '', e && e.target);
         }, true);
         window.addEventListener('unhandledrejection', function (e) {
-          onError((e && e.reason && e.reason.message) || String((e && e.reason) || ''));
+          onError((e && e.reason && e.reason.message) || String((e && e.reason) || ''), null);
         }, true);
       })();
     </script>
@@ -379,7 +393,16 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;text-align:center">
+        <div>
+          <div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#f97316;border-radius:999px;margin:0 auto 16px;animation:eic-spin .8s linear infinite"></div>
+          <p style="margin:0;font-size:14px;font-weight:600">Caricamento Edilizia in Cloud...</p>
+          <p style="margin:8px 0 0;font-size:12px;color:#6b7280">Se la pagina resta ferma, aggiorna.</p>
+        </div>
+      </div>
+    </div>
+    <style>@keyframes eic-spin{to{transform:rotate(360deg)}}</style>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

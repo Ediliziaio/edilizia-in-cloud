@@ -12,7 +12,12 @@ initSentry();
 // longer exists on the server), Vite fires this event. Force a hard reload so
 // the browser picks up the fresh index.html + new chunk hashes.
 window.addEventListener("vite:preloadError", () => {
-  window.location.reload();
+  const KEY = "vite_preload_recovered";
+  if (sessionStorage.getItem(KEY)) return;
+  sessionStorage.setItem(KEY, "1");
+  const url = new URL(window.location.href);
+  url.searchParams.set("__recovery", Date.now().toString());
+  window.location.replace(url.toString());
 });
 
 createRoot(document.getElementById("root")!).render(<App />);

@@ -89,10 +89,11 @@ export default defineConfig(() => ({
     },
   },
   build: {
-    // Move generated bundles away from /assets. Cloudflare currently has a few
-    // poisoned immutable cache entries under /assets/* that return index.html
-    // with a JS URL. A new assets directory gives every bundle a clean URL.
-    assetsDir: "assets-v2",
+    // Move generated bundles away from previously poisoned immutable cache
+    // namespaces. Cloudflare Pages SPA fallback has served index.html for JS
+    // asset URLs during deploy races; a new assets directory gives every
+    // bundle a clean URL.
+    assetsDir: "assets-v3",
     chunkSizeWarningLimit: 1500,
     // ─────────────────────────────────────────────────────────────
     // modulePreload filtrato (Velocity V3, Sprint 1.A)
