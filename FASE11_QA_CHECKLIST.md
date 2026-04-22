@@ -4,7 +4,9 @@
 > esecuzione manuale su ambiente dev, fino all'eventuale seed Playwright.
 >
 > **Branch:** `feat/preventivatore-serramentisti`
-> **Ultimo commit al momento del check:** aggiornare in fondo.
+> **Ultimo commit al momento del check:** `a04f648f` (sync pending edits —
+> superadmin hardening + serramenti + credits). Baseline stabilization
+> 2026-04-22 vedi sezione 11.5.
 
 ---
 
@@ -121,11 +123,15 @@ sconto applicato, ricalcolo su edit L×H.
 
 ## 11.5 Definition of Done FASE 11 — stato attuale
 
-- [x] Tutti i test unitari verdi: **171/171 vitest pass**.
+- [x] Tutti i test unitari verdi: **196/196 vitest pass** (aggiornato FASE 8.5+).
 - [x] Nessun errore TypeScript: **tsc --noEmit EXIT 0**.
-- [x] Nessun warning ESLint sui file nuovi FASE 10:
-      `useBundles.ts`, `SettingsBundle.tsx`, `ApplyBundleDialog.tsx` → clean
-      (lint legacy resta di scope esterno).
+- [x] Nessun warning ESLint sui file Serramentisti: `useBundles.ts`,
+      `SettingsBundle.tsx`, `ApplyBundleDialog.tsx`, `QuoteWizardSerramenti.tsx`,
+      `FamilyAxesEditor.tsx`, `useFamilies.ts`, `useFamilyPricing.ts`,
+      `useVertical.ts`, `OnboardingVertical.tsx` → 0 warning / 0 errori
+      (lint legacy su integrations/interventi/landing resta di scope esterno).
+- [x] Build production verde (`bunx vite build` EXIT 0).
+- [x] `bun audit`: 4 high + 3 moderate, tutte in Vite (dev-only, non-shipped).
 - [ ] E2E Playwright: **NON installato** — checklist manuale sopra.
 - [ ] Scenario A manuale: da eseguire.
 - [ ] Scenario B manuale: da eseguire.
@@ -140,9 +146,13 @@ sconto applicato, ricalcolo su edit L×H.
 - [x] **42.** Wizard serramentista con config visuale + calcolo live + auto-add posa — FASE 9 + 5.
 - [x] **43.** AI genera righe con family_id + misure + calcolo CORRETTO — FASE 7.1.
 - [x] **44.** AI vede listino intero via retrieval semantico — FASE 8.
-- [~] **45.** System prompt specializzato serramentista — parzialmente:
-      `ai-genera-preventivo-v2` usa prompt generico esistente; terminologia
-      serramentista viene dalle righe enriched via famiglie/assi.
+- [x] **45.** System prompt specializzato serramentista — FASE 8.5 commit `10b72de0`:
+      `supabase/functions/_shared/ai-prompts/serramentista.ts` +
+      `getSystemPromptForVertical()` dispatcher in `ai-genera-preventivo-v2`.
+      Terminologia: apertura (1 anta / 2 ante / vasistas / scorrevole), vetri
+      (4/16/4, 33.1, basso emissivo), ferramenta (RC1-RC4), materiali
+      (PVC / alluminio / legno massello), regole operative su
+      smontaggio / smaltimento / sigillatura / tiro al piano.
 - [x] **46.** Manodopera 10 UM canoniche + costo_interno separato — FASE 6.
 - [x] **47.** Bundle chiavi-in-mano funzionano con famiglie — FASE 10.
 - [x] **48.** Zero `any` nei nuovi moduli FASE 10; RLS su bundle_prodotti +
@@ -158,12 +168,14 @@ sconto applicato, ricalcolo su edit L×H.
 1. **Playwright scaffold:** installare `@playwright/test`, creare
    `playwright.config.ts` + `e2e/serramenti/` con gli scenari A/B/C
    automatizzati su environment staging con DB seed.
-2. **System prompt specializzato (crit. 45):** in
-   `ai-genera-preventivo-v2` aggiungere prompt specifico serramentista
-   quando `company.vertical === 'serramentista'` (terminologia: vano,
-   telaio, ferramenta, nodo, posa, smaltimento).
-3. **Apply migrations:** le 10 migration FASE 0→10 sono committate ma
-   vanno applicate su DB prod con `supabase db push`.
-4. **Embeddings batch initiale:** dopo applicazione migration FASE 8,
-   invocare `genera-embeddings-catalogo` con `mode: "all"` per ogni
-   company serramentista esistente.
+2. **~~System prompt specializzato (crit. 45):~~** ✅ DONE in FASE 8.5
+   (`supabase/functions/_shared/ai-prompts/serramentista.ts`).
+3. **Apply migrations:** le 11 migration FASE 0→10 (001→011) sono committate ma
+   vanno applicate su DB prod con `supabase db push`. In particolare la
+   migration `20260917000011_serramenti_11_match_families_tariffe.sql`
+   aggiunge `embedding` a `article_families` + `tariffe_aziendali` e le
+   relative RPC `match_families_semantic` / `match_tariffe_semantic`.
+4. **Embeddings batch initiale:** dopo applicazione migration FASE 8+11,
+   invocare `genera-embeddings-catalogo` con `mode: "all"` e
+   `targets: ["articles","families","tariffe"]` per ogni company
+   serramentista esistente.

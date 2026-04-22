@@ -362,3 +362,18 @@ Legenda: ⚪ TODO 🟡 IN CORSO 🟢 DONE 🔴 BLOCCATO
 - 🔧 `MargineSemaforo` duplicato → unificare in `src/components/shared/MargineSemaforo.tsx` quando si tocca ArticleCatalog in FASE 4.
 - 🔧 `QuoteBuilder.tsx` 2622 righe → splittare per concerns dopo FASE 11 (tracking, non nel masterprompt ma utile post-feature).
 - 🔧 `ai-genera-preventivo-v2` non legge mai `prezzari` (catalogo pubblico regionale) → valutare in FASE 8.
+
+---
+
+### 2026-04-22 — Stabilization pass finale Serramentisti
+
+- ✅ **Baseline verde**: `bunx tsc --noEmit` exit 0 · `bunx vitest run` 196/196 · `bunx vite build` exit 0 · `bun audit` 7 vuln (tutte Vite dev-only, non-shipped).
+- ✅ **ESLint scope Serramentisti**: 0 errori / 0 warning sui file nuovi (ApplyBundleDialog, QuoteWizardSerramenti, FamilyAxesEditor, useFamilies, useFamilyPricing, useFamilyMutations, useVertical, OnboardingVertical, FamilyCatalog, FamilyEditor, FamilyGridEditor, FamilyPricePreview). Errori legacy (42 err + 2 warn) confinati a `integrations/steps/*`, `interventi/NuovoInterventoDialog.tsx`, `landing/FinalCtaSection.tsx` — fuori scope.
+- ✅ **Dead code / anti-pattern audit**: zero `console.log`, zero `TODO|FIXME|HACK`, zero `: any` o `as any`, un solo `eslint-disable-next-line` in QuoteWizardSerramenti.tsx:92 documentato (dep volutamente limitata a `selectedFamily?.id` per non azzerare le selezioni utente).
+- ✅ **Bug inspection 7 file critici**: FamilyEditor / FamilyAxesEditor / FamilyGridEditor / FamilyCatalog / FamilyPricePreview / OnboardingVertical / useFamilyMutations → tutti clean. `parseFloat(x) || 0` pattern verificato non-NaN-propagating (NaN è falsy).
+- ✅ **Criterion 45** (system prompt specializzato): passato da `[~] parzialmente` a `[x] done` — il prompt è in `supabase/functions/_shared/ai-prompts/serramentista.ts` dal commit 10b72de0 (FASE 8.5).
+- ✅ **Push status**: branch `feat/preventivatore-serramentisti` up-to-date con `origin`. Ultimo commit `a04f648f`. Nessun commit locale non pushato.
+- 🧹 **.gitignore**: aggiunto `test-results/`, `playwright-report/`, `/Masterprompt_*.docx`, `/MASTERPROMPT*.docx` per evitare commit accidentali di artefatti test e reference docx.
+- 🧹 **FASE11_QA_CHECKLIST.md**: aggiornato crit. 45 ✅, vitest 171→196, sezione follow-up (system prompt già implementato), commit di riferimento `a04f648f`.
+
+**Verdetto stabilization**: codebase Serramentisti production-ready sul piano di codice. Rimangono da completare manualmente i 3 scenari A/B/C (documentati in `FASE11_QA_CHECKLIST.md`) che richiedono ambiente dev con DB seedato + OPENAI_API_KEY + utente autenticato.

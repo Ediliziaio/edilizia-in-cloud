@@ -31,3 +31,11 @@ dist-ssr
 *.sw?
 # bun.lock è committato per Cloudflare Pages build detection
 package-lock.json
+
+# Playwright / test artifacts
+test-results/
+playwright-report/
+
+# Reference material scaricato dall'utente (masterprompt & co.) — non committare
+/Masterprompt_*.docx
+/MASTERPROMPT*.docx
