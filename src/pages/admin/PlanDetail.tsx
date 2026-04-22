@@ -21,6 +21,7 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  Trash2,
   Users,
   Zap,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
 import { useState } from "react";
 import { PlanFeatureDefaultsCard } from "@/components/admin/plan/PlanFeatureDefaultsCard";
+import { DeletePlanDialog } from "@/components/admin/plan/DeletePlanDialog";
 
 export default function PlanDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +38,7 @@ export default function PlanDetail() {
   const { toast } = useToast();
   const { permissions: saPermissions } = useSuperAdminPermissions();
   const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: plan, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-plan-detail", id],
@@ -234,6 +237,15 @@ export default function PlanDetail() {
           >
             <Copy className="h-4 w-4 mr-1.5" />
             Duplica
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={() => setDeleteConfirmOpen(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" />
+            Elimina
           </Button>
         </div>
       </div>
@@ -457,6 +469,13 @@ export default function PlanDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DeletePlanDialog
+        open={deleteConfirmOpen}
+        plan={{ id: plan.id, name: plan.name, slug: plan.slug }}
+        onOpenChange={setDeleteConfirmOpen}
+        onDeleted={() => navigate("/admin/piani")}
+      />
     </div>
   );
 }

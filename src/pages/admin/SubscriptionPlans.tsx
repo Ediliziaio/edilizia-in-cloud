@@ -13,12 +13,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, RefreshCw, AlertCircle, Building2, TrendingUp, ExternalLink } from "lucide-react";
+import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, RefreshCw, AlertCircle, Building2, TrendingUp, ExternalLink, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
+import { DeletePlanDialog } from "@/components/admin/plan/DeletePlanDialog";
 
 interface PlanForm {
   name: string;
@@ -66,6 +67,12 @@ interface PlanUsageStats {
   paidMrr: number;
 }
 
+interface DeletePlanTarget {
+  id: string;
+  name: string;
+  slug: string | null;
+}
+
 const emptyUsage: PlanUsageStats = {
   assignedCompanies: 0,
   accessCompanies: 0,
@@ -97,6 +104,7 @@ export default function SubscriptionPlans() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeletePlanTarget | null>(null);
   const [form, setForm] = useState<PlanForm>(emptyForm);
   const [featuresText, setFeaturesText] = useState("");
 
@@ -160,8 +168,9 @@ export default function SubscriptionPlans() {
   });
 
   const stats = useMemo(() => {
-    if (!plans) return { activePlans: 0, subscribedCompanies: 0, payingCompanies: 0, paidMrr: 0 };
+    if (!plans) return { totalPlans: 0, activePlans: 0, inactivePlans: 0, subscribedCompanies: 0, payingCompanies: 0, paidMrr: 0 };
     const activePlans = plans.filter((p) => p.is_active).length;
+    const inactivePlans = plans.length - activePlans;
     const counts = companyCounts || {};
     const usageRows = Object.values(planRevenue);
     const subscribedCompanies = usageRows.length > 0
@@ -169,7 +178,7 @@ export default function SubscriptionPlans() {
       : Object.values(counts).reduce((s, n) => s + n, 0);
     const payingCompanies = usageRows.reduce((sum, row) => sum + row.payingCompanies, 0);
     const paidMrr = usageRows.reduce((sum, row) => sum + row.paidMrr, 0);
-    return { activePlans, subscribedCompanies, payingCompanies, paidMrr };
+    return { totalPlans: plans.length, activePlans, inactivePlans, subscribedCompanies, payingCompanies, paidMrr };
   }, [plans, companyCounts, planRevenue]);
 
   const saveMutation = useMutation({
@@ -238,6 +247,7 @@ export default function SubscriptionPlans() {
       queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
       queryClient.invalidateQueries({ queryKey: ["admin-plan-usage"] });
       queryClient.invalidateQueries({ queryKey: ["admin-plan-paid-revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-plan-detail", editingId] });
       setDialogOpen(false);
       toast({ title: editingId ? "Piano aggiornato" : "Piano creato" });
     },
@@ -255,6 +265,7 @@ export default function SubscriptionPlans() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
       queryClient.invalidateQueries({ queryKey: ["admin-plan-paid-revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-plan-detail"] });
       toast({ title: "Stato aggiornato" });
     },
     onError: (error) => {
@@ -386,8 +397,8 @@ export default function SubscriptionPlans() {
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold text-foreground">Piani Tariffari</h1>
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Piani Tariffari</h1>
           <p className="text-muted-foreground">Gestisci i piani di abbonamento della piattaforma</p>
         </div>
         <Button onClick={openCreate} className="self-end sm:self-auto">
@@ -405,6 +416,7 @@ export default function SubscriptionPlans() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.activePlans}</div>
+            <p className="text-xs text-muted-foreground">{stats.inactivePlans} disattivi su {stats.totalPlans} totali</p>
           </CardContent>
         </Card>
         <Card>
@@ -437,6 +449,21 @@ export default function SubscriptionPlans() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {plans?.length === 0 && (
+          <Card className="md:col-span-2 lg:col-span-3">
+            <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+              <Package className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <h2 className="font-semibold">Nessun piano configurato</h2>
+                <p className="text-sm text-muted-foreground">Crea il primo piano tariffario per abilitarlo in piattaforma.</p>
+              </div>
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nuovo Piano
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         {plans?.map((plan) => {
           const features = Array.isArray(plan.features) ? (plan.features as string[]) : [];
           const usage: PlanUsageStats = {
@@ -554,6 +581,15 @@ export default function SubscriptionPlans() {
                     onClick={() => toggleActiveMutation.mutate({ id: plan.id, is_active: !plan.is_active })}
                   >
                     {plan.is_active ? "Disattiva" : "Attiva"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 min-w-[110px] border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => setDeleteTarget({ id: plan.id, name: plan.name, slug: plan.slug })}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Elimina
                   </Button>
                 </div>
               </CardContent>
@@ -714,6 +750,14 @@ export default function SubscriptionPlans() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DeletePlanDialog
+        open={!!deleteTarget}
+        plan={deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }
