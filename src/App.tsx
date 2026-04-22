@@ -136,6 +136,9 @@ const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => {
+      const silent = (mutation.meta as { silent?: boolean } | undefined)?.silent;
+      if (silent) return;
+
       try {
         captureVelocityError("mutation", error, {
           mutationKey: mutation.options.mutationKey

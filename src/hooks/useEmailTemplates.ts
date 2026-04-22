@@ -175,6 +175,8 @@ export interface PreviewResult {
 
 export function usePreviewEmailTemplate() {
   return useMutation({
+    mutationKey: ["admin-preview-email-template"],
+    meta: { silent: true },
     mutationFn: async (input: {
       subject: string;
       htmlBody: string;

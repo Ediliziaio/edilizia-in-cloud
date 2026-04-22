@@ -13,6 +13,7 @@
 // ============================================================================
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DndContext, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
@@ -82,6 +83,8 @@ import {
 import {
   TEMPLATE_META,
   EDITABLE_TEMPLATE_KEYS,
+  applyPlaceholders,
+  type TemplateMeta,
   type PlaceholderDef,
 } from "@/lib/emailTemplates";
 import {
@@ -105,7 +108,13 @@ import {
   type ColumnLayout,
 } from "@/components/email-builder/builderTypes";
 import { generateEmailBodyHtml } from "@/components/email-builder/builderHtmlGenerator";
-import { BUILTIN_FIELDS } from "@/components/settings/CustomFieldsConfig";
+import {
+  BUILTIN_FIELDS,
+  FOLDER_LABELS,
+  toSnakeCase,
+  type UnifiedField,
+} from "@/components/settings/CustomFieldsConfig";
+import { supabase } from "@/integrations/supabase/client";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
@@ -120,7 +129,138 @@ const PLACEHOLDER_CATEGORY_LABELS: Record<string, string> = {
   contenuto: "Contenuto",
   link: "Link",
   azienda: "Azienda",
+  platform: "Piattaforma",
+  admin: "Superadmin",
+  billing: "Billing",
+  support: "Supporto",
+  sales: "Vendite",
+  user: "Utente destinatario",
+  recipient: "Destinatario email",
 };
+
+const PLATFORM_CUSTOM_FIELDS_KEY = "platform_email_custom_fields";
+
+interface PlatformEmailCustomField {
+  id: string;
+  name: string;
+  fieldType: string;
+  namespace: string;
+  folder: string;
+  createdAt: string;
+}
+
+const ACCESS_USER_PLACEHOLDERS: PlaceholderDef[] = [
+  {
+    key: "user.first_name",
+    label: "Nome utente che riceve l'accesso",
+    example: "Marco",
+    required: false,
+    category: "destinatario",
+  },
+  {
+    key: "user.last_name",
+    label: "Cognome utente",
+    example: "Rossi",
+    required: false,
+    category: "destinatario",
+  },
+  {
+    key: "user.full_name",
+    label: "Nome completo utente",
+    example: "Marco Rossi",
+    required: false,
+    category: "destinatario",
+  },
+  {
+    key: "user.email",
+    label: "Email utente",
+    example: "marco@azienda.it",
+    required: false,
+    category: "destinatario",
+  },
+  {
+    key: "user.role_label",
+    label: "Ruolo utente",
+    example: "Operaio",
+    required: false,
+    category: "destinatario",
+  },
+  {
+    key: "user.login_url",
+    label: "Link accesso piattaforma",
+    example: "https://app.ediliziaincloud.it/login",
+    required: false,
+    category: "link",
+  },
+  {
+    key: "user.invite_url",
+    label: "Link accettazione invito",
+    example: "https://app.ediliziaincloud.it/invito?token=abc",
+    required: false,
+    category: "link",
+  },
+  {
+    key: "company.name",
+    label: "Nome azienda",
+    example: "Rossi Costruzioni SRL",
+    required: false,
+    category: "azienda",
+  },
+  {
+    key: "recipient.first_name",
+    label: "Nome destinatario email",
+    example: "Marco",
+    required: false,
+    category: "destinatario",
+  },
+  {
+    key: "recipient.email",
+    label: "Email destinatario",
+    example: "marco@azienda.it",
+    required: false,
+    category: "destinatario",
+  },
+];
+
+type EditorTab = "visual" | "split" | "content" | "preview";
+
+const ADMIN_SYSTEM_PLACEHOLDERS: PlaceholderDef[] = [
+  {
+    key: "platform.name",
+    label: "Nome piattaforma",
+    example: "Edilizia in Cloud",
+    required: false,
+    category: "platform",
+  },
+  {
+    key: "platform.support_email",
+    label: "Email supporto piattaforma",
+    example: "supporto@ediliziaincloud.it",
+    required: false,
+    category: "platform",
+  },
+  {
+    key: "admin.first_name",
+    label: "Nome superadmin",
+    example: "Florin",
+    required: false,
+    category: "admin",
+  },
+  {
+    key: "billing.mrr",
+    label: "MRR azienda",
+    example: "149,00 EUR",
+    required: false,
+    category: "billing",
+  },
+  {
+    key: "billing.trial_end_date",
+    label: "Scadenza prova",
+    example: "30/04/2026",
+    required: false,
+    category: "billing",
+  },
+];
 
 /** Varianti ruolo supportate (aggiungere qui nuove varianti). */
 const ROLE_VARIANTS: Array<{ value: string; label: string; hint: string }> = [
@@ -142,14 +282,98 @@ function makeBlockId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function defaultVisualBlocksFor(templateKey: string): BuilderBlockType[] {
+interface TemplateStarter {
+  title: string;
+  intro: string;
+  buttonText: string;
+  buttonUrl: string;
+}
+
+const TEMPLATE_STARTERS: Record<string, TemplateStarter> = {
+  welcome: {
+    title: "Benvenuto in {{company.name}}",
+    intro:
+      "Ciao {{user.first_name}},\n\nil tuo accesso a {{company.name}} e pronto. Entra in piattaforma per completare il profilo e iniziare a lavorare con il tuo ruolo: {{user.role_label}}.",
+    buttonText: "Accedi alla piattaforma",
+    buttonUrl: "{{user.login_url}}",
+  },
+  user_invited: {
+    title: "Hai ricevuto un invito",
+    intro:
+      "Ciao {{user.first_name}},\n\n{{inviterName}} ti ha invitato in {{company.name}} come {{user.role_label}}. Accetta l'invito e crea il tuo accesso personale.",
+    buttonText: "Accetta invito",
+    buttonUrl: "{{user.invite_url}}",
+  },
+  password_reset: {
+    title: "Recupero password",
+    intro:
+      "Ciao {{user.first_name}},\n\nabbiamo ricevuto una richiesta di recupero password. Usa il pulsante qui sotto entro {{ttlMinutes}} minuti.",
+    buttonText: "Reimposta password",
+    buttonUrl: "{{resetUrl}}",
+  },
+  account_verify: {
+    title: "Conferma la tua email",
+    intro:
+      "Ciao {{user.first_name}},\n\nconferma il tuo indirizzo email per attivare correttamente l'account. Il link resta valido per {{expiresIn}}.",
+    buttonText: "Conferma email",
+    buttonUrl: "{{verifyUrl}}",
+  },
+  invoice_sent: {
+    title: "Fattura {{invoiceNumber}}",
+    intro:
+      "Ciao {{recipient.first_name}},\n\nabbiamo emesso la fattura {{invoiceNumber}} per un totale di {{totalFormatted}}. Puoi consultarla o scaricarla dal link qui sotto.",
+    buttonText: "Apri fattura",
+    buttonUrl: "{{invoiceUrl}}",
+  },
+  invoice_due_soon: {
+    title: "Promemoria fattura {{invoiceNumber}}",
+    intro:
+      "Ciao {{recipient.first_name}},\n\nla fattura {{invoiceNumber}} da {{totalFormatted}} ha scadenza {{dueDate}}. Ti lasciamo qui il link per consultarla.",
+    buttonText: "Visualizza fattura",
+    buttonUrl: "{{invoiceUrl}}",
+  },
+  quote_sent: {
+    title: "Preventivo {{quoteNumber}}",
+    intro:
+      "Ciao {{recipient.first_name}},\n\nil preventivo {{quoteNumber}} da {{totalFormatted}} e pronto. Aprilo per consultare i dettagli e procedere con l'accettazione.",
+    buttonText: "Apri preventivo",
+    buttonUrl: "{{acceptanceUrl}}",
+  },
+  ddt_sent: {
+    title: "DDT {{ddtNumber}}",
+    intro:
+      "Ciao {{recipient.first_name}},\n\nil documento di trasporto {{ddtNumber}} del {{ddtDate}} e disponibile. Puoi scaricarlo dal link qui sotto.",
+    buttonText: "Scarica DDT",
+    buttonUrl: "{{ddtUrl}}",
+  },
+  payment_received: {
+    title: "Pagamento ricevuto",
+    intro:
+      "Ciao {{recipient.first_name}},\n\nabbiamo registrato il pagamento di {{amountFormatted}} per la fattura {{invoiceNumber}} in data {{paidAtFormatted}}.",
+    buttonText: "Apri ricevuta",
+    buttonUrl: "{{receiptUrl}}",
+  },
+};
+
+function starterFor(templateKey: string): TemplateStarter {
   const meta = TEMPLATE_META[templateKey];
+  return TEMPLATE_STARTERS[templateKey] ?? {
+    title: meta?.label ?? "Titolo email",
+    intro:
+      "Ciao {{user.first_name}},\n\npersonalizza qui il messaggio usando i campi dinamici dell'utente, dell'azienda e del documento.",
+    buttonText: "Apri piattaforma",
+    buttonUrl: "{{user.login_url}}",
+  };
+}
+
+function defaultVisualBlocksFor(templateKey: string): BuilderBlockType[] {
+  const starter = starterFor(templateKey);
   return [
     {
       id: makeBlockId("title"),
       type: "text",
       props: {
-        content: meta?.label ?? "Titolo email",
+        content: starter.title,
         fontSize: "24px",
         color: "#1a1a1a",
         textAlign: "left",
@@ -161,7 +385,7 @@ function defaultVisualBlocksFor(templateKey: string): BuilderBlockType[] {
       id: makeBlockId("intro"),
       type: "text",
       props: {
-        content: "Ciao {{user.first_name}},\n\nscrivi qui il contenuto del messaggio.",
+        content: starter.intro,
         fontSize: "16px",
         color: "#333333",
         textAlign: "left",
@@ -173,8 +397,8 @@ function defaultVisualBlocksFor(templateKey: string): BuilderBlockType[] {
       id: makeBlockId("button"),
       type: "button",
       props: {
-        text: "Apri piattaforma",
-        url: "{{user.login_url}}",
+        text: starter.buttonText,
+        url: starter.buttonUrl,
         backgroundColor: "#1d4ed8",
         textColor: "#ffffff",
         borderRadius: "6px",
@@ -231,6 +455,144 @@ const BUILTIN_FIELD_MOCKS = BUILTIN_FIELDS.reduce<Record<string, string>>((acc, 
   "billing.trial_end_date": "30/04/2026",
 });
 
+function splitMockName(name: string): { first: string; last: string; full: string } {
+  const full = name.trim() || "Marco Rossi";
+  const parts = full.split(/\s+/);
+  return {
+    first: parts[0] || "Marco",
+    last: parts.slice(1).join(" ") || "Rossi",
+    full,
+  };
+}
+
+function parsePlatformEmailCustomFields(value: string | null): PlatformEmailCustomField[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((field): field is PlatformEmailCustomField => {
+      return (
+        typeof field?.id === "string" &&
+        typeof field?.name === "string" &&
+        typeof field?.fieldType === "string" &&
+        typeof field?.namespace === "string" &&
+        typeof field?.folder === "string" &&
+        typeof field?.createdAt === "string"
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function placeholderFromUnifiedField(field: UnifiedField): PlaceholderDef | null {
+  const key = field.uniqueKey.replace(/[{}]/g, "").trim();
+  if (!key) return null;
+  return {
+    key,
+    label: field.name,
+    example: field.name,
+    required: false,
+    category: field.folder || "contenuto",
+  };
+}
+
+function placeholderFromPlatformField(field: PlatformEmailCustomField): PlaceholderDef {
+  return {
+    key: `${field.namespace}.${toSnakeCase(field.name)}`,
+    label: field.name,
+    example: field.name,
+    required: false,
+    category: field.folder || field.namespace,
+  };
+}
+
+function getAvailablePlaceholders(
+  meta: TemplateMeta | undefined,
+  platformCustomPlaceholders: PlaceholderDef[],
+): PlaceholderDef[] {
+  const map = new Map<string, PlaceholderDef>();
+  const companySystemPlaceholders = BUILTIN_FIELDS
+    .map(placeholderFromUnifiedField)
+    .filter((field): field is PlaceholderDef => Boolean(field));
+
+  for (const placeholder of [
+    ...ACCESS_USER_PLACEHOLDERS,
+    ...companySystemPlaceholders,
+    ...ADMIN_SYSTEM_PLACEHOLDERS,
+    ...platformCustomPlaceholders,
+    ...(meta?.placeholders ?? []),
+  ]) {
+    map.set(placeholder.key, placeholder);
+  }
+  return Array.from(map.values());
+}
+
+function getPreviewMockProps(meta: TemplateMeta | undefined): Record<string, string> {
+  const legacy = {
+    ...BUILTIN_FIELD_MOCKS,
+    ...(meta?.mockProps ?? {}),
+  };
+  const recipient = splitMockName(legacy.recipientName ?? legacy["contact.full_name"] ?? "Marco Rossi");
+  const loginUrl = legacy.loginUrl ?? legacy.acceptUrl ?? legacy.verifyUrl ?? legacy.resetUrl ?? "https://app.ediliziaincloud.it/login";
+  return {
+    ...legacy,
+    userFirstName: recipient.first,
+    userLastName: recipient.last,
+    userFullName: recipient.full,
+    userEmail: legacy.recipientEmail ?? legacy.email ?? "marco@azienda.it",
+    userRoleLabel: legacy.roleLabel ?? "Admin azienda",
+    userLoginUrl: loginUrl,
+    userInviteUrl: legacy.acceptUrl ?? loginUrl,
+    recipientFirstName: recipient.first,
+    recipientLastName: recipient.last,
+    recipientEmail: legacy.recipientEmail ?? legacy.email ?? "marco@azienda.it",
+    contactFirstName: legacy.contactFirstName ?? recipient.first,
+    contactLastName: legacy.contactLastName ?? recipient.last,
+    contactEmail: legacy.contactEmail ?? legacy.recipientEmail ?? "marco@azienda.it",
+    companyName: legacy.companyName ?? legacy["company.name"] ?? "Rossi Costruzioni SRL",
+  };
+}
+
+function buildLocalPreviewHtml(subject: string, htmlBody: string, mockProps: Record<string, string>): string {
+  const data: Record<string, unknown> = {
+    ...mockProps,
+    companyName: mockProps.companyName || "Rossi Costruzioni SRL",
+  };
+  const renderedSubject = applyPlaceholders(subject, data, false);
+  const renderedBody = applyPlaceholders(htmlBody, data, true);
+  const companyName = data.companyName ? String(data.companyName) : "Edilizia in Cloud";
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body style="margin:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:28px 16px;">
+      <tr>
+        <td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+            <tr>
+              <td style="padding:24px 32px;border-bottom:1px solid #e5e7eb;color:#1e3a5f;font-size:20px;font-weight:700;">${companyName}</td>
+            </tr>
+            <tr>
+              <td style="padding:34px 32px;">
+                <div style="display:none;max-height:0;overflow:hidden;">${renderedSubject}</div>
+                ${renderedBody}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 32px;background:#f9fafb;color:#64748b;font-size:12px;line-height:1.5;">Email di esempio generata dall'editor.</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 /** Debounce hook: ritorna un valore che si aggiorna solo dopo `delay` ms di stabilità. */
 function useDebounced<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -267,20 +629,46 @@ function PlaceholderChips({
   placeholders: PlaceholderDef[];
   onInsert: (key: string) => void;
 }) {
+  const [query, setQuery] = useState("");
+
+  const filteredPlaceholders = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return placeholders;
+    return placeholders.filter((placeholder) => {
+      return (
+        placeholder.key.toLowerCase().includes(q) ||
+        placeholder.label.toLowerCase().includes(q) ||
+        (placeholder.category ?? "").toLowerCase().includes(q) ||
+        (FOLDER_LABELS[placeholder.category ?? ""] ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [placeholders, query]);
+
   const byCategory = useMemo(() => {
     const groups: Record<string, PlaceholderDef[]> = {};
-    for (const p of placeholders) {
+    for (const p of filteredPlaceholders) {
       (groups[p.category] ??= []).push(p);
     }
     return groups;
-  }, [placeholders]);
+  }, [filteredPlaceholders]);
 
   return (
     <div className="space-y-3">
+      <Input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Cerca variabile, campo o oggetto"
+        className="h-8 text-xs"
+      />
+      {filteredPlaceholders.length === 0 && (
+        <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+          Nessuna variabile trovata.
+        </p>
+      )}
       {Object.entries(byCategory).map(([cat, items]) => (
         <div key={cat}>
           <p className="text-xs font-medium text-muted-foreground mb-1.5">
-            {PLACEHOLDER_CATEGORY_LABELS[cat] ?? cat}
+            {PLACEHOLDER_CATEGORY_LABELS[cat] ?? FOLDER_LABELS[cat] ?? cat}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {items.map((p) => (
@@ -438,6 +826,32 @@ export function EmailTemplatesPanel() {
   const del = useDeleteEmailTemplate();
   const preview = usePreviewEmailTemplate();
   const rollback = useRollbackEmailTemplate();
+  const platformFieldsQuery = useQuery({
+    queryKey: ["platform-email-custom-fields"],
+    queryFn: async (): Promise<PlatformEmailCustomField[]> => {
+      const { data, error } = await (supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (column: string, value: string) => {
+              maybeSingle: () => Promise<{
+                data: { value: string | null } | null;
+                error: { message: string } | null;
+              }>;
+            };
+          };
+        };
+      })
+        .from("platform_settings")
+        .select("value")
+        .eq("key", PLATFORM_CUSTOM_FIELDS_KEY)
+        .maybeSingle();
+
+      if (error) throw new Error(error.message);
+      return parsePlatformEmailCustomFields(data?.value ?? null);
+    },
+    retry: 1,
+    staleTime: 30_000,
+  });
 
   // Map (template_key + role_variant) → row DB
   const dbMap = useMemo(() => {
@@ -471,17 +885,28 @@ export function EmailTemplatesPanel() {
   const [dirty, setDirty] = useState(false);
   const [designBlocks, setDesignBlocks] = useState<BuilderBlockType[]>([]);
   const [lastEditedMode, setLastEditedMode] = useState<"visual" | "html">("visual");
+  const [activeEditorTab, setActiveEditorTab] = useState<EditorTab>("visual");
 
   // History drawer
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // Preview cache (HTML renderizzato)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewIsLocal, setPreviewIsLocal] = useState(false);
+  const [previewWarning, setPreviewWarning] = useState<string | null>(null);
 
   const htmlBodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   const selectedMeta = TEMPLATE_META[selectedKey];
   const selectedRow = dbMap.get(`${selectedKey}::${selectedVariant}`);
+  const platformCustomPlaceholders = useMemo(
+    () => (platformFieldsQuery.data ?? []).map(placeholderFromPlatformField),
+    [platformFieldsQuery.data],
+  );
+  const availablePlaceholders = useMemo(
+    () => getAvailablePlaceholders(selectedMeta, platformCustomPlaceholders),
+    [selectedMeta, platformCustomPlaceholders],
+  );
 
   // ── Sync form quando cambia selezione o dati DB ──
   useEffect(() => {
@@ -505,6 +930,8 @@ export function EmailTemplatesPanel() {
     }
     setDirty(false);
     setPreviewHtml(null);
+    setPreviewIsLocal(false);
+    setPreviewWarning(null);
   }, [selectedKey, selectedVariant, selectedRow, selectedMeta]);
 
   // ── Live preview con debounce 500 ms ──
@@ -513,10 +940,16 @@ export function EmailTemplatesPanel() {
   const debouncedText = useDebounced(textBody, 500);
 
   useEffect(() => {
+    if (activeEditorTab !== "split" && activeEditorTab !== "preview") return;
     if (!debouncedSubject.trim() || !debouncedHtml.trim()) {
       setPreviewHtml(null);
+      setPreviewIsLocal(false);
+      setPreviewWarning(null);
       return;
     }
+    const mockProps = getPreviewMockProps(selectedMeta);
+    const localPreview = buildLocalPreviewHtml(debouncedSubject, debouncedHtml, mockProps);
+
     // Evita race: salva il "current request id" in closure
     let cancelled = false;
     preview.mutate(
@@ -524,15 +957,27 @@ export function EmailTemplatesPanel() {
         subject: debouncedSubject,
         htmlBody: debouncedHtml,
         textBody: debouncedText.trim() ? debouncedText : null,
-        mockProps: {
-          ...BUILTIN_FIELD_MOCKS,
-          ...(selectedMeta?.mockProps ?? {}),
-        },
+        mockProps,
         roleVariant: variantToDb(selectedVariant),
       },
       {
         onSuccess: (data) => {
-          if (!cancelled) setPreviewHtml(data.html);
+          if (!cancelled) {
+            setPreviewHtml(data.html);
+            setPreviewIsLocal(false);
+            setPreviewWarning(null);
+          }
+        },
+        onError: (error) => {
+          if (!cancelled) {
+            setPreviewHtml(localPreview);
+            setPreviewIsLocal(true);
+            setPreviewWarning(
+              error instanceof Error
+                ? error.message
+                : "Preview completa non disponibile",
+            );
+          }
         },
       },
     );
@@ -541,7 +986,7 @@ export function EmailTemplatesPanel() {
     };
     // preview è stabile (hook result) — non serve in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSubject, debouncedHtml, debouncedText, selectedKey, selectedVariant]);
+  }, [activeEditorTab, debouncedSubject, debouncedHtml, debouncedText, selectedKey, selectedVariant, selectedMeta]);
 
   // ── Azioni form ──
   const markDirty = useCallback(() => setDirty(true), []);
@@ -840,7 +1285,7 @@ export function EmailTemplatesPanel() {
           </CardHeader>
 
           <CardContent>
-            <Tabs defaultValue="visual" className="space-y-4">
+            <Tabs value={activeEditorTab} onValueChange={(value) => setActiveEditorTab(value as EditorTab)} className="space-y-4">
               <TabsList>
                 <TabsTrigger value="visual" className="gap-2">
                   <Sparkles className="h-4 w-4" />
@@ -862,6 +1307,7 @@ export function EmailTemplatesPanel() {
 
               <TabsContent value="visual" className="space-y-4">
                 <VisualTemplateBuilder
+                  templateKey={selectedKey}
                   subject={subject}
                   setSubject={(v) => {
                     setSubject(v);
@@ -874,6 +1320,7 @@ export function EmailTemplatesPanel() {
                     setLastEditedMode("visual");
                     markDirty();
                   }}
+                  placeholders={availablePlaceholders}
                 />
                 <ActionBar
                   canSave={
@@ -916,7 +1363,7 @@ export function EmailTemplatesPanel() {
                       setNotes(v);
                       markDirty();
                     }}
-                    meta={selectedMeta}
+                    placeholders={availablePlaceholders}
                     onInsertPlaceholder={handleInsertPlaceholder}
                     onFormatBold={handleFormatBold}
                     onFormatLink={handleFormatLink}
@@ -927,7 +1374,8 @@ export function EmailTemplatesPanel() {
                   <LivePreview
                     html={previewHtml}
                     isLoading={preview.isPending}
-                    error={preview.error as Error | null}
+                    warning={previewWarning}
+                    isLocal={previewIsLocal}
                   />
                 </div>
                 <ActionBar
@@ -970,7 +1418,7 @@ export function EmailTemplatesPanel() {
                     setNotes(v);
                     markDirty();
                   }}
-                  meta={selectedMeta}
+                  placeholders={availablePlaceholders}
                   onInsertPlaceholder={handleInsertPlaceholder}
                   onFormatBold={handleFormatBold}
                   onFormatLink={handleFormatLink}
@@ -998,7 +1446,8 @@ export function EmailTemplatesPanel() {
                 <LivePreview
                   html={previewHtml}
                   isLoading={preview.isPending}
-                  error={preview.error as Error | null}
+                  warning={previewWarning}
+                  isLocal={previewIsLocal}
                   tall
                 />
               </TabsContent>
@@ -1011,15 +1460,19 @@ export function EmailTemplatesPanel() {
 }
 
 function VisualTemplateBuilder({
+  templateKey,
   subject,
   setSubject,
   blocks,
   setBlocks,
+  placeholders,
 }: {
+  templateKey: string;
   subject: string;
   setSubject: (value: string) => void;
   blocks: BuilderBlockType[];
   setBlocks: (blocks: BuilderBlockType[]) => void;
+  placeholders: PlaceholderDef[];
 }) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [selectedChildBlock, setSelectedChildBlock] = useState<BuilderBlockType | null>(null);
@@ -1218,6 +1671,72 @@ function VisualTemplateBuilder({
     updateBlocks(next);
   };
 
+  const handleInsertVariableBlock = useCallback(
+    (tag: string) => {
+      const block = createBlock("text");
+      block.props = {
+        ...block.props,
+        content: tag,
+        fontSize: "16px",
+        color: "#334155",
+        textAlign: "left",
+        fontFamily: "Arial",
+        fontWeight: "normal",
+      } as BuilderBlockType["props"];
+      updateBlocks([...blocks, block]);
+      handleSelectBlock(block.id);
+    },
+    [blocks, handleSelectBlock, updateBlocks],
+  );
+
+  const handleApplySuggestedLayout = useCallback(() => {
+    const next = defaultVisualBlocksFor(templateKey);
+    updateBlocks(next);
+    handleSelectBlock(next[1]?.id ?? next[0]?.id ?? null);
+  }, [handleSelectBlock, templateKey, updateBlocks]);
+
+  const handleAddQuickSection = useCallback(
+    (kind: "greeting" | "cta" | "signature") => {
+      const block = kind === "cta" ? createBlock("button") : createBlock("text");
+      if (kind === "greeting") {
+        block.props = {
+          ...block.props,
+          content: "Ciao {{user.first_name}},\n\n",
+          fontSize: "16px",
+          color: "#334155",
+          textAlign: "left",
+          fontFamily: "Arial",
+          fontWeight: "normal",
+        } as BuilderBlockType["props"];
+      }
+      if (kind === "cta") {
+        block.props = {
+          ...block.props,
+          text: "Apri piattaforma",
+          url: "{{user.login_url}}",
+          backgroundColor: "#1d4ed8",
+          textColor: "#ffffff",
+          borderRadius: "6px",
+          align: "left",
+        } as BuilderBlockType["props"];
+      }
+      if (kind === "signature") {
+        block.props = {
+          ...block.props,
+          content: "A presto,\nIl team di {{company.name}}",
+          fontSize: "15px",
+          color: "#475569",
+          textAlign: "left",
+          fontFamily: "Arial",
+          fontWeight: "normal",
+        } as BuilderBlockType["props"];
+      }
+      updateBlocks([...blocks, block]);
+      handleSelectBlock(block.id);
+    },
+    [blocks, handleSelectBlock, updateBlocks],
+  );
+
   const resolvedSelectedBlock = selectedChildBlock
     ? (() => {
         for (const block of blocks) {
@@ -1245,6 +1764,10 @@ function VisualTemplateBuilder({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8" onClick={handleApplySuggestedLayout}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            Layout consigliato
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" disabled={undoStack.length === 0} onClick={handleUndo} title="Annulla">
             <Undo2 className="h-4 w-4" />
           </Button>
@@ -1300,6 +1823,9 @@ function VisualTemplateBuilder({
         <BuilderPropertiesPanel
           block={resolvedSelectedBlock}
           onUpdate={selectedChildBlock ? handleUpdateChildBlockProps : handleUpdateBlockProps}
+          placeholders={placeholders}
+          onInsertVariable={handleInsertVariableBlock}
+          onAddQuickSection={handleAddQuickSection}
         />
       </div>
     </div>
@@ -1316,7 +1842,7 @@ function EditorForm({
   setTextBody,
   notes,
   setNotes,
-  meta,
+  placeholders,
   onInsertPlaceholder,
   onFormatBold,
   onFormatLink,
@@ -1332,7 +1858,7 @@ function EditorForm({
   setTextBody: (v: string) => void;
   notes: string;
   setNotes: (v: string) => void;
-  meta: ReturnType<typeof TEMPLATE_META[string]> | undefined;
+  placeholders: PlaceholderDef[];
   onInsertPlaceholder: (key: string) => void;
   onFormatBold: () => void;
   onFormatLink: () => void;
@@ -1432,13 +1958,13 @@ function EditorForm({
         </div>
 
         {/* Placeholder chips inline in modo compact */}
-        {compact && meta && (
+        {compact && placeholders.length > 0 && (
           <div className="pt-2 border-t">
             <p className="text-xs font-medium text-muted-foreground mb-2">
               Placeholder disponibili
             </p>
             <PlaceholderChips
-              placeholders={meta.placeholders}
+              placeholders={placeholders}
               onInsert={onInsertPlaceholder}
             />
           </div>
@@ -1451,9 +1977,9 @@ function EditorForm({
           <p className="text-xs text-muted-foreground mb-3">
             Click per aggiungere al corpo. L'asterisco indica campi obbligatori.
           </p>
-          {meta && (
+          {placeholders.length > 0 && (
             <PlaceholderChips
-              placeholders={meta.placeholders}
+              placeholders={placeholders}
               onInsert={onInsertPlaceholder}
             />
           )}
@@ -1467,29 +1993,17 @@ function EditorForm({
 function LivePreview({
   html,
   isLoading,
-  error,
+  warning,
+  isLocal,
   tall,
 }: {
   html: string | null;
   isLoading: boolean;
-  error: Error | null;
+  warning?: string | null;
+  isLocal?: boolean;
   tall?: boolean;
 }) {
   const frameHeight = tall ? "h-[760px]" : "h-[600px]";
-
-  if (error) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">Anteprima</p>
-          {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-        </div>
-        <Alert variant="destructive">
-          <AlertDescription>Errore anteprima: {error.message}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-2">
@@ -1502,8 +2016,19 @@ function LivePreview({
             <CheckCircle2 className="h-3 w-3 text-green-600" />
           ) : null}
         </p>
-        <p className="text-xs text-muted-foreground">Dati di esempio</p>
+        <p className="text-xs text-muted-foreground">
+          {isLocal ? "Dati esempio · fallback locale" : "Dati di esempio"}
+        </p>
       </div>
+
+      {warning && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Preview server non disponibile: sto mostrando una preview locale.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {html ? (
         <div className={`rounded-md border overflow-hidden bg-white ${frameHeight}`}>
