@@ -19,6 +19,7 @@ import { formatEur, formatMinutes, estimateConversationsRemaining } from "@/modu
 import { useAgentCredits, useCreditTopups, useCreditUsage, useUsageByAgent } from "@/modules/ai-agents/hooks/useAgentCredits";
 import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
 import { queryKeys } from "@/lib/queryKeys";
+import { useCompanyAiSpendStats } from "@/hooks/ai-provider";
 
 interface CreditTransaction {
   id: string;
@@ -37,6 +38,24 @@ const TOPUP_OPTIONS = [
   { amount: 100, label: "€100" },
 ];
 
+// MP05-FIX: traduce task_kind interno in label user-friendly italiano (no modello)
+function humanTaskLabel(taskKind: string): string {
+  const map: Record<string, string> = {
+    bot_operativo_titolare: "Bot titolare",
+    bot_operativo_operaio: "Bot operaio",
+    assistenza_clienti: "Assistenza clienti",
+    lead_qualificazione: "Qualifica lead",
+    vision_ddt: "Analisi DDT",
+    vision_cantiere: "Foto cantiere",
+    parse_rapportino: "Rapportini",
+    computo_metrico: "Computo metrico",
+    bank_categorize: "Categorizzazione bancaria",
+    chat_routine: "Chat generica",
+    default: "Chat AI",
+  };
+  return map[taskKind] ?? "Chat AI";
+}
+
 export function CreditiTab() {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
@@ -44,6 +63,8 @@ export function CreditiTab() {
   const { data: topups } = useCreditTopups();
   const { data: usage } = useCreditUsage();
   const { data: usageByAgent } = useUsageByAgent();
+  // MP05-FIX: breakdown spesa AI 30gg (NO modello esposto, NO costi reali)
+  const { data: aiSpend } = useCompanyAiSpendStats({ days: 30 });
 
   const [selectedAmount, setSelectedAmount] = useState<number | null>(20);
   const [customAmount, setCustomAmount] = useState("");
@@ -200,6 +221,55 @@ export function CreditiTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* MP05-FIX: AI spesa 30gg (solo cost_billed, no modello esposto) */}
+      {aiSpend && aiSpend.total_calls > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Utilizzo AI (ultimi 30 giorni)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Spesa totale</p>
+                <p className="text-2xl font-bold text-foreground mt-1">
+                  {formatEur(aiSpend.total_spent_eur)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Chiamate AI</p>
+                <p className="text-2xl font-bold text-foreground mt-1">
+                  {aiSpend.total_calls}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Categorie usate</p>
+                <p className="text-2xl font-bold text-foreground mt-1">
+                  {aiSpend.by_task.length}
+                </p>
+              </div>
+            </div>
+            {aiSpend.by_task.length > 0 && (
+              <div className="space-y-1 pt-3 border-t">
+                <p className="text-xs text-muted-foreground mb-2">Per categoria:</p>
+                {aiSpend.by_task.slice(0, 6).map((t) => (
+                  <div key={t.task_kind} className="flex items-center justify-between text-sm">
+                    <span className="text-foreground">
+                      {humanTaskLabel(t.task_kind)}
+                    </span>
+                    <span className="text-muted-foreground font-mono">
+                      {t.n_calls} · {formatEur(t.total_spent_eur)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Manual Topup */}
       <div>

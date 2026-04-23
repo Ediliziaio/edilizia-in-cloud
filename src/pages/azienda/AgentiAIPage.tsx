@@ -16,7 +16,7 @@ import { AgentiAIStatsBar } from "@/components/agenti/AgentiAIStatsBar";
 import { TelephonyTab } from "@/components/agenti/TelephonyTab";
 import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
 import { KnowledgeBaseTab } from "@/components/agenti/KnowledgeBaseTab";
-import { WhatsAppTabUnified } from "@/components/agenti/WhatsAppTabUnified";
+import { WhatsAppMultiNumeroTab } from "@/components/whatsapp-multi/WhatsAppMultiNumeroTab";
 import { ChatConversazioniTab } from "@/components/agenti/ChatConversazioniTab";
 import { CampagneTab } from "@/components/agenti/CampagneTab";
 import { CreditiTab } from "@/components/agenti/CreditiTab";
@@ -166,8 +166,9 @@ export default function AgentiAIPage() {
           <CampagneTab />
         </TabsContent>
 
-        <TabsContent value="whatsapp" className="mt-0 p-6">
-          <WhatsAppTabUnified />
+        <TabsContent value="whatsapp" className="mt-0">
+          {/* MP04 Hub Multi-Numero (sostituisce WhatsAppTabUnified legacy) */}
+          <WhatsAppMultiNumeroTab />
         </TabsContent>
 
         <TabsContent value="statistiche" className="mt-0 p-6">

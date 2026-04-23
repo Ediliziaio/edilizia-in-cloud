@@ -175,7 +175,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", featureKey: "email_marketing", groupLabel: "Comunicazione" },
       { title: "SMS Marketing", url: "/azienda/sms-marketing", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
       { title: "SMS Transazionale", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
-      { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", featureKey: "whatsapp" },
+      { title: "WhatsApp", url: "/azienda/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", featureKey: "whatsapp" },
       // ─── Automazione ───
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni", groupLabel: "Automazione" },
       { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents" },
@@ -223,7 +223,7 @@ export const marketingNavItems: NavItem[] = [
   { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "SMS Marketing", url: "/azienda/marketing/sms", icon: MessageSquare, permissionKey: "canViewMarketingEmail", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "SMS Transazionale", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", category: "marketing", subcategory: "mkt_comunicazione" },
-  { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", category: "marketing", subcategory: "mkt_comunicazione" },
+  { title: "WhatsApp", url: "/azienda/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "Automazioni", url: "/azienda/automazioni?tab=marketing", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing", subcategory: "mkt_automation" },
   { title: "Agenti AI", url: "/azienda/agenti-ai?tipo=custom", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
   { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Zap, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_analisi" },

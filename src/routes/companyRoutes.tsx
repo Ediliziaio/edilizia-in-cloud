@@ -394,7 +394,8 @@ export function companyRoutes() {
         <Route path="marketing/email/campagna/:id/editor" element={<FeatureRoute featureKey="email_marketing"><CampaignEditor /></FeatureRoute>} />
         <Route path="marketing/email/campagna/:id/builder" element={<FeatureRoute featureKey="email_marketing"><DragDropEmailBuilder /></FeatureRoute>} />
         <Route path="marketing/email/campagna/:id/impostazioni" element={<FeatureRoute featureKey="email_marketing"><CampaignSendSettings /></FeatureRoute>} />
-        <Route path="marketing/whatsapp" element={<FeatureRoute featureKey="whatsapp"><MarketingWhatsApp /></FeatureRoute>} />
+        {/* MP04 — redirect legacy marketing/whatsapp → nuovo Hub */}
+        <Route path="marketing/whatsapp" element={<Navigate to="/azienda/whatsapp" replace />} />
         {/* MP04 — Hub WhatsApp multi-numero */}
         <Route path="whatsapp" element={<FeatureRoute featureKey="whatsapp"><WhatsAppHubPage /></FeatureRoute>} />
         {/* MP-FINAL — Routing granulare */}
