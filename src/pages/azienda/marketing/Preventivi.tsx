@@ -191,10 +191,14 @@ export default function Preventivi() {
         .select("material_id, sort_order")
         .eq("quote_id", quote.id);
 
-      // 3. Genera nuovo numero
+      // 3. Genera nuovo numero (fail-fast: niente fallback 'OFF-YEAR-DUP',
+      // altrimenti due duplicazioni concorrenti collidono sul UNIQUE quote_number)
       const { data: numData } = await supabase.rpc("generate_quote_number", {
         p_company_id: companyId!,
       });
+      if (!numData) {
+        throw new Error("Generazione numero preventivo fallita, riprova");
+      }
 
       // 4. Inserisci testata (escludi campi univoci)
       const {
@@ -209,7 +213,7 @@ export default function Preventivi() {
         .from("quotes")
         .insert({
           ...rest,
-          quote_number: numData || `OFF-${new Date().getFullYear()}-DUP`,
+          quote_number: numData,
           status: "bozza",
           created_by: user?.id,
           created_at: new Date().toISOString(),
@@ -218,15 +222,35 @@ export default function Preventivi() {
         .single();
       if (quoteErr) throw quoteErr;
 
-      // 5. Copia righe
+      // 5. Copia righe — P0-2: usa save_quote_items_atomic per preservare
+      // le relazioni parent_item_id. Prima il codice spreadava `...item`
+      // includendo `parent_item_id` che però puntava a UUID del preventivo
+      // SORGENTE → le nuove righe avevano FK orfano (o peggio: cross-quote).
+      // Qui passiamo l'ID sorgente come `client_temp_id` e il parent sorgente
+      // come `parent_temp_id`: la RPC rimappa i temp id ai nuovi UUID generati.
       if (originalItems && originalItems.length > 0) {
-        const { error: newItemsErr } = await supabase.from("quote_items").insert(
-          originalItems.map(({ id: _id, created_at: _ca, updated_at: _ua, ...item }) => ({
-            ...item,
-            quote_id: newQuote.id,
-          }))
-        );
-        if (newItemsErr) throw newItemsErr;
+        const payload = originalItems.map((oi, idx) => {
+          const {
+            id: _origId,
+            created_at: _oiCa,
+            updated_at: _oiUa,
+            quote_id: _oiQid,
+            parent_item_id: origParentId,
+            ...itemRest
+          } = oi;
+          return {
+            ...itemRest,
+            sort_order: idx,
+            client_temp_id: oi.id,
+            parent_temp_id: origParentId ?? null,
+          };
+        });
+        const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
+          p_quote_id: newQuote.id,
+          p_company_id: companyId!,
+          p_items: payload,
+        });
+        if (rpcErr) throw rpcErr;
       }
 
       // 6. Copia allegati PDF
