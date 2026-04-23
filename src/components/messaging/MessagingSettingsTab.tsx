@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loader2, Plus, Unplug, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loader2, Plus, Unplug, RefreshCw, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Link } from "react-router-dom";
 
 // Meta App ID loaded at runtime from platform_settings
 let META_APP_ID = "";
@@ -296,6 +298,21 @@ export function MessagingSettingsTab() {
   return (
     <TooltipProvider>
       <div className="space-y-6 max-w-4xl">
+        {/* MP-FINAL: deprecation notice */}
+        <Alert>
+          <ArrowUpRight className="h-4 w-4" />
+          <AlertTitle>Versione legacy — 1 numero solo bot operativo</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>
+              Il nuovo <b>Hub WhatsApp</b> supporta più numeri con scopi differenziati
+              (assistenza, lead, marketing, notifiche), template Meta e broadcast.
+            </span>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/azienda/whatsapp">Apri Hub</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+
         {/* Verification banner */}
         {accountStatus !== "verified" && (
           <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">

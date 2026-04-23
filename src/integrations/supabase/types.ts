@@ -32256,6 +32256,54 @@ export type Database = {
           },
         ]
       }
+      wa_notifiche_event_queue: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          id: string
+          processed: boolean | null
+          processed_at: string | null
+          subject_id: string
+          trigger_kind: string
+          variables: Json | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          id?: string
+          processed?: boolean | null
+          processed_at?: string | null
+          subject_id: string
+          trigger_kind: string
+          variables?: Json | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          processed?: boolean | null
+          processed_at?: string | null
+          subject_id?: string
+          trigger_kind?: string
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_notifiche_event_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_notifiche_event_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wa_notifiche_log: {
         Row: {
           company_id: string | null
@@ -33466,6 +33514,7 @@ export type Database = {
       }
       whatsapp_broadcasts: {
         Row: {
+          cancelled_at: string | null
           company_id: string
           completed_at: string | null
           created_at: string | null
@@ -33473,14 +33522,23 @@ export type Database = {
           failed_count: number | null
           id: string
           message_text: string | null
+          nome: string | null
+          replied_count: number | null
+          scheduled_at: string | null
           segment: string
           segment_config: Json | null
           sent_count: number | null
+          started_at: string | null
           status: string | null
           template_name: string | null
+          template_variables: Json | null
           total_contacts: number | null
+          wa_number_id: string | null
+          window_end: string | null
+          window_start: string | null
         }
         Insert: {
+          cancelled_at?: string | null
           company_id: string
           completed_at?: string | null
           created_at?: string | null
@@ -33488,14 +33546,23 @@ export type Database = {
           failed_count?: number | null
           id?: string
           message_text?: string | null
+          nome?: string | null
+          replied_count?: number | null
+          scheduled_at?: string | null
           segment?: string
           segment_config?: Json | null
           sent_count?: number | null
+          started_at?: string | null
           status?: string | null
           template_name?: string | null
+          template_variables?: Json | null
           total_contacts?: number | null
+          wa_number_id?: string | null
+          window_end?: string | null
+          window_start?: string | null
         }
         Update: {
+          cancelled_at?: string | null
           company_id?: string
           completed_at?: string | null
           created_at?: string | null
@@ -33503,12 +33570,20 @@ export type Database = {
           failed_count?: number | null
           id?: string
           message_text?: string | null
+          nome?: string | null
+          replied_count?: number | null
+          scheduled_at?: string | null
           segment?: string
           segment_config?: Json | null
           sent_count?: number | null
+          started_at?: string | null
           status?: string | null
           template_name?: string | null
+          template_variables?: Json | null
           total_contacts?: number | null
+          wa_number_id?: string | null
+          window_end?: string | null
+          window_start?: string | null
         }
         Relationships: [
           {
@@ -33523,6 +33598,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_broadcasts_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "ai_whatsapp_numbers"
             referencedColumns: ["id"]
           },
         ]
@@ -35088,6 +35170,15 @@ export type Database = {
           tasso_contatto: number
         }[]
       }
+      get_cantieri_margine_basso: {
+        Args: { p_company_id: string; p_soglia_percent?: number }
+        Returns: {
+          cantiere_id: string
+          margine_percent: number
+          nome: string
+          valore: number
+        }[]
+      }
       get_cash_flow_by_month: {
         Args: { p_company_id: string; p_months?: number }
         Returns: {
@@ -35565,6 +35656,16 @@ export type Database = {
           weighted_value: number
         }[]
       }
+      get_whatsapp_metrics: {
+        Args: { p_company_id: string }
+        Returns: {
+          active_numbers: number
+          errors_last_24h: number
+          messages_last_24h: number
+          tool_calls_last_24h: number
+          total_spend_today: number
+        }[]
+      }
       has_cost_permission: {
         Args: { p_perm: string; p_user: string }
         Returns: boolean
@@ -35761,6 +35862,14 @@ export type Database = {
           payment_method: string
           recharged: boolean
         }[]
+      }
+      populate_broadcast_recipients: {
+        Args: {
+          p_broadcast_id: string
+          p_segment_filter: Json
+          p_variable_mapping: Json
+        }
+        Returns: number
       }
       recalculate_invoice_totals: {
         Args: { p_invoice_id: string }

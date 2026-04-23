@@ -111,6 +111,57 @@ export interface WANumberUpdate {
   agent_id?: string | null;
 }
 
+export interface ConnectPayload {
+  purpose: WAPurpose;
+  phone_number: string;
+  phone_number_id: string;
+  waba_id: string;
+  access_token: string;
+  display_name?: string;
+  nome_account?: string;
+}
+
+export function useConnectWANumber() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ConnectPayload) => {
+      // Chiama whatsapp-connect edge function. Nota: il flusso "canonico"
+      // in MP01 richiede `code` OAuth Meta. Per inserimento manuale (debug
+      // / staging) facciamo upsert diretto via client — il service_role
+      // non è usabile da client. In produzione il wizard deve passare
+      // dall'OAuth flow Meta Embedded Signup.
+      const { data, error } = await supabase
+        .from("ai_whatsapp_numbers")
+        .upsert(
+          {
+            company_id: companyId!,
+            purpose: payload.purpose,
+            numero: payload.phone_number,
+            phone_number_id: payload.phone_number_id,
+            waba_id: payload.waba_id,
+            access_token_encrypted: payload.access_token,
+            display_name: payload.display_name ?? null,
+            nome_account: payload.nome_account ?? payload.display_name ?? null,
+            stato: "pending",
+            webhook_verified: false,
+            provider: "meta_cloud",
+          },
+          { onConflict: "company_id,purpose" },
+        )
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...WA_NUMBERS_KEY, companyId] });
+      toast.success("Numero WhatsApp registrato. Completa la verifica webhook.");
+    },
+    onError: (err: Error) => toast.error(`Errore: ${err.message}`),
+  });
+}
+
 export function useUpdateWANumberSettings() {
   const qc = useQueryClient();
   return useMutation({

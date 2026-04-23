@@ -183,6 +183,11 @@ const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDr
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
 // MP04 — Hub WhatsApp multi-numero
 const WhatsAppHubPage = lazy(() => import("@/pages/azienda/whatsapp/WhatsAppHubPage"));
+// MP-FINAL — Pagine granulari WhatsApp
+const BroadcastListPage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastListPage"));
+const BroadcastCreatePage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastCreatePage"));
+const BroadcastDetailPage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastDetailPage"));
+const WANumberDetailPage = lazy(() => import("@/pages/azienda/whatsapp/WANumberDetailPage"));
 const SmsMarketingPage = lazy(() => import("@/pages/azienda/sms-marketing/index"));
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
 const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
@@ -391,6 +396,11 @@ export function companyRoutes() {
         <Route path="marketing/whatsapp" element={<FeatureRoute featureKey="whatsapp"><MarketingWhatsApp /></FeatureRoute>} />
         {/* MP04 — Hub WhatsApp multi-numero */}
         <Route path="whatsapp" element={<FeatureRoute featureKey="whatsapp"><WhatsAppHubPage /></FeatureRoute>} />
+        {/* MP-FINAL — Routing granulare */}
+        <Route path="whatsapp/numeri/:id" element={<FeatureRoute featureKey="whatsapp"><WANumberDetailPage /></FeatureRoute>} />
+        <Route path="whatsapp/broadcast" element={<FeatureRoute featureKey="whatsapp"><BroadcastListPage /></FeatureRoute>} />
+        <Route path="whatsapp/broadcast/nuovo" element={<FeatureRoute featureKey="whatsapp"><BroadcastCreatePage /></FeatureRoute>} />
+        <Route path="whatsapp/broadcast/:id" element={<FeatureRoute featureKey="whatsapp"><BroadcastDetailPage /></FeatureRoute>} />
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />

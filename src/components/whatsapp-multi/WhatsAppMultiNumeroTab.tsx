@@ -1,6 +1,8 @@
-// MP04 — Tab principale WhatsApp multi-numero (sostituisce WhatsAppTabUnified).
+// MP04 + MP-FINAL — Tab principale WhatsApp multi-numero.
+// Empty state + grouping per purpose + StatsBar + ConnectNumberWizard 3-step.
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, MessageSquare, HeadphonesIcon, Target, Megaphone, Bell } from "lucide-react";
 import {
@@ -9,15 +11,8 @@ import {
   type WAPurpose,
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { WhatsAppNumberCard } from "./WhatsAppNumberCard";
-import { PurposeSelector } from "./PurposeSelector";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConnectNumberWizard } from "./ConnectNumberWizard";
+import { WhatsAppStatsBar } from "./WhatsAppStatsBar";
 
 const PURPOSE_ORDER: WAPurpose[] = [
   "bot_operativo",
@@ -36,6 +31,7 @@ const PURPOSE_ICONS: Record<WAPurpose, typeof MessageSquare> = {
 };
 
 export function WhatsAppMultiNumeroTab() {
+  const navigate = useNavigate();
   const { byPurpose, isLoading } = useWhatsAppNumbersByPurpose();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardPurpose, setWizardPurpose] = useState<WAPurpose | null>(null);
@@ -55,8 +51,15 @@ export function WhatsAppMultiNumeroTab() {
 
   const hasNumbers = configuredPurposes.length > 0;
 
+  const openWizard = (purpose: WAPurpose | null) => {
+    setWizardPurpose(purpose);
+    setWizardOpen(true);
+  };
+
   return (
     <div className="space-y-6 p-4 md:p-6">
+      <WhatsAppStatsBar />
+
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-semibold">WhatsApp Business — Multi Numero</h2>
@@ -65,10 +68,7 @@ export function WhatsAppMultiNumeroTab() {
           </p>
         </div>
         <Button
-          onClick={() => {
-            setWizardPurpose(null);
-            setWizardOpen(true);
-          }}
+          onClick={() => openWizard(null)}
           aria-label="Collega nuovo numero WhatsApp"
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -83,13 +83,7 @@ export function WhatsAppMultiNumeroTab() {
           <p className="mt-2 text-sm text-muted-foreground">
             Collega il primo numero WhatsApp per iniziare. Potrai poi aggiungerne altri con scopi diversi.
           </p>
-          <Button
-            className="mt-6"
-            onClick={() => {
-              setWizardPurpose(null);
-              setWizardOpen(true);
-            }}
-          >
+          <Button className="mt-6" onClick={() => openWizard(null)}>
             <Plus className="mr-2 h-4 w-4" />
             Collega primo numero
           </Button>
@@ -110,14 +104,17 @@ export function WhatsAppMultiNumeroTab() {
                 </h3>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {numbers.map((n) => (
-                    <WhatsAppNumberCard key={n.id} number={n} />
+                    <WhatsAppNumberCard
+                      key={n.id}
+                      number={n}
+                      onOpenSettings={(id) => navigate(`/azienda/whatsapp/numeri/${id}`)}
+                    />
                   ))}
                 </div>
               </section>
             );
           })}
 
-          {/* Mostra purpose non ancora configurati come CTA secondari */}
           {PURPOSE_ORDER.filter((p) => (byPurpose[p] ?? []).length === 0).length > 0 && (
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
@@ -129,10 +126,7 @@ export function WhatsAppMultiNumeroTab() {
                   return (
                     <button
                       key={p}
-                      onClick={() => {
-                        setWizardPurpose(p);
-                        setWizardOpen(true);
-                      }}
+                      onClick={() => openWizard(p)}
                       className="rounded-lg border-2 border-dashed border-muted-foreground/20 p-4 text-left hover:border-primary hover:bg-primary/5 transition-colors"
                       aria-label={`Collega numero ${PURPOSE_LABELS[p]}`}
                     >
@@ -140,9 +134,7 @@ export function WhatsAppMultiNumeroTab() {
                         <Icon className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{PURPOSE_LABELS[p]}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Clicca per collegare
-                      </p>
+                      <p className="text-xs text-muted-foreground">Clicca per collegare</p>
                     </button>
                   );
                 })}
@@ -152,53 +144,11 @@ export function WhatsAppMultiNumeroTab() {
         </div>
       )}
 
-      <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Collega nuovo numero WhatsApp</DialogTitle>
-            <DialogDescription>
-              Scegli lo scopo del numero, poi collegalo via Meta Embedded Signup.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-sm font-medium mb-2">1. Scopo</h4>
-              <PurposeSelector
-                selected={wizardPurpose}
-                onSelect={setWizardPurpose}
-                disabledPurposes={configuredPurposes}
-              />
-            </div>
-
-            {wizardPurpose && (
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <h4 className="text-sm font-medium mb-2">2. Collega su Meta</h4>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Verrai rediretto al flusso Meta Embedded Signup per autorizzare l'accesso al numero.
-                  Al ritorno il numero sarà configurato con scopo <b>{PURPOSE_LABELS[wizardPurpose]}</b>.
-                </p>
-                <Button
-                  onClick={() => {
-                    // In MP04 la logica Meta Embedded Signup esistente in MP1 viene
-                    // riutilizzata: passiamo `purpose` come query param al redirect.
-                    window.location.href = `/azienda/settings/whatsapp?connect=1&purpose=${wizardPurpose}`;
-                  }}
-                  disabled={!wizardPurpose}
-                >
-                  Vai a Meta →
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setWizardOpen(false)}>
-              Annulla
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConnectNumberWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        initialPurpose={wizardPurpose ?? undefined}
+      />
     </div>
   );
 }

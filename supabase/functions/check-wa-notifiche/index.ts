@@ -157,12 +157,79 @@ async function evaluateTrigger(
       }));
     }
 
-    // Altri trigger in MP4
-    case "ddt_pendente":
-    case "margine_basso":
+    case "ddt_pendente": {
+      const ore = (t.config?.ore_soglia as number) ?? 48;
+      const soglia = new Date(Date.now() - ore * 3_600_000).toISOString();
+      const { data } = await supabase
+        .from("ddt_ricezione")
+        .select("id, numero_ddt, data_ricezione, stato, created_at, corriere")
+        .eq("company_id", t.company_id)
+        .eq("stato", "ricevuto")
+        .lt("created_at", soglia)
+        .limit(10);
+      return (data ?? []).map((d) => ({
+        subject_id: d.id,
+        variables: {
+          "1": String(d.numero_ddt ?? "N/D"),
+          "2": d.corriere ?? "N/D",
+          "3": String(d.data_ricezione ?? ""),
+        },
+      }));
+    }
+
+    case "margine_basso": {
+      const percent = (t.config?.percentuale as number) ?? 10;
+      const { data } = await supabase.rpc("get_cantieri_margine_basso", {
+        p_company_id: t.company_id,
+        p_soglia_percent: percent,
+      });
+      return ((data ?? []) as Array<{
+        cantiere_id: string;
+        nome: string;
+        margine_percent: number;
+        valore: number;
+      }>).map((c) => ({
+        subject_id: c.cantiere_id,
+        variables: {
+          "1": c.nome,
+          "2": Number(c.margine_percent).toFixed(1),
+          "3": Number(c.valore).toLocaleString("it-IT"),
+        },
+      }));
+    }
+
+    // Event-driven: drain dalla event queue per questo trigger_kind
     case "preventivo_inviato":
     case "sal_raggiunto":
-    case "fattura_emessa":
+    case "fattura_emessa": {
+      const { data } = await supabase
+        .from("wa_notifiche_event_queue")
+        .select("id, subject_id, variables")
+        .eq("company_id", t.company_id)
+        .eq("trigger_kind", t.trigger_kind)
+        .eq("processed", false)
+        .order("created_at", { ascending: true })
+        .limit(20);
+      const subjects = ((data ?? []) as Array<{
+        id: string;
+        subject_id: string;
+        variables: Record<string, string> | null;
+      }>).map((row) => ({
+        subject_id: row.subject_id,
+        variables: (row.variables ?? {}) as Record<string, string>,
+      }));
+      // Marchia come processati gli eventi letti (anche se cooldown skippa,
+      // il cooldown è gestito per subject_id separatamente).
+      if ((data ?? []).length > 0) {
+        const ids = (data ?? []).map((r) => (r as { id: string }).id);
+        await supabase
+          .from("wa_notifiche_event_queue")
+          .update({ processed: true, processed_at: new Date().toISOString() })
+          .in("id", ids);
+      }
+      return subjects;
+    }
+
     case "custom":
       return [];
   }

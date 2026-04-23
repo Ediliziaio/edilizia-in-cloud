@@ -1,0 +1,131 @@
+// MP-FINAL — Lista campagne broadcast.
+
+import { Link } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Loader2, Plus, Eye } from "lucide-react";
+import { useWABroadcasts } from "@/hooks/whatsapp/useWABroadcasts";
+
+function statusColor(status: string | null): string {
+  switch ((status ?? "").toLowerCase()) {
+    case "scheduled":
+      return "bg-blue-100 text-blue-800";
+    case "sending":
+      return "bg-amber-100 text-amber-800";
+    case "completed":
+      return "bg-green-100 text-green-800";
+    case "cancelled":
+      return "bg-red-100 text-red-800";
+    case "failed":
+      return "bg-red-100 text-red-800";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+export default function BroadcastListPage() {
+  const { data: broadcasts, isLoading } = useWABroadcasts();
+
+  return (
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Broadcast WhatsApp</h1>
+          <p className="text-sm text-muted-foreground">
+            Campagne inviate o schedulate. Richiede template Meta APPROVED + numero con scopo marketing.
+          </p>
+        </div>
+        <Button asChild aria-label="Nuova campagna broadcast">
+          <Link to="/azienda/whatsapp/broadcast/nuovo">
+            <Plus className="mr-2 h-4 w-4" />
+            Nuova campagna
+          </Link>
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Campagne</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading && (
+            <div className="flex items-center justify-center py-12" aria-live="polite">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <span className="sr-only">Caricamento campagne</span>
+            </div>
+          )}
+          {!isLoading && (broadcasts?.length ?? 0) === 0 && (
+            <div className="text-center py-12 text-sm text-muted-foreground">
+              Nessuna campagna. Crea la prima con "Nuova campagna".
+            </div>
+          )}
+          {!isLoading && broadcasts && broadcasts.length > 0 && (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Template</TableHead>
+                    <TableHead>Schedulata</TableHead>
+                    <TableHead>Destinatari</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead className="text-right">Dettaglio</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {broadcasts.map((b) => (
+                    <TableRow key={b.id}>
+                      <TableCell className="font-medium">{b.nome ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {b.template_name ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {b.scheduled_at
+                          ? new Date(b.scheduled_at).toLocaleString("it-IT")
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {(b.sent_count ?? 0)} / {(b.total_contacts ?? 0)}
+                        {(b.failed_count ?? 0) > 0 && (
+                          <span className="text-red-600 text-xs ml-2">
+                            · {b.failed_count} falliti
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusColor(b.status)}>
+                          {b.status ?? "—"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Dettaglio campagna ${b.nome}`}
+                        >
+                          <Link to={`/azienda/whatsapp/broadcast/${b.id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

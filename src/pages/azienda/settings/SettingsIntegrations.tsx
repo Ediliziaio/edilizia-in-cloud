@@ -127,12 +127,23 @@ export default function SettingsIntegrations() {
     queryKey: ["whatsapp-config-status", companyId],
     queryFn: async () => {
       if (!companyId) return null;
+      // MP-FINAL deprecation: ai_whatsapp_numbers con purpose=bot_operativo
+      // sostituisce la tabella legacy messaging_whatsapp_config.
       const { data } = await supabase
-        .from("messaging_whatsapp_config")
-        .select("id, phone_number_id, waba_id, account_status, phone_number")
+        .from("ai_whatsapp_numbers")
+        .select("id, phone_number_id, waba_id, stato, numero")
         .eq("company_id", companyId)
+        .eq("purpose", "bot_operativo")
+        .is("deleted_at", null)
         .maybeSingle();
-      return data;
+      if (!data) return null;
+      return {
+        id: data.id,
+        phone_number_id: data.phone_number_id,
+        waba_id: data.waba_id,
+        account_status: data.stato,
+        phone_number: data.numero,
+      };
     },
     enabled: !!companyId,
   });

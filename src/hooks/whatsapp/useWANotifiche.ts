@@ -78,6 +78,34 @@ export function useUpsertWATrigger() {
   });
 }
 
+export interface PatchTriggerPayload {
+  id: string;
+  enabled?: boolean;
+  config?: Json;
+  template_name?: string;
+  wa_number_id?: string | null;
+  destinatario_kind?: "titolare" | "cliente" | "operaio" | "custom";
+  destinatario_custom_phone?: string | null;
+}
+
+export function usePatchWATrigger() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: PatchTriggerPayload) => {
+      const { id, ...updates } = payload;
+      const { error } = await supabase
+        .from("wa_notifiche_triggers")
+        .update(updates)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wa", "notifiche", "triggers"] });
+    },
+    onError: (err: Error) => toast.error(`Errore: ${err.message}`),
+  });
+}
+
 export function useToggleWATrigger() {
   const qc = useQueryClient();
   return useMutation({

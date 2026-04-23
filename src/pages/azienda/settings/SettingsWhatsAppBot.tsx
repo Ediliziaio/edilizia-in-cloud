@@ -10,8 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Bot, Copy, CheckCircle2, AlertCircle, Send, Users, Settings2 } from "lucide-react";
+import { Bot, Copy, CheckCircle2, AlertCircle, Send, Users, Settings2, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Link } from "react-router-dom";
 
 export default function SettingsWhatsAppBot() {
   const { effectiveCompany } = useAuth();
@@ -163,6 +165,21 @@ export default function SettingsWhatsAppBot() {
           Configura il bot AI per ricevere rapportini, DDT e foto dai tuoi operai via WhatsApp.
         </p>
       </div>
+
+      {/* MP-FINAL: deprecation notice */}
+      <Alert>
+        <ArrowUpRight className="h-4 w-4" />
+        <AlertTitle>Versione classica (1 solo numero, solo bot operativo)</AlertTitle>
+        <AlertDescription className="flex items-center justify-between gap-3">
+          <span>
+            Ora puoi gestire fino a 5 numeri WhatsApp con scopi diversi (assistenza,
+            lead, marketing, notifiche) dal nuovo <b>Hub WhatsApp</b>.
+          </span>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/azienda/whatsapp">Vai al nuovo Hub</Link>
+          </Button>
+        </AlertDescription>
+      </Alert>
 
       {/* Status overview */}
       <div className="grid gap-4 md:grid-cols-3">
