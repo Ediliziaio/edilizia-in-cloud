@@ -5,6 +5,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeadersSync, errorResponse } from "../_shared/headers.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const DOMAIN_REGEX = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
 const BLOCKED_DOMAINS = ["ediliziaincloud.it", "ediliziaincloud.com", "supabase.co", "supabase.com"];
@@ -91,15 +92,16 @@ Deno.serve(async (req) => {
       return errorResponse("Questo dominio è già associato a un'altra azienda");
     }
 
-    // Chiama Cloudflare API per aggiungere il dominio
+    // P2-5: Cloudflare API con timeout 30s — evita hangare edge function.
     const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/pages/projects/${cfProjectName}/domains`;
-    const cfRes = await fetch(cfUrl, {
+    const cfRes = await fetchWithTimeout(cfUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${cfToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ name: domain }),
+      timeoutMs: 30_000,
     });
 
     const cfData = await cfRes.json();

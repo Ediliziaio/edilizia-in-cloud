@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts";
+import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 
 /**
  * bank-categorize-ai: Categorizza transazioni ambigue usando Claude API.
@@ -84,20 +86,29 @@ ${txList}
 Rispondi SOLO con un JSON array, dove ogni elemento ha: { "index": numero, "category": "NomeCategoria", "confidence": 0-100, "pattern": "pattern suggerito per regola futura" }
 Esempio: [{"index": 1, "category": "Utenze", "confidence": 95, "pattern": "ENEL ENERGIA"}]`;
 
-    // Chiama Claude API
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": claudeApiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    // P2-5: Claude API con timeout 45s.
+    let claudeRes: Response;
+    try {
+      claudeRes = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": claudeApiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 2000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        timeoutMs: 45_000,
+      });
+    } catch (err) {
+      if (isTimeoutError(err)) {
+        return jsonResponse({ success: false, error: "Timeout servizio AI" }, 504);
+      }
+      throw err;
+    }
 
     if (!claudeRes.ok) {
       const err = await claudeRes.text();
@@ -107,13 +118,13 @@ Esempio: [{"index": 1, "category": "Utenze", "confidence": 95, "pattern": "ENEL 
     const claudeData = await claudeRes.json();
     const responseText = claudeData.content?.[0]?.text || "";
 
-    // Estrai JSON dalla risposta
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
+    // P2-4: extractJsonFromLLM gestisce fence markdown + prosa + array.
+    let results: Array<{ index: number; category: string; confidence: number; pattern?: string }>;
+    try {
+      results = extractJsonFromLLM(responseText);
+    } catch {
       return jsonResponse({ success: false, error: "Risposta AI non parsabile", raw: responseText });
     }
-
-    const results = JSON.parse(jsonMatch[0]);
     let categorized = 0;
     let rulesCreated = 0;
 

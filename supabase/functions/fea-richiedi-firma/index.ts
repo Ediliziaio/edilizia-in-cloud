@@ -1,6 +1,7 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -122,13 +123,15 @@ Deno.serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     try {
-      const otpRes = await fetch(`${supabaseUrl}/functions/v1/fea-genera-otp`, {
+      // P2-5: fn interna → timeout 15s (cold start + generazione OTP).
+      const otpRes = await fetchWithTimeout(`${supabaseUrl}/functions/v1/fea-genera-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({ request_id, azienda_nome }),
+        timeoutMs: 15_000,
       });
 
       if (!otpRes.ok) {

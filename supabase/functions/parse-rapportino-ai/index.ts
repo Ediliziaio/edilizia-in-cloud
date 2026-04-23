@@ -6,6 +6,7 @@
 // Output JSON: { trascrizione, dati_estratti, rapportino_id }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -69,12 +70,14 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   form.append("language", "it");
   form.append("response_format", "text");
 
-  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+  // P2-5: Whisper può essere lento (file audio lunghi). Timeout 60s.
+  const response = await fetchWithTimeout("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
     },
     body: form,
+    timeoutMs: 60_000,
   });
 
   if (!response.ok) {
@@ -92,7 +95,8 @@ async function extractStructuredData(trascrizione: string): Promise<DatiEstratti
   }
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // P2-5: GPT-4o-mini con timeout 45s.
+    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -107,6 +111,7 @@ async function extractStructuredData(trascrizione: string): Promise<DatiEstratti
         temperature: 0.1,
         response_format: { type: "json_object" },
       }),
+      timeoutMs: 45_000,
     });
 
     if (!response.ok) {

@@ -9,6 +9,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,9 @@ function wrapText(text: string, font: any, size: number, maxWidth: number): stri
 // Fetch an image URL and embed it as PNG or JPEG in the PDF
 async function embedImage(pdfDoc: any, url: string): Promise<any | null> {
   try {
-    const resp = await fetch(url);
+    // P2-5: asset fetch con timeout 20s — PDF generation non deve hangare
+    // su asset non raggiungibili.
+    const resp = await fetchWithTimeout(url, { timeoutMs: 20_000 });
     if (!resp.ok) return null;
     const buf = await resp.arrayBuffer();
     const contentType = resp.headers.get("content-type") ?? "";

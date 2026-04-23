@@ -19,6 +19,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIM = 1536;
@@ -96,7 +97,8 @@ function buildTariffaText(tar: TariffaRow): string {
 }
 
 async function openaiEmbed(texts: string[], apiKey: string): Promise<number[][]> {
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
+  // P2-5: OpenAI embeddings batch → timeout 60s (batch large può essere lento).
+  const res = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -107,6 +109,7 @@ async function openaiEmbed(texts: string[], apiKey: string): Promise<number[][]>
       input: texts,
       dimensions: EMBEDDING_DIM,
     }),
+    timeoutMs: 60_000,
   });
   if (!res.ok) {
     const err = await res.text();

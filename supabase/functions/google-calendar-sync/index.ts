@@ -2,6 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
+// P2-5 nota: questo file usa già AbortSignal.timeout(15000) su tutti i fetch
+// (pattern nativo equivalente a fetchWithTimeout). Nessuna modifica necessaria.
 
 function getSupabaseAdmin() {
   return createClient(

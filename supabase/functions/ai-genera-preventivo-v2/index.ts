@@ -1,6 +1,8 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
+import { extractJsonFromLLM } from "../_shared/extractJson.ts";
+import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts";
 
 // ── Shape dei record DB usati dall'edge function ───────────────────────────
 // Tipi minimali per sostituire `any` senza legarsi alle generated types (che
@@ -462,21 +464,35 @@ OUTPUT JSON (schema obbligatorio):
     }
     const userMessage = userMessageParts.join("\n");
 
-    // Call Claude API
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") ?? "",
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-opus-4-5",
-        max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
-      }),
-    });
+    // P2-5: Call Claude API con timeout 90s. Prima l'edge function
+    // poteva hangare fino a 150s (limit Supabase) in caso di outage
+    // Anthropic, bruciando CPU e producendo UX pessima lato utente.
+    let claudeRes: Response;
+    try {
+      claudeRes = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") ?? "",
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-opus-4-5",
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+        timeoutMs: 90_000,
+      });
+    } catch (err) {
+      if (isTimeoutError(err)) {
+        return errorResponse(
+          "Timeout: il servizio AI non ha risposto in tempo, riprova tra poco",
+          504,
+        );
+      }
+      throw err;
+    }
 
     if (!claudeRes.ok) {
       const errText = await claudeRes.text();
@@ -489,14 +505,17 @@ OUTPUT JSON (schema obbligatorio):
       throw new Error("Claude ha restituito una risposta vuota o malformata");
     }
 
-    // Strip ```json ... ``` wrappers if present
-    const text = rawText.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
-
+    // P2-4: parser robusto via helper condiviso extractJsonFromLLM.
+    // Prima il regex `^```json\s*` + `\s*```$` falliva se Claude variava
+    // leggermente il formato (niente lingua dopo la fence, testo prima/
+    // dopo, newline extra): JSON.parse lanciava e l'utente vedeva errore.
     let parsedData: ClaudeJsonResponse;
     try {
-      parsedData = JSON.parse(text) as ClaudeJsonResponse;
-    } catch {
-      throw new Error(`Claude ha restituito un JSON non valido: ${text.slice(0, 200)}`);
+      parsedData = extractJsonFromLLM<ClaudeJsonResponse>(rawText);
+    } catch (err) {
+      throw new Error(
+        `Claude ha restituito un JSON non valido: ${(err as Error).message}`,
+      );
     }
 
     // Enrich righe with unit_price (FASE 7.1: corretto per modalità mq / griglia)

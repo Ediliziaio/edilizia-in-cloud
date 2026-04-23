@@ -7,6 +7,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const BREVO_API_URL = "https://api.brevo.com/v3/transactionalSMS/sms";
 const BATCH_SIZE = 10;
@@ -165,7 +166,8 @@ Deno.serve(async (req: Request) => {
           let erroreDettaglio: string | null = null;
 
           try {
-            const resp = await fetch(BREVO_API_URL, {
+            // P2-5: Brevo SMS con timeout 15s (endpoint solitamente veloce).
+            const resp = await fetchWithTimeout(BREVO_API_URL, {
               method: "POST",
               headers: {
                 "api-key": brevoApiKey,
@@ -173,6 +175,7 @@ Deno.serve(async (req: Request) => {
                 Accept: "application/json",
               },
               body: JSON.stringify(payload),
+              timeoutMs: 15_000,
             });
 
             const respJson = await resp.json() as BrevoSmsResponse;
