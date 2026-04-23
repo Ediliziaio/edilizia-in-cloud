@@ -3,6 +3,155 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { corsHeaders } from "../_shared/headers.ts";
 
+// P1-2: tipo esplicito per messaggi WhatsApp inbound.
+// Evita uso di `any` per il parser extractMessageContent.
+interface IncomingWhatsAppMessage {
+  id?: string;
+  from: string;
+  type?: string;
+  caption?: string;
+  text?: { body?: string };
+  image?: { id?: string; caption?: string };
+  video?: { id?: string; caption?: string };
+  audio?: { id?: string; voice?: boolean };
+  document?: { id?: string; filename?: string; mime_type?: string; caption?: string };
+  location?: { latitude?: number; longitude?: number; name?: string; address?: string };
+  contacts?: Array<{ name?: { formatted_name?: string } }>;
+  sticker?: { id?: string };
+  reaction?: { emoji?: string; message_id?: string };
+  interactive?: {
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string };
+  };
+  button?: { text?: string; payload?: string };
+}
+
+interface ExtractedMessage {
+  content: string;
+  messageType: string;
+  mediaId: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+/**
+ * P1-2: estrae content + messageType + mediaId + metadata strutturata dal
+ * payload Meta. Gestisce tutti i tipi inbound (text, image, video, audio,
+ * document, location, contacts, sticker, reaction, interactive, button,
+ * unknown). Prima il codice gestiva solo i primi 5 e scartava i dati
+ * strutturati (coordinate location, emoji reaction, contatti condivisi).
+ */
+function extractMessageContent(msg: IncomingWhatsAppMessage): ExtractedMessage {
+  const type = msg.type ?? "unknown";
+  switch (type) {
+    case "text":
+      return {
+        content: msg.text?.body ?? "",
+        messageType: "text",
+        mediaId: null,
+        metadata: null,
+      };
+    case "image":
+      return {
+        content: msg.image?.caption || "[Immagine]",
+        messageType: "image",
+        mediaId: msg.image?.id ?? null,
+        metadata: msg.image?.caption ? { caption: msg.image.caption } : null,
+      };
+    case "video":
+      return {
+        content: msg.video?.caption || "[Video]",
+        messageType: "video",
+        mediaId: msg.video?.id ?? null,
+        metadata: msg.video?.caption ? { caption: msg.video.caption } : null,
+      };
+    case "audio":
+      return {
+        content: "[Audio]",
+        messageType: "audio",
+        mediaId: msg.audio?.id ?? null,
+        metadata: { voice: msg.audio?.voice ?? false },
+      };
+    case "document":
+      return {
+        content: msg.document?.caption || msg.document?.filename || "[Documento]",
+        messageType: "document",
+        mediaId: msg.document?.id ?? null,
+        metadata: {
+          filename: msg.document?.filename,
+          mime_type: msg.document?.mime_type,
+        },
+      };
+    case "location": {
+      const loc = msg.location ?? {};
+      const label = loc.name ?? loc.address ?? `${loc.latitude ?? ""},${loc.longitude ?? ""}`;
+      return {
+        content: `[Posizione] ${label}`,
+        messageType: "location",
+        mediaId: null,
+        metadata: {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          name: loc.name,
+          address: loc.address,
+        },
+      };
+    }
+    case "contacts": {
+      const list = msg.contacts ?? [];
+      const names = list
+        .map((c) => c.name?.formatted_name ?? "Contatto")
+        .slice(0, 3)
+        .join(", ");
+      return {
+        content: `[Contatti] ${names || "condivisi"}`,
+        messageType: "contacts",
+        mediaId: null,
+        metadata: { contacts: list },
+      };
+    }
+    case "sticker":
+      return {
+        content: "[Sticker]",
+        messageType: "sticker",
+        mediaId: msg.sticker?.id ?? null,
+        metadata: null,
+      };
+    case "reaction":
+      return {
+        content: `[Reazione ${msg.reaction?.emoji ?? ""}]`.trim(),
+        messageType: "reaction",
+        mediaId: null,
+        metadata: {
+          emoji: msg.reaction?.emoji,
+          to_message_id: msg.reaction?.message_id,
+        },
+      };
+    case "interactive": {
+      const ir = msg.interactive?.button_reply || msg.interactive?.list_reply;
+      return {
+        content: ir?.title || "[Risposta interattiva]",
+        messageType: "interactive",
+        mediaId: null,
+        metadata: { interactive: msg.interactive },
+      };
+    }
+    case "button":
+      return {
+        content: msg.button?.text || "[Pulsante]",
+        messageType: "button",
+        mediaId: null,
+        metadata: { payload: msg.button?.payload },
+      };
+    default:
+      return {
+        content: `[Messaggio ${type}]`,
+        messageType: "unknown",
+        mediaId: null,
+        metadata: { raw_type: type },
+      };
+  }
+}
+
 async function verifyHmac(body: string, signature: string, appSecret: string): Promise<boolean> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -159,29 +308,15 @@ Deno.serve(async (req) => {
 
             const senderPhone = msg.from;
             const senderName = contactMap[senderPhone] || senderPhone;
-            const content =
-              msg.text?.body ||
-              msg.caption ||
-              (msg.type === "image"
-                ? "[Immagine]"
-                : msg.type === "document"
-                ? "[Documento]"
-                : msg.type === "audio"
-                ? "[Audio]"
-                : msg.type === "video"
-                ? "[Video]"
-                : "[Messaggio]");
 
-            const messageType =
-              msg.type === "text"
-                ? "text"
-                : msg.type === "image"
-                ? "image"
-                : msg.type === "document"
-                ? "document"
-                : msg.type === "audio"
-                ? "audio"
-                : "text";
+            // P1-2: extractMessageContent gestisce tutti i tipi Meta
+            // (text, image, video, audio, document, location, contacts,
+            // sticker, reaction, interactive, button, unknown). I dati
+            // strutturati (lat/lng per location, emoji per reaction, lista
+            // contatti condivisi) finiscono in metadata jsonb invece di
+            // essere persi nel fallback generico '[Messaggio]'.
+            const { content, messageType, mediaId, metadata: msgMetadata } =
+              extractMessageContent(msg as IncomingWhatsAppMessage);
 
             // Find or create conversation
             const { data: existing } = await supabase
@@ -224,10 +359,7 @@ Deno.serve(async (req) => {
             }
 
             // Insert message
-            const mediaUrl =
-              msg.image?.id || msg.document?.id || msg.audio?.id || msg.video?.id
-                ? `wa-media://${msg[msg.type]?.id}`
-                : null;
+            const mediaUrl = mediaId ? `wa-media://${mediaId}` : null;
 
             const { error: msgErr } = await supabase
               .from("messaging_messages")
@@ -238,6 +370,7 @@ Deno.serve(async (req) => {
                 message_type: messageType,
                 content,
                 media_url: mediaUrl,
+                metadata: msgMetadata,
               });
 
             if (msgErr) {
@@ -254,9 +387,12 @@ Deno.serve(async (req) => {
               .maybeSingle();
 
             if (botConfig?.bot_enabled) {
-              // Log raw message for AI processing
+              // Log raw message for AI processing. mediaId e metadata sono
+              // già estratti da extractMessageContent (P1-2) così il
+              // processor AI ha accesso sia al mediaId sia a metadata
+              // (coordinate, emoji reaction, filename, etc.) in modo
+              // strutturato.
               const waMessageId = msg.id || `wa_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-              const mediaId = msg.image?.id || msg.document?.id || msg.audio?.id || msg.video?.id || null;
 
               const { data: waMsg, error: waMsgErr } = await supabase
                 .from("whatsapp_messages")
@@ -269,6 +405,7 @@ Deno.serve(async (req) => {
                   message_type: messageType,
                   content_text: content,
                   media_url: mediaId ? `wa-media://${mediaId}` : null,
+                  metadata: msgMetadata,
                   processing_status: botConfig.ai_auto_process ? "received" : "processed",
                 })
                 .select("id")

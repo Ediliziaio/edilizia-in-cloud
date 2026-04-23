@@ -1,7 +1,23 @@
 import { cn } from "@/lib/utils";
-import { Mic, FileText, Image, Bot, Clock, Check, CheckCheck } from "lucide-react";
+import { Mic, FileText, Image, Bot, Clock, Check, CheckCheck, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+
+// P1-2: metadata strutturata per tipi Meta estesi (location/reaction/contacts).
+interface MessageMetadata {
+  latitude?: number;
+  longitude?: number;
+  name?: string;
+  address?: string;
+  emoji?: string;
+  to_message_id?: string;
+  caption?: string;
+  filename?: string;
+  mime_type?: string;
+  contacts?: Array<{ name?: { formatted_name?: string } }>;
+  raw_type?: string;
+  [key: string]: unknown;
+}
 
 interface MessageBubbleProps {
   message: {
@@ -14,6 +30,7 @@ interface MessageBubbleProps {
     ai_processed: boolean;
     created_at: string;
     delivery_status?: string | null;
+    metadata?: MessageMetadata | null;
   };
   isSelected: boolean;
   onSelect: (id: string) => void;
@@ -56,7 +73,16 @@ export function MessageBubble({ message, isSelected, onSelect }: MessageBubblePr
     audio: <Mic className="h-3 w-3" />,
     image: <Image className="h-3 w-3" />,
     document: <FileText className="h-3 w-3" />,
+    location: <MapPin className="h-3 w-3" />,
   }[message.message_type];
+
+  // P1-2: rendering specializzato per tipi Meta strutturati.
+  const isLocation =
+    message.message_type === "location" &&
+    typeof message.metadata?.latitude === "number" &&
+    typeof message.metadata?.longitude === "number";
+  const isReaction =
+    message.message_type === "reaction" && typeof message.metadata?.emoji === "string";
 
   return (
     <div
@@ -86,7 +112,22 @@ export function MessageBubble({ message, isSelected, onSelect }: MessageBubblePr
           </div>
         )}
 
-        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        {isLocation ? (
+          <a
+            href={`https://maps.google.com/?q=${message.metadata!.latitude},${message.metadata!.longitude}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary underline inline-flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MapPin className="h-4 w-4" />
+            {message.metadata?.name ?? message.metadata?.address ?? "Apri posizione"}
+          </a>
+        ) : isReaction ? (
+          <span className="text-2xl" aria-label="reazione">{message.metadata!.emoji}</span>
+        ) : (
+          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        )}
 
         {message.message_type === "audio" && message.transcription && (
           <div className="mt-2 pt-2 border-t border-current/10">
