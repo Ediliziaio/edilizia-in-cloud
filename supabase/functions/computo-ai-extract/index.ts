@@ -46,19 +46,46 @@ interface ExtractionResult {
 }
 
 // ── Prompt AI ────────────────────────────────────────────────────────────────
-const COMPUTO_TEXT_EXTRACTION_PROMPT = `Sei un esperto di computi metrici estimativi italiani per l'edilizia.
+const COMPUTO_TEXT_EXTRACTION_PROMPT = `Sei un esperto di computi metrici estimativi italiani per l'edilizia, in particolare:
+- Prezzari regionali (Lombardia/DEI/Piemonte/Veneto/Regione Sicilia/Emilia-Romagna...)
+- Formati CEPA, XPWE, XML di Primus/STR Vision/Acca
+- Lavorazioni standard: murature, intonaci, serramenti, pavimenti, impianti, opere provvisionali
+
 Analizza il seguente testo estratto da un computo metrico e restituisci un JSON strutturato.
 
-REGOLE CRITICHE:
-1. I numeri italiani usano il punto come separatore migliaia e la virgola per decimali: 1.234,56 = 1234.56
-2. Le descrizioni possono essere multi-riga: concatenale in un unico campo
-3. U.M. standard: mq, mc, ml, kg, cad, a corpo, lt, q, t, nr, h, gg, m, km
-4. Se una voce non ha prezzo/importo chiaro, confidence = 0.5
-5. Se il codice sembra un codice prezzario regionale (es. E.01.001, NP.01.A), mettilo in codice_prezzario
-6. Mantieni l'ordine originale delle voci
-7. Raggruppa per capitolo/categoria se presente nel documento
+REGOLE CRITICHE NUMERAZIONE:
+1. Numeri italiani: punto = migliaia, virgola = decimali. "1.234,56" → 1234.56. "234,50" → 234.50.
+2. Numeri con apostrofo/spazio: "1'234.56" o "1 234,56" → 1234.56.
+3. Se un numero ha solo decimali (es. ",56") → 0.56.
+4. Se trovi "TOT.", "TOTALE", "SOMMA", "A riportare" usa questi come importi di chiusura.
 
-Restituisci SOLO JSON valido con questa struttura:
+REGOLE DESCRIZIONI:
+5. Descrizioni multi-riga: concatena con spazio singolo, rimuovi newline superflui.
+6. Se la descrizione ha sottoelenchi numerati (es. "a. opera x\\nb. opera y") mantieni la struttura con separatore.
+7. descrizione_breve = primi 100 char più informativi (nome lavoro principale).
+8. descrizione_estesa = testo completo.
+
+REGOLE CODICI:
+9. codice_voce = numerazione progressiva del computo (es. "1.1", "1.01.02", "A-001").
+10. codice_prezzario = se riconosci un codice regionale/DEI/privato (pattern comuni: E.01.001, NP.01.A, PR.CM, B.02.010), mettilo qui. Altrimenti stringa vuota.
+11. U.M. standard: mq, mc, ml, kg, cad, a corpo, lt, q, t, nr, h, gg, m, km, m², m³, ml. Normalizza: m² → mq, m³ → mc.
+
+REGOLE CAPITOLI:
+12. Raggruppa per capitolo/sezione (es. "SCAVI", "MURATURE", "FINITURE"). Se il documento ha capitoli numerati, usa quella numerazione.
+13. Se non ci sono capitoli espliciti, crea "Generale" come unico capitolo.
+14. Ogni capitolo deve avere totale = somma degli importi delle voci incluse.
+
+REGOLE CONFIDENCE:
+15. confidence 0.95+ se prezzo E quantità E descrizione chiare.
+16. confidence 0.7-0.9 se manca 1 campo o è ambiguo.
+17. confidence < 0.5 se il testo è troppo corrotto/incompleto. Aggiungi warnings[] descrittivi.
+
+REGOLE VALIDAZIONE CROSS-CHECK:
+18. Se quantita × prezzo_unitario differisce da importo per oltre 1% → warnings: "Ricalcolo: <valore>".
+19. Mantieni SEMPRE l'ordine originale delle voci nel documento.
+20. NON inventare dati. Se manca, lascia null o 0 e aggiungi warning.
+
+Restituisci SOLO JSON valido (niente markdown) con questa struttura:
 {
   "metadata": {
     "oggetto_lavori": "string o null",
@@ -100,6 +127,43 @@ const COMPUTO_CHAPTER_PROMPT = `Analizza questo capitolo di un computo metrico e
 Estrai tutte le voci di lavorazione con: codice, descrizione, U.M., quantità, prezzo unitario, importo.
 Numeri italiani: 1.234,56 → 1234.56.
 Restituisci JSON: { "voci": [ { "capitolo_numero": N, "capitolo_nome": "", "codice_voce": "", "codice_prezzario": "", "descrizione_breve": "", "descrizione_estesa": "", "unita_misura": "", "quantita": 0, "prezzo_unitario": 0, "importo": 0, "confidence": 0.9, "warnings": [] } ] }`;
+
+// MP-preventivi-v2: prompt dedicato per foto di preventivi cartacei/schizzi/fatti a mano.
+// Usato quando file_type === "image". L'AI deve essere più flessibile:
+// il documento può NON essere un computo metrico formale ma un "foglietto"
+// con prodotti/misure/prezzi scritti liberamente.
+const FOTO_PREVENTIVO_PROMPT = `Sei un esperto di preventivi edili italiani. Stai analizzando FOTO (non documenti strutturati).
+
+CONTESTI POSSIBILI:
+- Preventivo cartaceo scritto a mano da un commerciale o cliente.
+- Schizzo di lavoro con misure e prodotti appuntati.
+- Foto di una lavagna/quaderno con elenco prodotti.
+- Screenshot di un preventivo PDF informale.
+- Foto del luogo dei lavori con note a margine.
+
+OBIETTIVO: Estrarre le voci lavorative (prodotti, quantità, misure, prezzi se presenti) e
+restituire la struttura di un computo metrico. Il commerciale rivedrà e confermerà le voci.
+
+REGOLE CRITICHE:
+1. Sii MAI inventivo su prodotti/prezzi non visibili. Meglio nessuna voce che dati falsi.
+2. Numeri italiani: "1.234,56" → 1234.56. "m. 1,20" → 1.2. "mq. 45" → 45 (U.M. = mq).
+3. Se trovi misure come "120×140" riconosci L×H in cm (default) e converti se serve.
+4. Se il prezzo è illeggibile/mancante → prezzo_unitario = 0, confidence = 0.3, warning = "prezzo non leggibile".
+5. Se la quantità non c'è e non deducibile → 1 (default) + warning = "quantità non specificata".
+6. Se il prodotto è generico (es. "finestra") → descrizione breve chiara, no codice_prezzario.
+7. Unisci voci ripetute se l'utente le ha scritte come "x2 finestre 120x140" → quantita=2.
+8. Se trovi TOTALE scritto in fondo alla foto → includi in metadata.totale_computo.
+9. confidence: 0.7 se la scrittura è chiara, 0.5 se difficoltosa, 0.3 se ambigua.
+10. Se la foto è del LUOGO (non di un preventivo) e vedi lavori necessari (es. "finestre vecchie da sostituire")
+    genera righe descrittive con confidence=0.5 + warning="derivato da contesto visivo".
+
+STRUTTURA CAPITOLI:
+- Raggruppa per tipo di lavoro (es. "Serramenti", "Pavimenti", "Impianti") se deducibile.
+- Se un solo tipo → capitolo unico.
+
+Restituisci SOLO JSON valido (no markdown) con la stessa struttura del COMPUTO_TEXT_EXTRACTION.
+Esempio capitolo: { "numero": 1, "nome": "Serramenti", "totale": N, "voci": [...] }
+Ogni voce: { "capitolo_numero", "capitolo_nome", "codice_voce", "codice_prezzario", "descrizione_breve", "descrizione_estesa", "unita_misura", "quantita", "prezzo_unitario", "importo", "confidence", "warnings": [] }`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

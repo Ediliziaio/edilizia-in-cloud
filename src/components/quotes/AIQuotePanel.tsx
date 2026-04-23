@@ -24,6 +24,7 @@ import {
   MicOff,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Plus,
   X,
   Loader2,
@@ -33,6 +34,9 @@ import {
   Wrench,
   Truck,
   Trash2,
+  Camera,
+  Image as ImageIcon,
+  Upload,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { captureVelocityEvent, captureVelocityError } from "@/lib/velocity/sentry";
@@ -103,7 +107,7 @@ export default function AIQuotePanel({
   pianoInstallazione,
 }: AIQuotePanelProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"testo" | "voce">("testo");
+  const [activeTab, setActiveTab] = useState<"testo" | "voce" | "foto">("testo");
   const [descrizione, setDescrizione] = useState("");
   const [misure, setMisure] = useState<Misura[]>([]);
   const [stato, setStato] = useState<"idle" | "generando" | "risultato" | "errore">("idle");
@@ -113,6 +117,10 @@ export default function AIQuotePanel({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [trascrizione, setTrascrizione] = useState("");
+  // Foto input (upload foto schizzo/preventivo cartaceo)
+  const [fotoFiles, setFotoFiles] = useState<File[]>([]);
+  const [fotoPreviewUrls, setFotoPreviewUrls] = useState<string[]>([]);
+  const fotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -289,6 +297,62 @@ export default function AIQuotePanel({
     }
   };
 
+  // MP-preventivi-v2: generazione da foto via AI vision.
+  // Converte file in base64 e invoca ai-genera-preventivo-v2 con input_mode="foto".
+  const generaDaFoto = async () => {
+    if (fotoFiles.length === 0) {
+      toast.error("Carica almeno una foto");
+      return;
+    }
+    setStato("generando");
+    const t0 = performance.now();
+    captureVelocityEvent("preventivatore.ai.generate.foto.start", {
+      foto_count: fotoFiles.length,
+      has_nota: !!descrizione,
+      tipo_lavoro: tipoLavoro ?? null,
+    });
+    try {
+      const fotoB64 = await Promise.all(
+        fotoFiles.map(async (f) => {
+          const buf = await f.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          let binary = "";
+          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+          return {
+            name: f.name,
+            mime: f.type || "image/jpeg",
+            data_base64: btoa(binary),
+          };
+        })
+      );
+      const { data, error } = await supabase.functions.invoke("ai-genera-preventivo-v2", {
+        body: {
+          company_id: companyId,
+          input_mode: "foto",
+          descrizione: descrizione || "",
+          tipo_lavoro: tipoLavoro,
+          piano_installazione: pianoInstallazione,
+          foto: fotoB64,
+        },
+      });
+      if (error) throw new Error(error.message);
+      const sezioni: SezioneGenerata[] = data.sezioni ?? [];
+      setRisultato(sezioni);
+      setAvvertenze(data.avvertenze ?? []);
+      setNote(data.note ?? "");
+      setStato("risultato");
+      captureVelocityEvent("preventivatore.ai.generate.foto.success", {
+        latency_ms: Math.round(performance.now() - t0),
+        sezioni_count: sezioni.length,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore generazione da foto";
+      toast.error(msg);
+      setStato("errore");
+      captureVelocityError("preventivatore.ai.generate.foto", err, { company_id: companyId });
+    }
+  };
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
@@ -306,10 +370,11 @@ export default function AIQuotePanel({
         <div className="border border-violet-200 border-t-0 rounded-b-lg p-4 space-y-4">
 
           {(stato === "idle" || stato === "errore") && (
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "testo" | "voce")}>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "testo" | "voce" | "foto")}>
               <TabsList className="w-full">
-                <TabsTrigger value="testo" className="flex-1">Testo</TabsTrigger>
-                <TabsTrigger value="voce" className="flex-1">Voce</TabsTrigger>
+                <TabsTrigger value="testo" className="flex-1"><ChevronRight className="h-3.5 w-3.5 mr-1.5" />Testo</TabsTrigger>
+                <TabsTrigger value="voce" className="flex-1"><Mic className="h-3.5 w-3.5 mr-1.5" />Voce</TabsTrigger>
+                <TabsTrigger value="foto" className="flex-1"><Camera className="h-3.5 w-3.5 mr-1.5" />Foto</TabsTrigger>
               </TabsList>
 
               <TabsContent value="testo" className="space-y-3 mt-3">
@@ -440,6 +505,90 @@ export default function AIQuotePanel({
                     </Button>
                   )}
                 </div>
+              </TabsContent>
+
+              <TabsContent value="foto" className="space-y-3 mt-3">
+                <div className="rounded-md bg-violet-50 border border-violet-200 p-3 text-xs text-violet-900">
+                  <p className="font-medium mb-1">Come funziona</p>
+                  <p>
+                    Scatta o carica fino a 5 foto: schizzo, preventivo cartaceo, foto del
+                    luogo, scheda tecnica prodotto. L'AI estrae prodotti/misure/quantità,
+                    le fa matchare col tuo listino e genera le righe del preventivo.
+                  </p>
+                </div>
+
+                <input
+                  ref={fotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []).slice(0, 5);
+                    const valid = files.filter((f) => f.size <= 8 * 1024 * 1024);
+                    if (valid.length < files.length) {
+                      toast.error("Alcune foto sono troppo grandi (max 8MB)");
+                    }
+                    setFotoFiles(valid);
+                    setFotoPreviewUrls(valid.map((f) => URL.createObjectURL(f)));
+                  }}
+                />
+
+                {fotoFiles.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => fotoInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-violet-300 rounded-lg p-6 text-center hover:bg-violet-50 transition-colors"
+                  >
+                    <Camera className="h-10 w-10 mx-auto mb-2 text-violet-400" />
+                    <p className="text-sm font-medium text-violet-700">Scatta o carica foto</p>
+                    <p className="text-xs text-muted-foreground mt-1">Max 5 foto · max 8MB ciascuna</p>
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                      {fotoPreviewUrls.map((url, i) => (
+                        <div key={i} className="relative group rounded-md overflow-hidden border bg-muted">
+                          <img src={url} alt={`Foto ${i + 1}`} className="w-full aspect-square object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFotoFiles((prev) => prev.filter((_, idx) => idx !== i));
+                              setFotoPreviewUrls((prev) => prev.filter((_, idx) => idx !== i));
+                            }}
+                            className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {fotoFiles.length < 5 && (
+                        <button
+                          type="button"
+                          onClick={() => fotoInputRef.current?.click()}
+                          className="aspect-square rounded-md border-2 border-dashed border-violet-300 flex items-center justify-center hover:bg-violet-50"
+                        >
+                          <Plus className="h-5 w-5 text-violet-400" />
+                        </button>
+                      )}
+                    </div>
+                    <Textarea
+                      placeholder="Nota aggiuntiva (opzionale): contesto, cliente, urgenze..."
+                      value={descrizione}
+                      onChange={(e) => setDescrizione(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                )}
+
+                <Button
+                  onClick={generaDaFoto}
+                  disabled={fotoFiles.length === 0}
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" /> Estrai e genera preventivo →
+                </Button>
               </TabsContent>
             </Tabs>
           )}

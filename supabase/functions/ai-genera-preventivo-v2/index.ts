@@ -126,12 +126,16 @@ Deno.serve(async (req) => {
       tipo_lavoro,
       piano_installazione,
       misure,
+      input_mode,
+      foto,
     }: {
       company_id: string;
       descrizione: string;
       tipo_lavoro?: string;
       piano_installazione?: number;
       misure?: { label: string; valore: number; unita: string }[];
+      input_mode?: "testo" | "voce" | "foto";
+      foto?: Array<{ name: string; mime: string; data_base64: string }>;
     } = body;
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400);
@@ -420,6 +424,46 @@ Deno.serve(async (req) => {
 
     // FASE 8.5: system prompt scelto in base al vertical della company.
     const systemPromptBase = getSystemPromptForVertical(vertical);
+    const isFotoMode = input_mode === "foto" && Array.isArray(foto) && foto.length > 0;
+
+    // MP-preventivi-v2: prompt potenziato per modalità foto.
+    // Quando arrivano immagini (schizzo/preventivo cartaceo/foto luogo),
+    // l'AI deve: (1) leggere ogni info visibile, (2) convertire unità
+    // (cm/mm/m), (3) matchare SEMPRE col listino fornito, (4) marcare
+    // incertezze in `avvertenze`.
+    const fotoGuide = isFotoMode ? `
+
+═══════════════════════════════════════════════════════════════
+MODALITA' FOTO/PDF — LETTURA DOCUMENTO VISIVO
+═══════════════════════════════════════════════════════════════
+Le immagini allegate possono essere:
+  • Schizzo a mano libera con misure
+  • Preventivo cartaceo (stampato o scritto a mano)
+  • Foto di un luogo (stanza, facciata, bagno da ristrutturare)
+  • Scheda tecnica prodotto
+  • Screenshot di messaggi/chat con cliente
+
+PROCEDURA OBBLIGATORIA:
+1. LEGGI ogni numero, quantità, misura, nome prodotto visibile.
+2. Se trovi misure in cm o m, converti in mm per il campo misure_x/y_mm.
+3. Se riconosci un prodotto (es. "finestra 120×140") cerca PRIMA nel listino
+   fornito e usa il suo article_template_id / family_id. MAI inventare ID.
+4. Se non trovi matching esatto nel listino → crea riga con article_template_id=null
+   e nome descrittivo chiaro. Il commerciale potrà mapparla manualmente.
+5. Se il documento mostra prezzi ma NON combaciano col listino → scegli il
+   prezzo del listino (fonte autoritativa) e annota la discrepanza in "avvertenze".
+6. Se l'immagine è sfocata/parziale/incomprensibile → dichiaralo esplicitamente
+   in "avvertenze" con la riga [FOTO X].
+7. Se riconosci dalla foto del luogo dei lavori NECESSARI (es. smaltimento
+   vecchi serramenti, piano alto → piattaforma) aggiungi relative righe posa/accessorie.
+8. Se trovi un totale scritto nel documento e differisce da quello calcolato col
+   listino, aggiungi nota "Totale documento: X, totale listino: Y".
+
+Priorità matching:
+  (a) article_template_id puntuale > (b) family_id con axis_selections >
+  (c) nessun ID + nome testuale.
+` : "";
+
     const outputSchema = `
 
 OUTPUT JSON (schema obbligatorio):
@@ -443,26 +487,60 @@ OUTPUT JSON (schema obbligatorio):
   }],
   "note": string,
   "avvertenze": string[]
-}`;
-    const systemPrompt = `${systemPromptBase}${outputSchema}`;
+}
+
+REGOLE OUTPUT:
+- Rispondi SOLO con JSON valido, senza markdown wrapper.
+- Raggruppa le righe in sezioni logiche (es. "Serramenti", "Posa", "Accessori", "Smaltimento").
+- Per ogni riga: article_template_id oppure family_id (mai entrambi valorizzati insieme).
+- misure_x_mm = larghezza in millimetri (int). misure_y_mm = altezza. Se non noto → null.
+- item_category: "prodotto" per articoli fisici, "posa" per manodopera, "trasporto"/"nolo"/"smaltimento" per servizi accessori, "nota" per note informative senza prezzo.
+- Se un prodotto ha posa automatica definita nel listino → aggiungi una riga "posa" collegata con is_posa_di = client_temp_id della riga prodotto padre (puoi usare il nome univoco).
+- quantita deve essere un numero positivo. Se non noto → 1.
+- In "avvertenze" elenca incertezze, match dubbi, prodotti non trovati nel listino.`;
+    const systemPrompt = `${systemPromptBase}${fotoGuide}${outputSchema}`;
 
     // Build user message: include LISTINO FAMIGLIE solo se ci sono famiglie matchate.
     const userMessageParts = [
-      `LAVORI: ${descrizione}`,
+      isFotoMode
+        ? `INPUT: ${foto!.length} foto/immagini allegate (analizza TUTTE prima di generare).`
+        : `LAVORI: ${descrizione}`,
       `TIPO: ${tipo_lavoro ?? "generico"}`,
       `PIANO: ${piano_installazione ?? 0}`,
       `MISURE: ${misureCtx}`,
+    ];
+    if (isFotoMode && descrizione) {
+      userMessageParts.push("", `NOTA AGGIUNTIVA DAL COMMERCIALE: ${descrizione}`);
+    }
+    userMessageParts.push(
       "",
-      "LISTINO PRODOTTI:",
+      "LISTINO PRODOTTI (matching prioritario):",
       prodottiCtx || "(nessun prodotto rilevante)",
       "",
       "TARIFFE DISPONIBILI:",
       tariffeCtx || "(nessuna tariffa)",
-    ];
+    );
     if (famiglieCtx) {
       userMessageParts.push("", "LISTINO FAMIGLIE:", famiglieCtx);
     }
     const userMessage = userMessageParts.join("\n");
+
+    // MP-preventivi-v2: costruzione content multipart per foto mode.
+    const userContent: unknown = isFotoMode
+      ? [
+          ...foto!.map((f) => ({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: f.mime === "image/png" ? "image/png"
+                : f.mime === "image/webp" ? "image/webp"
+                : "image/jpeg",
+              data: f.data_base64,
+            },
+          })),
+          { type: "text", text: userMessage },
+        ]
+      : userMessage;
 
     // P2-5: Call Claude API con timeout 90s. Prima l'edge function
     // poteva hangare fino a 150s (limit Supabase) in caso di outage
@@ -478,11 +556,11 @@ OUTPUT JSON (schema obbligatorio):
         },
         body: JSON.stringify({
           model: "claude-opus-4-5",
-          max_tokens: 2000,
+          max_tokens: isFotoMode ? 4000 : 2000,
           system: systemPrompt,
-          messages: [{ role: "user", content: userMessage }],
+          messages: [{ role: "user", content: userContent }],
         }),
-        timeoutMs: 90_000,
+        timeoutMs: isFotoMode ? 120_000 : 90_000,
       });
     } catch (err) {
       if (isTimeoutError(err)) {

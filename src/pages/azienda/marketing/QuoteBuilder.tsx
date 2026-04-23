@@ -1867,120 +1867,106 @@ export default function QuoteBuilder() {
       {/* ── STEP 0: Cliente ── */}
       {step === 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Dati Cliente</CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Dati cliente</CardTitle>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="outline" className="text-[10px]">Step 1 di 4</Badge>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Seleziona contatto esistente</Label>
-              <ContactCombobox
-                contacts={contacts}
-                value={contactId}
-                onChange={handleContactSelect}
-              />
+          <CardContent className="space-y-5">
+            {/* Blocco 1: Selezione rapida da contatto */}
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Seleziona contatto esistente</Label>
+              <div className="mt-1.5">
+                <ContactCombobox
+                  contacts={contacts}
+                  value={contactId}
+                  onChange={handleContactSelect}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Seleziona un contatto CRM per compilare automaticamente i campi sotto.
+              </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Nome cliente *</Label>
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={clientEmail}
-                  onChange={(e) => setClientEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Telefono</Label>
-                <Input
-                  value={clientPhone}
-                  onChange={(e) => setClientPhone(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Azienda</Label>
-                <Input
-                  value={clientCompany}
-                  onChange={(e) => setClientCompany(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Codice Fiscale</Label>
-                <Input
-                  value={clientFiscalCode}
-                  onChange={(e) => setClientFiscalCode(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>P.IVA</Label>
-                <Input
-                  value={clientVatNumber}
-                  onChange={(e) => setClientVatNumber(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Indirizzo</Label>
-                <Input
-                  value={clientAddress}
-                  onChange={(e) => setClientAddress(e.target.value)}
-                />
-              </div>
-            </div>
-            <hr />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Titolo offerta</Label>
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Validità (giorni)</Label>
-                <Input
-                  type="number"
-                  value={validityDays}
-                  onChange={(e) =>
-                    setValidityDays(parseInt(e.target.value) || 30)
-                  }
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Descrizione</Label>
-                <Textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div>
-                <Label>Note (visibili al cliente)</Label>
-                <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                />
-              </div>
-              <div>
-                <Label>Note interne</Label>
-                <Textarea
-                  value={internalNotes}
-                  onChange={(e) => setInternalNotes(e.target.value)}
-                  rows={2}
-                />
+
+            {/* Blocco 2: Anagrafica cliente */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Anagrafica cliente
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Nome cliente *</Label>
+                  <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Mario Rossi" />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="mario@example.com" />
+                </div>
+                <div>
+                  <Label>Telefono</Label>
+                  <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" />
+                </div>
+                <div>
+                  <Label>Azienda</Label>
+                  <Input value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} placeholder="Rossi Srl" />
+                </div>
+                <div>
+                  <Label>Codice Fiscale</Label>
+                  <Input value={clientFiscalCode} onChange={(e) => setClientFiscalCode(e.target.value)} className="uppercase" />
+                </div>
+                <div>
+                  <Label>P.IVA</Label>
+                  <Input value={clientVatNumber} onChange={(e) => setClientVatNumber(e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Indirizzo</Label>
+                  <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" />
+                </div>
               </div>
             </div>
 
-            {/* P03: Dettagli lavoro */}
-            <hr className="my-2" />
-            <h4 className="font-medium text-sm text-muted-foreground">
-              Dettagli lavoro
-            </h4>
+            {/* Blocco 3: Offerta */}
+            <div className="space-y-3 border-t pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Offerta
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <Label>Titolo offerta</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="es. Fornitura e posa serramenti PVC" />
+                </div>
+                <div>
+                  <Label>Validità (giorni)</Label>
+                  <Input type="number" value={validityDays} onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)} />
+                </div>
+                <div className="md:col-span-3">
+                  <Label>Descrizione</Label>
+                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+                    placeholder="Breve descrizione dei lavori (appare sul PDF)" />
+                </div>
+                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Note visibili al cliente</Label>
+                    <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+                      placeholder="Pagamento, tempi consegna, garanzia..." />
+                  </div>
+                  <div>
+                    <Label>Note interne <span className="text-muted-foreground font-normal">(non mostrate al cliente)</span></Label>
+                    <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={2}
+                      placeholder="Info riservate per il team" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Blocco 4: Dettagli lavoro */}
+            <div className="space-y-3 border-t pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Dettagli lavoro e assegnazione
+              </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <Label>Tipo di lavoro</Label>
@@ -2070,6 +2056,7 @@ export default function QuoteBuilder() {
                   />
                 </div>
               )}
+            </div>
             </div>
           </CardContent>
         </Card>

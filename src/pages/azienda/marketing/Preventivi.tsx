@@ -62,6 +62,7 @@ interface QuoteForDuplicate extends QuoteRow {
 }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -110,6 +111,7 @@ import {
   Percent,
   FileUp,
   Sparkles,
+  SlidersHorizontal,
 } from "lucide-react";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 
@@ -144,6 +146,14 @@ export default function Preventivi() {
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [salespersonFilter, setSalespersonFilter] = useState<string>("tutti");
   const [search, setSearch] = useState("");
+  // Filtri avanzati (v3)
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [importoMin, setImportoMin] = useState<string>("");
+  const [importoMax, setImportoMax] = useState<string>("");
+  const [sourceFilter, setSourceFilter] = useState<string>("tutti");
+  const [approvalFilter, setApprovalFilter] = useState<string>("tutti");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteQuote, setDeleteQuote] = useState<QuoteRow | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -163,7 +173,7 @@ export default function Preventivi() {
   }, [search]);
 
   const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
-    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, salespersonFilter],
+    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, salespersonFilter, dateFrom, dateTo, importoMin, importoMax, sourceFilter, approvalFilter],
     enabled: !!companyId,
     queryFn: async () => {
       let query = supabase
@@ -183,6 +193,20 @@ export default function Preventivi() {
           query = query.eq("salesperson_id", salespersonFilter);
         }
       }
+      if (sourceFilter !== "tutti") {
+        if (sourceFilter === "manuale") {
+          query = query.or("source.is.null,source.eq.manual");
+        } else {
+          query = query.eq("source", sourceFilter);
+        }
+      }
+      if (approvalFilter !== "tutti") {
+        query = query.eq("approval_status", approvalFilter);
+      }
+      if (dateFrom) query = query.gte("created_at", dateFrom);
+      if (dateTo) query = query.lte("created_at", `${dateTo}T23:59:59`);
+      if (importoMin) query = query.gte("total", parseFloat(importoMin));
+      if (importoMax) query = query.lte("total", parseFloat(importoMax));
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -630,7 +654,81 @@ export default function Preventivi() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className={advancedOpen ? "border-primary text-primary" : ""}
+          >
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filtri avanzati
+            {(dateFrom || dateTo || importoMin || importoMax || sourceFilter !== "tutti" || approvalFilter !== "tutti") && (
+              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
+                {[dateFrom||dateTo, importoMin||importoMax, sourceFilter !== "tutti", approvalFilter !== "tutti"].filter(Boolean).length}
+              </Badge>
+            )}
+          </Button>
         </div>
+
+        {advancedOpen && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-lg border bg-muted/30">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data da</Label>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data a</Label>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Importo min (€)</Label>
+              <Input type="number" min="0" step="100" value={importoMin} onChange={(e) => setImportoMin(e.target.value)} placeholder="0" className="h-9" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Importo max (€)</Label>
+              <Input type="number" min="0" step="100" value={importoMax} onChange={(e) => setImportoMax(e.target.value)} placeholder="∞" className="h-9" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Origine</Label>
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">Tutte le origini</SelectItem>
+                  <SelectItem value="manuale">Creato manualmente</SelectItem>
+                  <SelectItem value="computo_ai">Da Computo AI</SelectItem>
+                  <SelectItem value="foto_ai">Da Foto/PDF AI</SelectItem>
+                  <SelectItem value="opportunity">Da Opportunità</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Stato approvazione sconto</Label>
+              <Select value={approvalFilter} onValueChange={setApprovalFilter}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">Tutti</SelectItem>
+                  <SelectItem value="not_required">Non richiesta</SelectItem>
+                  <SelectItem value="pending">In attesa</SelectItem>
+                  <SelectItem value="approved">Approvato</SelectItem>
+                  <SelectItem value="rejected">Rifiutato</SelectItem>
+                  <SelectItem value="counter_proposed">Contro-proposta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="md:col-span-2 lg:col-span-4 flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDateFrom(""); setDateTo(""); setImportoMin(""); setImportoMax("");
+                  setSourceFilter("tutti"); setApprovalFilter("tutti");
+                }}
+              >
+                Azzera filtri
+              </Button>
+            </div>
+          </div>
+        )}
+
         <Tabs value={statusFilter} onValueChange={handleStatusFilter}>
           <TabsList>
             <TabsTrigger value="tutti">Tutti</TabsTrigger>
