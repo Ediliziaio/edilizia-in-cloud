@@ -124,6 +124,7 @@ import {
   Settings2,
   Wallet,
   Percent,
+  Lock,
 } from "lucide-react";
 
 // ─── Helper components ────────────────────────────────────────────────────────
@@ -682,6 +683,13 @@ export default function QuoteBuilder() {
   const [pdfImmagini, setPdfImmagini] = useState(true);
   const [pdfSchedeTecniche, setPdfSchedeTecniche] = useState(false);
   const [pdfFirma, setPdfFirma] = useState(true);
+  // MP-preventivi-v2: nuovi flag PDF (misure, attributi, note, condizioni, watermark, copia).
+  const [pdfMisure, setPdfMisure] = useState(true);
+  const [pdfAttributi, setPdfAttributi] = useState(true);
+  const [pdfNoteCliente, setPdfNoteCliente] = useState(true);
+  const [pdfCondizioni, setPdfCondizioni] = useState(true);
+  const [pdfWatermarkText, setPdfWatermarkText] = useState<string>("");
+  const [pdfCopiaDestinatario, setPdfCopiaDestinatario] = useState<string>("cliente");
 
   // Template
   const { templates, defaultTemplate } = useQuoteTemplates();
@@ -772,7 +780,7 @@ export default function QuoteBuilder() {
     [familyAxesMap],
   );
 
-  // Sync PDF impostazioni for new quote
+  // Sync PDF impostazioni for new quote (company-level defaults → form state)
   useEffect(() => {
     if (impostazioni && Object.keys(impostazioni).length > 0 && !isEdit) {
       setPdfPrezziRiga(impostazioni.pdf_mostra_prezzi_per_riga ?? true);
@@ -781,6 +789,14 @@ export default function QuoteBuilder() {
       setPdfImmagini(impostazioni.pdf_mostra_immagini ?? true);
       setPdfSchedeTecniche(impostazioni.pdf_includi_schede_tecniche ?? false);
       setPdfFirma(impostazioni.firma_digitale_abilitata ?? true);
+      // MP-preventivi-v2: nuovi flag (default da preventivo_impostazioni)
+      const imp = impostazioni as Record<string, unknown>;
+      setPdfMisure((imp.pdf_mostra_misure as boolean | undefined) ?? true);
+      setPdfAttributi((imp.pdf_mostra_attributi as boolean | undefined) ?? true);
+      setPdfNoteCliente((imp.pdf_mostra_note_cliente as boolean | undefined) ?? true);
+      setPdfCondizioni((imp.pdf_mostra_condizioni as boolean | undefined) ?? true);
+      setPdfWatermarkText((imp.pdf_watermark_text as string | undefined) ?? "");
+      setPdfCopiaDestinatario((imp.pdf_copia_destinatario as string | undefined) ?? "cliente");
     }
   }, [impostazioni, isEdit]);
 
@@ -904,6 +920,23 @@ export default function QuoteBuilder() {
     if (q.salesperson_id !== undefined) setSalespersonId(q.salesperson_id);
     if (q.approval_status) setApprovalStatus(q.approval_status);
   }, [existingQuote]);
+
+  // MP-preventivi-v2: hydrate PDF override da quote esistente (edit mode)
+  useEffect(() => {
+    if (!existingQuote || !isEdit) return;
+    const q = existingQuote as unknown as Record<string, unknown>;
+    if (q.pdf_mostra_prezzi_per_riga != null) setPdfPrezziRiga(q.pdf_mostra_prezzi_per_riga as boolean);
+    if (q.pdf_mostra_solo_totale != null) setPdfSoloTotale(q.pdf_mostra_solo_totale as boolean);
+    if (q.pdf_mostra_sconti != null) setPdfSconti(q.pdf_mostra_sconti as boolean);
+    if (q.pdf_mostra_immagini != null) setPdfImmagini(q.pdf_mostra_immagini as boolean);
+    if (q.pdf_includi_schede_tecniche != null) setPdfSchedeTecniche(q.pdf_includi_schede_tecniche as boolean);
+    if (q.pdf_mostra_misure != null) setPdfMisure(q.pdf_mostra_misure as boolean);
+    if (q.pdf_mostra_attributi != null) setPdfAttributi(q.pdf_mostra_attributi as boolean);
+    if (q.pdf_mostra_note_cliente != null) setPdfNoteCliente(q.pdf_mostra_note_cliente as boolean);
+    if (q.pdf_mostra_condizioni != null) setPdfCondizioni(q.pdf_mostra_condizioni as boolean);
+    if (typeof q.pdf_watermark_text === "string") setPdfWatermarkText(q.pdf_watermark_text);
+    if (typeof q.pdf_copia_destinatario === "string") setPdfCopiaDestinatario(q.pdf_copia_destinatario);
+  }, [existingQuote, isEdit]);
 
   // Fetch lista commerciali attivi (per picker)
   const { data: salespeople = [] } = useQuery({
@@ -1643,6 +1676,18 @@ export default function QuoteBuilder() {
         margine_pct_snapshot: totaliPro.margine_totale_pct ?? null,
         firma_digitale_abilitata: pdfFirma,
         template_layout_override: layoutOverride || null,
+        // MP-preventivi-v2: persistenza completa flag PDF (admin-only input).
+        pdf_mostra_prezzi_per_riga: pdfPrezziRiga,
+        pdf_mostra_solo_totale: pdfSoloTotale,
+        pdf_mostra_sconti: pdfSconti,
+        pdf_mostra_immagini: pdfImmagini,
+        pdf_includi_schede_tecniche: pdfSchedeTecniche,
+        pdf_mostra_misure: pdfMisure,
+        pdf_mostra_attributi: pdfAttributi,
+        pdf_mostra_note_cliente: pdfNoteCliente,
+        pdf_mostra_condizioni: pdfCondizioni,
+        pdf_watermark_text: pdfWatermarkText || null,
+        pdf_copia_destinatario: pdfCopiaDestinatario || null,
         // P1 FIX wave 4: subtotal ora è il LORDO coerente con la UI che mostra:
         //   Subtotale (lordo) - Sconto - IVA = Totale.
         //   Prima salvavamo `subtotal - discountAmt` (netto) causando incoerenza
@@ -2757,62 +2802,120 @@ export default function QuoteBuilder() {
       {/* ── STEP 2: Documenti + PDF settings ── */}
       {step === 2 && (
         <div className="space-y-4">
+          {isAdmin ? (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings2 className="h-4 w-4" />
                 Impostazioni PDF (override per questo preventivo)
+                <Badge variant="secondary" className="ml-2 text-[10px]">Admin</Badge>
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Le modifiche qui valgono solo per questo preventivo. I valori di default si configurano in{" "}
+                <Link to="/azienda/impostazioni/margini" className="underline">Impostazioni → Preventivi & margini</Link>.
+              </p>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {[
-                {
-                  k: "pdfPrezziRiga",
-                  v: pdfPrezziRiga,
-                  s: setPdfPrezziRiga,
-                  l: "Mostra prezzo per ogni riga",
-                },
-                {
-                  k: "pdfSoloTotale",
-                  v: pdfSoloTotale,
-                  s: setPdfSoloTotale,
-                  l: "Solo totale finale (senza dettaglio righe)",
-                },
-                {
-                  k: "pdfSconti",
-                  v: pdfSconti,
-                  s: setPdfSconti,
-                  l: "Mostra sconti applicati",
-                },
-                {
-                  k: "pdfImmagini",
-                  v: pdfImmagini,
-                  s: setPdfImmagini,
-                  l: "Includi immagini prodotti",
-                },
-                {
-                  k: "pdfSchedeTecniche",
-                  v: pdfSchedeTecniche,
-                  s: setPdfSchedeTecniche,
-                  l: "Allega schede tecniche PDF",
-                },
-                {
-                  k: "pdfFirma",
-                  v: pdfFirma,
-                  s: setPdfFirma,
-                  l: "Firma digitale abilitata",
-                },
-              ].map(({ k, v, s, l }) => (
-                <div
-                  key={k}
-                  className="flex items-center justify-between py-1"
-                >
-                  <Label className="font-normal">{l}</Label>
-                  <Switch checked={v} onCheckedChange={s} />
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Struttura tabella</h4>
+                {[
+                  { k: "pdfPrezziRiga", v: pdfPrezziRiga, s: setPdfPrezziRiga, l: "Mostra prezzo per ogni riga", h: "Colonne Prezzo/Sconto/IVA sulla riga. Se off: solo Nome+Q.tà+Totale." },
+                  { k: "pdfSoloTotale", v: pdfSoloTotale, s: setPdfSoloTotale, l: "Solo totale finale (senza dettaglio righe)", h: "Omette del tutto la tabella prodotti." },
+                  { k: "pdfSconti", v: pdfSconti, s: setPdfSconti, l: "Mostra sconti applicati", h: "Colonna sconto e riga sconto globale." },
+                ].map(({ k, v, s, l, h }) => (
+                  <div key={k} className="flex items-start justify-between gap-4 py-1.5">
+                    <div className="flex-1">
+                      <Label className="font-normal">{l}</Label>
+                      <p className="text-xs text-muted-foreground">{h}</p>
+                    </div>
+                    <Switch checked={v} onCheckedChange={s} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dettagli prodotto</h4>
+                {[
+                  { k: "pdfImmagini", v: pdfImmagini, s: setPdfImmagini, l: "Includi miniature prodotti", h: "Foto 40x40 nella riga (se disponibili in listino)." },
+                  { k: "pdfMisure", v: pdfMisure, s: setPdfMisure, l: "Mostra misure (L × H mm)", h: "Sotto al nome per prodotti configurati con misure." },
+                  { k: "pdfAttributi", v: pdfAttributi, s: setPdfAttributi, l: "Mostra attributi / varianti", h: 'Es. "Colore: Bianco · Vetro: Doppio".' },
+                  { k: "pdfSchedeTecniche", v: pdfSchedeTecniche, s: setPdfSchedeTecniche, l: "Allega schede tecniche PDF", h: "Documenti prodotto selezionati sotto." },
+                ].map(({ k, v, s, l, h }) => (
+                  <div key={k} className="flex items-start justify-between gap-4 py-1.5">
+                    <div className="flex-1">
+                      <Label className="font-normal">{l}</Label>
+                      <p className="text-xs text-muted-foreground">{h}</p>
+                    </div>
+                    <Switch checked={v} onCheckedChange={s} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Note & condizioni</h4>
+                {[
+                  { k: "pdfNoteCliente", v: pdfNoteCliente, s: setPdfNoteCliente, l: "Stampa note cliente", h: "Le note compilate nello Step 0 (visibili al cliente)." },
+                  { k: "pdfCondizioni", v: pdfCondizioni, s: setPdfCondizioni, l: "Stampa condizioni contrattuali", h: "Termini e condizioni in pagina finale." },
+                ].map(({ k, v, s, l, h }) => (
+                  <div key={k} className="flex items-start justify-between gap-4 py-1.5">
+                    <div className="flex-1">
+                      <Label className="font-normal">{l}</Label>
+                      <p className="text-xs text-muted-foreground">{h}</p>
+                    </div>
+                    <Switch checked={v} onCheckedChange={s} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Firma & presentazione</h4>
+                <div className="flex items-start justify-between gap-4 py-1.5">
+                  <div className="flex-1">
+                    <Label className="font-normal">Firma digitale abilitata</Label>
+                    <p className="text-xs text-muted-foreground">Aggiunge QR code e link "Accetta preventivo" al PDF.</p>
+                  </div>
+                  <Switch checked={pdfFirma} onCheckedChange={setPdfFirma} />
                 </div>
-              ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-1.5">
+                  <div>
+                    <Label className="font-normal text-sm">Watermark (opzionale)</Label>
+                    <Input
+                      value={pdfWatermarkText}
+                      onChange={(e) => setPdfWatermarkText(e.target.value)}
+                      placeholder='es. "BOZZA", "RISERVATO"'
+                      className="mt-1 h-9"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Vuoto = nessun watermark.</p>
+                  </div>
+                  <div>
+                    <Label className="font-normal text-sm">Destinatario copia</Label>
+                    <Select value={pdfCopiaDestinatario || "cliente"} onValueChange={setPdfCopiaDestinatario}>
+                      <SelectTrigger className="mt-1 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cliente">Copia cliente</SelectItem>
+                        <SelectItem value="archivio">Copia archivio</SelectItem>
+                        <SelectItem value="commerciale">Copia commerciale</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">Intestazione visibile nel PDF.</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-4 flex items-start gap-3 text-sm text-muted-foreground">
+                <Lock className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  Le impostazioni di generazione PDF sono gestite dall'amministratore. I valori
+                  correnti verranno applicati automaticamente al salvataggio.
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

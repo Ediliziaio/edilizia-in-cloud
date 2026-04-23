@@ -22335,11 +22335,17 @@ export type Database = {
           numero_formato: string | null
           numero_prefisso: string | null
           overhead_percentuale: number | null
+          pdf_copia_destinatario: string | null
           pdf_includi_schede_tecniche: boolean | null
+          pdf_mostra_attributi: boolean
+          pdf_mostra_condizioni: boolean
           pdf_mostra_immagini: boolean | null
+          pdf_mostra_misure: boolean
+          pdf_mostra_note_cliente: boolean
           pdf_mostra_prezzi_per_riga: boolean | null
           pdf_mostra_sconti: boolean | null
           pdf_mostra_solo_totale: boolean | null
+          pdf_watermark_text: string | null
           soglia_margine_visibile: number | null
           visibilita_margini: string | null
         }
@@ -22357,11 +22363,17 @@ export type Database = {
           numero_formato?: string | null
           numero_prefisso?: string | null
           overhead_percentuale?: number | null
+          pdf_copia_destinatario?: string | null
           pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_attributi?: boolean
+          pdf_mostra_condizioni?: boolean
           pdf_mostra_immagini?: boolean | null
+          pdf_mostra_misure?: boolean
+          pdf_mostra_note_cliente?: boolean
           pdf_mostra_prezzi_per_riga?: boolean | null
           pdf_mostra_sconti?: boolean | null
           pdf_mostra_solo_totale?: boolean | null
+          pdf_watermark_text?: string | null
           soglia_margine_visibile?: number | null
           visibilita_margini?: string | null
         }
@@ -22379,11 +22391,17 @@ export type Database = {
           numero_formato?: string | null
           numero_prefisso?: string | null
           overhead_percentuale?: number | null
+          pdf_copia_destinatario?: string | null
           pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_attributi?: boolean
+          pdf_mostra_condizioni?: boolean
           pdf_mostra_immagini?: boolean | null
+          pdf_mostra_misure?: boolean
+          pdf_mostra_note_cliente?: boolean
           pdf_mostra_prezzi_per_riga?: boolean | null
           pdf_mostra_sconti?: boolean | null
           pdf_mostra_solo_totale?: boolean | null
+          pdf_watermark_text?: string | null
           soglia_margine_visibile?: number | null
           visibilita_margini?: string | null
         }
@@ -24146,8 +24164,19 @@ export type Database = {
           margine_totale_percentuale: number | null
           notes: string | null
           opportunity_id: string | null
+          pdf_copia_destinatario: string | null
           pdf_generated_at: string | null
+          pdf_includi_schede_tecniche: boolean | null
+          pdf_mostra_attributi: boolean | null
+          pdf_mostra_condizioni: boolean | null
+          pdf_mostra_immagini: boolean | null
+          pdf_mostra_misure: boolean | null
+          pdf_mostra_note_cliente: boolean | null
+          pdf_mostra_prezzi_per_riga: boolean | null
+          pdf_mostra_sconti: boolean | null
+          pdf_mostra_solo_totale: boolean | null
           pdf_storage_path: string | null
+          pdf_watermark_text: string | null
           piano_installazione: number | null
           quote_number: string
           refused_at: string | null
@@ -24207,8 +24236,19 @@ export type Database = {
           margine_totale_percentuale?: number | null
           notes?: string | null
           opportunity_id?: string | null
+          pdf_copia_destinatario?: string | null
           pdf_generated_at?: string | null
+          pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_attributi?: boolean | null
+          pdf_mostra_condizioni?: boolean | null
+          pdf_mostra_immagini?: boolean | null
+          pdf_mostra_misure?: boolean | null
+          pdf_mostra_note_cliente?: boolean | null
+          pdf_mostra_prezzi_per_riga?: boolean | null
+          pdf_mostra_sconti?: boolean | null
+          pdf_mostra_solo_totale?: boolean | null
           pdf_storage_path?: string | null
+          pdf_watermark_text?: string | null
           piano_installazione?: number | null
           quote_number: string
           refused_at?: string | null
@@ -24268,8 +24308,19 @@ export type Database = {
           margine_totale_percentuale?: number | null
           notes?: string | null
           opportunity_id?: string | null
+          pdf_copia_destinatario?: string | null
           pdf_generated_at?: string | null
+          pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_attributi?: boolean | null
+          pdf_mostra_condizioni?: boolean | null
+          pdf_mostra_immagini?: boolean | null
+          pdf_mostra_misure?: boolean | null
+          pdf_mostra_note_cliente?: boolean | null
+          pdf_mostra_prezzi_per_riga?: boolean | null
+          pdf_mostra_sconti?: boolean | null
+          pdf_mostra_solo_totale?: boolean | null
           pdf_storage_path?: string | null
+          pdf_watermark_text?: string | null
           piano_installazione?: number | null
           quote_number?: string
           refused_at?: string | null
