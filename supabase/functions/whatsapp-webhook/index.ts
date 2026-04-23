@@ -66,6 +66,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // P0-7: traccia esito elaborazione webhook. Se throwa, ritorniamo 500 così
+    // Meta ritenta (retry policy: 15m → 1h → 6h → 24h). La guard idempotency
+    // su `whatsapp_messages.wa_message_id` (righe 141-151) previene double-
+    // processing dei messaggi già visti in un retry.
+    let webhookFailed = false;
+    let webhookError: string | null = null;
+
     try {
       const payload = JSON.parse(bodyText);
       const entries = payload.entry || [];
@@ -284,41 +291,73 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Fire automation trigger: whatsapp_received
-            // Lookup marketing contact by phone
-            const { data: mktContact } = await supabase
-              .from("marketing_contacts")
-              .select("id")
-              .eq("company_id", companyId)
-              .or(`phone.eq.${senderPhone},phone.eq.+${senderPhone}`)
-              .maybeSingle();
+            // P0-7: Fire automation trigger: whatsapp_received
+            // SQL INJECTION FIX: prima usavamo `.or("phone.eq.X,phone.eq.+X")`
+            // con template-string interpolation, dove `senderPhone` viene
+            // dal payload Meta non fidato. Un attaccante con webhook valido
+            // (firma HMAC corretta se trapelato APP_SECRET) poteva forgiare
+            // `msg.from` con sintassi DSL PostgREST tipo
+            // "39348,phone.eq.OTHER,phone.eq." e bypassare il filtro
+            // company_id estraendo contatti di altre aziende.
+            // FIX: sanitizziamo il phone a [0-9+] e usiamo `.in()` con array
+            // esplicito (PostgREST parametrizza correttamente gli array).
+            const sanitizedDigits = senderPhone.replace(/[^0-9]/g, "");
+            const phoneCandidates = sanitizedDigits.length > 0
+              ? [sanitizedDigits, `+${sanitizedDigits}`]
+              : [];
 
-            if (mktContact) {
-              // Fire whatsapp_received trigger
-              await supabase.from("automation_trigger_events").insert({
-                company_id: companyId,
-                trigger_event: "whatsapp_received",
-                entity_id: mktContact.id,
-                entity_type: "contact",
-                payload: { from: senderPhone, message: content, conversation_id: conversationId },
-              });
-              // Fire customer_replied trigger (same event, different trigger name for automation matching)
-              await supabase.from("automation_trigger_events").insert({
-                company_id: companyId,
-                trigger_event: "customer_replied",
-                entity_id: mktContact.id,
-                entity_type: "contact",
-                payload: { from: senderPhone, message: content, conversation_id: conversationId, channel: "whatsapp" },
-              });
+            if (phoneCandidates.length === 0) {
+              console.warn(`[WHATSAPP-WEBHOOK] senderPhone non valido, skip trigger: ${senderPhone}`);
+            } else {
+              const { data: mktContact } = await supabase
+                .from("marketing_contacts")
+                .select("id")
+                .eq("company_id", companyId)
+                .in("phone", phoneCandidates)
+                .maybeSingle();
+
+              if (mktContact) {
+                // P0-7: consolida i 2 trigger events (whatsapp_received +
+                // customer_replied) in 1 singolo insert. `legacy_events` nel
+                // payload permette a process-automation di matchare flussi
+                // configurati con uno qualsiasi dei nomi alias — un match,
+                // una enrollment, niente enrollment doppie quando un flow
+                // accidentalmente targetta entrambi.
+                await supabase.from("automation_trigger_events").insert({
+                  company_id: companyId,
+                  trigger_event: "whatsapp_received",
+                  entity_id: mktContact.id,
+                  entity_type: "contact",
+                  payload: {
+                    from: sanitizedDigits,
+                    message: content,
+                    conversation_id: conversationId,
+                    channel: "whatsapp",
+                    legacy_events: ["customer_replied"],
+                  },
+                });
+              }
             }
           }
         }
       }
     } catch (err) {
+      webhookFailed = true;
+      webhookError = (err as Error).message;
       console.error("Error processing webhook:", err);
     }
 
-    // Always respond 200 to Meta
+    // P0-7: se l'elaborazione è fallita, ritorna 500 così Meta ritenta.
+    // Prima ritornavamo sempre 200 e Meta non ri-consegnava mai, perdendo
+    // messaggi entrata al cliente in caso di errore transitorio (Postgres
+    // down, rate limit, RLS bug).
+    if (webhookFailed) {
+      return new Response(
+        JSON.stringify({ ok: false, error: webhookError }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 

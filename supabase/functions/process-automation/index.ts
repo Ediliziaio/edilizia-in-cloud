@@ -127,12 +127,25 @@ async function handleTrigger(supabase: any, body: any) {
 
   let enrolled = 0;
 
+  // P0-7: supporto `payload.legacy_events` per consolidamento multi-trigger.
+  // Un evento può dichiarare alias legacy (es. whatsapp_received consolida
+  // anche customer_replied). Un flusso configurato su uno qualsiasi di
+  // questi nomi matcha. Non introduce false positive: se `legacy_events`
+  // non è un array valido, si degrada all'ugaglianza stretta.
+  const legacyEventsRaw = (payload as { legacy_events?: unknown })?.legacy_events;
+  const legacyEvents: string[] = Array.isArray(legacyEventsRaw)
+    ? legacyEventsRaw.filter((v): v is string => typeof v === "string")
+    : [];
+
   for (const flow of flows) {
     // Use in-memory lookup instead of per-flow query
     const nodes = nodesByFlow.get(flow.id) ?? [];
-    const matchingTrigger = nodes.find(
-      (n: AutomationNode) => n.config_json?.trigger_event === trigger_event
-    );
+    const matchingTrigger = nodes.find((n: AutomationNode) => {
+      const nodeEvent = n.config_json?.trigger_event;
+      if (!nodeEvent) return false;
+      if (nodeEvent === trigger_event) return true;
+      return legacyEvents.includes(nodeEvent);
+    });
 
     if (!matchingTrigger) continue;
 
