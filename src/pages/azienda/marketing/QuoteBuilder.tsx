@@ -1592,91 +1592,49 @@ export default function QuoteBuilder() {
         quoteId = data.id;
       }
 
-      // Delete existing items and re-insert
-      if (isEdit) {
-        await supabase.from("quote_items").delete().eq("quote_id", quoteId!);
-      }
+      // P0-1: salvataggio atomico delle righe preventivo.
+      // DELETE + INSERT + UPDATE parent_item_id girano tutti dentro la stessa
+      // transazione PL/pgSQL della RPC: se un qualsiasi step fallisce viene
+      // effettuato rollback totale e nessuna riga del preventivo viene persa.
+      // Prima era possibile che la DELETE committasse e l'INSERT fallisse,
+      // svuotando il preventivo.
+      // Migration: supabase/migrations/20260423120001_quote_items_atomic_save.sql
       if (items.length > 0) {
-        // FASE 1: INSERT senza `parent_item_id` (il parent potrebbe essere in
-        // coda dopo il figlio, e `parent_item_id` è un FK che richiede l'id
-        // definitivo del parent). Ritorniamo `id` per mappare `client_temp_id`
-        // → `quote_items.id` in FASE 2.
-        const { data: insertedRows, error: itemsErr } = await supabase
-          .from("quote_items")
-          .insert(
-            items.map((it, idx) => ({
-              quote_id: quoteId!,
-              company_id: companyId,
-              item_type: it.item_type,
-              name: it.name,
-              description: it.description || null,
-              quantity: it.quantity,
-              unit_price: it.unit_price,
-              discount_percent: it.discount_percent,
-              vat_rate: it.vat_rate,
-              unit_of_measure: it.unit_of_measure,
-              sort_order: idx,
-              article_template_id: it.article_template_id || null,
-              // P03
-              item_category: it.item_category || "prodotto",
-              tariffa_id: it.tariffa_id || null,
-              prezzo_acquisto: it.prezzo_acquisto ?? 0,
-              mostra_nel_pdf: it.mostra_nel_pdf ?? true,
-              is_optional: it.is_optional ?? false,
-              misura_x: it.misura_x ?? null,
-              misura_y: it.misura_y ?? null,
-              // Addendum P2-04: persist wizard serramentista config.
-              family_id: it.family_id ?? null,
-              axis_selections: it.axis_selections ?? null,
-              // STEP 6 Serramenti Avanzati: fornitore/linea prodotto per
-              // rigenerazione coerente prezzo + calcolo margine atteso.
-              supplier_catalog_id: it.supplier_catalog_id ?? null,
-              supplier_product_line_id: it.supplier_product_line_id ?? null,
-              // Sprint A §4.9: `parent_item_id` NON viene impostato in INSERT.
-              // Lo riscriviamo in un UPDATE secondario dopo aver mappato
-              // client_temp_id → id. Così il figlio-posa punta al prodotto
-              // corretto anche se il parent è stato inserito nella stessa
-              // batch (evita chicken-and-egg sul FK).
-              // line_total è GENERATED ALWAYS dal DB — non va inserito esplicitamente
-            }))
-          )
-          .select("id");
-        if (itemsErr) throw itemsErr;
-
-        // FASE 2: se ci sono relazioni parent/child (posa_linked), pattcha
-        // `parent_item_id` con un UPDATE per-id. I client_temp_id vivono solo
-        // lato client; l'insert preserva l'ordine → `insertedRows[idx].id`
-        // corrisponde a `items[idx]`.
-        const idByTemp = new Map<string, string>();
-        if (insertedRows && insertedRows.length === items.length) {
-          items.forEach((it, idx) => {
-            const dbId = insertedRows[idx]?.id;
-            if (it.client_temp_id && dbId) {
-              idByTemp.set(it.client_temp_id, dbId);
-            }
-          });
-          const childUpdates = items
-            .map((it, idx) => {
-              const parentTemp = it.parent_temp_id;
-              const dbId = insertedRows[idx]?.id;
-              if (!parentTemp || !dbId) return null;
-              const parentDbId = idByTemp.get(parentTemp);
-              if (!parentDbId) return null;
-              return { childId: dbId, parentId: parentDbId };
-            })
-            .filter((x): x is { childId: string; parentId: string } => !!x);
-          // Nessun bulk-update atomico in Supabase JS → una chiamata per child.
-          // In pratica sono 1-2 righe per ogni prodotto "con posa", quindi
-          // trascurabile; se il volume cresce si migra a una RPC
-          // (es. `link_quote_items(pairs jsonb)`).
-          for (const upd of childUpdates) {
-            const { error: updErr } = await supabase
-              .from("quote_items")
-              .update({ parent_item_id: upd.parentId })
-              .eq("id", upd.childId);
-            if (updErr) throw updErr;
-          }
-        }
+        const payload = items.map((it, idx) => ({
+          sort_order: idx,
+          client_temp_id: it.client_temp_id ?? null,
+          parent_temp_id: it.parent_temp_id ?? null,
+          item_type: it.item_type,
+          name: it.name,
+          description: it.description ?? null,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          discount_percent: it.discount_percent ?? 0,
+          vat_rate: it.vat_rate ?? 22,
+          unit_of_measure: it.unit_of_measure,
+          article_template_id: it.article_template_id ?? null,
+          item_category: it.item_category ?? "prodotto",
+          tariffa_id: it.tariffa_id ?? null,
+          prezzo_acquisto: it.prezzo_acquisto ?? 0,
+          mostra_nel_pdf: it.mostra_nel_pdf ?? true,
+          is_optional: it.is_optional ?? false,
+          misura_x: it.misura_x ?? null,
+          misura_y: it.misura_y ?? null,
+          family_id: it.family_id ?? null,
+          axis_selections: it.axis_selections ?? null,
+          supplier_catalog_id: it.supplier_catalog_id ?? null,
+          supplier_product_line_id: it.supplier_product_line_id ?? null,
+        }));
+        const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
+          p_quote_id: quoteId!,
+          p_company_id: companyId,
+          p_items: payload,
+        });
+        if (rpcErr) throw rpcErr;
+      } else if (isEdit) {
+        // Preventivo svuotato completamente dall'utente: nulla da inserire,
+        // cancelliamo esplicitamente le righe residue.
+        await supabase.from("quote_items").delete().eq("quote_id", quoteId!);
       }
 
       // Attachments

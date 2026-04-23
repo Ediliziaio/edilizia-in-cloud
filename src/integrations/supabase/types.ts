@@ -33951,6 +33951,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_quote_items_atomic: {
+        Args: {
+          p_company_id: string
+          p_items: Json
+          p_quote_id: string
+        }
+        Returns: Json
+      }
       seed_tipi_documento_operaio: {
         Args: { p_company_id: string }
         Returns: undefined
