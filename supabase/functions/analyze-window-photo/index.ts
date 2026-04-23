@@ -48,6 +48,8 @@ If only one opening is visible, still use opening id "A".
       "has_roller_shutter": boolean,
       "has_belt": boolean,
       "has_belt_box": boolean,
+      "belt_placement": one of: "left_wall"|"right_wall"|"left_reveal"|"right_reveal"|"center"|"unknown",
+      "belt_placement_notes": string,
       "roller_control_type": one of: "manual_belt"|"motorized"|"chain"|"crank"|"none"|"unknown",
       "roller_curtain_state": one of: "fully_raised_hidden"|"top_recessed_band"|"partially_lowered"|"fully_lowered"|"not_visible"|"unknown",
       "roller_curtain_position_notes": string,
@@ -88,6 +90,7 @@ Important analysis notes:
 - If the roller shutter curtain is not visibly lowered, use "fully_raised_hidden" or "not_visible" instead of inventing a visible band.
 - If only a small recessed top band is visible, use "top_recessed_band".
 - Detect manual belt and wall winder carefully: if visible, set both "has_belt" and "has_belt_box" consistently.
+- If a manual belt/winder is visible, localize it precisely with "belt_placement" and "belt_placement_notes" (for example right_wall, left_reveal, etc.). Treat a vertical manual control on the wall beside the window as a manual belt system.
 
 Respond with ONLY the JSON object. No extra text.`;
 

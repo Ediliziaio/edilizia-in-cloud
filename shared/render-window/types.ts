@@ -53,6 +53,13 @@ export type WindowOpeningPosition =
 export type WindowViewMode = "interior" | "exterior" | "mixed" | "unknown";
 export type WindowImageOrientation = "portrait" | "landscape" | "square" | "unknown";
 export type WindowRollerControlType = "manual_belt" | "motorized" | "chain" | "crank" | "none" | "unknown";
+export type WindowBeltPlacement =
+  | "left_wall"
+  | "right_wall"
+  | "left_reveal"
+  | "right_reveal"
+  | "center"
+  | "unknown";
 export type WindowRollerCurtainState =
   | "fully_raised_hidden"
   | "top_recessed_band"
@@ -84,6 +91,8 @@ export interface WindowSceneOpening {
   hasRollerShutter: boolean;
   hasBelt: boolean;
   hasBeltBox: boolean;
+  beltPlacement: WindowBeltPlacement;
+  beltPlacementNotes: string;
   rollerControlType: WindowRollerControlType;
   rollerCurtainState: WindowRollerCurtainState;
   rollerCurtainPositionNotes: string;
@@ -180,6 +189,7 @@ export interface WindowTechnicalSpecification {
   hingeFinish: string;
   hingeStyle: string;
   hingeConsistencyRule: string;
+  manualControlCleanupRule: string | null;
   reducedNode: boolean;
   centralHandle: boolean;
   hingeCountVisible: number;

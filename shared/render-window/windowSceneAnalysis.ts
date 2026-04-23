@@ -1,4 +1,5 @@
 import type {
+  WindowBeltPlacement,
   SceneEnvironmentType,
   WindowImageOrientation,
   WindowMaterial,
@@ -125,6 +126,18 @@ function normalizeRollerCurtainState(value: unknown, fallback: WindowRollerCurta
   return allowed.includes(value as WindowRollerCurtainState) ? (value as WindowRollerCurtainState) : fallback;
 }
 
+function normalizeBeltPlacement(value: unknown): WindowBeltPlacement {
+  const allowed: WindowBeltPlacement[] = [
+    "left_wall",
+    "right_wall",
+    "left_reveal",
+    "right_reveal",
+    "center",
+    "unknown",
+  ];
+  return allowed.includes(value as WindowBeltPlacement) ? (value as WindowBeltPlacement) : "unknown";
+}
+
 function inferOrientation(meta?: WindowPhotoMeta | null): WindowImageOrientation {
   return meta?.orientation ?? "unknown";
 }
@@ -166,6 +179,10 @@ function buildOpeningFromLegacy(raw: Record<string, unknown>): WindowSceneOpenin
     hasRollerShutter: hasRoller,
     hasBelt,
     hasBeltBox: hasBelt,
+    beltPlacement: "unknown",
+    beltPlacementNotes: hasBelt
+      ? "manual belt visible near the opening, exact side not determined in legacy analysis"
+      : "no visible manual belt",
     rollerControlType: hasBelt ? "manual_belt" : hasRoller ? "unknown" : "none",
     rollerCurtainState: hasRoller ? "fully_raised_hidden" : "not_visible",
     rollerCurtainPositionNotes: hasRoller
@@ -198,6 +215,7 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
   const hasBeltBox = booleanOr(rawOpening.has_belt_box ?? rawOpening.hasBeltBox ?? rawOpening.presenza_avvolgitore, hasBelt);
   const hasRollerShutter = booleanOr(rawOpening.has_roller_shutter ?? rawOpening.hasRollerShutter ?? rawOpening.presenza_tapparella, hasBelt || booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false));
   const position = normalizePosition(rawOpening.position);
+  const beltPlacement = normalizeBeltPlacement(rawOpening.belt_placement ?? rawOpening.beltPlacement);
   const rollerCurtainState = normalizeRollerCurtainState(
     rawOpening.roller_curtain_state ?? rawOpening.rollerCurtainState,
     hasRollerShutter ? "fully_raised_hidden" : "not_visible",
@@ -232,6 +250,21 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
     hasRollerShutter,
     hasBelt,
     hasBeltBox,
+    beltPlacement,
+    beltPlacementNotes: stringOr(
+      rawOpening.belt_placement_notes ?? rawOpening.beltPlacementNotes,
+      hasBelt
+        ? beltPlacement === "right_wall"
+          ? "manual belt / wall winder is visible on the right wall beside the opening"
+          : beltPlacement === "left_wall"
+            ? "manual belt / wall winder is visible on the left wall beside the opening"
+            : beltPlacement === "right_reveal"
+              ? "manual belt / wall winder is visible on the right reveal beside the opening"
+              : beltPlacement === "left_reveal"
+                ? "manual belt / wall winder is visible on the left reveal beside the opening"
+                : "manual belt / wall winder is visible near the opening and must be localized carefully"
+        : "no visible manual belt",
+    ),
     rollerControlType: ["manual_belt", "motorized", "chain", "crank", "none", "unknown"].includes(String(rawOpening.roller_control_type ?? rawOpening.rollerControlType))
       ? (String(rawOpening.roller_control_type ?? rawOpening.rollerControlType) as WindowRollerControlType)
       : hasBelt

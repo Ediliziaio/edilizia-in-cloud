@@ -1,6 +1,7 @@
 import {
   PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
   WIZARD_CASS_MATERIALI,
+  WIZARD_HANDLE_TYPES,
   WIZARD_HW_COLORS,
   WIZARD_LEGNO,
   WIZARD_PROFILI,
@@ -9,6 +10,7 @@ import {
   WIZARD_TIPI,
   getWizardColorById,
   type WizardCassMat,
+  type WizardHandleType,
   type WizardHw,
   type WizardProfilo,
   type WizardState,
@@ -20,6 +22,7 @@ import { buildWindowRenderConfig, type WindowRenderBuildOptions } from "../../..
 export {
   PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
   WIZARD_CASS_MATERIALI,
+  WIZARD_HANDLE_TYPES,
   WIZARD_HW_COLORS,
   WIZARD_LEGNO,
   WIZARD_PROFILI,
@@ -30,6 +33,7 @@ export {
 
 export type {
   WizardCassMat,
+  WizardHandleType,
   WizardHw,
   WizardProfilo,
   WizardState,

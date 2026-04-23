@@ -51,6 +51,16 @@ export function validateWindowPromptConfig(config: WindowRenderConfig): WindowPr
   );
 
   if (requiresManualRemoval) {
+    const missingManualCleanupSpec = config.technical_specification.some(
+      (spec) => {
+        const opening = config.scene_analysis.openings.find((item) => item.id === spec.openingId);
+        return Boolean(opening?.hasBelt) && spec.shutter.isMotorized && !spec.manualControlCleanupRule;
+      },
+    );
+    if (missingManualCleanupSpec) {
+      missingBusinessRules.push("motorized shutter must define a zero-trace manual-control cleanup rule");
+    }
+
     const hasRemovalRule = config.replacement_manifest.removals.some(
       (rule) =>
         rule.code === "remove_manual_belt_system" &&

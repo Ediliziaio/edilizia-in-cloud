@@ -5,8 +5,10 @@ import {
   findWizardWood,
   getWizardCassonettoMeta,
   getWizardHardwareMeta,
+  getWizardHandleTypeMeta,
   getWizardTapparellaMeta,
   type WizardCassMat,
+  type WizardHandleType,
   type WizardHw,
   type WizardProfilo,
   type WizardState,
@@ -127,10 +129,16 @@ function mapFrameFinish(colorId: string) {
   };
 }
 
-function mapHardware(hwId: WizardHw) {
+function mapHardware(hwId: WizardHw, handleTypeId: WizardHandleType, openingType: WindowOpeningType) {
   const meta = getWizardHardwareMeta(hwId);
+  const handleMeta = getWizardHandleTypeMeta(handleTypeId);
+  const resolvedHandleStyle = openingType.includes("scorrevole")
+    ? "alzante"
+    : handleTypeId === "alzante"
+      ? "classica_dritta"
+      : handleMeta.id;
   return {
-    handleStyle: "classica_dritta",
+    handleStyle: resolvedHandleStyle,
     handleFinish: meta.finish,
     handleColorId: meta.id,
     hingeFinish:
@@ -146,7 +154,7 @@ function mapHardware(hwId: WizardHw) {
                 ? "titanium anodized"
                 : "polished chrome",
     hardwarePayload: {
-      maniglia_stile: "classica_dritta",
+      maniglia_stile: resolvedHandleStyle,
       colore_hardware_id: meta.hw_id,
       colore_hardware_finish: meta.finish,
     },
@@ -253,6 +261,35 @@ function ensureSentence(value: string): string {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+function describeManualControlPlacement(
+  opening: WindowSceneAnalysis["openings"][number],
+): string {
+  switch (opening.beltPlacement) {
+    case "right_wall":
+      return "on the right wall beside the opening";
+    case "left_wall":
+      return "on the left wall beside the opening";
+    case "right_reveal":
+      return "on the right reveal beside the opening";
+    case "left_reveal":
+      return "on the left reveal beside the opening";
+    case "center":
+      return "near the centerline of the opening";
+    default:
+      return "near the opening side wall/reveal";
+  }
+}
+
+function buildManualControlCleanupRule(
+  opening: WindowSceneAnalysis["openings"][number],
+  isMotorized: boolean,
+): string | null {
+  if (!isMotorized || (!opening.hasBelt && !opening.hasBeltBox)) return null;
+  const placement = describeManualControlPlacement(opening);
+  const note = ensureSentence(opening.beltPlacementNotes || `manual control is visible ${placement}`);
+  return `Because the new shutter is motorized, remove the entire legacy manual shutter-control assembly ${placement}: belt/strap/cord, wall winder box or cover plate, belt exit slot and any remaining vertical guide/trim linked to the manual control. ${note} Rebuild the surrounding wall/tile surface seamlessly so ZERO manual-control traces remain visible.`;
+}
+
 function buildCassonettoDimensionRule(opening: WindowSceneAnalysis["openings"][number], replaceCassonetto: boolean): string {
   if (!replaceCassonetto) {
     return "Keep the existing cassonetto dimensions, depth, visible height and lower reveal line exactly as photographed.";
@@ -304,7 +341,7 @@ function buildTechnicalSpecifications(
   const finish = mapFrameFinish(state.coloreInfisso);
   const base = mapTipoToApertura(state.tipo as WizardTipo);
   const profilo = mapProfiloToMateriale(state.profilo as WizardProfilo);
-  const hardware = mapHardware(state.coloreHw);
+  const hardware = mapHardware(state.coloreHw, state.tipoManiglia, base.apertura);
   const cassonetto = mapCassonetto(state, finish);
   const tapparella = mapTapparella(state, finish);
 
@@ -338,6 +375,7 @@ function buildTechnicalSpecifications(
     hingeConsistencyRule: base.apertura.includes("scorrevole")
       ? "Do not render any side hinges or battente hinge geometry on a sliding system."
       : `All visible hinges on opening ${opening.label} must have the exact same ${hardware.handleFinish} finish as the handle, with identical top/bottom geometry and no mixed black/dark hinge parts.`,
+    manualControlCleanupRule: buildManualControlCleanupRule(opening, tapparella.isMotorized),
     reducedNode: stileTelaio.includes("nodo_ridotto") || state.profilo === "minimal",
     centralHandle: state.manigliaCentrale,
     hingeCountVisible: base.apertura === "battente_2_ante" || (base.apertura === "portafinestra" && base.num_ante === 2) ? 2 : Math.max(2, base.num_ante * 2),
@@ -363,7 +401,7 @@ function buildTechnicalSpecifications(
       opening.radiatorNearby ? "Preserve nearby radiator and its spacing relationship with the opening." : null,
       opening.hasGrates ? "Keep existing grates unless explicitly stated otherwise." : null,
       opening.hasPersiane ? "Keep existing external shutters unless explicitly stated otherwise." : null,
-      tapparella.isMotorized && opening.hasBelt ? "Remove visible belt and winder box, then repair the wall seamlessly." : null,
+      buildManualControlCleanupRule(opening, tapparella.isMotorized),
       tapparella.replace && opening.rollerCurtainState !== "partially_lowered" && opening.rollerCurtainState !== "fully_lowered"
         ? "If the source photo does not show a lowered shutter curtain, keep the new shutter fully open with slats hidden in the cassonetto; do not invent a colored strip above the glazing."
         : null,
@@ -619,6 +657,10 @@ export function ensureWindowRenderConfig(
           spec.desiredOpeningType.includes("scorrevole")
             ? "Do not render any side hinges or battente hinge geometry on a sliding system."
             : `All visible hinges on opening ${spec.openingLabel} must have the exact same ${spec.handleFinish} finish as the handle, with identical top/bottom geometry and no mixed black/dark hinge parts.`
+        ),
+        manualControlCleanupRule: spec.manualControlCleanupRule ?? buildManualControlCleanupRule(
+          opening ?? sceneAnalysis.openings[0],
+          Boolean(spec.shutter?.isMotorized),
         ),
         cassonetto: {
           ...spec.cassonetto,

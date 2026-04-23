@@ -43,6 +43,8 @@ export const WIZARD_LEGNO = [
     nome: "Noce",
     hex: "#6B4226",
     grad: "linear-gradient(135deg,#8B5E3C,#5C3317)",
+    grain: "rgba(67,39,21,0.35)",
+    accent: "rgba(181,132,87,0.22)",
     fragment: "walnut wood-effect laminate with dark brown tone and visible longitudinal grain",
   },
   {
@@ -50,6 +52,8 @@ export const WIZARD_LEGNO = [
     nome: "Golden Oak",
     hex: "#B8860B",
     grad: "linear-gradient(135deg,#DAA520,#9B7600)",
+    grain: "rgba(126,78,0,0.3)",
+    accent: "rgba(255,221,122,0.2)",
     fragment: "golden oak wood-effect laminate with warm amber tone and pronounced grain",
   },
   {
@@ -57,6 +61,8 @@ export const WIZARD_LEGNO = [
     nome: "Bianco Frassino",
     hex: "#E8DCC8",
     grad: "linear-gradient(135deg,#F0E6D2,#D4C5A9)",
+    grain: "rgba(128,115,93,0.22)",
+    accent: "rgba(255,255,255,0.24)",
     fragment: "white ash wood-effect laminate with pale cream tone and subtle silver-grey grain",
   },
   {
@@ -64,6 +70,8 @@ export const WIZARD_LEGNO = [
     nome: "Ciliegio",
     hex: "#9B3D12",
     grad: "linear-gradient(135deg,#B5451C,#7A2E0A)",
+    grain: "rgba(98,37,13,0.28)",
+    accent: "rgba(205,102,56,0.2)",
     fragment: "cherry wood-effect laminate with reddish brown tone and fine straight grain",
   },
   {
@@ -71,6 +79,8 @@ export const WIZARD_LEGNO = [
     nome: "Douglas",
     hex: "#C4956A",
     grad: "linear-gradient(135deg,#D4A574,#A07848)",
+    grain: "rgba(122,84,42,0.24)",
+    accent: "rgba(255,221,179,0.18)",
     fragment: "douglas fir wood-effect laminate with honey tone and clear growth-ring pattern",
   },
   {
@@ -78,6 +88,8 @@ export const WIZARD_LEGNO = [
     nome: "Rovere Naturale",
     hex: "#A0845C",
     grad: "linear-gradient(135deg,#B89A6B,#8A6D44)",
+    grain: "rgba(114,88,52,0.26)",
+    accent: "rgba(228,197,139,0.18)",
     fragment: "natural oak wood-effect laminate with golden brown tone and open grain texture",
   },
   {
@@ -85,6 +97,8 @@ export const WIZARD_LEGNO = [
     nome: "Castagno",
     hex: "#5C3A1E",
     grad: "linear-gradient(135deg,#7A4E2A,#4A2C14)",
+    grain: "rgba(56,31,13,0.3)",
+    accent: "rgba(167,106,60,0.2)",
     fragment: "chestnut wood-effect laminate with warm dark brown tone and wavy grain",
   },
   {
@@ -92,6 +106,8 @@ export const WIZARD_LEGNO = [
     nome: "Grigio Quarzo",
     hex: "#6B6B6B",
     grad: "linear-gradient(135deg,#808080,#5A5A5A)",
+    grain: "rgba(56,56,56,0.28)",
+    accent: "rgba(205,205,205,0.18)",
     fragment: "quartz grey wood-effect laminate with neutral grey tone and faint wood texture",
   },
 ] as const;
@@ -103,6 +119,15 @@ export const WIZARD_HW_COLORS = [
   { id: "bronzo", nome: "Bronzo", hex: "#8B6914", hw_id: "bronzo_anticato", finish: "antique bronze patina" },
   { id: "oro", nome: "Oro", hex: "#D4A017", hw_id: "oro_pvd", finish: "polished gold PVD coating" },
   { id: "titanio", nome: "Titanio", hex: "#6B7B8D", hw_id: "titanio", finish: "titanium anodized" },
+] as const;
+
+export const WIZARD_HANDLE_TYPES = [
+  { id: "classica_dritta", label: "Standard dritta", desc: "La maniglia più neutra e residenziale.", family: "lineare" },
+  { id: "q_moderna", label: "Squadrata", desc: "Look più tecnico e contemporaneo.", family: "squadrata" },
+  { id: "toulon", label: "Ergonomica", desc: "Curva morbida, premium e confortevole.", family: "curva" },
+  { id: "con_rosetta", label: "Con rosetta", desc: "Leva con rosetta visibile, più classica.", family: "rosetta" },
+  { id: "pomolo", label: "Pomolo / pull", desc: "Scelta decorativa o da contesto speciale.", family: "pomolo" },
+  { id: "alzante", label: "Alzante scorrevole", desc: "Corpo maniglia dedicato agli scorrevoli.", family: "alzante" },
 ] as const;
 
 export const WIZARD_CASS_MATERIALI = [
@@ -121,6 +146,7 @@ export const WIZARD_TAPP_OPTIONS = [
 export type WizardTipo = (typeof WIZARD_TIPI)[number]["id"];
 export type WizardProfilo = (typeof WIZARD_PROFILI)[number]["id"];
 export type WizardHw = (typeof WIZARD_HW_COLORS)[number]["id"];
+export type WizardHandleType = (typeof WIZARD_HANDLE_TYPES)[number]["id"];
 export type WizardCassMat = (typeof WIZARD_CASS_MATERIALI)[number]["id"];
 export type WizardTapp = (typeof WIZARD_TAPP_OPTIONS)[number]["id"];
 
@@ -129,6 +155,7 @@ export interface WizardState {
   profilo: WizardProfilo | "";
   manigliaCentrale: boolean;
   coloreInfisso: string;
+  tipoManiglia: WizardHandleType;
   coloreHw: WizardHw;
   cass: boolean;
   cassMat: WizardCassMat;
@@ -159,6 +186,10 @@ export function getWizardProfiloMeta(profilo: WizardProfilo | "") {
 
 export function getWizardHardwareMeta(hw: WizardHw) {
   return WIZARD_HW_COLORS.find((item) => item.id === hw) ?? WIZARD_HW_COLORS[0];
+}
+
+export function getWizardHandleTypeMeta(handleType: WizardHandleType) {
+  return WIZARD_HANDLE_TYPES.find((item) => item.id === handleType) ?? WIZARD_HANDLE_TYPES[0];
 }
 
 export function getWizardCassonettoMeta(cass: WizardCassMat) {

@@ -33,6 +33,7 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import {
   PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
   WIZARD_CASS_MATERIALI,
+  WIZARD_HANDLE_TYPES,
   WIZARD_HW_COLORS,
   WIZARD_LEGNO,
   WIZARD_PROFILI,
@@ -41,6 +42,7 @@ import {
   WIZARD_TIPI,
   getColorById,
   mapWizardToConfig,
+  type WizardHandleType,
   type WizardHw,
   type WizardProfilo,
   type WizardState,
@@ -66,6 +68,7 @@ const INITIAL_STATE: WizardState = {
   profilo: "",
   manigliaCentrale: false,
   coloreInfisso: "",
+  tipoManiglia: "classica_dritta",
   coloreHw: "cromo",
   cass: false,
   cassMat: "stesso_colore",
@@ -1075,6 +1078,21 @@ function StepFiniture({
 }) {
   const [tab, setTab] = useState<"ral" | "legno">("ral");
   const colorList = tab === "ral" ? WIZARD_RAL : WIZARD_LEGNO;
+  const handleOptions = useMemo(
+    () => state.tipo === "SCORR"
+      ? WIZARD_HANDLE_TYPES.filter((item) => item.id === "alzante")
+      : WIZARD_HANDLE_TYPES.filter((item) => item.id !== "alzante"),
+    [state.tipo],
+  );
+
+  useEffect(() => {
+    if (!handleOptions.some((item) => item.id === state.tipoManiglia)) {
+      setState((current) => ({
+        ...current,
+        tipoManiglia: (handleOptions[0]?.id ?? "classica_dritta") as WizardHandleType,
+      }));
+    }
+  }, [handleOptions, setState, state.tipoManiglia]);
 
   return (
     <div className="space-y-4">
@@ -1107,6 +1125,13 @@ function StepFiniture({
               ))}
             </div>
 
+            {tab === "legno" && (
+              <div className="mb-3 rounded-2xl border border-orange-200 bg-orange-50/70 p-3 text-sm text-slate-700">
+                Le anteprime simulano venatura, temperatura e profondità del legno per aiutare la scelta. Nel prompt
+                il render usa anche la descrizione materica del colore selezionato, non solo il nome commerciale.
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
               {colorList.map((color) => (
                 <button
@@ -1119,17 +1144,45 @@ function StepFiniture({
                   )}
                 >
                   <div
-                    className="h-16 rounded-xl border"
-                    style={{ background: "grad" in color ? color.grad : color.hex }}
+                    className="h-16 rounded-xl border shadow-sm"
+                    style={getFrameFinishPreviewStyle(color)}
                   />
                   <div className="mt-2 text-sm font-semibold">{color.nome}</div>
+                  {"fragment" in color && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Venatura e tono coerenti con {color.nome.toLowerCase()}.
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <SectionTitle>Maniglie e cerniere</SectionTitle>
+            <SectionTitle>Tipologia maniglia</SectionTitle>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {handleOptions.map((handleType) => (
+                <button
+                  key={handleType.id}
+                  type="button"
+                  onClick={() => setState((current) => ({ ...current, tipoManiglia: handleType.id as WizardHandleType }))}
+                  className={cn(
+                    "rounded-2xl border p-3 text-left transition",
+                    state.tipoManiglia === handleType.id ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                  )}
+                >
+                  <div className="mb-3 flex h-16 items-center justify-center rounded-xl border bg-white">
+                    <HandlePreview kind={handleType.family} finish={WIZARD_HW_COLORS.find((item) => item.id === state.coloreHw)?.hex ?? "#C0C0C0"} />
+                  </div>
+                  <div className="text-sm font-semibold">{handleType.label}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{handleType.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <SectionTitle>Finitura maniglie e cerniere</SectionTitle>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
               {WIZARD_HW_COLORS.map((hardware) => (
                 <button
@@ -1143,6 +1196,9 @@ function StepFiniture({
                 >
                   <div className="h-11 rounded-xl border" style={{ background: hardware.hex }} />
                   <div className="mt-2 text-sm font-semibold">{hardware.nome}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    La finitura si applica a maniglia e cerniere visibili.
+                  </div>
                 </button>
               ))}
             </div>
@@ -1411,12 +1467,14 @@ function StepRender({
                             : `${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""}`}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
+                          <MiniBadge text={`maniglia ${spec.handleStyle.replace(/_/g, " ")}`} />
                           <MiniBadge text={`hardware ${spec.handleFinish}`} />
                           {!spec.desiredOpeningType.includes("scorrevole") && <MiniBadge text="cerniere uniformi come maniglia" />}
                           {spec.cassonetto.replace && <MiniBadge text={`cassonetto ${spec.cassonetto.colorLabel ?? ""}`.trim()} />}
                           {spec.cassonetto.replace && <MiniBadge text="ingombro cassonetto come esistente" />}
                           {spec.shutter.replace && <MiniBadge text={spec.shutter.isMotorized ? "tapparella motorizzata" : "tapparella nuova"} />}
                           {spec.shutter.replace && spec.shutter.visibilityState === "fully_raised_hidden" && <MiniBadge text="tapparella aperta nascosta nel cassonetto" />}
+                          {spec.manualControlCleanupRule && <MiniBadge text="rimozione totale comando manuale" intent="warning" />}
                           {spec.reducedNode && <MiniBadge text="profilo ridotto" />}
                         </div>
                       </div>
@@ -1579,6 +1637,80 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border bg-slate-50 p-4">
       <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
       <div className="mt-2 text-lg font-semibold capitalize">{value}</div>
+    </div>
+  );
+}
+
+function getFrameFinishPreviewStyle(color: { hex: string; grad?: string; grain?: string; accent?: string }) {
+  if ("grad" in color && color.grad) {
+    return {
+      backgroundImage: [
+        "linear-gradient(140deg, rgba(255,255,255,0.16), rgba(255,255,255,0) 42%, rgba(0,0,0,0.08) 100%)",
+        `repeating-linear-gradient(102deg, ${color.grain ?? "rgba(90,60,30,0.25)"} 0px, ${color.grain ?? "rgba(90,60,30,0.25)"} 2px, transparent 2px, transparent 11px)`,
+        `repeating-linear-gradient(8deg, ${color.accent ?? "rgba(255,255,255,0.12)"} 0px, ${color.accent ?? "rgba(255,255,255,0.12)"} 7px, transparent 7px, transparent 18px)`,
+        color.grad,
+      ].join(", "),
+      backgroundBlendMode: "soft-light, multiply, screen, normal",
+    } as const;
+  }
+
+  return { background: color.hex } as const;
+}
+
+function HandlePreview({ kind, finish }: { kind: string; finish: string }) {
+  const metalStyle = {
+    background: `linear-gradient(180deg, rgba(255,255,255,0.9), ${finish} 52%, rgba(0,0,0,0.16))`,
+  } as const;
+
+  if (kind === "pomolo") {
+    return (
+      <div className="flex items-center gap-3">
+        <div className="h-8 w-8 rounded-full border shadow-sm" style={metalStyle} />
+        <div className="h-1.5 w-10 rounded-full border shadow-sm" style={metalStyle} />
+      </div>
+    );
+  }
+
+  if (kind === "rosetta") {
+    return (
+      <div className="relative flex h-12 w-20 items-center justify-center">
+        <div className="absolute left-4 h-8 w-8 rounded-lg border shadow-sm" style={metalStyle} />
+        <div className="absolute left-9 h-1.5 w-10 rounded-full border shadow-sm" style={metalStyle} />
+      </div>
+    );
+  }
+
+  if (kind === "curva") {
+    return (
+      <div className="relative flex h-12 w-20 items-center justify-center">
+        <div className="absolute left-6 h-8 w-2 rounded-full border shadow-sm" style={metalStyle} />
+        <div className="absolute left-8 top-[18px] h-2 w-9 rounded-full border shadow-sm" style={{ ...metalStyle, transform: "rotate(-18deg)" }} />
+      </div>
+    );
+  }
+
+  if (kind === "alzante") {
+    return (
+      <div className="relative flex h-12 w-20 items-center justify-center">
+        <div className="absolute left-7 h-9 w-3 rounded-md border shadow-sm" style={metalStyle} />
+        <div className="absolute left-10 top-[16px] h-2 w-6 rounded-sm border shadow-sm" style={metalStyle} />
+      </div>
+    );
+  }
+
+  if (kind === "squadrata") {
+    return (
+      <div className="relative flex h-12 w-20 items-center justify-center">
+        <div className="absolute left-6 h-8 w-2 rounded-sm border shadow-sm" style={metalStyle} />
+        <div className="absolute left-8 top-[18px] h-2 w-10 rounded-sm border shadow-sm" style={metalStyle} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex h-12 w-20 items-center justify-center">
+      <div className="absolute left-6 h-8 w-2 rounded-full border shadow-sm" style={metalStyle} />
+      <div className="absolute left-8 top-[18px] h-2 w-10 rounded-full border shadow-sm" style={metalStyle} />
     </div>
   );
 }

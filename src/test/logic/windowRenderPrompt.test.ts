@@ -9,6 +9,7 @@ const baseState: WizardState = {
   profilo: "pvc",
   manigliaCentrale: false,
   coloreInfisso: "7016",
+  tipoManiglia: "classica_dritta",
   coloreHw: "cromo",
   cass: false,
   cassMat: "stesso_colore",
@@ -50,7 +51,11 @@ function buildAnalysisWithOpenings() {
         has_roller_shutter: true,
         has_belt: true,
         has_belt_box: true,
+        belt_placement: "right_wall",
+        belt_placement_notes: "manual belt and wall winder visible on the right wall beside the opening",
         roller_control_type: "manual_belt",
+        roller_curtain_state: "fully_raised_hidden",
+        roller_curtain_position_notes: "shutter curtain not visibly lowered; it is hidden inside the cassonetto",
         has_persiane: false,
         has_scuri: false,
         has_grates: false,
@@ -124,10 +129,12 @@ describe("window render prompt", () => {
     expect(config.replacement_manifest.removals.some((rule) => rule.code === "remove_manual_belt_system")).toBe(true);
 
     const prompt = buildWindowPrompt(config, analysis);
-    expect(prompt.userPrompt).toContain("manual roller-shutter belt");
+    expect(prompt.userPrompt.toLowerCase()).toContain("manual belt visible");
     expect(prompt.userPrompt.toLowerCase()).toContain("repair the surrounding wall seamlessly");
     expect(prompt.userPrompt.toLowerCase()).toContain("hidden inside the cassonetto");
     expect(prompt.userPrompt.toLowerCase()).toContain("do not invent a colored strip above the glazing");
+    expect(prompt.userPrompt.toLowerCase()).toContain("right wall beside the opening");
+    expect(prompt.userPrompt.toLowerCase()).toContain("zero manual-control traces remain visible");
   });
 
   it("builds a coherent PVC anthracite two-sash specification", () => {
@@ -213,5 +220,19 @@ describe("window render prompt", () => {
     const prompt = buildWindowPrompt(config, analysis);
     expect(prompt.userPrompt.toLowerCase()).toContain("keep the visible cassonetto envelope");
     expect(prompt.userPrompt.toLowerCase()).toContain("do not oversize it");
+  });
+
+  it("describes the exact wood-effect finish and chosen handle typology in the prompt", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(
+      { ...baseState, coloreInfisso: "noce", tipoManiglia: "q_moderna", coloreHw: "inox" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+
+    const prompt = buildWindowPrompt(config, analysis);
+    expect(prompt.userPrompt).toContain("walnut wood-effect laminate with dark brown tone and visible longitudinal grain");
+    expect(prompt.userPrompt).toContain("square modern handle");
+    expect(prompt.userPrompt).toContain("brushed stainless steel");
   });
 });

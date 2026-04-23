@@ -20,13 +20,31 @@ function maybePushRule(list: WindowRemovalRule[], rule: WindowRemovalRule | null
   if (!duplicate) list.push(rule);
 }
 
+function describeBeltPlacement(opening: WindowSceneOpening): string {
+  switch (opening.beltPlacement) {
+    case "right_wall":
+      return "on the right wall beside the opening";
+    case "left_wall":
+      return "on the left wall beside the opening";
+    case "right_reveal":
+      return "on the right reveal beside the opening";
+    case "left_reveal":
+      return "on the left reveal beside the opening";
+    case "center":
+      return "near the centerline of the opening";
+    default:
+      return "near the opening side wall/reveal";
+  }
+}
+
 function buildMotorizationRemovalRule(opening: WindowSceneOpening, spec: WindowTechnicalSpecification): WindowRemovalRule | null {
   if (!spec.shutter.isMotorized || (!opening.hasBelt && !opening.hasBeltBox)) return null;
+  const placement = describeBeltPlacement(opening);
   return {
     code: "remove_manual_belt_system",
     openingIds: [opening.id],
-    summary: `Remove every visible manual roller-shutter belt component around opening ${opening.label}: belt, wall winder plate/box and belt exit slot.`,
-    repairInstruction: "Repair the surrounding wall seamlessly with identical plaster/paint texture so no trace of the previous manual system remains.",
+    summary: `Remove every visible manual roller-shutter control component ${placement} around opening ${opening.label}: belt/strap/cord, wall winder plate/box, belt exit slot and any residual vertical trim belonging to the old manual system.`,
+    repairInstruction: `Repair the surrounding wall seamlessly with identical plaster/paint texture so no trace of the previous manual system remains ${placement}.`,
     preserveInstruction: "Keep all other wall surfaces around the opening pixel-identical.",
   };
 }

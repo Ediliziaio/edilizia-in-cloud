@@ -18,6 +18,7 @@ function describeOpening(opening: WindowSceneOpening): string {
     opening.hasRollerShutter ? `shading system visible` : "no visible roller shutter",
     opening.hasBelt ? "manual belt visible" : "no visible manual belt",
     opening.hasBeltBox ? "manual wall winder plate/box visible" : "",
+    opening.hasBelt ? `manual control placement: ${opening.beltPlacementNotes}` : "",
     opening.hasRollerShutter ? `roller curtain state: ${opening.rollerCurtainState}` : "",
     opening.hasRollerShutter ? `roller curtain placement: ${opening.rollerCurtainPositionNotes}` : "",
     opening.hasPersiane ? "persiane visible" : "",
@@ -36,7 +37,7 @@ function describeOpening(opening: WindowSceneOpening): string {
 
 function describeSpecification(spec: WindowTechnicalSpecification): string {
   const finishDescription = spec.finish.mode === "legno"
-    ? `${spec.finish.name} wood-effect finish with visible grain`
+    ? `${spec.finish.name} wood-effect finish with visible grain${spec.finish.promptFragment ? `, specifically: ${spec.finish.promptFragment}` : ""}`
     : `${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""}, ${spec.finish.finish}`;
 
   const lines = [
@@ -50,6 +51,7 @@ function describeSpecification(spec: WindowTechnicalSpecification): string {
     `Visible hinge rule: exactly ${spec.hingeCountVisible} visible hinge group${spec.hingeCountVisible > 1 ? "s" : ""} on the full opening composition`,
     `Hinge style: ${spec.hingeStyle}`,
     `Hinge consistency: ${spec.hingeConsistencyRule}`,
+    spec.manualControlCleanupRule ? `Manual shutter-control cleanup: ${spec.manualControlCleanupRule}` : "",
     `Glass: ${spec.glassSpec}`,
     spec.cassonetto.replace
       ? `Cassonetto: replace with ${spec.cassonetto.materialLabel}${spec.cassonetto.colorLabel ? ` in ${spec.cassonetto.colorLabel}` : ""}. Dimension rule: ${spec.cassonetto.dimensionRule}`
@@ -77,6 +79,9 @@ export function buildWindowPrompt(
   const untouchedOpenings = normalizedConfig.scene_analysis.openings.filter((opening) =>
     normalizedConfig.target_selection.preservedOpeningIds.includes(opening.id),
   );
+  const manualControlZeroToleranceRules = normalizedConfig.technical_specification
+    .map((spec) => spec.manualControlCleanupRule)
+    .filter((item): item is string => Boolean(item));
 
   const blocks: Record<string, string> = {};
 
@@ -154,6 +159,12 @@ ${bullets(
 - if the shutter is fully open, keep the curtain hidden inside the cassonetto and do not invent a colored strip above the glazing
 - any visible shutter curtain must stay recessed within its guides behind the frame/glass plane, never floating on the wall or in front of the cassonetto`;
 
+  if (manualControlZeroToleranceRules.length > 0) {
+    blocks.F += `
+- ZERO tolerance for leftover manual shutter controls on motorized targets: no belt, no cord, no strap, no wall winder, no wall plate, no belt slot and no residual vertical manual-control trim
+- remove the old manual-control assembly from the exact photographed side/location and reconstruct the adjacent wall/tile finish seamlessly so the removal is invisible`;
+  }
+
   blocks.G = `[BLOCK G – SURROUNDINGS INTEGRITY]
 ${bullets(normalizedConfig.integrity_constraints)}
 
@@ -170,6 +181,7 @@ ${bullets(DEFAULT_NEGATIVE_CONSTRAINTS)}`;
 ${bullets(
     [
       ...DEFAULT_QUALITY_DIRECTIVES,
+      ...manualControlZeroToleranceRules.map((rule) => `Non-negotiable cleanup rule: ${rule}`),
       ...normalizedConfig.quality_directives,
       validation.isValid
         ? "Prompt validation passed: target openings, replacement manifest, removal rules and integrity constraints are all present."
@@ -208,8 +220,8 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, changed crop, changed wall color, changed furniture, extra windows, distorted geometry, fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows, mixed hinge colors, oversized cassonetto, visible manual belt on motorized shutter, floating shutter band above the glass, shutter rendered in front of the wall",
-    promptVersion: "7.0.0",
+      "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, changed crop, changed wall color, changed furniture, extra windows, distorted geometry, fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows, mixed hinge colors, oversized cassonetto, visible manual belt on motorized shutter, visible manual cord on motorized shutter, visible wall winder on motorized shutter, visible belt slot on motorized shutter, leftover vertical manual-control trim, floating shutter band above the glass, shutter rendered in front of the wall",
+    promptVersion: "7.1.0",
     blocks,
     validation,
     normalizedConfig,

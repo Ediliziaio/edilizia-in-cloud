@@ -10,6 +10,7 @@ import { prepareInputImage, pickProviderSize } from "../_shared/renderImage.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder.ts";
+import type { WindowRenderConfig } from "../../../shared/render-window/types.ts";
 
 // ── resolveRenderSize ─────────────────────────────────────────────────────────
 // OpenAI gpt-image-1 / dall-e-2 supportano: 256x256, 512x512, 1024x1024, 1792x1024, 1024x1792
@@ -54,6 +55,180 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2, de
     await new Promise(r => setTimeout(r, delayMs * (i + 1)));
   }
   throw new Error("fetchWithRetry: all retries exhausted");
+}
+
+function uint8ToBase64(uint8: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < uint8.length; i += chunkSize) {
+    binary += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function parseDataUrl(dataUrl: string): { mimeType: string; data: string } {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) throw new Error("Formato data URL render non valido");
+  return { mimeType: match[1], data: match[2] };
+}
+
+async function fetchInlineImageData(url: string): Promise<{ mimeType: string; data: string }> {
+  const resp = await fetchWithTimeout(url, {}, 30_000);
+  if (!resp.ok) throw new Error(`Impossibile leggere immagine per QA: ${resp.status}`);
+  const mimeType = resp.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
+  const buffer = await resp.arrayBuffer();
+  return { mimeType, data: uint8ToBase64(new Uint8Array(buffer)) };
+}
+
+async function getGeminiQaApiKey(supabase: ReturnType<typeof createClient>): Promise<string> {
+  const envKey = Deno.env.get("GEMINI_API_KEY")?.trim();
+  if (envKey) return envKey;
+
+  const { data: setting } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "render_gemini_api_key")
+    .maybeSingle();
+
+  return typeof setting?.value === "string" ? setting.value.trim() : "";
+}
+
+function getMotorizedManualCleanupTargets(config: WindowRenderConfig): Array<{
+  openingId: string;
+  openingLabel: string;
+  placementNotes: string;
+}> {
+  return config.technical_specification.flatMap((spec) => {
+    const opening = config.scene_analysis.openings.find((item) => item.id === spec.openingId);
+    if (!opening || !spec.shutter.isMotorized || (!opening.hasBelt && !opening.hasBeltBox)) return [];
+    return [{
+      openingId: opening.id,
+      openingLabel: opening.label,
+      placementNotes: opening.beltPlacementNotes || "manual control visible near the opening side wall/reveal",
+    }];
+  });
+}
+
+async function runMotorizedManualCleanupQa(args: {
+  supabase: ReturnType<typeof createClient>;
+  sourceImageUrl: string;
+  candidateImageData: string;
+  normalizedConfig: WindowRenderConfig;
+}): Promise<{
+  checked: boolean;
+  pass: boolean;
+  issues: string[];
+}> {
+  const targets = getMotorizedManualCleanupTargets(args.normalizedConfig);
+  if (targets.length === 0) return { checked: false, pass: true, issues: [] };
+
+  const geminiApiKey = await getGeminiQaApiKey(args.supabase);
+  if (!geminiApiKey) {
+    console.warn("[generate-render] QA skipped: missing GEMINI_API_KEY / render_gemini_api_key");
+    return { checked: false, pass: true, issues: [] };
+  }
+
+  const [sourceImage, candidateImage] = await Promise.all([
+    fetchInlineImageData(args.sourceImageUrl),
+    Promise.resolve(parseDataUrl(args.candidateImageData)),
+  ]);
+
+  const qaPrompt = `Compare TWO IMAGES.
+Image 1 = SOURCE PHOTO.
+Image 2 = CANDIDATE WINDOW RENDER.
+
+We selected MOTORIZED roller shutters for these target openings:
+${targets.map((target) => `- Opening ${target.openingLabel}: ${target.placementNotes}`).join("\n")}
+
+Strict compliance rule:
+- If a shutter is motorized, NO manual control can remain visible.
+- Fail if you see any belt, cord, strap, wall winder, wall plate, belt slot, or leftover vertical manual-control trim near the target opening.
+- A visible vertical manual-control assembly on the side wall/reveal means FAIL.
+- Ignore the window hardware itself; evaluate only old shutter manual controls.
+
+Return ONLY JSON:
+{
+  "pass": boolean,
+  "issues": ["short issue 1", "short issue 2"]
+}`;
+
+  const qaResp = await fetchWithRetry(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: qaPrompt },
+            { inline_data: { mime_type: sourceImage.mimeType, data: sourceImage.data } },
+            { inline_data: { mime_type: candidateImage.mimeType, data: candidateImage.data } },
+          ],
+        }],
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: "application/json",
+        },
+      }),
+    },
+  );
+
+  if (!qaResp.ok) {
+    const err = await qaResp.text();
+    console.warn("[generate-render] QA skipped: Gemini response error", qaResp.status, err.substring(0, 300));
+    return { checked: false, pass: true, issues: [] };
+  }
+
+  const qaData = await qaResp.json().catch(() => ({}));
+  const qaText = String(qaData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
+  if (!qaText) {
+    console.warn("[generate-render] QA skipped: empty Gemini QA text");
+    return { checked: false, pass: true, issues: [] };
+  }
+
+  try {
+    const parsed = JSON.parse(qaText) as { pass?: boolean; issues?: unknown };
+    const issues = Array.isArray(parsed.issues)
+      ? parsed.issues.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    return {
+      checked: true,
+      pass: parsed.pass !== false,
+      issues,
+    };
+  } catch (error) {
+    console.warn("[generate-render] QA skipped: invalid Gemini QA JSON", error, qaText.substring(0, 300));
+    return { checked: false, pass: true, issues: [] };
+  }
+}
+
+function buildMotorizedManualCleanupRetryPrompt(
+  basePrompt: string,
+  normalizedConfig: WindowRenderConfig,
+  issues: string[],
+): string {
+  const targets = getMotorizedManualCleanupTargets(normalizedConfig);
+  const targetLines = targets.map((target) =>
+    `- Opening ${target.openingLabel}: remove the entire old manual shutter-control assembly exactly where it appears (${target.placementNotes}).`,
+  );
+
+  const issueLines = issues.length > 0
+    ? issues.map((issue) => `- ${issue}`)
+    : ["- The previous render still showed a legacy manual shutter-control element even though motorization was selected."];
+
+  return `${basePrompt}
+
+[CRITICAL CORRECTIVE RETRY – MANUAL SHUTTER CONTROL MUST DISAPPEAR]
+The previous attempt is NON-COMPLIANT because a legacy manual shutter-control element is still visible.
+
+Observed issues:
+${issueLines.join("\n")}
+
+Mandatory correction:
+${targetLines.join("\n")}
+- Remove any remaining belt, cord, strap, wall winder, wall plate, belt slot or leftover vertical manual-control trim.
+- Repair the adjacent wall/tile finish seamlessly so the old manual system leaves ZERO visible trace.
+- Keep the same exact room, geometry, crop, lighting and window proportions. Only fix the leftover manual-control artifact.`;
 }
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
@@ -176,7 +351,7 @@ Deno.serve(async (req) => {
       validation,
       normalizedConfig,
     } = buildWindowPrompt(rawConfig, (session as Record<string, unknown>).foto_analisi || {});
-    const composedPrompt = [systemPrompt, userPrompt, `[NEGATIVE CONSTRAINTS]\n${negativePrompt}`]
+    let composedPrompt = [systemPrompt, userPrompt, `[NEGATIVE CONSTRAINTS]\n${negativePrompt}`]
       .filter(Boolean)
       .join("\n\n");
 
@@ -220,139 +395,147 @@ Deno.serve(async (req) => {
     }
 
     // ── Chiama il provider AI ───────────────────────────────────────────────
-    let imageData: string | null = null;
-    let providerRawResponse: Record<string, unknown> = {};
+    const renderSize = pickProviderSize(
+      prepared.effective_width,
+      prepared.effective_height,
+      "openai",
+    ) ?? resolveRenderSize(target_width, target_height);
 
-    if (providerConfig.provider_key === "openai") {
-      const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-      const imgBlob = await imgResp.blob();
+    const generateCandidate = async (promptText: string): Promise<{
+      imageData: string;
+      providerRawResponse: Record<string, unknown>;
+    }> => {
+      let imageData: string | null = null;
+      let providerRawResponse: Record<string, unknown> = {};
 
-      // A5 fix: size output calcolata sulle dims ridotte (max 1600 lato lungo),
-      // non sulle dims iPhone originali. Mai > 1600x1600.
-      const renderSize = pickProviderSize(
-        prepared.effective_width,
-        prepared.effective_height,
-        "openai",
-      ) ?? resolveRenderSize(target_width, target_height);
+      if (providerConfig.provider_key === "openai") {
+        const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
+        const imgBlob = await imgResp.blob();
 
-      // Build form factory so we can rebuild on retry (FormData non rispedibile)
-      const buildForm = (modelName: string) => {
-        const form = new FormData();
-        form.append("model", modelName);
-        form.append("prompt", composedPrompt);
-        // Param name differisce: gpt-image-1 usa "image[]" (array, supporta multi
-        // input), dall-e-2 usa "image" singolo. Il file deve essere PNG/JPG < 4MB.
-        // dall-e-2 in /images/edits richiede tecnicamente un PNG quadrato + mask,
-        // ma l'endpoint accetta JPG senza mask trattando l'intera area come
-        // editabile — è quello che vogliamo qui (edit totale con prompt).
-        if (modelName === "dall-e-2") {
-          form.append("image", imgBlob, "photo.png");
-        } else {
-          form.append("image[]", imgBlob, "photo.jpg");
+        const buildForm = (modelName: string) => {
+          const form = new FormData();
+          form.append("model", modelName);
+          form.append("prompt", promptText);
+          if (modelName === "dall-e-2") {
+            form.append("image", imgBlob, "photo.png");
+          } else {
+            form.append("image[]", imgBlob, "photo.jpg");
+          }
+          form.append("n", "1");
+          form.append("size", modelName === "dall-e-2" ? "1024x1024" : renderSize);
+          if (modelName !== "gpt-image-1") {
+            form.append("response_format", "b64_json");
+          }
+          return form;
+        };
+
+        const modelChain = [providerConfig.model];
+        if (providerConfig.model !== "dall-e-2") modelChain.push("dall-e-2");
+
+        let resp: Response | null = null;
+        let lastErr = "";
+        let modelUsed = providerConfig.model;
+        for (const m of modelChain) {
+          const r = await fetchWithRetry(
+            "https://api.openai.com/v1/images/edits",
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}` },
+              body: buildForm(m),
+            },
+          );
+          if (r.ok) {
+            resp = r;
+            modelUsed = m;
+            break;
+          }
+          const txt = await r.text();
+          lastErr = `OpenAI error ${r.status}: ${txt.substring(0, 300)}`;
+          const isModelAccessIssue =
+            txt.includes("invalid_value") && txt.includes("\"model\"");
+          if (!isModelAccessIssue) throw new Error(lastErr);
         }
-        form.append("n", "1");
-        // dall-e-2 supporta solo size 256/512/1024 square, quindi forziamo 1024x1024
-        const sizeForModel = modelName === "dall-e-2" ? "1024x1024" : renderSize;
-        form.append("size", sizeForModel);
-        // dall-e-2 non accetta "response_format" con valore "b64_json" in /edits
-        // per alcuni client: lo teniamo su dall-e-2 perché in realtà è supportato;
-        // gpt-image-1 invece restituisce sempre b64, quindi il parametro è no-op.
-        if (modelName !== "gpt-image-1") {
-          form.append("response_format", "b64_json");
-        }
-        return form;
-      };
+        if (!resp) throw new Error(lastErr || "OpenAI: tutti i model tentati sono falliti");
 
-      // Model fallback chain: se il modello configurato non è accessibile
-      // (Tier/verification mancante), OpenAI risponde "Invalid value: 'gpt-image-1'.
-      // Value must be 'dall-e-2'." → facciamo retry con dall-e-2 automaticamente.
-      // Questo evita che il demo / account non verificati vedano il render fallire
-      // senza spiegazioni.
-      const modelChain = [providerConfig.model];
-      if (providerConfig.model !== "dall-e-2") modelChain.push("dall-e-2");
+        const oaiData = await resp.json();
+        providerRawResponse = { ...oaiData, _model_used: modelUsed } as Record<string, unknown>;
+        const b64 = oaiData.data?.[0]?.b64_json;
+        if (b64) imageData = `data:image/png;base64,${b64}`;
+      } else if (providerConfig.provider_key === "gemini") {
+        const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
+        const imgBuffer = await imgResp.arrayBuffer();
+        const imgB64 = uint8ToBase64(new Uint8Array(imgBuffer));
 
-      let resp: Response | null = null;
-      let lastErr = "";
-      let modelUsed = providerConfig.model;
-      for (const m of modelChain) {
-        const r = await fetchWithRetry(
-          "https://api.openai.com/v1/images/edits",
+        const geminiBody = {
+          contents: [{
+            parts: [
+              { text: promptText },
+              { inline_data: { mime_type: "image/jpeg", data: imgB64 } },
+            ],
+          }],
+          generationConfig: {
+            responseModalities: ["IMAGE", "TEXT"],
+            temperature: 1,
+          },
+        };
+
+        const geminiUrl = `${providerConfig.api_endpoint}/${providerConfig.model}:generateContent?key=${apiKey}`;
+        const resp = await fetchWithRetry(
+          geminiUrl,
           {
             method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}` },
-            body: buildForm(m),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(geminiBody),
           },
         );
-        if (r.ok) {
-          resp = r;
-          modelUsed = m;
-          break;
+
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new Error(`Gemini error ${resp.status}: ${err.substring(0, 300)}`);
         }
-        const txt = await r.text();
-        lastErr = `OpenAI error ${r.status}: ${txt.substring(0, 300)}`;
-        // Retry solo se l'errore è model-access (invalid_value sul param model)
-        const isModelAccessIssue =
-          txt.includes("invalid_value") && txt.includes("\"model\"");
-        if (!isModelAccessIssue) throw new Error(lastErr);
-      }
-      if (!resp) throw new Error(lastErr || "OpenAI: tutti i model tentati sono falliti");
 
-      const oaiData = await resp.json();
-      providerRawResponse = { ...oaiData, _model_used: modelUsed } as Record<string, unknown>;
-      const b64 = oaiData.data?.[0]?.b64_json;
-      if (b64) imageData = `data:image/png;base64,${b64}`;
-
-    } else if (providerConfig.provider_key === "gemini") {
-      const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-      const imgBuffer = await imgResp.arrayBuffer();
-      const imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
-
-      const geminiBody = {
-        contents: [{
-          parts: [
-            { text: composedPrompt },
-            { inline_data: { mime_type: "image/jpeg", data: imgB64 } },
-          ],
-        }],
-        generationConfig: {
-          responseModalities: ["IMAGE", "TEXT"],
-          temperature: 1,
-        },
-      };
-
-      const geminiUrl = `${providerConfig.api_endpoint}/${providerConfig.model}:generateContent?key=${apiKey}`;
-      const resp = await fetchWithRetry(
-        geminiUrl,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(geminiBody),
-        },
-      );
-
-      if (!resp.ok) {
-        const err = await resp.text();
-        throw new Error(`Gemini error ${resp.status}: ${err.substring(0, 300)}`);
-      }
-
-      const gemData = await resp.json();
-      providerRawResponse = gemData as Record<string, unknown>;
-      const parts = gemData.candidates?.[0]?.content?.parts ?? [];
-      for (const part of parts) {
-        if (part.inlineData?.mimeType?.startsWith("image/")) {
-          imageData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          break;
+        const gemData = await resp.json();
+        providerRawResponse = gemData as Record<string, unknown>;
+        const parts = gemData.candidates?.[0]?.content?.parts ?? [];
+        for (const part of parts) {
+          if (part.inlineData?.mimeType?.startsWith("image/")) {
+            imageData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            break;
+          }
         }
+      } else {
+        throw new Error(
+          `Provider '${providerConfig.provider_key}' non supportato. Selezionare OpenAI o Gemini.`
+        );
       }
 
-    } else {
-      throw new Error(
-        `Provider '${providerConfig.provider_key}' non supportato. Selezionare OpenAI o Gemini.`
-      );
-    }
+      if (!imageData) {
+        throw new Error("Nessuna immagine ricevuta dal provider AI");
+      }
 
-    if (!imageData) {
-      throw new Error("Nessuna immagine ricevuta dal provider AI");
+      return { imageData, providerRawResponse };
+    };
+
+    let generationAttempts = 1;
+    let { imageData, providerRawResponse } = await generateCandidate(composedPrompt);
+
+    const qaResult = await runMotorizedManualCleanupQa({
+      supabase,
+      sourceImageUrl: imageUrl,
+      candidateImageData: imageData,
+      normalizedConfig,
+    });
+
+    if (qaResult.checked && !qaResult.pass) {
+      generationAttempts += 1;
+      composedPrompt = buildMotorizedManualCleanupRetryPrompt(
+        composedPrompt,
+        normalizedConfig,
+        qaResult.issues,
+      );
+      const retried = await generateCandidate(composedPrompt);
+      imageData = retried.imageData;
+      providerRawResponse = retried.providerRawResponse;
     }
 
     // ── Upload risultato su Storage ─────────────────────────────────────────
@@ -391,7 +574,7 @@ Deno.serve(async (req) => {
     });
 
     // ── Aggiorna render_sessions: completed ─────────────────────────────────
-    const costReal = capture.cost_eur;
+    const costReal = capture.cost_eur * generationAttempts;
     const costBilled = providerConfig.cost_billed_per_render ?? 0.10;
     const activeConfig = normalizedConfig as unknown as Record<string, unknown>;
     const ni = (activeConfig?.nuovo_infisso as Record<string, unknown>) || {};
@@ -422,6 +605,7 @@ Deno.serve(async (req) => {
       meta: {
         purchase_id: purchaseId,
         input_image: prepared.meta,
+        generation_attempts: generationAttempts,
         provider_size_used: providerConfig.provider_key === "openai"
           ? (pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? null)
           : null,
