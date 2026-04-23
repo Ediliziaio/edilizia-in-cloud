@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -98,8 +99,14 @@ Deno.serve(async (req) => {
       }${String(now.getUTCHours()).padStart(2, "0")}`;
 
       // Create PaymentIntent off-session
+      // P2-6: timeout 30s sulla fetch Stripe. Prima in caso di outage
+      // Stripe l'edge function hangava fino a 150s accumulando cron.
+      // Grazie a Idempotency-Key (P0-3), se Stripe aveva già ricevuto la
+      // request originale il retry col prossimo cron ritorna lo stesso PI
+      // — nessuna doppia charge.
+      let piRes: Response;
       try {
-        const piRes = await fetch("https://api.stripe.com/v1/payment_intents", {
+        piRes = await fetchWithTimeout("https://api.stripe.com/v1/payment_intents", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${stripeSecretKey}`,
@@ -116,8 +123,25 @@ Deno.serve(async (req) => {
             "metadata[company_id]": config.company_id,
             "metadata[type]": "auto_topup_email",
           }),
+          timeoutMs: 30_000,
         });
+      } catch (fetchErr) {
+        if (isTimeoutError(fetchErr)) {
+          console.error(
+            `[auto-topup] Stripe timeout per ${config.company_id} — skip, il prossimo cron ritenta`,
+          );
+        } else {
+          console.error(
+            `[auto-topup] Stripe fetch error per ${config.company_id}:`,
+            (fetchErr as Error).message,
+          );
+        }
+        // IMPORTANTE: non tocchiamo last_topup_at né outbox: il prossimo
+        // cron con stessa Idempotency-Key recupererà senza double-charge.
+        continue;
+      }
 
+      try {
         const pi = await piRes.json();
 
         if (pi.status === "succeeded") {
