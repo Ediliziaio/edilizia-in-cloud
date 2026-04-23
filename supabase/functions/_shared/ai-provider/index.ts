@@ -1,13 +1,12 @@
-// MP05 — Entry point AIProvider: chat() con fallback chain automatico.
+// MP05-FIX — Entry point AIProvider con billing integrato.
 //
-// USAGE minimale:
-//   import { chat } from "../_shared/ai-provider/index.ts";
-//   const r = await chat({
-//     task_kind: "bot_operativo_operaio",
-//     company_id: "11111111-...",
-//     messages: [{ role: "user", content: "Ciao" }],
-//   });
-//   console.log(r.content, r.model_used, r.cost_usd);
+// Flusso:
+//   1. precallCheck (PRIMA di chiamare OpenRouter) → abort se insufficienti
+//   2. Fallback chain (come MP05 v1.0)
+//   3. chargeAndLog atomico DOPO (scala crediti + log in una transazione SQL)
+//
+// Gli errori InsufficientCreditsError propagano al chiamante (handler WA),
+// che mostra user_message_it all'utente finale senza rivelare modello/costi.
 
 import {
   createClient,
@@ -20,6 +19,7 @@ import type {
 } from "./types.ts";
 import { resolveModelConfig } from "./config.ts";
 import { callOpenRouter } from "./openrouter.ts";
+import { precallCheck, chargeAndLog } from "./billing.ts";
 
 let _supabase: SupabaseClient | null = null;
 function getSupabase(): SupabaseClient {
@@ -32,18 +32,62 @@ function getSupabase(): SupabaseClient {
   return _supabase;
 }
 
+export class InsufficientCreditsError extends Error {
+  public readonly reason: string;
+  public readonly balance_eur: number;
+  public readonly user_message_it: string;
+  constructor(reason: string, balance: number, msg: string) {
+    super(`Insufficient credits: ${reason} (balance €${balance})`);
+    this.name = "InsufficientCreditsError";
+    this.reason = reason;
+    this.balance_eur = balance;
+    this.user_message_it = msg;
+  }
+}
+
 export async function chat(req: ChatRequest): Promise<ChatResponse> {
   const supabase = getSupabase();
 
+  // 1. Pre-call check saldo
+  const precall = await precallCheck(supabase, {
+    company_id: req.company_id,
+    task_kind: req.task_kind,
+    estimated_tokens_total: req.max_tokens ? req.max_tokens + 500 : 1500,
+  });
+
+  if (!precall.allow) {
+    // Log tentativo bloccato (no call a OpenRouter)
+    await supabase.from("ai_model_usage_log").insert({
+      company_id: req.company_id ?? null,
+      task_kind: req.task_kind,
+      model_requested: "skipped",
+      model_used: "skipped",
+      provider_used: "none",
+      tokens_prompt: 0,
+      tokens_completion: 0,
+      tokens_total: 0,
+      cost_usd: 0,
+      ok: false,
+      error_code: precall.reason,
+      error_detail: "precall_blocked",
+      credits_deducted: false,
+    }).then(() => {}).catch(() => {});
+
+    throw new InsufficientCreditsError(
+      precall.reason,
+      precall.balance_eur,
+      precall.user_message_it,
+    );
+  }
+
+  // 2. Risolvi config modello (solo global SuperAdmin)
   const config = await resolveModelConfig(
     supabase,
     req.task_kind,
     req.company_id,
   );
   if (!config.enabled) {
-    throw new Error(
-      `Task ${req.task_kind} disabilitato per company ${req.company_id ?? "global"}`,
-    );
+    throw new Error(`Task ${req.task_kind} disabilitato globalmente`);
   }
 
   const modelChain = req.model_override
@@ -56,10 +100,10 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
   let lastError: AIProviderError | null = null;
   let hops = 0;
 
+  // 3. Try fallback chain
   for (let i = 0; i < modelChain.length; i++) {
     const model = modelChain[i];
     hops = i;
-
     try {
       const result = await callOpenRouter(
         {
@@ -79,27 +123,27 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
         { task_kind: req.task_kind, company_id: req.company_id },
       );
 
-      await logUsage(supabase, {
-        company_id: req.company_id ?? null,
+      // 4. Post-call: scala crediti + log atomico (MP05-FIX)
+      await chargeAndLog(supabase, {
+        company_id: req.company_id,
         task_kind: req.task_kind,
-        model_requested: modelChain[0],
         model_used: result.model,
-        provider_used: extractProvider(result.model),
-        fallback_hops: hops,
+        cost_usd_real: result.cost_usd,
         tokens_prompt: result.usage.prompt_tokens,
         tokens_completion: result.usage.completion_tokens,
-        tokens_total: result.usage.total_tokens,
-        cost_usd: result.cost_usd,
-        latency_ms: result.latency_ms,
-        ok: true,
-        wa_message_id: req.wa_message_id ?? null,
+        wa_message_id: req.wa_message_id,
+        metadata: {
+          fallback_hops: hops,
+          latency_ms: result.latency_ms,
+          finish_reason: result.finish_reason,
+        },
       });
 
       return {
         content: result.content,
         tool_calls: (result.tool_calls ?? []) as ChatResponse["tool_calls"],
         model_used: result.model,
-        provider_used: extractProvider(result.model),
+        provider_used: result.model.split("/")[0] ?? "unknown",
         finish_reason: result.finish_reason,
         usage: result.usage,
         cost_usd: result.cost_usd,
@@ -110,27 +154,7 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
       const err = e as AIProviderError;
       lastError = err;
 
-      await logUsage(supabase, {
-        company_id: req.company_id ?? null,
-        task_kind: req.task_kind,
-        model_requested: modelChain[0],
-        model_used: model,
-        provider_used: extractProvider(model),
-        fallback_hops: hops,
-        tokens_prompt: 0,
-        tokens_completion: 0,
-        tokens_total: 0,
-        cost_usd: 0,
-        latency_ms: 0,
-        ok: false,
-        error_code: err.code ?? "unknown",
-        error_detail: String(err.message ?? e).substring(0, 500),
-        wa_message_id: req.wa_message_id ?? null,
-      }).catch(() => {
-        /* silent */
-      });
-
-      // API key invalida → abort (inutile provare altri modelli)
+      // invalid_api_key → abort (inutile altri modelli)
       if (err.code === "invalid_api_key") throw err;
 
       const shouldFallback =
@@ -141,43 +165,11 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
         err.code === "feature_not_supported" ||
         err.code === "unknown";
 
-      if (!shouldFallback || i === modelChain.length - 1) {
-        throw err;
-      }
-      // else: continua chain
+      if (!shouldFallback || i === modelChain.length - 1) throw err;
     }
   }
 
   throw lastError ?? new Error("AI chat failed on all fallback models");
-}
-
-function extractProvider(modelId: string): string {
-  return modelId.split("/")[0] ?? "unknown";
-}
-
-interface UsageLogEntry {
-  company_id: string | null;
-  task_kind: string;
-  model_requested: string;
-  model_used: string;
-  provider_used: string;
-  fallback_hops: number;
-  tokens_prompt: number;
-  tokens_completion: number;
-  tokens_total: number;
-  cost_usd: number;
-  latency_ms: number;
-  ok: boolean;
-  error_code?: string;
-  error_detail?: string;
-  wa_message_id: string | null;
-}
-
-async function logUsage(
-  supabase: SupabaseClient,
-  entry: UsageLogEntry,
-): Promise<void> {
-  await supabase.from("ai_model_usage_log").insert(entry);
 }
 
 // Re-export per consumer

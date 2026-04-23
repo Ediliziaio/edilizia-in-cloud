@@ -4,6 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { callOpenAI, type ChatMessage } from "../whatsapp-ai-processor/openai.ts";
+import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 import { checkBudget, consumeBudget, estimateCostEur } from "../whatsapp-ai-processor/budget.ts";
 import { logToolCall } from "../whatsapp-ai-processor/observability.ts";
 import { SYSTEM_PROMPT_LEAD } from "./prompts/system_lead.ts";
@@ -155,6 +156,13 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, tokens_in: tokIn, tokens_out: tokOut }, 200);
   } catch (err) {
+    // MP05-FIX — Credit-aware error handling
+    if (err instanceof InsufficientCreditsError) {
+      try {
+        await sendReply(body.wa_number_id, contact.company_id, contact.telefono ?? "", err.user_message_it);
+      } catch { /* silent */ }
+      return json({ ok: false, reason: err.reason }, 402);
+    }
     console.error(JSON.stringify({ level: "error", fn: "lead-ai-processor", error: String(err) }));
     return json({ error: String(err) }, 500);
   }

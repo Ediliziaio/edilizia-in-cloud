@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   TrendingUp, DollarSign, Users, RefreshCw, Loader2,
   AlertTriangle, CheckCircle2, ArrowUpDown, BarChart3, Sparkles,
-  Gift, ShieldCheck, Activity, Percent,
+  Gift, ShieldCheck, Activity, Percent, Zap,
 } from "lucide-react";
 import {
   Bar,
@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { RenderEconomicsTab } from "@/components/admin/RenderEconomicsTab";
+import { AdminAiMarginsPanel } from "@/components/admin/ai-provider/AdminAiMarginsPanel";
 import {
   getAdminRevenueBreakdown,
   getCompanyMonthlyRevenue,
@@ -778,6 +779,10 @@ export default function AdminRevenueDashboard() {
             <Sparkles className="h-4 w-4" />
             Render Economics
           </TabsTrigger>
+          <TabsTrigger value="ai-margins" className="gap-2">
+            <Zap className="h-4 w-4" />
+            AI Provider
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="revenue" className="mt-4">
@@ -794,6 +799,10 @@ export default function AdminRevenueDashboard() {
 
         <TabsContent value="render-economics" className="mt-4">
           <RenderEconomicsTab />
+        </TabsContent>
+
+        <TabsContent value="ai-margins" className="mt-4">
+          <AdminAiMarginsPanel />
         </TabsContent>
       </Tabs>
     </div>

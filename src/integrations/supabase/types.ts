@@ -2315,15 +2315,66 @@ export type Database = {
           },
         ]
       }
+      ai_model_config_archive_mp05fix: {
+        Row: {
+          archived_at: string | null
+          company_id: string | null
+          created_at: string | null
+          enabled: boolean | null
+          fallback_chain: Json | null
+          id: string | null
+          max_cost_usd_per_call: number | null
+          max_tokens: number | null
+          primary_model: string | null
+          task_kind: string | null
+          temperature: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          fallback_chain?: Json | null
+          id?: string | null
+          max_cost_usd_per_call?: number | null
+          max_tokens?: number | null
+          primary_model?: string | null
+          task_kind?: string | null
+          temperature?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          fallback_chain?: Json | null
+          id?: string | null
+          max_cost_usd_per_call?: number | null
+          max_tokens?: number | null
+          primary_model?: string | null
+          task_kind?: string | null
+          temperature?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ai_model_usage_log: {
         Row: {
           company_id: string | null
+          cost_billed_eur: number | null
+          cost_real_eur: number | null
           cost_usd: number | null
+          credit_tx_id: string | null
+          credits_deducted: boolean | null
           error_code: string | null
           error_detail: string | null
           fallback_hops: number | null
           id: string
           latency_ms: number | null
+          margin_eur: number | null
+          markup_applied_pct: number | null
           metadata: Json | null
           model_requested: string
           model_used: string
@@ -2334,16 +2385,23 @@ export type Database = {
           tokens_prompt: number | null
           tokens_total: number | null
           ts: string | null
+          usd_eur_rate: number | null
           wa_message_id: string | null
         }
         Insert: {
           company_id?: string | null
+          cost_billed_eur?: number | null
+          cost_real_eur?: number | null
           cost_usd?: number | null
+          credit_tx_id?: string | null
+          credits_deducted?: boolean | null
           error_code?: string | null
           error_detail?: string | null
           fallback_hops?: number | null
           id?: string
           latency_ms?: number | null
+          margin_eur?: number | null
+          markup_applied_pct?: number | null
           metadata?: Json | null
           model_requested: string
           model_used: string
@@ -2354,16 +2412,23 @@ export type Database = {
           tokens_prompt?: number | null
           tokens_total?: number | null
           ts?: string | null
+          usd_eur_rate?: number | null
           wa_message_id?: string | null
         }
         Update: {
           company_id?: string | null
+          cost_billed_eur?: number | null
+          cost_real_eur?: number | null
           cost_usd?: number | null
+          credit_tx_id?: string | null
+          credits_deducted?: boolean | null
           error_code?: string | null
           error_detail?: string | null
           fallback_hops?: number | null
           id?: string
           latency_ms?: number | null
+          margin_eur?: number | null
+          markup_applied_pct?: number | null
           metadata?: Json | null
           model_requested?: string
           model_used?: string
@@ -2374,6 +2439,7 @@ export type Database = {
           tokens_prompt?: number | null
           tokens_total?: number | null
           ts?: string | null
+          usd_eur_rate?: number | null
           wa_message_id?: string | null
         }
         Relationships: [
@@ -2453,6 +2519,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_pricing_markup: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_label: string
+          enabled: boolean | null
+          id: string
+          markup_multiplier: number
+          min_charge_eur: number | null
+          notes: string | null
+          task_kind: string
+          updated_at: string | null
+          updated_by_user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_label: string
+          enabled?: boolean | null
+          id?: string
+          markup_multiplier?: number
+          min_charge_eur?: number | null
+          notes?: string | null
+          task_kind: string
+          updated_at?: string | null
+          updated_by_user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_label?: string
+          enabled?: boolean | null
+          id?: string
+          markup_multiplier?: number
+          min_charge_eur?: number | null
+          notes?: string | null
+          task_kind?: string
+          updated_at?: string | null
+          updated_by_user_id?: string | null
+        }
+        Relationships: []
       }
       ai_subscriptions: {
         Row: {
@@ -34747,6 +34855,32 @@ export type Database = {
         }
         Relationships: []
       }
+      v_company_ai_spend: {
+        Row: {
+          company_id: string | null
+          day: string | null
+          n_calls: number | null
+          task_kind: string | null
+          total_spent_eur: number | null
+          total_tokens: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_model_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_model_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_ordine_marginalita: {
         Row: {
           cliente_nome: string | null
@@ -34974,6 +35108,19 @@ export type Database = {
         }
         Returns: undefined
       }
+      check_ai_credits_available: {
+        Args: {
+          p_company_id: string
+          p_est_cost_usd?: number
+          p_task_kind?: string
+        }
+        Returns: {
+          o_balance_eur: number
+          o_est_cost_eur: number
+          o_ok: boolean
+          o_reason: string
+        }[]
+      }
       check_and_update_login_attempt: {
         Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
         Returns: Json
@@ -35103,6 +35250,30 @@ export type Database = {
       deduct_ai_credits: {
         Args: { p_company_id: string; p_cost: number }
         Returns: Json
+      }
+      deduct_ai_credits_with_markup: {
+        Args: {
+          p_company_id: string
+          p_cost_usd_real: number
+          p_metadata?: Json
+          p_model_used: string
+          p_task_kind: string
+          p_tokens_completion: number
+          p_tokens_prompt: number
+          p_wa_message_id?: string
+        }
+        Returns: {
+          balance_after: number
+          balance_before: number
+          cost_billed_eur: number
+          cost_real_eur: number
+          margin_eur: number
+          markup_used: number
+          ok: boolean
+          reason: string
+          tx_id: string
+          usage_log_id: string
+        }[]
       }
       deduct_email_credits: {
         Args: { p_company_id: string; p_cost: number }

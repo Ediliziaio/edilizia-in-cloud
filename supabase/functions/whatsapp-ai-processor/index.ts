@@ -25,6 +25,7 @@ import { STR } from "./prompts/strings.ts";
 import { resolveIdentity } from "./identity.ts";
 import { analyzeImage, transcribeAudio } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
+import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 import { checkBudget, consumeBudget, estimateCostEur } from "./budget.ts";
 import { logToolCall } from "./observability.ts";
 import type { ToolCtx } from "./tools/shared/types.ts";
@@ -320,6 +321,22 @@ Deno.serve(async (req) => {
 
     return markDone(supabase, body.message_id, "processed");
   } catch (err) {
+    // MP05-FIX — Gestione crediti insufficienti: messaggio user-friendly
+    // senza rivelare modello o costo reale (F1-F3).
+    if (err instanceof InsufficientCreditsError) {
+      try {
+        await sendReply(msg, err.user_message_it);
+      } catch {
+        // silent fail
+      }
+      return markDone(
+        supabase,
+        body.message_id,
+        "failed",
+        `credits_${err.reason}`,
+      );
+    }
+
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(
       JSON.stringify({
