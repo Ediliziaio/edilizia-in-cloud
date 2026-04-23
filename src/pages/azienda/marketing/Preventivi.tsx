@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import AnalisiPreventivi from "./AnalisiPreventivi";
@@ -25,6 +25,10 @@ interface QuoteRow {
   created_at: string;
   expires_at: string | null;
   source?: string | null;
+  salesperson_id?: string | null;
+  approval_status?: string | null;
+  contact_id?: string | null;
+  opportunity_id?: string | null;
 }
 
 /** Shape returned by the KPI query (partial select) */
@@ -61,6 +65,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -135,11 +142,13 @@ export default function Preventivi() {
   });
 
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
+  const [salespersonFilter, setSalespersonFilter] = useState<string>("tutti");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteQuote, setDeleteQuote] = useState<QuoteRow | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [showComputoModal, setShowComputoModal] = useState(false);
+  const [showFotoModal, setShowFotoModal] = useState(false);
   const PAGE_SIZE = 50;
 
   // Debounce ricerca: aspetta 300ms prima di filtrare, resetta la pagina
@@ -154,18 +163,25 @@ export default function Preventivi() {
   }, [search]);
 
   const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
-    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter],
+    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, salespersonFilter],
     enabled: !!companyId,
     queryFn: async () => {
       let query = supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source", { count: "exact" })
+        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
       if (statusFilter !== "tutti") {
         query = query.eq("status", statusFilter);
+      }
+      if (salespersonFilter !== "tutti") {
+        if (salespersonFilter === "none") {
+          query = query.is("salesperson_id", null);
+        } else {
+          query = query.eq("salesperson_id", salespersonFilter);
+        }
       }
 
       const { data, error, count } = await query;
@@ -175,6 +191,28 @@ export default function Preventivi() {
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+
+  // Fetch commerciali per filtro dropdown
+  const { data: salespeopleList = [] } = useQuery({
+    queryKey: ["salespeople-for-filter", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("salespeople")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .order("last_name");
+      if (error) throw error;
+      return data as Array<{ id: string; first_name: string; last_name: string }>;
+    },
+  });
+
+  const salespersonNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    salespeopleList.forEach((s) => m.set(s.id, `${s.first_name} ${s.last_name}`));
+    return m;
+  }, [salespeopleList]);
 
   const quotes = quotesPage.data;
   const totalQuotes = quotesPage.total;
@@ -467,6 +505,10 @@ export default function Preventivi() {
             <FileUp className="h-4 w-4 mr-2" />
             Da Computo Metrico
           </Button>
+          <Button variant="outline" onClick={() => setShowFotoModal(true)} className="border-orange-300 text-orange-700 hover:bg-orange-50">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Da Foto/PDF
+          </Button>
           <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
             <Plus className="h-4 w-4 mr-2" />
             Nuovo Preventivo
@@ -563,15 +605,31 @@ export default function Preventivi() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca per numero, cliente, titolo..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca per numero, cliente, titolo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={salespersonFilter} onValueChange={setSalespersonFilter}>
+            <SelectTrigger className="sm:w-[220px]">
+              <SelectValue placeholder="Commerciale" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti i commerciali</SelectItem>
+              <SelectItem value="none">Senza commerciale</SelectItem>
+              {salespeopleList.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.first_name} {s.last_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <Tabs value={statusFilter} onValueChange={handleStatusFilter}>
           <TabsList>
@@ -644,6 +702,7 @@ export default function Preventivi() {
                 <TableHead>Numero</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Titolo</TableHead>
+                <TableHead>Commerciale</TableHead>
                 <TableHead>Stato</TableHead>
                 <TableHead className="text-right">Totale</TableHead>
                 <TableHead>Data</TableHead>
@@ -670,8 +729,26 @@ export default function Preventivi() {
                     </TableCell>
                     <TableCell>{q.client_name || "—"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{q.title || "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {q.salesperson_id ? (
+                        <span className="text-foreground">{salespersonNameById.get(q.salesperson_id) ?? "—"}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant={sc.variant}>{sc.label}</Badge>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant={sc.variant}>{sc.label}</Badge>
+                        {q.approval_status === "pending" && (
+                          <Badge variant="outline" className="border-orange-500 text-orange-600 text-[10px]">Sconto pending</Badge>
+                        )}
+                        {q.approval_status === "approved" && (
+                          <Badge variant="outline" className="border-green-500 text-green-600 text-[10px]">Sconto OK</Badge>
+                        )}
+                        {q.approval_status === "rejected" && (
+                          <Badge variant="outline" className="border-red-500 text-red-600 text-[10px]">Sconto rifiutato</Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(q.total || 0)}
@@ -705,6 +782,28 @@ export default function Preventivi() {
                             <Copy className="h-4 w-4 mr-2" />
                             Duplica
                           </DropdownMenuItem>
+                          {q.contact_id && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/azienda/marketing/contatti/${q.contact_id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Apri contatto
+                            </DropdownMenuItem>
+                          )}
+                          {q.opportunity_id && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/azienda/marketing/opportunita?id=${q.opportunity_id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Apri opportunità
+                            </DropdownMenuItem>
+                          )}
                           {q.status === "bozza" && (
                             <DropdownMenuItem
                               onClick={(e) => {
@@ -788,6 +887,14 @@ export default function Preventivi() {
       <ComputoUploadModal
         open={showComputoModal}
         onOpenChange={setShowComputoModal}
+        onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
+      />
+
+      {/* Modal Foto/PDF — AI vision estrae preventivo da foto cartaceo o PDF */}
+      <ComputoUploadModal
+        open={showFotoModal}
+        onOpenChange={setShowFotoModal}
+        intent="foto"
         onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
       />
     </div>

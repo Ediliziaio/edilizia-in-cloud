@@ -16,6 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -91,8 +94,40 @@ export default function QuoteApprovals() {
     return m;
   }, [quotes]);
 
-  const pending = approvals.filter((a) => a.decision === null);
-  const decided = approvals.filter((a) => a.decision !== null);
+  // Filtro commerciale (derivato via quote lookup)
+  const [spFilter, setSpFilter] = useState<string>("tutti");
+
+  const { data: salespeopleList = [] } = useQuery({
+    queryKey: ["salespeople-for-approvals", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("salespeople")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId!)
+        .order("last_name");
+      if (error) throw error;
+      return data as Array<{ id: string; first_name: string; last_name: string }>;
+    },
+  });
+
+  const salespersonNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    salespeopleList.forEach((s) => m.set(s.id, `${s.first_name} ${s.last_name}`));
+    return m;
+  }, [salespeopleList]);
+
+  const approvalsFiltered = useMemo(() => {
+    if (spFilter === "tutti") return approvals;
+    return approvals.filter((a) => {
+      const q = quotesById.get(a.quote_id);
+      if (spFilter === "none") return !q?.salesperson_id;
+      return q?.salesperson_id === spFilter;
+    });
+  }, [approvals, quotesById, spFilter]);
+
+  const pending = approvalsFiltered.filter((a) => a.decision === null);
+  const decided = approvalsFiltered.filter((a) => a.decision !== null);
 
   const [dialog, setDialog] = useState<{
     open: boolean;
@@ -169,6 +204,13 @@ export default function QuoteApprovals() {
           <div className="font-medium">{q?.quote_number ?? "—"}</div>
           <div className="text-xs text-muted-foreground">{q?.client_name ?? q?.title ?? ""}</div>
         </TableCell>
+        <TableCell className="text-xs">
+          {q?.salesperson_id ? (
+            <span className="text-foreground">{salespersonNameById.get(q.salesperson_id) ?? "—"}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </TableCell>
         <TableCell className="text-right">{formatCurrency(a.importo_preventivo)}</TableCell>
         <TableCell className="text-right font-medium text-orange-600">
           {a.sconto_richiesto_pct.toFixed(1)}%
@@ -223,6 +265,7 @@ export default function QuoteApprovals() {
       <TableHeader>
         <TableRow>
           <TableHead>Preventivo</TableHead>
+          <TableHead>Commerciale</TableHead>
           <TableHead className="text-right">Importo</TableHead>
           <TableHead className="text-right">Sconto richiesto</TableHead>
           <TableHead className="text-right">Margine stim.</TableHead>
@@ -240,11 +283,27 @@ export default function QuoteApprovals() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Approvazioni sconto preventivi</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Valuta le richieste dei commerciali. Vedi margine e provvigione per decidere.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Approvazioni sconto preventivi</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Valuta le richieste dei commerciali. Vedi margine e provvigione per decidere.
+          </p>
+        </div>
+        <Select value={spFilter} onValueChange={setSpFilter}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Filtro commerciale" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutti">Tutti i commerciali</SelectItem>
+            <SelectItem value="none">Senza commerciale</SelectItem>
+            {salespeopleList.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.first_name} {s.last_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Tabs defaultValue="pending">

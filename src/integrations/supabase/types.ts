@@ -17180,6 +17180,7 @@ export type Database = {
           descrizione: string | null
           icona: string | null
           id: string
+          immagine_url: string | null
           macrocategoria_id: string | null
           margine_target_percentuale: number | null
           nome: string
@@ -17193,6 +17194,7 @@ export type Database = {
           descrizione?: string | null
           icona?: string | null
           id?: string
+          immagine_url?: string | null
           macrocategoria_id?: string | null
           margine_target_percentuale?: number | null
           nome: string
@@ -17206,6 +17208,7 @@ export type Database = {
           descrizione?: string | null
           icona?: string | null
           id?: string
+          immagine_url?: string | null
           macrocategoria_id?: string | null
           margine_target_percentuale?: number | null
           nome?: string

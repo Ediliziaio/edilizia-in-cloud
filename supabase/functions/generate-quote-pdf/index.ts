@@ -74,8 +74,6 @@ Deno.serve(async (req) => {
     let t: any;
     let attachmentRows: any[] = [];
     let branding: any = null;
-    // MP-preventivi-v2: preventivo_impostazioni scope unificato
-    let pdfImp: any = {};
 
     if (isPreview) {
       // Use sample data – no DB lookups needed
@@ -171,94 +169,12 @@ Deno.serve(async (req) => {
         .select("*")
         .eq("company_id", (quoteData as any).company_id)
         .maybeSingle();
-      pdfImp = impData ?? {};
+      const pdfImp: any = impData ?? {};
 
       // Filter items: skip mostra_nel_pdf=false
       const allItems = items;
       const visibileItems = allItems.filter((i: any) => i.mostra_nel_pdf !== false);
       items = visibileItems;
-
-      // MP-preventivi-v2: lookup foto prodotti (article_templates + article_families)
-      // solo se `pdf_mostra_immagini` e` ON.
-      const flagForImg = ((): boolean => {
-        const q = quote.pdf_mostra_immagini;
-        if (typeof q === "boolean") return q;
-        const ci = pdfImp.pdf_mostra_immagini;
-        return typeof ci === "boolean" ? ci : true;
-      })();
-      if (flagForImg) {
-        const tmplIds = Array.from(new Set(items.map((i: any) => i.article_template_id).filter(Boolean)));
-        const familyIds = Array.from(new Set(items.map((i: any) => i.family_id).filter(Boolean)));
-        const [{ data: tmplRows }, { data: famRows }] = await Promise.all([
-          tmplIds.length > 0
-            ? supabaseAdmin.from("article_templates").select("id, immagine_url").in("id", tmplIds)
-            : Promise.resolve({ data: [] as any }),
-          familyIds.length > 0
-            ? supabaseAdmin.from("article_families" as any).select("id, immagine_url").in("id", familyIds)
-            : Promise.resolve({ data: [] as any }),
-        ]);
-        const tmap = new Map<string, string | null>();
-        (tmplRows ?? []).forEach((r: any) => tmap.set(r.id, r.immagine_url ?? null));
-        const fmap = new Map<string, string | null>();
-        (famRows ?? []).forEach((r: any) => fmap.set(r.id, r.immagine_url ?? null));
-        (items as any[]).forEach((it) => {
-          it._image_url = it.article_template_id
-            ? (tmap.get(it.article_template_id) ?? null)
-            : it.family_id
-              ? (fmap.get(it.family_id) ?? null)
-              : null;
-        });
-
-        // Carica + embed immagini (max 20 per performance)
-        const seen = new Set<string>();
-        const embedMap = new Map<string, any>();
-        let count = 0;
-        for (const it of items as any[]) {
-          if (!it._image_url || seen.has(it._image_url) || count >= 20) continue;
-          seen.add(it._image_url);
-          count++;
-          try {
-            const url = it._image_url;
-            const res = await fetch(url);
-            if (!res.ok) continue;
-            const bytes = new Uint8Array(await res.arrayBuffer());
-            const lower = url.toLowerCase();
-            let embed: any = null;
-            if (lower.includes(".png")) embed = await pdfDoc.embedPng(bytes);
-            else if (lower.includes(".jpg") || lower.includes(".jpeg")) embed = await pdfDoc.embedJpg(bytes);
-            else {
-              // tenta entrambi
-              try { embed = await pdfDoc.embedJpg(bytes); }
-              catch { try { embed = await pdfDoc.embedPng(bytes); } catch (_) { /* skip */ } }
-            }
-            if (embed) embedMap.set(url, embed);
-          } catch (imgErr) {
-            console.warn("row image fetch failed:", imgErr);
-          }
-        }
-        (items as any[]).forEach((it) => {
-          it._image_embed = it._image_url ? (embedMap.get(it._image_url) ?? null) : null;
-        });
-      }
-
-      // MP-preventivi-v2: lookup assi famiglia per label umane in PDF
-      const familyIdsForAxes = Array.from(new Set(items.map((i: any) => i.family_id).filter(Boolean))) as string[];
-      const familyAxesMap: Record<string, any> = {};
-      if (familyIdsForAxes.length > 0) {
-        const { data: axesRows } = await supabaseAdmin
-          .from("article_family_axes" as any)
-          .select("id, family_id, codice, nome, values:article_family_axis_values(id, label)")
-          .in("family_id", familyIdsForAxes);
-        (axesRows ?? []).forEach((ax: any) => {
-          if (!familyAxesMap[ax.family_id]) familyAxesMap[ax.family_id] = {};
-          const valueMap: Record<string, string> = {};
-          (ax.values ?? []).forEach((v: any) => { valueMap[v.id] = v.label; });
-          familyAxesMap[ax.family_id][ax.codice] = { nome: ax.nome, valueMap };
-        });
-      }
-      (items as any[]).forEach((it) => {
-        it._axes_lookup = it.family_id ? (familyAxesMap[it.family_id] ?? null) : null;
-      });
 
       // Load company info
       const { data: companyData } = await supabaseAdmin
@@ -323,23 +239,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // MP-preventivi-v2: helper unificato per flag PDF.
-    // Priorita`: override per-quote > preventivo_impostazioni company > default.
-    function flag(key: string, def: boolean): boolean {
-      const q = (quote as any)[key];
-      if (typeof q === "boolean") return q;
-      const ci = pdfImp[key];
-      if (typeof ci === "boolean") return ci;
-      return def;
-    }
-    function flagStr(key: string): string {
-      const q = (quote as any)[key];
-      if (typeof q === "string" && q) return q;
-      const ci = pdfImp[key];
-      if (typeof ci === "string" && ci) return ci;
-      return "";
-    }
-
     // Helper: draw footer + page number on a page
     function drawPageExtras(page: any, pageNum: number, totalPages: number) {
       if (t.footer_text) {
@@ -355,29 +254,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Helper: draw watermark (override per-quote > template) + intestazione copia
+    // Helper: draw watermark
     function drawWatermark(page: any) {
-      const quoteMark = flagStr("pdf_watermark_text");
-      const effectiveText = quoteMark || (t.show_watermark ? t.watermark_text : "");
-      if (effectiveText) {
-        page.drawText(effectiveText, {
+      if (t.show_watermark && t.watermark_text) {
+        page.drawText(t.watermark_text, {
           x: pageWidth / 2 - 100,
           y: pageHeight / 2,
           size: 48,
           font,
           color: rgb(0.9, 0.9, 0.9),
           rotate: degrees(45),
-        });
-      }
-      // Intestazione "COPIA CLIENTE" / "COPIA ARCHIVIO" / "COPIA COMMERCIALE"
-      const dest = flagStr("pdf_copia_destinatario");
-      if (dest) {
-        page.drawText(`COPIA ${dest.toUpperCase()}`, {
-          x: pageWidth - margin - 120,
-          y: pageHeight - 12,
-          size: 8,
-          font: fontBold,
-          color: rgb(0.6, 0.6, 0.6),
         });
       }
     }
@@ -607,26 +493,9 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Calcolo altezza riga dinamica in base a flag dettagli
-          const showImg = flag("pdf_mostra_immagini", true) && !!(item as any)._image_embed;
-          const showMisure = flag("pdf_mostra_misure", true) && (item.misura_x || item.misura_y);
-          const showAttributi = flag("pdf_mostra_attributi", true) && item.axis_selections && Object.keys(item.axis_selections).length > 0;
-          const extraLines = (showMisure ? 1 : 0) + (showAttributi ? 1 : 0);
-          const rowH = Math.max(16, (showImg ? 32 : 16) + extraLines * 10);
-
           // Alternate row background
           if (idx % 2 === 0) {
-            page.drawRectangle({ x: itemLeftX, y: y - rowH + 13, width: itemWidth, height: rowH, color: isChild ? rgb(0.97, 0.97, 0.97) : accentC });
-          }
-
-          // Thumbnail prodotto a sinistra
-          const nameOffsetX = showImg ? 36 : 0;
-          if (showImg) {
-            try {
-              page.drawImage((item as any)._image_embed, {
-                x: colX[0], y: y - 22, width: 30, height: 30,
-              });
-            } catch (_) { /* fallback senza img */ }
+            page.drawRectangle({ x: itemLeftX, y: y - 3, width: itemWidth, height: 16, color: isChild ? rgb(0.97, 0.97, 0.97) : accentC });
           }
 
           // Name prefix for child rows / optional
@@ -634,55 +503,33 @@ Deno.serve(async (req) => {
           if (isChild) namePrefix = "  \u2514 ";
           if (isOptional) namePrefix += "[OPZIONALE] ";
 
-          const nameText = (namePrefix + (item.name || "")).substring(0, 38);
+          const nameText = (namePrefix + (item.name || "")).substring(0, 40);
           const rowColor = isChild ? grayC : textC;
 
           const qty = `${item.quantity} ${item.unit_of_measure || ""}`.trim();
           const price = `€ ${Number(item.unit_price || 0).toFixed(2)}`;
-          const showDiscount = flag("pdf_mostra_sconti", false);
+          const showDiscount = (quote as any).pdf_mostra_sconti !== false && pdfImp.pdf_mostra_sconti !== false;
           const disc = showDiscount && Number(item.discount_percent || 0) > 0 ? `${item.discount_percent}%` : (showDiscount ? "—" : "");
           const vat = `${Number(item.vat_rate || 0)}%`;
           const lineTotal = Number(item.line_total || (Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100)));
           const totalText = `€ ${lineTotal.toFixed(2)}`;
 
-          page.drawText(nameText, { x: colX[0] + nameOffsetX, y, size: 9, font, color: rowColor });
+          page.drawText(nameText, { x: colX[0], y, size: 9, font, color: rowColor });
           page.drawText(qty, { x: colX[1], y, size: 9, font, color: rowColor });
           // Show price per row based on setting
-          const showPrezziRiga = flag("pdf_mostra_prezzi_per_riga", true);
+          const showPrezziRiga = (quote as any).pdf_mostra_prezzi_per_riga !== false;
           if (showPrezziRiga) {
             page.drawText(price, { x: colX[2], y, size: 9, font, color: rowColor });
             if (showDiscount) page.drawText(disc, { x: colX[3], y, size: 9, font, color: rowColor });
             page.drawText(vat, { x: colX[4], y, size: 9, font, color: rowColor });
           }
           page.drawText(totalText, { x: colX[5], y, size: 9, font: fontBold, color: isOptional ? grayC : textC });
-          y -= 14;
-
-          // MP-preventivi-v2: riga dettagli (misure + attributi)
-          if (showMisure) {
-            const lbl = `Misure: ${item.misura_x ?? "-"} × ${item.misura_y ?? "-"} mm`;
-            page.drawText(lbl, { x: colX[0] + nameOffsetX, y, size: 7, font, color: grayC });
-            y -= 10;
-          }
-          if (showAttributi) {
-            const axesLookup = (item as any)._axes_lookup;
-            const attrs = Object.entries(item.axis_selections)
-              .map(([code, valueId]) => {
-                const axis = axesLookup?.[code];
-                const label = axis?.nome ?? code;
-                const v = axis?.valueMap?.[valueId as string] ?? valueId;
-                return `${label}: ${v}`;
-              })
-              .join(" · ");
-            page.drawText(attrs.substring(0, 110), { x: colX[0] + nameOffsetX, y, size: 7, font, color: grayC });
-            y -= 10;
-          }
+          y -= 16;
 
           if (item.description) {
-            page.drawText(item.description.substring(0, 80), { x: colX[0] + nameOffsetX, y, size: 7, font, color: grayC });
-            y -= 10;
+            page.drawText(item.description.substring(0, 80), { x: colX[0], y, size: 7, font, color: grayC });
+            y -= 12;
           }
-          // padding finale se la riga aveva miniatura
-          if (showImg && extraLines === 0 && !item.description) y -= 12;
         }
       }
 
@@ -768,38 +615,16 @@ Deno.serve(async (req) => {
       drawWatermark(page);
     }
 
-    // ─── Notes + condizioni page (MP-preventivi-v2: flag separati) ───
-    const showNoteCliente = flag("pdf_mostra_note_cliente", true) && t.show_notes && quote.notes;
-    const showCondizioni = flag("pdf_mostra_condizioni", true) && quote.terms_and_conditions;
-    if (showNoteCliente || showCondizioni) {
+    // ─── Notes page ───
+    if (t.show_notes && quote.notes) {
       page = pdfDoc.addPage([pageWidth, pageHeight]);
       y = pageHeight - margin;
       if (t.layout === "bold") {
         page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
       }
       const nlx = t.layout === "bold" ? 100 : margin;
-      if (showNoteCliente) {
-        page.drawText("NOTE", { x: nlx, y, size: 12, font: fontBold, color: primaryC }); y -= 20;
-        page.drawText(String(quote.notes).substring(0, 2000), {
-          x: nlx, y, size: 9, font, color: textC,
-          maxWidth: t.layout === "bold" ? contentWidth - 50 : contentWidth, lineHeight: 14,
-        });
-        y -= Math.min(300, 14 * Math.ceil(String(quote.notes).length / 90));
-      }
-      if (showCondizioni) {
-        if (y < 120) {
-          drawWatermark(page);
-          page = pdfDoc.addPage([pageWidth, pageHeight]);
-          y = pageHeight - margin;
-        } else {
-          y -= 20;
-        }
-        page.drawText("CONDIZIONI CONTRATTUALI", { x: nlx, y, size: 12, font: fontBold, color: primaryC }); y -= 20;
-        page.drawText(String(quote.terms_and_conditions).substring(0, 3000), {
-          x: nlx, y, size: 9, font, color: textC,
-          maxWidth: t.layout === "bold" ? contentWidth - 50 : contentWidth, lineHeight: 14,
-        });
-      }
+      page.drawText("NOTE E CONDIZIONI", { x: nlx, y, size: 12, font: fontBold, color: primaryC }); y -= 25;
+      page.drawText(quote.notes.substring(0, 2000), { x: nlx, y, size: 9, font, color: textC, maxWidth: t.layout === "bold" ? contentWidth - 50 : contentWidth, lineHeight: 14 });
       drawWatermark(page);
     }
 

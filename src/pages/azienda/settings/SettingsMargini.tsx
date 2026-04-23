@@ -52,6 +52,7 @@ interface Categoria {
   id: string;
   nome: string;
   colore?: string;
+  immagine_url?: string | null;
   margine_target_percentuale?: number | null;
 }
 
@@ -71,10 +72,36 @@ function CategoriaDialog({
 }) {
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [colore, setColore] = useState(editing?.colore ?? "#6366f1");
+  const [immagineUrl, setImmagineUrl] = useState<string | null>(editing?.immagine_url ?? null);
   const [margineTarget, setMargineTarget] = useState(
     editing?.margine_target_percentuale != null ? String(editing.margine_target_percentuale) : ""
   );
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handleImageSelect = async (file: File | null) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Immagine troppo grande (max 5MB)");
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${companyId}/categorie/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("article-images")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("article-images").getPublicUrl(path);
+      setImmagineUrl(urlData.publicUrl);
+      toast.success("Immagine caricata");
+    } catch (err: any) {
+      toast.error("Upload fallito: " + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
@@ -84,6 +111,7 @@ function CategoriaDialog({
         company_id: companyId,
         nome: nome.trim(),
         colore: colore.trim() || null,
+        immagine_url: immagineUrl,
         margine_target_percentuale: margineTarget.trim() !== "" ? parseFloat(margineTarget) : null,
       };
       if (editing) {
@@ -114,6 +142,33 @@ function CategoriaDialog({
           <div>
             <Label>Nome *</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+          </div>
+          <div>
+            <Label>Immagine categoria (opzionale)</Label>
+            <div className="flex items-center gap-3 mt-1">
+              <div className="h-16 w-16 rounded-md border bg-muted overflow-hidden shrink-0">
+                {immagineUrl ? (
+                  <img src={immagineUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">—</div>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <Input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => handleImageSelect(e.target.files?.[0] ?? null)}
+                  disabled={uploading}
+                  className="text-xs"
+                />
+                {immagineUrl && (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setImmagineUrl(null)}>
+                    Rimuovi immagine
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Max 5MB · PNG/JPG/WebP</p>
           </div>
           <div>
             <Label>Colore</Label>
@@ -503,7 +558,7 @@ function CategorieTab({ companyId }: { companyId: string }) {
     enabled: !!companyId,
     queryFn: async () => {
       const { data } = await (supabase.from("listino_categorie") as any)
-        .select("id, nome, colore, margine_target_percentuale")
+        .select("id, nome, colore, immagine_url, margine_target_percentuale")
         .eq("company_id", companyId).order("nome");
       return (data ?? []) as Categoria[];
     },
@@ -654,7 +709,7 @@ export default function SettingsMargini() {
     enabled: !!companyId,
     queryFn: async () => {
       const { data } = await (supabase.from("listino_categorie") as any)
-        .select("id, nome, colore, margine_target_percentuale")
+        .select("id, nome, colore, immagine_url, margine_target_percentuale")
         .eq("company_id", companyId).order("nome");
       return (data ?? []) as Categoria[];
     },

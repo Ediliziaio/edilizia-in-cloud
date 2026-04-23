@@ -61,10 +61,27 @@ export default function AnalisiPreventivi() {
   const [loadingKpi, setLoadingKpi] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showAllRows, setShowAllRows] = useState(false);
+  const [spFilter, setSpFilter] = useState<string>("tutti");
+  const [statusRowFilter, setStatusRowFilter] = useState<string>("tutti");
 
   const { effectiveCompany, role, isLoading: authLoading } = useAuth() as any;
   const companyId = effectiveCompany?.id as string | undefined;
   const isAdmin = role === "company_admin" || role === "super_admin";
+
+  // Fetch commerciali per filtro
+  const { data: salespeopleList = [] } = useQuery({
+    queryKey: ["salespeople-for-analisi", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("salespeople")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId!)
+        .order("last_name");
+      if (error) throw error;
+      return data as Array<{ id: string; first_name: string; last_name: string }>;
+    },
+  });
 
   // ─── Approvazioni pending (banner admin) ───────────────────────────────────
   const { data: pendingApprovals = [] } = useQuery({
@@ -199,9 +216,20 @@ export default function AnalisiPreventivi() {
       }))
     : [];
 
+  const preventiviFiltered = (dati?.preventivi ?? []).filter((p) => {
+    const extra = quotesExtraById.get(p.quote_id);
+    if (spFilter !== "tutti") {
+      if (spFilter === "none" && extra?.salesperson_id) return false;
+      if (spFilter !== "none" && extra?.salesperson_id !== spFilter) return false;
+    }
+    if (statusRowFilter !== "tutti") {
+      if ((extra?.approval_status ?? "not_required") !== statusRowFilter) return false;
+    }
+    return true;
+  });
   const righeVisibili = showAllRows
-    ? (dati?.preventivi ?? [])
-    : (dati?.preventivi ?? []).slice(0, 10);
+    ? preventiviFiltered
+    : preventiviFiltered.slice(0, 10);
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -214,17 +242,44 @@ export default function AnalisiPreventivi() {
           </h1>
           <p className="text-muted-foreground text-sm">Insights intelligenti sui tuoi preventivi storici</p>
         </div>
-        <Select value={periodoMesi} onValueChange={setPeriodoMesi}>
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="3">Ultimi 3 mesi</SelectItem>
-            <SelectItem value="6">Ultimi 6 mesi</SelectItem>
-            <SelectItem value="12">Ultimo anno</SelectItem>
-            <SelectItem value="24">Ultimi 2 anni</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={spFilter} onValueChange={setSpFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Commerciale" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti i commerciali</SelectItem>
+              <SelectItem value="none">Senza commerciale</SelectItem>
+              {salespeopleList.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusRowFilter} onValueChange={setStatusRowFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Stato approvazione" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti gli stati</SelectItem>
+              <SelectItem value="not_required">Normali</SelectItem>
+              <SelectItem value="pending">In approvazione</SelectItem>
+              <SelectItem value="approved">Approvati</SelectItem>
+              <SelectItem value="rejected">Rifiutati</SelectItem>
+              <SelectItem value="counter_proposed">Contro-proposta</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={periodoMesi} onValueChange={setPeriodoMesi}>
+            <SelectTrigger className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="3">Ultimi 3 mesi</SelectItem>
+              <SelectItem value="6">Ultimi 6 mesi</SelectItem>
+              <SelectItem value="12">Ultimo anno</SelectItem>
+              <SelectItem value="24">Ultimi 2 anni</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {isAdmin && pendingApprovals.length > 0 && (

@@ -21,6 +21,7 @@ interface ListinoCategoriaRow {
   nome: string;
   icona: string | null;
   colore: string | null;
+  immagine_url: string | null;
   sort_order: number | null;
 }
 
@@ -40,7 +41,7 @@ export function useCatalogCategories() {
       const [catsRes, famRes, artRes] = await Promise.all([
         supabase
           .from("listino_categorie")
-          .select("id, nome, icona, colore, sort_order")
+          .select("id, nome, icona, colore, immagine_url, sort_order")
           .eq("company_id", companyId!)
           .order("sort_order", { ascending: true }),
         supabase
@@ -80,6 +81,7 @@ export function useCatalogCategories() {
           nome: c.nome,
           icona: c.icona,
           colore: c.colore,
+          immagine_url: c.immagine_url,
           sort_order: c.sort_order ?? 0,
           count_families: cf,
           count_articles: ca,
