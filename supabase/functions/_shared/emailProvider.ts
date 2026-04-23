@@ -1,5 +1,32 @@
 import { getPlatformSetting } from "./getPlatformSetting.ts";
 
+/**
+ * P1-6: sanitizza il display name mittente per RFC 5322.
+ *
+ * Prima: un fromName del tipo `Edilizia <Rossi>` o `Ditta, S.r.l.`
+ * finiva in `${fromName} <${fromEmail}>` producendo header malformati
+ * come `Edilizia <Rossi> <noreply@ediliziaincloud.it>`. I provider
+ * (Elastic Email, Resend, SendGrid, Brevo) rispondevano 400 "Invalid
+ * sender" e la campagna saltava senza feedback chiaro.
+ *
+ * - Rimuove caratteri di controllo (0x00-0x1F, 0x7F).
+ * - Tronca a 78 caratteri (line folding RFC 5322 §2.1.1).
+ * - Se contiene `,`, `<`, `>`, `"`, `;`, `@`, `(`, `)`, `\`, `[`, `]`,
+ *   `:`, `'` wrappa in quoted-string escapando `\` e `"` (RFC 5322 §3.2.4).
+ */
+export function sanitizeFromName(raw: string | undefined | null): string | undefined {
+  if (!raw) return undefined;
+  // eslint-disable-next-line no-control-regex -- P1-6: RFC 5322 richiede strip caratteri di controllo
+  const clean = String(raw).replace(/[\x00-\x1F\x7F]/g, "").trim();
+  if (!clean) return undefined;
+  const truncated = clean.slice(0, 78);
+  if (/[,<>"'();:@[\]\\]/.test(truncated)) {
+    const escaped = truncated.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return `"${escaped}"`;
+  }
+  return truncated;
+}
+
 export interface EmailSendRequest {
   from: string;
   to: string[];
@@ -33,7 +60,8 @@ export async function loadProviderSettings(stream: "marketing" | "transactional"
   const provider = (await getPlatformSetting(`${prefix}_provider`)) || providerDefault;
   const apiKey = await getPlatformSetting(`${prefix}_api_key`);
   const fromEmail = (await getPlatformSetting(`${prefix}_from_address`)) || "noreply@ediliziaincloud.it";
-  const fromName = await getPlatformSetting(`${prefix}_from_name`);
+  const fromNameRaw = await getPlatformSetting(`${prefix}_from_name`);
+  const fromName = sanitizeFromName(fromNameRaw); // P1-6
   const domain = await getPlatformSetting(`${prefix}_domain`);
 
   // Build "from" string: "Name <email>" or just "email"
@@ -51,11 +79,11 @@ function extractEmail(from: string): string {
 }
 
 /**
- * Parse "Name <email>" format, returning the name.
+ * Parse "Name <email>" format, returning the name sanitized (P1-6).
  */
 function extractName(from: string): string | undefined {
   const match = from.match(/^(.+?)\s*</);
-  return match ? match[1].trim() : undefined;
+  return match ? sanitizeFromName(match[1].trim()) : undefined;
 }
 
 /**
@@ -237,8 +265,17 @@ export async function sendViaProvider(
     }
 
     case "mailgun": {
-      const mailgunDomain = opts?.domain || "";
-      url = `https://api.mailgun.net/v3/${mailgunDomain}/messages`;
+      // P1-6: se il domain è vuoto, l'URL diventava "/v3//messages" → 404
+      // silenzioso. Fail-fast invece di bruciare il credito API.
+      const mailgunDomain = (opts?.domain || "").trim();
+      if (!mailgunDomain) {
+        return {
+          ok: false,
+          status: 500,
+          body: { error: "Mailgun domain non configurato (email_*_domain)" },
+        };
+      }
+      url = `https://api.mailgun.net/v3/${encodeURIComponent(mailgunDomain)}/messages`;
       headers = {
         Authorization: `Basic ${btoa(`api:${apiKey}`)}`,
       };

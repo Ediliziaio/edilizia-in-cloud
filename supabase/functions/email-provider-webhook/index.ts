@@ -11,6 +11,22 @@ const corsHeaders = {
 };
 
 /**
+ * P1-6: timing-safe string compare per il webhook secret.
+ * Il confronto `a !== b` in V8/Deno esce al primo carattere differente,
+ * permettendo a un attaccante di inferire il secret byte per byte
+ * misurando la latency. Questo XOR a lunghezza costante non rivela
+ * informazioni di prefisso.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
+
+/**
  * Normalizes webhook events from different email providers into a common format.
  * Supports: SendGrid, Brevo, Elastic Email, Mailgun, Resend
  */
@@ -24,25 +40,31 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
-  // Verifica token segreto webhook (SEC-012)
-  // Il provider deve includere ?secret=TOKEN nell'URL o l'header x-webhook-secret
+  // Verifica token segreto webhook (SEC-012 + P1-6).
+  // Accetta SOLO header `x-webhook-secret`: il vecchio supporto a
+  // ?secret=TOKEN in query string finiva nei log server/Cloudflare.
+  // Confronto timing-safe per non leakare prefisso giusto via latency.
   const webhookSecret =
     Deno.env.get("WEBHOOK_SECRET") ||
     await getPlatformSetting("email_provider_webhook_secret");
-  if (webhookSecret) {
-    const reqUrl = new URL(req.url);
-    const providedSecret =
-      reqUrl.searchParams.get("secret") ||
-      req.headers.get("x-webhook-secret");
-    if (providedSecret !== webhookSecret) {
-      console.error("email-provider-webhook: token segreto non valido");
-      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
-    }
-  } else {
+  if (!webhookSecret) {
     return new Response(
       JSON.stringify({ error: "WEBHOOK_SECRET not configured — endpoint disabled for security" }),
       { status: 503, headers: corsHeaders }
     );
+  }
+  const providedSecret = req.headers.get("x-webhook-secret");
+  if (!providedSecret || !timingSafeEqual(providedSecret, webhookSecret)) {
+    // Aiuta la migrazione: se il chiamante sta usando ancora il vecchio
+    // ?secret=TOKEN in query string lo segnaliamo chiaramente. Non
+    // logghiamo il valore del secret.
+    const hasLegacyQuery = new URL(req.url).searchParams.has("secret");
+    console.error(
+      hasLegacyQuery
+        ? "email-provider-webhook: deprecated ?secret= query ignorata; usa header x-webhook-secret (P1-6)"
+        : "email-provider-webhook: token segreto non valido",
+    );
+    return new Response("Unauthorized", { status: 401, headers: corsHeaders });
   }
 
   try {
