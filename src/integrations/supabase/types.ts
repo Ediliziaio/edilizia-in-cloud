@@ -17705,6 +17705,8 @@ export type Database = {
           last_score_update: string | null
           lead_score: number | null
           notes: string | null
+          opt_out: boolean | null
+          opt_out_at: string | null
           optout_call: boolean | null
           optout_email: boolean | null
           optout_sms: boolean | null
@@ -17714,11 +17716,15 @@ export type Database = {
           preferred_channel: string | null
           preferred_language: string | null
           province: string | null
+          qualificazione_json: Json | null
           score: number
           sede_id: string | null
           source: string | null
           source_campaign_id: string | null
+          stato: string | null
           tags: string[]
+          telefono_normalized: string | null
+          tipo: string | null
           unsubscribed: boolean
           unsubscribed_at: string | null
           updated_at: string
@@ -17754,6 +17760,8 @@ export type Database = {
           last_score_update?: string | null
           lead_score?: number | null
           notes?: string | null
+          opt_out?: boolean | null
+          opt_out_at?: string | null
           optout_call?: boolean | null
           optout_email?: boolean | null
           optout_sms?: boolean | null
@@ -17763,11 +17771,15 @@ export type Database = {
           preferred_channel?: string | null
           preferred_language?: string | null
           province?: string | null
+          qualificazione_json?: Json | null
           score?: number
           sede_id?: string | null
           source?: string | null
           source_campaign_id?: string | null
+          stato?: string | null
           tags?: string[]
+          telefono_normalized?: string | null
+          tipo?: string | null
           unsubscribed?: boolean
           unsubscribed_at?: string | null
           updated_at?: string
@@ -17803,6 +17815,8 @@ export type Database = {
           last_score_update?: string | null
           lead_score?: number | null
           notes?: string | null
+          opt_out?: boolean | null
+          opt_out_at?: string | null
           optout_call?: boolean | null
           optout_email?: boolean | null
           optout_sms?: boolean | null
@@ -17812,11 +17826,15 @@ export type Database = {
           preferred_channel?: string | null
           preferred_language?: string | null
           province?: string | null
+          qualificazione_json?: Json | null
           score?: number
           sede_id?: string | null
           source?: string | null
           source_campaign_id?: string | null
+          stato?: string | null
           tags?: string[]
+          telefono_normalized?: string | null
+          tipo?: string | null
           unsubscribed?: boolean
           unsubscribed_at?: string | null
           updated_at?: string
@@ -29539,6 +29557,89 @@ export type Database = {
           },
         ]
       }
+      support_tickets: {
+        Row: {
+          assigned_to: string | null
+          categoria: string | null
+          channel_msg_id: string | null
+          company_id: string
+          contact_id: string | null
+          created_at: string | null
+          descrizione: string
+          id: string
+          numero_progressivo: number | null
+          resolved_at: string | null
+          source: string | null
+          stato: string | null
+          titolo: string
+          updated_at: string | null
+          urgenza: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          categoria?: string | null
+          channel_msg_id?: string | null
+          company_id: string
+          contact_id?: string | null
+          created_at?: string | null
+          descrizione: string
+          id?: string
+          numero_progressivo?: number | null
+          resolved_at?: string | null
+          source?: string | null
+          stato?: string | null
+          titolo: string
+          updated_at?: string | null
+          urgenza?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          categoria?: string | null
+          channel_msg_id?: string | null
+          company_id?: string
+          contact_id?: string | null
+          created_at?: string | null
+          descrizione?: string
+          id?: string
+          numero_progressivo?: number | null
+          resolved_at?: string | null
+          source?: string | null
+          stato?: string | null
+          titolo?: string
+          updated_at?: string | null
+          urgenza?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "support_tickets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "support_tickets_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_health_metrics: {
         Row: {
           error_message: string | null
@@ -32068,6 +32169,224 @@ export type Database = {
           },
         ]
       }
+      wa_meta_templates: {
+        Row: {
+          category: string | null
+          company_id: string
+          components_json: Json | null
+          id: string
+          status: string | null
+          synced_at: string | null
+          template_language: string
+          template_name: string
+          variables_count: number | null
+          wa_number_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          company_id: string
+          components_json?: Json | null
+          id?: string
+          status?: string | null
+          synced_at?: string | null
+          template_language?: string
+          template_name: string
+          variables_count?: number | null
+          wa_number_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          company_id?: string
+          components_json?: Json | null
+          id?: string
+          status?: string | null
+          synced_at?: string | null
+          template_language?: string
+          template_name?: string
+          variables_count?: number | null
+          wa_number_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_meta_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_meta_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_meta_templates_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "ai_whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_notifiche_cooldown: {
+        Row: {
+          fired_at: string | null
+          subject_id: string
+          trigger_id: string
+        }
+        Insert: {
+          fired_at?: string | null
+          subject_id: string
+          trigger_id: string
+        }
+        Update: {
+          fired_at?: string | null
+          subject_id?: string
+          trigger_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_notifiche_cooldown_trigger_id_fkey"
+            columns: ["trigger_id"]
+            isOneToOne: false
+            referencedRelation: "wa_notifiche_triggers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_notifiche_log: {
+        Row: {
+          company_id: string | null
+          destinatario: string | null
+          error_detail: string | null
+          id: string
+          sent_at: string | null
+          stato: string | null
+          subject_id: string | null
+          template_name: string | null
+          trigger_id: string | null
+          variables_used: Json | null
+        }
+        Insert: {
+          company_id?: string | null
+          destinatario?: string | null
+          error_detail?: string | null
+          id?: string
+          sent_at?: string | null
+          stato?: string | null
+          subject_id?: string | null
+          template_name?: string | null
+          trigger_id?: string | null
+          variables_used?: Json | null
+        }
+        Update: {
+          company_id?: string | null
+          destinatario?: string | null
+          error_detail?: string | null
+          id?: string
+          sent_at?: string | null
+          stato?: string | null
+          subject_id?: string | null
+          template_name?: string | null
+          trigger_id?: string | null
+          variables_used?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_notifiche_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_notifiche_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_notifiche_log_trigger_id_fkey"
+            columns: ["trigger_id"]
+            isOneToOne: false
+            referencedRelation: "wa_notifiche_triggers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_notifiche_triggers: {
+        Row: {
+          company_id: string
+          config: Json | null
+          created_at: string | null
+          destinatario_custom_phone: string | null
+          destinatario_kind: string | null
+          enabled: boolean | null
+          fire_count: number | null
+          id: string
+          last_fired_at: string | null
+          template_name: string
+          trigger_kind: string
+          updated_at: string | null
+          wa_number_id: string | null
+        }
+        Insert: {
+          company_id: string
+          config?: Json | null
+          created_at?: string | null
+          destinatario_custom_phone?: string | null
+          destinatario_kind?: string | null
+          enabled?: boolean | null
+          fire_count?: number | null
+          id?: string
+          last_fired_at?: string | null
+          template_name: string
+          trigger_kind: string
+          updated_at?: string | null
+          wa_number_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          config?: Json | null
+          created_at?: string | null
+          destinatario_custom_phone?: string | null
+          destinatario_kind?: string | null
+          enabled?: boolean | null
+          fire_count?: number | null
+          id?: string
+          last_fired_at?: string | null
+          template_name?: string
+          trigger_kind?: string
+          updated_at?: string | null
+          wa_number_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_notifiche_triggers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_notifiche_triggers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_notifiche_triggers_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "ai_whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wa_routing_errors: {
         Row: {
           error_detail: string | null
@@ -34418,6 +34737,7 @@ export type Database = {
       }
       cleanup_cestino_article_families: { Args: never; Returns: undefined }
       cleanup_cestino_documenti: { Args: never; Returns: undefined }
+      cleanup_notifiche_cooldown: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       clone_template_to_company: {
         Args: { p_name?: string; p_scope?: string; p_template_id: string }
