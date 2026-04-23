@@ -116,8 +116,12 @@ Deno.serve(async (req) => {
 
   try {
     for (let i = 0; i < MAX_ITER; i++) {
+      // MP05 — task_kind + company_id per routing via ai_model_config
       const resp = await callOpenAI({
-        model,
+        task_kind: "assistenza_clienti",
+        company_id: contact.company_id,
+        wa_message_id: body.message_id ?? null,
+        model: budget.model_override ? model : undefined,
         messages: conv,
         tools: openaiTools,
         tool_choice: "auto",

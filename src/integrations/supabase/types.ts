@@ -2201,6 +2201,198 @@ export type Database = {
           },
         ]
       }
+      ai_model_catalog: {
+        Row: {
+          added_at: string | null
+          context_length: number | null
+          display_name: string | null
+          id: string
+          last_synced_at: string | null
+          model_id: string
+          notes: string | null
+          pricing_input_usd_1m: number | null
+          pricing_output_usd_1m: number | null
+          provider: string
+          status: string | null
+          supports_json_mode: boolean | null
+          supports_streaming: boolean | null
+          supports_tools: boolean | null
+          supports_vision: boolean | null
+          whitelisted: boolean | null
+        }
+        Insert: {
+          added_at?: string | null
+          context_length?: number | null
+          display_name?: string | null
+          id?: string
+          last_synced_at?: string | null
+          model_id: string
+          notes?: string | null
+          pricing_input_usd_1m?: number | null
+          pricing_output_usd_1m?: number | null
+          provider: string
+          status?: string | null
+          supports_json_mode?: boolean | null
+          supports_streaming?: boolean | null
+          supports_tools?: boolean | null
+          supports_vision?: boolean | null
+          whitelisted?: boolean | null
+        }
+        Update: {
+          added_at?: string | null
+          context_length?: number | null
+          display_name?: string | null
+          id?: string
+          last_synced_at?: string | null
+          model_id?: string
+          notes?: string | null
+          pricing_input_usd_1m?: number | null
+          pricing_output_usd_1m?: number | null
+          provider?: string
+          status?: string | null
+          supports_json_mode?: boolean | null
+          supports_streaming?: boolean | null
+          supports_tools?: boolean | null
+          supports_vision?: boolean | null
+          whitelisted?: boolean | null
+        }
+        Relationships: []
+      }
+      ai_model_config: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          enabled: boolean | null
+          fallback_chain: Json | null
+          id: string
+          max_cost_usd_per_call: number | null
+          max_tokens: number | null
+          primary_model: string
+          task_kind: string
+          temperature: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          fallback_chain?: Json | null
+          id?: string
+          max_cost_usd_per_call?: number | null
+          max_tokens?: number | null
+          primary_model: string
+          task_kind: string
+          temperature?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          fallback_chain?: Json | null
+          id?: string
+          max_cost_usd_per_call?: number | null
+          max_tokens?: number | null
+          primary_model?: string
+          task_kind?: string
+          temperature?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_model_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_model_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_model_usage_log: {
+        Row: {
+          company_id: string | null
+          cost_usd: number | null
+          error_code: string | null
+          error_detail: string | null
+          fallback_hops: number | null
+          id: string
+          latency_ms: number | null
+          metadata: Json | null
+          model_requested: string
+          model_used: string
+          ok: boolean | null
+          provider_used: string | null
+          task_kind: string
+          tokens_completion: number | null
+          tokens_prompt: number | null
+          tokens_total: number | null
+          ts: string | null
+          wa_message_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          cost_usd?: number | null
+          error_code?: string | null
+          error_detail?: string | null
+          fallback_hops?: number | null
+          id?: string
+          latency_ms?: number | null
+          metadata?: Json | null
+          model_requested: string
+          model_used: string
+          ok?: boolean | null
+          provider_used?: string | null
+          task_kind: string
+          tokens_completion?: number | null
+          tokens_prompt?: number | null
+          tokens_total?: number | null
+          ts?: string | null
+          wa_message_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          cost_usd?: number | null
+          error_code?: string | null
+          error_detail?: string | null
+          fallback_hops?: number | null
+          id?: string
+          latency_ms?: number | null
+          metadata?: Json | null
+          model_requested?: string
+          model_used?: string
+          ok?: boolean | null
+          provider_used?: string | null
+          task_kind?: string
+          tokens_completion?: number | null
+          tokens_prompt?: number | null
+          tokens_total?: number | null
+          ts?: string | null
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_model_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_model_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_phone_numbers_v2: {
         Row: {
           agent_id: string | null

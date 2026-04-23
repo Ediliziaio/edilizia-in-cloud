@@ -194,6 +194,13 @@ Deno.serve(async (req) => {
     };
 
     const model = budget.model_override ?? OPENAI_MODEL_DEFAULT;
+    // MP05 — routing per task_kind. Titolare/admin → modello premium per
+    // ragionamento/tool calling complesso. Operaio/default → modello economico
+    // (deepseek/haiku) configurato in ai_model_config.
+    const taskKind =
+      identity.kind === "titolare" || identity.kind === "admin"
+        ? ("bot_operativo_titolare" as const)
+        : ("bot_operativo_operaio" as const);
     const conv: ChatMessage[] = [...messages];
     let finalText: string | null = null;
     let totalTokensIn = 0;
@@ -201,7 +208,10 @@ Deno.serve(async (req) => {
 
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       const resp = await callOpenAI({
-        model,
+        model: budget.model_override ? model : undefined,
+        task_kind: taskKind,
+        company_id: msg.company_id,
+        wa_message_id: msg.id,
         messages: conv,
         tools: openaiTools.length > 0 ? openaiTools : undefined,
         tool_choice: openaiTools.length > 0 ? "auto" : undefined,

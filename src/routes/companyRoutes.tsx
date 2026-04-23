@@ -185,6 +185,8 @@ const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/Marketing
 const WhatsAppHubPage = lazy(() => import("@/pages/azienda/whatsapp/WhatsAppHubPage"));
 // MP-FINAL — Pagine granulari WhatsApp
 const BroadcastListPage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastListPage"));
+// MP05 — AI Model Config
+const AiModelConfigPage = lazy(() => import("@/pages/azienda/AiModelConfigPage"));
 const BroadcastCreatePage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastCreatePage"));
 const BroadcastDetailPage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastDetailPage"));
 const WANumberDetailPage = lazy(() => import("@/pages/azienda/whatsapp/WANumberDetailPage"));
@@ -401,6 +403,8 @@ export function companyRoutes() {
         <Route path="whatsapp/broadcast" element={<FeatureRoute featureKey="whatsapp"><BroadcastListPage /></FeatureRoute>} />
         <Route path="whatsapp/broadcast/nuovo" element={<FeatureRoute featureKey="whatsapp"><BroadcastCreatePage /></FeatureRoute>} />
         <Route path="whatsapp/broadcast/:id" element={<FeatureRoute featureKey="whatsapp"><BroadcastDetailPage /></FeatureRoute>} />
+        {/* MP05 — Config modelli AI */}
+        <Route path="ai-modelli" element={<AiModelConfigPage />} />
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />

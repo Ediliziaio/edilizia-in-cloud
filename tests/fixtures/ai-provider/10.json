@@ -1,0 +1,5 @@
+{
+  "scenario_id": "10",
+  "task_kind": "default",
+  "messages": [{ "role": "user", "content": "smoke test fixture 10" }]
+}

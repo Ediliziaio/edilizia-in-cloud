@@ -96,8 +96,13 @@ Deno.serve(async (req) => {
 
   try {
     for (let i = 0; i < MAX_ITER; i++) {
+      // MP05 — task_kind lead_qualificazione per usare claude-sonnet-4
       const resp = await callOpenAI({
-        model, messages: conv, tools: openaiTools, tool_choice: "auto",
+        task_kind: "lead_qualificazione",
+        company_id: contact.company_id,
+        wa_message_id: body.message_id ?? null,
+        model: budget.model_override ? model : undefined,
+        messages: conv, tools: openaiTools, tool_choice: "auto",
         temperature: 0.5, max_tokens: 500,
       });
       tokIn += resp.usage?.prompt_tokens ?? 0;
