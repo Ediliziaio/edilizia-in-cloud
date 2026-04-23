@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { corsHeaders } from "../_shared/headers.ts";
+import { verifyHmacSha256, sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
 // P1-2: tipo esplicito per messaggi WhatsApp inbound.
 // Evita uso di `any` per il parser extractMessageContent.
@@ -152,26 +153,8 @@ function extractMessageContent(msg: IncomingWhatsAppMessage): ExtractedMessage {
   }
 }
 
-async function verifyHmac(body: string, signature: string, appSecret: string): Promise<boolean> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(appSecret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(body)
-  );
-  const expected =
-    "sha256=" +
-    Array.from(new Uint8Array(sig))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  return expected === signature;
-}
+// P2-1: verifyHmac locale rimosso; usiamo verifyHmacSha256 timing-safe
+// dall'helper _shared/webhookSecurity.ts.
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -205,7 +188,7 @@ Deno.serve(async (req) => {
       console.error("META_APP_SECRET non configurato — reject all");
       return new Response("Webhook secret not configured on server", { status: 503 });
     }
-    if (!(await verifyHmac(bodyText, signature, metaAppSecret))) {
+    if (!(await verifyHmacSha256(bodyText, signature, metaAppSecret))) {
       console.error("Invalid HMAC signature");
       return new Response("Unauthorized", { status: 401 });
     }
@@ -438,14 +421,15 @@ Deno.serve(async (req) => {
             // company_id estraendo contatti di altre aziende.
             // FIX: sanitizziamo il phone a [0-9+] e usiamo `.in()` con array
             // esplicito (PostgREST parametrizza correttamente gli array).
-            const sanitizedDigits = senderPhone.replace(/[^0-9]/g, "");
-            const phoneCandidates = sanitizedDigits.length > 0
-              ? [sanitizedDigits, `+${sanitizedDigits}`]
-              : [];
-
-            if (phoneCandidates.length === 0) {
+            // P2-1/P2-2: sanitize phone tramite helper condiviso (stesso
+            // pattern usato da whatsapp-ai-processor, telnyx-webhook,
+            // internal-agent-tools).
+            const cleanPhone = sanitizePhoneForQuery(senderPhone);
+            if (!cleanPhone) {
               console.warn(`[WHATSAPP-WEBHOOK] senderPhone non valido, skip trigger: ${senderPhone}`);
             } else {
+              const digits = cleanPhone.replace(/\+/g, "");
+              const phoneCandidates = [digits, `+${digits}`];
               const { data: mktContact } = await supabase
                 .from("marketing_contacts")
                 .select("id")
@@ -454,23 +438,24 @@ Deno.serve(async (req) => {
                 .maybeSingle();
 
               if (mktContact) {
-                // P0-7: consolida i 2 trigger events (whatsapp_received +
-                // customer_replied) in 1 singolo insert. `legacy_events` nel
-                // payload permette a process-automation di matchare flussi
-                // configurati con uno qualsiasi dei nomi alias — un match,
-                // una enrollment, niente enrollment doppie quando un flow
-                // accidentalmente targetta entrambi.
+                // P2-10: trigger canonico unico 'whatsapp_message_received'.
+                // P0-7 aveva lasciato 'whatsapp_received' + legacy_events
+                // ['customer_replied']. Ora il canonical è
+                // 'whatsapp_message_received' e il legacy fallback è
+                // gestito dal runner process-automation.
                 await supabase.from("automation_trigger_events").insert({
                   company_id: companyId,
-                  trigger_event: "whatsapp_received",
+                  trigger_event: "whatsapp_message_received",
                   entity_id: mktContact.id,
                   entity_type: "contact",
                   payload: {
-                    from: sanitizedDigits,
+                    from: digits,
                     message: content,
                     conversation_id: conversationId,
                     channel: "whatsapp",
-                    legacy_events: ["customer_replied"],
+                    message_type: messageType,
+                    metadata: msgMetadata,
+                    legacy_events: ["whatsapp_received", "customer_replied"],
                   },
                 });
               }

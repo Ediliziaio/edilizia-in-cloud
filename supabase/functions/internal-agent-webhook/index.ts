@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders as baseCorsHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -124,20 +125,23 @@ Deno.serve(async (req) => {
     let contactId: string | null = null;
     let contactName: string | null = null;
 
-    // ── Contact Lookup by Phone ──
+    // ── Contact Lookup by Phone ── (P2-2: sanitize via helper)
     if (callerPhone) {
-      const cleanPhone = String(callerPhone).replace(/[^0-9]/g, "");
-      const { data: contact } = await adminClient
-        .from("marketing_contacts")
-        .select("id, first_name, last_name")
-        .eq("company_id", companyId)
-        .or(`phone.ilike.%${cleanPhone.slice(-9)}%`)
-        .limit(1)
-        .maybeSingle();
+      const safePhone = sanitizePhoneForQuery(callerPhone);
+      if (safePhone) {
+        const suffix = safePhone.replace(/\+/g, "").slice(-9);
+        const { data: contact } = await adminClient
+          .from("marketing_contacts")
+          .select("id, first_name, last_name")
+          .eq("company_id", companyId)
+          .ilike("phone", `%${suffix}%`)
+          .limit(1)
+          .maybeSingle();
 
-      if (contact) {
-        contactId = contact.id;
-        contactName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null;
+        if (contact) {
+          contactId = contact.id;
+          contactName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null;
+        }
       }
     }
 

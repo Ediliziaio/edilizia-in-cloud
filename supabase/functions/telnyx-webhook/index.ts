@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders as baseCorsHeaders } from "../_shared/headers.ts";
+import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -128,31 +129,38 @@ Deno.serve(async (req) => {
 
         if (!fromNumber || !body) break;
 
-        // Try to find company by the "to" number
+        // P2-2: sanitize phone via helper e `.in()`/`.ilike()` senza
+        // interpolazione raw nel DSL PostgREST.
         let companyId: string | null = null;
         if (toNumber) {
-          const cleanTo = String(toNumber).replace(/[^0-9+]/g, "");
-          const { data: phoneRecord } = await supabase
-            .from("ai_agent_phone_numbers")
-            .select("company_id")
-            .or(`phone_number.eq.${cleanTo},phone_number.eq.${cleanTo.replace("+", "")}`)
-            .limit(1)
-            .maybeSingle();
-          companyId = phoneRecord?.company_id || null;
+          const safeTo = sanitizePhoneForQuery(toNumber);
+          if (safeTo) {
+            const digits = safeTo.replace(/\+/g, "");
+            const { data: phoneRecord } = await supabase
+              .from("ai_agent_phone_numbers")
+              .select("company_id")
+              .in("phone_number", [safeTo, digits])
+              .limit(1)
+              .maybeSingle();
+            companyId = phoneRecord?.company_id || null;
+          }
         }
 
-        // Try to find contact by phone
+        // Try to find contact by phone (substring match safe: digitsOnly)
         let contactId: string | null = null;
         if (companyId) {
-          const cleanFrom = fromNumber.replace(/[^0-9]/g, "");
-          const { data: contact } = await supabase
-            .from("marketing_contacts")
-            .select("id")
-            .eq("company_id", companyId)
-            .or(`phone.ilike.%${cleanFrom.slice(-9)}%`)
-            .limit(1)
-            .maybeSingle();
-          contactId = contact?.id || null;
+          const safeFrom = sanitizePhoneForQuery(fromNumber);
+          if (safeFrom) {
+            const suffix = safeFrom.replace(/\+/g, "").slice(-9);
+            const { data: contact } = await supabase
+              .from("marketing_contacts")
+              .select("id")
+              .eq("company_id", companyId)
+              .ilike("phone", `%${suffix}%`)
+              .limit(1)
+              .maybeSingle();
+            contactId = contact?.id || null;
+          }
         }
 
         // Save inbound SMS in sms_logs (campagne) e sms_messages (transazionali)
@@ -197,18 +205,24 @@ Deno.serve(async (req) => {
         // Only handle incoming calls
         if (direction !== "incoming" || !callControlId) break;
 
-        const cleanTo = String(toNumber).replace(/[^0-9+]/g, "");
+        // P2-2: sanitize phone via helper.
+        const safeTo = sanitizePhoneForQuery(toNumber);
+        if (!safeTo) {
+          console.log(`[telnyx-webhook] to number non valido, ignore`);
+          break;
+        }
+        const toDigits = safeTo.replace(/\+/g, "");
 
         // Lookup agent phone number (includes routing_mode and internal_agent_id)
         const { data: phoneRec } = await supabase
           .from("ai_agent_phone_numbers")
           .select("id, agent_id, internal_agent_id, company_id, elevenlabs_phone_number_id, telnyx_connection_id, routing_mode")
-          .or(`phone_number.eq.${cleanTo},phone_number.eq.${cleanTo.replace("+", "")}`)
+          .in("phone_number", [safeTo, toDigits])
           .limit(1)
           .maybeSingle();
 
         if (!phoneRec) {
-          console.log(`[telnyx-webhook] No agent phone found for ${cleanTo}, ignoring`);
+          console.log(`[telnyx-webhook] No agent phone found for ${safeTo}, ignoring`);
           break;
         }
 
@@ -238,18 +252,21 @@ Deno.serve(async (req) => {
           break;
         }
 
-        // ── Contact Lookup ──
+        // ── Contact Lookup ── (P2-2: sanitize phone via helper)
         let contactId: string | null = null;
         if (fromNumber) {
-          const cleanFrom = String(fromNumber).replace(/[^0-9]/g, "");
-          const { data: contact } = await supabase
-            .from("marketing_contacts")
-            .select("id")
-            .eq("company_id", phoneRec.company_id)
-            .or(`phone.ilike.%${cleanFrom.slice(-9)}%`)
-            .limit(1)
-            .maybeSingle();
-          contactId = contact?.id || null;
+          const safeFrom = sanitizePhoneForQuery(fromNumber);
+          if (safeFrom) {
+            const suffix = safeFrom.replace(/\+/g, "").slice(-9);
+            const { data: contact } = await supabase
+              .from("marketing_contacts")
+              .select("id")
+              .eq("company_id", phoneRec.company_id)
+              .ilike("phone", `%${suffix}%`)
+              .limit(1)
+              .maybeSingle();
+            contactId = contact?.id || null;
+          }
         }
 
         const callMeta = {

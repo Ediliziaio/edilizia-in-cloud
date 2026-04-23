@@ -1,31 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { getGoCardlessToken, gcFetch, categorizeTransaction, sleep, computeAmountEur, buildDeterministicTxId } from "../_shared/goCardless.ts";
+import { verifyHmacSha256 } from "../_shared/webhookSecurity.ts";
 
 /**
  * bank-webhook: Riceve eventi real-time da GoCardless
  * - Nuove transazioni → sync incrementale
  * - Stato account cambiato → aggiorna bank_connections
  * - Connessione revocata → marca come disconnessa
- * Valida firma HMAC-SHA256 via X-GoCardless-Signature
+ * Valida firma HMAC-SHA256 via X-GoCardless-Signature (timing-safe, P2-1).
  */
-
-async function verifySignature(body: string, signature: string | null, secret: string): Promise<boolean> {
-  if (!signature || !secret) return false;
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
-  const expected = Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return expected === signature;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -45,7 +29,7 @@ Deno.serve(async (req) => {
     }
 
     const signature = req.headers.get("X-GoCardless-Signature");
-    const isValid = await verifySignature(rawBody, signature, webhookSecret);
+    const isValid = await verifyHmacSha256(rawBody, signature, webhookSecret);
     if (!isValid) {
       console.error("Invalid webhook signature");
       return errorResponse("Invalid signature", 401);

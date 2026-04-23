@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
 /**
  * internal-agent-tools — Webhook chiamato da ElevenLabs DURANTE la conversazione
@@ -89,17 +90,31 @@ type AdminClient = ReturnType<typeof createClient>;
  * Ritorna nome, contact_id, ultimo ordine.
  */
 async function identifyCaller(admin: AdminClient, params: Record<string, unknown>) {
-  const phone = normalizePhone(String(params.caller_phone || ""));
-  if (!phone) return { found: false, message: "Numero di telefono non fornito" };
+  // P2-2: sanitize phone via helper condiviso prima di qualsiasi query.
+  const safePhone = sanitizePhoneForQuery(String(params.caller_phone || ""));
+  if (!safePhone) return { found: false, message: "Numero di telefono non fornito o non valido" };
+  const phone = safePhone;
 
-  // Search in marketing_contacts by phone
-  const { data: contacts } = await admin
+  // Search in marketing_contacts: prima match esatto, poi fallback suffix
+  // ilike (safe perché il suffix viene solo da cifre sanificate).
+  const exact = await admin
     .from("marketing_contacts")
     .select("id, first_name, last_name, email, phone, company_id, tags, score, assigned_to")
-    .or(`phone.eq.${phone},phone.ilike.%${phone.slice(-9)}%`)
+    .eq("phone", phone)
     .limit(1);
 
-  if (!contacts || contacts.length === 0) {
+  let contacts = exact.data ?? [];
+  if (contacts.length === 0) {
+    const suffix = phone.replace(/\+/g, "").slice(-9);
+    const fuzzy = await admin
+      .from("marketing_contacts")
+      .select("id, first_name, last_name, email, phone, company_id, tags, score, assigned_to")
+      .ilike("phone", `%${suffix}%`)
+      .limit(1);
+    contacts = fuzzy.data ?? [];
+  }
+
+  if (contacts.length === 0) {
     return { found: false, message: "Chiamante non trovato nel CRM" };
   }
 

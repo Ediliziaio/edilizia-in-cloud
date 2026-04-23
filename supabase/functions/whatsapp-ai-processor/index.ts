@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { sanitizePhoneForQuery } from "../_shared/webhookSecurity.ts";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 interface WhatsAppMessage {
@@ -236,29 +237,40 @@ Deno.serve(async (req) => {
     let operaioUserId: string | null = null;
 
     if (!operaioId) {
-      // Try phone_whatsapp first
-      const { data: empByWa } = await supabase
-        .from("employees")
-        .select("id, company_id, user_id, phone_whatsapp, phone")
-        .or(`phone_whatsapp.eq.${senderPhone},phone_whatsapp.eq.+${senderPhone}`)
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-      if (empByWa) {
-        operaioId = empByWa.id;
-        operaioUserId = empByWa.user_id;
+      // P2-2: sanitize phone + `.in()` al posto di `.or()` con
+      // interpolazione raw nel DSL PostgREST. Stesso pattern di P0-7
+      // su whatsapp-webhook.
+      const cleanPhone = sanitizePhoneForQuery(senderPhone);
+      if (!cleanPhone) {
+        console.warn(`[whatsapp-ai-processor] phone non valido: ${senderPhone}`);
       } else {
-        // Fallback: employees.phone
-        const { data: empByPhone } = await supabase
+        const digits = cleanPhone.replace(/\+/g, "");
+        const phoneVariants = [digits, `+${digits}`];
+
+        // Try phone_whatsapp first
+        const { data: empByWa } = await supabase
           .from("employees")
-          .select("id, company_id, user_id, phone")
-          .or(`phone.eq.${senderPhone},phone.eq.+${senderPhone}`)
+          .select("id, company_id, user_id, phone_whatsapp, phone")
+          .in("phone_whatsapp", phoneVariants)
           .eq("company_id", companyId)
           .maybeSingle();
 
-        if (empByPhone) {
-          operaioId = empByPhone.id;
-          operaioUserId = empByPhone.user_id;
+        if (empByWa) {
+          operaioId = empByWa.id;
+          operaioUserId = empByWa.user_id;
+        } else {
+          // Fallback: employees.phone
+          const { data: empByPhone } = await supabase
+            .from("employees")
+            .select("id, company_id, user_id, phone")
+            .in("phone", phoneVariants)
+            .eq("company_id", companyId)
+            .maybeSingle();
+
+          if (empByPhone) {
+            operaioId = empByPhone.id;
+            operaioUserId = empByPhone.user_id;
+          }
         }
       }
 

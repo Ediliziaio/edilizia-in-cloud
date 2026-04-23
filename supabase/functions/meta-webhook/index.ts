@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
+import { verifyHmacSha256 } from "../_shared/webhookSecurity.ts";
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -45,13 +46,11 @@ Deno.serve(async (req) => {
         console.error("meta-webhook: x-hub-signature-256 mancante");
         return new Response("Missing signature", { status: 403 });
       }
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw", encoder.encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-      );
-      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
-      const hexSig = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
-      if (signature !== hexSig) {
+      // P2-1: verifica HMAC timing-safe via helper condiviso.
+      // Prima usavamo `signature !== hexSig` (exit al primo byte diverso):
+      // vulnerabile a timing attack.
+      const validSig = await verifyHmacSha256(body, signature, appSecret);
+      if (!validSig) {
         console.error("meta-webhook: firma non valida");
         return new Response("Invalid signature", { status: 403 });
       }
