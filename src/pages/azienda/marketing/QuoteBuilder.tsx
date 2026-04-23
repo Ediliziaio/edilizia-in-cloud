@@ -32,6 +32,8 @@ import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventiv
 import QuoteWizardSerramenti from "@/components/marketing/preventivi/QuoteWizardSerramenti";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
+import { QuoteDiscountControl } from "@/components/preventivi/QuoteDiscountControl";
+// mp-preventivi-v2: slider sconto limitato integrato nello step 1 per preventivi esistenti
 import { isPreventivatoreUnifiedOn } from "@/lib/featureFlags";
 import type { ConfiguredItem } from "@/types/catalogItem";
 import { useFamilies } from "@/hooks/useFamilies";
@@ -644,6 +646,10 @@ export default function QuoteBuilder() {
   const [pianoInstallazione, setPianoInstallazione] = useState(0);
   const [kmCantiere, setKmCantiere] = useState(0);
 
+  // Commerciale assegnato al preventivo (per provvigioni e regole sconto)
+  const [salespersonId, setSalespersonId] = useState<string | null>(null);
+  const [approvalStatus, setApprovalStatus] = useState<"not_required" | "pending" | "approved" | "rejected" | "counter_proposed">("not_required");
+
   // Step 1: Items
   const [items, setItems] = useState<QuoteItemPro[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -838,6 +844,33 @@ export default function QuoteBuilder() {
     setPdfSchedeTecniche,
     setPdfFirma,
     setLayoutOverride,
+  });
+
+  // Preventivi V2 — hydrate salesperson + approval status (fuori dal hook legacy)
+  useEffect(() => {
+    if (!existingQuote) return;
+    const q = existingQuote as unknown as {
+      salesperson_id: string | null;
+      approval_status: "not_required" | "pending" | "approved" | "rejected" | "counter_proposed" | null;
+    };
+    if (q.salesperson_id !== undefined) setSalespersonId(q.salesperson_id);
+    if (q.approval_status) setApprovalStatus(q.approval_status);
+  }, [existingQuote]);
+
+  // Fetch lista commerciali attivi (per picker)
+  const { data: salespeople = [] } = useQuery({
+    queryKey: ["salespeople-active-for-quote", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("salespeople")
+        .select("id, first_name, last_name, compensation_mode")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .order("last_name");
+      if (error) throw error;
+      return data as Array<{ id: string; first_name: string; last_name: string; compensation_mode: string | null }>;
+    },
   });
 
   useEffect(() => {
@@ -1557,6 +1590,9 @@ export default function QuoteBuilder() {
         totale_costo_interno: totaliPro.costo_totale || null,
         totale_overhead: totaliPro.overhead_totale || null,
         margine_totale_percentuale: totaliPro.margine_totale_pct || null,
+        // Preventivi V2
+        salesperson_id: salespersonId,
+        margine_pct_snapshot: totaliPro.margine_totale_pct ?? null,
         firma_digitale_abilitata: pdfFirma,
         template_layout_override: layoutOverride || null,
         // P1 FIX wave 4: subtotal ora è il LORDO coerente con la UI che mostra:
@@ -1653,6 +1689,15 @@ export default function QuoteBuilder() {
             sort_order: idx,
           }))
         );
+      }
+
+      // Preventivi V2 — calcolo provvigione teorica (non-blocking)
+      if (quoteId && salespersonId) {
+        try {
+          await supabase.rpc("compute_quote_commission", { p_quote_id: quoteId });
+        } catch (commErr) {
+          console.warn("compute_quote_commission failed (non-critical):", commErr);
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
@@ -1859,6 +1904,30 @@ export default function QuoteBuilder() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Commerciale assegnato</Label>
+                <Select
+                  value={salespersonId ?? "__none__"}
+                  onValueChange={(v) => setSalespersonId(v === "__none__" ? null : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona commerciale" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nessuno (provvigione non calcolata)</SelectItem>
+                    {salespeople.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.first_name} {s.last_name}
+                        {s.compensation_mode === "fixed_only" && " — solo fisso"}
+                        {s.compensation_mode === "fixed_plus_commission" && " — fisso+provv"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  La provvigione teorica viene calcolata automaticamente in base alla configurazione del commerciale.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <Label>Indirizzo lavori (se diverso da cliente)</Label>
@@ -2414,12 +2483,23 @@ export default function QuoteBuilder() {
 
                 {/* Totals in step 1 */}
                 {items.length > 0 && (
-                  <div className="mt-6 flex justify-end">
+                  <div className="mt-6 space-y-4">
+                    {isEdit && id && (
+                      <QuoteDiscountControl
+                        quoteId={id}
+                        currentDiscount={discountPercent}
+                        approvalStatus={approvalStatus}
+                        onDiscountChange={setDiscountPercent}
+                        isAdmin={isAdmin}
+                      />
+                    )}
+                    <div className="flex justify-end">
                     <div className="w-full max-w-xs space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotale</span>
                         <span>{formatCurrency(subtotal)}</span>
                       </div>
+                      {!isEdit && (
                       <div className="flex justify-between items-center gap-2">
                         <span className="text-muted-foreground">
                           Sconto globale %
@@ -2437,6 +2517,7 @@ export default function QuoteBuilder() {
                           }
                         />
                       </div>
+                      )}
                       {discountPercent > 0 && (
                         <div className="flex justify-between text-destructive">
                           <span>Sconto</span>
@@ -2452,6 +2533,7 @@ export default function QuoteBuilder() {
                         <span>Totale</span>
                         <span>{formatCurrency(total)}</span>
                       </div>
+                    </div>
                     </div>
                   </div>
                 )}

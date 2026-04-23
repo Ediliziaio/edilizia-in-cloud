@@ -17,9 +17,9 @@ import {
   ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import {
-  Loader2, BrainCircuit, Copy, Check, ChevronDown, ChevronUp,
+  Loader2, BrainCircuit, Copy, Check, ChevronDown, ChevronUp, Percent, ExternalLink,
 } from "lucide-react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +65,39 @@ export default function AnalisiPreventivi() {
   const { effectiveCompany, role, isLoading: authLoading } = useAuth() as any;
   const companyId = effectiveCompany?.id as string | undefined;
   const isAdmin = role === "company_admin" || role === "super_admin";
+
+  // ─── Approvazioni pending (banner admin) ───────────────────────────────────
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ["analisi-pending-approvals", companyId],
+    enabled: !!companyId && isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quote_approvals")
+        .select("id, quote_id, sconto_richiesto_pct, importo_preventivo, requested_at")
+        .eq("company_id", companyId!)
+        .is("decision", null)
+        .order("requested_at", { ascending: false });
+      if (error) throw error;
+      return data as Array<{ id: string; quote_id: string; sconto_richiesto_pct: number; importo_preventivo: number; requested_at: string }>;
+    },
+  });
+
+  // ─── Arricchimento tabella con sconto/provv (join lato client) ─────────────
+  const { data: quotesExtra = [] } = useQuery({
+    queryKey: ["analisi-quotes-extra", companyId, dati?.preventivi.map((p) => p.quote_id).join(",")],
+    enabled: !!companyId && !!dati && dati.preventivi.length > 0,
+    queryFn: async () => {
+      const ids = dati!.preventivi.map((p) => p.quote_id);
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("id, discount_percent, commission_amount_snapshot, approval_status, salesperson_id")
+        .in("id", ids);
+      if (error) throw error;
+      return data as Array<{ id: string; discount_percent: number | null; commission_amount_snapshot: number | null; approval_status: string | null; salesperson_id: string | null }>;
+    },
+  });
+
+  const quotesExtraById = new Map(quotesExtra.map((q) => [q.id, q]));
 
   // ─── Legge il target margine dalle impostazioni aziendali ──────────────────
   const { data: impostazioni } = useQuery({
@@ -193,6 +226,27 @@ export default function AnalisiPreventivi() {
           </SelectContent>
         </Select>
       </div>
+
+      {isAdmin && pendingApprovals.length > 0 && (
+        <Card className="border-orange-500/50 bg-orange-50/50 dark:bg-orange-950/20">
+          <CardContent className="p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Percent className="h-5 w-5 text-orange-600" />
+              <div>
+                <p className="font-medium text-sm">
+                  {pendingApprovals.length} richiest{pendingApprovals.length === 1 ? "a" : "e"} di autorizzazione sconto in attesa
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Totale impattato: {formatCurrency(pendingApprovals.reduce((s, p) => s + (p.importo_preventivo ?? 0), 0))}
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm">
+              <Link to="/azienda/marketing/preventivi/approvazioni">Gestisci richieste</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -398,19 +452,30 @@ export default function AnalisiPreventivi() {
                 <TableRow>
                   <TableHead>N°</TableHead>
                   <TableHead>Tipo lavoro</TableHead>
-                  <TableHead>Ricavo</TableHead>
-                  <TableHead>Costo</TableHead>
-                  <TableHead>Margine %</TableHead>
+                  <TableHead className="text-right">Ricavo</TableHead>
+                  <TableHead className="text-right">Costo</TableHead>
+                  <TableHead className="text-right">Sconto</TableHead>
+                  <TableHead className="text-right">Margine %</TableHead>
+                  <TableHead className="text-right">Provv.</TableHead>
+                  <TableHead>Approv.</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {righeVisibili.map((p) => (
+                {righeVisibili.map((p) => {
+                  const extra = quotesExtraById.get(p.quote_id);
+                  return (
                   <TableRow key={p.quote_id}>
                     <TableCell className="font-mono text-xs">{p.quote_number}</TableCell>
                     <TableCell>{p.tipo_lavoro || "—"}</TableCell>
-                    <TableCell>{p.ricavo_totale != null ? formatCurrency(p.ricavo_totale) : "—"}</TableCell>
-                    <TableCell>{p.costo_totale != null ? formatCurrency(p.costo_totale) : "—"}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">{p.ricavo_totale != null ? formatCurrency(p.ricavo_totale) : "—"}</TableCell>
+                    <TableCell className="text-right">{p.costo_totale != null ? formatCurrency(p.costo_totale) : "—"}</TableCell>
+                    <TableCell className="text-right">
+                      {extra?.discount_percent != null && extra.discount_percent > 0
+                        ? <span className="text-orange-600">{extra.discount_percent}%</span>
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
                       {p.margine_pct != null ? (
                         <span
                           className={`font-medium ${
@@ -427,8 +492,25 @@ export default function AnalisiPreventivi() {
                         "—"
                       )}
                     </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      {extra?.commission_amount_snapshot != null ? formatCurrency(extra.commission_amount_snapshot) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {extra?.approval_status === "pending" && <Badge variant="outline" className="border-orange-500 text-orange-600">Pending</Badge>}
+                      {extra?.approval_status === "approved" && <Badge className="bg-green-600">OK</Badge>}
+                      {extra?.approval_status === "rejected" && <Badge variant="destructive">Rifiutato</Badge>}
+                      {extra?.approval_status === "counter_proposed" && <Badge className="bg-blue-600">Contro</Badge>}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link to={`/azienda/marketing/preventivi/${p.quote_id}`}>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
             {dati.preventivi.length > 10 && (

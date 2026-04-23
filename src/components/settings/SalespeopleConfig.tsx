@@ -36,6 +36,8 @@ export interface Salesperson {
   last_name: string;
   email: string | null;
   phone: string | null;
+  compensation_mode?: "only_commission" | "fixed_plus_commission" | "fixed_only";
+  fixed_monthly_eur?: number | null;
   commission_type: "fixed" | "percentage_sold" | "percentage_collected";
   commission_value: number;
   is_active: boolean;
@@ -96,7 +98,10 @@ export function SalespeopleConfig() {
       if (data.id) {
         const { error } = await supabase.from("salespeople").update({
           first_name: data.first_name, last_name: data.last_name, email: data.email,
-          phone: data.phone, commission_type: data.commission_type,
+          phone: data.phone,
+          compensation_mode: data.compensation_mode ?? "only_commission",
+          fixed_monthly_eur: data.fixed_monthly_eur ?? 0,
+          commission_type: data.commission_type,
           commission_value: data.commission_value, is_active: data.is_active,
         }).eq("id", data.id).eq("company_id", companyId!);
         if (error) throw error;
@@ -104,6 +109,8 @@ export function SalespeopleConfig() {
         const { error } = await supabase.from("salespeople").insert({
           company_id: companyId!, first_name: data.first_name!, last_name: data.last_name!,
           email: data.email, phone: data.phone,
+          compensation_mode: data.compensation_mode ?? "only_commission",
+          fixed_monthly_eur: data.fixed_monthly_eur ?? 0,
           commission_type: data.commission_type || "percentage_sold",
           commission_value: data.commission_value || 0, is_active: true,
         });
@@ -280,6 +287,7 @@ export function SalespeopleConfig() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead><TableHead>Contatto</TableHead>
+                <TableHead>Modalità</TableHead>
                 <TableHead>Tipo Provvigione</TableHead><TableHead>Valore</TableHead>
                 <TableHead>Attivo</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
@@ -297,12 +305,25 @@ export function SalespeopleConfig() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="gap-1">
-                      {COMMISSION_TYPE_LABELS[sp.commission_type]?.icon}
-                      {COMMISSION_TYPE_LABELS[sp.commission_type]?.label}
+                    <Badge variant="secondary" className="text-xs">
+                      {sp.compensation_mode === "fixed_only" ? "Solo fisso" :
+                       sp.compensation_mode === "fixed_plus_commission" ? `Fisso+provv ${sp.fixed_monthly_eur ? `(€${sp.fixed_monthly_eur}/mese)` : ""}` :
+                       "Solo provvigioni"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-medium">{formatCommissionValue(sp.commission_type, sp.commission_value)}</TableCell>
+                  <TableCell>
+                    {sp.compensation_mode === "fixed_only" ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <Badge variant="outline" className="gap-1">
+                        {COMMISSION_TYPE_LABELS[sp.commission_type]?.icon}
+                        {COMMISSION_TYPE_LABELS[sp.commission_type]?.label}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {sp.compensation_mode === "fixed_only" ? "—" : formatCommissionValue(sp.commission_type, sp.commission_value)}
+                  </TableCell>
                   <TableCell>
                     <Switch checked={sp.is_active} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: sp.id, is_active: checked })} />
                   </TableCell>

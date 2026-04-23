@@ -17,6 +17,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   "bundle-serramentista": { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per preventivi serramentista" },
   bundle:                 { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per i preventivi" },
   margini:                { title: "Preventivi & margini",     description: "Imposta margini e configurazioni dei preventivi" },
+  scontistica:            { title: "Regole scontistica",        description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
   "stati-ordine":         { title: "Stati ordine",             description: "Configura gli stati del flusso degli ordini" },
   fornitori:              { title: "Fornitori",                description: "Gestisci l'anagrafica fornitori" },
   "categorie-costi":      { title: "Categorie costi",          description: "Organizza le categorie di costo dei cantieri" },
