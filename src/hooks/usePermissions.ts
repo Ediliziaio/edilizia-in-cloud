@@ -57,7 +57,6 @@ export interface Permissions {
   canViewSicurezzaCantiere: boolean;
   canViewSubappaltatori: boolean;
   canViewGiornaleLavori: boolean;
-  canViewMessaggiEsterni: boolean;
   canViewAutomazioni: boolean;
   canViewRenderAi: boolean;
   canViewSalesOs: boolean;
@@ -94,7 +93,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewMarketingWhatsapp: true, canViewMarketingReports: true,
   canViewInterventi: true, canViewManutenzione: true,
   canViewSicurezzaCantiere: true, canViewSubappaltatori: true,
-  canViewGiornaleLavori: true, canViewMessaggiEsterni: true,
+  canViewGiornaleLavori: true,
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
   isAdmin: true, isLoading: false, onlyAssigned: false, visibleAreas: [],
@@ -125,7 +124,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewMarketingWhatsapp: false, canViewMarketingReports: false,
   canViewInterventi: false, canViewManutenzione: false,
   canViewSicurezzaCantiere: false, canViewSubappaltatori: false,
-  canViewGiornaleLavori: false, canViewMessaggiEsterni: false,
+  canViewGiornaleLavori: false,
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
   isAdmin: false, isLoading: false, onlyAssigned: false, visibleAreas: [],
@@ -198,7 +197,6 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSicurezzaCantiere: g("can_view_sicurezza_cantiere"),
     canViewSubappaltatori:    g("can_view_subappaltatori"),
     canViewGiornaleLavori:    g("can_view_giornale_lavori"),
-    canViewMessaggiEsterni:   g("can_view_messaggi_esterni"),
     canViewAutomazioni:       g("can_view_automazioni"),
     canViewRenderAi:          g("can_view_render_ai"),
     canViewSalesOs:           g("can_view_sales_os"),
@@ -403,7 +401,6 @@ export function usePermissions(): Permissions {
       canViewSicurezzaCantiere: permissions?.can_view_sicurezza_cantiere  ?? false,
       canViewSubappaltatori:    permissions?.can_view_subappaltatori       ?? false,
       canViewGiornaleLavori:    permissions?.can_view_giornale_lavori     ?? false,
-      canViewMessaggiEsterni:   permissions?.can_view_messaggi_esterni    ?? false,
       canViewAutomazioni:       permissions?.can_view_automazioni         ?? false,
       canViewRenderAi:          permissions?.can_view_render_ai           ?? false,
       canViewSalesOs:           permissions?.can_view_sales_os            ?? false,

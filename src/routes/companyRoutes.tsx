@@ -90,7 +90,7 @@ function AttivitaRouter() {
   return <UnifiedTasks />;
 }
 // GlobalErrors rendered as tab inside OrdersList — lazy import removed
-const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
+// MP-CLEANUP: MessagingBeta rimosso — dominio "Messaggi Esterni" eliminato.
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
@@ -180,7 +180,7 @@ const EmailMarketing = lazy(() => import("@/pages/azienda/marketing/EmailMarketi
 const CampaignEditor = lazy(() => import("@/pages/azienda/marketing/CampaignEditor"));
 const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/CampaignSendSettings"));
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
-const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
+// MP-CLEANUP: MarketingWhatsApp (legacy) non più referenziata: /azienda/marketing/whatsapp fa redirect al nuovo Hub.
 // MP04 — Hub WhatsApp multi-numero
 const WhatsAppHubPage = lazy(() => import("@/pages/azienda/whatsapp/WhatsAppHubPage"));
 // MP-FINAL — Pagine granulari WhatsApp
@@ -289,7 +289,7 @@ export function companyRoutes() {
         <Route path="ferie-personali" element={<Navigate to="/azienda/attivita?tab=ferie" replace />} />
         <Route path="cedolini-personali" element={<Navigate to="/azienda/attivita?tab=cedolini" replace />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
-        <Route path="messaggistica-beta" element={<FeatureRoute featureKey="messaging_beta"><MessagingBeta /></FeatureRoute>} />
+        {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
         <Route path="chat" element={<InternalChat />} />
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}

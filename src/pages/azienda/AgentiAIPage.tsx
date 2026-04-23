@@ -16,7 +16,8 @@ import { AgentiAIStatsBar } from "@/components/agenti/AgentiAIStatsBar";
 import { TelephonyTab } from "@/components/agenti/TelephonyTab";
 import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
 import { KnowledgeBaseTab } from "@/components/agenti/KnowledgeBaseTab";
-import { WhatsAppMultiNumeroTab } from "@/components/whatsapp-multi/WhatsAppMultiNumeroTab";
+// MP-CLEANUP: WhatsAppMultiNumeroTab rimosso da qui — vive ora solo
+// nell'Hub dedicato /azienda/whatsapp (sidebar link).
 import { ChatConversazioniTab } from "@/components/agenti/ChatConversazioniTab";
 import { CampagneTab } from "@/components/agenti/CampagneTab";
 import { CreditiTab } from "@/components/agenti/CreditiTab";
@@ -26,8 +27,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
-type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "whatsapp" | "statistiche" | "crediti";
+type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "statistiche" | "crediti";
 
+// MP-CLEANUP: tab "whatsapp" rimossa da AgentiAIPage.
+// L'hub WhatsApp è unico su /azienda/whatsapp (link sidebar "WhatsApp").
 const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
   { key: "knowledge", label: "Knowledge Base", icon: BookOpen },
@@ -35,7 +38,6 @@ const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] 
   { key: "conversazioni", label: "Chiamate", icon: History },
   { key: "chat", label: "Chat", icon: MessageSquare },
   { key: "campagne", label: "Campagne", icon: Megaphone },
-  { key: "whatsapp", label: "WhatsApp", icon: MessageSquare },
   { key: "statistiche", label: "Statistiche", icon: BarChart2 },
   { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard },
 ];
@@ -166,10 +168,7 @@ export default function AgentiAIPage() {
           <CampagneTab />
         </TabsContent>
 
-        <TabsContent value="whatsapp" className="mt-0">
-          {/* MP04 Hub Multi-Numero (sostituisce WhatsAppTabUnified legacy) */}
-          <WhatsAppMultiNumeroTab />
-        </TabsContent>
+        {/* MP-CLEANUP: rimossa tab whatsapp. Hub unico in /azienda/whatsapp. */}
 
         <TabsContent value="statistiche" className="mt-0 p-6">
           <StatisticheTab />

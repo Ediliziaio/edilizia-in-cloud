@@ -44,7 +44,7 @@ const AdminMarketingCalendar = lazy(() => import("@/pages/admin/marketing/AdminM
 const AdminEmailMarketing = lazy(() => import("@/pages/admin/marketing/AdminEmailMarketing"));
 const AdminMarketingAutomations = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomations"));
 const AdminMarketingContactDetail = lazy(() => import("@/pages/admin/marketing/AdminMarketingContactDetail"));
-const AdminMarketingWhatsApp = lazy(() => import("@/pages/admin/marketing/AdminMarketingWhatsApp"));
+// MP-CLEANUP: AdminMarketingWhatsApp rimosso (dominio messaging legacy).
 const AdminMarketingAgents = lazy(() => import("@/pages/admin/marketing/AdminMarketingAgents"));
 const AdminMarketingAutomationBuilder = lazy(() => import("@/pages/admin/marketing/AdminMarketingAutomationBuilder"));
 const AdminCampaignEditor = lazy(() => import("@/pages/admin/marketing/AdminCampaignEditor"));
@@ -190,7 +190,7 @@ export function adminRoutes() {
         <Route path="marketing/calendario" element={<AdminMarketingCalendar />} />
         <Route path="marketing/email" element={<AdminEmailMarketing />} />
         <Route path="marketing/automazioni" element={<AdminMarketingAutomations />} />
-        <Route path="marketing/whatsapp" element={<AdminMarketingWhatsApp />} />
+        {/* MP-CLEANUP: rotta admin marketing/whatsapp rimossa (vecchio dominio messaging). */}
         <Route path="marketing/lead-forms" element={<AdminFacebookForms />} />
         <Route path="marketing/reportistica" element={<AdminMarketingReportistica />} />
         <Route path="marketing/sales-os" element={<AdminSalesOS />} />
