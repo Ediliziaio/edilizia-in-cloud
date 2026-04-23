@@ -321,14 +321,26 @@ function ProductSearchDialog({
       setPreview(null);
       return;
     }
+    // P2-9: flag cancelled per evitare setState su unmount o ri-trigger
+    // mentre una promise precedente non è ancora risolta.
+    let cancelled = false;
     calcolaPrezzoProdotto(pending, parseFloat(qty) || 1, x, y)
-      .then((r) => setPreview({ pv: r.prezzo_vendita, trovato: r.trovato_in_griglia ?? false }))
-      .catch(() => setPreview(null));
-    // `calcolaPrezzoProdotto` volutamente non nelle deps: è una callback del parent
-    // non memoizzata, includerla causerebbe refetch ad ogni render del parent.
-    // Effect stabile sugli input utente (misure/quantità/articolo selezionato).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mx, my, qty, pending]);
+      .then((r) => {
+        if (!cancelled) {
+          setPreview({ pv: r.prezzo_vendita, trovato: r.trovato_in_griglia ?? false });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPreview(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // `calcolaPrezzoProdotto` è ora memoizzata via useCallback in
+    // usePreventivoCosti.ts (P2-9): l'identità è stabile finché non cambiano
+    // le sue dep interne, quindi includerla nelle deps di questo useEffect
+    // non causa re-run spuri.
+  }, [mx, my, qty, pending, calcolaPrezzoProdotto]);
 
   const mqPreview =
     pending?.modalita_prezzo === "mq" && mx && my

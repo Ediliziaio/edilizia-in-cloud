@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -555,8 +556,15 @@ export function usePreventivoCosti(companyId: string | undefined) {
     gcTime: 15 * 60 * 1000,
   });
 
-  // trovaPrezzoGriglia: nearest neighbor Manhattan distance
-  const trovaPrezzoGriglia = async (
+  // P2-9: funzioni di pricing memoizzate via useCallback per garantire
+  // identità di riferimento stabile. Così i useEffect nei componenti
+  // consumer (es. QuickAddItem in QuoteBuilder) possono includerle nelle
+  // deps senza triggerare re-run spuri ad ogni render del parent —
+  // rimuovendo il bisogno di `// eslint-disable-next-line
+  // react-hooks/exhaustive-deps`.
+  //
+  // `supabase` è un singleton importato modulo-level: dep array vuoto è safe.
+  const trovaPrezzoGriglia = useCallback(async (
     prodotto_id: string,
     x: number,
     y: number
@@ -612,10 +620,11 @@ export function usePreventivoCosti(companyId: string | undefined) {
       prezzo_acquisto_netto: nearest.prezzo_acquisto ?? 0,
       trovato: false,
     };
-  };
+  }, []);
 
-  // calcolaPrezzoProdotto
-  const calcolaPrezzoProdotto = async (
+  // P2-9: calcolaPrezzoProdotto memoizzata. Deps: trovaPrezzoGriglia (già
+  // stabile via useCallback). Niente altre dipendenze variabili.
+  const calcolaPrezzoProdotto = useCallback(async (
     prodotto: ArticlePro,
     qty: number,
     x?: number,
@@ -656,7 +665,7 @@ export function usePreventivoCosti(companyId: string | undefined) {
       prezzo_vendita: (prodotto.prezzo_vendita ?? 0) * qty,
       prezzo_acquisto: (prodotto.prezzo_acquisto_netto ?? 0) * qty,
     };
-  };
+  }, [trovaPrezzoGriglia]);
 
   // calcolaTariffaAutomatica
   // FASE 6.4: supporta le 10 UM canoniche di unita_fatturazione.
