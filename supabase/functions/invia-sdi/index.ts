@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { generateXML } from "../_shared/generateXML.ts";
+import { utf8ToBase64 } from "../_shared/base64.ts";
 
 /** Validate Italian P.IVA (11 digits, with Luhn-like check) */
 function isValidPartitaIva(piva: string | null | undefined): boolean {
@@ -277,8 +278,12 @@ Deno.serve(async (req) => {
       const timeout = setTimeout(() => controller.abort(), 30000);
 
       try {
-        // Aruba richiede XML codificato in Base64 dentro un JSON
-        const xmlBase64 = btoa(unescape(encodeURIComponent(xml)));
+        // P2-8: Aruba richiede XML codificato in Base64 dentro JSON.
+        // Prima usavamo `btoa(unescape(encodeURIComponent(xml)))`: trucco
+        // legacy con `unescape` deprecato (TC39/MDN) e risultati inconsistenti
+        // su alcuni code point Unicode (emoji, surrogate). utf8ToBase64 usa
+        // TextEncoder, è portabile e corretto su tutto il range Unicode.
+        const xmlBase64 = utf8ToBase64(xml);
         const fileName = `IT${azienda.partita_iva}_${progressivoInvio}.xml${firmatoP7m ? ".p7m" : ""}`;
 
         const resp = await fetch(uploadEndpoint, {
