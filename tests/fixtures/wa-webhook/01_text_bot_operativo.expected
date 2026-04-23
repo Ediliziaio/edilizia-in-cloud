@@ -1,0 +1,2 @@
+status: 200
+db_check: whatsapp_messages WHERE wa_message_id='wamid.TEST_MSG_001' AND processing_status IN ('received','processing','processed')

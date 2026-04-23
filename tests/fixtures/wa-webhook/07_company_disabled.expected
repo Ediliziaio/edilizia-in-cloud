@@ -1,0 +1,2 @@
+status: 200
+db_check: wa_routing_errors WHERE error_kind='company_disabled' AND phone_number_id='TEST_PHONE_ID_DISABLED_001'

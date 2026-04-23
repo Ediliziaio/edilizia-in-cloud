@@ -1,0 +1,29 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA_ID_TEST_001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "39 02 9999 0004",
+              "phone_number_id": "TEST_PHONE_ID_DISABLED_001"
+            },
+            "messages": [
+              {
+                "from": "393401234567",
+                "id": "wamid.TEST_MSG_DISABLED",
+                "timestamp": "1745338200",
+                "text": { "body": "test on disabled number" },
+                "type": "text"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

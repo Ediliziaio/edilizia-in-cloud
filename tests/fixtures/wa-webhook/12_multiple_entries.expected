@@ -1,0 +1,2 @@
+status: 200
+db_check: whatsapp_messages WHERE wa_message_id IN ('wamid.TEST_MSG_012_A','wamid.TEST_MSG_012_B','wamid.TEST_MSG_012_C')

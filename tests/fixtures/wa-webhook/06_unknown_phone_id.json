@@ -1,0 +1,29 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA_ID_GHOST",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "39 02 0000 0000",
+              "phone_number_id": "TEST_PHONE_ID_NON_ESISTE_999"
+            },
+            "messages": [
+              {
+                "from": "393000000000",
+                "id": "wamid.TEST_MSG_GHOST",
+                "timestamp": "1745338100",
+                "text": { "body": "test ghost" },
+                "type": "text"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

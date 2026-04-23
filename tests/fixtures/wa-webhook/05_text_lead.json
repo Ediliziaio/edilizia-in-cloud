@@ -1,0 +1,32 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA_ID_TEST_001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "39 02 9999 0003",
+              "phone_number_id": "TEST_PHONE_ID_LEAD_001"
+            },
+            "contacts": [
+              { "profile": { "name": "Anna Potenziale" }, "wa_id": "393331112233" }
+            ],
+            "messages": [
+              {
+                "from": "393331112233",
+                "id": "wamid.TEST_MSG_005",
+                "timestamp": "1745338000",
+                "text": { "body": "Vorrei un preventivo per finestre in PVC" },
+                "type": "text"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

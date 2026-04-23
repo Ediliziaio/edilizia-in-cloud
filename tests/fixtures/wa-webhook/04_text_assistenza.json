@@ -1,0 +1,32 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA_ID_TEST_001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "39 02 9999 0002",
+              "phone_number_id": "TEST_PHONE_ID_ASSISTENZA_001"
+            },
+            "contacts": [
+              { "profile": { "name": "Cliente Bianchi" }, "wa_id": "393407654321" }
+            ],
+            "messages": [
+              {
+                "from": "393407654321",
+                "id": "wamid.TEST_MSG_004",
+                "timestamp": "1745337900",
+                "text": { "body": "Quando arriva l'installatore per la finestra?" },
+                "type": "text"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

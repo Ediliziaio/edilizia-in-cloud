@@ -1,0 +1,2 @@
+status: 200
+db_check: whatsapp_messages WHERE wa_message_id='wamid.TEST_MSG_002' AND message_type='image'

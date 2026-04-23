@@ -1,0 +1,2 @@
+status: 401
+db_check: wa_routing_errors WHERE error_kind='hmac_invalid'

@@ -1,0 +1,36 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA_ID_TEST_001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "39 02 9999 0001",
+              "phone_number_id": "TEST_PHONE_ID_BOT_OPERATIVO_001"
+            },
+            "contacts": [
+              { "profile": { "name": "Mario Operaio" }, "wa_id": "393401234567" }
+            ],
+            "messages": [
+              {
+                "from": "393401234567",
+                "id": "wamid.TEST_MSG_003",
+                "timestamp": "1745337800",
+                "type": "audio",
+                "audio": {
+                  "id": "MEDIA_ID_AUDIO_001",
+                  "mime_type": "audio/ogg; codecs=opus",
+                  "voice": true
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
