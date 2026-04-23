@@ -147,13 +147,13 @@ async function installCatalogo(
   }
   const existingNomi = new Set((existing ?? []).map((f: { nome: string }) => f.nome));
 
-  for (const tip of catalog) {
-    if (existingNomi.has(tip.nome)) {
-      result.skipped += 1;
-      continue;
-    }
-
-    const { error: insErr } = await supabase.from("article_families").insert({
+  // P1-5: bulk insert in una singola roundtrip invece di 20 sequenziali.
+  // Prima l'installer chiamava .insert() dentro un for loop: con 20
+  // tipologie e latency tipica Supabase ~150ms l'operazione durava 3-5s,
+  // oltre 10s su cold start / rete lenta.
+  const toInsert = catalog
+    .filter((tip) => !existingNomi.has(tip.nome))
+    .map((tip) => ({
       company_id: companyId,
       vertical: "serramentista",
       nome: tip.nome,
@@ -174,13 +174,35 @@ async function installCatalogo(
         ante: tip.ante,
         area_max_mq: tip.area_max_mq,
       },
-    });
+    }));
 
-    if (insErr) {
-      result.errors.push(`${tip.nome}: ${insErr.message}`);
-      continue;
+  result.skipped = catalog.length - toInsert.length;
+
+  if (toInsert.length === 0) {
+    return result;
+  }
+
+  const { data: inserted, error: bulkErr } = await supabase
+    .from("article_families")
+    .insert(toInsert)
+    .select("id, nome");
+
+  if (bulkErr) {
+    // Fallback diagnostico: se il bulk fallisce (es. un singolo record
+    // viola un constraint), riproviamo uno per uno così il messaggio di
+    // errore puntuale finisce in result.errors[] per la UI.
+    for (const row of toInsert) {
+      const { error: singleErr } = await supabase
+        .from("article_families")
+        .insert(row);
+      if (singleErr) {
+        result.errors.push(`${row.nome}: ${singleErr.message}`);
+      } else {
+        result.installed += 1;
+      }
     }
-    result.installed += 1;
+  } else {
+    result.installed = inserted?.length ?? toInsert.length;
   }
 
   return result;
