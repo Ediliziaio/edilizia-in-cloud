@@ -8,6 +8,8 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
+import { buildFloorPrompt } from "../../../shared/render-floor/floorPromptBuilder.ts";
+import type { FloorPhotoMeta } from "../../../shared/render-floor/types.ts";
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const CORS = {
@@ -221,190 +223,6 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2, de
   throw new Error("fetchWithRetry: all retries exhausted");
 }
 
-// ── FLOOR_PHYSICS ─────────────────────────────────────────────────────────────
-const FLOOR_PHYSICS: Record<string, string> = {
-  parquet_massello: "solid hardwood parquet — natural wood grain visible, color variation between planks, subtle knot patterns, beveled edges, warm finish",
-  parquet_prefinito: "pre-finished engineered wood — real wood top layer with visible grain, factory-applied uniform finish, tight seams, consistent surface quality",
-  laminato: "laminate flooring — high-resolution photographic wood-grain surface, uniform pattern, V-groove beveled edges, matte or semi-gloss",
-  gres_porcellanato: "porcelain stoneware — dense ceramic, can imitate marble/stone/concrete/wood, large formats possible, very thin grout lines, precise edges",
-  ceramica: "ceramic tile — glazed surface, wider grout lines than porcelain, many colors and patterns, standard formats",
-  marmo: "natural marble — distinctive veining patterns, high-gloss polished with deep reflections, subtle color gradients, luxury appearance",
-  pietra_naturale: "natural stone — irregular texture, fossil marks, grain patterns, natural color variation, honed/brushed/tumbled finishes possible",
-  vinile_lvt: "luxury vinyl tile — realistic embossed texture imitating wood or stone, uniform surface, thin or zero visible joints, waterproof",
-  cotto: "terracotta — warm earth-toned handmade clay tiles, irregular surface, natural color variation orange to deep red-brown, unglazed matte, rustic",
-  cemento_resina: "continuous resin/microcement — perfectly seamless NO joints NO tiles NO grout, subtle trowel texture, uniform color, industrial-modern",
-  moquette: "wall-to-wall carpet — continuous soft textile, NO joints or seams, uniform pile texture, consistent color, soft light absorption",
-  terrazzo_veneziano: "Venetian terrazzo — polished composite with visible aggregate chips in cement/resin matrix, high gloss, seamless continuous surface",
-};
-
-// ── POSA_PHYSICS ──────────────────────────────────────────────────────────────
-const POSA_PHYSICS: Record<string, string> = {
-  rettilineo_dritto: "straight linear — tiles/planks aligned parallel with NO offset, continuous straight grid lines",
-  a_correre: "running bond 50% offset — classic brick-like stagger pattern",
-  sfalsato_33: "one-third offset bond — 33% cascade staircase joints",
-  spina_di_pesce: "herringbone — V-shaped zigzag at 90-degree angles, continuous chevron weave",
-  spina_ungherese: "Hungarian herringbone — 45-degree angled ends forming sharp V-pattern",
-  diagonale_45: "diagonal 45-degree — tiles rotated 45 degrees, diamond-shaped pattern",
-  cassero_irregolare: "irregular staggered — random offset, natural organic appearance",
-  opus_romanum: "opus romanum — multi-format modular layout, classical geometric pattern",
-  doppia_fila: "double-strip — paired planks in running bond rhythm",
-  modulare: "modular — mixed sizes creating basket-weave or pinwheel effect",
-  esagonale: "hexagonal — six-sided honeycomb tessellation",
-};
-
-// ── FINITURA_DESC ─────────────────────────────────────────────────────────────
-const FINITURA_DESC: Record<string, string> = {
-  lucido: "high-gloss polished — strong specular reflections, mirror-like",
-  opaco: "matte — no specular highlights, flat non-reflective",
-  satinato: "satin — subtle soft sheen, gentle reflections",
-  spazzolato: "brushed — directional micro-texture, soft tactile grain",
-  boccardato: "bush-hammered — rough textured, anti-slip",
-  anticato: "aged/antiqued — worn edges, patina effect, vintage",
-  levigato: "honed — perfectly flat with subtle matte sheen",
-  naturale: "natural — untreated original texture",
-  cerato: "wax finish — warm soft sheen with depth",
-};
-
-// ── FUGA_COLORE_DESC ──────────────────────────────────────────────────────────
-const FUGA_COLORE_DESC: Record<string, string> = {
-  bianco: "white grout",
-  grigio_chiaro: "light grey grout",
-  grigio_scuro: "dark grey grout",
-  nero: "black grout",
-  beige: "beige grout",
-  tono_su_tono: "color-matched grout — same tone as tile",
-};
-
-// ── BATTISCOPA_DESC ───────────────────────────────────────────────────────────
-const BATTISCOPA_DESC: Record<string, string> = {
-  coordinato_pavimento: "baseboard matching floor material",
-  bianco: "white painted baseboard",
-  legno: "natural wood baseboard",
-  alluminio: "brushed aluminum baseboard",
-};
-
-// ── buildFloorPrompt ──────────────────────────────────────────────────────────
-function buildFloorPrompt(session: Record<string, unknown>): {
-  systemPrompt: string;
-  userPrompt: string;
-  promptVersion: string;
-} {
-  const config = (session.config || {}) as Record<string, unknown>;
-  const analisi = (session.analisi_pavimento || {}) as Record<string, unknown>;
-
-  const a = {
-    tipo_stanza: "stanza generica",
-    pavimento_attuale: "non identificato",
-    colore_attuale: "non identificato",
-    dimensione_stimata: "non identificata",
-    stato_conservazione: "non identificato",
-    battiscopa_presente: false,
-    ...analisi,
-  };
-
-  const tipo = (config.tipo as string) || "gres_porcellanato";
-  const finitura = (config.finitura as string) || "opaco";
-  const pattern = (config.pattern_posa as string) || "a_correre";
-
-  let colorDesc = (config.colore_nome as string) || "grigio chiaro";
-  if (config.colore_hex) colorDesc += ` (hex: ${config.colore_hex})`;
-  if (config.colore_ral) colorDesc += ` (RAL ${config.colore_ral})`;
-
-  let formatoDesc = "";
-  if (config.formato_piastrella) formatoDesc = `\nTile format: ${config.formato_piastrella} cm`;
-  if (config.larghezza_listello_mm && config.lunghezza_listello_mm) {
-    formatoDesc += `\nPlank dimensions: ${config.larghezza_listello_mm}mm x ${config.lunghezza_listello_mm}mm`;
-  }
-
-  let fugaDesc = "";
-  if (config.fuga_larghezza_mm != null) {
-    const fugaColore = FUGA_COLORE_DESC[config.fuga_colore as string] || "standard grout";
-    if (Number(config.fuga_larghezza_mm) === 0) {
-      fugaDesc = "\nGrout: NONE — seamless joint";
-    } else {
-      fugaDesc = `\nGrout width: ${config.fuga_larghezza_mm}mm, Color: ${fugaColore}`;
-    }
-  }
-
-  // Battiscopa
-  const batt = config.battiscopa as Record<string, unknown> | undefined;
-  let battiscopaBlock = "";
-  if (batt) {
-    if (batt.azione === "rimuovi") {
-      battiscopaBlock = "\n\n[BATTISCOPA — REMOVE]\nRemove all baseboard. Show clean wall-to-floor junction.";
-    } else if (batt.azione === "sostituisci" && batt.tipo) {
-      const desc = BATTISCOPA_DESC[batt.tipo as string] || String(batt.tipo);
-      const h = batt.altezza_cm || 8;
-      battiscopaBlock = `\n\n[BATTISCOPA — REPLACE]\nReplace with: ${desc}, Height: ${h}cm. Must run along ALL visible wall-floor junctions.`;
-    } else {
-      battiscopaBlock = "\n\n[BATTISCOPA — KEEP]\nKeep existing baseboard exactly as-is.";
-    }
-  }
-
-  const systemPrompt = `You are a SURGICAL PHOTOREALISTIC IMAGE EDITOR specialized in floor replacement for architectural visualization. Your ONLY task: replace EXACTLY the floor surface in the photograph with the specified new flooring material, while leaving EVERYTHING ELSE 100% pixel-perfect identical.
-
-CRITICAL FLOOR RENDERING RULES:
-1. The new floor MUST cover the ENTIRE visible floor area — no gaps, no patches of old floor.
-2. Floor perspective MUST be geometrically correct — tiles/planks converge toward the room's vanishing points.
-3. The laying pattern MUST be consistent and accurate across the whole surface.
-4. Reflections on the new floor must match the room's existing light sources.
-5. Where furniture touches the floor, render correct contact shadows.
-6. Grout lines and joints must follow correct perspective diminution.
-7. Material texture must be photorealistic — not flat, not cartoonish.
-8. Floor edges at walls must be clean and precise.
-9. Output image dimensions MUST match input image dimensions exactly.
-10. This is PRECISE SURGICAL REPLACEMENT — do NOT artistically reinterpret the room.`;
-
-  const userPrompt = `[CONTESTO — ROOM ANALYSIS]
-Room type: ${a.tipo_stanza}
-Current floor: ${a.pavimento_attuale} (${a.colore_attuale})
-Estimated size: ${a.dimensione_stimata}
-Condition: ${a.stato_conservazione}
-Baseboard present: ${a.battiscopa_presente ? "YES" : "NO"}
-
-[NEW FLOOR SPECIFICATION]
-Material: ${FLOOR_PHYSICS[tipo] || tipo}
-Finish: ${FINITURA_DESC[finitura] || finitura}
-Color: ${colorDesc}
-Laying pattern: ${POSA_PHYSICS[pattern] || pattern}${formatoDesc}${fugaDesc}
-
-PATTERN RULES:
-- Pattern MUST be geometrically accurate across ENTIRE floor
-- Perspective must follow room vanishing points
-- Joints must be consistently spaced
-- If seamless material (cemento_resina, moquette), NO tile joints or grout${battiscopaBlock}
-
-[PRESERVATION — ABSOLUTE RULES]
-The following MUST remain 100% pixel-identical:
-- ALL walls, ceiling, furniture, appliances, objects
-- ALL doors, door frames, windows, window frames
-- ALL lighting conditions, shadows, ambient light
-- Camera perspective and lens distortion
-- Any visible pipes, cables, outlets, radiators
-- Objects on the floor must appear naturally on the NEW surface with correct shadows
-
-NEVER:
-- Change any wall color or decoration
-- Move, remove, or add any furniture
-- Alter the ceiling
-- Change any window or door
-- Add/remove any architectural element not floor-related
-- Produce cartoon/illustration/CGI artifacts
-- Add watermarks or text
-- Change camera angle or image dimensions
-- Show old floor anywhere
-${config.note_libere ? `\n[ADDITIONAL NOTES]\n${config.note_libere}` : ""}
-
-[FINAL CHECKLIST]
-- New floor covers 100% of visible floor area
-- Laying pattern is geometrically correct in perspective
-- Floor color and material match specification
-- ALL walls, ceiling, furniture UNCHANGED
-- Image dimensions match original exactly`;
-
-  return { systemPrompt, userPrompt, promptVersion: "1.0.0" };
-}
-
 // ── Main handler ──────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -422,13 +240,15 @@ Deno.serve(async (req) => {
 
     // ── Parse request ───────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
-    const { action, session_id, config, image_url, target_width, target_height } = body as {
+    const { action, session_id, config, image_url, target_width, target_height, analysis, photo_meta } = body as {
       action?: string;
       session_id?: string;
       config?: Record<string, unknown>;
       image_url?: string;
       target_width?: number;
       target_height?: number;
+      analysis?: Record<string, unknown>;
+      photo_meta?: FloorPhotoMeta;
     };
 
     // ══════════════════════════════════════════════════════════════════════
@@ -463,19 +283,29 @@ Deno.serve(async (req) => {
       // Download image
       const imgResp = await fetchWithTimeout(image_url, {}, 30_000);
       const imgBuffer = await imgResp.arrayBuffer();
-      const imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
+      const imgB64 = arrayBufferToBase64(imgBuffer);
 
-      const analyzePrompt = `Analyze this interior photograph and identify the floor. Return a JSON object with exactly these fields:
+      const analyzePrompt = `Analyze this interior photograph for a surgical floor replacement workflow. Return ONLY compact JSON with these fields:
 {
-  "tipo_stanza": "type of room (cucina, soggiorno, bagno, camera, corridoio, ufficio, etc.)",
-  "pavimento_attuale": "current floor material (parquet, piastrelle, marmo, moquette, etc.)",
-  "colore_attuale": "current floor color description",
+  "tipo_stanza": "room type",
+  "pavimento_attuale": "current floor material",
+  "colore_attuale": "current floor color",
   "dimensione_stimata": "estimated room size",
-  "stato_conservazione": "floor condition (buono, discreto, da ristrutturare)",
+  "stato_conservazione": "floor condition",
   "battiscopa_presente": true/false,
-  "note": "any additional observations about the floor"
+  "current_floor_format": "tile/plank/module format if visible",
+  "has_visible_joints": true/false,
+  "visible_floor_area": "where the visible floor area is",
+  "floor_perimeter_geometry": "wall/door/furniture boundaries",
+  "thresholds_visible": true/false,
+  "steps_visible": true/false,
+  "rugs_present": true/false,
+  "obstacles": ["visible furniture/objects touching floor"],
+  "light_quality": "lighting and reflection notes",
+  "preserved_elements": ["items that must remain unchanged"],
+  "note": "short floor-specific observation"
 }
-Return ONLY the JSON, no other text.`;
+Use short values. Do not describe a renovation.`;
 
       const geminiBody = {
         contents: [{
@@ -484,7 +314,11 @@ Return ONLY the JSON, no other text.`;
             { inline_data: { mime_type: "image/jpeg", data: imgB64 } },
           ],
         }],
-        generationConfig: { temperature: 0.3 },
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 700,
+          response_mime_type: "application/json",
+        },
       };
 
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -605,12 +439,25 @@ Return ONLY the JSON, no other text.`;
 
     // ── Build prompt ────────────────────────────────────────────────────
     const activeConfig = (config || session.config) as Record<string, unknown>;
-    const sessionForPrompt = {
-      ...session,
-      config: activeConfig,
-    } as Record<string, unknown>;
+    const activeAnalysis = analysis || (session.analisi_pavimento as Record<string, unknown> | null) || null;
+    const activePhotoMeta: FloorPhotoMeta = photo_meta ?? {
+      width: prepared.effective_width,
+      height: prepared.effective_height,
+      orientation: prepared.effective_width > prepared.effective_height
+        ? "landscape"
+        : prepared.effective_width < prepared.effective_height
+          ? "portrait"
+          : "square",
+    };
 
-    const { systemPrompt, userPrompt, promptVersion } = buildFloorPrompt(sessionForPrompt);
+    const {
+      systemPrompt,
+      userPrompt,
+      promptVersion,
+      normalizedConfig,
+      validation,
+    } = buildFloorPrompt(activeConfig, activeAnalysis, activePhotoMeta);
+    const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
     const { providerConfig, apiKey } = await loadRenderProviderWithKey(supabase);
 
     let imageData: string | null = null;
@@ -632,7 +479,7 @@ Return ONLY the JSON, no other text.`;
       const buildForm = (modelName: string) => {
         const form = new FormData();
         form.append("model", modelName);
-        form.append("prompt", userPrompt);
+        form.append("prompt", fullPrompt);
         if (modelName === "dall-e-2") {
           form.append("image", imageBlob, "floor.png");
           form.append("size", "1024x1024");
@@ -688,7 +535,7 @@ Return ONLY the JSON, no other text.`;
       const geminiBody = {
         contents: [{
           parts: [
-            { text: `${systemPrompt}\n\n${userPrompt}` },
+            { text: fullPrompt },
             {
               inline_data: {
                 mime_type: originalImage.mimeType,
@@ -774,13 +621,16 @@ Return ONLY the JSON, no other text.`;
       .update({
         status: "completed",
         result_urls: [resultUrl],
-        prompt_used: userPrompt,
+        prompt_used: fullPrompt,
         prompt_version: promptVersion,
-        prompt_char_count: (systemPrompt + userPrompt).length,
+        prompt_char_count: fullPrompt.length,
         provider_key: providerConfig.provider_key,
         cost_real: costReal,
         cost_billed: costBilled,
-        config_snapshot: activeConfig,
+        config_snapshot: {
+          ...normalizedConfig,
+          prompt_validation: validation,
+        },
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
@@ -798,6 +648,7 @@ Return ONLY the JSON, no other text.`;
         provider: providerConfig.provider_key,
         cost_billed: costBilled,
         prompt_version: promptVersion,
+        prompt_validation: validation,
       }),
       { status: 200, headers: { ...CORS, "Content-Type": "application/json" } }
     );
