@@ -6590,6 +6590,93 @@ export type Database = {
           },
         ]
       }
+      cantiere_segnalazioni: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          descrizione: string
+          employee_id: string | null
+          id: string
+          order_id: string | null
+          photo_urls: Json | null
+          resolved_at: string | null
+          source: string | null
+          stato: string | null
+          tipo_problema: string | null
+          updated_at: string | null
+          urgenza: string | null
+          user_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          descrizione: string
+          employee_id?: string | null
+          id?: string
+          order_id?: string | null
+          photo_urls?: Json | null
+          resolved_at?: string | null
+          source?: string | null
+          stato?: string | null
+          tipo_problema?: string | null
+          updated_at?: string | null
+          urgenza?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          descrizione?: string
+          employee_id?: string | null
+          id?: string
+          order_id?: string | null
+          photo_urls?: Json | null
+          resolved_at?: string | null
+          source?: string | null
+          stato?: string | null
+          tipo_problema?: string | null
+          updated_at?: string | null
+          urgenza?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cantiere_segnalazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cantiere_segnalazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_segnalazioni_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_segnalazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_segnalazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cantieri_geofence: {
         Row: {
           center_lat: number
@@ -31933,6 +32020,54 @@ export type Database = {
           },
         ]
       }
+      wa_ai_daily_budget: {
+        Row: {
+          company_id: string
+          current_day: string | null
+          current_spend_eur: number | null
+          daily_limit_eur: number | null
+          degraded_mode: boolean | null
+          hard_limit_eur: number | null
+          suspended: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_id: string
+          current_day?: string | null
+          current_spend_eur?: number | null
+          daily_limit_eur?: number | null
+          degraded_mode?: boolean | null
+          hard_limit_eur?: number | null
+          suspended?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          current_day?: string | null
+          current_spend_eur?: number | null
+          daily_limit_eur?: number | null
+          degraded_mode?: boolean | null
+          hard_limit_eur?: number | null
+          suspended?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_ai_daily_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_ai_daily_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wa_routing_errors: {
         Row: {
           error_detail: string | null
@@ -31968,6 +32103,79 @@ export type Database = {
           wa_message_id?: string | null
         }
         Relationships: []
+      }
+      wa_tool_calls: {
+        Row: {
+          args_json: Json | null
+          company_id: string
+          cost_eur: number | null
+          duration_ms: number | null
+          id: string
+          model_used: string | null
+          result_ok: boolean | null
+          result_summary: string | null
+          role_kind: string | null
+          tokens_completion: number | null
+          tokens_prompt: number | null
+          tool_name: string
+          ts: string | null
+          wa_message_id: string | null
+        }
+        Insert: {
+          args_json?: Json | null
+          company_id: string
+          cost_eur?: number | null
+          duration_ms?: number | null
+          id?: string
+          model_used?: string | null
+          result_ok?: boolean | null
+          result_summary?: string | null
+          role_kind?: string | null
+          tokens_completion?: number | null
+          tokens_prompt?: number | null
+          tool_name: string
+          ts?: string | null
+          wa_message_id?: string | null
+        }
+        Update: {
+          args_json?: Json | null
+          company_id?: string
+          cost_eur?: number | null
+          duration_ms?: number | null
+          id?: string
+          model_used?: string | null
+          result_ok?: boolean | null
+          result_summary?: string | null
+          role_kind?: string | null
+          tokens_completion?: number | null
+          tokens_prompt?: number | null
+          tool_name?: string
+          ts?: string | null
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_tool_calls_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_tool_calls_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_tool_calls_wa_message_id_fkey"
+            columns: ["wa_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       warehouse_assignments: {
         Row: {
@@ -35071,6 +35279,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      increment_budget_spend: {
+        Args: { p_company_id: string; p_eur: number }
+        Returns: undefined
+      }
       increment_order_total: {
         Args: { p_delta: number; p_order_id: string }
         Returns: undefined
@@ -35254,6 +35466,10 @@ export type Database = {
         Args: { p_integration_id: string }
         Returns: undefined
       }
+      reset_daily_budget_if_needed: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
       resolve_company_feature: {
         Args: { p_company_id: string; p_feature_key: string }
         Returns: {
@@ -35329,6 +35545,15 @@ export type Database = {
         Args: { p_company_id: string; p_items: Json; p_quote_id: string }
         Returns: Json
       }
+      search_cantieri_by_trigram: {
+        Args: { p_company_id: string; p_limit?: number; p_query: string }
+        Returns: {
+          id: string
+          indirizzo: string
+          name: string
+          similarity: number
+        }[]
+      }
       seed_tipi_documento_operaio: {
         Args: { p_company_id: string }
         Returns: undefined
@@ -35348,6 +35573,8 @@ export type Database = {
         Args: { p_dashboard_id: string }
         Returns: undefined
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       staff_update_own_password_flag: {
         Args: { _must_change: boolean }
         Returns: undefined

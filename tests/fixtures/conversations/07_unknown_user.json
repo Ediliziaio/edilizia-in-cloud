@@ -1,0 +1,14 @@
+{
+  "scenario_id": "07_unknown_user",
+  "description": "Utente non registrato — deve ricevere messaggio 'unknown_user' e nessun tool call",
+  "identity_mock": {
+    "matched": false, "kind": "unknown",
+    "employee_id": null, "user_id": null,
+    "display_name": null, "role_grants": [],
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "locale": "it"
+  },
+  "conversation": [{ "role": "user", "content": "ciao" }],
+  "expected_tool_calls": { "contains": [] },
+  "expected_response_contains": ["Non riconosco"]
+}
