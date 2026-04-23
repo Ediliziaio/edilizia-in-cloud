@@ -25,7 +25,6 @@ import { buildBathroomReplacementManifest } from "./bathroomReplacementRules.ts"
 import type {
   BathroomPhotoMeta,
   BathroomRenderConfig,
-  BathroomSceneAnalysis,
   ConfigurazioneBagno,
 } from "./types.ts";
 

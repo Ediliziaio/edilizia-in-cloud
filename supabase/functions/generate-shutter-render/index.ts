@@ -1,161 +1,40 @@
 // generate-shutter-render — Edge Function EiC
 // Render Persiane AI — Multi-Provider (OpenAI / Gemini)
-// Prompt Engine v1 per Persiane (shutters)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder.ts";
+import { normalizePersianeSceneAnalysis } from "../../../shared/render-persiane/persianeSceneAnalysis.ts";
+import type { PersianePhotoMeta } from "../../../shared/render-persiane/types.ts";
 
-// ── SHUTTER_PHYSICS ──────────────────────────────────────────────────────────
-const SHUTTER_PHYSICS: Record<string, string> = {
-  veneziana_classica: "Traditional Venetian shutters — rectangular frame with horizontal tilting louvers/slats 40-60mm wide, each slat pivots on pins in vertical stiles, slats overlap when closed creating characteristic horizontal shadow lines, bottom rail heavier acting as closing bar",
-  veneziana_esterna: "External Venetian blind — precision-extruded aluminum or PVC horizontal slats 60-80mm wide on fabric tapes, visible guide rails on jamb faces, head box at top housing the rolled-up blind, modern clean aesthetic",
-  scuro_pieno: "Solid panel shutters — single solid wood or composite panel per leaf, no louvers, tongue-and-groove boards or flat panel with cross-battens, wrought-iron pintles hinge system, heavy espagnolette bolt",
-  scuro_cornice: "Framed panel shutters — raised or recessed decorative panels within frame-and-rail structure, classic architectural style, mortise-and-tenon joinery at corners",
-  gelosia: "Fixed louver screen — dense array of thin horizontal slats 20-35mm fixed at permanent 30-45 degree angle, no tilting, traditional Mediterranean element",
-  avvolgibile_esterno: "External roller shutter — horizontal interlocking extruded slats that roll into head box above window, side guide channels, operated by strap/crank/motor",
-  a_libro: "Bi-fold accordion shutters — multiple narrow panels connected by hinges that fold flat against wall when open, folding track at top",
-  griglia_sicurezza: "Security grille — steel or aluminum grille with vertical bars at regular spacing, horizontal cross-members, powder-coated or galvanized",
-  brise_soleil: "Brise-soleil sun louvers — large-format horizontal or vertical aluminum blades on outrigger brackets, fixed or motorized, contemporary architectural element",
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ── MATERIAL_DESC ────────────────────────────────────────────────────────────
-const MATERIAL_DESC: Record<string, string> = {
-  legno_naturale: "Solid natural wood — visible grain, warm organic color, traditional hand-crafted appearance",
-  legno_composito: "Wood-polymer composite — uniform color, smooth factory finish, no natural grain variation",
-  alluminio: "Extruded aluminum — powder-coated or anodized, sharp precise edges, modern industrial precision",
-  pvc: "PVC — smooth matte surface, uniform color, rounded edge profiles from extrusion",
-  acciaio: "Steel — powder-coated or galvanized, heavy gauge, industrial robust appearance",
-  fibra_vetro: "Fiberglass GRP — smooth gel-coat surface, can mimic wood grain, corrosion-proof",
+const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
+
+type RenderProviderConfig = {
+  provider_key: string;
+  model: string;
+  api_endpoint: string;
+  cost_real_per_render?: number | null;
+  cost_billed_per_render?: number | null;
 };
 
-// ── STATO_APERTURA_DESC ──────────────────────────────────────────────────────
-const STATO_DESC: Record<string, string> = {
-  chiuso: "Shutters fully CLOSED — leaves pulled shut, no gap, continuous plane parallel to wall",
-  socchiuso: "Shutters AJAR — slightly open 10-15 degrees, narrow sliver of light visible",
-  aperto_45: "Shutters OPEN at 45 degrees — each leaf swung outward approximately 45 degrees",
-  aperto_90: "Shutters FULLY OPEN at 90 degrees — perpendicular to wall, flat against adjacent wall",
-  anta_singola_aperta: "ONE leaf OPEN, one CLOSED — asymmetric configuration",
+type PersianeSessionRow = {
+  id: string;
+  company_id: string;
+  original_photo_url: string | null;
+  config: Record<string, unknown> | null;
 };
 
-// ── OPERAZIONE_DESC ──────────────────────────────────────────────────────────
-const OPERAZIONE_DESC: Record<string, string> = {
-  sostituisci: "REPLACE existing shutters with new ones — remove current, install specified new type",
-  cambia_colore: "CHANGE COLOR ONLY — keep existing type/style/hardware, only repaint to specified color",
-  aggiungi: "ADD NEW shutters where none exist — install on bare windows",
-  rimuovi: "REMOVE all shutters — remove shutters, hinges, hardware, patch mounting holes",
-};
-
-// ── APERTURA_LAMELLE_DESC ────────────────────────────────────────────────────
-const APERTURA_LAMELLE_DESC: Record<string, string> = {
-  chiuse: "Louvers CLOSED — maximum overlap, opaque surface, thin horizontal shadow lines",
-  parzialmente_aperte: "Louvers PARTIALLY OPEN — 30-45 degree tilt, filtered light, stripe pattern",
-  completamente_aperte: "Louvers FULLY OPEN — near-horizontal, maximum ventilation and light",
-};
-
-const TIPI_CON_LAMELLE = new Set(["veneziana_classica", "veneziana_esterna", "gelosia", "brise_soleil"]);
-
-// ── buildShutterPrompt ───────────────────────────────────────────────────────
-function buildShutterPrompt(config: Record<string, unknown>): {
-  systemPrompt: string;
-  userPrompt: string;
-  promptVersion: string;
-} {
-  const operazione = String(config.operazione || "sostituisci");
-  const tipo = String(config.tipo || "veneziana_classica");
-  const materiale = String(config.materiale || "legno_naturale");
-  const coloreMode = String(config.colore_mode || "ral");
-  const statoApertura = String(config.stato_apertura || "chiuso");
-  const applicaTutte = config.applica_tutte_finestre !== false;
-  const noteFree = String(config.note_libere || "");
-
-  const blocks: string[] = [];
-
-  // [OPERAZIONE]
-  blocks.push(`[OPERAZIONE]\nAzione: ${operazione.toUpperCase()}\n${OPERAZIONE_DESC[operazione] || ""}\nScope: ${applicaTutte ? "Apply to ALL visible windows" : "Apply to main/central window only"}`);
-
-  // [TIPO]
-  if (operazione !== "rimuovi") {
-    blocks.push(`[TIPO PERSIANA]\nTipo: ${tipo}\n${SHUTTER_PHYSICS[tipo] || ""}`);
-  }
-
-  // [MATERIALE]
-  if (operazione !== "rimuovi" && operazione !== "cambia_colore") {
-    blocks.push(`[MATERIALE]\nMateriale: ${materiale}\n${MATERIAL_DESC[materiale] || ""}`);
-  }
-
-  // [COLORE]
-  if (operazione !== "rimuovi") {
-    const coloreLines = ["[COLORE]"];
-    if (coloreMode === "ral") {
-      coloreLines.push(`Modalita: RAL color`);
-      if (config.colore_ral) coloreLines.push(`RAL: ${config.colore_ral}`);
-      if (config.colore_nome) coloreLines.push(`Nome: ${config.colore_nome}`);
-      if (config.colore_hex) coloreLines.push(`Hex: ${config.colore_hex}`);
-      coloreLines.push("Render in EXACT uniform solid color — no wood grain, no texture variation.");
-    } else {
-      coloreLines.push(`Modalita: Wood effect`);
-      if (config.effetto_legno) coloreLines.push(`Effetto: ${config.effetto_legno}`);
-      coloreLines.push("Render with realistic wood grain pattern and natural color variation.");
-    }
-    if (config.colore_profilo_diverso && config.colore_profilo_hex) {
-      coloreLines.push(`Frame profile color (different from slats): ${config.colore_profilo_hex}`);
-    }
-    blocks.push(coloreLines.join("\n"));
-  }
-
-  // [STATO APERTURA]
-  if (operazione !== "rimuovi") {
-    blocks.push(`[STATO APERTURA]\nStato: ${statoApertura}\n${STATO_DESC[statoApertura] || ""}`);
-  }
-
-  // [LAMELLE]
-  const lamelle = config.lamelle as Record<string, unknown> | undefined;
-  if (operazione !== "rimuovi" && TIPI_CON_LAMELLE.has(tipo) && lamelle) {
-    const larghezza = lamelle.larghezza_mm || 50;
-    const apertura = String(lamelle.apertura || "chiuse");
-    blocks.push(`[LAMELLE]\nLarghezza: ${larghezza}mm\nApertura: ${apertura}\n${APERTURA_LAMELLE_DESC[apertura] || ""}\nRender correct number of ${larghezza}mm slats to fill shutter height.`);
-  }
-
-  // [VINCOLI]
-  const vincoli = [
-    "[VINCOLI CRITICI]",
-    "1. PRESERVE exact perspective, camera angle, lighting, wall texture, wall color, window proportions, and all non-shutter elements pixel-perfect.",
-    "2. Shadows from shutters must be physically accurate for depicted sun position.",
-    "3. Mounting hardware (hinges, brackets, guides) must be realistic for selected type.",
-    "4. If REMOVE: fill mounting points with matching wall surface, no holes or marks.",
-    "5. Output dimensions must match input exactly.",
-    "6. Maintain photorealistic quality.",
-  ];
-  if (noteFree) vincoli.push(`\nUSER NOTES: ${noteFree}`);
-  blocks.push(vincoli.join("\n"));
-
-  const systemPrompt = [
-    "You are a SURGICAL PHOTOREALISTIC IMAGE EDITOR specialized in architectural shutter (persiane) visualization.",
-    "Your ONLY task: modify EXACTLY the shutters/persiane on the building facade as specified, while leaving EVERYTHING ELSE 100% pixel-perfect identical.",
-    "CRITICAL: If RAL color mode, render uniform flat color with NO wood grain. If wood effect, render realistic grain.",
-    "Shutter hardware (hinges, bolts, stays) must be realistic. Shadows must be physically correct.",
-    "Wall, windows, frames, sills — ALL unchanged. Output resolution must match input.",
-  ].join("\n");
-
-  return {
-    systemPrompt,
-    userPrompt: blocks.join("\n\n"),
-    promptVersion: "1.0.0",
-  };
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
-// ── resolveRenderSize ────────────────────────────────────────────────────────
-function resolveRenderSize(w?: number, h?: number): string {
-  if (!w || !h) return "1024x1024";
-  const ratio = w / h;
-  if (ratio > 1.4) return "1792x1024";
-  if (ratio < 0.7) return "1024x1792";
-  return "1024x1024";
-}
-
-// ── fetchWithTimeout ─────────────────────────────────────────────────────────
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
@@ -170,186 +49,452 @@ async function fetchWithTimeout(
   }
 }
 
-// ── fetchWithRetry ──────────────────────────────────────────────────────────
-async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
-  for (let i = 0; i <= retries; i++) {
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 2,
+  delayMs = 2000,
+  timeoutMs = 120_000,
+): Promise<Response> {
+  for (let i = 0; i <= retries; i += 1) {
     try {
-      const res = await fetch(url, options);
+      const res = await fetchWithTimeout(url, options, timeoutMs);
       if (res.ok || i === retries) return res;
-      // Non-ok but retryable (5xx)
       if (res.status < 500) return res;
     } catch (err) {
       if (i === retries) throw err;
     }
-    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
   }
   throw new Error("fetchWithRetry: all retries exhausted");
 }
 
-// ── CORS ─────────────────────────────────────────────────────────────────────
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+async function getProviderApiKey(
+  supabase: ReturnType<typeof createClient>,
+  providerKey: string,
+): Promise<string> {
+  const { data: keyRow } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", `render_${providerKey}_api_key`)
+    .maybeSingle();
 
-// ── Main handler ─────────────────────────────────────────────────────────────
+  const envCandidates = providerKey === "gemini"
+    ? ["RENDER_GEMINI_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_API_KEY"]
+    : [`${providerKey.toUpperCase()}_API_KEY`];
+
+  for (const envName of envCandidates) {
+    const value = Deno.env.get(envName)?.trim();
+    if (value) return value;
+  }
+
+  return (keyRow as { value?: string } | null)?.value?.trim() || "";
+}
+
+async function loadRenderProviderWithKey(
+  supabase: ReturnType<typeof createClient>,
+): Promise<{ providerConfig: RenderProviderConfig; apiKey: string }> {
+  const { data: providerConfig } = await supabase
+    .from("render_provider_config")
+    .select("*")
+    .eq("is_default", true)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!providerConfig) {
+    throw new Error("Nessun provider render attivo. Configurare in Admin > Impostazioni AI > Render.");
+  }
+
+  const apiKey = await getProviderApiKey(supabase, providerConfig.provider_key);
+  if (!apiKey) {
+    throw new Error(
+      `API key mancante per provider '${providerConfig.provider_key}'. Configurarla in Admin > Impostazioni AI > Render.`,
+    );
+  }
+
+  return {
+    providerConfig: providerConfig as RenderProviderConfig,
+    apiKey,
+  };
+}
+
+async function downloadImageAsInlineData(imageUrl: string): Promise<{
+  mimeType: string;
+  base64: string;
+  bytes: Uint8Array;
+}> {
+  const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
+  if (!imgResp.ok) {
+    throw new Error(`Impossibile scaricare l'immagine (${imgResp.status})`);
+  }
+
+  const mimeType = (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] || "image/jpeg";
+  const imgBuffer = await imgResp.arrayBuffer();
+
+  if (imgBuffer.byteLength === 0) {
+    throw new Error("L'immagine originale risulta vuota");
+  }
+
+  const bytes = new Uint8Array(imgBuffer);
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return { mimeType, base64, bytes };
+}
+
+function readUint32BE(bytes: Uint8Array, offset: number): number {
+  return (
+    (bytes[offset] << 24) |
+    (bytes[offset + 1] << 16) |
+    (bytes[offset + 2] << 8) |
+    bytes[offset + 3]
+  ) >>> 0;
+}
+
+function detectImageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 16) return null;
+
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    if (bytes.length < 24) return null;
+    return { width: readUint32BE(bytes, 16), height: readUint32BE(bytes, 20) };
+  }
+
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 8 < bytes.length) {
+      if (bytes[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+      const marker = bytes[offset];
+      offset += 1;
+      if (marker === 0xd9 || marker === 0xda) break;
+      if (offset + 1 >= bytes.length) break;
+      const length = (bytes[offset] << 8) | bytes[offset + 1];
+      if (length < 2 || offset + length > bytes.length) break;
+
+      const isSofMarker =
+        (marker >= 0xc0 && marker <= 0xc3) ||
+        (marker >= 0xc5 && marker <= 0xc7) ||
+        (marker >= 0xc9 && marker <= 0xcb) ||
+        (marker >= 0xcd && marker <= 0xcf);
+
+      if (isSofMarker && offset + 6 < bytes.length) {
+        return {
+          height: (bytes[offset + 3] << 8) | bytes[offset + 4],
+          width: (bytes[offset + 5] << 8) | bytes[offset + 6],
+        };
+      }
+
+      offset += length;
+    }
+  }
+
+  return null;
+}
+
+function orientationFromDimensions(width: number, height: number): PersianePhotoMeta["orientation"] {
+  if (width === height) return "square";
+  return width > height ? "landscape" : "portrait";
+}
+
+function resolveRenderSize(w?: number, h?: number): string {
+  if (!w || !h) return "1024x1024";
+  const ratio = w / h;
+  if (ratio > 1.4) return "1792x1024";
+  if (ratio < 0.7) return "1024x1792";
+  return "1024x1024";
+}
+
+function extractTextParts(payload: Record<string, unknown>): string {
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+  const first = candidates[0];
+  const content = first && typeof first === "object" ? (first as Record<string, unknown>).content : null;
+  const parts = content && typeof content === "object" && Array.isArray((content as Record<string, unknown>).parts)
+    ? ((content as Record<string, unknown>).parts as Array<Record<string, unknown>>)
+    : [];
+
+  return parts
+    .map((part) => (typeof part.text === "string" ? part.text : ""))
+    .filter(Boolean)
+    .join("\n");
+}
+
+function extractFirstJsonObject(rawText: string): Record<string, unknown> | null {
+  const start = rawText.indexOf("{");
+  const end = rawText.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    return JSON.parse(rawText.slice(start, end + 1)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function runPersianeAnalysis(params: {
+  supabase: ReturnType<typeof createClient>;
+  imageUrl: string;
+}): Promise<Record<string, unknown>> {
+  const geminiApiKey = await getProviderApiKey(params.supabase, "gemini");
+  if (!geminiApiKey) {
+    throw new Error("Gemini API key non configurata per l'analisi persiane.");
+  }
+
+  const { mimeType, base64, bytes } = await downloadImageAsInlineData(params.imageUrl);
+  const dimensions = detectImageDimensions(bytes);
+  const photoMeta: PersianePhotoMeta | null = dimensions
+    ? {
+        width: dimensions.width,
+        height: dimensions.height,
+        orientation: orientationFromDimensions(dimensions.width, dimensions.height),
+      }
+    : null;
+
+  const analyzePrompt = `You are an expert architectural facade and shutter analyzer.
+Analyze the provided facade/window photo and return ONLY a valid JSON object.
+
+Return this exact schema:
+{
+  "facade_type": "string",
+  "building_style": "string",
+  "openings_visible": number,
+  "camera_angle": "string",
+  "lighting_condition": "string",
+  "wall_texture": "string",
+  "wall_color": "string",
+  "untouched_elements": ["string"],
+  "preserve_rigidly": ["string"],
+  "primary_target_hint": "string or null",
+  "note_analisi": "string",
+  "tipo_facciata": "legacy string",
+  "persiane_attuali": "legacy string",
+  "materiale_attuale": "legacy string",
+  "colore_attuale": "legacy string",
+  "numero_finestre": number,
+  "stato_conservazione": "string",
+  "openings": [
+    {
+      "id": "A",
+      "position": "far_left|left|center|right|far_right|upper_left|upper_center|upper_right|lower_left|lower_center|lower_right|full_width|unknown",
+      "approximate_placement": "string",
+      "opening_kind": "window|door_window|balcony_door|arched_window|unknown",
+      "apparent_size": "string",
+      "special_shape": "string or null",
+      "has_existing_shutter": true,
+      "existing_shutter_type": "veneziana_classica|veneziana_esterna|scuro_pieno|scuro_cornice|gelosia|avvolgibile_esterno|a_libro|griglia_sicurezza|brise_soleil|battente_generica|nessuna|unknown",
+      "material_perceived": "string",
+      "color_perceived": "string",
+      "opening_state_perceived": "chiuso|socchiuso|aperto_45|aperto_90|anta_singola_aperta|not_visible|unknown",
+      "leaf_orientation": "string",
+      "leaf_count": number,
+      "has_louvers": boolean,
+      "louver_state": "string",
+      "has_hinges": boolean,
+      "has_hold_open_hardware": boolean,
+      "has_tracks": boolean,
+      "has_side_guides": boolean,
+      "has_head_box": boolean,
+      "has_security_grille": boolean,
+      "reveal_depth": "string",
+      "trim_details": ["string"],
+      "lighting_notes": "string",
+      "shadow_notes": "string",
+      "geometry_notes": "string",
+      "preserve_notes": "string"
+    }
+  ]
+}
+
+Important rules:
+- Use left-to-right labels A, B, C for openings.
+- If only one opening exists, still use opening id "A".
+- Distinguish carefully between louvered shutters, solid shutters, roller shutters, security grilles and no shutters.
+- If only one opening should obviously be the primary target, mention it in "primary_target_hint".
+- Return ONLY raw JSON. No markdown.`;
+
+  const geminiBody = {
+    contents: [{
+      parts: [
+        { text: analyzePrompt },
+        { inline_data: { mime_type: mimeType, data: base64 } },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 1600,
+    },
+  };
+
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+  const resp = await fetchWithRetry(
+    geminiUrl,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geminiBody),
+    },
+    2,
+    1500,
+    60_000,
+  );
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Analisi AI persiane fallita (${resp.status}): ${errText.substring(0, 300)}`);
+  }
+
+  const geminiData = await resp.json() as Record<string, unknown>;
+  const rawText = extractTextParts(geminiData);
+  const analysis = normalizePersianeSceneAnalysis(extractFirstJsonObject(rawText), photoMeta) as unknown as Record<string, unknown>;
+  return analysis;
+}
+
+async function loadSession(supabase: ReturnType<typeof createClient>, sessionId: string): Promise<PersianeSessionRow | null> {
+  const { data, error } = await supabase
+    .from("render_persiane_sessions")
+    .select("id, company_id, original_photo_url, config")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as PersianeSessionRow | null) ?? null;
+}
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS });
+  }
 
   let supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   let user = { id: "" };
+  let requestSessionId: string | null = null;
 
   try {
     const auth = await requireAuth(req, CORS);
     supabase = auth.supabaseAdmin;
     user = { id: auth.userId };
 
-    // ── Parse request ────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
-    const { session_id, config, target_width, target_height } = body as {
+    const {
+      action,
+      session_id,
+      image_url,
+      config,
+      target_width,
+      target_height,
+    } = body as {
+      action?: string;
       session_id?: string;
+      image_url?: string;
       config?: Record<string, unknown>;
       target_width?: number;
       target_height?: number;
     };
+    requestSessionId = session_id ?? null;
+
+    if (action === "analyze") {
+      if (!image_url) {
+        return jsonResponse({ error: "validation_error", message: "image_url is required for analyze" }, 400);
+      }
+
+      if (session_id) {
+        const session = await loadSession(supabase, session_id);
+        if (!session) {
+          return jsonResponse({ error: "not_found", message: "Sessione non trovata" }, 404);
+        }
+        const allowed = await canAccessCompany(supabase, user.id, session.company_id);
+        if (!allowed) {
+          return jsonResponse({ error: "forbidden", message: "Accesso negato alla sessione render persiane" }, 403);
+        }
+      }
+
+      const analysis = await runPersianeAnalysis({ supabase, imageUrl: image_url });
+      return jsonResponse({
+        success: true,
+        analisi_persiane: analysis,
+        provider: "gemini",
+      });
+    }
 
     if (!session_id) {
-      return new Response(
-        JSON.stringify({
-          error: "validation_error",
-          message: "session_id is required",
-        }),
-        {
-          status: 400,
-          headers: { ...CORS, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResponse({ error: "validation_error", message: "session_id is required" }, 400);
     }
 
-    // ── Legge la sessione ────────────────────────────────────────────────
-    const { data: session, error: sessionErr } = await supabase
-      .from("render_persiane_sessions")
-      .select("*")
-      .eq("id", session_id)
-      .single();
-
-    if (sessionErr || !session) {
-      return new Response(
-        JSON.stringify({
-          error: "not_found",
-          message: "Sessione non trovata",
-        }),
-        {
-          status: 404,
-          headers: { ...CORS, "Content-Type": "application/json" },
-        },
-      );
+    const session = await loadSession(supabase, session_id);
+    if (!session) {
+      return jsonResponse({ error: "not_found", message: "Sessione non trovata" }, 404);
     }
 
-    // Verifica company_id (impersonation-aware, FIX P1.3)
-    const allowed = await canAccessCompany(
-      supabase,
-      user.id,
-      session.company_id as string,
-    );
+    const allowed = await canAccessCompany(supabase, user.id, session.company_id);
     if (!allowed) {
-      return new Response(
-        JSON.stringify({ error: "forbidden", message: "Accesso negato alla sessione render persiane" }),
-        {
-          status: 403,
-          headers: { ...CORS, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResponse({ error: "forbidden", message: "Accesso negato alla sessione render persiane" }, 403);
     }
 
-    // ── Controlla crediti (v3 → v2 → v1 fallback + audit ledger) ──────────
     const deductResult = await deductRenderCreditSafe(supabase, {
-      companyId:  session.company_id as string,
-      sessionId:  session_id,
-      userId:     user.id,
+      companyId: session.company_id,
+      sessionId: session_id,
+      userId: user.id,
       reasonMeta: { vertical: "persiane", edge_fn: "generate-shutter-render" },
-      logTag:     "generate-shutter-render",
+      logTag: "generate-shutter-render",
     });
 
     if (deductResult.status === "insufficient") {
-      return new Response(
-        JSON.stringify({
-          error: "insufficient_credits",
-          message: "Crediti render insufficienti",
-        }),
-        {
-          status: 402,
-          headers: { ...CORS, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResponse({ error: "insufficient_credits", message: "Crediti render insufficienti" }, 402);
     }
 
-    // ── Aggiorna sessione: processing ────────────────────────────────────
-    await supabase
-      .from("render_persiane_sessions")
-      .update({
-        status: "processing",
-        processing_started_at: new Date().toISOString(),
-      })
-      .eq("id", session_id);
+    const { providerConfig, apiKey } = await loadRenderProviderWithKey(supabase);
 
-    // ── Signed URL per foto originale ────────────────────────────────────
-    const originalPath = session.original_photo_url as string;
+    const originalPath = session.original_photo_url;
+    if (!originalPath) {
+      throw new Error("Foto originale della sessione mancante");
+    }
+
     let imageUrl = originalPath;
-
-    if (originalPath && !originalPath.startsWith("http")) {
+    if (!originalPath.startsWith("http")) {
       const { data: signed } = await supabase.storage
         .from("persiane-originals")
         .createSignedUrl(originalPath, 600);
       if (signed?.signedUrl) imageUrl = signed.signedUrl;
     }
 
-    // ── Build prompt ─────────────────────────────────────────────────────
-    const renderConfig = (config ||
-      (session.config as Record<string, unknown>) ||
-      {}) as Record<string, unknown>;
-    const { systemPrompt, userPrompt, promptVersion } =
-      buildShutterPrompt(renderConfig);
+    const originalImage = await downloadImageAsInlineData(imageUrl);
+    const sourceDimensions =
+      Number.isFinite(Number(target_width)) && Number.isFinite(Number(target_height)) &&
+      Number(target_width) > 0 && Number(target_height) > 0
+        ? { width: Number(target_width), height: Number(target_height) }
+        : detectImageDimensions(originalImage.bytes);
 
-    // ── Legge provider config ────────────────────────────────────────────
-    const { data: providerConfig } = await supabase
-      .from("render_provider_config")
-      .select("*")
-      .eq("is_default", true)
-      .eq("is_active", true)
-      .single();
+    const photoMeta: PersianePhotoMeta | null = sourceDimensions
+      ? {
+          width: sourceDimensions.width,
+          height: sourceDimensions.height,
+          orientation: orientationFromDimensions(sourceDimensions.width, sourceDimensions.height),
+        }
+      : null;
 
-    if (!providerConfig) {
-      throw new Error(
-        "Nessun provider render attivo. Configurare in Admin > Impostazioni AI > Render.",
-      );
-    }
+    const promptResult = buildPersianePrompt(
+      (config || session.config || {}) as Record<string, unknown>,
+      undefined,
+      photoMeta,
+    );
 
-    const platformKeyName = `render_${providerConfig.provider_key}_api_key`;
-    const { data: keyRow } = await supabase
-      .from("platform_settings")
-      .select("value")
-      .eq("key", platformKeyName)
-      .maybeSingle();
+    const combinedPrompt = [
+      promptResult.systemPrompt,
+      promptResult.userPrompt,
+      `[NEGATIVE CONSTRAINTS]\n${promptResult.negativePrompt}`,
+    ].join("\n\n");
 
-    // Fallback: DB → Supabase edge secret (OPENAI_API_KEY, GEMINI_API_KEY, ...)
-    const envName = `${providerConfig.provider_key.toUpperCase()}_API_KEY`;
-    const apiKey =
-      (keyRow as { value: string } | null)?.value?.trim() ||
-      Deno.env.get(envName)?.trim() ||
-      "";
-    if (!apiKey) {
-      throw new Error(
-        `API key mancante per provider '${providerConfig.provider_key}'. Configurarla in Admin > Impostazioni AI > Render o come Supabase secret ${envName}.`,
-      );
-    }
+    await supabase
+      .from("render_persiane_sessions")
+      .update({
+        status: "processing",
+        processing_started_at: new Date().toISOString(),
+        provider_key: providerConfig.provider_key,
+        config: promptResult.normalizedConfig,
+      })
+      .eq("id", session_id);
 
-    // ── Chiama provider AI ───────────────────────────────────────────────
     let imageData: string | null = null;
 
     if (providerConfig.provider_key === "openai") {
@@ -358,11 +503,10 @@ Deno.serve(async (req) => {
 
       const form = new FormData();
       form.append("model", providerConfig.model);
-      form.append("prompt", userPrompt);
+      form.append("prompt", combinedPrompt);
       form.append("image[]", imgBlob, "photo.jpg");
       form.append("n", "1");
-      const renderSize = resolveRenderSize(target_width, target_height);
-      form.append("size", renderSize);
+      form.append("size", resolveRenderSize(sourceDimensions?.width, sourceDimensions?.height));
       form.append("response_format", "b64_json");
 
       const resp = await fetchWithRetry(
@@ -376,35 +520,23 @@ Deno.serve(async (req) => {
 
       if (!resp.ok) {
         const err = await resp.text();
-        throw new Error(
-          `OpenAI error ${resp.status}: ${err.substring(0, 300)}`,
-        );
+        throw new Error(`OpenAI error ${resp.status}: ${err.substring(0, 300)}`);
       }
 
       const oaiData = await resp.json();
       const b64 = oaiData.data?.[0]?.b64_json;
       if (b64) imageData = `data:image/png;base64,${b64}`;
     } else if (providerConfig.provider_key === "gemini") {
-      const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-      const imgBuffer = await imgResp.arrayBuffer();
-      const imgB64 = btoa(
-        String.fromCharCode(...new Uint8Array(imgBuffer)),
-      );
-
       const geminiBody = {
-        contents: [
-          {
-            parts: [
-              { text: systemPrompt + "\n\n" + userPrompt },
-              {
-                inline_data: { mime_type: "image/jpeg", data: imgB64 },
-              },
-            ],
-          },
-        ],
+        contents: [{
+          parts: [
+            { text: combinedPrompt },
+            { inline_data: { mime_type: originalImage.mimeType, data: originalImage.base64 } },
+          ],
+        }],
         generationConfig: {
           responseModalities: ["IMAGE", "TEXT"],
-          temperature: 1,
+          temperature: 0.8,
         },
       };
 
@@ -420,9 +552,7 @@ Deno.serve(async (req) => {
 
       if (!resp.ok) {
         const err = await resp.text();
-        throw new Error(
-          `Gemini error ${resp.status}: ${err.substring(0, 300)}`,
-        );
+        throw new Error(`Gemini error ${resp.status}: ${err.substring(0, 300)}`);
       }
 
       const gemData = await resp.json();
@@ -434,20 +564,15 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      throw new Error(
-        `Provider '${providerConfig.provider_key}' non supportato.`,
-      );
+      throw new Error(`Provider '${providerConfig.provider_key}' non supportato.`);
     }
 
     if (!imageData) {
       throw new Error("Nessuna immagine ricevuta dal provider AI");
     }
 
-    // ── Upload risultato ─────────────────────────────────────────────────
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const uint8 = Uint8Array.from(atob(base64Data), (c) =>
-      c.charCodeAt(0),
-    );
+    const uint8 = Uint8Array.from(atob(base64Data), (char) => char.charCodeAt(0));
     const resultPath = `${session.company_id}/${session_id}/render_persiane_${Date.now()}.png`;
 
     const { error: uploadErr } = await supabase.storage
@@ -466,51 +591,35 @@ Deno.serve(async (req) => {
       .getPublicUrl(resultPath);
 
     const resultUrl = publicUrlData.publicUrl;
-
-    // ── Aggiorna sessione: completed ─────────────────────────────────────
-    const costReal = providerConfig.cost_real_per_render ?? 0.04;
-    const costBilled = providerConfig.cost_billed_per_render ?? 0.10;
-
     await supabase
       .from("render_persiane_sessions")
       .update({
         status: "completed",
+        config: promptResult.normalizedConfig,
         result_urls: [resultUrl],
-        prompt_used: userPrompt.substring(0, 10000),
-        prompt_version: promptVersion,
+        prompt_used: combinedPrompt.substring(0, 10000),
+        prompt_version: promptResult.promptVersion,
         provider_key: providerConfig.provider_key,
         model_used: providerConfig.model,
-        cost_real: costReal,
-        cost_billed: costBilled,
+        cost_real: providerConfig.cost_real_per_render ?? 0.04,
+        cost_billed: providerConfig.cost_billed_per_render ?? 0.10,
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        result_url: resultUrl,
-        result_urls: [resultUrl],
-        session_id,
-      }),
-      {
-        status: 200,
-        headers: { ...CORS, "Content-Type": "application/json" },
-      },
-    );
+    return jsonResponse({
+      success: true,
+      result_url: resultUrl,
+      result_urls: [resultUrl],
+      session_id,
+    });
   } catch (err) {
     if (err instanceof Response) return err;
-    const message =
-      err instanceof Error ? err.message : "Errore interno sconosciuto";
-    console.error("generate-shutter-render error:", message);
+    const message = err instanceof Error ? err.message : "Errore interno sconosciuto";
+    console.error("[generate-shutter-render] error:", message);
 
-    // Aggiorna sessione: failed (best effort)
     try {
-      const body = await req
-        .clone()
-        .json()
-        .catch(() => ({}));
-      if (body.session_id) {
+      if (requestSessionId) {
         await supabase
           .from("render_persiane_sessions")
           .update({
@@ -518,18 +627,12 @@ Deno.serve(async (req) => {
             error_message: message.substring(0, 500),
             processing_completed_at: new Date().toISOString(),
           })
-          .eq("id", body.session_id);
+          .eq("id", requestSessionId);
       }
-    } catch (_) {
-      /* ignore */
+    } catch {
+      // ignore
     }
 
-    return new Response(
-      JSON.stringify({ error: "internal_error", message }),
-      {
-        status: 500,
-        headers: { ...CORS, "Content-Type": "application/json" },
-      },
-    );
+    return jsonResponse({ error: "internal_error", message }, 500);
   }
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,21 +13,11 @@ import {
   Image,
   Plus,
   GalleryHorizontalEnd,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Zap,
   Search,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-
-const STATUS_CONFIG = {
-  pending:    { label: "In coda",         color: "secondary",   icon: Clock },
-  processing: { label: "In elaborazione", color: "default",     icon: Zap },
-  completed:  { label: "Completato",      color: "secondary",   icon: CheckCircle2 },
-  failed:     { label: "Fallito",         color: "destructive", icon: XCircle },
-} as const;
+import { ensurePersianeRenderConfig } from "@/modules/render-persiane/lib/persianeRenderConfig";
 
 export default function RenderPersianeGallery() {
   const navigate = useNavigate();
@@ -58,13 +48,25 @@ export default function RenderPersianeGallery() {
     enabled: !!companyId,
   });
 
-  const filtered = sessions.filter((item) => {
+  const normalizedSessions = useMemo(
+    () =>
+      sessions.map((item) => ({
+        ...item,
+        renderConfig: item.config
+          ? ensurePersianeRenderConfig(item.config as Record<string, unknown>)
+          : null,
+      })),
+    [sessions],
+  );
+
+  const filtered = normalizedSessions.filter((item) => {
     if (!search) return true;
     const s = search.toLowerCase();
-    const conf = item.config as { tipo?: string; colore_nome?: string } | null;
+    const conf = item.renderConfig?.legacy_config ?? null;
     return (
       (conf?.tipo ?? "").toLowerCase().includes(s) ||
       (conf?.colore_nome ?? "").toLowerCase().includes(s) ||
+      item.renderConfig?.target_selection.targetLabels.join(", ").toLowerCase().includes(s) ||
       format(new Date(item.created_at), "d MMMM yyyy", { locale: it }).toLowerCase().includes(s)
     );
   });
@@ -86,7 +88,7 @@ export default function RenderPersianeGallery() {
             Galleria Render Persiane
           </h1>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} render completati
+            {filtered.length} di {normalizedSessions.length} render completati
           </p>
         </div>
         <Button
@@ -98,7 +100,7 @@ export default function RenderPersianeGallery() {
         </Button>
       </div>
 
-      {sessions.length > 3 && (
+      {normalizedSessions.length > 3 && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -117,7 +119,7 @@ export default function RenderPersianeGallery() {
             <Skeleton key={i} className="aspect-video rounded-lg" />
           ))}
         </div>
-      ) : sessions.length === 0 ? (
+      ) : normalizedSessions.length === 0 ? (
         <Card>
           <CardContent className="py-16 flex flex-col items-center gap-4 text-center">
             <Image className="h-14 w-14 text-muted-foreground/30" />
@@ -136,19 +138,28 @@ export default function RenderPersianeGallery() {
             </Button>
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-14 flex flex-col items-center gap-4 text-center">
+            <Search className="h-12 w-12 text-muted-foreground/30" />
+            <div>
+              <p className="font-medium">Nessun render trovato</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Prova con un'altra ricerca per tipo persiana, colore o data.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map((item) => {
             const resultUrl = item.result_urls?.[0];
-            const conf = item.config as {
-              tipo?: string;
-              colore_nome?: string;
-            } | null;
+            const conf = item.renderConfig?.legacy_config ?? null;
 
             return (
               <div
                 key={item.id}
-                className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border hover:border-green-600/50 transition-all hover:shadow-md bg-muted"
+                className="group relative rounded-lg overflow-hidden cursor-pointer border hover:border-green-600/50 transition-all hover:shadow-md bg-muted min-h-[220px]"
                 onClick={() =>
                   navigate(`/azienda/render/persiane/gallery/${item.id}`)
                 }
@@ -157,7 +168,7 @@ export default function RenderPersianeGallery() {
                   <img
                     src={resultUrl}
                     alt="Render persiane"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-300 bg-muted/20"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -187,6 +198,11 @@ export default function RenderPersianeGallery() {
                         className="text-[10px] py-0"
                       >
                         {String(conf.colore_nome)}
+                      </Badge>
+                    )}
+                    {item.renderConfig?.target_selection.targetLabels[0] && (
+                      <Badge variant="secondary" className="text-[10px] py-0">
+                        {item.renderConfig.target_selection.targetLabels.join(", ")}
                       </Badge>
                     )}
                   </div>
