@@ -265,14 +265,22 @@ export async function sendViaProvider(
     }
 
     case "mailgun": {
-      // P1-6: se il domain è vuoto, l'URL diventava "/v3//messages" → 404
-      // silenzioso. Fail-fast invece di bruciare il credito API.
+      // P1-6 + P2-7: guard completo sul domain Mailgun.
+      // Prima: domain vuoto → URL "/v3//messages" → 404 interpretato come
+      // rate-limit → retry infinito. Ora fail-fast con errore chiaro +
+      // validazione che sia un dominio vero (deve contenere almeno un '.').
       const mailgunDomain = (opts?.domain || "").trim();
-      if (!mailgunDomain) {
+      if (!mailgunDomain || !mailgunDomain.includes(".")) {
+        console.error(
+          `[emailProvider] Mailgun domain non configurato o non valido: "${mailgunDomain}"`,
+        );
         return {
           ok: false,
           status: 500,
-          body: { error: "Mailgun domain non configurato (email_*_domain)" },
+          body: {
+            error:
+              "Mailgun domain non configurato. Vai in Admin > Email > Provider per impostare il dominio (es. mg.tuazienda.it).",
+          },
         };
       }
       url = `https://api.mailgun.net/v3/${encodeURIComponent(mailgunDomain)}/messages`;

@@ -206,7 +206,15 @@ export function EmailProviderConfig({ stream }: Props) {
   const streamHealth = health?.email_streams?.[stream];
   const providerDocsUrl = PROVIDER_DOCS[provider];
   const endpointHint = PROVIDER_ENDPOINT_HINTS[stream][provider];
-  const senderReady = !!fromAddress.trim() && (provider !== "mailgun" || !!domain.trim());
+  // P2-7: validazione stretta dominio Mailgun lato UI.
+  // `provision-custom-domain` e l'edge function accettano solo domini con
+  // almeno un punto e caratteri validi (lowercase alnum/-/.). Il guard
+  // client-side previene save di stringhe che poi falliranno a runtime.
+  const isMailgunDomainValid =
+    provider !== "mailgun" || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain.trim());
+  const senderReady =
+    !!fromAddress.trim() &&
+    (provider !== "mailgun" || (!!domain.trim() && isMailgunDomainValid));
 
   const statusBadge = () => {
     switch (connStatus.status) {
@@ -518,7 +526,14 @@ export function EmailProviderConfig({ stream }: Props) {
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 placeholder="mg.tuodominio.it"
+                aria-invalid={!isMailgunDomainValid}
               />
+              {!isMailgunDomainValid && (
+                <p className="text-xs text-destructive">
+                  Dominio non valido. Deve essere nel formato{" "}
+                  <code>sottodominio.tld</code> (es. <code>mg.tuazienda.it</code>).
+                </p>
+              )}
             </div>
           )}
         </div>
