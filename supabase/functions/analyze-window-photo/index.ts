@@ -5,26 +5,79 @@
 import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { normalizeWindowSceneAnalysis } from "../../../shared/render-window/windowSceneAnalysis.ts";
 
 const SYSTEM_PROMPT = `You are an expert Italian window and door analyzer.
-Analyze the provided image and extract structured information about the window/door visible.
+Analyze the provided image and extract a structured SCENE ANALYSIS for premium replacement-window rendering.
 You MUST respond with a valid JSON object only — no markdown, no explanation, just pure JSON.`;
 
-const USER_PROMPT = `Analyze this window/door photo and return ONLY a JSON object with these exact fields:
+const USER_PROMPT = `Analyze this window/door photo and return ONLY a JSON object with these exact fields.
+Use left-to-right labels A, B, C... for visible openings.
+If only one opening is visible, still use opening id "A".
 
 {
+  "environment_type": one of: "living_room"|"kitchen"|"bedroom"|"bathroom"|"staircase"|"office"|"facade"|"balcony"|"interior_generic"|"exterior_generic"|"mixed"|"unknown",
+  "view_mode": one of: "interior"|"exterior"|"mixed"|"unknown",
+  "openings_count_visible": number,
+  "camera_angle": string,
+  "lighting_direction": string,
+  "lighting_quality": string,
+  "environment_summary": string,
+  "wall_material": string,
+  "wall_color": string,
+  "floor_visible": boolean,
+  "curtains_present": boolean,
+  "radiator_present": boolean,
+  "furniture_context": array of short strings,
+  "untouched_elements": array of short strings,
+  "outdoor_view_summary": string,
+  "primary_target_hint": string or null,
+  "openings": [
+    {
+      "id": "A",
+      "position": one of: "far_left"|"left"|"center"|"right"|"far_right"|"full_width"|"unknown",
+      "approximate_placement": string,
+      "type_current": one of: "battente_1_anta"|"battente_2_ante"|"battente_3_ante"|"scorrevole"|"scorrevole_alzante"|"vasistas"|"anta_ribalta"|"bilico"|"fisso"|"portafinestra",
+      "perceived_element": one of: "window"|"door_window"|"sliding_panel"|"fixed_light"|"unknown",
+      "sash_count": number,
+      "material_perceived": one of: "pvc"|"alluminio"|"legno"|"legno_alluminio"|"acciaio_corten"|"acciaio_minimale"|"unknown",
+      "color_perceived": string,
+      "condition": one of: "buone"|"usurato"|"danneggiato"|"fatiscente"|"unknown",
+      "has_cassonetto": boolean,
+      "cassonetto_type": string or null,
+      "has_roller_shutter": boolean,
+      "has_belt": boolean,
+      "has_belt_box": boolean,
+      "roller_control_type": one of: "manual_belt"|"motorized"|"chain"|"crank"|"none"|"unknown",
+      "has_persiane": boolean,
+      "has_scuri": boolean,
+      "has_grates": boolean,
+      "has_sill": boolean,
+      "has_curtains": boolean,
+      "radiator_nearby": boolean,
+      "surrounding_elements": array of short strings,
+      "light_notes": string,
+      "reflection_notes": string,
+      "shadow_notes": string,
+      "geometry_notes": string,
+      "outdoor_view_notes": string,
+      "preserve_notes": string
+    }
+  ],
+
   "tipo_apertura": one of: "battente_1_anta"|"battente_2_ante"|"battente_3_ante"|"scorrevole"|"scorrevole_alzante"|"vasistas"|"anta_ribalta"|"bilico"|"fisso"|"portafinestra",
-  "materiale_attuale": one of: "pvc"|"alluminio"|"legno"|"legno_alluminio"|"acciaio_corten"|"acciaio_minimale",
-  "colore_attuale": string (describe the color, e.g. "bianco RAL 9016", "grigio antracite", "legno noce"),
-  "condizioni": one of: "buone"|"usurato"|"danneggiato"|"fatiscente",
-  "stile_edificio": one of: "moderno"|"classico"|"industriale"|"rurale"|"liberty"|"anni_60_70"|"contemporaneo",
-  "num_ante_attuale": number (1, 2 or 3 — count of movable sash panels),
-  "presenza_cassonetto": boolean (true if roller shutter housing visible above window),
-  "presenza_davanzale": boolean (true if window sill/ledge visible below window),
-  "presenza_inferriata": boolean (true if security bars/grate visible),
-  "larghezza_stimata_cm": number (estimated width in centimeters, null if unclear),
-  "altezza_stimata_cm": number (estimated height in centimeters, null if unclear),
-  "note_analisi": string (brief Italian note about what you observed, max 100 chars)
+  "materiale_attuale": one of: "pvc"|"alluminio"|"legno"|"legno_alluminio"|"acciaio_corten"|"acciaio_minimale"|"unknown",
+  "colore_attuale": string,
+  "condizioni": one of: "buone"|"usurato"|"danneggiato"|"fatiscente"|"unknown",
+  "stile_edificio": string,
+  "num_ante_attuale": number,
+  "presenza_cassonetto": boolean,
+  "presenza_davanzale": boolean,
+  "presenza_inferriata": boolean,
+  "larghezza_stimata_cm": number or null,
+  "altezza_stimata_cm": number or null,
+  "cinghia_attuale": one of: "con_cinghia"|"senza_cinghia"|"unknown",
+  "note_analisi": string
 }
 
 Respond with ONLY the JSON object. No extra text.`;
@@ -247,8 +300,10 @@ Deno.serve(async (req: Request) => {
       fotoAnalisi = JSON.parse(jsonMatch[0]);
       if (analyzeMode === "bathroom") {
         fotoAnalisi = normalizeBathroomAnalysis(fotoAnalisi);
+      } else {
+        fotoAnalisi = normalizeWindowSceneAnalysis(fotoAnalisi);
       }
-    } catch (_err) {
+    } catch {
       return new Response(
         JSON.stringify({
           error: "parse_error",

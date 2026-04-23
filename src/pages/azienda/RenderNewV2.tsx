@@ -1,62 +1,66 @@
-// RenderNewV2.tsx — 6-step wizard for AI window render
-// Replaces legacy RenderNew.tsx. Mobile-first UX, one decision per screen.
-// Flow: Foto → Tipo → Profilo → Colori → Opzioni → Genera/Risultato
-
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
 import {
-  ArrowLeft, ArrowRight, Upload, Camera, Loader2, Zap, CheckCircle2,
-  Download, RefreshCw, Sparkles, ImageIcon, FileText,
+  ArrowLeft,
+  ArrowRight,
+  Camera,
+  CheckCircle2,
+  Download,
+  FileText,
+  Loader2,
+  RefreshCw,
+  ScanSearch,
+  Sparkles,
+  Upload,
+  Wand2,
+  Zap,
 } from "lucide-react";
 
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import {
-  WIZARD_TIPI, WIZARD_PROFILI, WIZARD_RAL, WIZARD_LEGNO, WIZARD_HW_COLORS,
-  WIZARD_CASS_MATERIALI, WIZARD_TAPP_OPTIONS,
   PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
-  mapWizardToConfig, getColorById,
-  type WizardState, type WizardTipo, type WizardProfilo, type WizardHw,
-  type WizardCassMat, type WizardTapp,
+  WIZARD_CASS_MATERIALI,
+  WIZARD_HW_COLORS,
+  WIZARD_LEGNO,
+  WIZARD_PROFILI,
+  WIZARD_RAL,
+  WIZARD_TAPP_OPTIONS,
+  WIZARD_TIPI,
+  getColorById,
+  mapWizardToConfig,
+  type WizardHw,
+  type WizardProfilo,
+  type WizardState,
+  type WizardTapp,
+  type WizardTipo,
 } from "@/modules/render/lib/configMapper";
 import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import {
+  createFallbackWindowSceneAnalysis,
+  normalizeWindowSceneAnalysis,
+} from "@/modules/render/lib/windowSceneAnalysis";
+import type { WindowPhotoMeta, WindowRenderConfig, WindowSceneAnalysis } from "@/modules/render/lib/types";
 
-// ── Polling constants ─────────────────────────────────────────────────────────
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
 const MAX_POLL_SEC = 180;
+const STEP_LABELS = ["Foto", "Analisi", "Aperture", "Infisso", "Finiture", "Accessori", "Render"];
 
-const STEP_LABELS = ["Foto", "Tipo", "Profilo", "Colori", "Opzioni", "Render"];
-
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Impossibile leggere le dimensioni della foto."));
-    };
-    img.src = url;
-  });
-}
-
-// ── Default wizard state ──────────────────────────────────────────────────────
 const INITIAL_STATE: WizardState = {
   tipo: "",
   profilo: "",
@@ -70,20 +74,49 @@ const INITIAL_STATE: WizardState = {
   tappCol: "stesso",
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
+function readImageDimensions(file: File): Promise<WindowPhotoMeta> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const width = img.naturalWidth;
+      const height = img.naturalHeight;
+      resolve({
+        width,
+        height,
+        orientation: width === height ? "square" : width > height ? "landscape" : "portrait",
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Impossibile leggere le dimensioni della foto."));
+    };
+    img.src = url;
+  });
+}
+
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
 export default function RenderNewV2() {
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState<Step>(1);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoDimensions, setPhotoDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [photoMeta, setPhotoMeta] = useState<WindowPhotoMeta | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
+  const [notes, setNotes] = useState("");
+
+  const [sceneAnalysis, setSceneAnalysis] = useState<WindowSceneAnalysis | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [selectedOpeningIds, setSelectedOpeningIds] = useState<string[]>([]);
 
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -92,7 +125,6 @@ export default function RenderNewV2() {
   const [originalSignedUrl, setOriginalSignedUrl] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
-  // CRM linking (populated in Step 6)
   const [contactId, setContactId] = useState<string | null>(null);
   const [opportunityId, setOpportunityId] = useState<string | null>(null);
 
@@ -100,37 +132,108 @@ export default function RenderNewV2() {
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
+  const crmPersistedRef = useRef(false);
 
-  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (pollRef.current) clearTimeout(pollRef.current);
       if (tickRef.current) clearInterval(tickRef.current);
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
     };
-  }, []);
+  }, [photoPreview]);
 
-  // ── File handling ──────────────────────────────────────────────────────────
-  const handleFileChange = (f: File | null) => {
-    if (!f) {
-      setPhoto(null); setPhotoPreview(null); setPhotoDimensions(null); setPhotoPath(null); setSessionId(null);
+  const renderPreview = useMemo<WindowRenderConfig | null>(() => {
+    if (!sceneAnalysis || !state.tipo || !state.profilo || !state.coloreInfisso) return null;
+    try {
+      return mapWizardToConfig(state, notes, {
+        sceneAnalysis,
+        selectedOpeningIds,
+        photoMeta,
+      });
+    } catch {
+      return null;
+    }
+  }, [sceneAnalysis, selectedOpeningIds, state, notes, photoMeta]);
+
+  const handleFileChange = useCallback((file: File | null) => {
+    if (!file) {
+      setPhoto(null);
+      setPhotoPreview(null);
+      setPhotoMeta(null);
+      setPhotoPath(null);
+      setSessionId(null);
+      setSceneAnalysis(null);
+      setSelectedOpeningIds([]);
+      setAnalysisError(null);
+      setResultUrl(null);
+      setGenerateError(null);
       return;
     }
-    if (f.size > 20 * 1024 * 1024) {
+
+    if (file.size > 20 * 1024 * 1024) {
       toast.error("File troppo grande (max 20 MB)");
       return;
     }
-    setPhoto(f);
-    setPhotoPreview(URL.createObjectURL(f));
-    setPhotoDimensions(null);
+
+    const nextPreview = URL.createObjectURL(file);
+    setPhoto(file);
+    setPhotoPreview(nextPreview);
+    setPhotoMeta(null);
     setPhotoPath(null);
     setSessionId(null);
-    void readImageDimensions(f)
-      .then(setPhotoDimensions)
-      .catch(() => setPhotoDimensions(null));
-  };
+    setSceneAnalysis(null);
+    setSelectedOpeningIds([]);
+    setAnalysisError(null);
+    setResultUrl(null);
+    setGenerateError(null);
 
-  // ── Upload + create session (when user clicks "Avanti" from step 1) ────────
-  const uploadAndCreateSession = useCallback(async (): Promise<string | null> => {
+    void readImageDimensions(file)
+      .then(setPhotoMeta)
+      .catch(() => setPhotoMeta(null));
+  }, []);
+
+  const startWindowAnalysis = useCallback(async (path: string, sid: string) => {
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    try {
+      const { data: signed } = await supabase.storage
+        .from("render-originals")
+        .createSignedUrl(path, 300);
+
+      if (!signed?.signedUrl) {
+        throw new Error("Signed URL non disponibile per l'analisi.");
+      }
+
+      const headers = await getEdgeFunctionAuthHeaders();
+      const { data, error } = await supabase.functions.invoke("analyze-window-photo", {
+        body: { image_url: signed.signedUrl, session_id: sid },
+        headers,
+      });
+
+      if (error || data?.error) {
+        throw new Error(
+          await resolveEdgeFunctionErrorMessage({
+            error,
+            data,
+            fallback: "Analisi ambiente non disponibile.",
+          }),
+        );
+      }
+
+      const normalized = normalizeWindowSceneAnalysis(data?.foto_analisi ?? data, photoMeta);
+      setSceneAnalysis(normalized);
+      setSelectedOpeningIds(normalized.openings.map((opening) => opening.id));
+    } catch (err) {
+      const fallback = createFallbackWindowSceneAnalysis(photoMeta);
+      setSceneAnalysis(fallback);
+      setSelectedOpeningIds(fallback.openings.map((opening) => opening.id));
+      setAnalysisError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, [photoMeta]);
+
+  const uploadAndCreateSession = useCallback(async (): Promise<{ sid: string; path: string } | null> => {
     if (!user) {
       toast.error("Devi essere autenticato per creare un render.");
       return null;
@@ -143,34 +246,30 @@ export default function RenderNewV2() {
       toast.error("Carica una foto prima di procedere.");
       return null;
     }
-    if (sessionId && photoPath) return sessionId;
+    if (sessionId && photoPath) {
+      return { sid: sessionId, path: photoPath };
+    }
 
     setUploading(true);
     try {
-      // STEP 1 — Upload foto su storage (errori specifici del bucket)
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_original.${ext}`;
+
       const { error: upErr } = await supabase.storage
         .from("render-originals")
         .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) {
-        // Messaggi specifici per i casi più frequenti
-        const msg = upErr.message ?? "";
-        if (/row-level security|permission|policy/i.test(msg)) {
-          throw new Error(
-            "Permessi insufficienti per caricare la foto. Verifica di essere connesso con l'azienda corretta.",
-          );
-        }
-        if (/not found|bucket/i.test(msg)) {
-          throw new Error(
-            "Bucket storage 'render-originals' non disponibile. Contatta l'assistenza.",
-          );
-        }
-        throw new Error(`Upload foto fallito: ${msg || "errore sconosciuto"}`);
-      }
-      setPhotoPath(path);
 
-      // STEP 2 — Crea sessione render (errori specifici del DB)
+      if (upErr) {
+        const message = upErr.message ?? "";
+        if (/row-level security|permission|policy/i.test(message)) {
+          throw new Error("Permessi insufficienti per caricare la foto. Verifica l'azienda attiva.");
+        }
+        if (/not found|bucket/i.test(message)) {
+          throw new Error("Bucket 'render-originals' non disponibile. Contatta l'assistenza.");
+        }
+        throw new Error(`Upload foto fallito: ${message || "errore sconosciuto"}`);
+      }
+
       const { data: sess, error: sessErr } = await supabase
         .from("render_sessions")
         .insert({
@@ -182,67 +281,31 @@ export default function RenderNewV2() {
         })
         .select("id")
         .single();
-      if (sessErr) {
-        const msg = sessErr.message ?? "";
-        if (/schema|PGRST106/i.test(msg)) {
-          throw new Error(
-            "Schema database non disponibile per 'render_sessions'. Ricarica la pagina — se persiste, contatta l'assistenza.",
-          );
-        }
-        if (/row-level security|policy/i.test(msg)) {
-          throw new Error(
-            "Permessi insufficienti per creare la sessione render.",
-          );
-        }
-        throw new Error(`Creazione sessione fallita: ${msg || "errore sconosciuto"}`);
+
+      if (sessErr || !sess) {
+        throw new Error(sessErr?.message ?? "Creazione sessione render fallita.");
       }
-      if (!sess) throw new Error("Creazione sessione fallita: nessun id restituito.");
-      const sid = sess.id;
-      setSessionId(sid);
 
-      // Background photo analysis (non-blocking — used as hint for prompt engine)
-      void (async () => {
-        try {
-          const { data: signed } = await supabase.storage
-            .from("render-originals")
-            .createSignedUrl(path, 300);
-          if (!signed?.signedUrl) return;
-          const { data: { session: authSession } } = await supabase.auth.getSession();
-          const token = authSession?.access_token;
-          await supabase.functions.invoke("analyze-window-photo", {
-            body: { image_url: signed.signedUrl, session_id: sid },
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-        } catch {
-          // analysis is optional — fall back to defaults
-        }
-      })();
-
-      return sid;
+      setPhotoPath(path);
+      setSessionId(sess.id);
+      return { sid: sess.id, path };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : String(err));
       return null;
     } finally {
       setUploading(false);
     }
-  }, [photo, photoPath, sessionId, companyId, user]);
+  }, [companyId, photo, photoPath, sessionId, user]);
 
-  // ── Polling result ─────────────────────────────────────────────────────────
-  // FIX: dichiarato PRIMA di `startRender` perché è una sua dep. Se spostato
-  // dopo, al primo render useCallback di `startRender` accede alla const
-  // `startPolling` prima della sua inizializzazione (TDZ) → ReferenceError:
-  // "Cannot access 'ye' before initialization" nel bundle minificato →
-  // crash della pagina /azienda/render/infissi/new con "Errore nel
-  // caricamento della pagina".
   const startPolling = useCallback((sid: string) => {
-    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+    if (pollRef.current) clearTimeout(pollRef.current);
     let intervalIdx = 0;
+
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
         if (tickRef.current) clearInterval(tickRef.current);
         setGenerating(false);
-        setGenerateError("Timeout: il render sta impiegando troppo tempo");
+        setGenerateError("Timeout: il render sta impiegando troppo tempo.");
         return;
       }
 
@@ -252,42 +315,48 @@ export default function RenderNewV2() {
         .eq("id", sid)
         .single();
 
-      const s = sess;
-      if (s?.status === "completed" && s.result_urls?.length) {
+      if (sess?.status === "completed" && sess.result_urls?.length) {
         if (tickRef.current) clearInterval(tickRef.current);
-        setResultUrl(s.result_urls[0]);
+        setResultUrl(sess.result_urls[0]);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
         queryClient.invalidateQueries({ queryKey: ["render-gallery", companyId] });
         return;
       }
-      if (s?.status === "failed") {
+
+      if (sess?.status === "failed") {
         if (tickRef.current) clearInterval(tickRef.current);
         setGenerating(false);
         setGenerateError("Render fallito");
         return;
       }
-      pollRef.current = setTimeout(poll, POLL_INTERVALS[Math.min(intervalIdx++, POLL_INTERVALS.length - 1)]);
+
+      pollRef.current = setTimeout(
+        poll,
+        POLL_INTERVALS[Math.min(intervalIdx++, POLL_INTERVALS.length - 1)],
+      );
     };
+
     poll();
   }, [companyId, queryClient]);
 
-  // ── Generate render ────────────────────────────────────────────────────────
   const startRender = useCallback(async () => {
-    if (!sessionId || !companyId) return;
-    if (generating) return;
+    if (!sessionId || !companyId || generating) return;
 
-    let config;
+    let config: WindowRenderConfig;
     try {
-      config = mapWizardToConfig(state);
+      config = mapWizardToConfig(state, notes, {
+        sceneAnalysis,
+        selectedOpeningIds,
+        photoMeta,
+      });
     } catch (err) {
-      toast.error(String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
       return;
     }
 
-    // Clear any previous timers (avoids double-run on retry)
-    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
-    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+    if (tickRef.current) clearInterval(tickRef.current);
+    if (pollRef.current) clearTimeout(pollRef.current);
 
     setGenerating(true);
     setGenerateError(null);
@@ -295,13 +364,8 @@ export default function RenderNewV2() {
     elapsedRef.current = 0;
     setElapsedSec(0);
 
-    // Update session config
-    await supabase
-      .from("render_sessions")
-      .update({ config })
-      .eq("id", sessionId);
+    await supabase.from("render_sessions").update({ config }).eq("id", sessionId);
 
-    // Start elapsed timer
     tickRef.current = setInterval(() => {
       elapsedRef.current += 1;
       setElapsedSec(elapsedRef.current);
@@ -309,35 +373,35 @@ export default function RenderNewV2() {
 
     try {
       const headers = await getEdgeFunctionAuthHeaders();
-      const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-render", {
+      const { data, error } = await supabase.functions.invoke("generate-render", {
         body: {
           session_id: sessionId,
           config,
-          target_width: photoDimensions?.width,
-          target_height: photoDimensions?.height,
+          target_width: photoMeta?.width,
+          target_height: photoMeta?.height,
         },
         headers,
       });
 
-      if (fnErr || fnData?.error) {
-        throw new Error(await resolveEdgeFunctionErrorMessage({
-          error: fnErr,
-          data: fnData,
-          fallback: "Generazione fallita",
-        }));
+      if (error || data?.error) {
+        throw new Error(
+          await resolveEdgeFunctionErrorMessage({
+            error,
+            data,
+            fallback: "Generazione render non riuscita.",
+          }),
+        );
       }
 
-      // Synchronous response
-      if (fnData?.result_url) {
+      if (data?.result_url) {
         if (tickRef.current) clearInterval(tickRef.current);
-        setResultUrl(fnData.result_url as string);
+        setResultUrl(data.result_url as string);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
         queryClient.invalidateQueries({ queryKey: ["render-gallery", companyId] });
         return;
       }
 
-      // Otherwise poll
       startPolling(sessionId);
     } catch (err) {
       if (tickRef.current) clearInterval(tickRef.current);
@@ -346,17 +410,8 @@ export default function RenderNewV2() {
       setGenerateError(message);
       toast.error(message);
     }
-  }, [sessionId, companyId, state, photoDimensions, queryClient, startPolling, generating]);
+  }, [companyId, generating, notes, photoMeta, queryClient, sceneAnalysis, selectedOpeningIds, sessionId, startPolling, state]);
 
-  // ── Auto-start render when entering step 6 ─────────────────────────────────
-  useEffect(() => {
-    if (step === 6 && sessionId && !resultUrl && !generating && !generateError) {
-      void startRender();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, sessionId]);
-
-  // ── Build signed URL for original photo (needed by BeforeAfterSlider) ──────
   useEffect(() => {
     if (!photoPath || originalSignedUrl) return;
     void (async () => {
@@ -365,55 +420,60 @@ export default function RenderNewV2() {
         .createSignedUrl(photoPath, 3600);
       if (signed?.signedUrl) setOriginalSignedUrl(signed.signedUrl);
     })();
-  }, [photoPath, originalSignedUrl]);
+  }, [originalSignedUrl, photoPath]);
 
-  // ── Persist CRM link onto render_sessions (only when user actually selects) ─
-  const crmPersistedRef = useRef(false);
   useEffect(() => {
     if (!sessionId) return;
-    // Skip the initial run with null/null — only write when the user picks something,
-    // or when clearing a previously written value.
     if (!contactId && !opportunityId && !crmPersistedRef.current) return;
     crmPersistedRef.current = true;
     void supabase
       .from("render_sessions")
       .update({ contact_id: contactId, opportunity_id: opportunityId })
       .eq("id", sessionId);
-  }, [sessionId, contactId, opportunityId]);
+  }, [contactId, opportunityId, sessionId]);
 
-  // ── Reset wizard ───────────────────────────────────────────────────────────
-  const reset = () => {
-    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
-    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+  const goNext = useCallback(async () => {
+    if (step === 1) {
+      const created = await uploadAndCreateSession();
+      if (!created) return;
+      setStep(2);
+      void startWindowAnalysis(created.path, created.sid);
+      return;
+    }
+    if (step < 7) setStep((current) => (current + 1) as Step);
+  }, [startWindowAnalysis, step, uploadAndCreateSession]);
+
+  const goBack = useCallback(() => {
+    if (step > 1) setStep((current) => (current - 1) as Step);
+  }, [step]);
+
+  const reset = useCallback(() => {
+    if (pollRef.current) clearTimeout(pollRef.current);
+    if (tickRef.current) clearInterval(tickRef.current);
     crmPersistedRef.current = false;
+
     setStep(1);
     setPhoto(null);
     setPhotoPreview(null);
+    setPhotoMeta(null);
     setPhotoPath(null);
     setSessionId(null);
-    setOriginalSignedUrl(null);
     setState(INITIAL_STATE);
+    setNotes("");
+    setSceneAnalysis(null);
+    setSelectedOpeningIds([]);
+    setAnalysisLoading(false);
+    setAnalysisError(null);
     setResultUrl(null);
+    setOriginalSignedUrl(null);
     setGenerateError(null);
     setGenerating(false);
     setElapsedSec(0);
     setContactId(null);
     setOpportunityId(null);
-  };
+  }, []);
 
-  // ── Step navigation ────────────────────────────────────────────────────────
-  const goNext = async () => {
-    if (step === 1) {
-      const sid = await uploadAndCreateSession();
-      if (sid) setStep(2);
-      return;
-    }
-    setStep(s => Math.min(s + 1, 6));
-  };
-  const goBack = () => setStep(s => Math.max(s - 1, 1));
-
-  // ── Download result ────────────────────────────────────────────────────────
-  const downloadResult = async () => {
+  const downloadResult = useCallback(async () => {
     if (!resultUrl) return;
     try {
       const resp = await fetch(resultUrl);
@@ -425,67 +485,91 @@ export default function RenderNewV2() {
     } catch {
       toast.error("Download fallito");
     }
-  };
+  }, [resultUrl]);
 
-  const canGoNextFromStep = (s: number): boolean => {
-    switch (s) {
-      case 1: return !!photo;
-      case 2: return !!state.tipo;
-      case 3: return !!state.profilo;
-      case 4: return !!state.coloreInfisso;
-      case 5: return true;
-      default: return false;
+  const canGoNextFromStep = useCallback((current: Step) => {
+    switch (current) {
+      case 1:
+        return Boolean(photo);
+      case 2:
+        return !analysisLoading && Boolean(sceneAnalysis);
+      case 3:
+        return selectedOpeningIds.length > 0;
+      case 4:
+        return Boolean(state.tipo && state.profilo);
+      case 5:
+        return Boolean(state.coloreInfisso);
+      case 6:
+        return true;
+      default:
+        return false;
     }
-  };
+  }, [analysisLoading, photo, sceneAnalysis, selectedOpeningIds.length, state.coloreInfisso, state.profilo, state.tipo]);
 
-  // ═════════════════════════════════════════════════════════════════════════
+  const progressValue = ((step - 1) / (STEP_LABELS.length - 1)) * 100;
+
   return (
-    <div className="mx-auto max-w-xl pb-8">
-      {/* Header with step progress */}
+    <div className="mx-auto max-w-5xl pb-8">
       <div className="mb-6 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-5 text-white">
         <div className="flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100"
+            className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Indietro
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Indietro
           </button>
           <Badge variant="secondary" className="gap-1 bg-white/15 text-white hover:bg-white/20">
-            <Zap className="h-3 w-3" /> Render AI
+            <Zap className="h-3 w-3" />
+            Render AI — Infissi
           </Badge>
         </div>
-        <div className="mt-3">
-          <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
-            Render AI — Infissi
+
+        <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
+              Sostituzione serramenti fotorealistica
+            </div>
+            <div className="text-2xl font-bold">
+              Stessa casa, stessa foto, nuovi infissi
+            </div>
+            <div className="mt-1 max-w-2xl text-sm text-white/70">
+              Guidiamo l'AI a sostituire solo le aperture selezionate, mantenendo ambiente, prospettiva,
+              arredi, luce e formato della foto esattamente coerenti con l'originale.
+            </div>
           </div>
-          <div className="text-xl font-bold">
-            {step <= 5 ? "Nuovo Render" : "Risultato"}
+          <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80">
+            Step {step} / {STEP_LABELS.length}
           </div>
         </div>
-        {/* Progress dots */}
-        <div className="mt-4 flex gap-1">
-          {STEP_LABELS.map((l, i) => (
-            <div key={l} className="flex flex-1 flex-col items-center gap-1">
-              <div
-                className={cn(
-                  "h-1 w-full rounded transition-colors",
-                  step >= i + 1 ? "bg-orange-500" : "bg-white/20",
-                )}
-              />
-              <span className={cn("text-[9px] font-semibold", step >= i + 1 ? "opacity-100" : "opacity-40")}>
-                {l}
-              </span>
-            </div>
-          ))}
+
+        <div className="mt-4">
+          <Progress value={progressValue} className="h-1.5 bg-white/20" />
+          <div className="mt-2 grid grid-cols-7 gap-2">
+            {STEP_LABELS.map((label, index) => (
+              <div key={label} className="text-center">
+                <div
+                  className={cn(
+                    "mx-auto mb-1 h-2 w-2 rounded-full transition-colors",
+                    step >= index + 1 ? "bg-orange-400" : "bg-white/30",
+                  )}
+                />
+                <div className={cn("text-[10px] font-semibold", step >= index + 1 ? "text-white" : "text-white/40")}>
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="px-4">
-        {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
+      <div className="space-y-4 px-4">
         <RenderCreditGate />
+
         {step === 1 && (
-          <Step1Foto
+          <StepPhoto
             preview={photoPreview}
+            meta={photoMeta}
             onFile={handleFileChange}
             onNext={goNext}
             uploading={uploading}
@@ -494,107 +578,82 @@ export default function RenderNewV2() {
         )}
 
         {step === 2 && (
-          <StepChoice
-            title="Che tipo di serramento?"
-            options={WIZARD_TIPI.map(t => ({ id: t.id, label: t.label, desc: t.desc }))}
-            value={state.tipo}
-            onChange={(v) => setState(s => ({ ...s, tipo: v as WizardTipo }))}
+          <StepAnalysis
+            analysis={sceneAnalysis}
+            loading={analysisLoading}
+            error={analysisError}
             onBack={goBack}
             onNext={goNext}
             nextDisabled={!canGoNextFromStep(2)}
-            columns={4}
           />
         )}
 
-        {step === 3 && (
-          <StepChoice
-            title="Tipologia profilo"
-            options={WIZARD_PROFILI.map(p => ({ id: p.id, label: p.label, desc: p.desc }))}
-            value={state.profilo}
-            onChange={(v) => setState(s => ({ ...s, profilo: v as WizardProfilo }))}
+        {step === 3 && sceneAnalysis && (
+          <StepTargeting
+            analysis={sceneAnalysis}
+            selectedOpeningIds={selectedOpeningIds}
+            onChange={setSelectedOpeningIds}
             onBack={goBack}
             onNext={goNext}
-            nextDisabled={!canGoNextFromStep(3)}
-            columns={2}
-            extra={
-              state.profilo && PROFILI_MANIGLIA_CENTRALE_COMPATIBILI.includes(state.profilo) ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setState(s => ({ ...s, manigliaCentrale: !s.manigliaCentrale }))
-                  }
-                  className={cn(
-                    "flex items-start gap-3 rounded-xl border p-3 text-left transition",
-                    state.manigliaCentrale
-                      ? "border-2 border-orange-500 bg-orange-50 dark:bg-orange-950/30"
-                      : "border-border hover:border-orange-300",
-                  )}
-                  aria-pressed={state.manigliaCentrale}
-                >
-                  <div
-                    className={cn(
-                      "mt-0.5 h-4 w-4 rounded border-2 flex-none flex items-center justify-center",
-                      state.manigliaCentrale
-                        ? "border-orange-500 bg-orange-500"
-                        : "border-muted-foreground/40",
-                    )}
-                  >
-                    {state.manigliaCentrale && (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-white" strokeWidth={3} />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-bold">Maniglia al centro</div>
-                    <div className="text-[11px] text-muted-foreground leading-snug">
-                      Posiziona la maniglia al centro dell'anta (nodo ridotto).
-                      Applicabile al profilo selezionato.
-                    </div>
-                  </div>
-                </button>
-              ) : null
-            }
           />
         )}
 
         {step === 4 && (
-          <Step4Colori
+          <StepInfisso
             state={state}
             setState={setState}
             onBack={goBack}
             onNext={goNext}
+            nextDisabled={!canGoNextFromStep(4)}
           />
         )}
 
         {step === 5 && (
-          <Step5Opzioni
+          <StepFiniture
             state={state}
             setState={setState}
+            onBack={goBack}
+            onNext={goNext}
+            nextDisabled={!canGoNextFromStep(5)}
+          />
+        )}
+
+        {step === 6 && (
+          <StepAccessori
+            state={state}
+            setState={setState}
+            notes={notes}
+            onNotesChange={setNotes}
+            sceneAnalysis={sceneAnalysis}
+            selectedOpeningIds={selectedOpeningIds}
             onBack={goBack}
             onNext={goNext}
           />
         )}
 
-        {step === 6 && (
-          <Step6Render
-            photoPreview={photoPreview}
+        {step === 7 && (
+          <StepRender
+            preview={renderPreview}
             originalSignedUrl={originalSignedUrl}
+            localPreview={photoPreview}
             resultUrl={resultUrl}
             generating={generating}
             elapsedSec={elapsedSec}
             error={generateError}
-            state={state}
             contactId={contactId}
             opportunityId={opportunityId}
             onContactChange={setContactId}
             onOpportunityChange={setOpportunityId}
+            onGenerate={startRender}
+            onRetry={startRender}
+            onReset={reset}
+            onBack={goBack}
+            onDownload={downloadResult}
             onCreateQuote={() => {
               const qs = new URLSearchParams();
               if (contactId) qs.set("contact_id", contactId);
               navigate(`/azienda/marketing/preventivi/nuovo${qs.toString() ? `?${qs}` : ""}`);
             }}
-            onReset={reset}
-            onRetry={startRender}
-            onDownload={downloadResult}
           />
         )}
       </div>
@@ -602,510 +661,868 @@ export default function RenderNewV2() {
   );
 }
 
-// ─── Step 1: Photo upload ────────────────────────────────────────────────────
-function Step1Foto({
-  preview, onFile, onNext, uploading, fileRef,
+function StepPhoto({
+  preview,
+  meta,
+  onFile,
+  onNext,
+  uploading,
+  fileRef,
 }: {
   preview: string | null;
-  onFile: (f: File | null) => void;
+  meta: WindowPhotoMeta | null;
+  onFile: (file: File | null) => void;
   onNext: () => void;
   uploading: boolean;
   fileRef: React.RefObject<HTMLInputElement>;
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      {preview ? (
-        <div className="relative overflow-hidden rounded-2xl border-2 border-border">
-          <img src={preview} alt="" className="block max-h-[320px] w-full object-cover" />
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="absolute right-3 top-3"
-            onClick={() => onFile(null)}
-          >
-            Cambia
-          </Button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-400 bg-slate-50 px-6 py-12 transition hover:border-orange-400 hover:bg-orange-50 dark:bg-slate-900 dark:hover:bg-orange-950/20"
-        >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/15 text-orange-500">
-            <Camera className="h-7 w-7" />
-          </div>
-          <div className="text-center">
-            <div className="text-base font-bold">Scatta o carica la foto</div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              Foto frontale della facciata con infissi attuali
+    <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          {preview ? (
+            <div className="relative">
+              <img src={preview} alt="Anteprima foto" className="block max-h-[520px] w-full object-contain bg-slate-100" />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="absolute right-3 top-3"
+                onClick={() => onFile(null)}
+              >
+                Cambia foto
+              </Button>
+              {meta && (
+                <div className="absolute bottom-3 left-3 rounded-lg bg-black/70 px-3 py-1.5 text-xs text-white">
+                  {meta.width}×{meta.height} · {meta.orientation}
+                </div>
+              )}
             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex min-h-[360px] w-full flex-col items-center justify-center gap-4 border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-12 transition hover:border-orange-400 hover:bg-orange-50"
+            >
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/15 text-orange-500">
+                <Camera className="h-7 w-7" />
+              </div>
+              <div className="space-y-1 text-center">
+                <div className="text-lg font-bold">Carica la foto reale dell'ambiente</div>
+                <div className="text-sm text-muted-foreground">
+                  L'obiettivo è sostituire solo gli infissi visibili mantenendo identico tutto il resto.
+                </div>
+              </div>
+              <div className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white">
+                <Upload className="mr-2 inline h-4 w-4" />
+                Sfoglia file
+              </div>
+            </button>
+          )}
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(event) => onFile(event.target.files?.[0] ?? null)}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-4 p-5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 1</div>
+            <h2 className="mt-1 text-xl font-bold">Foto sorgente</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Più la foto è chiara e leggibile, più il render finale sembrerà una sostituzione reale e non una reinterpretazione AI.
+            </p>
           </div>
-          <div className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white">
-            <Upload className="mr-2 inline h-4 w-4" /> Sfoglia file
+
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <div>1. Inquadra bene le aperture da modificare.</div>
+            <div>2. Evita tagli eccessivi dei bordi del vano finestra.</div>
+            <div>3. Mantieni visibili elementi di contorno utili: tende, davanzale, radiatore, cassonetto.</div>
+            <div>4. Se la foto è verticale, il render resterà verticale.</div>
           </div>
-        </button>
-      )}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
-        }}
-      />
-      {preview && (
-        <Button
-          size="lg"
-          className="w-full gap-2 bg-slate-800 hover:bg-slate-700"
-          disabled={uploading}
-          onClick={onNext}
-        >
-          {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Caricamento…</> : <>Avanti → Tipo serramento <ArrowRight className="h-4 w-4" /></>}
-        </Button>
-      )}
+
+          <Button
+            size="lg"
+            className="w-full gap-2 bg-slate-800 hover:bg-slate-700"
+            disabled={!preview || uploading}
+            onClick={onNext}
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Upload e preparazione…
+              </>
+            ) : (
+              <>
+                Analizza ambiente
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-// ─── Generic choice step (used for Tipo and Profilo) ─────────────────────────
-function StepChoice({
-  title, options, value, onChange, onBack, onNext, nextDisabled, columns, extra,
+function StepAnalysis({
+  analysis,
+  loading,
+  error,
+  onBack,
+  onNext,
+  nextDisabled,
 }: {
-  title: string;
-  options: { id: string; label: string; desc?: string }[];
-  value: string;
-  onChange: (v: string) => void;
+  analysis: WindowSceneAnalysis | null;
+  loading: boolean;
+  error: string | null;
   onBack: () => void;
   onNext: () => void;
   nextDisabled: boolean;
-  columns: number;
-  /** Contenuto opzionale tra la griglia delle opzioni e la NavButtons (es. toggle stilistici). */
-  extra?: React.ReactNode;
 }) {
-  const gridClass = columns === 4 ? "grid-cols-4" : "grid-cols-2";
+  const openings = analysis?.openings ?? [];
   return (
-    <div className="flex flex-col gap-4">
-      <SectionTitle>{title}</SectionTitle>
-      <div className={cn("grid gap-2", gridClass)}>
-        {options.map(opt => (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => onChange(opt.id)}
-            className={cn(
-              "flex flex-col items-center gap-1.5 rounded-xl border p-3 text-left transition",
-              value === opt.id
-                ? "border-2 border-orange-500 bg-orange-50 dark:bg-orange-950/30"
-                : "border-border hover:border-orange-300",
-              columns === 2 && "items-start p-3.5",
-            )}
-          >
-            <span className={cn("text-sm font-bold", value === opt.id ? "text-orange-600" : "")}>
-              {opt.label}
-            </span>
-            {opt.desc && (
-              <span className="text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
-                {opt.desc}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-      {extra}
-      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} />
-    </div>
-  );
-}
-
-// ─── Step 4: Colors ──────────────────────────────────────────────────────────
-function Step4Colori({
-  state, setState, onBack, onNext,
-}: {
-  state: WizardState;
-  setState: React.Dispatch<React.SetStateAction<WizardState>>;
-  onBack: () => void;
-  onNext: () => void;
-}) {
-  const [tab, setTab] = useState<"ral" | "legno">("ral");
-  const list = tab === "ral" ? WIZARD_RAL : WIZARD_LEGNO;
-  return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <SectionTitle>Colore infisso</SectionTitle>
-        <div className="mb-3 flex overflow-hidden rounded-lg border">
-          {(["ral", "legno"] as const).map((k, i) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setTab(k)}
-              className={cn(
-                "flex-1 px-3 py-2 text-xs font-bold transition",
-                tab === k ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-700 hover:bg-slate-100",
-                i > 0 && "border-l",
-              )}
-            >
-              {k === "ral" ? "Colori RAL" : "Effetti Legno"}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-5 gap-2">
-          {list.map(c => (
-            <ColorSwatch
-              key={c.id}
-              hex={c.hex}
-              grad={"grad" in c ? c.grad : undefined}
-              name={c.nome}
-              selected={state.coloreInfisso === c.id}
-              onClick={() => setState(s => ({ ...s, coloreInfisso: c.id }))}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <SectionTitle>Colore maniglie e cerniere</SectionTitle>
-        <div className="grid grid-cols-6 gap-1.5">
-          {WIZARD_HW_COLORS.map(c => (
-            <ColorSwatch
-              key={c.id}
-              hex={c.hex}
-              name={c.nome}
-              selected={state.coloreHw === c.id}
-              onClick={() => setState(s => ({ ...s, coloreHw: c.id as WizardHw }))}
-              small
-            />
-          ))}
-        </div>
-      </div>
-
-      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={!state.coloreInfisso} />
-    </div>
-  );
-}
-
-// ─── Step 5: Cassonetto + Tapparelle ─────────────────────────────────────────
-function Step5Opzioni({
-  state, setState, onBack, onNext,
-}: {
-  state: WizardState;
-  setState: React.Dispatch<React.SetStateAction<WizardState>>;
-  onBack: () => void;
-  onNext: () => void;
-}) {
-  const infissoColor = getColorById(state.coloreInfisso);
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Cassonetto */}
-      <div>
-        <SectionTitle>Cassonetto</SectionTitle>
-        <button
-          type="button"
-          onClick={() => setState(s => ({ ...s, cass: !s.cass }))}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-xl border p-4 text-left transition",
-            state.cass
-              ? "border-2 border-orange-500 bg-orange-50 dark:bg-orange-950/30"
-              : "border-border hover:border-orange-300",
-          )}
-        >
-          <div className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-lg text-lg",
-            state.cass ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-400 dark:bg-slate-800",
-          )}>
-            {state.cass ? <CheckCircle2 className="h-5 w-5" /> : <ImageIcon className="h-5 w-5" />}
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 2</div>
+              <h2 className="mt-1 text-xl font-bold">Analisi ambiente esistente</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Leggiamo la scena per capire aperture visibili, accessori esistenti e punti da preservare.
+              </p>
+            </div>
+            <Badge className="gap-1 bg-slate-900 text-white hover:bg-slate-900">
+              <ScanSearch className="h-3.5 w-3.5" />
+              Scene analysis
+            </Badge>
           </div>
-          <div className="flex-1">
-            <div className="text-sm font-bold">Sostituisci cassonetto</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              Nuovo cassonetto coordinato o personalizzato
+
+          {loading ? (
+            <div className="mt-6 rounded-2xl border border-dashed bg-slate-50 p-8 text-center">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-orange-500" />
+              <div className="mt-3 text-base font-semibold">Analisi in corso…</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Stiamo identificando aperture, contorni e accessori da trattare con precisione.
+              </div>
+            </div>
+          ) : analysis ? (
+            <div className="mt-5 space-y-4">
+              {error && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Analisi AI parziale: abbiamo attivato una fallback analysis per non bloccarti. Dettaglio: {error}
+                </div>
+              )}
+
+              <div className="grid gap-3 md:grid-cols-4">
+                <MetricCard label="Aperture visibili" value={String(analysis.estimatedOpeningsVisible)} />
+                <MetricCard label="Ambiente percepito" value={analysis.environmentType.replace(/_/g, " ")} />
+                <MetricCard label="Vista" value={analysis.viewMode} />
+                <MetricCard label="Luce" value={analysis.lightingDirection} />
+              </div>
+
+              <div className="rounded-2xl border bg-slate-50 p-4">
+                <div className="text-sm font-semibold">Lettura scena</div>
+                <div className="mt-2 text-sm text-muted-foreground">{analysis.environmentSummary}</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {analysis.untouchedElements.slice(0, 8).map((item) => (
+                    <Badge key={item} variant="outline" className="bg-white">
+                      {item}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                {openings.map((opening) => (
+                  <Card key={opening.id} className="border-slate-200">
+                    <CardContent className="space-y-3 p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/10 font-bold text-orange-600">
+                            {opening.label}
+                          </div>
+                          <div>
+                            <div className="font-semibold">{opening.typeCurrent.replace(/_/g, " ")}</div>
+                            <div className="text-xs text-muted-foreground">{opening.approximatePlacement}</div>
+                          </div>
+                        </div>
+                        <Badge variant="outline">{opening.sashCount} ante</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {opening.hasCassonetto && <MiniBadge text="cassonetto" />}
+                        {opening.hasRollerShutter && <MiniBadge text="tapparella" />}
+                        {opening.hasBelt && <MiniBadge text="cinghia visibile" intent="warning" />}
+                        {opening.hasCurtains && <MiniBadge text="tende" />}
+                        {opening.radiatorNearby && <MiniBadge text="radiatore vicino" />}
+                        {opening.hasSill && <MiniBadge text="davanzale" />}
+                        {opening.hasGrates && <MiniBadge text="grate" />}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {opening.materialPerceived} · {opening.colorPerceived}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel="Scegli aperture target" />
+    </div>
+  );
+}
+
+function StepTargeting({
+  analysis,
+  selectedOpeningIds,
+  onChange,
+  onBack,
+  onNext,
+}: {
+  analysis: WindowSceneAnalysis;
+  selectedOpeningIds: string[];
+  onChange: (ids: string[]) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const allIds = analysis.openings.map((opening) => opening.id);
+  const allSelected = selectedOpeningIds.length === allIds.length;
+
+  const toggle = (id: string) => {
+    if (selectedOpeningIds.includes(id)) {
+      const next = selectedOpeningIds.filter((item) => item !== id);
+      if (next.length > 0) onChange(next);
+      return;
+    }
+    onChange([...selectedOpeningIds, id]);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-5 p-5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 3</div>
+            <h2 className="mt-1 text-xl font-bold">Quali aperture vuoi modificare?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Se nella foto ci sono più infissi, decidiamo con precisione quali sostituire e quali lasciare identici.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant={allSelected ? "default" : "outline"}
+              className={cn(allSelected && "bg-slate-800 hover:bg-slate-700")}
+              onClick={() => onChange(allIds)}
+            >
+              Applica a tutte le aperture visibili
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onChange(allIds.slice(0, 1))}>
+              Solo apertura principale
+            </Button>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            {analysis.openings.map((opening) => {
+              const checked = selectedOpeningIds.includes(opening.id);
+              return (
+                <button
+                  key={opening.id}
+                  type="button"
+                  onClick={() => toggle(opening.id)}
+                  className={cn(
+                    "rounded-2xl border p-4 text-left transition",
+                    checked ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <Checkbox checked={checked} className="mt-1" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold">
+                          Apertura {opening.label}
+                        </div>
+                        <Badge variant={checked ? "default" : "outline"}>{checked ? "Target" : "Intatta"}</Badge>
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {opening.typeCurrent.replace(/_/g, " ")} · {opening.sashCount} ante · {opening.approximatePlacement}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {opening.hasBelt && <MiniBadge text="cinghia da gestire" intent="warning" />}
+                        {opening.hasCassonetto && <MiniBadge text="cassonetto" />}
+                        {opening.hasCurtains && <MiniBadge text="tende" />}
+                        {opening.radiatorNearby && <MiniBadge text="radiatore vicino" />}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={selectedOpeningIds.length === 0} nextLabel="Configura il nuovo infisso" />
+    </div>
+  );
+}
+
+function StepInfisso({
+  state,
+  setState,
+  onBack,
+  onNext,
+  nextDisabled,
+}: {
+  state: WizardState;
+  setState: React.Dispatch<React.SetStateAction<WizardState>>;
+  onBack: () => void;
+  onNext: () => void;
+  nextDisabled: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-5 p-5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 4</div>
+            <h2 className="mt-1 text-xl font-bold">Nuovo infisso</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Definiamo tipologia, materiale e famiglia di profilo del serramento da installare.
+            </p>
+          </div>
+
+          <div>
+            <SectionTitle>Tipologia apertura</SectionTitle>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {WIZARD_TIPI.map((option) => (
+                <ChoiceCard
+                  key={option.id}
+                  title={option.label}
+                  desc={option.desc}
+                  selected={state.tipo === option.id}
+                  onClick={() => setState((current) => ({ ...current, tipo: option.id as WizardTipo }))}
+                />
+              ))}
             </div>
           </div>
-        </button>
 
-        {state.cass && (
-          <Card className="mt-2 bg-slate-50 dark:bg-slate-900">
-            <CardContent className="p-3">
-              <div className="mb-2 text-xs font-semibold">Materiale cassonetto</div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {WIZARD_CASS_MATERIALI.map(m => (
+          <div>
+            <SectionTitle>Famiglia profilo</SectionTitle>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {WIZARD_PROFILI.map((option) => (
+                <ChoiceCard
+                  key={option.id}
+                  title={option.label}
+                  desc={option.desc}
+                  selected={state.profilo === option.id}
+                  onClick={() => setState((current) => ({ ...current, profilo: option.id as WizardProfilo }))}
+                />
+              ))}
+            </div>
+          </div>
+
+          {state.profilo && PROFILI_MANIGLIA_CENTRALE_COMPATIBILI.includes(state.profilo as WizardProfilo) && (
+            <button
+              type="button"
+              onClick={() => setState((current) => ({ ...current, manigliaCentrale: !current.manigliaCentrale }))}
+              className={cn(
+                "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
+                state.manigliaCentrale ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+              )}
+            >
+              <Checkbox checked={state.manigliaCentrale} className="mt-1" />
+              <div>
+                <div className="font-semibold">Nodo ridotto con maniglia centrale</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Riduce l'impatto visivo del profilo e centra la maniglia sulla composizione dell'anta principale.
+                </div>
+              </div>
+            </button>
+          )}
+        </CardContent>
+      </Card>
+
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel="Definisci finiture" />
+    </div>
+  );
+}
+
+function StepFiniture({
+  state,
+  setState,
+  onBack,
+  onNext,
+  nextDisabled,
+}: {
+  state: WizardState;
+  setState: React.Dispatch<React.SetStateAction<WizardState>>;
+  onBack: () => void;
+  onNext: () => void;
+  nextDisabled: boolean;
+}) {
+  const [tab, setTab] = useState<"ral" | "legno">("ral");
+  const colorList = tab === "ral" ? WIZARD_RAL : WIZARD_LEGNO;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-5 p-5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 5</div>
+            <h2 className="mt-1 text-xl font-bold">Finiture e ferramenta</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Colore telaio, effetto legno e finitura maniglie devono essere coerenti con il posizionamento premium del render.
+            </p>
+          </div>
+
+          <div>
+            <SectionTitle>Finitura telaio</SectionTitle>
+            <div className="mb-3 flex overflow-hidden rounded-lg border">
+              {(["ral", "legno"] as const).map((item, index) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setTab(item)}
+                  className={cn(
+                    "flex-1 px-3 py-2 text-xs font-bold transition",
+                    tab === item ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-700 hover:bg-slate-100",
+                    index > 0 && "border-l",
+                  )}
+                >
+                  {item === "ral" ? "Colori RAL" : "Effetti legno"}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+              {colorList.map((color) => (
+                <button
+                  key={color.id}
+                  type="button"
+                  onClick={() => setState((current) => ({ ...current, coloreInfisso: color.id }))}
+                  className={cn(
+                    "rounded-2xl border p-3 text-left transition",
+                    state.coloreInfisso === color.id ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                  )}
+                >
+                  <div
+                    className="h-16 rounded-xl border"
+                    style={{ background: "grad" in color ? color.grad : color.hex }}
+                  />
+                  <div className="mt-2 text-sm font-semibold">{color.nome}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <SectionTitle>Maniglie e cerniere</SectionTitle>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+              {WIZARD_HW_COLORS.map((hardware) => (
+                <button
+                  key={hardware.id}
+                  type="button"
+                  onClick={() => setState((current) => ({ ...current, coloreHw: hardware.id as WizardHw }))}
+                  className={cn(
+                    "rounded-2xl border p-3 text-left transition",
+                    state.coloreHw === hardware.id ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                  )}
+                >
+                  <div className="h-11 rounded-xl border" style={{ background: hardware.hex }} />
+                  <div className="mt-2 text-sm font-semibold">{hardware.nome}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={nextDisabled} nextLabel="Accessori e regole" />
+    </div>
+  );
+}
+
+function StepAccessori({
+  state,
+  setState,
+  notes,
+  onNotesChange,
+  sceneAnalysis,
+  selectedOpeningIds,
+  onBack,
+  onNext,
+}: {
+  state: WizardState;
+  setState: React.Dispatch<React.SetStateAction<WizardState>>;
+  notes: string;
+  onNotesChange: (value: string) => void;
+  sceneAnalysis: WindowSceneAnalysis | null;
+  selectedOpeningIds: string[];
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const targetOpenings = sceneAnalysis?.openings.filter((opening) => selectedOpeningIds.includes(opening.id)) ?? [];
+  const hasVisibleManualBelt = targetOpenings.some((opening) => opening.hasBelt || opening.hasBeltBox);
+  const infissoColor = getColorById(state.coloreInfisso);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-5 p-5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 6</div>
+            <h2 className="mt-1 text-xl font-bold">Oscuranti, accessori e dettagli</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Qui definiamo cassonetti, tapparelle e note libere che influenzeranno le regole di sostituzione.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <SectionTitle>Cassonetto</SectionTitle>
+            <button
+              type="button"
+              onClick={() => setState((current) => ({ ...current, cass: !current.cass }))}
+              className={cn(
+                "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
+                state.cass ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+              )}
+            >
+              <Checkbox checked={state.cass} className="mt-1" />
+              <div>
+                <div className="font-semibold">Sostituisci il cassonetto</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Il prompt tratterà il cassonetto come elemento separato dal serramento.
+                </div>
+              </div>
+            </button>
+
+            {state.cass && (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {WIZARD_CASS_MATERIALI.map((option) => (
+                  <ChoiceCard
+                    key={option.id}
+                    title={option.label}
+                    desc={option.desc}
+                    selected={state.cassMat === option.id}
+                    onClick={() => setState((current) => ({ ...current, cassMat: option.id as typeof current.cassMat }))}
+                  />
+                ))}
+              </div>
+            )}
+
+            {state.cass && state.cassMat === "colore_custom" && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                {WIZARD_RAL.map((color) => (
                   <button
-                    key={m.id}
+                    key={color.id}
                     type="button"
-                    onClick={() => setState(s => ({ ...s, cassMat: m.id as WizardCassMat }))}
+                    onClick={() => setState((current) => ({ ...current, cassCol: color.id }))}
                     className={cn(
-                      "flex items-center gap-2 rounded-lg border p-2 text-left text-xs transition",
-                      state.cassMat === m.id
-                        ? "border-2 border-orange-500 bg-orange-50 dark:bg-orange-950/30"
-                        : "border-border bg-white dark:bg-slate-950 hover:border-orange-300",
+                      "rounded-2xl border p-3 text-left transition",
+                      state.cassCol === color.id ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
                     )}
                   >
-                    <span className="text-lg leading-none">{m.icon}</span>
-                    <div>
-                      <div className={cn("text-xs font-bold", state.cassMat === m.id && "text-orange-600")}>
-                        {m.label}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">{m.desc}</div>
-                    </div>
+                    <div className="h-12 rounded-xl border" style={{ background: color.hex }} />
+                    <div className="mt-2 text-sm font-semibold">{color.nome}</div>
                   </button>
                 ))}
               </div>
+            )}
 
-              {state.cassMat === "colore_custom" && (
-                <div className="mt-3">
-                  <div className="mb-1.5 text-xs font-semibold">Colore RAL cassonetto</div>
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {WIZARD_RAL.map(c => (
-                      <ColorSwatch
-                        key={c.id}
-                        hex={c.hex}
-                        name={c.nome}
-                        selected={state.cassCol === c.id}
-                        onClick={() => setState(s => ({ ...s, cassCol: c.id }))}
-                        small
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {state.cassMat === "stesso_colore" && infissoColor && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs dark:bg-slate-950">
-                  <div
-                    className="h-5 w-5 rounded border"
-                    style={{ background: "grad" in infissoColor ? infissoColor.grad : infissoColor.hex }}
-                  />
-                  <span>Cassonetto in <strong>{infissoColor.nome}</strong></span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Tapparelle */}
-      <div>
-        <SectionTitle>Tapparelle</SectionTitle>
-        <div className="grid grid-cols-3 gap-1.5">
-          {WIZARD_TAPP_OPTIONS.map(o => (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => setState(s => ({ ...s, tapp: o.id as WizardTapp }))}
-              className={cn(
-                "flex flex-col items-center gap-1 rounded-xl border p-3 text-center transition",
-                state.tapp === o.id
-                  ? "border-2 border-orange-500 bg-orange-50 dark:bg-orange-950/30"
-                  : "border-border hover:border-orange-300",
-              )}
-            >
-              <span className="text-xl leading-none">{o.icon}</span>
-              <span className={cn("text-xs font-bold", state.tapp === o.id && "text-orange-600")}>
-                {o.label}
-              </span>
-              <span className="text-[9px] text-muted-foreground">{o.desc}</span>
-            </button>
-          ))}
-        </div>
-
-        {(state.tapp === "nuove" || state.tapp === "motorizzate") && (
-          <Card className="mt-2 bg-slate-50 dark:bg-slate-900">
-            <CardContent className="p-3">
-              <div className="mb-2 text-xs font-semibold">
-                Colore tapparelle{state.tapp === "motorizzate" ? " (motorizzate)" : ""}
+            {state.cass && state.cassMat === "stesso_colore" && infissoColor && (
+              <div className="rounded-xl border bg-slate-50 px-4 py-3 text-sm text-muted-foreground">
+                Cassonetto coordinato in <strong>{infissoColor.nome}</strong>.
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setState(s => ({ ...s, tappCol: "stesso" }))}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
-                    state.tappCol === "stesso"
-                      ? "border-2 border-orange-500 bg-orange-50 text-orange-600 dark:bg-orange-950/30"
-                      : "border-border bg-white dark:bg-slate-950 hover:border-orange-300",
-                  )}
-                >
-                  {infissoColor && (
-                    <div
-                      className="h-3.5 w-3.5 rounded border"
-                      style={{ background: "grad" in infissoColor ? infissoColor.grad : infissoColor.hex }}
-                    />
-                  )}
-                  Stesso infisso
-                </button>
-                {WIZARD_RAL.slice(0, 6).map(c => (
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <SectionTitle>Tapparella / oscurante</SectionTitle>
+            <div className="grid gap-3 md:grid-cols-3">
+              {WIZARD_TAPP_OPTIONS.map((option) => (
+                <ChoiceCard
+                  key={option.id}
+                  title={option.label}
+                  desc={option.desc}
+                  selected={state.tapp === option.id}
+                  onClick={() => setState((current) => ({ ...current, tapp: option.id as WizardTapp }))}
+                />
+              ))}
+            </div>
+
+            {(state.tapp === "motorizzate" || state.tapp === "nuove") && (
+              <div className="rounded-2xl border bg-slate-50 p-4">
+                <div className="mb-3 text-sm font-semibold">Colore tapparella</div>
+                <div className="flex flex-wrap gap-2">
                   <button
-                    key={c.id}
                     type="button"
-                    title={c.nome}
-                    onClick={() => setState(s => ({ ...s, tappCol: c.id }))}
+                    onClick={() => setState((current) => ({ ...current, tappCol: "stesso" }))}
                     className={cn(
-                      "h-8 w-8 rounded-lg border transition",
-                      state.tappCol === c.id ? "ring-2 ring-orange-500 ring-offset-1" : "hover:ring-1 hover:ring-orange-300",
+                      "rounded-lg border px-3 py-2 text-xs font-semibold transition",
+                      state.tappCol === "stesso" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-border bg-white hover:border-orange-300",
                     )}
-                    style={{ background: c.hex }}
-                  />
-                ))}
+                  >
+                    Stesso colore infisso
+                  </button>
+                  {WIZARD_RAL.slice(0, 8).map((color) => (
+                    <button
+                      key={color.id}
+                      type="button"
+                      title={color.nome}
+                      onClick={() => setState((current) => ({ ...current, tappCol: color.id }))}
+                      className={cn(
+                        "h-9 w-9 rounded-lg border transition",
+                        state.tappCol === color.id ? "ring-2 ring-orange-500 ring-offset-1" : "hover:ring-1 hover:ring-orange-300",
+                      )}
+                      style={{ background: color.hex }}
+                    />
+                  ))}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            )}
 
-      <NavButtons
-        onBack={onBack}
-        onNext={onNext}
-        nextDisabled={false}
-        nextLabel="Genera Render AI"
-        nextIcon={<Sparkles className="h-4 w-4" />}
-        nextAccent
-      />
+            {state.tapp === "motorizzate" && hasVisibleManualBelt && (
+              <div className="rounded-2xl border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+                Rilevata cinghia manuale su almeno una apertura target: il prompt imporrà rimozione cinghia,
+                placca/avvolgitore e ripristino parete senza lasciare tracce del vecchio sistema.
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <SectionTitle>Note operative per l'AI</SectionTitle>
+            <Textarea
+              value={notes}
+              onChange={(event) => onNotesChange(event.target.value)}
+              placeholder="Esempio: mantieni tende e radiatore identici, resa molto fotorealistica, profilo minimal ma senza cambiare il vano esistente."
+              className="min-h-[120px]"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={false} nextLabel="Riepilogo e genera" nextIcon={<Wand2 className="h-4 w-4" />} nextAccent />
     </div>
   );
 }
 
-// ─── Step 6: Generation + Result ─────────────────────────────────────────────
-function Step6Render({
-  photoPreview, originalSignedUrl, resultUrl, generating, elapsedSec, error, state,
-  contactId, opportunityId, onContactChange, onOpportunityChange,
-  onReset, onRetry, onDownload, onCreateQuote,
+function StepRender({
+  preview,
+  originalSignedUrl,
+  localPreview,
+  resultUrl,
+  generating,
+  elapsedSec,
+  error,
+  contactId,
+  opportunityId,
+  onContactChange,
+  onOpportunityChange,
+  onGenerate,
+  onRetry,
+  onReset,
+  onBack,
+  onDownload,
+  onCreateQuote,
 }: {
-  photoPreview: string | null;
+  preview: WindowRenderConfig | null;
   originalSignedUrl: string | null;
+  localPreview: string | null;
   resultUrl: string | null;
   generating: boolean;
   elapsedSec: number;
   error: string | null;
-  state: WizardState;
   contactId: string | null;
   opportunityId: string | null;
   onContactChange: (id: string | null) => void;
   onOpportunityChange: (id: string | null) => void;
-  onReset: () => void;
+  onGenerate: () => void;
   onRetry: () => void;
+  onReset: () => void;
+  onBack: () => void;
   onDownload: () => void;
   onCreateQuote: () => void;
 }) {
-  const tipo = WIZARD_TIPI.find(t => t.id === state.tipo);
-  const profilo = WIZARD_PROFILI.find(p => p.id === state.profilo);
-  const colore = getColorById(state.coloreInfisso);
-  const hw = WIZARD_HW_COLORS.find(c => c.id === state.coloreHw);
-  const cassM = WIZARD_CASS_MATERIALI.find(m => m.id === state.cassMat);
-
-  const progress = useMemo(() => Math.min(95, Math.round((elapsedSec / 45) * 95)), [elapsedSec]);
+  const progress = Math.min(96, Math.max(8, Math.round((elapsedSec / 50) * 100)));
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Summary */}
-      <Card className="bg-slate-800/5 border-slate-800/20">
-        <CardContent className="p-4">
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-800">
-            Riepilogo
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-5 p-5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 7</div>
+            <h2 className="mt-1 text-xl font-bold">Riepilogo finale e generazione</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Controlliamo target, specifiche e regole di sostituzione prima di lanciare il render.
+            </p>
           </div>
-          <div className="grid grid-cols-2 gap-y-1.5 text-xs">
-            <div><span className="text-muted-foreground">Tipo:</span> <strong>{tipo?.label}</strong></div>
-            <div><span className="text-muted-foreground">Profilo:</span> <strong>{profilo?.label}</strong></div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground">Colore:</span>
-              {colore && (
-                <div
-                  className="h-3.5 w-3.5 rounded border"
-                  style={{ background: "grad" in colore ? colore.grad : colore.hex }}
-                />
-              )}
-              <strong>{colore?.nome}</strong>
+
+          {preview ? (
+            <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <Card className="border-slate-200">
+                <CardContent className="space-y-4 p-4">
+                  <div className="text-sm font-semibold">Scope render</div>
+                  <div className="flex flex-wrap gap-2">
+                    {preview.target_selection.targetLabels.map((label) => (
+                      <Badge key={label} className="bg-slate-800 text-white hover:bg-slate-800">
+                        Apertura {label}
+                      </Badge>
+                    ))}
+                    {preview.target_selection.preservedOpeningIds.map((label) => (
+                      <Badge key={label} variant="outline">
+                        Apertura {label} invariata
+                      </Badge>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold">Specifiche tecniche</div>
+                    {preview.technical_specification.map((spec) => (
+                      <div key={spec.openingId} className="rounded-xl border bg-slate-50 p-3 text-sm">
+                        <div className="font-semibold">
+                          Apertura {spec.openingLabel} · {spec.desiredOpeningType.replace(/_/g, " ")}
+                        </div>
+                        <div className="mt-1 text-muted-foreground">
+                          {spec.material} · {spec.profileId} · {spec.finish.mode === "legno"
+                            ? `${spec.finish.name} wood-effect`
+                            : `${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""}`}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {spec.cassonetto.replace && <MiniBadge text={`cassonetto ${spec.cassonetto.colorLabel ?? ""}`.trim()} />}
+                          {spec.shutter.replace && <MiniBadge text={spec.shutter.isMotorized ? "tapparella motorizzata" : "tapparella nuova"} />}
+                          {spec.reducedNode && <MiniBadge text="profilo ridotto" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200">
+                <CardContent className="space-y-4 p-4">
+                  <div className="text-sm font-semibold">Regole di sostituzione</div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {preview.replacement_manifest.removals.length > 0 ? (
+                      preview.replacement_manifest.removals.map((rule) => (
+                        <div key={`${rule.code}-${rule.openingIds.join("-")}`} className="rounded-xl border bg-slate-50 p-3">
+                          <div className="font-medium text-foreground">{rule.summary}</div>
+                          {rule.repairInstruction && <div className="mt-1">{rule.repairInstruction}</div>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-xl border bg-slate-50 p-3">
+                        Nessuna rimozione critica oltre alla sostituzione del serramento.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-sm font-semibold">Elementi da preservare</div>
+                  <div className="flex flex-wrap gap-2">
+                    {preview.replacement_manifest.keepExactly.slice(0, 12).map((item) => (
+                      <Badge key={item} variant="outline">{item}</Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground">Hardware:</span>
-              {hw && (
-                <div className="h-3 w-3 rounded-full border" style={{ background: hw.hex }} />
-              )}
-              <strong>{hw?.nome}</strong>
+          ) : (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Completa i passaggi precedenti per costruire un payload render completo.
             </div>
-            {state.cass && (
-              <div className="col-span-2">📦 <strong>Cassonetto: {cassM?.label}</strong></div>
-            )}
-            {state.tapp !== "no" && (
-              <div className="col-span-2">
-                ⚡ <strong>Tapparelle: {state.tapp === "motorizzate" ? "Motorizzate" : "Nuove"}</strong>
-              </div>
-            )}
-          </div>
+          )}
+
+          {!resultUrl && !generating && !error && (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button size="lg" className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600" onClick={onGenerate} disabled={!preview}>
+                <Sparkles className="h-4 w-4" />
+                Genera render AI
+              </Button>
+              <Button size="lg" variant="outline" onClick={onBack}>
+                Torna ai dettagli
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {error ? (
         <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="flex flex-col gap-3 p-5">
-            <div className="flex items-center gap-2 text-sm font-bold text-destructive">
-              <RefreshCw className="h-4 w-4" /> Render non riuscito
+          <CardContent className="space-y-3 p-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
+              <RefreshCw className="h-4 w-4" />
+              Render non riuscito
             </div>
-            <div className="text-xs text-muted-foreground">{error}</div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={onRetry} className="gap-2">
-                <RefreshCw className="h-3.5 w-3.5" /> Riprova
+            <div className="text-sm text-muted-foreground">{error}</div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={onRetry} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Riprova
               </Button>
-              <Button size="sm" variant="outline" onClick={onReset}>
-                Nuovo render
+              <Button variant="outline" onClick={onBack}>
+                Rivedi configurazione
               </Button>
             </div>
           </CardContent>
         </Card>
-      ) : !resultUrl || generating ? (
+      ) : generating ? (
         <Card className="bg-gradient-to-br from-slate-800 to-slate-700 text-white">
-          <CardContent className="flex flex-col items-center gap-3 py-8">
-            <div className="text-3xl"><Loader2 className="h-8 w-8 animate-spin" /></div>
-            <div className="text-base font-bold">Render in elaborazione…</div>
-            <div className="text-xs opacity-70">L'AI sta sostituendo gli infissi ({elapsedSec}s)</div>
-            <Progress value={progress} className="h-1.5 w-full bg-white/20" />
-            <div className="text-[11px] opacity-50">~30-60 secondi</div>
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <div>
+                <div className="text-lg font-bold">Generazione in corso</div>
+                <div className="text-sm text-white/70">
+                  L'AI sta mantenendo lo stesso ambiente mentre sostituisce gli infissi target.
+                </div>
+              </div>
+            </div>
+            <Progress value={progress} className="h-2 bg-white/20" />
+            <div className="text-sm text-white/70">Tempo trascorso: {elapsedSec}s</div>
           </CardContent>
         </Card>
-      ) : (
+      ) : resultUrl ? (
         <>
-          <Card className="border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/20">
-            <CardContent className="flex items-center gap-3 p-4">
+          <Card className="border-emerald-500/30 bg-emerald-50">
+            <CardContent className="flex items-center gap-3 p-4 text-emerald-900">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               <div>
-                <div className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
-                  Render completato!
-                </div>
-                <div className="text-xs text-emerald-700 dark:text-emerald-300">
-                  Immagine fotorealistica pronta
+                <div className="font-semibold">Render completato</div>
+                <div className="text-sm text-emerald-800">
+                  Il risultato è pronto per confronto, download e collegamento CRM.
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Before/After interactive slider (primary) */}
-          {(originalSignedUrl || photoPreview) ? (
+          {(originalSignedUrl || localPreview) && (
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Prima / Dopo — trascina il cursore
+                  Prima / Dopo
                 </div>
                 <Badge className="bg-orange-500 text-white hover:bg-orange-600">RENDER AI</Badge>
               </div>
               <BeforeAfterSlider
-                beforeUrl={originalSignedUrl ?? photoPreview ?? ""}
+                beforeUrl={originalSignedUrl ?? localPreview ?? ""}
                 afterUrl={resultUrl}
-                className="aspect-[4/3] border"
+                className="border"
               />
-            </div>
-          ) : (
-            <div className="relative overflow-hidden rounded-2xl border">
-              <img src={resultUrl} alt="Render" className="block w-full" />
-              <Badge className="absolute right-3 top-3 bg-orange-500 text-white hover:bg-orange-600">
-                RENDER AI
-              </Badge>
             </div>
           )}
 
-          {/* CRM linking */}
           <Card>
             <CardContent className="p-2">
               <RenderCrmLinker
@@ -1117,13 +1534,14 @@ function Step6Render({
             </CardContent>
           </Card>
 
-          {/* Action buttons */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <Button onClick={onDownload} className="gap-2">
-              <Download className="h-4 w-4" /> Scarica
+              <Download className="h-4 w-4" />
+              Scarica render
             </Button>
             <Button variant="outline" onClick={onReset} className="gap-2">
-              <RefreshCw className="h-4 w-4" /> Nuovo render
+              <RefreshCw className="h-4 w-4" />
+              Nuovo render
             </Button>
           </div>
 
@@ -1134,21 +1552,79 @@ function Step6Render({
             className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
           >
             <FileText className="h-4 w-4" />
-            {contactId ? "Crea preventivo per questo contatto" : "Collega un contatto per creare il preventivo"}
+            {contactId ? "Crea preventivo da questo render" : "Collega un contatto per creare il preventivo"}
           </Button>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
 
-// ─── UI primitives ───────────────────────────────────────────────────────────
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border bg-slate-50 p-4">
+      <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+      <div className="mt-2 text-lg font-semibold capitalize">{value}</div>
+    </div>
+  );
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div className="mb-2.5 text-sm font-semibold">{children}</div>;
+  return <div className="text-sm font-semibold">{children}</div>;
+}
+
+function ChoiceCard({
+  title,
+  desc,
+  selected,
+  onClick,
+}: {
+  title: string;
+  desc: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-2xl border p-4 text-left transition",
+        selected ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+      )}
+    >
+      <div className="text-sm font-semibold">{title}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{desc}</div>
+    </button>
+  );
+}
+
+function MiniBadge({
+  text,
+  intent = "neutral",
+}: {
+  text: string;
+  intent?: "neutral" | "warning";
+}) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+        intent === "warning" ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-700",
+      )}
+    >
+      {text}
+    </span>
+  );
 }
 
 function NavButtons({
-  onBack, onNext, nextDisabled, nextLabel, nextIcon, nextAccent,
+  onBack,
+  onNext,
+  nextDisabled,
+  nextLabel = "Avanti",
+  nextIcon,
+  nextAccent = false,
 }: {
   onBack: () => void;
   onNext: () => void;
@@ -1158,56 +1634,19 @@ function NavButtons({
   nextAccent?: boolean;
 }) {
   return (
-    <div className="mt-1 flex gap-2">
+    <div className="flex flex-col gap-2 sm:flex-row">
       <Button variant="outline" onClick={onBack} className="gap-1">
-        <ArrowLeft className="h-4 w-4" /> Indietro
+        <ArrowLeft className="h-4 w-4" />
+        Indietro
       </Button>
       <Button
         onClick={onNext}
         disabled={nextDisabled}
-        className={cn(
-          "flex-1 gap-2",
-          nextAccent ? "bg-orange-500 hover:bg-orange-600" : "bg-slate-800 hover:bg-slate-700",
-        )}
+        className={cn("flex-1 gap-2", nextAccent ? "bg-orange-500 hover:bg-orange-600" : "bg-slate-800 hover:bg-slate-700")}
       >
-        {nextLabel || "Avanti"} {nextIcon || <ArrowRight className="h-4 w-4" />}
+        {nextLabel}
+        {nextIcon ?? <ArrowRight className="h-4 w-4" />}
       </Button>
     </div>
-  );
-}
-
-function ColorSwatch({
-  hex, grad, name, selected, onClick, small,
-}: {
-  hex?: string;
-  grad?: string;
-  name: string;
-  selected: boolean;
-  onClick: () => void;
-  small?: boolean;
-}) {
-  const size = small ? "h-8 w-8" : "h-10 w-10";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center gap-1 rounded-lg p-1.5 transition",
-        selected ? "border-2 border-orange-500" : "border border-border hover:border-orange-300",
-      )}
-    >
-      <div
-        className={cn(
-          size,
-          small ? "rounded-full" : "rounded-md",
-          "border border-black/10",
-          selected && "ring-2 ring-orange-500 ring-offset-1",
-        )}
-        style={{ background: grad ?? hex }}
-      />
-      <span className="max-w-[56px] text-center text-[9px] font-semibold leading-tight">
-        {name}
-      </span>
-    </button>
   );
 }

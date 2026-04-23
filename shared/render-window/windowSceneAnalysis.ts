@@ -1,0 +1,373 @@
+import type {
+  SceneEnvironmentType,
+  WindowImageOrientation,
+  WindowMaterial,
+  WindowOpeningPosition,
+  WindowOpeningType,
+  WindowPhotoMeta,
+  WindowRollerControlType,
+  WindowSceneAnalysis,
+  WindowSceneOpening,
+  WindowTargetSelection,
+} from "./types.ts";
+
+const OPENING_TYPES: WindowOpeningType[] = [
+  "battente_1_anta",
+  "battente_2_ante",
+  "battente_3_ante",
+  "scorrevole",
+  "scorrevole_alzante",
+  "vasistas",
+  "anta_ribalta",
+  "bilico",
+  "fisso",
+  "portafinestra",
+];
+
+const MATERIALS: WindowMaterial[] = [
+  "pvc",
+  "alluminio",
+  "legno",
+  "legno_alluminio",
+  "acciaio_corten",
+  "acciaio_minimale",
+  "unknown",
+];
+
+const POSITIONS: WindowOpeningPosition[] = [
+  "far_left",
+  "left",
+  "center",
+  "right",
+  "far_right",
+  "full_width",
+  "unknown",
+];
+
+const ENVIRONMENTS: SceneEnvironmentType[] = [
+  "living_room",
+  "kitchen",
+  "bedroom",
+  "bathroom",
+  "staircase",
+  "office",
+  "facade",
+  "balcony",
+  "interior_generic",
+  "exterior_generic",
+  "mixed",
+  "unknown",
+];
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function booleanOr(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "yes", "si", "sì", "1"].includes(normalized)) return true;
+    if (["false", "no", "0"].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function optionalNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function stringArray(value: unknown, limit = 8): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim())
+    .slice(0, limit);
+}
+
+function normalizeOpeningType(value: unknown): WindowOpeningType {
+  return OPENING_TYPES.includes(value as WindowOpeningType) ? (value as WindowOpeningType) : "battente_2_ante";
+}
+
+function normalizeMaterial(value: unknown): WindowMaterial {
+  return MATERIALS.includes(value as WindowMaterial) ? (value as WindowMaterial) : "unknown";
+}
+
+function normalizePosition(value: unknown): WindowOpeningPosition {
+  return POSITIONS.includes(value as WindowOpeningPosition) ? (value as WindowOpeningPosition) : "unknown";
+}
+
+function normalizeEnvironment(value: unknown): SceneEnvironmentType {
+  return ENVIRONMENTS.includes(value as SceneEnvironmentType) ? (value as SceneEnvironmentType) : "unknown";
+}
+
+function inferOrientation(meta?: WindowPhotoMeta | null): WindowImageOrientation {
+  return meta?.orientation ?? "unknown";
+}
+
+function labelFromIndex(index: number): string {
+  return String.fromCharCode(65 + index);
+}
+
+function inferPlacement(position: WindowOpeningPosition, index: number, total: number): string {
+  if (position !== "unknown") return position.replace(/_/g, " ");
+  if (total === 1) return "center";
+  if (index === 0) return "left side of the frame";
+  if (index === total - 1) return "right side of the frame";
+  return "central area";
+}
+
+function buildOpeningFromLegacy(raw: Record<string, unknown>): WindowSceneOpening {
+  const typeCurrent = normalizeOpeningType(raw.tipo_apertura);
+  const sashCount = numberOr(raw.num_ante_attuale, typeCurrent === "battente_2_ante" ? 2 : 1);
+  const hasRoller = booleanOr(raw.presenza_tapparella, booleanOr(raw.presenza_cassonetto, false));
+  const hasBelt = stringOr(raw.cinghia_attuale, "").toLowerCase() === "con_cinghia";
+
+  return {
+    id: "A",
+    label: "A",
+    order: 0,
+    position: "center",
+    approximatePlacement: "center",
+    typeCurrent,
+    perceivedElement: typeCurrent === "portafinestra" ? "door_window" : typeCurrent.includes("scorrevole") ? "sliding_panel" : "window",
+    sashCount,
+    materialPerceived: normalizeMaterial(raw.materiale_attuale),
+    colorPerceived: stringOr(raw.colore_attuale, "unknown"),
+    condition: ["buone", "usurato", "danneggiato", "fatiscente"].includes(String(raw.condizioni))
+      ? (String(raw.condizioni) as WindowSceneOpening["condition"])
+      : "unknown",
+    hasCassonetto: booleanOr(raw.presenza_cassonetto, false),
+    cassonettoType: booleanOr(raw.presenza_cassonetto, false) ? stringOr(raw.tipo_cassonetto, "roller box") : null,
+    hasRollerShutter: hasRoller,
+    hasBelt,
+    hasBeltBox: hasBelt,
+    rollerControlType: hasBelt ? "manual_belt" : hasRoller ? "unknown" : "none",
+    hasPersiane: booleanOr(raw.presenza_persiane, false),
+    hasScuri: booleanOr(raw.presenza_scuri, false),
+    hasGrates: booleanOr(raw.presenza_inferriata, false),
+    hasSill: booleanOr(raw.presenza_davanzale, false),
+    hasCurtains: booleanOr(raw.presenza_tende, false),
+    radiatorNearby: booleanOr(raw.presenza_radiatore, false),
+    surroundingElements: stringArray(raw.elementi_contorno),
+    lightNotes: stringOr(raw.luce, "same existing lighting"),
+    reflectionNotes: stringOr(raw.riflessi, "preserve current glazing reflections"),
+    shadowNotes: stringOr(raw.ombre, "preserve current shadow direction"),
+    geometryNotes: stringOr(raw.geometria, "preserve the original opening geometry"),
+    outdoorViewNotes: stringOr(raw.outdoor_view_notes, "preserve outdoor view through glass"),
+    preserveNotes: stringOr(raw.note_analisi, "preserve surrounding room elements"),
+  };
+}
+
+function normalizeOpening(rawOpening: Record<string, unknown>, index: number, total: number): WindowSceneOpening {
+  const label = stringOr(rawOpening.id, labelFromIndex(index)).toUpperCase();
+  const typeCurrent = normalizeOpeningType(rawOpening.type_current ?? rawOpening.typeCurrent ?? rawOpening.tipo_apertura);
+  const sashCount = Math.max(1, Math.min(6, numberOr(rawOpening.sash_count ?? rawOpening.sashCount ?? rawOpening.num_ante_attuale, typeCurrent === "battente_2_ante" ? 2 : 1)));
+  const hasBelt = booleanOr(rawOpening.has_belt ?? rawOpening.hasBelt ?? rawOpening.presenza_cinghia, false);
+  const hasBeltBox = booleanOr(rawOpening.has_belt_box ?? rawOpening.hasBeltBox ?? rawOpening.presenza_avvolgitore, hasBelt);
+  const hasRollerShutter = booleanOr(rawOpening.has_roller_shutter ?? rawOpening.hasRollerShutter ?? rawOpening.presenza_tapparella, hasBelt || booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false));
+  const position = normalizePosition(rawOpening.position);
+
+  return {
+    id: label,
+    label,
+    order: index,
+    position,
+    approximatePlacement: stringOr(rawOpening.approximate_placement ?? rawOpening.approximatePlacement, inferPlacement(position, index, total)),
+    typeCurrent,
+    perceivedElement: ["window", "door_window", "sliding_panel", "fixed_light", "unknown"].includes(String(rawOpening.perceived_element ?? rawOpening.perceivedElement))
+      ? (String(rawOpening.perceived_element ?? rawOpening.perceivedElement) as WindowSceneOpening["perceivedElement"])
+      : typeCurrent === "portafinestra"
+        ? "door_window"
+        : typeCurrent.includes("scorrevole")
+          ? "sliding_panel"
+          : typeCurrent === "fisso"
+            ? "fixed_light"
+            : "window",
+    sashCount,
+    materialPerceived: normalizeMaterial(rawOpening.material_perceived ?? rawOpening.materialPerceived ?? rawOpening.materiale_attuale),
+    colorPerceived: stringOr(rawOpening.color_perceived ?? rawOpening.colorPerceived ?? rawOpening.colore_attuale, "unknown"),
+    condition: ["buone", "usurato", "danneggiato", "fatiscente"].includes(String(rawOpening.condition ?? rawOpening.condizione))
+      ? (String(rawOpening.condition ?? rawOpening.condizione) as WindowSceneOpening["condition"])
+      : "unknown",
+    hasCassonetto: booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false),
+    cassonettoType: booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false)
+      ? stringOr(rawOpening.cassonetto_type ?? rawOpening.cassonettoType, "roller box")
+      : null,
+    hasRollerShutter,
+    hasBelt,
+    hasBeltBox,
+    rollerControlType: ["manual_belt", "motorized", "chain", "crank", "none", "unknown"].includes(String(rawOpening.roller_control_type ?? rawOpening.rollerControlType))
+      ? (String(rawOpening.roller_control_type ?? rawOpening.rollerControlType) as WindowRollerControlType)
+      : hasBelt
+        ? "manual_belt"
+        : hasRollerShutter
+          ? "unknown"
+          : "none",
+    hasPersiane: booleanOr(rawOpening.has_persiane ?? rawOpening.hasPersiane, false),
+    hasScuri: booleanOr(rawOpening.has_scuri ?? rawOpening.hasScuri, false),
+    hasGrates: booleanOr(rawOpening.has_grates ?? rawOpening.hasGrates ?? rawOpening.presenza_inferriata, false),
+    hasSill: booleanOr(rawOpening.has_sill ?? rawOpening.hasSill ?? rawOpening.presenza_davanzale, false),
+    hasCurtains: booleanOr(rawOpening.has_curtains ?? rawOpening.hasCurtains ?? rawOpening.presenza_tende, false),
+    radiatorNearby: booleanOr(rawOpening.radiator_nearby ?? rawOpening.radiatorNearby ?? rawOpening.presenza_radiatore, false),
+    surroundingElements: stringArray(rawOpening.surrounding_elements ?? rawOpening.surroundingElements),
+    lightNotes: stringOr(rawOpening.light_notes ?? rawOpening.lightNotes, "preserve current local light behavior"),
+    reflectionNotes: stringOr(rawOpening.reflection_notes ?? rawOpening.reflectionNotes, "preserve current glazing reflections"),
+    shadowNotes: stringOr(rawOpening.shadow_notes ?? rawOpening.shadowNotes, "preserve current shadow placement"),
+    geometryNotes: stringOr(rawOpening.geometry_notes ?? rawOpening.geometryNotes, "preserve the current opening geometry"),
+    outdoorViewNotes: stringOr(rawOpening.outdoor_view_notes ?? rawOpening.outdoorViewNotes, "preserve the outdoor view"),
+    preserveNotes: stringOr(rawOpening.preserve_notes ?? rawOpening.preserveNotes, "preserve adjacent architectural details"),
+  };
+}
+
+export function createFallbackWindowSceneAnalysis(meta?: WindowPhotoMeta | null): WindowSceneAnalysis {
+  const legacyOpening = buildOpeningFromLegacy({});
+  return {
+    version: "2.0",
+    environmentType: "unknown",
+    viewMode: "unknown",
+    imageOrientation: inferOrientation(meta),
+    estimatedOpeningsVisible: 1,
+    targetableOpenings: 1,
+    cameraAngle: "preserve original camera angle",
+    lightingDirection: "preserve original lighting direction",
+    lightingQuality: "preserve original exposure and white balance",
+    environmentSummary: "Same photographed environment, no reinterpretation.",
+    wallMaterial: "same existing wall material",
+    wallColor: "same existing wall color",
+    floorVisible: true,
+    curtainsPresent: false,
+    radiatorPresent: false,
+    furnitureContext: [],
+    untouchedElements: ["walls", "floor", "furniture", "curtains", "radiators", "outdoor view"],
+    outdoorViewSummary: "keep outdoor scenery identical",
+    openings: [legacyOpening],
+    primaryTargetHint: "A",
+    noteAnalisi: "Fallback analysis: preserve the source photo exactly and replace only the selected infisso.",
+    legacy: {
+      tipo_apertura: legacyOpening.typeCurrent,
+      materiale_attuale: legacyOpening.materialPerceived,
+      colore_attuale: legacyOpening.colorPerceived,
+      condizioni: legacyOpening.condition,
+      stile_edificio: "unknown",
+      num_ante_attuale: legacyOpening.sashCount,
+      presenza_cassonetto: legacyOpening.hasCassonetto,
+      presenza_davanzale: legacyOpening.hasSill,
+      presenza_inferriata: legacyOpening.hasGrates,
+      larghezza_stimata_cm: null,
+      altezza_stimata_cm: null,
+      note_analisi: "Fallback analysis",
+      cinghia_attuale: legacyOpening.hasBelt ? "con_cinghia" : "unknown",
+    },
+  };
+}
+
+export function normalizeWindowSceneAnalysis(rawInput: unknown, meta?: WindowPhotoMeta | null): WindowSceneAnalysis {
+  const raw = asObject(rawInput);
+  if (!Object.keys(raw).length) return createFallbackWindowSceneAnalysis(meta);
+
+  const rawOpenings = Array.isArray(raw.openings)
+    ? raw.openings.map((item) => asObject(item)).filter((item) => Object.keys(item).length > 0)
+    : [];
+
+  const openings = (rawOpenings.length > 0 ? rawOpenings : [buildOpeningFromLegacy(raw)]).map((item, index, array) =>
+    normalizeOpening(asObject(item), index, array.length),
+  );
+
+  const legacyFirst = openings[0] ?? buildOpeningFromLegacy(raw);
+  const legacy = asObject(raw.legacy);
+  const untouchedElements = [
+    ...stringArray(raw.untouched_elements, 16),
+    ...stringArray(raw.elementi_da_preservare, 16),
+  ];
+
+  return {
+    version: "2.0",
+    environmentType: normalizeEnvironment(raw.environment_type ?? raw.environmentType),
+    viewMode: ["interior", "exterior", "mixed", "unknown"].includes(String(raw.view_mode ?? raw.viewMode))
+      ? (String(raw.view_mode ?? raw.viewMode) as WindowSceneAnalysis["viewMode"])
+      : "unknown",
+    imageOrientation: inferOrientation(meta),
+    estimatedOpeningsVisible: Math.max(1, numberOr(raw.openings_count_visible ?? raw.estimatedOpeningsVisible ?? raw.numero_aperture_visibili, openings.length)),
+    targetableOpenings: openings.length,
+    cameraAngle: stringOr(raw.camera_angle ?? raw.cameraAngle ?? raw.angolo_ripresa, "preserve original camera angle"),
+    lightingDirection: stringOr(raw.lighting_direction ?? raw.lightingDirection ?? raw.luce, "preserve original lighting direction"),
+    lightingQuality: stringOr(raw.lighting_quality ?? raw.lightingQuality, "preserve original exposure and white balance"),
+    environmentSummary: stringOr(raw.environment_summary ?? raw.environmentSummary, "Same photographed environment with only surgical infisso replacement."),
+    wallMaterial: stringOr(raw.wall_material ?? raw.wallMaterial ?? raw.materiale_muro, "same existing wall material"),
+    wallColor: stringOr(raw.wall_color ?? raw.wallColor ?? raw.colore_muro, "same existing wall color"),
+    floorVisible: booleanOr(raw.floor_visible ?? raw.floorVisible, true),
+    curtainsPresent: booleanOr(raw.curtains_present ?? raw.curtainsPresent ?? raw.presenza_tende, openings.some((opening) => opening.hasCurtains)),
+    radiatorPresent: booleanOr(raw.radiator_present ?? raw.radiatorPresent ?? raw.presenza_radiatore, openings.some((opening) => opening.radiatorNearby)),
+    furnitureContext: stringArray(raw.furniture_context ?? raw.furnitureContext, 12),
+    untouchedElements: untouchedElements.length > 0
+      ? Array.from(new Set(untouchedElements))
+      : ["walls", "floor", "ceiling", "furniture", "curtains", "radiators", "sockets", "outdoor view"],
+    outdoorViewSummary: stringOr(raw.outdoor_view_summary ?? raw.outdoorViewSummary, "keep the outdoor view identical unless minimal glass-consistent refinement is unavoidable"),
+    openings,
+    primaryTargetHint: typeof raw.primary_target_hint === "string"
+      ? raw.primary_target_hint.toUpperCase()
+      : typeof raw.primaryTargetHint === "string"
+        ? raw.primaryTargetHint.toUpperCase()
+        : openings[0]?.id ?? null,
+    noteAnalisi: stringOr(raw.note_analisi ?? raw.noteAnalisi, "Preserve the same environment and replace only the requested openings."),
+    legacy: {
+      tipo_apertura: normalizeOpeningType(raw.tipo_apertura ?? legacy.tipo_apertura ?? legacyFirst.typeCurrent),
+      materiale_attuale: normalizeMaterial(raw.materiale_attuale ?? legacy.materiale_attuale ?? legacyFirst.materialPerceived),
+      colore_attuale: stringOr(raw.colore_attuale ?? legacy.colore_attuale ?? legacyFirst.colorPerceived, legacyFirst.colorPerceived),
+      condizioni: stringOr(raw.condizioni ?? legacy.condizioni ?? legacyFirst.condition, legacyFirst.condition),
+      stile_edificio: stringOr(raw.stile_edificio ?? legacy.stile_edificio, "unknown"),
+      num_ante_attuale: numberOr(raw.num_ante_attuale ?? legacy.num_ante_attuale, legacyFirst.sashCount),
+      presenza_cassonetto: booleanOr(raw.presenza_cassonetto ?? legacy.presenza_cassonetto, legacyFirst.hasCassonetto),
+      presenza_davanzale: booleanOr(raw.presenza_davanzale ?? legacy.presenza_davanzale, legacyFirst.hasSill),
+      presenza_inferriata: booleanOr(raw.presenza_inferriata ?? legacy.presenza_inferriata, legacyFirst.hasGrates),
+      larghezza_stimata_cm: optionalNumber(raw.larghezza_stimata_cm),
+      altezza_stimata_cm: optionalNumber(raw.altezza_stimata_cm),
+      note_analisi: stringOr(raw.note_analisi ?? legacy.note_analisi, "Detailed scene analysis"),
+      cinghia_attuale: (raw.cinghia_attuale ?? legacy.cinghia_attuale) === "con_cinghia"
+        ? "con_cinghia"
+        : legacyFirst.hasBelt
+          ? "con_cinghia"
+          : "unknown",
+    },
+  };
+}
+
+export function createWindowTargetSelection(
+  analysis: WindowSceneAnalysis,
+  selectedOpeningIds?: string[] | null,
+): WindowTargetSelection {
+  const targetableIds = analysis.openings.map((opening) => opening.id);
+  const normalizedSelected = (selectedOpeningIds ?? targetableIds)
+    .filter((id): id is string => typeof id === "string" && targetableIds.includes(id))
+    .filter((id, index, array) => array.indexOf(id) === index);
+
+  const finalSelected = normalizedSelected.length > 0 ? normalizedSelected : targetableIds.slice(0, 1);
+  const preservedOpeningIds = targetableIds.filter((id) => !finalSelected.includes(id));
+
+  return {
+    mode:
+      finalSelected.length === targetableIds.length
+        ? "all"
+        : finalSelected.length === 1
+          ? "single"
+          : "multiple",
+    selectedOpeningIds: finalSelected,
+    preservedOpeningIds,
+    primaryOpeningId: finalSelected[0] ?? null,
+    targetLabels: analysis.openings
+      .filter((opening) => finalSelected.includes(opening.id))
+      .map((opening) => opening.label),
+  };
+}
