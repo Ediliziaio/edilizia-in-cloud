@@ -181,6 +181,8 @@ const CampaignEditor = lazy(() => import("@/pages/azienda/marketing/CampaignEdit
 const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/CampaignSendSettings"));
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
+// MP04 — Hub WhatsApp multi-numero
+const WhatsAppHubPage = lazy(() => import("@/pages/azienda/whatsapp/WhatsAppHubPage"));
 const SmsMarketingPage = lazy(() => import("@/pages/azienda/sms-marketing/index"));
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
 const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
@@ -387,6 +389,8 @@ export function companyRoutes() {
         <Route path="marketing/email/campagna/:id/builder" element={<FeatureRoute featureKey="email_marketing"><DragDropEmailBuilder /></FeatureRoute>} />
         <Route path="marketing/email/campagna/:id/impostazioni" element={<FeatureRoute featureKey="email_marketing"><CampaignSendSettings /></FeatureRoute>} />
         <Route path="marketing/whatsapp" element={<FeatureRoute featureKey="whatsapp"><MarketingWhatsApp /></FeatureRoute>} />
+        {/* MP04 — Hub WhatsApp multi-numero */}
+        <Route path="whatsapp" element={<FeatureRoute featureKey="whatsapp"><WhatsAppHubPage /></FeatureRoute>} />
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={<ReportisticaPage />} />
