@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { ensureBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image,
   CheckCircle2, XCircle, Zap, Clock, Wand2, Bath,
@@ -82,6 +84,53 @@ export default function RenderBagnoGalleryDetail() {
   });
 
   const resultUrl = session?.render_result_url ?? null;
+  const rawConfig = session?.configurazione as Record<string, unknown> | null;
+  const originalDisplayUrl = originalUrl || session?.foto_originale_url || null;
+
+  const renderPlan = useMemo(() => {
+    if (!rawConfig) return null;
+    try {
+      return ensureBathroomRenderConfig(rawConfig, session?.analisi_bagno ?? undefined);
+    } catch {
+      return null;
+    }
+  }, [rawConfig, session?.analisi_bagno]);
+
+  const sceneHighlights = useMemo(() => {
+    if (!renderPlan) return [];
+    const scene = renderPlan.scene_analysis;
+    return [
+      `layout ${scene.layoutType.replace(/_/g, " ")}`,
+      `stato ${scene.overallCondition.replace(/_/g, " ")}`,
+      scene.shower.present ? `doccia esistente ${scene.shower.type.replace(/_/g, " ")}` : "doccia non evidente",
+      scene.bathtub.present ? `vasca esistente ${scene.bathtub.type.replace(/_/g, " ")}` : "vasca non evidente",
+      scene.vanity.present ? `mobile ${scene.vanity.type.replace(/_/g, " ")}` : "mobile non evidente",
+      scene.windowPresent ? `finestra ${scene.windowPosition.replace(/_/g, " ")}` : "senza finestra visibile",
+      renderPlan.photo_meta?.orientation ? `foto ${renderPlan.photo_meta.orientation}` : "",
+    ].filter(Boolean);
+  }, [renderPlan]);
+
+  const plannedChanges = useMemo(() => {
+    if (!renderPlan) return [];
+    return renderPlan.replacement_manifest.replacements
+      .filter((item) => !item.startsWith("Keep "))
+      .slice(0, 8);
+  }, [renderPlan]);
+
+  const plannedAdditions = useMemo(() => {
+    if (!renderPlan) return [];
+    return renderPlan.replacement_manifest.additions.slice(0, 6);
+  }, [renderPlan]);
+
+  const plannedRemovals = useMemo(() => {
+    if (!renderPlan) return [];
+    return renderPlan.replacement_manifest.removals.slice(0, 6);
+  }, [renderPlan]);
+
+  const preservedElements = useMemo(() => {
+    if (!renderPlan) return [];
+    return renderPlan.replacement_manifest.preserveExactly.slice(0, 10);
+  }, [renderPlan]);
 
   const handleDownload = () => {
     if (!resultUrl) return;
@@ -124,8 +173,6 @@ export default function RenderBagnoGalleryDetail() {
   const statusCfg = STATUS_CONFIG[session.stato as keyof typeof STATUS_CONFIG] ??
     STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
-  const config = session.configurazione as Record<string, unknown> | null;
-
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
@@ -179,18 +226,14 @@ export default function RenderBagnoGalleryDetail() {
       )}
 
       {/* Before/After slider */}
-      {session.stato === "completato" && resultUrl && originalUrl && (
+      {session.stato === "completato" && resultUrl && originalDisplayUrl && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Confronto prima/dopo</CardTitle>
             <p className="text-xs text-muted-foreground">Trascina il cursore per confrontare</p>
           </CardHeader>
           <CardContent>
-            <BeforeAfterSlider
-              beforeUrl={originalUrl}
-              afterUrl={resultUrl}
-              className="aspect-video"
-            />
+            <BeforeAfterSlider beforeUrl={originalDisplayUrl} afterUrl={resultUrl} className="mx-auto max-h-[78vh]" />
             <div className="flex gap-2 mt-4 justify-end">
               <Button
                 variant="outline"
@@ -234,7 +277,7 @@ export default function RenderBagnoGalleryDetail() {
       )}
 
       {/* Original photo while processing */}
-      {session.stato !== "completato" && session.foto_originale_path && (
+      {session.stato !== "completato" && (session.foto_originale_path || session.foto_originale_url) && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -243,12 +286,12 @@ export default function RenderBagnoGalleryDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-full aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-              {originalUrl ? (
+            <div className="w-full max-h-[72vh] bg-muted/40 rounded-lg overflow-hidden flex items-center justify-center p-3">
+              {originalDisplayUrl ? (
                 <img
-                  src={originalUrl}
+                  src={originalDisplayUrl}
                   alt="Originale"
-                  className="w-full h-full object-cover opacity-60"
+                  className="max-h-[68vh] w-full object-contain opacity-80"
                 />
               ) : (
                 <Image className="h-10 w-10 text-muted-foreground/30" />
@@ -259,26 +302,89 @@ export default function RenderBagnoGalleryDetail() {
       )}
 
       {/* Config summary */}
-      {config && (
+      {renderPlan && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Configurazione bagno</CardTitle>
+            <CardTitle className="text-sm">Piano tecnico del render</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {Object.entries(config)
-                .filter(([k, v]) => v && k !== "sostituzione" && typeof v !== "object")
-                .map(([k, v]) => (
-                  <div key={k} className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground capitalize">
-                      {k.replace(/_/g, " ")}
-                    </p>
-                    <p className="text-sm font-medium capitalize">
-                      {String(v).replace(/_/g, " ")}
-                    </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Analisi ambiente
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {sceneHighlights.map((item) => (
+                      <Badge key={item} variant="secondary" className="capitalize">
+                        {item}
+                      </Badge>
+                    ))}
                   </div>
-                ))}
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Elementi da preservare
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {preservedElements.map((item) => (
+                      <Badge key={item} variant="outline" className="max-w-full whitespace-normal text-left">
+                        {item}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Modifiche pianificate
+                  </p>
+                  <ul className="mt-2 space-y-2 text-sm text-foreground">
+                    {plannedChanges.map((item) => (
+                      <li key={item} className="leading-relaxed">
+                        {item}
+                      </li>
+                    ))}
+                    {plannedChanges.length === 0 && (
+                      <li className="text-muted-foreground">Nessuna sostituzione esplicita registrata.</li>
+                    )}
+                  </ul>
+                </div>
+
+                {plannedAdditions.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Nuovi elementi
+                    </p>
+                    <ul className="mt-2 space-y-2 text-sm text-foreground">
+                      {plannedAdditions.map((item) => (
+                        <li key={item} className="leading-relaxed">
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {plannedRemovals.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Rimozioni obbligatorie
+                    </p>
+                    <ul className="mt-2 space-y-2 text-sm text-foreground">
+                      {plannedRemovals.map((rule) => (
+                        <li key={rule.code} className="leading-relaxed">
+                          {rule.summary}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
+
             <div className="flex gap-2 mt-3 flex-wrap">
               {session.provider_key && (
                 <Badge variant="outline" className="text-xs gap-1">

@@ -75,7 +75,7 @@ export default function RenderBagnoHub() {
     },
     enabled: !!companyId,
     refetchInterval: (query) =>
-      (query.state.data as Array<{ status: string }> | undefined)?.some(s => s.status === "processing")
+      (query.state.data as Array<{ stato: string }> | undefined)?.some((s) => s.stato === "processing" || s.stato === "analyzing")
         ? 12_000
         : false,
   });
@@ -103,7 +103,9 @@ export default function RenderBagnoHub() {
     enabled: !!companyId,
   });
 
-  const hasProcessing = sessions.some(s => s.stato === "processing");
+  const hasProcessing = sessions.some(
+    (s) => s.stato === "processing" || s.stato === "analyzing" || s.stato === "pending",
+  );
 
   return (
     <div className="space-y-8">
@@ -197,21 +199,21 @@ export default function RenderBagnoHub() {
           </div>
           {loadingGallery ? (
             <div className="grid grid-cols-3 gap-3">
-              {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video rounded-xl" />)}
+              {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-[4/5] rounded-xl" />)}
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
               {gallery.map(item => (
                 <div
                   key={item.id}
-                  className="aspect-video rounded-xl overflow-hidden cursor-pointer hover:ring-2 ring-cyan-400/40 transition-all group relative"
+                  className="aspect-[4/5] rounded-xl overflow-hidden cursor-pointer hover:ring-2 ring-cyan-400/40 transition-all group relative bg-muted/40"
                   onClick={() => navigate(`/azienda/render/bagno/gallery/${item.id}`)}
                 >
                   {item.render_result_url ? (
                     <img
                       src={item.render_result_url}
                       alt="Render bagno"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-300"
                     />
                   ) : (
                     <div className="w-full h-full bg-muted flex items-center justify-center">
@@ -277,6 +279,8 @@ export default function RenderBagnoHub() {
               const cfg = STATUS_CONFIG[session.stato as keyof typeof STATUS_CONFIG] ??
                 STATUS_CONFIG.pending;
               const Icon = cfg.icon;
+              const previewUrl = session.render_result_url || session.foto_originale_url;
+              const isOriginalPreview = Boolean(!session.render_result_url && session.foto_originale_url);
 
               return (
                 <Card
@@ -285,9 +289,13 @@ export default function RenderBagnoHub() {
                   onClick={() => navigate(`/azienda/render/bagno/gallery/${session.id}`)}
                 >
                   <CardContent className="p-3 flex items-center gap-3">
-                    <div className="w-16 h-12 rounded-lg overflow-hidden bg-muted shrink-0">
-                      {session.render_result_url ? (
-                        <img src={session.render_result_url} alt="render" className="w-full h-full object-cover" />
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted shrink-0 flex items-center justify-center">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt={isOriginalPreview ? "Foto originale bagno" : "Render bagno"}
+                          className={`w-full h-full object-contain ${isOriginalPreview ? "opacity-80" : ""}`}
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <Image className="h-5 w-5 text-muted-foreground/40" />

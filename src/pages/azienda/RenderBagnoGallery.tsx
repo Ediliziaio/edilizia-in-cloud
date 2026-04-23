@@ -51,6 +51,7 @@ export default function RenderBagnoGallery() {
       format(new Date(item.created_at), "d MMMM yyyy", { locale: it }).toLowerCase().includes(s)
     );
   });
+  const showingFilteredResults = Boolean(search.trim());
 
   return (
     <div className="space-y-6">
@@ -64,7 +65,9 @@ export default function RenderBagnoGallery() {
             <GalleryHorizontalEnd className="h-5 w-5 text-cyan-600" />
             Galleria Render Bagno
           </h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} render completati</p>
+          <p className="text-sm text-muted-foreground">
+            {showingFilteredResults ? `${filtered.length} di ${gallery.length}` : filtered.length} render completati
+          </p>
         </div>
         <Button onClick={() => navigate("/azienda/render/bagno/new")}>
           <Plus className="h-4 w-4 mr-2" />
@@ -87,7 +90,7 @@ export default function RenderBagnoGallery() {
       {/* Grid */}
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
+          {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="aspect-[4/5] rounded-lg" />)}
         </div>
       ) : error ? (
         <Card>
@@ -121,19 +124,34 @@ export default function RenderBagnoGallery() {
             </Button>
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-14 flex flex-col items-center gap-4 text-center">
+            <Search className="h-10 w-10 text-muted-foreground/30" />
+            <div>
+              <p className="font-medium">Nessun render trovato</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Nessun render bagno corrisponde a <span className="font-medium text-foreground">&quot;{search}&quot;</span>.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => setSearch("")}>
+              Azzera ricerca
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map(item => (
             <div
               key={item.id}
-              className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border hover:border-cyan-400/50 transition-all hover:shadow-md bg-muted"
+              className="group relative aspect-[4/5] rounded-lg overflow-hidden cursor-pointer border hover:border-cyan-400/50 transition-all hover:shadow-md bg-muted/40"
               onClick={() => navigate(`/azienda/render/bagno/gallery/${item.id}`)}
             >
               {item.render_result_url ? (
                 <img
                   src={item.render_result_url}
                   alt={item.galleria_titolo ?? "Render bagno"}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-300"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
