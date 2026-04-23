@@ -326,3 +326,23 @@ verify_jwt = false
 [functions.generate-floor-render]
 verify_jwt = false
 
+# Render edge functions — verify_jwt=false perché Supabase Platform Gateway
+# rifiuta JWT ES256 con UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM prima ancora
+# di eseguire la function. requireAuth interno (_shared/auth.ts) supporta
+# ES256 via getClaims/getUser e garantisce autenticazione a livello handler.
+
+[functions.generate-bathroom-render]
+verify_jwt = false
+
+[functions.generate-shutter-render]
+verify_jwt = false
+
+[functions.generate-facade-render]
+verify_jwt = false
+
+[functions.generate-roof-render]
+verify_jwt = false
+
+[functions.generate-room-render]
+verify_jwt = false
+
