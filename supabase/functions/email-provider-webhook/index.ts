@@ -5,26 +5,15 @@ import {
   normalizeEvents as normalizeEventsShared,
   type NormalizedEvent,
 } from "../_shared/webhookNormalizers.ts";
+import { timingSafeEqual } from "../_shared/webhookSecurity.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
 };
 
-/**
- * P1-6: timing-safe string compare per il webhook secret.
- * Il confronto `a !== b` in V8/Deno esce al primo carattere differente,
- * permettendo a un attaccante di inferire il secret byte per byte
- * misurando la latency. Questo XOR a lunghezza costante non rivela
- * informazioni di prefisso.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let out = 0;
-  for (let i = 0; i < a.length; i++) {
-    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return out === 0;
-}
+// P2-3: timingSafeEqual locale rimosso. Usiamo la versione shared in
+// _shared/webhookSecurity.ts (stessa implementazione XOR a lunghezza
+// costante, ora riusabile da altre edge function).
 
 /**
  * Normalizes webhook events from different email providers into a common format.
