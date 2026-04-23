@@ -49,6 +49,8 @@ export const DEFAULT_BATHROOM_CONFIG: ConfigurazioneBagno = {
     piano: "marmo_bianco",
     lavabo: "integrato",
     larghezza_cm: 100,
+    numero_lavabi: 1,
+    specchio: "retroilluminato",
   },
   sanitari: {
     attivo: false,

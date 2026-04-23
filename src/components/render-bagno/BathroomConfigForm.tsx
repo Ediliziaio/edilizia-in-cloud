@@ -22,7 +22,6 @@ import type {
   TipoIntervento,
 } from "@/modules/render-bagno/lib/types";
 import { cn } from "@/lib/utils";
-export { DEFAULT_BATHROOM_CONFIG } from "@/components/render-bagno/defaultBathroomConfig";
 
 export type BathroomConfig = ConfigurazioneBagno;
 
@@ -184,6 +183,13 @@ const SANITARY_COLOR_OPTIONS: VisualOption[] = [
   { value: "bianco", label: "Bianco", hint: "Classico", previewStyle: solidStyle("#fbfbfa") },
   { value: "grigio_chiaro", label: "Grigio chiaro", hint: "Soft", previewStyle: solidStyle("#d7dade") },
   { value: "nero_opaco", label: "Nero opaco", hint: "Strong look", previewStyle: solidStyle("#17181c", "rgba(255,255,255,0.1)") },
+];
+
+const MIRROR_OPTIONS = [
+  { value: "retroilluminato", label: "Retroilluminato" },
+  { value: "specchiera_contenitore", label: "Specchiera contenitore" },
+  { value: "tondo", label: "Tondo" },
+  { value: "verticale", label: "Verticale" },
 ];
 
 const QUICK_PAINT_PRESETS = [
@@ -588,6 +594,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 <SelectContent>
                   <SelectItem value="walk_in">Walk-in</SelectItem>
                   <SelectItem value="nicchia_box">Box nicchia</SelectItem>
+                  <SelectItem value="frontale_box">Box frontale</SelectItem>
                   <SelectItem value="angolare">Angolare</SelectItem>
                   <SelectItem value="semicircolare">Semicircolare</SelectItem>
                 </SelectContent>
@@ -692,6 +699,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 <SelectContent>
                   <SelectItem value="freestanding_ovale">Freestanding ovale</SelectItem>
                   <SelectItem value="freestanding_rettangolare">Freestanding rettangolare</SelectItem>
+                  <SelectItem value="back_to_wall">Back-to-wall</SelectItem>
                   <SelectItem value="incassata">Incassata</SelectItem>
                   <SelectItem value="angolare">Angolare</SelectItem>
                 </SelectContent>
@@ -817,6 +825,37 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                   <SelectItem value="100">100 cm</SelectItem>
                   <SelectItem value="120">120 cm</SelectItem>
                   <SelectItem value="140">140 cm</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Numero lavabi</Label>
+              <Select
+                value={String(value.vanity.numero_lavabi || 1)}
+                onValueChange={(count) =>
+                  update({ vanity: { ...value.vanity, numero_lavabi: Number(count) as 1 | 2 } })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Singolo lavabo</SelectItem>
+                  <SelectItem value="2">Doppio lavabo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Specchio</Label>
+              <Select
+                value={value.vanity.specchio || "retroilluminato"}
+                onValueChange={(mirror) =>
+                  update({ vanity: { ...value.vanity, specchio: mirror as NonNullable<BathroomConfig["vanity"]["specchio"]> } })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MIRROR_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1053,6 +1092,13 @@ export function BathroomConfigForm({ value, onChange }: Props) {
           rows={4}
           className="mt-1"
         />
+      </div>
+
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">
+        <p className="font-semibold">Come ragiona il render</p>
+        <p className="mt-1 text-emerald-900/80 dark:text-emerald-100/80">
+          Se scegli una doccia walk-in, il sistema forza una vera walk-in aperta. Se selezioni una vasca al posto della doccia, la doccia esistente viene rimossa. Se cambi solo una superficie, il resto deve rimanere coerente con il bagno originale.
+        </p>
       </div>
     </div>
   );

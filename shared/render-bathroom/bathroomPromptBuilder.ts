@@ -1,0 +1,282 @@
+import {
+  DEFAULT_NEGATIVE_CONSTRAINTS,
+  DEFAULT_QUALITY_DIRECTIVES,
+  INTERVENTION_DESCRIPTIONS,
+} from "./promptFragments.ts";
+import { ensureBathroomRenderConfig } from "./bathroomRenderConfig.ts";
+import { validateBathroomPromptConfig } from "./bathroomPromptValidation.ts";
+import type { BathroomPromptBuildResult, BathroomRenderConfig, BathroomSceneAnalysis } from "./types.ts";
+
+function bullets(lines: Array<string | null | undefined>): string {
+  return lines
+    .filter((line): line is string => Boolean(line && line.trim().length > 0))
+    .map((line) => `- ${line}`)
+    .join("\n");
+}
+
+function describeExistingShower(scene: BathroomSceneAnalysis): string {
+  if (!scene.shower.present) return "No clearly visible existing shower.";
+  return `Existing shower: ${scene.shower.type.replace(/_/g, " ")}, position ${scene.shower.position}, enclosure ${scene.shower.enclosureType}, glass ${scene.shower.glassType}, tray ${scene.shower.trayType}, finish ${scene.shower.frameFinish}. Notes: ${scene.shower.notes}`;
+}
+
+function describeExistingTub(scene: BathroomSceneAnalysis): string {
+  if (!scene.bathtub.present) return "No clearly visible existing bathtub.";
+  return `Existing bathtub: ${scene.bathtub.type.replace(/_/g, " ")}, position ${scene.bathtub.position}, faucet ${scene.bathtub.faucetType}, screen present: ${scene.bathtub.screenPresent ? "yes" : "no"}. Notes: ${scene.bathtub.notes}`;
+}
+
+function describeExistingVanity(scene: BathroomSceneAnalysis): string {
+  if (!scene.vanity.present) return "No clearly visible vanity.";
+  return `Existing vanity: ${scene.vanity.type.replace(/_/g, " ")}, position ${scene.vanity.position}, ${scene.vanity.basinCount === 2 ? "double basin" : "single basin"}, basin type ${scene.vanity.basinType}, mirror ${scene.vanity.mirrorPresent ? scene.vanity.mirrorType : "not clearly visible"}. Notes: ${scene.vanity.notes}`;
+}
+
+function describeExistingSanitary(scene: BathroomSceneAnalysis): string {
+  return `Existing sanitary ware: toilet ${scene.sanitaryWare.wcPresent ? scene.sanitaryWare.wcType.replace(/_/g, " ") : "not clearly visible"}, bidet ${scene.sanitaryWare.bidetPresent ? scene.sanitaryWare.bidetType.replace(/_/g, " ") : "not clearly visible"}, position ${scene.sanitaryWare.position}. Notes: ${scene.sanitaryWare.notes}`;
+}
+
+function describeShowerSpec(config: BathroomRenderConfig): string {
+  const spec = config.technical_specification.shower;
+  if (!spec.replace) return "No new shower requested.";
+  return [
+    `shower type: ${spec.showerTypeLabel}`,
+    `enclosure type: ${spec.enclosureType}`,
+    `glass type: ${spec.glassType}`,
+    `frame presence: ${spec.framePresence}`,
+    `frame finish: ${spec.frameFinish}`,
+    `tray type: ${spec.trayType}`,
+    `tray thickness: ${spec.trayThickness}`,
+    `drain type: ${spec.drainType}`,
+    `shower head type: ${spec.showerHeadType}`,
+    `hand shower type: ${spec.handShowerType}`,
+    `mixer finish: ${spec.mixerFinish}`,
+    `wall niche: ${spec.wallNiche ? "requested / plausible if spatially coherent" : "not requested"}`,
+    `layout rule: ${spec.layoutRule}`,
+  ].join("\n");
+}
+
+function describeBathtubSpec(config: BathroomRenderConfig): string {
+  const spec = config.technical_specification.bathtub;
+  if (!spec.replace) return "No new bathtub requested.";
+  return [
+    `bathtub type: ${spec.bathtubTypeLabel}`,
+    `material/look: ${spec.materialDescription}`,
+    `faucet type / position: ${spec.faucetPosition}`,
+    `layout rule: ${spec.layoutRule}`,
+  ].join("\n");
+}
+
+function describeVanitySpec(config: BathroomRenderConfig): string {
+  const spec = config.technical_specification.vanity;
+  if (!spec.replace) return "No new vanity requested.";
+  return [
+    `installation: ${spec.installation === "wall_hung" ? "wall-hung / suspended" : "floor-standing"}`,
+    `style: ${spec.styleLabel}`,
+    `color / finish: ${spec.colorLabel}`,
+    `top finish: ${spec.topDescription}`,
+    `${spec.basinCount === 2 ? "double basin" : "single basin"} with ${spec.basinType}`,
+    `mirror type: ${spec.mirrorType}`,
+    `mirror lighting: ${spec.mirrorLighting}`,
+    `storage type: ${spec.storageType}`,
+  ].join("\n");
+}
+
+function describeSanitarySpec(config: BathroomRenderConfig): string {
+  const spec = config.technical_specification.sanitaryWare;
+  if (!spec.replace) return "No sanitary replacement requested.";
+  return [
+    `toilet action: ${spec.toiletAction}`,
+    `toilet type: ${spec.toiletType}`,
+    `bidet action: ${spec.bidetAction}`,
+    `bidet type: ${spec.bidetType ?? "remove bidet / no replacement"}`,
+    `installation / spacing rule: ${spec.installationRule}`,
+    `ceramic finish: ${spec.ceramicFinish}`,
+  ].join("\n");
+}
+
+export function buildBathroomPrompt(
+  rawConfig: Record<string, unknown>,
+  rawAnalysis?: unknown,
+  photoMeta?: BathroomRenderConfig["photo_meta"],
+): BathroomPromptBuildResult {
+  const normalizedConfig = ensureBathroomRenderConfig(rawConfig, rawAnalysis, photoMeta ?? null);
+  const validation = validateBathroomPromptConfig(normalizedConfig);
+  const { scene_analysis: scene, technical_specification: spec } = normalizedConfig;
+
+  const blocks: Record<string, string> = {};
+
+  blocks.A = `[BLOCK A – MISSION]
+You are a SURGICAL PHOTOREALISTIC IMAGE EDITOR specialized in bathroom renovation visualization.
+Modify EXACTLY the requested bathroom elements and leave the rest of the photographed bathroom unchanged.
+
+MANDATORY CORE CONSTRAINTS:
+- same bathroom
+- same room geometry
+- same camera angle
+- same perspective
+- same lighting direction
+- same image dimensions
+- same surrounding elements
+- no artistic reinterpretation
+- no redesign beyond requested changes
+- the output must still look like the same real bathroom after a believable renovation`;
+
+  blocks.B = `[BLOCK B – EXISTING BATHROOM INVENTORY]
+Room type: ${scene.roomType}
+Estimated size: ${scene.estimatedSize}
+Estimated ceiling height: ${scene.estimatedCeilingHeight}
+Layout: ${scene.layoutType}
+Camera perspective: ${scene.cameraPerspective}
+Camera angle: ${scene.cameraAngle}
+Dominant colors: ${scene.dominantColors.join(", ") || "not clearly identified"}
+Overall condition: ${scene.overallCondition}
+Current wall tiles: ${scene.wallTiles.description}
+Current floor: ${scene.floor.description}
+${describeExistingShower(scene)}
+${describeExistingTub(scene)}
+${describeExistingVanity(scene)}
+${describeExistingSanitary(scene)}
+Lighting: ${scene.lighting.type}, direction ${scene.lighting.direction}, notes ${scene.lighting.notes}
+Mirror present: ${scene.mirrorPresent ? "yes" : "no"}
+Towel warmer present: ${scene.towelWarmerPresent ? `yes (${scene.towelWarmerType})` : "no"}
+Window present: ${scene.windowPresent ? `yes (${scene.windowPosition})` : "no"}
+Niches present: ${scene.nichePresent ? "yes" : "no"}
+Partitions / half walls present: ${scene.partitionPresent ? "yes" : "no"}
+Preserve anchors: ${scene.preserveRigidly.join(", ")}`;
+
+  blocks.C = `[BLOCK C – INTERVENTION TYPE]
+${INTERVENTION_DESCRIPTIONS[normalizedConfig.intervention_type]}
+
+The intervention must remain compatible with the existing photographed layout and geometry unless explicit demolition/removal rules say otherwise.`;
+
+  blocks.D = `[BLOCK D – REPLACEMENT MANIFEST]
+${bullets([
+    ...normalizedConfig.replacement_manifest.replacements,
+    ...normalizedConfig.replacement_manifest.additions,
+  ])}
+
+Elements to preserve exactly:
+${bullets(normalizedConfig.replacement_manifest.preserveExactly)}
+
+Untouched surfaces:
+${bullets(normalizedConfig.replacement_manifest.untouchedSurfaces)}`;
+
+  blocks.E = `[BLOCK E – SHOWER / BATHTUB SPECIFICATION]
+Shower:
+${describeShowerSpec(normalizedConfig)}
+
+Bathtub:
+${describeBathtubSpec(normalizedConfig)}`;
+
+  blocks.F = `[BLOCK F – VANITY / BASIN / MIRROR SPECIFICATION]
+${describeVanitySpec(normalizedConfig)}`;
+
+  blocks.G = `[BLOCK G – SANITARY WARE SPECIFICATION]
+${describeSanitarySpec(normalizedConfig)}`;
+
+  blocks.H = `[BLOCK H – WALL TILES SPECIFICATION]
+${spec.wallTiles.replace
+    ? [
+        `effect / material: ${spec.wallTiles.effectDescription}`,
+        `format: ${spec.wallTiles.format}`,
+        `laying pattern: ${spec.wallTiles.layingPattern}`,
+        `grout color: ${spec.wallTiles.groutColor}`,
+        `coverage height: ${spec.wallTiles.coverage}`,
+        "wet-area wall tile treatment must stay coherent around shower or bathtub zones",
+      ].join("\n")
+    : "Wall tile replacement not requested. Keep all existing wall tiles unchanged."}`;
+
+  blocks.I = `[BLOCK I – FLOOR SPECIFICATION]
+${spec.floor.replace
+    ? [
+        `material / effect: ${spec.floor.effectDescription}`,
+        `format: ${spec.floor.format}`,
+        `laying pattern: ${spec.floor.layingPattern}`,
+        `grout color: ${spec.floor.groutColor}`,
+        `reflectivity: ${spec.floor.reflectivityRule}`,
+        "floor perspective, vanishing lines and junctions must remain coherent with the source photo",
+      ].join("\n")
+    : "Floor replacement not requested. Keep the existing floor unchanged."}`;
+
+  blocks.J = `[BLOCK J – FAUCETS / METALS / ACCESSORIES]
+Faucet replacement requested: ${spec.faucets.replace ? "yes" : "no"}
+Primary finish: ${spec.faucets.finish}
+Primary style: ${spec.faucets.style}
+Reflectivity rule: ${spec.faucets.reflectivityRule}
+Only add accessories if explicitly requested or necessary for physical plausibility of the selected fixture type.`;
+
+  blocks.K = `[BLOCK K – DEMOLITION / REMOVAL RULES]
+${bullets(
+    normalizedConfig.replacement_manifest.removals.length > 0
+      ? normalizedConfig.replacement_manifest.removals.flatMap((rule) => [
+          rule.summary,
+          rule.repairInstruction ? `Repair rule: ${rule.repairInstruction}` : "",
+          rule.preserveInstruction ? `Preserve rule: ${rule.preserveInstruction}` : "",
+        ])
+      : ["No destructive demolition beyond the direct requested replacement scope."],
+  )}`;
+
+  blocks.L = `[BLOCK L – SURROUNDINGS INTEGRITY]
+${bullets(normalizedConfig.integrity_constraints)}
+
+Image lock:
+- keep the same crop
+- keep the same visible room coverage
+- keep the same image dimensions
+- keep the same orientation: ${normalizedConfig.photo_meta?.orientation ?? "same as source"}`;
+
+  blocks.M = `[BLOCK M – PHOTOREALISM RULES]
+- physically plausible materials
+- accurate shadows
+- ambient occlusion
+- realistic reflections
+- correct perspective
+- correct scale
+- believable installation details
+- no floating fixtures
+- no distorted geometry
+- no showroom-like fake perfection if the source is a real lived-in bathroom
+- high-end interior renovation visualization quality
+- preserve the lived-in realism of the source room instead of turning it into a generic luxury set`;
+
+  blocks.N = `[BLOCK N – NEGATIVE CONSTRAINTS]
+${bullets(DEFAULT_NEGATIVE_CONSTRAINTS)}`;
+
+  blocks.O = `[BLOCK O – QUALITY BAR]
+${bullets([
+    ...DEFAULT_QUALITY_DIRECTIVES,
+    ...normalizedConfig.quality_directives,
+    validation.isValid
+      ? "Prompt validation passed: replacements, removals, preserved elements and intervention logic are all explicit."
+      : `Prompt validation warnings: missing sections = ${validation.missingSections.join(", ") || "none"}; missing business rules = ${validation.missingBusinessRules.join(", ") || "none"}.`,
+  ])}`;
+
+  const userPrompt = [
+    blocks.B,
+    blocks.C,
+    blocks.D,
+    blocks.E,
+    blocks.F,
+    blocks.G,
+    blocks.H,
+    blocks.I,
+    blocks.J,
+    blocks.K,
+    blocks.L,
+    blocks.M,
+    blocks.N,
+    blocks.O,
+    normalizedConfig.notes ? `[ADDITIONAL USER NOTES]\n${normalizedConfig.notes}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return {
+    systemPrompt: blocks.A,
+    userPrompt,
+    negativePrompt:
+      "generic luxury bathroom, fantasy redesign, wrong room geometry, changed perspective, changed crop, different lighting, floating vanity, floating sanitary ware, bathtub still visible after shower-only request, shower still visible after bathtub-only request, generic closed shower box instead of walk-in, non-target surfaces replaced, distorted tiles, wrong scale, CGI look, illustration, stylized render",
+    promptVersion: "2.0.0",
+    blocks,
+    validation,
+    normalizedConfig,
+  };
+}

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,8 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
+import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
+import { buildBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
 
 // ── Types ────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -311,10 +313,16 @@ export default function RenderBagnoNew() {
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
     // Save latest config to session
+    const renderPayload = buildBathroomRenderConfig(config, {
+      sceneAnalysis: analisi ?? undefined,
+      photoMeta,
+      notes: config.note_libere,
+    });
     await supabase
       .from("render_bagno_sessions")
       .update({
-        configurazione: config,
+        configurazione: renderPayload,
+        analisi_bagno: renderPayload.scene_analysis,
         tipo_intervento: config.tipo_intervento,
       })
       .eq("id", sessionId);
@@ -373,7 +381,7 @@ export default function RenderBagnoNew() {
 
     // Otherwise poll
     startPolling(sessionId);
-  }, [sessionId, companyId, config, queryClient, generating, startPolling, photoMeta]);
+  }, [sessionId, companyId, config, queryClient, generating, startPolling, photoMeta, analisi]);
 
   // ── Save to gallery ────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
@@ -427,6 +435,18 @@ export default function RenderBagnoNew() {
   const photoMetaLabel = photoMeta
     ? `${photoMeta.orientation === "portrait" ? "Verticale" : photoMeta.orientation === "landscape" ? "Orizzontale" : "Quadrata"} · ${photoMeta.width}x${photoMeta.height}`
     : null;
+  const sceneAnalysis = useMemo(
+    () => normalizeBathroomSceneAnalysis(analisi, photoMeta),
+    [analisi, photoMeta],
+  );
+  const renderPlan = useMemo(
+    () => buildBathroomRenderConfig(config, {
+      sceneAnalysis: analisi ?? undefined,
+      photoMeta,
+      notes: config.note_libere,
+    }),
+    [config, analisi, photoMeta],
+  );
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto pb-12">
@@ -451,8 +471,8 @@ export default function RenderBagnoNew() {
           </h1>
           <p className="text-sm text-muted-foreground">
             {step === 1 && "Carica la foto del bagno attuale"}
-            {step === 2 && "Analisi in corso..."}
-            {step === 3 && "Configura il nuovo bagno"}
+            {step === 2 && "Lettura dell'ambiente esistente"}
+            {step === 3 && "Definisci con precisione cosa cambia e cosa resta"}
             {step === 4 && (generating ? "Generazione in corso..." : "Render completato!")}
           </p>
         </div>
@@ -465,7 +485,7 @@ export default function RenderBagnoNew() {
       {/* ── Progress stepper ──────────────────────────────────────── */}
       <div className="space-y-2">
         <div className="flex justify-between text-xs text-muted-foreground">
-          {["Foto", "Analisi", "Configura", "Risultato"].map((label, i) => (
+          {["Foto", "Analisi scena", "Intervento", "Render"].map((label, i) => (
             <span
               key={label}
               className={step === i + 1 ? "text-cyan-600 font-semibold" : step > i + 1 ? "text-foreground" : ""}
@@ -631,46 +651,56 @@ export default function RenderBagnoNew() {
                   </p>
                 </div>
               ) : analisi ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {analisi.tipo_stanza && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
                     <div className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground">Tipo stanza</p>
-                      <p className="text-sm font-medium capitalize">{analisi.tipo_stanza}</p>
+                      <p className="text-[10px] text-muted-foreground">Tipo ambiente</p>
+                      <p className="text-sm font-medium capitalize">{sceneAnalysis.roomType.replace(/_/g, " ")}</p>
                     </div>
-                  )}
-                  {analisi.dimensione_stimata && (
                     <div className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground">Dimensione</p>
-                      <p className="text-sm font-medium">{analisi.dimensione_stimata}</p>
+                      <p className="text-[10px] text-muted-foreground">Layout percepito</p>
+                      <p className="text-sm font-medium capitalize">{sceneAnalysis.layoutType.replace(/_/g, " ")}</p>
                     </div>
-                  )}
-                  {analisi.piastrelle_parete_attuali && (
                     <div className="bg-muted/50 rounded-md p-2">
                       <p className="text-[10px] text-muted-foreground">Piastrelle parete</p>
-                      <p className="text-sm font-medium capitalize">{analisi.piastrelle_parete_attuali}</p>
+                      <p className="text-sm font-medium capitalize">{sceneAnalysis.wallTiles.description}</p>
                     </div>
-                  )}
-                  {analisi.pavimento_attuale && (
                     <div className="bg-muted/50 rounded-md p-2">
                       <p className="text-[10px] text-muted-foreground">Pavimento</p>
-                      <p className="text-sm font-medium capitalize">{analisi.pavimento_attuale}</p>
+                      <p className="text-sm font-medium capitalize">{sceneAnalysis.floor.description}</p>
                     </div>
-                  )}
                   <div className="bg-muted/50 rounded-md p-2">
                     <p className="text-[10px] text-muted-foreground">Doccia</p>
-                    <p className="text-sm font-medium">{analisi.presenza_doccia ? "Presente" : "Assente"}</p>
+                    <p className="text-sm font-medium">{sceneAnalysis.shower.present ? sceneAnalysis.shower.type.replace(/_/g, " ") : "Assente"}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
                     <p className="text-[10px] text-muted-foreground">Vasca</p>
-                    <p className="text-sm font-medium">{analisi.presenza_vasca ? "Presente" : "Assente"}</p>
+                    <p className="text-sm font-medium">{sceneAnalysis.bathtub.present ? sceneAnalysis.bathtub.type.replace(/_/g, " ") : "Assente"}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
                     <p className="text-[10px] text-muted-foreground">Mobile</p>
-                    <p className="text-sm font-medium">{analisi.presenza_mobile ? "Presente" : "Assente"}</p>
+                    <p className="text-sm font-medium">{sceneAnalysis.vanity.present ? sceneAnalysis.vanity.type.replace(/_/g, " ") : "Assente"}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground">Conservazione</p>
-                    <p className="text-sm font-medium capitalize">{analisi.stato_conservazione?.replace(/_/g, " ")}</p>
+                    <p className="text-[10px] text-muted-foreground">Sanitari</p>
+                    <p className="text-sm font-medium capitalize">{sceneAnalysis.sanitaryWare.wcPresent || sceneAnalysis.sanitaryWare.bidetPresent ? sceneAnalysis.sanitaryWare.wcType.replace(/_/g, " ") : "Non chiari"}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-md p-2 col-span-2">
+                    <p className="text-[10px] text-muted-foreground">Conservazione e luce</p>
+                    <p className="text-sm font-medium capitalize">
+                      {sceneAnalysis.overallCondition.replace(/_/g, " ")} · {sceneAnalysis.lighting.type.replace(/_/g, " ")}
+                    </p>
+                  </div>
+                  </div>
+                  <div className="rounded-md border border-border/60 bg-background px-3 py-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground">Elementi da preservare rigidamente</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {sceneAnalysis.preserveRigidly.slice(0, 8).map((item) => (
+                        <Badge key={item} variant="secondary" className="text-[11px]">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -721,6 +751,43 @@ export default function RenderBagnoNew() {
             </p>
           </div>
 
+          <div className="grid gap-3 md:grid-cols-2">
+            <Card className="border-border/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Ambiente letto dalla foto</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <p><span className="font-medium text-foreground">Layout:</span> {sceneAnalysis.layoutType.replace(/_/g, " ")}</p>
+                <p><span className="font-medium text-foreground">Zona doccia:</span> {sceneAnalysis.shower.present ? sceneAnalysis.shower.type.replace(/_/g, " ") : "non rilevata"}</p>
+                <p><span className="font-medium text-foreground">Zona vasca:</span> {sceneAnalysis.bathtub.present ? sceneAnalysis.bathtub.type.replace(/_/g, " ") : "non rilevata"}</p>
+                <p><span className="font-medium text-foreground">Mobile:</span> {sceneAnalysis.vanity.present ? sceneAnalysis.vanity.type.replace(/_/g, " ") : "non rilevato"}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Piano di sostituzione</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <div className="space-y-1.5">
+                  {renderPlan.replacement_manifest.replacements.slice(0, 4).map((line) => (
+                    <p key={line}>• {line}</p>
+                  ))}
+                </div>
+                <div className="pt-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Da preservare</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {renderPlan.replacement_manifest.preserveExactly.slice(0, 6).map((item) => (
+                      <Badge key={item} variant="outline" className="text-[11px]">
+                        {item}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
@@ -739,7 +806,7 @@ export default function RenderBagnoNew() {
             onClick={startRender}
           >
             <Zap className="h-4 w-4" />
-            Genera render AI
+            Conferma scelte e genera render AI
           </Button>
         </div>
       )}

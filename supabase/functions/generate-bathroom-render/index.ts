@@ -7,6 +7,9 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
+import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
+import { normalizeBathroomSceneAnalysis } from "../../../shared/render-bathroom/bathroomSceneAnalysis.ts";
+import type { BathroomPhotoMeta } from "../../../shared/render-bathroom/types.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -932,31 +935,117 @@ async function runBathroomAnalysis(params: {
     return {};
   }
 
-  const { mimeType, base64 } = await downloadImageAsInlineData(imageUrl);
-  const analyzePrompt = `Analyze this bathroom photo and return ONLY one JSON object with exactly these fields:
+  const { mimeType, base64, bytes } = await downloadImageAsInlineData(imageUrl);
+  const dimensions = detectImageDimensions(bytes);
+  const photoMeta: BathroomPhotoMeta | null = dimensions
+    ? {
+        width: dimensions.width,
+        height: dimensions.height,
+        orientation: orientationFromDimensions(dimensions.width, dimensions.height),
+      }
+    : null;
+
+  const analyzePrompt = `Analyze this bathroom photo and return ONLY one raw JSON object.
+
+Required schema:
 {
-  "tipo_stanza": "string",
-  "dimensione_stimata": "string",
-  "altezza_stimata": "string",
-  "piastrelle_parete_attuali": "string",
-  "pavimento_attuale": "string",
+  "room_type": "bathroom|ensuite|powder_room|wet_room|laundry_bath|unknown",
+  "estimated_size": "short grounded string",
+  "estimated_ceiling_height": "short grounded string",
+  "layout_type": "linear_single_wall|opposed_walls|corner_shower|bathtub_alcove|compact_rectangular|split_zones|unknown",
+  "camera_perspective": "short grounded string",
+  "camera_angle": "short grounded string",
   "colori_dominanti": ["string"],
+  "wall_tiles": {
+    "description": "string",
+    "effect": "string",
+    "format": "string",
+    "laying_pattern": "string",
+    "grout_color": "string",
+    "coverage": "string"
+  },
+  "floor": {
+    "description": "string",
+    "effect": "string",
+    "format": "string",
+    "laying_pattern": "string",
+    "grout_color": "string"
+  },
+  "shower": {
+    "present": true,
+    "type": "walk_in|nicchia_box|frontale_box|angolare|semicircolare|generic_box|unknown|none",
+    "position": "left_wall|right_wall|back_wall|center|corner_left|corner_right|under_window|unknown",
+    "enclosure_type": "string",
+    "glass_type": "string",
+    "tray_type": "string",
+    "frame_finish": "string",
+    "notes": "string"
+  },
+  "bathtub": {
+    "present": false,
+    "type": "freestanding_ovale|freestanding_rettangolare|back_to_wall|incassata|angolare|generic_built_in|unknown|none",
+    "position": "left_wall|right_wall|back_wall|center|corner_left|corner_right|under_window|unknown",
+    "faucet_type": "string",
+    "screen_present": false,
+    "notes": "string"
+  },
+  "vanity": {
+    "present": true,
+    "type": "wall_hung|floor_standing|console|unknown|none",
+    "position": "left_wall|right_wall|back_wall|center|corner_left|corner_right|under_window|unknown",
+    "basin_type": "string",
+    "basin_count": 1,
+    "mirror_present": true,
+    "mirror_type": "string",
+    "notes": "string"
+  },
+  "sanitary_ware": {
+    "wc_present": true,
+    "wc_type": "wall_hung|back_to_wall|floor_standing|unknown|none",
+    "bidet_present": true,
+    "bidet_type": "wall_hung|back_to_wall|floor_standing|unknown|none",
+    "position": "left_wall|right_wall|back_wall|center|corner_left|corner_right|under_window|unknown",
+    "notes": "string"
+  },
+  "lighting": {
+    "type": "natural|ceiling_spots|pendant|mirror_backlit|wall_sconces|mixed|unknown",
+    "direction": "string",
+    "temperature": "string",
+    "notes": "string"
+  },
+  "mirror_present": true,
+  "towel_warmer_present": false,
+  "towel_warmer_type": "string",
+  "window_present": true,
+  "window_position": "left_wall|right_wall|back_wall|center|corner_left|corner_right|under_window|unknown",
+  "niche_present": false,
+  "partition_present": false,
+  "preserve_rigidly": ["string"],
+  "demolition_sensitive_areas": ["string"],
+  "stato_conservazione": "buono|discreto|da_ristrutturare",
+  "note_analisi": "string",
+
+  "tipo_stanza": "legacy string",
+  "dimensione_stimata": "legacy string",
+  "altezza_stimata": "legacy string",
+  "piastrelle_parete_attuali": "legacy string",
+  "pavimento_attuale": "legacy string",
   "presenza_doccia": true,
-  "tipo_doccia": "string or null",
+  "tipo_doccia": "legacy string or null",
   "presenza_vasca": false,
   "presenza_mobile": true,
-  "tipo_mobile": "string or null",
-  "sanitari_tipo": "string or null",
-  "rubinetteria_attuale": "string or null",
-  "illuminazione_attuale": "string or null",
-  "stato_conservazione": "buono|discreto|da_ristrutturare",
-  "note": "string"
+  "tipo_mobile": "legacy string or null",
+  "sanitari_tipo": "legacy string or null",
+  "rubinetteria_attuale": "legacy string or null",
+  "illuminazione_attuale": "legacy string or null",
+  "note": "legacy short note"
 }
 
 Rules:
-- The room is a bathroom or bathroom-adjacent wet room.
+- This is the SAME real bathroom photo, not a design moodboard.
 - Be concrete and visually grounded.
-- If uncertain, use short safe strings like "non identificabile".
+- If uncertain, use safe strings like "unknown" or "not identified", but still fill the schema.
+- Focus on layout, current shower/tub state, vanity, sanitary positions, surfaces and rigid preservation anchors.
 - Return ONLY raw JSON, no markdown.`;
 
   const geminiBody = {
@@ -992,7 +1081,7 @@ Rules:
 
   const geminiData = await resp.json() as Record<string, unknown>;
   const rawText = extractTextParts(geminiData);
-  const analysis = sanitizeBathroomAnalysis(extractFirstJsonObject(rawText));
+  const analysis = normalizeBathroomSceneAnalysis(extractFirstJsonObject(rawText), photoMeta) as unknown as Record<string, unknown>;
 
   if (sessionId) {
     await supabase
@@ -1148,13 +1237,18 @@ Deno.serve(async (req) => {
           }
         : detectImageDimensions(originalImage.bytes);
 
-    const { systemPrompt, userPrompt, promptVersion } = buildBathroomPromptServer(
-      {
-        ...session,
-        configurazione: session.configurazione || {},
-        analisi_bagno: session.analisi_bagno || {},
-      },
-      sourceDimensions ?? undefined,
+    const photoMetaForPrompt: BathroomPhotoMeta | null = sourceDimensions
+      ? {
+          width: sourceDimensions.width,
+          height: sourceDimensions.height,
+          orientation: orientationFromDimensions(sourceDimensions.width, sourceDimensions.height),
+        }
+      : null;
+
+    const { systemPrompt, userPrompt, promptVersion } = buildBathroomPrompt(
+      (session.configurazione || {}) as Record<string, unknown>,
+      session.analisi_bagno || {},
+      photoMetaForPrompt,
     );
 
     let renderResult = await requestBathroomRender({
