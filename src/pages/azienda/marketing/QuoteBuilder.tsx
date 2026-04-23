@@ -7,6 +7,10 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
+import {
+  useQuoteFormHydration,
+  type ExistingQuoteForHydration,
+} from "@/hooks/useQuoteFormHydration";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import AIQuotePanel from "@/components/quotes/AIQuotePanel";
 import { QuoteRenderPicker } from "@/components/render/QuoteRenderPicker";
@@ -789,55 +793,40 @@ export default function QuoteBuilder() {
     },
   });
 
-  // Populate form when editing
-  useEffect(() => {
-    if (existingQuote) {
-      setContactId(existingQuote.contact_id);
-      setClientName(existingQuote.client_name || "");
-      setClientEmail(existingQuote.client_email || "");
-      setClientPhone(existingQuote.client_phone || "");
-      setClientCompany(existingQuote.client_company || "");
-      setClientAddress(existingQuote.client_address || "");
-      setClientFiscalCode(existingQuote.client_fiscal_code || "");
-      setClientVatNumber(existingQuote.client_vat_number || "");
-      setTitle(existingQuote.title || "Preventivo");
-      setDescription(existingQuote.description || "");
-      setValidityDays(existingQuote.validity_days || 30);
-      setNotes(existingQuote.notes || "");
-      setInternalNotes(existingQuote.internal_notes || "");
-      setDiscountPercent(existingQuote.discount_percent || 0);
-      if (existingQuote.template_id) {
-        setSelectedTemplateId(existingQuote.template_id);
-      }
-      // P03 extras — these fields are stored in `quotes` ma non nei generated types
-      // (vedi migrazioni 20260324200*_preventivo_pro_v2). Narrowing via unknown cast:
-      const q = existingQuote as unknown as {
-        tipo_lavoro?: string | null;
-        indirizzo_lavori?: string | null;
-        piano_installazione?: number | null;
-        km_cantiere?: number | null;
-        pdf_mostra_prezzi_per_riga?: boolean | null;
-        pdf_mostra_solo_totale?: boolean | null;
-        pdf_mostra_sconti?: boolean | null;
-        pdf_mostra_immagini?: boolean | null;
-        pdf_includi_schede_tecniche?: boolean | null;
-        firma_digitale_abilitata?: boolean | null;
-        template_layout_override?: string | null;
-      };
-      setTipoLavoro(q.tipo_lavoro || "");
-      setIndirizzoLavori(q.indirizzo_lavori || "");
-      setPianoInstallazione(q.piano_installazione || 0);
-      setKmCantiere(q.km_cantiere || 0);
-      setPdfPrezziRiga(q.pdf_mostra_prezzi_per_riga ?? true);
-      setPdfSoloTotale(q.pdf_mostra_solo_totale ?? false);
-      setPdfSconti(q.pdf_mostra_sconti ?? false);
-      setPdfImmagini(q.pdf_mostra_immagini ?? true);
-      setPdfSchedeTecniche(q.pdf_includi_schede_tecniche ?? false);
-      setPdfFirma(q.firma_digitale_abilitata ?? true);
-      // Ripristina override layout template salvato
-      setLayoutOverride(q.template_layout_override ?? null);
-    }
-  }, [existingQuote]);
+  // P1-4: idratazione form delegata a useQuoteFormHydration hook.
+  // Prima era un blocco inline di ~50 righe con cast `as unknown as {...}`.
+  // Il cast era necessario perché i campi extra (tipo_lavoro, km_cantiere,
+  // opzioni PDF, template_layout_override — migration
+  // 20260324200*_preventivo_pro_v2) non sono nei types generated Supabase.
+  // Ora il tipo QuoteExtraFields è esplicito nel hook e testabile.
+  useQuoteFormHydration(existingQuote as ExistingQuoteForHydration | null | undefined, {
+    setContactId,
+    setClientName,
+    setClientEmail,
+    setClientPhone,
+    setClientCompany,
+    setClientAddress,
+    setClientFiscalCode,
+    setClientVatNumber,
+    setTitle,
+    setDescription,
+    setValidityDays,
+    setNotes,
+    setInternalNotes,
+    setDiscountPercent,
+    setSelectedTemplateId,
+    setTipoLavoro,
+    setIndirizzoLavori,
+    setPianoInstallazione,
+    setKmCantiere,
+    setPdfPrezziRiga,
+    setPdfSoloTotale,
+    setPdfSconti,
+    setPdfImmagini,
+    setPdfSchedeTecniche,
+    setPdfFirma,
+    setLayoutOverride,
+  });
 
   useEffect(() => {
     if (existingItems.length > 0) {
