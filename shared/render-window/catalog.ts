@@ -98,7 +98,7 @@ export const WIZARD_LEGNO = [
 
 export const WIZARD_HW_COLORS = [
   { id: "cromo", nome: "Cromo", hex: "#C0C0C0", hw_id: "cromo_lucido", finish: "polished chrome" },
-  { id: "inox", nome: "Inox Spazzolato", hex: "#A8A8A8", hw_id: "inox_spazzolato", finish: "brushed stainless steel" },
+  { id: "inox", nome: "Cromo satinato / inox", hex: "#A8A8A8", hw_id: "inox_spazzolato", finish: "brushed stainless steel" },
   { id: "nero_opaco", nome: "Nero Opaco", hex: "#2A2A2A", hw_id: "nero_opaco", finish: "matte black powder coat" },
   { id: "bronzo", nome: "Bronzo", hex: "#8B6914", hw_id: "bronzo_anticato", finish: "antique bronze patina" },
   { id: "oro", nome: "Oro", hex: "#D4A017", hw_id: "oro_pvd", finish: "polished gold PVD coating" },

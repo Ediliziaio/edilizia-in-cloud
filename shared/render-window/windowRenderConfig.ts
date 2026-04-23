@@ -247,6 +247,55 @@ function mapTapparella(
   };
 }
 
+function ensureSentence(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function buildCassonettoDimensionRule(opening: WindowSceneAnalysis["openings"][number], replaceCassonetto: boolean): string {
+  if (!replaceCassonetto) {
+    return "Keep the existing cassonetto dimensions, depth, visible height and lower reveal line exactly as photographed.";
+  }
+
+  if (opening.hasCassonetto) {
+    return `${ensureSentence(opening.cassonettoGeometryNotes || "Keep the existing cassonetto envelope close to the source photo.")} Update finish/material only unless a different architecture is explicitly requested.`;
+  }
+
+  return "If a new cassonetto must appear, size it credibly around the existing opening with realistic installation depth and no oversized box.";
+}
+
+function buildShutterVisibilityRule(
+  opening: WindowSceneAnalysis["openings"][number],
+  replaceShutter: boolean,
+): { visibilityState: WindowTechnicalSpecification["shutter"]["visibilityState"]; placementRule: string } {
+  if (!replaceShutter) {
+    return {
+      visibilityState: "match_existing",
+      placementRule: "Keep the existing shading system visibility state exactly as photographed.",
+    };
+  }
+
+  if (opening.rollerCurtainState === "partially_lowered" || opening.rollerCurtainState === "fully_lowered") {
+    return {
+      visibilityState: opening.rollerCurtainState,
+      placementRule: "Keep the shutter curtain recessed within the side guides and behind the frame/glass plane, matching a real installed roller shutter.",
+    };
+  }
+
+  if (opening.rollerCurtainState === "top_recessed_band") {
+    return {
+      visibilityState: "top_recessed_band",
+      placementRule: "Only a very small recessed top shutter band may be visible, tucked behind the frame/glass plane and aligned within the guides. Never place a colored band in front of the wall or cassonetto.",
+    };
+  }
+
+  return {
+    visibilityState: "fully_raised_hidden",
+    placementRule: "Keep the shutter fully raised/open by default. Slats must stay hidden inside the cassonetto, with no visible colored band floating above the glass. If any shutter detail is visible, it must be recessed inside the guides behind the glass plane as in real life.",
+  };
+}
+
 function buildTechnicalSpecifications(
   state: WizardState,
   sceneAnalysis: WindowSceneAnalysis,
@@ -283,6 +332,12 @@ function buildTechnicalSpecifications(
     handleColorId: hardware.handleColorId as WizardHw,
     handleFinish: hardware.handleFinish,
     hingeFinish: hardware.hingeFinish,
+    hingeStyle: base.apertura.includes("scorrevole")
+      ? "no visible side hinges because the system is sliding"
+      : "compact european residential hinges aligned on the outer stiles with realistic proportions",
+    hingeConsistencyRule: base.apertura.includes("scorrevole")
+      ? "Do not render any side hinges or battente hinge geometry on a sliding system."
+      : `All visible hinges on opening ${opening.label} must have the exact same ${hardware.handleFinish} finish as the handle, with identical top/bottom geometry and no mixed black/dark hinge parts.`,
     reducedNode: stileTelaio.includes("nodo_ridotto") || state.profilo === "minimal",
     centralHandle: state.manigliaCentrale,
     hingeCountVisible: base.apertura === "battente_2_ante" || (base.apertura === "portafinestra" && base.num_ante === 2) ? 2 : Math.max(2, base.num_ante * 2),
@@ -293,6 +348,7 @@ function buildTechnicalSpecifications(
       materialLabel: cassonetto.materialLabel,
       colorMode: cassonetto.colorMode,
       colorLabel: cassonetto.colorLabel,
+      dimensionRule: buildCassonettoDimensionRule(opening, cassonetto.replace),
     },
     shutter: {
       mode: state.tapp as WizardTapp,
@@ -300,6 +356,7 @@ function buildTechnicalSpecifications(
       colorMode: tapparella.colorMode,
       colorLabel: tapparella.colorLabel,
       isMotorized: tapparella.isMotorized,
+      ...buildShutterVisibilityRule(opening, tapparella.replace),
     },
     compatibilityNotes: [
       opening.hasCurtains ? "Preserve existing curtains exactly." : null,
@@ -307,6 +364,15 @@ function buildTechnicalSpecifications(
       opening.hasGrates ? "Keep existing grates unless explicitly stated otherwise." : null,
       opening.hasPersiane ? "Keep existing external shutters unless explicitly stated otherwise." : null,
       tapparella.isMotorized && opening.hasBelt ? "Remove visible belt and winder box, then repair the wall seamlessly." : null,
+      tapparella.replace && opening.rollerCurtainState !== "partially_lowered" && opening.rollerCurtainState !== "fully_lowered"
+        ? "If the source photo does not show a lowered shutter curtain, keep the new shutter fully open with slats hidden in the cassonetto; do not invent a colored strip above the glazing."
+        : null,
+      tapparella.replace
+        ? "Any visible shutter curtain must stay recessed within the guides behind the frame/glass plane, never floating on the wall surface."
+        : null,
+      cassonetto.replace && opening.hasCassonetto
+        ? "Keep the cassonetto very close to the original visible size, depth and lower edge line; do not oversize it."
+        : null,
       base.apertura.includes("scorrevole") ? "Use sliding geometry only; do not invent battente hinges." : null,
       state.profilo === "minimal" ? "Use slimmer sightlines and a wider perceived glazed area." : null,
     ].filter((item): item is string => Boolean(item)),
@@ -407,6 +473,8 @@ function normalizeLegacyWindowConfig(
     handleColorId: findWizardHardwareId(stringOrFallback(hardware.colore_hardware_id, "cromo_lucido")),
     handleFinish: stringOrFallback(hardware.colore_hardware_finish, "polished chrome"),
     hingeFinish: stringOrFallback(cerniere.colore, "argento"),
+    hingeStyle: "compact european residential hinges aligned on the outer stiles with realistic proportions",
+    hingeConsistencyRule: "All visible hinges must match the selected handle finish exactly, with no mixed-color hinge parts.",
     reducedNode: String(ni.stile_telaio).includes("nodo_ridotto"),
     centralHandle: String(ni.stile_telaio) === "nodo_ridotto_maniglia_centrale",
     hingeCountVisible: Number(ni.num_ante ?? 2) === 2 ? 2 : Math.max(2, Number(ni.num_ante ?? 2) * Number(cerniere.num_per_anta ?? 2)),
@@ -417,6 +485,7 @@ function normalizeLegacyWindowConfig(
       materialLabel: typeof cassonetto.materiale === "string" ? cassonetto.materiale : "existing cassonetto",
       colorMode: cassonetto.colore_mode === "legno" ? "legno" : cassonetto.colore_mode === "ral" ? "ral" : null,
       colorLabel: nullableString((rawConfig as Record<string, unknown>).cass_colore_label),
+      dimensionRule: "Keep the new cassonetto within the same visible envelope, height, depth and lower reveal line as the source photo whenever an original cassonetto exists.",
     },
     shutter: {
       mode: "no",
@@ -424,6 +493,8 @@ function normalizeLegacyWindowConfig(
       colorMode: tapparella.colore_mode === "legno" ? "legno" : tapparella.colore_mode === "ral" ? "ral" : null,
       colorLabel: nullableString((rawConfig as Record<string, unknown>).tap_colore_label),
       isMotorized: tapparella.cinghia === "senza_cinghia",
+      visibilityState: "match_existing",
+      placementRule: "Keep the shutter curtain recessed within the guides and behind the frame/glass plane, or hidden in the box if not visibly lowered in the source photo.",
     },
     compatibilityNotes: [],
   }));
@@ -528,11 +599,48 @@ export function ensureWindowRenderConfig(
       (rawConfig.target_selection as { selectedOpeningIds?: string[] } | undefined)?.selectedOpeningIds,
     );
     const normalized = rawConfig as WindowRenderConfig;
+    const technicalSpecification = normalized.technical_specification.map((spec) => {
+      const opening = sceneAnalysis.openings.find((item) => item.id === spec.openingId);
+      const replaceCassonetto = Boolean(spec.cassonetto?.replace);
+      const replaceShutter = Boolean(spec.shutter?.replace);
+      const shutterRules = buildShutterVisibilityRule(
+        opening ?? sceneAnalysis.openings[0],
+        replaceShutter,
+      );
+
+      return {
+        ...spec,
+        hingeStyle: spec.hingeStyle ?? (
+          spec.desiredOpeningType.includes("scorrevole")
+            ? "no visible side hinges because the system is sliding"
+            : "compact european residential hinges aligned on the outer stiles with realistic proportions"
+        ),
+        hingeConsistencyRule: spec.hingeConsistencyRule ?? (
+          spec.desiredOpeningType.includes("scorrevole")
+            ? "Do not render any side hinges or battente hinge geometry on a sliding system."
+            : `All visible hinges on opening ${spec.openingLabel} must have the exact same ${spec.handleFinish} finish as the handle, with identical top/bottom geometry and no mixed black/dark hinge parts.`
+        ),
+        cassonetto: {
+          ...spec.cassonetto,
+          dimensionRule: spec.cassonetto?.dimensionRule ?? buildCassonettoDimensionRule(
+            opening ?? sceneAnalysis.openings[0],
+            replaceCassonetto,
+          ),
+        },
+        shutter: {
+          ...spec.shutter,
+          visibilityState: spec.shutter?.visibilityState ?? shutterRules.visibilityState,
+          placementRule: spec.shutter?.placementRule ?? shutterRules.placementRule,
+        },
+      };
+    });
+
     return {
       ...normalized,
       scene_analysis: sceneAnalysis,
       target_selection: targetSelection,
       photo_meta: photoMeta ?? normalized.photo_meta ?? null,
+      technical_specification: technicalSpecification,
       removal_rules: Array.isArray(normalized.removal_rules) ? normalized.removal_rules : [],
       integrity_constraints: Array.isArray(normalized.integrity_constraints)
         ? normalized.integrity_constraints

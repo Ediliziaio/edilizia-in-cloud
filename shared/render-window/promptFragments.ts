@@ -85,4 +85,8 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not produce generic AI interior restyling",
   "do not stylize",
   "do not beautify beyond photographic realism",
+  "do not leave any manual belt, belt slot or wall winder visible if a motorized shutter is selected",
+  "do not render mixed hinge colors or inconsistent hinge shapes",
+  "do not oversize the cassonetto compared to the original visible envelope",
+  "do not render a floating colored shutter band above the glazing when the shutter should be fully open and hidden",
 ];

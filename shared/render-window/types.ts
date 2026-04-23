@@ -53,6 +53,13 @@ export type WindowOpeningPosition =
 export type WindowViewMode = "interior" | "exterior" | "mixed" | "unknown";
 export type WindowImageOrientation = "portrait" | "landscape" | "square" | "unknown";
 export type WindowRollerControlType = "manual_belt" | "motorized" | "chain" | "crank" | "none" | "unknown";
+export type WindowRollerCurtainState =
+  | "fully_raised_hidden"
+  | "top_recessed_band"
+  | "partially_lowered"
+  | "fully_lowered"
+  | "not_visible"
+  | "unknown";
 
 export interface WindowPhotoMeta {
   width: number;
@@ -78,12 +85,15 @@ export interface WindowSceneOpening {
   hasBelt: boolean;
   hasBeltBox: boolean;
   rollerControlType: WindowRollerControlType;
+  rollerCurtainState: WindowRollerCurtainState;
+  rollerCurtainPositionNotes: string;
   hasPersiane: boolean;
   hasScuri: boolean;
   hasGrates: boolean;
   hasSill: boolean;
   hasCurtains: boolean;
   radiatorNearby: boolean;
+  cassonettoGeometryNotes: string;
   surroundingElements: string[];
   lightNotes: string;
   reflectionNotes: string;
@@ -168,6 +178,8 @@ export interface WindowTechnicalSpecification {
   handleColorId: WizardHw;
   handleFinish: string;
   hingeFinish: string;
+  hingeStyle: string;
+  hingeConsistencyRule: string;
   reducedNode: boolean;
   centralHandle: boolean;
   hingeCountVisible: number;
@@ -178,6 +190,7 @@ export interface WindowTechnicalSpecification {
     materialLabel: string;
     colorMode: "ral" | "legno" | null;
     colorLabel: string | null;
+    dimensionRule: string;
   };
   shutter: {
     mode: WizardTapp;
@@ -185,6 +198,8 @@ export interface WindowTechnicalSpecification {
     colorMode: "ral" | "legno" | null;
     colorLabel: string | null;
     isMotorized: boolean;
+    visibilityState: WindowRollerCurtainState | "match_existing";
+    placementRule: string;
   };
   compatibilityNotes: string[];
 }

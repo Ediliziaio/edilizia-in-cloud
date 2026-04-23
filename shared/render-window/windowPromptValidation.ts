@@ -20,6 +20,27 @@ export function validateWindowPromptConfig(config: WindowRenderConfig): WindowPr
     missingSections.push("technical_specification");
   }
 
+  const missingHardwareConsistency = config.technical_specification.some(
+    (spec) => !spec.hingeConsistencyRule || !spec.hingeStyle,
+  );
+  if (missingHardwareConsistency) {
+    missingBusinessRules.push("hinge finish/style consistency must be explicit");
+  }
+
+  const missingCassonettoEnvelopeRule = config.technical_specification.some(
+    (spec) => spec.cassonetto.replace && !spec.cassonetto.dimensionRule,
+  );
+  if (missingCassonettoEnvelopeRule) {
+    missingBusinessRules.push("cassonetto replacement must preserve or define the visible envelope");
+  }
+
+  const missingShutterPlacementRule = config.technical_specification.some(
+    (spec) => spec.shutter.replace && !spec.shutter.placementRule,
+  );
+  if (missingShutterPlacementRule) {
+    missingBusinessRules.push("shutter replacement must define placement/visibility rules");
+  }
+
   const requiresManualRemoval = config.scene_analysis.openings.some(
     (opening) =>
       config.target_selection.selectedOpeningIds.includes(opening.id) &&

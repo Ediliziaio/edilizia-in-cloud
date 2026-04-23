@@ -1,4 +1,4 @@
-import { APERTURA_DESCRIPTION, CASSONETTO_DESCRIPTION, DEFAULT_NEGATIVE_CONSTRAINTS, DEFAULT_QUALITY_DIRECTIVES, FRAME_STYLE_DESCRIPTION, HANDLE_FINISH_DESCRIPTION, HANDLE_STYLE_DESCRIPTION, MATERIAL_PHYSICS, SHUTTER_DESCRIPTION } from "./promptFragments.ts";
+import { APERTURA_DESCRIPTION, DEFAULT_NEGATIVE_CONSTRAINTS, DEFAULT_QUALITY_DIRECTIVES, FRAME_STYLE_DESCRIPTION, HANDLE_FINISH_DESCRIPTION, HANDLE_STYLE_DESCRIPTION, MATERIAL_PHYSICS } from "./promptFragments.ts";
 import type { WindowPromptBuildResult, WindowRenderConfig, WindowSceneOpening, WindowTechnicalSpecification } from "./types.ts";
 import { ensureWindowRenderConfig } from "./windowRenderConfig.ts";
 import { validateWindowPromptConfig } from "./windowPromptValidation.ts";
@@ -14,9 +14,12 @@ function describeOpening(opening: WindowSceneOpening): string {
     `${opening.sashCount} sash${opening.sashCount > 1 ? "es" : ""}`,
     `${opening.materialPerceived} / ${opening.colorPerceived}`,
     opening.hasCassonetto ? `cassonetto visible (${opening.cassonettoType ?? "roller box"})` : "no visible cassonetto",
+    opening.hasCassonetto ? `cassonetto geometry: ${opening.cassonettoGeometryNotes}` : "",
     opening.hasRollerShutter ? `shading system visible` : "no visible roller shutter",
     opening.hasBelt ? "manual belt visible" : "no visible manual belt",
     opening.hasBeltBox ? "manual wall winder plate/box visible" : "",
+    opening.hasRollerShutter ? `roller curtain state: ${opening.rollerCurtainState}` : "",
+    opening.hasRollerShutter ? `roller curtain placement: ${opening.rollerCurtainPositionNotes}` : "",
     opening.hasPersiane ? "persiane visible" : "",
     opening.hasScuri ? "scuri visible" : "",
     opening.hasGrates ? "grates visible" : "",
@@ -44,13 +47,15 @@ function describeSpecification(spec: WindowTechnicalSpecification): string {
     `Frame visual depth: ${spec.frameDepthLabel}, shape: ${spec.frameShape}, slimness: ${spec.slimnessLabel}`,
     `Finish: ${finishDescription}`,
     `Handle: ${HANDLE_STYLE_DESCRIPTION[spec.handleStyle] ?? spec.handleStyle} in ${HANDLE_FINISH_DESCRIPTION[spec.handleColorId] ?? spec.handleFinish}`,
-    `Visible hinge rule: exactly ${spec.hingeCountVisible} visible hinge${spec.hingeCountVisible > 1 ? "s" : ""} on the full opening composition`,
+    `Visible hinge rule: exactly ${spec.hingeCountVisible} visible hinge group${spec.hingeCountVisible > 1 ? "s" : ""} on the full opening composition`,
+    `Hinge style: ${spec.hingeStyle}`,
+    `Hinge consistency: ${spec.hingeConsistencyRule}`,
     `Glass: ${spec.glassSpec}`,
     spec.cassonetto.replace
-      ? `Cassonetto: replace with ${spec.cassonetto.materialLabel}${spec.cassonetto.colorLabel ? ` in ${spec.cassonetto.colorLabel}` : ""}`
+      ? `Cassonetto: replace with ${spec.cassonetto.materialLabel}${spec.cassonetto.colorLabel ? ` in ${spec.cassonetto.colorLabel}` : ""}. Dimension rule: ${spec.cassonetto.dimensionRule}`
       : "Cassonetto: keep existing if present",
     spec.shutter.replace
-      ? `Shading system: replace with ${spec.shutter.mode === "motorizzate" ? "motorized roller shutter" : "new shutter system"}${spec.shutter.colorLabel ? ` in ${spec.shutter.colorLabel}` : ""}`
+      ? `Shading system: replace with ${spec.shutter.mode === "motorizzate" ? "motorized roller shutter" : "new shutter system"}${spec.shutter.colorLabel ? ` in ${spec.shutter.colorLabel}` : ""}. Visibility state: ${spec.shutter.visibilityState}. Placement rule: ${spec.shutter.placementRule}`
       : "Shading system: keep existing if present",
     spec.compatibilityNotes.length > 0 ? `Compatibility rules: ${spec.compatibilityNotes.join(" | ")}` : "",
   ];
@@ -69,9 +74,6 @@ export function buildWindowPrompt(
 
   const validation = validateWindowPromptConfig(normalizedConfig);
 
-  const targetOpenings = normalizedConfig.scene_analysis.openings.filter((opening) =>
-    normalizedConfig.target_selection.selectedOpeningIds.includes(opening.id),
-  );
   const untouchedOpenings = normalizedConfig.scene_analysis.openings.filter((opening) =>
     normalizedConfig.target_selection.preservedOpeningIds.includes(opening.id),
   );
@@ -146,7 +148,11 @@ ${bullets(
 - if the source photo is a lived-in home, keep it lived-in; do not sanitize or restage the space
 - for slim/minimal profiles, widen glass area only within physically plausible frame geometry
 - for sliding systems, use coherent sliding overlaps and tracks with no battente hardware
-- for two-sash compositions, keep the hinge logic coherent and do not invent extra hinges`;
+- for two-sash compositions, keep the hinge logic coherent and do not invent extra hinges or mixed hinge colors
+- all visible hinges must match the selected hardware finish exactly, with realistic compact top/bottom geometry
+- if a new cassonetto is specified over an existing one, keep its visible width, height, depth and bottom edge very close to the source photo unless explicitly redesigned
+- if the shutter is fully open, keep the curtain hidden inside the cassonetto and do not invent a colored strip above the glazing
+- any visible shutter curtain must stay recessed within its guides behind the frame/glass plane, never floating on the wall or in front of the cassonetto`;
 
   blocks.G = `[BLOCK G – SURROUNDINGS INTEGRITY]
 ${bullets(normalizedConfig.integrity_constraints)}
@@ -202,7 +208,7 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, changed crop, changed wall color, changed furniture, extra windows, distorted geometry, fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows",
+      "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, changed crop, changed wall color, changed furniture, extra windows, distorted geometry, fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows, mixed hinge colors, oversized cassonetto, visible manual belt on motorized shutter, floating shutter band above the glass, shutter rendered in front of the wall",
     promptVersion: "7.0.0",
     blocks,
     validation,

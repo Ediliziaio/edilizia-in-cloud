@@ -46,8 +46,8 @@ function buildCassonettoReplacementRule(opening: WindowSceneOpening, spec: Windo
   return {
     code: "replace_cassonetto",
     openingIds: [opening.id],
-    summary: `Replace the roller box/cassonetto above opening ${opening.label} with the newly specified cassonetto finish and geometry.`,
-    repairInstruction: "Preserve the surrounding wall exactly, modifying only the roller-box element itself and its direct contact lines.",
+    summary: `Replace the roller box/cassonetto above opening ${opening.label} with the newly specified cassonetto finish while keeping the original envelope and proportions very close to the source photo.`,
+    repairInstruction: `Preserve the surrounding wall exactly, modifying only the roller-box element itself and its direct contact lines. ${spec.cassonetto.dimensionRule}`,
   };
 }
 
@@ -111,9 +111,13 @@ export function buildWindowReplacementManifest(config: Pick<
     ];
     if (spec.cassonetto.replace && spec.cassonetto.colorLabel) {
       lines.push(`Render the cassonetto of opening ${spec.openingLabel} in ${spec.cassonetto.colorLabel}.`);
+      lines.push(spec.cassonetto.dimensionRule);
     }
     if (spec.shutter.replace && spec.shutter.colorLabel) {
       lines.push(`Render the shading system of opening ${spec.openingLabel} in ${spec.shutter.colorLabel}.`);
+    }
+    if (spec.shutter.replace) {
+      lines.push(spec.shutter.placementRule);
     }
     if (spec.reducedNode) {
       lines.push(`Use reduced-node sightlines on opening ${spec.openingLabel} to maximize visible glass.`);

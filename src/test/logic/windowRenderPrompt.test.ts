@@ -126,6 +126,8 @@ describe("window render prompt", () => {
     const prompt = buildWindowPrompt(config, analysis);
     expect(prompt.userPrompt).toContain("manual roller-shutter belt");
     expect(prompt.userPrompt.toLowerCase()).toContain("repair the surrounding wall seamlessly");
+    expect(prompt.userPrompt.toLowerCase()).toContain("hidden inside the cassonetto");
+    expect(prompt.userPrompt.toLowerCase()).toContain("do not invent a colored strip above the glazing");
   });
 
   it("builds a coherent PVC anthracite two-sash specification", () => {
@@ -184,5 +186,32 @@ describe("window render prompt", () => {
     const prompt = buildWindowPrompt(config, analysis);
     expect(prompt.userPrompt).toContain("Preserve floor, walls, curtains, radiators");
     expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("forces hardware consistency so hinges match satin/chrome hardware instead of mixing colors", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(
+      { ...baseState, coloreHw: "inox" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+
+    const prompt = buildWindowPrompt(config, analysis);
+    expect(prompt.userPrompt).toContain("Hinge consistency");
+    expect(prompt.userPrompt).toContain("brushed stainless steel");
+    expect(prompt.userPrompt.toLowerCase()).toContain("no mixed black/dark hinge parts");
+  });
+
+  it("keeps the cassonetto envelope close to the original source photo when replacing it", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(
+      { ...baseState, cass: true, cassMat: "pvc_bianco" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+
+    const prompt = buildWindowPrompt(config, analysis);
+    expect(prompt.userPrompt.toLowerCase()).toContain("keep the visible cassonetto envelope");
+    expect(prompt.userPrompt.toLowerCase()).toContain("do not oversize it");
   });
 });

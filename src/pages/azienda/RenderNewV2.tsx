@@ -1176,6 +1176,9 @@ function StepAccessori({
 }) {
   const targetOpenings = sceneAnalysis?.openings.filter((opening) => selectedOpeningIds.includes(opening.id)) ?? [];
   const hasVisibleManualBelt = targetOpenings.some((opening) => opening.hasBelt || opening.hasBeltBox);
+  const hasNoVisibleCurtain = targetOpenings.some((opening) =>
+    opening.hasRollerShutter && opening.rollerCurtainState !== "partially_lowered" && opening.rollerCurtainState !== "fully_lowered",
+  );
   const infissoColor = getColorById(state.coloreInfisso);
 
   return (
@@ -1300,6 +1303,13 @@ function StepAccessori({
                 placca/avvolgitore e ripristino parete senza lasciare tracce del vecchio sistema.
               </div>
             )}
+
+            {(state.tapp === "motorizzate" || state.tapp === "nuove") && hasNoVisibleCurtain && (
+              <div className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                Nella foto non si vede una tapparella abbassata: il render la manterrà aperta e nascosta nel cassonetto,
+                evitando fasce colorate artificiali sopra il vetro.
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -1401,8 +1411,12 @@ function StepRender({
                             : `${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""}`}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
+                          <MiniBadge text={`hardware ${spec.handleFinish}`} />
+                          {!spec.desiredOpeningType.includes("scorrevole") && <MiniBadge text="cerniere uniformi come maniglia" />}
                           {spec.cassonetto.replace && <MiniBadge text={`cassonetto ${spec.cassonetto.colorLabel ?? ""}`.trim()} />}
+                          {spec.cassonetto.replace && <MiniBadge text="ingombro cassonetto come esistente" />}
                           {spec.shutter.replace && <MiniBadge text={spec.shutter.isMotorized ? "tapparella motorizzata" : "tapparella nuova"} />}
+                          {spec.shutter.replace && spec.shutter.visibilityState === "fully_raised_hidden" && <MiniBadge text="tapparella aperta nascosta nel cassonetto" />}
                           {spec.reducedNode && <MiniBadge text="profilo ridotto" />}
                         </div>
                       </div>

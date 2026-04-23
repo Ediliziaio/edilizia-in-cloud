@@ -5,6 +5,7 @@ import type {
   WindowOpeningPosition,
   WindowOpeningType,
   WindowPhotoMeta,
+  WindowRollerCurtainState,
   WindowRollerControlType,
   WindowSceneAnalysis,
   WindowSceneOpening,
@@ -112,6 +113,18 @@ function normalizeEnvironment(value: unknown): SceneEnvironmentType {
   return ENVIRONMENTS.includes(value as SceneEnvironmentType) ? (value as SceneEnvironmentType) : "unknown";
 }
 
+function normalizeRollerCurtainState(value: unknown, fallback: WindowRollerCurtainState): WindowRollerCurtainState {
+  const allowed: WindowRollerCurtainState[] = [
+    "fully_raised_hidden",
+    "top_recessed_band",
+    "partially_lowered",
+    "fully_lowered",
+    "not_visible",
+    "unknown",
+  ];
+  return allowed.includes(value as WindowRollerCurtainState) ? (value as WindowRollerCurtainState) : fallback;
+}
+
 function inferOrientation(meta?: WindowPhotoMeta | null): WindowImageOrientation {
   return meta?.orientation ?? "unknown";
 }
@@ -154,12 +167,19 @@ function buildOpeningFromLegacy(raw: Record<string, unknown>): WindowSceneOpenin
     hasBelt,
     hasBeltBox: hasBelt,
     rollerControlType: hasBelt ? "manual_belt" : hasRoller ? "unknown" : "none",
+    rollerCurtainState: hasRoller ? "fully_raised_hidden" : "not_visible",
+    rollerCurtainPositionNotes: hasRoller
+      ? "roller curtain not visibly lowered; if present, it is likely hidden inside the box in the source photo"
+      : "no visible roller curtain in the source photo",
     hasPersiane: booleanOr(raw.presenza_persiane, false),
     hasScuri: booleanOr(raw.presenza_scuri, false),
     hasGrates: booleanOr(raw.presenza_inferriata, false),
     hasSill: booleanOr(raw.presenza_davanzale, false),
     hasCurtains: booleanOr(raw.presenza_tende, false),
     radiatorNearby: booleanOr(raw.presenza_radiatore, false),
+    cassonettoGeometryNotes: booleanOr(raw.presenza_cassonetto, false)
+      ? stringOr(raw.cassonetto_geometry_notes, "keep the existing cassonetto footprint, height, depth and lower reveal line as close as possible to the source photo")
+      : "no visible cassonetto envelope to preserve",
     surroundingElements: stringArray(raw.elementi_contorno),
     lightNotes: stringOr(raw.luce, "same existing lighting"),
     reflectionNotes: stringOr(raw.riflessi, "preserve current glazing reflections"),
@@ -178,6 +198,10 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
   const hasBeltBox = booleanOr(rawOpening.has_belt_box ?? rawOpening.hasBeltBox ?? rawOpening.presenza_avvolgitore, hasBelt);
   const hasRollerShutter = booleanOr(rawOpening.has_roller_shutter ?? rawOpening.hasRollerShutter ?? rawOpening.presenza_tapparella, hasBelt || booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false));
   const position = normalizePosition(rawOpening.position);
+  const rollerCurtainState = normalizeRollerCurtainState(
+    rawOpening.roller_curtain_state ?? rawOpening.rollerCurtainState,
+    hasRollerShutter ? "fully_raised_hidden" : "not_visible",
+  );
 
   return {
     id: label,
@@ -215,12 +239,31 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
         : hasRollerShutter
           ? "unknown"
           : "none",
+    rollerCurtainState,
+    rollerCurtainPositionNotes: stringOr(
+      rawOpening.roller_curtain_position_notes ?? rawOpening.rollerCurtainPositionNotes,
+      rollerCurtainState === "fully_raised_hidden"
+        ? "shutter curtain is not visibly lowered; it should stay hidden inside the cassonetto unless explicitly lowered"
+        : rollerCurtainState === "top_recessed_band"
+          ? "only a very small top recessed shutter band is visible behind the glass/guides"
+          : rollerCurtainState === "partially_lowered"
+            ? "shutter curtain is partially lowered within the guides"
+            : rollerCurtainState === "fully_lowered"
+              ? "shutter curtain is fully lowered within the guides"
+              : "no visible shutter curtain",
+    ),
     hasPersiane: booleanOr(rawOpening.has_persiane ?? rawOpening.hasPersiane, false),
     hasScuri: booleanOr(rawOpening.has_scuri ?? rawOpening.hasScuri, false),
     hasGrates: booleanOr(rawOpening.has_grates ?? rawOpening.hasGrates ?? rawOpening.presenza_inferriata, false),
     hasSill: booleanOr(rawOpening.has_sill ?? rawOpening.hasSill ?? rawOpening.presenza_davanzale, false),
     hasCurtains: booleanOr(rawOpening.has_curtains ?? rawOpening.hasCurtains ?? rawOpening.presenza_tende, false),
     radiatorNearby: booleanOr(rawOpening.radiator_nearby ?? rawOpening.radiatorNearby ?? rawOpening.presenza_radiatore, false),
+    cassonettoGeometryNotes: stringOr(
+      rawOpening.cassonetto_geometry_notes ?? rawOpening.cassonettoGeometryNotes,
+      booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false)
+        ? "keep the visible cassonetto envelope, overall height, depth, bottom reveal line and side overhang close to the source photo"
+        : "no visible cassonetto envelope to preserve",
+    ),
     surroundingElements: stringArray(rawOpening.surrounding_elements ?? rawOpening.surroundingElements),
     lightNotes: stringOr(rawOpening.light_notes ?? rawOpening.lightNotes, "preserve current local light behavior"),
     reflectionNotes: stringOr(rawOpening.reflection_notes ?? rawOpening.reflectionNotes, "preserve current glazing reflections"),

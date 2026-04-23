@@ -49,12 +49,15 @@ If only one opening is visible, still use opening id "A".
       "has_belt": boolean,
       "has_belt_box": boolean,
       "roller_control_type": one of: "manual_belt"|"motorized"|"chain"|"crank"|"none"|"unknown",
+      "roller_curtain_state": one of: "fully_raised_hidden"|"top_recessed_band"|"partially_lowered"|"fully_lowered"|"not_visible"|"unknown",
+      "roller_curtain_position_notes": string,
       "has_persiane": boolean,
       "has_scuri": boolean,
       "has_grates": boolean,
       "has_sill": boolean,
       "has_curtains": boolean,
       "radiator_nearby": boolean,
+      "cassonetto_geometry_notes": string,
       "surrounding_elements": array of short strings,
       "light_notes": string,
       "reflection_notes": string,
@@ -79,6 +82,12 @@ If only one opening is visible, still use opening id "A".
   "cinghia_attuale": one of: "con_cinghia"|"senza_cinghia"|"unknown",
   "note_analisi": string
 }
+
+Important analysis notes:
+- If a cassonetto/roller box is visible, describe its apparent envelope/proportions in "cassonetto_geometry_notes".
+- If the roller shutter curtain is not visibly lowered, use "fully_raised_hidden" or "not_visible" instead of inventing a visible band.
+- If only a small recessed top band is visible, use "top_recessed_band".
+- Detect manual belt and wall winder carefully: if visible, set both "has_belt" and "has_belt_box" consistently.
 
 Respond with ONLY the JSON object. No extra text.`;
 
