@@ -52,10 +52,16 @@ Deno.serve(async (req) => {
     let processed = 0;
 
     for (const config of configs) {
-      // Debounce: skip if last topup was less than 5 minutes ago
+      // P0-3: pre-check anti-race. Se un top-up è stato fatto negli ultimi
+      // 10 minuti, salta. Previene la finestra di race tra la chiamata
+      // Stripe (2-3s latency) e l'update di last_topup_at quando il cron
+      // riparte a 60s di distanza.
       if (config.last_topup_at) {
-        const lastTopup = new Date(config.last_topup_at).getTime();
-        if (Date.now() - lastTopup < 5 * 60 * 1000) continue;
+        const ageMs = Date.now() - new Date(config.last_topup_at).getTime();
+        if (ageMs < 10 * 60 * 1000) {
+          console.log(`Skip topup for ${config.company_id}: recent topup ${ageMs}ms ago`);
+          continue;
+        }
       }
 
       // Get current balance
@@ -79,6 +85,18 @@ Deno.serve(async (req) => {
 
       if (!company?.stripe_customer_id) continue;
 
+      // P0-3: Idempotency-Key Stripe. Stessa chiave → Stripe restituisce
+      // lo stesso PaymentIntent invece di crearne uno nuovo, quindi anche
+      // se la funzione viene richiamata (cron accavallato, retry) NON si
+      // produce un doppio addebito sulla carta del cliente.
+      // Granularità oraria: `autotopup_<company_id>_<YYYYMMDDHH>`.
+      const now = new Date();
+      const idempotencyKey = `autotopup_${config.company_id}_${
+        now.getUTCFullYear()
+      }${String(now.getUTCMonth() + 1).padStart(2, "0")}${
+        String(now.getUTCDate()).padStart(2, "0")
+      }${String(now.getUTCHours()).padStart(2, "0")}`;
+
       // Create PaymentIntent off-session
       try {
         const piRes = await fetch("https://api.stripe.com/v1/payment_intents", {
@@ -86,6 +104,7 @@ Deno.serve(async (req) => {
           headers: {
             Authorization: `Bearer ${stripeSecretKey}`,
             "Content-Type": "application/x-www-form-urlencoded",
+            "Idempotency-Key": idempotencyKey,
           },
           body: new URLSearchParams({
             amount: String(Math.round(config.topup_amount_eur * 100)),
