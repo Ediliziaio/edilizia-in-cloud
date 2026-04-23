@@ -544,7 +544,21 @@ Deno.serve(async (req) => {
     let event: Stripe.Event;
     const stripe = new Stripe(stripeSecretKey, { apiVersion: "2024-12-18.acacia" });
     try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      // P0-5: in Deno NON usare constructEvent() sync — stripe-node l'ha
+      // scritta sopra `require('crypto').createHmac()` che è Node API.
+      // Deno espone solo WebCrypto (async), quindi il metodo sync o
+      // lancia "subtle is not defined" o degrada silenziosamente in
+      // qualche fork buggato. Risultato: la firma del webhook NON veniva
+      // effettivamente verificata.
+      // constructEventAsync + createSubtleCryptoProvider è la via supportata
+      // ufficialmente da Stripe per runtime Deno/Cloudflare Workers.
+      event = await stripe.webhooks.constructEventAsync(
+        body,
+        signature,
+        webhookSecret,
+        undefined, // tolerance default 300s
+        Stripe.createSubtleCryptoProvider(),
+      );
     } catch (err) {
       console.error("Stripe webhook signature verification failed:", err);
       return new Response(JSON.stringify({ error: "Invalid webhook signature" }), {
