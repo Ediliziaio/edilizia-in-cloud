@@ -724,6 +724,54 @@ export default function QuoteBuilder() {
   const { families: articleFamilies } = useFamilies();
   const hasSerramentiFamilies = articleFamilies.length > 0;
 
+  // MP-preventivi-v2: mappe lookup immagini prodotto (thumbnail riga).
+  // Le foto vengono lette dinamicamente dal listino, cosi` se aggiorni
+  // l'immagine del prodotto si riflette su tutti i preventivi.
+  const articleImageMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    articoli.forEach((a) => m.set(a.id, (a as { immagine_url?: string | null }).immagine_url ?? null));
+    return m;
+  }, [articoli]);
+  const familyImageMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    articleFamilies.forEach((f) => m.set(f.id, (f as { immagine_url?: string | null }).immagine_url ?? null));
+    return m;
+  }, [articleFamilies]);
+  const resolveItemImage = useCallback(
+    (it: QuoteItemPro): string | null => {
+      if (it.image_url) return it.image_url;
+      if (it.article_template_id) return articleImageMap.get(it.article_template_id) ?? null;
+      if (it.family_id) return familyImageMap.get(it.family_id) ?? null;
+      return null;
+    },
+    [articleImageMap, familyImageMap],
+  );
+  // Lookup assi famiglia: { familyId → { axisCode → { label, valueMap: { valueId → label } } } }
+  const familyAxesMap = useMemo(() => {
+    const m = new Map<string, Map<string, { label: string; valueMap: Map<string, string> }>>();
+    articleFamilies.forEach((f) => {
+      const axesMap = new Map<string, { label: string; valueMap: Map<string, string> }>();
+      const axes = (f as { axes?: Array<{ codice: string; nome: string; values?: Array<{ id: string; label: string }> }> }).axes ?? [];
+      axes.forEach((ax) => {
+        const valueMap = new Map<string, string>();
+        (ax.values ?? []).forEach((v) => valueMap.set(v.id, v.label));
+        axesMap.set(ax.codice, { label: ax.nome, valueMap });
+      });
+      m.set(f.id, axesMap);
+    });
+    return m;
+  }, [articleFamilies]);
+  const formatAxisEntry = useCallback(
+    (familyId: string | null | undefined, code: string, valueId: string): { label: string; value: string } => {
+      if (!familyId) return { label: code, value: valueId };
+      const axes = familyAxesMap.get(familyId);
+      const axis = axes?.get(code);
+      if (!axis) return { label: code, value: valueId };
+      return { label: axis.label, value: axis.valueMap.get(valueId) ?? valueId };
+    },
+    [familyAxesMap],
+  );
+
   // Sync PDF impostazioni for new quote
   useEffect(() => {
     if (impostazioni && Object.keys(impostazioni).length > 0 && !isEdit) {
@@ -2063,15 +2111,10 @@ export default function QuoteBuilder() {
                       >
                         <Layers className="h-4 w-4 mr-1" /> Bundle
                       </Button>
-                      {hasSerramentiFamilies && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setWizardSerramentiOpen(true)}
-                        >
-                          <Package className="h-4 w-4 mr-1" /> Serramento
-                        </Button>
-                      )}
+                      {/* MP-preventivi-v2: bottone "Serramento" top-level rimosso.
+                          Il wizard serramenti e` ora accessibile tramite "Dal listino"
+                          → selezione famiglia con assi, cosi` il tool resta generico
+                          per tutte le tipologie di aziende. */}
                       <Button
                         variant="outline"
                         size="sm"
@@ -2286,7 +2329,29 @@ export default function QuoteBuilder() {
                               </Button>
                             </div>
                           ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex gap-3 items-start">
+                                {/* MP-preventivi-v2: thumbnail 48x48 per prodotti con foto */}
+                                {!isSconto && !isSubtotale && !isNota && (() => {
+                                  const img = resolveItemImage(item);
+                                  return (
+                                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted border">
+                                      {img ? (
+                                        <img
+                                          src={img}
+                                          alt={item.name}
+                                          loading="lazy"
+                                          className="h-full w-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center">
+                                          <Package className="h-5 w-5 text-muted-foreground/50" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                                <div className="flex-1">
                               <div className="grid grid-cols-12 gap-2 items-end">
                                 <div className="col-span-12 sm:col-span-4">
                                   <Label className="text-xs">
@@ -2439,6 +2504,51 @@ export default function QuoteBuilder() {
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </div>
+                              </div>
+                              {/* MP-preventivi-v2: dettagli riga (misure + assi + descrizione) */}
+                              {!isSconto && !isNota && (item.misura_x || item.misura_y || item.description || (item.axis_selections && Object.keys(item.axis_selections).length > 0)) && (
+                                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                  {(item.misura_x || item.misura_y) && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-medium text-foreground/70">Misure:</span>
+                                      <Input
+                                        type="number"
+                                        value={item.misura_x ?? ""}
+                                        onChange={(e) => updateItem(idx, "misura_x", e.target.value === "" ? null : parseFloat(e.target.value))}
+                                        className="h-7 w-20 text-xs"
+                                        placeholder="L"
+                                      />
+                                      <span>×</span>
+                                      <Input
+                                        type="number"
+                                        value={item.misura_y ?? ""}
+                                        onChange={(e) => updateItem(idx, "misura_y", e.target.value === "" ? null : parseFloat(e.target.value))}
+                                        className="h-7 w-20 text-xs"
+                                        placeholder="H"
+                                      />
+                                      <span>mm</span>
+                                    </div>
+                                  )}
+                                  {item.axis_selections && Object.entries(item.axis_selections).length > 0 && (
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      {Object.entries(item.axis_selections).map(([k, v]) => {
+                                        const formatted = formatAxisEntry(item.family_id, k, v);
+                                        return (
+                                          <Badge key={k} variant="outline" className="text-[10px] font-normal">
+                                            {formatted.label}: {formatted.value}
+                                          </Badge>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  {item.description && (
+                                    <span className="italic line-clamp-1 flex-1 min-w-[120px]">
+                                      {item.description}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              </div>
                               </div>
                               {/* Badges visibili a tutti */}
                               {(item.is_optional || !item.mostra_nel_pdf) && (

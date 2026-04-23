@@ -50,7 +50,28 @@ export function isFeatureFlagOn(
   return false;
 }
 
-/** Shortcut per il flag specifico dello Sprint A (Preventivatore Unificato). */
+/**
+ * Shortcut per il flag specifico dello Sprint A (Preventivatore Unificato).
+ *
+ * Default-on dal 2026-04-23: l'entry point unico "+ Aggiungi voce" e`
+ * ora il flusso principale per tutte le aziende (non solo serramentisti).
+ * Il flag resta esposto come "escape hatch" per disabilitare via
+ * company.feature_flags = { PREVENTIVATORE_UNIFIED_V1: false } in caso
+ * di regressioni. Env `VITE_FF_PREVENTIVATORE_UNIFIED_V1=false` forza off.
+ */
 export function isPreventivatoreUnifiedOn(flags?: Flags): boolean {
-  return isFeatureFlagOn("PREVENTIVATORE_UNIFIED_V1", flags);
+  const env = (import.meta as unknown as { env: Record<string, unknown> }).env;
+  const envKey = "VITE_FF_PREVENTIVATORE_UNIFIED_V1";
+  const envRaw = env?.[envKey];
+  // Esplicito false (env o company flag) → disattivato
+  if (typeof envRaw === "string" && ["false", "0", "off", "no"].includes(envRaw.trim().toLowerCase())) {
+    return false;
+  }
+  if (flags && typeof flags === "object" && "PREVENTIVATORE_UNIFIED_V1" in flags) {
+    const v = (flags as Record<string, unknown>).PREVENTIVATORE_UNIFIED_V1;
+    if (typeof v === "boolean" && !v) return false;
+    if (typeof v === "string" && ["false", "0", "off", "no"].includes(v.trim().toLowerCase())) return false;
+  }
+  // Default: ON
+  return true;
 }

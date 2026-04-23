@@ -45,4 +45,9 @@ export interface QuoteItemPro {
   parent_item_id?: string | null;
   client_temp_id?: string | null;
   parent_temp_id?: string | null;
+  // MP-preventivi-v2: URL immagine (da article_families.immagine_url o
+  // article_templates.immagine_url). Persistita sul preventivo come snapshot
+  // cosi` la riga resta visualizzabile anche se il prodotto viene modificato
+  // in seguito nel listino.
+  image_url?: string | null;
 }
