@@ -299,7 +299,45 @@ Deno.serve(async (req) => {
 
         if (resp.ok) {
           const result = await resp.json();
-          sdiId = result.uploadFileName || result.idSdi || result.id || crypto.randomUUID();
+
+          // P1-3: audit raw response per scoprire cambi formato Aruba.
+          // Best-effort (il log non deve mai bloccare il flusso dell'invio).
+          try {
+            await supabase.from("sdi_provider_responses").insert({
+              company_id: doc.company_id,
+              documento_id: doc.id,
+              provider: "aruba",
+              endpoint: uploadEndpoint,
+              status_code: resp.status,
+              response_json: result,
+              detected_keys: result && typeof result === "object" ? Object.keys(result) : [],
+            });
+          } catch (logErr) {
+            console.error("[invia-sdi] audit log failed:", logErr);
+          }
+
+          // P1-3: fail-hard se nessuna chiave nota. Prima generavamo un
+          // crypto.randomUUID() fake dicendo all'utente "fattura inviata":
+          // in realtà non c'era modo di tracciarla presso SDI.
+          sdiId =
+            result?.uploadFileName ||
+            result?.idSdi ||
+            result?.id ||
+            result?.fileIdentifier ||
+            null;
+
+          if (!sdiId) {
+            console.error(
+              "[invia-sdi] Aruba 200 OK ma risposta senza ID SDI tracciabile:",
+              JSON.stringify(result),
+            );
+            sdiErrors = [{
+              provider: "aruba",
+              status: resp.status,
+              message: "Risposta Aruba senza ID tracciabile: segnalare a supporto",
+              raw_response: result,
+            }];
+          }
         } else {
           const errText = await resp.text();
           sdiErrors = [{ provider: "aruba", status: resp.status, message: errText }];
