@@ -203,11 +203,31 @@ Deno.serve(async (req) => {
 
     const waMsg = message as WhatsAppMessage;
 
-    // Mark as processing
-    await supabase
+    // P1-1: lock condizionale anti double-processing.
+    // Se il cron recovery e il webhook invocano il processor in parallelo,
+    // solo chi riesce a spostare lo stato da 'received' → 'processing'
+    // continua. L'altro riceve lockedRows=[] e ritorna skipped=true.
+    const { data: lockedRows, error: lockErr } = await supabase
       .from("whatsapp_messages")
-      .update({ processing_status: "processing" })
-      .eq("id", messageId);
+      .update({
+        processing_status: "processing",
+        last_processing_attempt_at: new Date().toISOString(),
+      })
+      .eq("id", messageId)
+      .eq("processing_status", "received")
+      .select("id");
+    if (lockErr) {
+      return new Response(
+        JSON.stringify({ error: "Lock failed", details: lockErr.message }),
+        { status: 500, headers: jsonHeaders },
+      );
+    }
+    if (!lockedRows || lockedRows.length === 0) {
+      return new Response(
+        JSON.stringify({ skipped: true, reason: "already processing or processed" }),
+        { headers: jsonHeaders },
+      );
+    }
 
     // ── 2. identifyOperaio ──────────────────────────────────────────────
     const senderPhone = normalizePhone(waMsg.from_phone);
