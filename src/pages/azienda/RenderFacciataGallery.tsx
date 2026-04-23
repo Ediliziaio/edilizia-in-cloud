@@ -1,16 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Building2, Search } from "lucide-react";
+import { ArrowLeft, Building2, GalleryHorizontalEnd, Image, Plus, Search } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { ensureFacciataRenderConfig } from "@/modules/render-facciata/lib/facciataRenderConfig";
 
 export default function RenderFacciataGallery() {
   const navigate = useNavigate();
@@ -24,36 +25,46 @@ export default function RenderFacciataGallery() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("render_facciata_sessions")
-        .select("id, status, original_photo_url, result_urls, config, created_at")
+        .select("id, status, original_photo_url, result_urls, config, foto_analisi, created_at")
         .eq("company_id", companyId)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as {
-        id: string;
-        status: string;
-        original_photo_url: string | null;
-        result_urls: string[] | null;
-        config: Record<string, unknown> | null;
-        created_at: string;
-      }[];
+      return (data ?? []) as Array<Record<string, unknown>>;
     },
     enabled: !!companyId,
   });
 
-  const filtered = sessions.filter((item) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    const tipoIntervento = (item.config as { tipo_intervento?: string } | null)?.tipo_intervento ?? "";
-    return (
-      tipoIntervento.toLowerCase().includes(s) ||
-      format(new Date(item.created_at), "d MMMM yyyy", { locale: it }).toLowerCase().includes(s)
+  const normalized = useMemo(() => sessions.map((item) => {
+    const config = ensureFacciataRenderConfig(
+      (item.config as Record<string, unknown> | null) ?? {},
+      item.foto_analisi,
     );
+    return {
+      id: String(item.id),
+      createdAt: String(item.created_at),
+      resultUrl: Array.isArray(item.result_urls) ? String(item.result_urls[0] ?? "") : "",
+      config,
+    };
+  }), [sessions]);
+
+  const filtered = normalized.filter((item) => {
+    if (!search.trim()) return true;
+    const haystack = [
+      item.config.legacy_config.tipo_intervento,
+      ...item.config.replacement_manifest.activeSystems,
+      ...item.config.replacement_manifest.targetedZones,
+      item.config.scene_analysis.buildingType,
+      item.config.scene_analysis.buildingStyle,
+      format(new Date(item.createdAt), "d MMMM yyyy", { locale: it }),
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(search.toLowerCase());
   });
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/facciata")}>
           <ArrowLeft className="h-4 w-4" />
@@ -63,82 +74,83 @@ export default function RenderFacciataGallery() {
             <GalleryHorizontalEnd className="h-5 w-5 text-orange-600" />
             Galleria Facciata
           </h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} render completati</p>
+          <p className="text-sm text-muted-foreground">{filtered.length} di {normalized.length} render completati</p>
         </div>
         <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/azienda/render/facciata/new")}>
-          <Plus className="h-4 w-4 mr-2" />
+          <Plus className="mr-2 h-4 w-4" />
           Nuovo render
         </Button>
       </div>
 
-      {sessions.length > 3 && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca render..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 max-w-sm"
-          />
-        </div>
-      )}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Cerca per intervento, zona o tipologia edificio..."
+          className="pl-9"
+        />
+      </div>
 
-      {/* Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3, 4].map((item) => (
+            <Skeleton key={item} className="h-72 rounded-xl" />
+          ))}
         </div>
-      ) : sessions.length === 0 ? (
+      ) : normalized.length === 0 ? (
         <Card>
-          <CardContent className="py-16 flex flex-col items-center gap-4 text-center">
+          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
             <Building2 className="h-14 w-14 text-muted-foreground/30" />
             <div>
               <p className="font-medium">Galleria vuota</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                I render facciata completati appariranno qui
-              </p>
+              <p className="mt-1 text-sm text-muted-foreground">I render facciata completati appariranno qui.</p>
             </div>
             <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/azienda/render/facciata/new")}>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               Crea primo render
             </Button>
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-4 py-14 text-center">
+            <Search className="h-10 w-10 text-muted-foreground/30" />
+            <div>
+              <p className="font-medium">Nessun render corrisponde al filtro</p>
+              <p className="mt-1 text-sm text-muted-foreground">Prova a cercare per intervento, zona o materiale.</p>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filtered.map(item => {
-            const resultUrl = item.result_urls?.[0];
-            const tipoIntervento = (item.config as { tipo_intervento?: string } | null)?.tipo_intervento;
-            return (
-              <div
-                key={item.id}
-                className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border hover:border-orange-400 transition-all hover:shadow-md bg-muted"
-                onClick={() => navigate(`/azienda/render/facciata/gallery/${item.id}`)}
-              >
-                {resultUrl ? (
-                  <img
-                    src={resultUrl}
-                    alt="Render facciata"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((item) => (
+            <Card
+              key={item.id}
+              className="cursor-pointer overflow-hidden hover:border-orange-400 transition-colors"
+              onClick={() => navigate(`/azienda/render/facciata/gallery/${item.id}`)}
+            >
+              <div className="flex h-56 items-center justify-center bg-muted p-2">
+                {item.resultUrl ? (
+                  <img src={item.resultUrl} alt="Render facciata" className="max-h-full w-full object-contain" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Image className="h-8 w-8 text-muted-foreground/40" />
-                  </div>
+                  <Image className="h-10 w-10 text-muted-foreground/30" />
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
-                  <p className="text-white text-xs font-medium truncate">
-                    {format(new Date(item.created_at), "d MMM yyyy", { locale: it })}
-                  </p>
-                  {tipoIntervento && (
-                    <Badge variant="secondary" className="text-[10px] py-0 mt-1 w-fit capitalize">
-                      {tipoIntervento.replace(/_/g, " ")}
-                    </Badge>
-                  )}
-                </div>
               </div>
-            );
-          })}
+              <CardContent className="space-y-3 p-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">{item.config.legacy_config.tipo_intervento.replace(/_/g, " ")}</Badge>
+                  {item.config.replacement_manifest.targetedZones.slice(0, 2).map((zone) => (
+                    <Badge key={zone} variant="outline">{zone}</Badge>
+                  ))}
+                </div>
+                <div>
+                  <p className="font-medium">{item.config.scene_analysis.buildingType}</p>
+                  <p className="text-sm text-muted-foreground">{format(new Date(item.createdAt), "d MMM yyyy, HH:mm", { locale: it })}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>
