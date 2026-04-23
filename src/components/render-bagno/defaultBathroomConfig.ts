@@ -59,6 +59,7 @@ export const DEFAULT_BATHROOM_CONFIG: ConfigurazioneBagno = {
     azione_bidet: "sostituisci",
     tipo_bidet: "sospeso",
     colore: "bianco",
+    piastra_wc: "rettangolare_sottile",
   },
   rubinetteria: {
     attivo: false,

@@ -220,4 +220,21 @@ describe("persiane render pipeline", () => {
     expect(prompt.userPrompt.toLowerCase()).toContain("robust metallic fixing logic");
     expect(prompt.validation.isValid).toBe(true);
   });
+
+  it("keeps the exact selected wood effect explicit", () => {
+    const analysis = buildAnalysis();
+    const config = baseConfig({
+      tipo: "scuro_pieno",
+      materiale: "alluminio",
+      colore_mode: "legno",
+      effetto_legno: "noce_nazionale",
+    });
+
+    const prompt = buildPersianePrompt(
+      buildPersianeRenderConfig(config, { sceneAnalysis: analysis }) as unknown as Record<string, unknown>,
+    );
+    expect(prompt.userPrompt.toLowerCase()).toContain("walnut wood effect");
+    expect(prompt.userPrompt.toLowerCase()).toContain("exact selected wood-effect identity");
+    expect(prompt.validation.isValid).toBe(true);
+  });
 });

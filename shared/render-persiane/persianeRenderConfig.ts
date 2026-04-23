@@ -44,7 +44,7 @@ function normalizeFinish(config: ConfigurazionePersiane): PersianaFinishSpec | n
       ral: null,
       hex: null,
       woodEffectId,
-      promptFragment: `${label} with believable grain direction, variation and exterior weather-resistant coating`,
+      promptFragment: `${label} with the exact selected wood-effect identity, believable grain direction, realistic tonal variation and exterior weather-resistant coating; do not drift into another wood tone or generic brown timber`,
     };
   }
 
@@ -61,7 +61,7 @@ function normalizeFinish(config: ConfigurazionePersiane): PersianaFinishSpec | n
     ral,
     hex: config.colore_hex ?? null,
     woodEffectId: null,
-    promptFragment: `${label} as a uniform architectural coating with no unwanted wood grain contamination`,
+    promptFragment: `${label} as an exact architectural coating matched to the selected RAL/finish, with no unwanted wood grain contamination and no drift into a nearby but different tone`,
   };
 }
 

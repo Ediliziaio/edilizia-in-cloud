@@ -38,6 +38,7 @@ function describeTarget(spec: PersianeRenderConfig["technical_specification"][nu
     `Construction language: ${spec.typeDescription}.`,
     spec.materialDescription ? `Material: ${spec.materialDescription}.` : "",
     spec.finish ? `Finish: ${spec.finish.promptFragment}.` : "",
+    `Selected typology must remain unmistakable and must not drift toward a different shutter family.`,
     `Leaf/panel logic: ${spec.leafConfiguration}.`,
     spec.profileContrastColor ? `Outer frame/profile contrast color: ${spec.profileContrastColor}.` : "",
   ].filter(Boolean).join(" ");
@@ -101,6 +102,9 @@ ${bullets(
       return [
         `Opening ${spec.openingLabel}: ${spec.targetType?.replace(/_/g, " ") ?? "existing typology"} in ${spec.finish?.label ?? "existing finish"}.`,
         `Opening mechanism / state: ${spec.openingState ? OPENING_STATE_DESCRIPTIONS[spec.openingState] : "remove shutter system completely"}.`,
+        spec.finish?.mode === "legno"
+          ? `Exact finish identity: keep the precise ${spec.finish.label} look, with believable grain and no drift into another wood species or generic brown wood.`
+          : `Exact finish identity: keep the precise ${spec.finish?.label ?? "selected finish"} with no drift into another RAL or approximate adjacent color.`,
         `Installation: ${spec.installationStyle}.`,
       ].join(" ");
     }),
@@ -152,7 +156,9 @@ ${bullets(normalizedConfig.integrity_constraints)}`;
 - no geometry warping
 - no fake showroom look
 - installation details must look buildable in reality
-- premium architectural visualization quality`;
+- premium architectural visualization quality
+- selected shutter type, opening angle, louver behavior and finish must be visually exact, not just approximately similar
+- wood effects must match the chosen species/finish and RAL finishes must match the selected tone without chromatic drift`;
 
   blocks.L = `[BLOCK L - NEGATIVE CONSTRAINTS]
 ${bullets(DEFAULT_NEGATIVE_CONSTRAINTS)}`;
@@ -188,7 +194,7 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "facade redesign, changed wall color, different building, altered window geometry, extra openings, stylized image, hybrid shutter system, leftover louvers on solid shutters, leftover hinges after removal, floating shutters, wrong perspective, fake CGI look",
+      "facade redesign, changed wall color, different building, altered window geometry, extra openings, stylized image, hybrid shutter system, leftover louvers on solid shutters, leftover hinges after removal, floating shutters, wrong perspective, fake CGI look, generic shutter type, wrong opening angle, wrong louver state, wrong wood effect, wrong RAL tone",
     promptVersion: "2.0.0",
     blocks,
     validation,

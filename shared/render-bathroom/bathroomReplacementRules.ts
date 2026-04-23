@@ -81,6 +81,23 @@ function buildBidetRemovalRule(config: BathroomRenderConfig): BathroomRemovalRul
   };
 }
 
+function buildWallHungWcConversionRule(config: BathroomRenderConfig): BathroomRemovalRule | null {
+  const { technical_specification: spec, scene_analysis: scene } = config;
+  if (!spec.sanitaryWare.replace || !scene.sanitaryWare.wcPresent) return null;
+
+  const wantsWallHung = spec.sanitaryWare.toiletType.toLowerCase().includes("wall-hung");
+  if (!wantsWallHung) return null;
+
+  return {
+    code: "convert_existing_wc_to_wall_hung",
+    summary: "Convert the existing toilet zone to a true wall-hung WC installation with concealed cistern and flush plate.",
+    repairInstruction:
+      "Remove any old visible toilet tank, monobloc mass, exposed cistern volume, outdated backbox or incompatible floor-standing WC geometry. Rebuild the wall behind the toilet cleanly so only the compact wall-hung WC and slim flush plate remain visible.",
+    preserveInstruction:
+      "Keep the photographed toilet position, bathroom geometry and all non-target adjacent elements coherent while modernizing only the sanitary installation logic.",
+  };
+}
+
 export function buildBathroomReplacementManifest(config: BathroomRenderConfig): BathroomReplacementManifest {
   const { scene_analysis: scene, technical_specification: spec, legacy_config: legacy } = config;
   const removals: BathroomRemovalRule[] = [];
@@ -90,10 +107,15 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
   dedupePush(removals, buildExistingShowerReplacementRule(config));
   dedupePush(removals, buildExistingTubReplacementRule(config));
   dedupePush(removals, buildBidetRemovalRule(config));
+  dedupePush(removals, buildWallHungWcConversionRule(config));
 
   const replacements = [
-    spec.wallTiles.replace ? `Replace wall tiles with ${spec.wallTiles.effectDescription}, ${spec.wallTiles.format}, ${spec.wallTiles.layingPattern}.` : "Keep wall tiles unchanged.",
-    spec.floor.replace ? `Replace floor with ${spec.floor.effectDescription}, ${spec.floor.format}, ${spec.floor.layingPattern}.` : "Keep floor unchanged.",
+    spec.wallTiles.replace
+      ? `Replace wall tiles with ${spec.wallTiles.effectDescription}, ${spec.wallTiles.format}, ${spec.wallTiles.layingPattern}. ${spec.wallTiles.moduleScaleRule} ${spec.wallTiles.groutDensityRule}`
+      : "Keep wall tiles unchanged.",
+    spec.floor.replace
+      ? `Replace floor with ${spec.floor.effectDescription}, ${spec.floor.format}, ${spec.floor.layingPattern}. ${spec.floor.moduleScaleRule} ${spec.floor.groutDensityRule}`
+      : "Keep floor unchanged.",
     spec.shower.replace ? `Replace shower zone with ${spec.shower.showerTypeLabel}.` : "Keep existing shower state unless incompatible with another requested replacement.",
     spec.bathtub.replace ? `Replace bathtub zone with ${spec.bathtub.bathtubTypeLabel}.` : "Keep existing bathtub state unless incompatible with another requested replacement.",
     spec.vanity.replace ? `Replace vanity with a ${spec.vanity.styleLabel}.` : "Keep vanity unchanged.",
@@ -114,13 +136,13 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
       ? `Install ${spec.vanity.styleLabel} in ${spec.vanity.colorLabel} with ${spec.vanity.topDescription}, ${spec.vanity.basinCount === 2 ? "double basin" : "single basin"} and ${spec.vanity.mirrorType}.`
       : "",
     spec.sanitaryWare.replace
-      ? `Render sanitary ware with ${spec.sanitaryWare.installationRule} and ${spec.sanitaryWare.ceramicFinish}.`
+      ? `Render sanitary ware with ${spec.sanitaryWare.installationRule}, ${spec.sanitaryWare.cisternRule} ${spec.sanitaryWare.flushPlateRule ?? ""} ${spec.sanitaryWare.scaleRule} Finish: ${spec.sanitaryWare.ceramicFinish}.`
       : "",
     spec.wallTiles.replace
-      ? `Wall tiles must show ${spec.wallTiles.coverage} coverage with consistent grout color ${spec.wallTiles.groutColor}.`
+      ? `Wall tiles must show ${spec.wallTiles.coverage} coverage with consistent grout color ${spec.wallTiles.groutColor}. ${spec.wallTiles.cutLayoutRule} ${spec.wallTiles.veinContinuityRule ?? ""}`
       : "",
     spec.floor.replace
-      ? `Floor finish must preserve the photographed perspective while showing ${spec.floor.reflectivityRule}.`
+      ? `Floor finish must preserve the photographed perspective while showing ${spec.floor.reflectivityRule}. ${spec.floor.cutLayoutRule} ${spec.floor.veinContinuityRule ?? ""}`
       : "",
   ].filter(Boolean);
 

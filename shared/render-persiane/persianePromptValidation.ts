@@ -50,6 +50,24 @@ export function validatePersianePromptConfig(config: PersianeRenderConfig): Pers
     missingBusinessRules.push("remove operation must define shutter and hardware removal rules");
   }
 
+  const woodEffectWithoutIdentity = config.technical_specification.some(
+    (spec) =>
+      spec.finish?.mode === "legno" &&
+      !spec.finish.promptFragment.toLowerCase().includes("exact selected wood-effect identity"),
+  );
+  if (woodEffectWithoutIdentity) {
+    missingBusinessRules.push("wood-effect shutters must explicitly preserve the exact selected wood identity");
+  }
+
+  const ralWithoutExactTone = config.technical_specification.some(
+    (spec) =>
+      spec.finish?.mode === "ral" &&
+      !spec.finish.promptFragment.toLowerCase().includes("exact architectural coating"),
+  );
+  if (ralWithoutExactTone) {
+    missingBusinessRules.push("RAL shutters must explicitly preserve the exact selected finish tone");
+  }
+
   return {
     isValid: missingSections.length === 0 && missingBusinessRules.length === 0,
     missingSections,

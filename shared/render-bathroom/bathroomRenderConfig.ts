@@ -5,6 +5,7 @@ import {
   BATHTUB_TYPE_DESCRIPTIONS,
   FAUCET_FINISH_DESCRIPTIONS,
   FAUCET_STYLE_DESCRIPTIONS,
+  FLUSH_PLATE_DESCRIPTIONS,
   INTERVENTION_DESCRIPTIONS,
   POSA_DESCRIPTIONS,
   SANITARY_COLOR_DESCRIPTIONS,
@@ -36,6 +37,110 @@ export interface BathroomRenderBuildOptions {
 
 function normalizeColorLabel(value: string): string {
   return value.trim() || "neutral finish";
+}
+
+function parseTileFormat(format: string): { width: number | null; height: number | null } {
+  const match = format.match(/(\d+)\s*x\s*(\d+)/i);
+  if (!match) return { width: null, height: null };
+  return {
+    width: Number(match[1]),
+    height: Number(match[2]),
+  };
+}
+
+function categorizeTileFormat(
+  format: string,
+  effectId: string,
+): "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless" {
+  if (effectId === "resina_spatolata") return "seamless";
+  if (effectId === "mosaico_esagoni" || effectId === "mosaico_penny") return "mosaic";
+
+  const { width, height } = parseTileFormat(format);
+  if (!width || !height) return "standard";
+
+  const longSide = Math.max(width, height);
+  const shortSide = Math.min(width, height);
+  if (longSide >= 200) return "architectural_slab";
+  if (longSide >= 90 && longSide / shortSide >= 3) return "plank";
+  if (longSide >= 120) return "large_format";
+  if (longSide <= 20 && shortSide <= 20) return "mosaic";
+  return "standard";
+}
+
+function inferTileScaleRules(
+  format: string,
+  effectId: string,
+): {
+  formatCategory: "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless";
+  moduleScaleRule: string;
+  groutDensityRule: string;
+  cutLayoutRule: string;
+  veinContinuityRule: string | null;
+} {
+  const formatCategory = categorizeTileFormat(format, effectId);
+
+  const commonVeinRule = effectId.startsWith("marmo_")
+    ? "Marble veining must read as realistic slab or tile veining, not as a repeated synthetic texture or a random small-tile grid."
+    : null;
+
+  switch (formatCategory) {
+    case "seamless":
+      return {
+        formatCategory,
+        moduleScaleRule: "This finish must read as a continuous surface with no tile modules at all.",
+        groutDensityRule: "No grout joints, no tile grid and no repeated module rhythm should be visible.",
+        cutLayoutRule: "Keep the surface continuous around corners, drains and fixtures without introducing fake tile cuts.",
+        veinContinuityRule: null,
+      };
+    case "mosaic":
+      return {
+        formatCategory,
+        moduleScaleRule: "This surface must read as a dense small-module mosaic with a deliberately fine repetitive rhythm.",
+        groutDensityRule: "Frequent, clearly visible grout joints are expected because the selected format is intentionally small.",
+        cutLayoutRule: "Small module cuts around fixtures and corners are acceptable but must remain clean and believable.",
+        veinContinuityRule: null,
+      };
+    case "plank":
+      return {
+        formatCategory,
+        moduleScaleRule: "This surface must read as long elongated planks, not square tiles.",
+        groutDensityRule: "Joint rhythm must be linear and relatively sparse, with long continuous modules dominating the view.",
+        cutLayoutRule: "Keep plank direction consistent and avoid random short offcuts dominating visible areas.",
+        veinContinuityRule: commonVeinRule,
+      };
+    case "architectural_slab":
+      return {
+        formatCategory,
+        moduleScaleRule:
+          "This selection is an architectural large slab. Each visible wall or floor plane must read as only a few very large modules, never as a patchwork of many small tiles.",
+        groutDensityRule:
+          "Grout density must be extremely low: only a handful of long joints should be visible, with very wide uninterrupted slab fields.",
+        cutLayoutRule:
+          "Cuts around corners, niches, drains and sanitary fixtures must stay minimal and strategic. Do not fragment the surface into many small pieces.",
+        veinContinuityRule: effectId.startsWith("marmo_")
+          ? "Because the selected format is slab-size, the marble veining must feel broad, continuous and slab-scaled, not broken into many tiny repeated tiles."
+          : commonVeinRule,
+      };
+    case "large_format":
+      return {
+        formatCategory,
+        moduleScaleRule:
+          "This selection is large-format tiling. The room must show clearly oversized modules with a restrained number of joints.",
+        groutDensityRule:
+          "Joint density must stay low and refined, much sparser than in small residential ceramic tiling.",
+        cutLayoutRule:
+          "Keep edge cuts clean and controlled so the visible layout still reads as large-format material rather than small repeated modules.",
+        veinContinuityRule: commonVeinRule,
+      };
+    default:
+      return {
+        formatCategory,
+        moduleScaleRule: "Keep a standard residential tile scale coherent with the selected format.",
+        groutDensityRule: "Grout joints should be visible with a normal residential rhythm, neither oversized nor too dense.",
+        cutLayoutRule: "Keep cut pieces and perimeter terminations neat and plausible around fixtures and corners.",
+        veinContinuityRule: commonVeinRule,
+      };
+  }
 }
 
 function describeWallPaintAction(action: string, colorHex?: string | null): string {
@@ -73,9 +178,48 @@ function inferBasinCount(config: ConfigurazioneBagno["vanity"]): 1 | 2 {
 }
 
 function inferSanitaryInstallationRule(config: ConfigurazioneBagno["sanitari"]): string {
-  const wcType = config.azione_wc === "sostituisci" ? config.tipo_wc : "mantieni";
-  const bidetType = config.azione_bidet === "sostituisci" ? config.tipo_bidet ?? "sospeso" : config.azione_bidet;
-  return `WC: ${wcType}; bidet: ${bidetType}; keep realistic spacing, alignment and wall/floor fixing logic.`;
+  const wcRule =
+    config.azione_wc !== "sostituisci"
+      ? "keep the existing WC installation logic"
+      : config.tipo_wc === "sospeso" || config.tipo_wc === "rimless_sospeso"
+        ? "WC must be truly wall-hung with compact projection and believable in-wall carrier support"
+        : "WC must be a real floor-standing model with coherent floor contact and compact modern proportions";
+
+  const bidetRule =
+    config.azione_bidet === "mantieni"
+      ? "keep existing bidet installation logic"
+      : config.azione_bidet === "rimuovi"
+        ? "remove bidet completely and rebalance the spacing cleanly"
+        : (config.tipo_bidet ?? "sospeso") === "sospeso"
+          ? "bidet must be wall-hung with realistic fixing height and spacing"
+          : "bidet must be floor-standing with credible floor contact";
+
+  return `${wcRule}; ${bidetRule}; keep realistic spacing, alignment and wall/floor fixing logic.`;
+}
+
+function inferSanitaryCisternRule(config: ConfigurazioneBagno["sanitari"]): string {
+  if (config.azione_wc !== "sostituisci") {
+    return "Keep the current cistern logic unless the selected sanitary replacement explicitly changes it.";
+  }
+
+  if (config.tipo_wc === "sospeso" || config.tipo_wc === "rimless_sospeso") {
+    return "Use a concealed in-wall cistern: NO bulky exposed ceramic tank behind the WC, and only a slim flush plate visible on the wall.";
+  }
+
+  return "If a floor-standing WC is selected, keep the cistern logic coherent with a floor-standing toilet and do not turn it into a wall-hung concealed-frame system.";
+}
+
+function inferFlushPlateRule(config: ConfigurazioneBagno["sanitari"]): { style: string | null; rule: string | null } {
+  if (config.azione_wc !== "sostituisci") return { style: null, rule: null };
+  if (config.tipo_wc !== "sospeso" && config.tipo_wc !== "rimless_sospeso") {
+    return { style: null, rule: "Do not add a wall flush plate unless the selected WC typology requires a concealed cistern." };
+  }
+
+  const style = FLUSH_PLATE_DESCRIPTIONS[config.piastra_wc ?? "rettangolare_sottile"];
+  return {
+    style,
+    rule: `${style}. The flush plate must replace any old external tank logic and must stay proportionate, compact and aligned with the wall-hung WC.`,
+  };
 }
 
 function inferShowerFramePresence(profile: ConfigurazioneBagno["doccia"]["profilo"], type: ConfigurazioneBagno["doccia"]["tipo"]): string {
@@ -137,6 +281,7 @@ export function buildBathroomRenderConfig(
   options: BathroomRenderBuildOptions = {},
 ): BathroomRenderConfig {
   const sceneAnalysis = normalizeBathroomSceneAnalysis(options.sceneAnalysis, options.photoMeta);
+  const flushPlate = inferFlushPlateRule(legacyConfig.sanitari);
 
   const faucetsFinish =
     legacyConfig.sostituzione.rubinetteria && legacyConfig.rubinetteria.attivo
@@ -148,6 +293,7 @@ export function buildBathroomRenderConfig(
     effectId: legacyConfig.piastrelle_parete.effetto,
     effectDescription: TILE_EFFECT_DESCRIPTIONS[legacyConfig.piastrelle_parete.effetto] || legacyConfig.piastrelle_parete.effetto,
     format: legacyConfig.piastrelle_parete.formato,
+    ...inferTileScaleRules(legacyConfig.piastrelle_parete.formato, legacyConfig.piastrelle_parete.effetto),
     layingPattern: POSA_DESCRIPTIONS[legacyConfig.piastrelle_parete.posa] || legacyConfig.piastrelle_parete.posa,
     groutColor: legacyConfig.piastrelle_parete.fuga_colore,
     coverage: legacyConfig.piastrelle_parete.altezza_rivestimento || "full height",
@@ -158,6 +304,7 @@ export function buildBathroomRenderConfig(
     effectId: legacyConfig.pavimento.effetto,
     effectDescription: TILE_EFFECT_DESCRIPTIONS[legacyConfig.pavimento.effetto] || legacyConfig.pavimento.effetto,
     format: legacyConfig.pavimento.formato,
+    ...inferTileScaleRules(legacyConfig.pavimento.formato, legacyConfig.pavimento.effetto),
     layingPattern: POSA_DESCRIPTIONS[legacyConfig.pavimento.posa] || legacyConfig.pavimento.posa,
     groutColor: legacyConfig.pavimento.fuga_colore,
     reflectivityRule: legacyConfig.pavimento.effetto.startsWith("marmo")
@@ -222,6 +369,13 @@ export function buildBathroomRenderConfig(
         : "keep existing bidet",
     installationRule: inferSanitaryInstallationRule(legacyConfig.sanitari),
     ceramicFinish: SANITARY_COLOR_DESCRIPTIONS[legacyConfig.sanitari.colore],
+    cisternRule: inferSanitaryCisternRule(legacyConfig.sanitari),
+    flushPlateStyle: flushPlate.style,
+    flushPlateRule: flushPlate.rule,
+    scaleRule:
+      legacyConfig.sanitari.tipo_wc === "sospeso" || legacyConfig.sanitari.tipo_wc === "rimless_sospeso"
+        ? "Sanitary ware must keep compact contemporary proportions; never render an oversized old-fashioned monobloc WC."
+        : "Sanitary ware proportions must stay compact and contemporary, with realistic spacing and no oversized ceramic volumes.",
   };
 
   const faucets = {

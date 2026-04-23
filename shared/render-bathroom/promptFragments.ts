@@ -2,6 +2,7 @@ import type {
   BathroomBathtubType,
   BathroomFaucetFinish,
   BathroomFaucetStyle,
+  BathroomFlushPlateStyle,
   BathroomMirrorType,
   BathroomSanitaryColor,
   BathroomShowerGlassType,
@@ -205,6 +206,15 @@ export const SANITARY_COLOR_DESCRIPTIONS: Record<BathroomSanitaryColor, string> 
   bianco: "white ceramic finish",
   grigio_chiaro: "light-grey ceramic finish",
   nero_opaco: "matte black ceramic finish",
+};
+
+export const FLUSH_PLATE_DESCRIPTIONS: Record<BathroomFlushPlateStyle, string> = {
+  rettangolare_sottile:
+    "slim rectangular wall flush plate, minimal and architectural, aligned above the WC",
+  vetro_minimal:
+    "minimal glass-look wall flush plate with crisp rectangular geometry and low visual bulk",
+  tonda_soft:
+    "soft rounded dual-flush wall plate, compact and contemporary rather than old-fashioned",
 };
 
 export const FAUCET_FINISH_DESCRIPTIONS: Record<BathroomFaucetFinish, string> = {

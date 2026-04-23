@@ -16,6 +16,16 @@ export function validateFacciataPromptConfig(config: FacciataRenderConfig): Facc
     }
   }
 
+  const plaster = config.technical_specification.plaster;
+  if (plaster.active && (!plaster.finishDescription || !plaster.surfaceBehavior || !plaster.textureVisibility)) {
+    missingBusinessRules.push("active plaster intervention must define finish identity, surface behavior and texture visibility");
+  }
+
+  const cladding = config.technical_specification.cladding;
+  if (cladding.active && (!cladding.materialDescription || !cladding.jointLogic || !cladding.thicknessVisibility || !cladding.transitionEdges)) {
+    missingBusinessRules.push("active cladding intervention must define material identity, joints, thickness and transition edges");
+  }
+
   const removeCornici = config.technical_specification.elements.windowCornices.action === "remove";
   if (
     removeCornici &&
@@ -33,7 +43,7 @@ export function validateFacciataPromptConfig(config: FacciataRenderConfig): Facc
   if (
     paintOnly &&
     config.replacement_manifest.replacements.some((line) =>
-      /advance|depth|cladding|new base course/i.test(line),
+      /advance|depth|cladding|new base course|bugnato|raised ashlar/i.test(line),
     )
   ) {
     missingBusinessRules.push("paint-only intervention must not introduce invasive geometric or cladding instructions");

@@ -183,6 +183,20 @@ describe("facciata render pipeline", () => {
     expect(prompt.validation.isValid).toBe(true);
   });
 
+  it("keeps finish identity explicit for textured plaster selections", () => {
+    const config = cloneConfig();
+    config.tipo_intervento = "misto";
+    config.intonaco.attivo = true;
+    config.intonaco.finitura = "bugnato";
+
+    const prompt = buildFacciataPrompt(
+      buildFacciataRenderConfig(config, { sceneAnalysis: baseAnalysis() }) as unknown as Record<string, unknown>,
+    );
+    expect(prompt.userPrompt.toLowerCase()).toContain("raised ashlar-like geometry");
+    expect(prompt.userPrompt.toLowerCase()).toContain("must stay visually exact");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
   it("normalizes legacy or alternate analysis keys without losing facade context", () => {
     const analysis = normalizeFacciataSceneAnalysis({
       building_type: "residential apartment building",

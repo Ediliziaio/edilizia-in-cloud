@@ -115,6 +115,7 @@ ${activeOrKeep(
       `Finish type: ${plaster.finishDescription}.`,
       `Surface behavior: ${plaster.surfaceBehavior}.`,
       `Texture visibility: ${plaster.textureVisibility}.`,
+      "The selected plaster finish must stay visually exact: do not drift from smooth to rusticated, from rasato to bugnato, or from fine scratched to a generic rough texture.",
       "Fresh professional application, no random degradation or fake beautification.",
     ].join("\n"),
     "Keep existing plaster exactly as photographed; no new paint or plaster transformation.",
@@ -130,6 +131,7 @@ ${activeOrKeep(
       `Joint logic: ${cladding.jointLogic}.`,
       `Thickness visibility: ${cladding.thicknessVisibility}.`,
       `Transition edges: ${cladding.transitionEdges}.`,
+      "The selected cladding material must be physically recognizable and confined to the requested zones only, with no bleed into untouched facade areas.",
     ].join("\n"),
     "No cladding must be introduced; facade surfaces stay without added cladding.",
   )}`;
@@ -187,7 +189,10 @@ ${bullets(normalizedConfig.integrity_constraints)}`;
 - no CGI look
 - no over-smoothing
 - no fake luxury reinterpretation
-- premium architectural renovation photography-grade output`;
+- premium architectural renovation photography-grade output
+- selected plaster finish must read exactly as chosen, with the right texture scale and relief instead of a generic AI wall texture
+- selected cladding must show believable physicality, joint rhythm and depth exactly where requested, with crisp clean transitions to untouched zones
+- paint-only or railing-only actions must never introduce new facade geometry, reliefs or construction changes`;
 
   blocks.L = `[BLOCK L - NEGATIVE CONSTRAINTS]
 ${bullets(DEFAULT_NEGATIVE_CONSTRAINTS)}`;
@@ -223,7 +228,7 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "different building, altered facade geometry, changed sky, changed vegetation, fake CGI facade, wrong window positions, invented decorative elements, smudged material transitions, hybrid old/new facade state",
+      "different building, altered facade geometry, changed sky, changed vegetation, fake CGI facade, wrong window positions, invented decorative elements, smudged material transitions, hybrid old/new facade state, wrong plaster texture, generic wall finish instead of selected finish, cladding bleeding into untouched floors, insulation without deeper reveals, altered railing design during repaint",
     promptVersion: "2.0.0",
     blocks,
     validation,

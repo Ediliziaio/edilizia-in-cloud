@@ -131,6 +131,10 @@ export type BathroomBidetAction = "mantieni" | "sostituisci" | "rimuovi";
 export type BathroomToiletType = "sospeso" | "a_terra" | "rimless_sospeso";
 export type BathroomBidetType = "sospeso" | "a_terra";
 export type BathroomSanitaryColor = "bianco" | "grigio_chiaro" | "nero_opaco";
+export type BathroomFlushPlateStyle =
+  | "rettangolare_sottile"
+  | "vetro_minimal"
+  | "tonda_soft";
 
 export interface ConfigSanitari {
   attivo: boolean;
@@ -139,6 +143,7 @@ export interface ConfigSanitari {
   azione_bidet: BathroomBidetAction;
   tipo_bidet?: BathroomBidetType;
   colore: BathroomSanitaryColor;
+  piastra_wc?: BathroomFlushPlateStyle;
 }
 
 export type BathroomFaucetFinish =
@@ -328,9 +333,14 @@ export interface BathroomTileSpecification {
   effectId: string;
   effectDescription: string;
   format: string;
+  formatCategory: "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless";
   layingPattern: string;
   groutColor: string;
   coverage: string;
+  moduleScaleRule: string;
+  groutDensityRule: string;
+  cutLayoutRule: string;
+  veinContinuityRule: string | null;
 }
 
 export interface BathroomFloorSpecification {
@@ -338,9 +348,14 @@ export interface BathroomFloorSpecification {
   effectId: string;
   effectDescription: string;
   format: string;
+  formatCategory: "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless";
   layingPattern: string;
   groutColor: string;
   reflectivityRule: string;
+  moduleScaleRule: string;
+  groutDensityRule: string;
+  cutLayoutRule: string;
+  veinContinuityRule: string | null;
 }
 
 export interface BathroomShowerSpecification {
@@ -391,6 +406,10 @@ export interface BathroomSanitarySpecification {
   bidetType: string | null;
   installationRule: string;
   ceramicFinish: string;
+  cisternRule: string;
+  flushPlateStyle: string | null;
+  flushPlateRule: string | null;
+  scaleRule: string;
 }
 
 export interface BathroomFaucetSpecification {
