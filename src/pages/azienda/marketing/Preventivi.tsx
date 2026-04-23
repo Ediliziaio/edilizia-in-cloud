@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import AnalisiPreventivi from "./AnalisiPreventivi";
+import QuoteApprovals from "./QuoteApprovals";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -99,6 +100,7 @@ import {
   Clock,
   Target,
   BrainCircuit,
+  Percent,
   FileUp,
   Sparkles,
 } from "lucide-react";
@@ -115,6 +117,22 @@ export default function Preventivi() {
   const handleTabChange = (tab: string) => {
     setSearchParams(tab === "lista" ? {} : { tab });
   };
+
+  // Count richieste approvazione sconto pending (solo per admin — badge nel tab)
+  const { data: pendingApprovalsCount = 0 } = useQuery({
+    queryKey: ["quote-approvals-pending-count", companyId],
+    enabled: !!companyId && isAdmin,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("quote_approvals")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .is("decision", null);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [search, setSearch] = useState("");
@@ -391,6 +409,27 @@ export default function Preventivi() {
           >
             Lista Preventivi
           </button>
+          {isAdmin && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "approvazioni"}
+              onClick={() => handleTabChange("approvazioni")}
+              className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                activeTab === "approvazioni"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Percent className="h-4 w-4" aria-hidden="true" />
+              Approvazioni sconto
+              {pendingApprovalsCount > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
+                  {pendingApprovalsCount}
+                </Badge>
+              )}
+            </button>
+          )}
           {isAdmin && (
             <button
               type="button"
@@ -740,6 +779,8 @@ export default function Preventivi() {
       </AlertDialog>
         </>
       )}
+
+      {activeTab === "approvazioni" && isAdmin && <QuoteApprovals />}
 
       {activeTab === "analisi" && isAdmin && <AnalisiPreventivi />}
 

@@ -471,7 +471,7 @@ export function useBundleProdotti(companyId: string | undefined) {
 
 export function usePreventivoCosti(companyId: string | undefined) {
   // Load impostazioni
-  const { data: impostazioni = {} as PreventivoImpostazioni } = useQuery({
+  const { data: impostazioniRaw } = useQuery({
     queryKey: ["preventivo-impostazioni", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -485,6 +485,9 @@ export function usePreventivoCosti(companyId: string | undefined) {
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  // Garantisce che impostazioni non sia mai null/undefined (evita crash
+  // sui consumers che accedono a campi senza optional chaining).
+  const impostazioni: PreventivoImpostazioni = impostazioniRaw ?? ({} as PreventivoImpostazioni);
 
   // Load tariffe
   const { data: tariffe = [] as TariffaPro[] } = useQuery({
