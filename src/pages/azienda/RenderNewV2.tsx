@@ -228,6 +228,50 @@ export default function RenderNewV2() {
     }
   }, [photo, photoPath, sessionId, companyId, user]);
 
+  // ── Polling result ─────────────────────────────────────────────────────────
+  // FIX: dichiarato PRIMA di `startRender` perché è una sua dep. Se spostato
+  // dopo, al primo render useCallback di `startRender` accede alla const
+  // `startPolling` prima della sua inizializzazione (TDZ) → ReferenceError:
+  // "Cannot access 'ye' before initialization" nel bundle minificato →
+  // crash della pagina /azienda/render/infissi/new con "Errore nel
+  // caricamento della pagina".
+  const startPolling = useCallback((sid: string) => {
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+    let intervalIdx = 0;
+    const poll = async () => {
+      if (elapsedRef.current >= MAX_POLL_SEC) {
+        if (tickRef.current) clearInterval(tickRef.current);
+        setGenerating(false);
+        setGenerateError("Timeout: il render sta impiegando troppo tempo");
+        return;
+      }
+
+      const { data: sess } = await supabase
+        .from("render_sessions")
+        .select("status, result_urls")
+        .eq("id", sid)
+        .single();
+
+      const s = sess;
+      if (s?.status === "completed" && s.result_urls?.length) {
+        if (tickRef.current) clearInterval(tickRef.current);
+        setResultUrl(s.result_urls[0]);
+        setGenerating(false);
+        queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
+        queryClient.invalidateQueries({ queryKey: ["render-gallery", companyId] });
+        return;
+      }
+      if (s?.status === "failed") {
+        if (tickRef.current) clearInterval(tickRef.current);
+        setGenerating(false);
+        setGenerateError("Render fallito");
+        return;
+      }
+      pollRef.current = setTimeout(poll, POLL_INTERVALS[Math.min(intervalIdx++, POLL_INTERVALS.length - 1)]);
+    };
+    poll();
+  }, [companyId, queryClient]);
+
   // ── Generate render ────────────────────────────────────────────────────────
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId) return;
@@ -303,43 +347,6 @@ export default function RenderNewV2() {
       toast.error(message);
     }
   }, [sessionId, companyId, state, photoDimensions, queryClient, startPolling, generating]);
-
-  const startPolling = useCallback((sid: string) => {
-    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
-    let intervalIdx = 0;
-    const poll = async () => {
-      if (elapsedRef.current >= MAX_POLL_SEC) {
-        if (tickRef.current) clearInterval(tickRef.current);
-        setGenerating(false);
-        setGenerateError("Timeout: il render sta impiegando troppo tempo");
-        return;
-      }
-
-      const { data: sess } = await supabase
-        .from("render_sessions")
-        .select("status, result_urls")
-        .eq("id", sid)
-        .single();
-
-      const s = sess;
-      if (s?.status === "completed" && s.result_urls?.length) {
-        if (tickRef.current) clearInterval(tickRef.current);
-        setResultUrl(s.result_urls[0]);
-        setGenerating(false);
-        queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
-        queryClient.invalidateQueries({ queryKey: ["render-gallery", companyId] });
-        return;
-      }
-      if (s?.status === "failed") {
-        if (tickRef.current) clearInterval(tickRef.current);
-        setGenerating(false);
-        setGenerateError("Render fallito");
-        return;
-      }
-      pollRef.current = setTimeout(poll, POLL_INTERVALS[Math.min(intervalIdx++, POLL_INTERVALS.length - 1)]);
-    };
-    poll();
-  }, [companyId, queryClient]);
 
   // ── Auto-start render when entering step 6 ─────────────────────────────────
   useEffect(() => {
