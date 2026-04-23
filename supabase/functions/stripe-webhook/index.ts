@@ -594,6 +594,16 @@ Deno.serve(async (req) => {
     // Mark event as 'processing' before executing handler (prevents duplicate processing)
     await logStripeEvent(supabase, event.id, event.type, companyId, event.data, "processing");
 
+    // P0-6: traccia esito handler per decidere lo status HTTP di ritorno.
+    // Se ritornassimo sempre 200, Stripe considererebbe l'evento "consegnato"
+    // anche quando il nostro handler fallisce, e non ritenterebbe mai. Con
+    // l'idempotency check qui sopra (`status='processed'`) possiamo tornare
+    // 500 in sicurezza: Stripe ritenta con backoff esponenziale e alla
+    // riconsegna, se nel frattempo tutto è stato sistemato, l'evento viene
+    // processato correttamente; se è già processed, viene skippato.
+    let handlerFailed = false;
+    let handlerError: string | null = null;
+
     try {
       switch (event.type) {
         case "checkout.session.completed":
@@ -621,12 +631,25 @@ Deno.serve(async (req) => {
           break;
       }
 
-      await logStripeEvent(supabase, event.id, event.type, companyId, event.data);
+      await logStripeEvent(supabase, event.id, event.type, companyId, event.data, "processed");
     } catch (handlerErr) {
+      handlerFailed = true;
+      handlerError = (handlerErr as Error).message;
       console.error(`[STRIPE] Handler error for ${event.type}:`, handlerErr);
       await logStripeEvent(
         supabase, event.id, event.type, companyId, event.data,
-        "error", (handlerErr as Error).message
+        "error", handlerError,
+      );
+    }
+
+    if (handlerFailed) {
+      // Stripe ritenta con backoff: ~3 giorni per eventi critici (invoice.paid,
+      // checkout.session.completed). Questo è il comportamento desiderato:
+      // vogliamo che l'evento venga riconsegnato finché il nostro handler
+      // non lo processa correttamente.
+      return new Response(
+        JSON.stringify({ received: false, error: handlerError }),
+        { status: 500, headers: secureHeaders },
       );
     }
 
