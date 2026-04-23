@@ -121,23 +121,76 @@ Deno.serve(async (req) => {
         const pi = await piRes.json();
 
         if (pi.status === "succeeded") {
-          // Credit the balance
-          await supabase.rpc("add_email_credits_with_log", {
-            p_company_id: config.company_id,
-            p_amount: config.topup_amount_eur,
-            p_type: "topup",
-            p_description: `Auto top-up Stripe - €${config.topup_amount_eur}`,
-            p_metadata: { stripe_payment_intent: pi.id, auto_topup: true },
-          });
+          // P0-4: outbox pattern per accredito atomico.
+          // Step A: registra il pagamento nell'outbox. La UNIQUE su
+          // stripe_payment_intent_id rende l'insert idempotente: se il cron
+          // venisse richiamato con lo stesso PI (stessa Idempotency-Key),
+          // l'insert fallisce con duplicate ed è atteso.
+          const { error: outboxErr } = await supabase
+            .from("topup_outbox")
+            .insert({
+              company_id: config.company_id,
+              amount_eur: config.topup_amount_eur,
+              stripe_payment_intent_id: pi.id,
+              wallet_type: "email",
+              status: "pending",
+            });
 
-          // Update last_topup_at
-          await supabase
-            .from("company_auto_topup")
-            .update({ last_topup_at: new Date().toISOString() })
-            .eq("id", config.id);
+          if (outboxErr && !outboxErr.message.toLowerCase().includes("duplicate")) {
+            console.error(`Outbox insert failed for ${config.company_id}:`, outboxErr);
+            continue;
+          }
 
-          processed++;
-          console.log(`Auto-topup OK for company ${config.company_id}: €${config.topup_amount_eur}`);
+          // Step B: tenta l'accredito con retry (3 tentativi, backoff lineare).
+          // Il Postgres potrebbe avere connection pool pieno o RLS temporaneamente
+          // sbagliata: in entrambi i casi un retry veloce risolve.
+          let lastErr: unknown = null;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            const { error: rpcErr } = await supabase.rpc("add_email_credits_with_log", {
+              p_company_id: config.company_id,
+              p_amount: config.topup_amount_eur,
+              p_type: "topup",
+              p_description: `Auto top-up Stripe PI=${pi.id}`,
+              p_metadata: { stripe_payment_intent: pi.id, auto_topup: true },
+            });
+
+            if (!rpcErr) {
+              // Success path: segna outbox credited + bump last_topup_at.
+              await supabase
+                .from("topup_outbox")
+                .update({ status: "credited", credited_at: new Date().toISOString() })
+                .eq("stripe_payment_intent_id", pi.id);
+              await supabase
+                .from("company_auto_topup")
+                .update({ last_topup_at: new Date().toISOString() })
+                .eq("id", config.id);
+              processed++;
+              console.log(`Auto-topup OK for ${config.company_id}: €${config.topup_amount_eur} (attempt ${attempt})`);
+              lastErr = null;
+              break;
+            }
+
+            lastErr = rpcErr;
+            // Backoff: 500ms, 1s, 1.5s.
+            await new Promise((r) => setTimeout(r, 500 * attempt));
+          }
+
+          // Tutti i retry falliti: il cron topup-outbox-recovery riproverà
+          // sulla base di status=failed, retry_count incrementato.
+          if (lastErr) {
+            const errMsg = (lastErr as { message?: string }).message ?? String(lastErr);
+            await supabase
+              .from("topup_outbox")
+              .update({
+                status: "failed",
+                retry_count: 3,
+                last_error: errMsg,
+              })
+              .eq("stripe_payment_intent_id", pi.id);
+            console.error(
+              `Topup CREDITING FAILED for ${config.company_id} — outbox marked failed: ${errMsg}`,
+            );
+          }
         } else {
           console.error(`Auto-topup failed for company ${config.company_id}:`, pi.error?.message || pi.status);
         }
