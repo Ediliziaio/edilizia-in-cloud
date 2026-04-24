@@ -98,11 +98,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     staleTime: 300_000,
   });
 
-  // FIX: unica query centralizzata (staffUsers == staff == salespeople ==
-  // callCenterUsers: tutte rappresentano "staff aziendale"). Prima le 4 query
-  // prendevano tutti gli staff_permissions → incluso Acanfora Gennaro (customer
-  // con riga orfana). Ora useCompanyStaffUsers filtra per user_roles validi.
-  const { data: allStaff = [] } = useCompanyStaffUsers(companyId);
+  // FIX: scope "sales" — mostra solo ruoli commerciali (admin, salesperson,
+  // call_center). Esclude clienti, referrer, operai generici.
+  // Prima le 4 query prendevano tutti gli staff_permissions, incluso i
+  // clienti con riga orfana.
+  const { data: allStaff = [] } = useCompanyStaffUsers(companyId, "sales");
   const staffUsers = allStaff;
 
   // ── Fetch contact ──

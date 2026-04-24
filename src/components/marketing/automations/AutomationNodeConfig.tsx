@@ -117,7 +117,8 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
     "create_ticket_intervento", "create_appointment",
   ];
   const { data: rawStaff = [] } = useCompanyStaffUsers(
-    isAction && automationActionsRequiringUser.includes(actionType) ? companyId : null
+    isAction && automationActionsRequiringUser.includes(actionType) ? companyId : null,
+    "sales"
   );
   const companyUsers = useMemo(
     () => rawStaff.map((p) => ({

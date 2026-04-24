@@ -150,10 +150,10 @@ export default function MarketingCalendar() {
     gcTime: 15 * 60 * 1000,
   });
 
-  // Fetch assignable users — FIX: usa useCompanyStaffUsers che filtra per
-  // user_roles (escludendo customer/referrer/platform_*). Prima la query
-  // restituiva anche i clienti con record orfani in staff_permissions.
-  const { data: rawStaffUsers = [] } = useCompanyStaffUsers(companyId);
+  // Fetch assignable users — FIX: scope "sales" per mostrare SOLO ruoli
+  // commerciali nel calendario CRM (admin, salesperson, call_center).
+  // Esclude operai/dipendenti generici e tutti gli esterni.
+  const { data: rawStaffUsers = [] } = useCompanyStaffUsers(companyId, "sales");
   const users = useMemo(
     () =>
       rawStaffUsers.map((u) => ({

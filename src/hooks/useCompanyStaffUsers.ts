@@ -2,12 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Ruoli considerati "staff interno" — cioè utenti che possono essere
- * assegnati come venditori/referenti di appuntamenti/opportunità/task.
+ * Ruoli considerati "staff interno" — tutti gli utenti aziendali
+ * (admin, venditori, operai, call-center).
  *
- * IMPORTANTE: esclude intenzionalmente:
+ * ESCLUDE sempre:
  *  - "customer" → clienti finali (sono in marketing_contacts, NON devono
- *    apparire come venditori)
+ *    apparire come assegnatari)
  *  - "referrer" → segnalatori esterni (affiliati/promoter, non staff interno)
  *  - "platform_*" → team piattaforma (non appartengono all'azienda cliente)
  *
@@ -24,7 +24,21 @@ export const STAFF_ROLES = [
   "call_center",
 ] as const;
 
+/**
+ * Sottoinsieme "commerciale/vendita" — solo utenti che hanno senso come
+ * assegnatari nel CRM (appuntamenti, opportunità, preventivi).
+ *
+ * Esclude operai/dipendenti non commerciali.
+ */
+export const SALES_ROLES = [
+  "super_admin",
+  "company_admin",
+  "salesperson",
+  "call_center",
+] as const;
+
 export type StaffRole = (typeof STAFF_ROLES)[number];
+export type UserScope = "all" | "sales";
 
 export interface StaffUser {
   id: string;
@@ -34,26 +48,35 @@ export interface StaffUser {
 }
 
 export const companyStaffUsersKeys = {
-  byCompany: (companyId: string | null | undefined) =>
-    ["company-staff-users", companyId] as const,
+  byCompany: (companyId: string | null | undefined, scope: UserScope = "all") =>
+    ["company-staff-users", companyId, scope] as const,
 };
 
 /**
  * Ritorna gli utenti staff della company, escludendo clienti/referrer/piattaforma.
  *
+ * @param scope "all" (default) per tutti gli staff · "sales" per soli ruoli
+ *              commerciali (super_admin/company_admin/salesperson/call_center)
+ *
  * Strategy:
  * 1. Prendi user_id da staff_permissions per la company
- * 2. Filtra per user_roles WHERE role IN (STAFF_ROLES)
+ * 2. Filtra per user_roles WHERE role IN (ruoli scope)
  * 3. Enrich con profiles.first_name / last_name
  */
-export function useCompanyStaffUsers(companyId: string | null | undefined) {
+export function useCompanyStaffUsers(
+  companyId: string | null | undefined,
+  scope: UserScope = "all"
+) {
   return useQuery({
-    queryKey: companyStaffUsersKeys.byCompany(companyId),
+    queryKey: companyStaffUsersKeys.byCompany(companyId, scope),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     queryFn: async (): Promise<StaffUser[]> => {
       if (!companyId) return [];
+
+      const rolesFilter: readonly string[] =
+        scope === "sales" ? SALES_ROLES : STAFF_ROLES;
 
       // 1. user_id con staff_permissions per la company
       const { data: perms } = await supabase
@@ -66,12 +89,12 @@ export function useCompanyStaffUsers(companyId: string | null | undefined) {
       );
       if (permUserIds.length === 0) return [];
 
-      // 2. filtra quelli che hanno ruoli staff validi
+      // 2. filtra quelli che hanno ruoli compatibili con lo scope richiesto
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id, role")
         .in("user_id", permUserIds)
-        .in("role", STAFF_ROLES as unknown as string[]);
+        .in("role", rolesFilter as unknown as string[]);
 
       const staffRolesMap = new Map<string, StaffRole[]>();
       (roles || []).forEach((r) => {
