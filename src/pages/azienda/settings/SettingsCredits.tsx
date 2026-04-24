@@ -18,7 +18,9 @@ import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Mail, Bot, MessageSquare, Wallet, ArrowUpRight, ArrowDownRight, Clock, CreditCard, Zap, Loader2, Image } from "lucide-react";
+import { Mail, Bot, MessageSquare, Wallet, ArrowUpRight, ArrowDownRight, Clock, CreditCard, Zap, Loader2, Image, AlertTriangle, TrendingDown, Calendar } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { computeCreditForecast, formatDaysRemaining } from "@/lib/creditForecasting";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
@@ -304,17 +306,71 @@ export default function SettingsCredits() {
   const hasBlocked = wallets.some((w) => w.blocked);
   const emailsPerEur = pricePerEmail ? Math.floor(1 / pricePerEmail) : 0;
 
+  // Soglia "saldo basso" — < 5€ è considerato critico
+  const LOW_BALANCE_THRESHOLD = 5;
+  const lowWallets = wallets.filter(
+    (w) => w.type !== "render" && w.balance > 0 && w.balance < LOW_BALANCE_THRESHOLD && !w.blocked
+  );
+
+  // Forecasting — ETA esaurimento saldo email basato su storico 14gg
+  const emailForecast = emailLog && emailLog.length > 0
+    ? computeCreditForecast(
+        wallets.find(w => w.type === "email")?.balance ?? 0,
+        emailLog as any,
+        14,
+      )
+    : null;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Crediti & Saldo</h1>
-        <p className="text-muted-foreground">Riepilogo dei saldi per email, AI e WhatsApp</p>
+    <div className="space-y-5">
+      {/* Header standardizzato */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Wallet className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Crediti & Saldo</h1>
+            <p className="text-sm text-muted-foreground">
+              Saldo totale: <span className="font-semibold text-foreground">{formatEur(totalBalance)}</span>
+              {hasBlocked && <> · <span className="text-destructive font-medium">servizi bloccati</span></>}
+            </p>
+          </div>
+        </div>
       </div>
 
       {hasBlocked && (
         <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            ⚠️ Uno o più servizi sono bloccati per saldo insufficiente. Ricarica i crediti per ripristinare il servizio.
+            <strong>Uno o più servizi sono bloccati</strong> per saldo insufficiente.
+            Ricarica i crediti per ripristinare il servizio.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!hasBlocked && lowWallets.length > 0 && (
+        <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50">
+          <TrendingDown className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-900 dark:text-amber-200">
+            <strong>Saldo in esaurimento</strong> su {lowWallets.map((w) => w.label).join(", ")}.
+            Ricarica prima che i servizi vengano sospesi.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {emailForecast && emailForecast.severity === "critical" && emailForecast.daysRemaining != null && (
+        <Alert variant="destructive">
+          <Calendar className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Stima esaurimento crediti email:</strong>{" "}
+            {formatDaysRemaining(emailForecast.daysRemaining)}
+            {emailForecast.depletionDate && (
+              <> (intorno al{" "}
+              {format(emailForecast.depletionDate, "d MMM yyyy", { locale: it })})
+              </>
+            )}
+            {" "}— consumo medio {formatEur(emailForecast.dailyBurnRate)}/giorno negli ultimi {emailForecast.daysAnalyzed}gg.
           </AlertDescription>
         </Alert>
       )}
@@ -330,30 +386,64 @@ export default function SettingsCredits() {
           <TabsTrigger value="storico-wa">Storico WhatsApp</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="riepilogo" className="space-y-6">
+        <TabsContent value="riepilogo" className="space-y-5">
           {/* Total balance hero */}
-          <Card className="border-2 border-primary">
-            <CardContent className="p-6 flex items-center gap-4">
-              <Wallet className="h-8 w-8 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Saldo Totale</p>
-                <p className="text-4xl font-extrabold text-primary">{formatEur(totalBalance)}</p>
+          <Card className="overflow-hidden border-l-4 border-l-primary">
+            <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Wallet className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Saldo Totale</p>
+                  <p className="text-3xl font-bold text-primary tabular-nums">{formatEur(totalBalance)}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Disponibile su</p>
+                <p className="text-sm font-medium">{wallets.filter(w => w.type !== "render" && w.balance > 0).length} servizi</p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Wallet cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {wallets.map((w) => (
+          {/* Wallet cards con color-coded border */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {wallets.map((w) => {
+              // border-l colorato per tipo + rosso se bloccato
+              const colorMap: Record<typeof w.type, string> = {
+                email: "border-l-blue-500",
+                ai: "border-l-violet-500",
+                whatsapp: "border-l-emerald-500",
+                render: "border-l-amber-500",
+              };
+              const iconColorMap: Record<typeof w.type, string> = {
+                email: "text-blue-600",
+                ai: "text-violet-600",
+                whatsapp: "text-emerald-600",
+                render: "text-amber-600",
+              };
+              const lowBalance = w.type !== "render" && w.balance > 0 && w.balance < LOW_BALANCE_THRESHOLD;
+              return (
               <Card
                 key={w.type}
-                className={w.blocked ? "border-destructive" : ""}
+                className={cn(
+                  "overflow-hidden border-l-4 transition-colors",
+                  w.blocked ? "border-l-destructive" : colorMap[w.type]
+                )}
               >
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                    {w.icon}
-                    {w.label}
-                    {w.blocked && <Badge variant="destructive" className="text-[10px]">Bloccato</Badge>}
+                  <CardTitle className="text-sm font-medium flex items-center gap-2 justify-between">
+                    <span className={cn("flex items-center gap-2", iconColorMap[w.type])}>
+                      {w.icon}
+                      <span className="text-foreground">{w.label}</span>
+                    </span>
+                    {w.blocked && <Badge variant="destructive" className="text-[10px] gap-0.5"><AlertTriangle className="h-2.5 w-2.5" />Bloccato</Badge>}
+                    {!w.blocked && lowBalance && (
+                      <Badge variant="outline" className="text-[10px] gap-0.5 border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                        <TrendingDown className="h-2.5 w-2.5" />
+                        Basso
+                      </Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -379,7 +469,8 @@ export default function SettingsCredits() {
                   )}
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         </TabsContent>
 

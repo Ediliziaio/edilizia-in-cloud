@@ -2,10 +2,11 @@
  * Componente per la gestione delle assegnazioni operai/subappaltatori a un ordine.
  * Usato nel tab "Campo" di OrderDetail.tsx.
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { toast } from "sonner";
 import { HardHat, UserPlus, Trash2, Crown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,29 +53,24 @@ export function OrdineAssegnazioniCampo({ orderId, companyId }: Props) {
     enabled: !!orderId,
   });
 
-  // Utenti campo disponibili — use staff_permissions (company-level RLS)
-  const { data: utentiCampo = [] } = useQuery({
-    queryKey: ["utenti-campo-disponibili", companyId],
-    queryFn: async () => {
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId!);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        .in("id", validIds);
-      return (profiles || []).map((p) => ({
+  // FIX: useCompanyStaffUsers — esclude customer/referrer
+  const { data: rawFieldUsers = [] } = useCompanyStaffUsers(
+    dialogOpen ? companyId : null
+  );
+  const utentiCampo = useMemo(
+    () =>
+      rawFieldUsers.map((p) => ({
         user_id: p.id,
         role: "employee",
-        profile: p,
-      }));
-    },
-    enabled: !!companyId && dialogOpen,
-  });
+        profile: {
+          id: p.id,
+          first_name: p.first_name,
+          last_name: p.last_name,
+          email: null as string | null,
+        },
+      })),
+    [rawFieldUsers]
+  );
 
   const assegnaMutation = useMutation({
     mutationFn: async () => {

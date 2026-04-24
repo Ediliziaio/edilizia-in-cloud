@@ -1,8 +1,19 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Search, ChevronDown, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Search,
+  ChevronDown,
+  ChevronRight,
+  Users as UsersIcon,
+  CalendarDays,
+  CheckCheck,
+  X as XIcon,
+  SlidersHorizontal,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface CalendarItem {
   id: string;
@@ -22,6 +33,8 @@ interface Props {
   selectedUserIds: string[];
   onToggleCalendar: (id: string) => void;
   onToggleUser: (id: string) => void;
+  /** Disabilita layout sidebar (usato dentro drawer mobile) */
+  inSheet?: boolean;
 }
 
 export default function MarketingCalendarFilters({
@@ -31,26 +44,86 @@ export default function MarketingCalendarFilters({
   selectedUserIds,
   onToggleCalendar,
   onToggleUser,
+  inSheet = false,
 }: Props) {
   const [search, setSearch] = useState("");
   const [usersOpen, setUsersOpen] = useState(true);
   const [calendarsOpen, setCalendarsOpen] = useState(true);
 
-  const filteredCalendars = calendars.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
+  const filteredCalendars = useMemo(
+    () =>
+      calendars.filter((c) =>
+        c.name.toLowerCase().includes(search.toLowerCase())
+      ),
+    [calendars, search]
   );
-  const filteredUsers = users.filter((u) =>
-    `${u.first_name} ${u.last_name}`.toLowerCase().includes(search.toLowerCase())
+
+  const filteredUsers = useMemo(
+    () =>
+      users.filter((u) =>
+        `${u.first_name} ${u.last_name}`
+          .toLowerCase()
+          .includes(search.toLowerCase())
+      ),
+    [users, search]
   );
+
+  const selectedCalendarCount = selectedCalendarIds.length;
+  const selectedUserCount = selectedUserIds.length;
+  const hasActiveFilters =
+    (calendars.length > 0 && selectedCalendarCount < calendars.length) ||
+    (users.length > 0 && selectedUserCount < users.length);
+
+  const selectAllUsers = () => {
+    users.forEach((u) => {
+      if (!selectedUserIds.includes(u.id)) onToggleUser(u.id);
+    });
+  };
+  const clearUsers = () => {
+    [...selectedUserIds].forEach((id) => onToggleUser(id));
+  };
+  const selectAllCalendars = () => {
+    calendars.forEach((c) => {
+      if (!selectedCalendarIds.includes(c.id)) onToggleCalendar(c.id);
+    });
+  };
+  const clearCalendars = () => {
+    [...selectedCalendarIds].forEach((id) => onToggleCalendar(id));
+  };
+
+  const containerClass = inSheet
+    ? "bg-background p-4 space-y-5"
+    : "w-64 border-l bg-background p-4 space-y-5 overflow-y-auto";
 
   return (
-    <div className="w-64 border-l bg-background p-4 space-y-4 overflow-y-auto">
-      <h3 className="font-semibold text-sm">Gestisci visualizzazione</h3>
+    <div className={containerClass}>
+      {!inSheet && (
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+            Filtri
+          </h3>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[10px] text-muted-foreground hover:text-foreground px-2"
+              onClick={() => {
+                selectAllUsers();
+                selectAllCalendars();
+              }}
+            >
+              <XIcon className="h-3 w-3 mr-0.5" />
+              Reset
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
-          placeholder="Cerca..."
+          placeholder="Cerca nei filtri..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-8 h-8 text-sm"
@@ -58,66 +131,167 @@ export default function MarketingCalendarFilters({
       </div>
 
       {/* Users section */}
-      <div>
-        <button
-          onClick={() => setUsersOpen(!usersOpen)}
-          className="flex items-center gap-1 text-sm font-medium w-full text-left hover:text-primary transition-colors"
-        >
-          {usersOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          Utenti ({filteredUsers.length})
-        </button>
-        {usersOpen && (
-          <div className="mt-2 space-y-1.5 ml-1">
-            {filteredUsers.map((u) => (
-              <div key={u.id} className="flex items-center gap-2">
+      <Section
+        open={usersOpen}
+        onToggle={() => setUsersOpen(!usersOpen)}
+        icon={UsersIcon}
+        label="Utenti"
+        total={filteredUsers.length}
+        selected={selectedUserCount}
+        totalAvailable={users.length}
+        onSelectAll={selectAllUsers}
+        onClear={clearUsers}
+      >
+        <div className="mt-2 space-y-1 ml-0.5 max-h-[220px] overflow-y-auto pr-1">
+          {filteredUsers.map((u) => {
+            const checked = selectedUserIds.includes(u.id);
+            return (
+              <label
+                key={u.id}
+                htmlFor={`user-${u.id}`}
+                className={cn(
+                  "flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer transition-colors",
+                  checked ? "bg-primary/5" : "hover:bg-muted/50"
+                )}
+              >
                 <Checkbox
                   id={`user-${u.id}`}
-                  checked={selectedUserIds.includes(u.id)}
+                  checked={checked}
                   onCheckedChange={() => onToggleUser(u.id)}
                   className="h-3.5 w-3.5"
                 />
-                <Label htmlFor={`user-${u.id}`} className="text-xs cursor-pointer">
+                <span className="text-xs truncate flex-1">
                   {u.first_name} {u.last_name}
-                </Label>
-              </div>
-            ))}
-            {filteredUsers.length === 0 && (
-              <p className="text-xs text-muted-foreground">Nessun utente</p>
-            )}
-          </div>
-        )}
-      </div>
+                </span>
+              </label>
+            );
+          })}
+          {filteredUsers.length === 0 && (
+            <p className="text-xs text-muted-foreground italic px-2 py-1">
+              Nessun utente
+            </p>
+          )}
+        </div>
+      </Section>
 
       {/* Calendars section */}
-      <div>
-        <button
-          onClick={() => setCalendarsOpen(!calendarsOpen)}
-          className="flex items-center gap-1 text-sm font-medium w-full text-left hover:text-primary transition-colors"
-        >
-          {calendarsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          Calendari ({filteredCalendars.length})
-        </button>
-        {calendarsOpen && (
-          <div className="mt-2 space-y-1.5 ml-1">
-            {filteredCalendars.map((c) => (
-              <div key={c.id} className="flex items-center gap-2">
+      <Section
+        open={calendarsOpen}
+        onToggle={() => setCalendarsOpen(!calendarsOpen)}
+        icon={CalendarDays}
+        label="Calendari"
+        total={filteredCalendars.length}
+        selected={selectedCalendarCount}
+        totalAvailable={calendars.length}
+        onSelectAll={selectAllCalendars}
+        onClear={clearCalendars}
+      >
+        <div className="mt-2 space-y-1 ml-0.5 max-h-[220px] overflow-y-auto pr-1">
+          {filteredCalendars.map((c) => {
+            const checked = selectedCalendarIds.includes(c.id);
+            return (
+              <label
+                key={c.id}
+                htmlFor={`cal-${c.id}`}
+                className={cn(
+                  "flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer transition-colors",
+                  checked ? "bg-primary/5" : "hover:bg-muted/50"
+                )}
+              >
                 <Checkbox
                   id={`cal-${c.id}`}
-                  checked={selectedCalendarIds.includes(c.id)}
+                  checked={checked}
                   onCheckedChange={() => onToggleCalendar(c.id)}
                   className="h-3.5 w-3.5"
                 />
-                <Label htmlFor={`cal-${c.id}`} className="text-xs cursor-pointer">
-                  {c.name}
-                </Label>
-              </div>
-            ))}
-            {filteredCalendars.length === 0 && (
-              <p className="text-xs text-muted-foreground">Nessun calendario</p>
+                <span className="text-xs truncate flex-1">{c.name}</span>
+              </label>
+            );
+          })}
+          {filteredCalendars.length === 0 && (
+            <p className="text-xs text-muted-foreground italic px-2 py-1">
+              Nessun calendario
+            </p>
+          )}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+interface SectionProps {
+  open: boolean;
+  onToggle: () => void;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  total: number;
+  selected: number;
+  totalAvailable: number;
+  onSelectAll: () => void;
+  onClear: () => void;
+  children: React.ReactNode;
+}
+
+function Section({
+  open,
+  onToggle,
+  icon: Icon,
+  label,
+  total,
+  selected,
+  totalAvailable,
+  onSelectAll,
+  onClear,
+  children,
+}: SectionProps) {
+  const allSelected = totalAvailable > 0 && selected === totalAvailable;
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onToggle}
+          className="flex items-center gap-1.5 text-sm font-medium text-left hover:text-primary transition-colors flex-1"
+        >
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+          )}
+          <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span>{label}</span>
+          {totalAvailable > 0 && (
+            <span
+              className={cn(
+                "ml-1 inline-flex items-center justify-center text-[10px] rounded-full px-1.5 min-w-[20px] h-[18px] tabular-nums font-semibold",
+                allSelected
+                  ? "bg-muted text-muted-foreground"
+                  : "bg-primary/15 text-primary"
+              )}
+            >
+              {selected}/{totalAvailable}
+            </span>
+          )}
+        </button>
+        {totalAvailable > 0 && (
+          <button
+            onClick={allSelected ? onClear : onSelectAll}
+            className="text-[10px] text-muted-foreground hover:text-primary transition-colors px-1.5 py-0.5 rounded"
+            title={allSelected ? "Deseleziona tutti" : "Seleziona tutti"}
+          >
+            {allSelected ? (
+              <XIcon className="h-3 w-3" />
+            ) : (
+              <CheckCheck className="h-3 w-3" />
             )}
-          </div>
+          </button>
         )}
       </div>
+      {open && children}
+      {!open && selected > 0 && total !== selected && (
+        <p className="text-[10px] text-muted-foreground ml-5 mt-0.5">
+          {total} nel filtro · {selected} selezionat{selected === 1 ? "o" : "i"}
+        </p>
+      )}
     </div>
   );
 }

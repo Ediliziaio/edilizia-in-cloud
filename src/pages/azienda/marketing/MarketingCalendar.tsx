@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +24,20 @@ import {
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { Plus, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Settings,
+  Calendar as CalendarIcon,
+  List as ListIcon,
+  Grid3x3,
+  Rows3,
+  SlidersHorizontal,
+  Sparkles,
+} from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -136,29 +150,19 @@ export default function MarketingCalendar() {
     gcTime: 15 * 60 * 1000,
   });
 
-  // Fetch assignable users — use staff_permissions (company-level RLS) instead of user_roles
-  const { data: users = [] } = useQuery({
-    queryKey: ["marketing-calendar-users", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds)
-        .order("last_name");
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
+  // Fetch assignable users — FIX: scope "sales" per mostrare SOLO ruoli
+  // commerciali nel calendario CRM (admin, salesperson, call_center).
+  // Esclude operai/dipendenti generici e tutti gli esterni.
+  const { data: rawStaffUsers = [] } = useCompanyStaffUsers(companyId, "sales");
+  const users = useMemo(
+    () =>
+      rawStaffUsers.map((u) => ({
+        id: u.id,
+        first_name: u.first_name ?? "",
+        last_name: u.last_name ?? "",
+      })),
+    [rawStaffUsers]
+  );
 
   // Initialize filters once when data loads
   useEffect(() => {
@@ -249,19 +253,35 @@ export default function MarketingCalendar() {
     gcTime: 15 * 60 * 1000,
   });
 
+  // Pre-build lookup maps — performance O(n) invece di O(n*m)
+  const userMap = useMemo(
+    () => new Map(users.map((u) => [u.id, u])),
+    [users]
+  );
+  const contactMap = useMemo(
+    () => new Map(contacts.map((c) => [c.id, c])),
+    [contacts]
+  );
+  const calendarMap = useMemo(
+    () => new Map(calendars.map((c) => [c.id, c])),
+    [calendars]
+  );
+
   // Enrich with names
   const appointments = useMemo(() => {
     return rawAppointments.map((a: any) => {
-      const u = users.find((u) => u.id === a.assigned_to);
-      const contact = a.contact_id ? contacts.find((c) => c.id === a.contact_id) : null;
+      const u = a.assigned_to ? userMap.get(a.assigned_to) : null;
+      const contact = a.contact_id ? contactMap.get(a.contact_id) : null;
       return {
         ...a,
-        calendar_name: calendars.find((c) => c.id === a.calendar_id)?.name || null,
-        assigned_name: u ? `${u.first_name} ${u.last_name}` : null,
-        contact_name: contact ? `${contact.first_name} ${contact.last_name}` : null,
+        calendar_name: calendarMap.get(a.calendar_id)?.name || null,
+        assigned_name: u ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : null,
+        contact_name: contact
+          ? `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim()
+          : null,
       };
     });
-  }, [rawAppointments, calendars, users, contacts]);
+  }, [rawAppointments, calendarMap, userMap, contactMap]);
 
   // Filtered
   const filteredAppointments = useMemo(() => {
@@ -440,6 +460,30 @@ export default function MarketingCalendar() {
     return format(currentDate, "MMMM yyyy", { locale: it });
   }, [calendarView, currentDate, weekStart]);
 
+  // True solo se currentDate è oggi (feedback visivo bottone "Oggi")
+  const isCurrentDateToday = useMemo(() => isSameDay(currentDate, new Date()), [currentDate]);
+
+  // KPI header: appuntamenti visibili / oggi / fuori orario concordato
+  const headerStats = useMemo(() => {
+    const today = new Date();
+    const todayCount = appointments.filter((a: any) =>
+      a.appointment_date && isSameDay(parseISO(a.appointment_date), today)
+    ).length;
+    const visible = filteredAppointments.length;
+    return { todayCount, visible };
+  }, [appointments, filteredAppointments]);
+
+  // Filtri attivi (per badge pulsante filtri)
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (calendars.length > 0 && selectedCalendarIds.length < calendars.length) count++;
+    if (users.length > 0 && selectedUserIds.length < users.length) count++;
+    return count;
+  }, [calendars.length, selectedCalendarIds.length, users.length, selectedUserIds.length]);
+
+  // Mobile filters drawer
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
   const openNewDialog = (date?: Date, hour?: number, minute?: number) => {
     setEditingAppointment(null);
     setDefaultDate(date ? format(date, "yyyy-MM-dd") : undefined);
@@ -567,76 +611,129 @@ export default function MarketingCalendar() {
   }, [refetchAppointments, queryClient, companyId]);
 
   const tabs = [
-    { key: "calendar" as const, label: "Visualizza calendario" },
-    { key: "list" as const, label: "Vista elenco" },
+    { key: "calendar" as const, label: "Calendario", icon: CalendarIcon },
+    { key: "list" as const, label: "Elenco", icon: ListIcon },
   ];
+
+  const viewIcons = {
+    day: Rows3,
+    week: CalendarIcon,
+    month: Grid3x3,
+  } as const;
 
   return (
     <div className="space-y-4 pb-20 md:pb-0">
       <ApiHealthBanner filter={["googlemaps"]} />
 
-      {/* Header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">Appuntamenti</h1>
-          <Button size="sm" className="md:hidden" onClick={() => openNewDialog()}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nuovo
-          </Button>
+      {/* Header redesign */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <CalendarIcon className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Calendario appuntamenti</h1>
+            <p className="text-sm text-muted-foreground">
+              {headerStats.visible} visibili · <span className="font-medium text-foreground">{headerStats.todayCount}</span> oggi
+              {activeFilterCount > 0 && (
+                <>
+                  {" "}·{" "}
+                  <span className="text-primary font-medium">
+                    {activeFilterCount} filtro{activeFilterCount > 1 ? "i" : ""} attiv{activeFilterCount > 1 ? "i" : "o"}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <nav className="flex items-center gap-1 border-b overflow-x-auto">
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className={cn(
-                  "px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                  activeTab === t.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-            {!isAdminContext && (
-              <button
-                onClick={() => navigate("/azienda/impostazioni/calendari")}
-                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border-b-2 border-transparent transition-colors flex items-center gap-1 whitespace-nowrap"
-              >
-                <Settings className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">Impostazioni</span>
-              </button>
-            )}
-          </nav>
-          <Button size="sm" className="hidden md:inline-flex" onClick={() => openNewDialog()}>
-            <Plus className="h-4 w-4 mr-1" />
-            Nuovo
+        <div className="flex items-center gap-2">
+          {!isAdminContext && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => navigate("/azienda/impostazioni/calendari")}
+              className="h-9 gap-1 text-muted-foreground hover:text-foreground"
+              title="Impostazioni calendari"
+            >
+              <Settings className="h-4 w-4" />
+              <span className="hidden md:inline">Impostazioni</span>
+            </Button>
+          )}
+          <Button size="sm" onClick={() => openNewDialog()} className="h-9">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Nuovo appuntamento
           </Button>
         </div>
       </div>
 
+      {/* Tab bar con icona */}
+      <div className="border-b">
+        <nav className="-mb-px flex items-center gap-1 overflow-x-auto" role="tablist">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              role="tab"
+              aria-selected={activeTab === t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                activeTab === t.key
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <t.icon className="h-3.5 w-3.5" />
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
       {/* Content */}
       {activeTab === "calendar" && (
-        <div className="flex gap-0 h-[calc(100vh-220px)] md:h-[calc(100vh-200px)]">
+        <div className="flex gap-0 h-[calc(100vh-240px)] md:h-[calc(100vh-220px)]">
           <div className="flex-1 flex flex-col gap-3 min-w-0">
-            {/* Navigation bar */}
-            <div className="flex items-center gap-1.5 md:gap-3 flex-wrap">
-              <Button variant="outline" size="sm" className="h-8 px-2 md:px-3" onClick={goToday}>Oggi</Button>
-              <div className="flex items-center">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev}>
+            {/* Navigation bar — redesign responsive */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant={isCurrentDateToday ? "default" : "outline"}
+                size="sm"
+                className="h-9 px-3"
+                onClick={goToday}
+                aria-label="Vai a oggi"
+              >
+                Oggi
+              </Button>
+              <div className="flex items-center border rounded-md h-9">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-full w-9 rounded-r-none"
+                  onClick={goPrev}
+                  aria-label="Periodo precedente"
+                >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goNext}>
+                <div className="w-px h-5 bg-border" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-full w-9 rounded-l-none"
+                  onClick={goNext}
+                  aria-label="Periodo successivo"
+                >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
 
               <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                 <PopoverTrigger asChild>
-                  <button className="text-xs md:text-sm font-medium hover:text-primary transition-colors cursor-pointer truncate max-w-[120px] md:max-w-none">
-                    {dateLabel}
+                  <button
+                    className="flex items-center gap-1.5 text-sm font-medium hover:text-primary transition-colors cursor-pointer truncate max-w-[160px] md:max-w-none h-9 px-2 rounded-md hover:bg-muted/50"
+                    aria-label="Apri selezione data"
+                  >
+                    <CalendarIcon className="h-3.5 w-3.5 opacity-60 shrink-0" />
+                    <span className="truncate">{dateLabel}</span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -650,16 +747,75 @@ export default function MarketingCalendar() {
                 </PopoverContent>
               </Popover>
 
-              <Select value={calendarView} onValueChange={(v) => setCalendarView(v as CalendarView)}>
-                <SelectTrigger className="w-[100px] md:w-[140px] h-8 text-xs md:text-sm ml-auto">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="day">Giorno</SelectItem>
-                  <SelectItem value="week">Settimana</SelectItem>
-                  <SelectItem value="month">Mese</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex-1" />
+
+              {/* Mobile: filtri drawer */}
+              <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+                <SheetTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 md:hidden gap-1.5"
+                    aria-label="Apri filtri"
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    Filtri
+                    {activeFilterCount > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="h-5 min-w-5 px-1.5 text-[10px] bg-primary text-primary-foreground"
+                      >
+                        {activeFilterCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[300px] sm:w-[320px] p-0 overflow-hidden">
+                  <SheetHeader className="p-4 border-b">
+                    <SheetTitle className="flex items-center gap-2 text-base">
+                      <SlidersHorizontal className="h-4 w-4 text-primary" />
+                      Filtri
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="overflow-y-auto h-[calc(100%-60px)]">
+                    <MarketingCalendarFilters
+                      calendars={calendars}
+                      users={users}
+                      selectedCalendarIds={selectedCalendarIds}
+                      selectedUserIds={selectedUserIds}
+                      onToggleCalendar={handleToggleCalendar}
+                      onToggleUser={handleToggleUser}
+                      inSheet
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+
+              {/* View picker segmented */}
+              <div className="inline-flex items-center rounded-md border h-9 bg-background">
+                {(["day", "week", "month"] as CalendarView[]).map((v) => {
+                  const Icon = viewIcons[v];
+                  const label = v === "day" ? "Giorno" : v === "week" ? "Settimana" : "Mese";
+                  const active = calendarView === v;
+                  return (
+                    <button
+                      key={v}
+                      onClick={() => setCalendarView(v)}
+                      className={cn(
+                        "h-full px-2.5 md:px-3 text-xs md:text-sm font-medium transition-colors inline-flex items-center gap-1.5 first:rounded-l-md last:rounded-r-md",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      )}
+                      aria-label={`Vista ${label}`}
+                      aria-pressed={active}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {calendarView === "week" && (

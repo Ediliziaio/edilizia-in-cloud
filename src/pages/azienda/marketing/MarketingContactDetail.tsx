@@ -6,6 +6,7 @@ import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -97,28 +98,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     staleTime: 300_000,
   });
 
-  // ── Fetch staff users for appointment dialog — use staff_permissions (company-level RLS) ──
-  const { data: staffUsers = [] } = useQuery({
-    queryKey: ["staff-users-for-contact", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds)
-        .order("last_name");
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: !!companyId,
-    staleTime: 600_000,
-  });
+  // FIX: scope "sales" — mostra solo ruoli commerciali (admin, salesperson,
+  // call_center). Esclude clienti, referrer, operai generici.
+  // Prima le 4 query prendevano tutti gli staff_permissions, incluso i
+  // clienti con riga orfana.
+  const { data: allStaff = [] } = useCompanyStaffUsers(companyId, "sales");
+  const staffUsers = allStaff;
 
   // ── Fetch contact ──
   const { data: contact, isLoading, isError, refetch } = useQuery({
@@ -160,71 +145,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const prevId = currentIdx > 0 ? contactIds[currentIdx - 1] : null;
   const nextId = currentIdx < contactIds.length - 1 ? contactIds[currentIdx + 1] : null;
 
-  // ── Fetch staff for assignment — use staff_permissions (company-level RLS) ──
-  const { data: staff = [] } = useQuery({
-    queryKey: ["company_staff", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds);
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: !!companyId,
-    staleTime: 600_000,
-  });
-
-  // ── Fetch salespeople for Titolare — use staff_permissions (company-level RLS) ──
-  const { data: salespeople = [] } = useQuery({
-    queryKey: ["company_salespeople_contact", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds);
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: !!companyId,
-    staleTime: 600_000,
-  });
-
-  // ── Fetch call center users — use staff_permissions (company-level RLS) ──
-  const { data: callCenterUsers = [] } = useQuery({
-    queryKey: ["company_call_center_contact", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds);
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: !!companyId,
-    staleTime: 600_000,
-  });
+  // FIX: allStaff centralizzato — alias sulle 3 liste che erano duplicate
+  const staff = allStaff;
+  const salespeople = allStaff;
+  const callCenterUsers = allStaff;
 
   // ── Fetch custom fields (solo tipo "contact") ──
   const { data: customFields = [] } = useContactCustomFields();

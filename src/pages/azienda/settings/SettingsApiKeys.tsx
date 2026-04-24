@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { formatRelativeTime, formatDate } from "@/lib/formatters";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { ApiDocsTab } from "@/components/api/ApiDocsTab";
 import { ApiUsageChart } from "@/components/api/ApiUsageChart";
 
@@ -91,8 +92,8 @@ function CreateApiKeyDialog({
       const key = await createMutation.mutateAsync({ name, scopes: selectedScopes, expiryOption: expiry });
       setGeneratedKey(key);
       setStep(2);
-    } catch {
-      toast.error("Impossibile creare la chiave API.");
+    } catch (e) {
+      toast.error("Impossibile creare la chiave API: " + (e as Error).message);
     }
   };
 
@@ -295,16 +296,32 @@ export default function SettingsApiKeys() {
     try {
       await revokeMutation.mutateAsync(keyId);
       toast.success("Chiave revocata");
-    } catch {
-      toast.error("Impossibile revocare la chiave.");
+    } catch (e) {
+      toast.error("Impossibile revocare: " + (e as Error).message);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">API Platform</h1>
-        <p className="text-muted-foreground">Gestisci le chiavi API, monitora l'utilizzo e consulta la documentazione</p>
+    <div className="space-y-5">
+      {/* Header standardizzato */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Key className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">API Platform</h1>
+            <p className="text-sm text-muted-foreground">
+              {activeKeys.length} chiav{activeKeys.length === 1 ? "e attiva" : "i attive"}
+              {revokedKeys.length > 0 && (
+                <> · <span className="text-muted-foreground/60">{revokedKeys.length} revocat{revokedKeys.length === 1 ? "a" : "e"}</span></>
+              )}
+            </p>
+          </div>
+        </div>
+        <Button onClick={() => setFormOpen(true)} className="gap-2 h-9" size="sm">
+          <Plus className="h-4 w-4" /> Nuova API Key
+        </Button>
       </div>
 
       <Tabs defaultValue="keys" className="space-y-4">
@@ -327,16 +344,6 @@ export default function SettingsApiKeys() {
               </ul>
             </AlertDescription>
           </Alert>
-
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {activeKeys.length} chiav{activeKeys.length === 1 ? "e attiva" : "i attive"}
-            </p>
-            <Button onClick={() => setFormOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" /> Nuova API Key
-            </Button>
-          </div>
 
           {isLoading ? (
             <div className="flex justify-center py-12">
@@ -364,66 +371,109 @@ export default function SettingsApiKeys() {
                 </Card>
               ) : (
                 <div className="space-y-3">
-                  {activeKeys.map((key) => (
-                    <Card key={key.id}>
-                      <CardContent className="py-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{key.name}</p>
-                              {isExpired(key) && (
-                                <Badge variant="destructive" className="text-xs">Scaduta</Badge>
-                              )}
+                  {activeKeys.map((key) => {
+                    const expired = isExpired(key);
+                    const unused = !key.last_used_at;
+                    return (
+                      <Card
+                        key={key.id}
+                        className={cn(
+                          "overflow-hidden border-l-4 transition-colors",
+                          expired ? "border-l-red-500" : unused ? "border-l-amber-400" : "border-l-emerald-500"
+                        )}
+                      >
+                        <CardContent className="py-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium">{key.name}</p>
+                                {expired ? (
+                                  <Badge variant="destructive" className="text-xs gap-1">
+                                    <AlertTriangle className="h-3 w-3" /> Scaduta
+                                  </Badge>
+                                ) : unused ? (
+                                  <Badge variant="outline" className="text-xs gap-1 border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                                    Mai usata
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs gap-1 border-emerald-400 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
+                                    <CheckCircle2 className="h-3 w-3" /> Attiva
+                                  </Badge>
+                                )}
+                              </div>
+                              <code className="text-xs text-muted-foreground font-mono block">
+                                {key.key_prefix}{"•".repeat(44)}
+                              </code>
+                              <ScopeBadges scopes={key.scopes} />
+                              <div className="flex items-center gap-x-4 gap-y-1 text-xs text-muted-foreground flex-wrap">
+                                {key.last_used_at ? (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Usata {formatRelativeTime(key.last_used_at)}
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-amber-600">
+                                    <Clock className="h-3 w-3" />
+                                    Mai usata
+                                  </span>
+                                )}
+                                {key.expires_at && (
+                                  <span className={expired ? "text-destructive" : ""}>
+                                    {expired ? "Scaduta il" : "Scade"}: {formatDate(key.expires_at)}
+                                  </span>
+                                )}
+                                <span>Creata {formatRelativeTime(key.created_at)}</span>
+                              </div>
                             </div>
-                            <code className="text-xs text-muted-foreground font-mono">
-                              {key.key_prefix}{"•".repeat(44)}
-                            </code>
-                            <ScopeBadges scopes={key.scopes} />
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                              {key.last_used_at ? (
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  Usata {formatRelativeTime(key.last_used_at)}
-                                </span>
-                              ) : (
-                                <span>Mai usata</span>
-                              )}
-                              {key.expires_at && (
-                                <span>Scade: {formatDate(key.expires_at)}</span>
-                              )}
-                              <span>Creata {formatRelativeTime(key.created_at)}</span>
-                            </div>
-                          </div>
 
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive gap-1.5">
-                                <Trash2 className="h-3.5 w-3.5" /> Revoca
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Revocare la chiave?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  La chiave {key.name} ({key.key_prefix}...) cesserà immediatamente di funzionare.
-                                  Questa azione è irreversibile.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleRevoke(key.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5 shrink-0"
+                                  disabled={revokeMutation.isPending}
                                 >
-                                  Sì, revoca
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                                  {revokeMutation.isPending && revokeMutation.variables === key.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
+                                  Revoca
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Revocare la chiave?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    La chiave <strong>{key.name}</strong> ({key.key_prefix}...) cesserà immediatamente di funzionare.
+                                    Questa azione è irreversibile.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleRevoke(key.id)}
+                                    disabled={revokeMutation.isPending}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    {revokeMutation.isPending ? (
+                                      <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Revoca in corso...
+                                      </>
+                                    ) : (
+                                      "Sì, revoca"
+                                    )}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
 

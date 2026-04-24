@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -148,27 +149,10 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
     }
   }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, onlyAssigned, user?.id]);
 
-  const { data: assignableUsers = [] } = useQuery({
-    queryKey: queryKeys.taskLookups.assignableUsers(companyId),
-    queryFn: async () => {
-      if (!companyId) return [];
-      // Use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds)
-        .order("last_name");
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: open && !!companyId,
-  });
+  // FIX: filtro ruoli staff per escludere customer/referrer
+  const { data: assignableUsers = [] } = useCompanyStaffUsers(
+    open ? companyId : null
+  );
 
   const { data: orders = [] } = useQuery({
     queryKey: queryKeys.taskLookups.orders(companyId),

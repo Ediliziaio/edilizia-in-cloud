@@ -167,6 +167,8 @@ export default function MarketingAppointmentDialog({
   }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId]);
 
   // Update end time when calendar changes (non-editing only)
+  // Sprint UX: fix deps array — prima usava solo [calendarId], ora include
+  // isEditing/defaultCalendarId/calendars/startTime per coerenza.
   useEffect(() => {
     if (!isEditing && calendarId && calendarId !== "none" && calendarId !== defaultCalendarId) {
       const cal = calendars.find((c) => c.id === calendarId);
@@ -174,7 +176,8 @@ export default function MarketingAppointmentDialog({
         setEndTime(addMinutesToTime(startTime, cal.duration_minutes));
       }
     }
-  }, [calendarId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendarId, isEditing, defaultCalendarId]);
 
   // Contacts search
   const { data: contacts = [] } = useQuery({
@@ -532,16 +535,25 @@ export default function MarketingAppointmentDialog({
                 )}
 
                 <div className="space-y-2">
-                  <Label>Membro del team</Label>
+                  <Label className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary/15 text-primary">
+                      <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM10 11a5 5 0 00-5 5 1 1 0 001 1h8a1 1 0 001-1 5 5 0 00-5-5z" /></svg>
+                    </span>
+                    Venditore assegnato
+                    <span className="text-[10px] text-muted-foreground font-normal">(staff interno)</span>
+                  </Label>
                   <Select value={assignedTo} onValueChange={setAssignedTo}>
-                    <SelectTrigger><SelectValue placeholder="Nessun assegnatario" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nessuno</SelectItem>
+                      <SelectItem value="none">Non assegnato</SelectItem>
                       {users.map((u) => (
                         <SelectItem key={u.id} value={u.id}>{u.first_name} {u.last_name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-[10px] text-muted-foreground">
+                    Scegli il commerciale interno che gestirà l'appuntamento.
+                  </p>
                 </div>
 
                 {/* Date & Time card */}
@@ -594,7 +606,13 @@ export default function MarketingAppointmentDialog({
               {/* Right column */}
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Seleziona Contatto *</Label>
+                  <Label className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">
+                      <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM10 11a5 5 0 00-5 5 1 1 0 001 1h8a1 1 0 001-1 5 5 0 00-5-5z" /></svg>
+                    </span>
+                    Cliente *
+                    <span className="text-[10px] text-muted-foreground font-normal">(contatto CRM)</span>
+                  </Label>
                   <div>
                   <Select value={contactId} onValueChange={setContactId}>
                     <SelectTrigger><SelectValue placeholder="Cerca contatto..." /></SelectTrigger>
@@ -607,6 +625,9 @@ export default function MarketingAppointmentDialog({
                     </SelectContent>
                   </Select>
                   </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Persona esterna per cui è l'appuntamento (prospect o cliente).
+                  </p>
                 </div>
 
                 <div className="space-y-2">

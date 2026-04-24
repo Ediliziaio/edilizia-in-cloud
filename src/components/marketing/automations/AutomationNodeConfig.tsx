@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import type { AutomationNode } from "@/types/automationBuilder";
 import {
   NODE_TYPE_LABELS,
@@ -109,24 +110,24 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
     enabled: !!selectedPipelineId,
   });
 
-  const { data: companyUsers = [] } = useQuery({
-    queryKey: ["company_users_for_actions", companyId],
-    queryFn: async () => {
-      if (!companyId) return [] as { user_id: string; role: string; name: string }[];
-      // Use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
-      const { data: perms } = await supabase.from("staff_permissions").select("user_id").eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [] as { user_id: string; role: string; name: string }[];
-      const { data: profiles } = await supabase.from("profiles").select("id, first_name, last_name").in("id", validIds);
-      return (profiles || []).map(p => ({ user_id: p.id, role: "company_staff", name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.id.slice(0, 8) }));
-    },
-    // Sprint 3B — aggiornato con nuove azioni che richiedono selezione utente
-    enabled: !!companyId && isAction && [
-      "create_opportunity", "assign_user", "create_task", "send_notification",
-      "call_with_ai_agent", "create_order", "create_quote",
-      "create_ticket_intervento", "create_appointment",
-    ].includes(actionType),
-  });
+  // FIX: centralizzato — esclude customer/referrer/platform_*
+  const automationActionsRequiringUser = [
+    "create_opportunity", "assign_user", "create_task", "send_notification",
+    "call_with_ai_agent", "create_order", "create_quote",
+    "create_ticket_intervento", "create_appointment",
+  ];
+  const { data: rawStaff = [] } = useCompanyStaffUsers(
+    isAction && automationActionsRequiringUser.includes(actionType) ? companyId : null,
+    "sales"
+  );
+  const companyUsers = useMemo(
+    () => rawStaff.map((p) => ({
+      user_id: p.id,
+      role: "company_staff",
+      name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.id.slice(0, 8),
+    })),
+    [rawStaff]
+  );
 
   const { data: aiAgentsList = [] } = useQuery({
     queryKey: ["ai_agents_for_automation", companyId],
