@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
 
     const { data: newPlan, error: planErr } = await supabaseAdmin
       .from("subscription_plans")
-      .select("id, name, stripe_price_id_monthly")
+      .select("id, name, stripe_price_monthly_id")
       .eq("id", new_plan_id)
       .single();
     if (planErr || !newPlan) return errorResponse("Piano non trovato", 404, corsH);
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     let stripeError: string | null = null;
     const stripeKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
     const stripeNeeded =
-      !!stripeKey && !!company.stripe_customer_id && !!newPlan.stripe_price_id_monthly;
+      !!stripeKey && !!company.stripe_customer_id && !!newPlan.stripe_price_monthly_id;
 
     if (stripeNeeded) {
       stripeAttempted = true;
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         if (subscriptions.data.length > 0) {
           const sub = subscriptions.data[0];
           await stripe.subscriptions.update(sub.id, {
-            items: [{ id: sub.items.data[0].id, price: newPlan.stripe_price_id_monthly! }],
+            items: [{ id: sub.items.data[0].id, price: newPlan.stripe_price_monthly_id! }],
             proration_behavior: "create_prorations",
           });
           stripeSynced = true;
