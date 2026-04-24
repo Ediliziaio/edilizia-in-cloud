@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   MessageCircle, Send, Loader2, Mail, Smartphone, MessageSquare, StickyNote,
-  AlertCircle, CheckCircle2, XCircle, AtSign, User as UserIcon,
+  AlertCircle, CheckCircle2, XCircle, AtSign, User as UserIcon, Settings, ShieldCheck,
+  AlertTriangle, Reply,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -137,6 +139,8 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
   const [emailSubject, setEmailSubject] = useState("");
   const [selectedChannel, setSelectedChannel] = useState<Channel>("chat");
   const [confirmEmailOpen, setConfirmEmailOpen] = useState(false);
+  const [replyToOverride, setReplyToOverride] = useState("");
+  const [showReplyToField, setShowReplyToField] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
 
@@ -145,6 +149,39 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
 
   // Sender (azienda) info: mittente esposto nell'UI
   const companyName = effectiveCompany?.name ?? "EdiliziaInCloud";
+
+  // ── Fetch mittente effettivo (resolve-email-sender) ────
+  interface ResolvedSender {
+    from_email: string;
+    from_name: string | null;
+    reply_to: string;
+    using_custom_domain: boolean;
+    domain: string;
+    source: "custom_domain_verified" | "fallback_subdomain" | "platform_default";
+  }
+  const { data: sender, isLoading: senderLoading, isError: senderError } = useQuery({
+    queryKey: ["resolved-email-sender", companyId],
+    queryFn: async (): Promise<ResolvedSender | null> => {
+      const { data, error } = await supabase.functions.invoke("resolve-email-sender", {
+        body: { stream: "transactional" },
+      });
+      if (error) {
+        // Non-bloccante: mostriamo fallback
+        return null;
+      }
+      if (!data?.success) return null;
+      return data as ResolvedSender;
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Quando sender arriva, inizializza reply-to override con il default
+  useEffect(() => {
+    if (sender?.reply_to && !replyToOverride) {
+      setReplyToOverride(sender.reply_to);
+    }
+  }, [sender?.reply_to, replyToOverride]);
 
   const queryKey = ["staff-customer-messages", customerId];
 
@@ -251,7 +288,7 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
 
   /* ─── Send email ──────────────────────────────────────── */
   const sendEmailMutation = useMutation({
-    mutationFn: async ({ subject, body }: { subject: string; body: string }) => {
+    mutationFn: async ({ subject, body, replyTo }: { subject: string; body: string; replyTo?: string }) => {
       // Wrap plain text body in minimal HTML
       const safeSubject = subject.slice(0, 200);
       const bodyEscaped = body
@@ -271,6 +308,7 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
           subject: safeSubject,
           body_html: html,
           body_text: body,
+          reply_to: replyTo || undefined,
         },
       });
       if (error) {
@@ -338,10 +376,12 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
     const subj = emailSubject.trim();
     if (!trimmed || !subj) return;
     setConfirmEmailOpen(false);
-    sendEmailMutation.mutate({ subject: subj, body: trimmed });
+    const replyToFinal = showReplyToField && replyToOverride.trim() ? replyToOverride.trim() : undefined;
+    sendEmailMutation.mutate({ subject: subj, body: trimmed, replyTo: replyToFinal });
     setNewMessage("");
     setEmailSubject("");
-  }, [newMessage, emailSubject, sendEmailMutation]);
+    setShowReplyToField(false);
+  }, [newMessage, emailSubject, showReplyToField, replyToOverride, sendEmailMutation]);
 
   const isSending = sendMutation.isPending || sendEmailMutation.isPending;
 
@@ -439,14 +479,59 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
             </div>
           )}
           {selectedChannel === "email" && (
-            <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-900/10 p-2 space-y-1">
+            <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-900/10 p-2.5 space-y-1.5">
+              {/* Da: mittente reale (resolve-email-sender) */}
               <div className="flex items-start gap-2 text-[11px] text-blue-800 dark:text-blue-300">
                 <UserIcon className="h-3 w-3 mt-0.5 shrink-0" />
-                <div className="min-w-0">
-                  <span className="font-semibold">Da:</span>{" "}
-                  <span className="truncate">{companyName}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold">Da:</span>
+                    {senderLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : sender ? (
+                      <>
+                        <span className="font-mono truncate">
+                          {sender.from_name ?? companyName}{" "}
+                          <span className="opacity-75">&lt;{sender.from_email}&gt;</span>
+                        </span>
+                        {sender.using_custom_domain ? (
+                          <Badge variant="outline" className="h-4 px-1 text-[9px] border-emerald-400 text-emerald-700 dark:text-emerald-400 shrink-0">
+                            <ShieldCheck className="h-2 w-2 mr-0.5" />
+                            Dominio tuo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="h-4 px-1 text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 shrink-0">
+                            <AlertTriangle className="h-2 w-2 mr-0.5" />
+                            Fallback EiC
+                          </Badge>
+                        )}
+                      </>
+                    ) : senderError ? (
+                      <span className="text-red-600 text-xs">Errore caricamento mittente</span>
+                    ) : (
+                      <span className="font-mono truncate">{companyName}</span>
+                    )}
+                  </div>
+                  {sender && !sender.using_custom_domain && (
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5">
+                      Le email partono da un sottodominio condiviso.{" "}
+                      <Link to="/azienda/impostazioni/dominio-email" className="underline font-medium">
+                        Configura un dominio tuo
+                      </Link>{" "}
+                      per migliorare la deliverability.
+                    </p>
+                  )}
                 </div>
+                <Link
+                  to="/azienda/impostazioni/preferenze-email"
+                  className="shrink-0 p-1 -m-1 rounded hover:bg-blue-200/50 dark:hover:bg-blue-500/20 transition-colors"
+                  title="Modifica mittente e preferenze email"
+                >
+                  <Settings className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                </Link>
               </div>
+
+              {/* A: destinatario */}
               <div className="flex items-start gap-2 text-[11px] text-blue-800 dark:text-blue-300">
                 <AtSign className="h-3 w-3 mt-0.5 shrink-0" />
                 <div className="min-w-0">
@@ -455,6 +540,46 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
                   <span className="opacity-75">&lt;{customerEmail}&gt;</span>
                 </div>
               </div>
+
+              {/* Reply-To: toggle */}
+              <div className="pt-1 border-t border-blue-200 dark:border-blue-500/30">
+                {showReplyToField ? (
+                  <div className="flex items-start gap-2">
+                    <Reply className="h-3 w-3 mt-2 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[10px] text-blue-800 dark:text-blue-300">
+                        Rispondi a (reply-to)
+                      </Label>
+                      <Input
+                        value={replyToOverride}
+                        onChange={(e) => setReplyToOverride(e.target.value)}
+                        type="email"
+                        placeholder={sender?.reply_to ?? "es. commerciale@azienda.it"}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setShowReplyToField(false); setReplyToOverride(sender?.reply_to ?? ""); }}
+                      className="mt-1 p-0.5 rounded hover:bg-blue-200/50 dark:hover:bg-blue-500/20"
+                      title="Usa reply-to predefinito"
+                    >
+                      <XCircle className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowReplyToField(true)}
+                    className="flex items-center gap-1.5 text-[10px] text-blue-700 dark:text-blue-400 hover:underline"
+                  >
+                    <Reply className="h-2.5 w-2.5" />
+                    Rispondi a: <span className="font-mono">{sender?.reply_to ?? companyName}</span>
+                    <span className="opacity-70">(modifica)</span>
+                  </button>
+                )}
+              </div>
+
               <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 pt-0.5 border-t border-blue-200 dark:border-blue-500/30">
                 Consuma 1 credito email. L'esito verrà mostrato nel diario.
               </p>
@@ -516,7 +641,8 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
                     <UserIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                     <div className="min-w-0">
                       <span className="text-muted-foreground">Da:</span>{" "}
-                      <span className="font-semibold">{companyName}</span>
+                      <span className="font-semibold">{sender?.from_name ?? companyName}</span>{" "}
+                      {sender && <span className="font-mono text-muted-foreground">&lt;{sender.from_email}&gt;</span>}
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
@@ -527,6 +653,15 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
                       <span className="font-mono text-muted-foreground">&lt;{customerEmail}&gt;</span>
                     </div>
                   </div>
+                  {showReplyToField && replyToOverride.trim() && replyToOverride !== sender?.reply_to && (
+                    <div className="flex items-start gap-2">
+                      <Reply className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground">Rispondi a:</span>{" "}
+                        <span className="font-mono font-semibold">{replyToOverride.trim()}</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-start gap-2">
                     <MessageCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera, Columns, FileCheck } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera, Columns, FileCheck, FileText, FileSpreadsheet, Sparkles, ChevronDown, Users as UsersIcon } from "lucide-react";
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
@@ -945,6 +945,277 @@ function OrdersListInner() {
     toast({ title: `Excel esportato — ${result.count} ordini` });
   }, [prepareExportData, toast]);
 
+  // Export PDF: tabella ordini landscape
+  const exportOrdersPDF = useCallback(async () => {
+    const result = await prepareExportData();
+    if (!result || result.count === 0) {
+      toast({ title: "Nessun ordine", description: "Non ci sono ordini da esportare.", variant: "destructive" });
+      return;
+    }
+    try {
+      const jsPDFModule = await import("jspdf");
+      const jsPDF = jsPDFModule.default ?? (jsPDFModule as any).jsPDF;
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      doc.setFontSize(14);
+      doc.text(`${effectiveCompany?.name ?? "Azienda"} — Ordini`, 40, 40);
+      doc.setFontSize(9);
+      doc.text(`Esportato il ${format(new Date(), "dd/MM/yyyy HH:mm")} — ${result.count} ordini`, 40, 56);
+
+      const cols = [
+        { key: "order_code", label: "Codice", w: 60 },
+        { key: "customer", label: "Cliente", w: 150 },
+        { key: "description", label: "Descrizione", w: 180 },
+        { key: "total_amount", label: "Totale", w: 70, align: "right" as const },
+        { key: "status", label: "Stato", w: 80 },
+        { key: "created_at", label: "Contratto", w: 70 },
+        { key: "expected_date", label: "Posa", w: 70 },
+        { key: "payment_status", label: "Pagamenti", w: 110 },
+      ];
+      let y = 80;
+      let x = 40;
+
+      // Header
+      doc.setFont("helvetica", "bold");
+      doc.setFillColor(240, 240, 240);
+      doc.rect(40, y - 12, cols.reduce((a, c) => a + c.w, 0), 18, "F");
+      cols.forEach((c) => {
+        doc.text(c.label, x + 4, y);
+        x += c.w;
+      });
+      y += 14;
+      doc.setFont("helvetica", "normal");
+
+      result.rows.forEach((row, i) => {
+        if (y > 550) {
+          doc.addPage();
+          y = 40;
+        }
+        x = 40;
+        if (i % 2 === 1) {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(40, y - 10, cols.reduce((a, c) => a + c.w, 0), 14, "F");
+        }
+        cols.forEach((c) => {
+          const val = String(row[c.key as keyof typeof row] ?? "");
+          const maxLen = Math.floor(c.w / 5);
+          const trimmed = val.length > maxLen ? val.slice(0, maxLen - 1) + "…" : val;
+          if (c.align === "right" && val) {
+            const formatted = String(row[c.key as keyof typeof row] ?? "").includes(".")
+              ? `€ ${Number(row[c.key as keyof typeof row]).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+              : trimmed;
+            doc.text(formatted, x + c.w - 4, y, { align: "right" });
+          } else {
+            doc.text(trimmed, x + 4, y);
+          }
+          x += c.w;
+        });
+        y += 13;
+      });
+
+      doc.save(`ordini-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast({ title: `PDF esportato — ${result.count} ordini` });
+    } catch (e) {
+      toast({
+        title: "Errore export PDF",
+        description: e instanceof Error ? e.message : "Generazione PDF fallita",
+        variant: "destructive",
+      });
+    }
+  }, [prepareExportData, effectiveCompany?.name, toast]);
+
+  // Export PDF: una scheda completa per ogni cliente con i suoi ordini
+  const exportCustomerSheetsPDF = useCallback(async () => {
+    if (!effectiveCompany?.id) return;
+    try {
+      toast({ title: "Generazione in corso", description: "Preparo le schede clienti…" });
+      // Fetch tutti i clienti della company
+      const { data: customersData } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, phone, is_business, business_name, fiscal_code, address, city, postal_code, province, site_address, site_city, site_postal_code, site_province, notes, created_at")
+        .eq("company_id", effectiveCompany.id);
+      const customers = (customersData ?? []) as Array<{
+        id: string; first_name: string | null; last_name: string | null;
+        email: string; phone: string | null;
+        is_business?: boolean | null; business_name?: string | null;
+        fiscal_code: string | null;
+        address: string | null; city?: string | null; postal_code?: string | null; province?: string | null;
+        site_address: string | null; site_city?: string | null; site_postal_code?: string | null; site_province?: string | null;
+        notes: string | null; created_at: string;
+      }>;
+
+      if (customers.length === 0) {
+        toast({ title: "Nessun cliente", description: "Non ci sono clienti da esportare.", variant: "destructive" });
+        return;
+      }
+
+      // Fetch ordini per tutti i clienti in un colpo solo
+      const { data: ordersData } = await supabase
+        .from("orders")
+        .select("id, order_code, description, total_amount, created_at, customer_id, current_status_id, order_statuses:current_status_id(name)")
+        .eq("company_id", effectiveCompany.id);
+      const ordersByCustomer = new Map<string, Array<{ order_code: string | null; description: string | null; total_amount: number | null; created_at: string; status: string | null }>>();
+      (ordersData ?? []).forEach((o) => {
+        const list = ordersByCustomer.get(o.customer_id as string) ?? [];
+        list.push({
+          order_code: o.order_code as string | null,
+          description: o.description as string | null,
+          total_amount: o.total_amount as number | null,
+          created_at: o.created_at as string,
+          status: (o.order_statuses as { name: string } | null)?.name ?? null,
+        });
+        ordersByCustomer.set(o.customer_id as string, list);
+      });
+
+      const jsPDFModule = await import("jspdf");
+      const jsPDF = jsPDFModule.default ?? (jsPDFModule as any).jsPDF;
+      const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      let first = true;
+
+      const getDisplayName = (c: typeof customers[0]) => {
+        if (c.is_business && c.business_name) return c.business_name;
+        const f = (c.first_name ?? "").trim(); const l = (c.last_name ?? "").trim();
+        const isPh = (s: string) => s === "—" || s === "-" || s === "";
+        return `${isPh(f) ? "" : f} ${isPh(l) ? "" : l}`.trim() || "(senza nome)";
+      };
+
+      customers
+        .sort((a, b) => getDisplayName(a).localeCompare(getDisplayName(b)))
+        .forEach((c) => {
+          if (!first) doc.addPage();
+          first = false;
+
+          const name = getDisplayName(c);
+          const orders = ordersByCustomer.get(c.id) ?? [];
+
+          // Header azienda + titolo
+          doc.setFontSize(9);
+          doc.setTextColor(120);
+          doc.text(effectiveCompany?.name ?? "Scheda Cliente", 40, 40);
+          doc.text(format(new Date(), "dd/MM/yyyy"), 555, 40, { align: "right" });
+          doc.setTextColor(0);
+
+          doc.setFontSize(16);
+          doc.setFont("helvetica", "bold");
+          doc.text(name, 40, 70);
+
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          doc.setTextColor(90);
+          if (c.is_business) doc.text("AZIENDA / PERSONA GIURIDICA", 40, 86);
+          doc.setTextColor(0);
+
+          let y = 110;
+          const line = (label: string, value?: string | null) => {
+            if (!value) return;
+            doc.setFont("helvetica", "bold");
+            doc.text(`${label}:`, 40, y);
+            doc.setFont("helvetica", "normal");
+            doc.text(String(value), 150, y);
+            y += 16;
+          };
+
+          line("Email", c.email);
+          line("Telefono", c.phone);
+          line("CF / P.IVA", c.fiscal_code);
+
+          y += 4;
+          doc.setFontSize(11);
+          doc.setFont("helvetica", "bold");
+          doc.text(c.is_business ? "Sede legale" : "Residenza", 40, y);
+          y += 4;
+          doc.setDrawColor(200);
+          doc.line(40, y, 555, y);
+          y += 14;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          if (c.address) { doc.text(c.address, 40, y); y += 14; }
+          const loc1 = [c.postal_code, c.city, c.province ? `(${c.province})` : null].filter(Boolean).join(" ");
+          if (loc1) { doc.text(loc1, 40, y); y += 14; }
+
+          if (c.site_address || c.site_city) {
+            y += 8;
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "bold");
+            doc.text("Indirizzo cantiere", 40, y);
+            y += 4;
+            doc.line(40, y, 555, y);
+            y += 14;
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            if (c.site_address) { doc.text(c.site_address, 40, y); y += 14; }
+            const loc2 = [c.site_postal_code, c.site_city, c.site_province ? `(${c.site_province})` : null].filter(Boolean).join(" ");
+            if (loc2) { doc.text(loc2, 40, y); y += 14; }
+          }
+
+          if (c.notes) {
+            y += 8;
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "bold");
+            doc.text("Note", 40, y);
+            y += 4;
+            doc.line(40, y, 555, y);
+            y += 14;
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.notes, 515);
+            doc.text(lines, 40, y);
+            y += lines.length * 13;
+          }
+
+          // Ordini del cliente
+          y += 16;
+          doc.setFontSize(11);
+          doc.setFont("helvetica", "bold");
+          doc.text(`Ordini (${orders.length})`, 40, y);
+          y += 4;
+          doc.line(40, y, 555, y);
+          y += 14;
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
+
+          if (orders.length === 0) {
+            doc.setTextColor(120);
+            doc.text("Nessun ordine registrato.", 40, y);
+            doc.setTextColor(0);
+          } else {
+            // Header tabella
+            doc.setFont("helvetica", "bold");
+            doc.text("Codice", 40, y);
+            doc.text("Descrizione", 130, y);
+            doc.text("Stato", 370, y);
+            doc.text("Data", 450, y);
+            doc.text("Totale", 555, y, { align: "right" });
+            y += 12;
+            doc.setFont("helvetica", "normal");
+            orders.forEach((o) => {
+              if (y > 780) { doc.addPage(); y = 40; }
+              doc.text((o.order_code ?? "—").slice(0, 18), 40, y);
+              const desc = (o.description ?? "").slice(0, 48);
+              doc.text(desc, 130, y);
+              doc.text((o.status ?? "").slice(0, 14), 370, y);
+              doc.text(o.created_at ? format(new Date(o.created_at), "dd/MM/yy") : "—", 450, y);
+              doc.text(
+                o.total_amount != null
+                  ? `€ ${Number(o.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+                  : "—",
+                555, y, { align: "right" },
+              );
+              y += 12;
+            });
+          }
+        });
+
+      doc.save(`schede-clienti-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast({ title: `PDF esportato`, description: `${customers.length} schede clienti in un unico PDF.` });
+    } catch (e) {
+      toast({
+        title: "Errore export",
+        description: e instanceof Error ? e.message : "Generazione schede fallita",
+        variant: "destructive",
+      });
+    }
+  }, [effectiveCompany?.id, effectiveCompany?.name, toast]);
+
   // Import handler
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
     if (!effectiveCompany?.id) return { success: 0, errors: ["Azienda non trovata"] };
@@ -1032,9 +1303,16 @@ function OrdersListInner() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Ordini</h1>
-          <p className="text-muted-foreground">Gestisci gli ordini della tua azienda</p>
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Package className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Ordini</h1>
+            <p className="text-sm text-muted-foreground">
+              Cantieri, ODA, DDT, anomalie e marginalità in un'unica vista.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {/* Filtri avanzati */}
@@ -1108,19 +1386,46 @@ function OrdersListInner() {
           </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">Esporta</span>
+                <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel className="text-[11px]">Ordini filtrati</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportOrdersCSV}>
+                <FileText className="h-4 w-4 mr-2" /> Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportOrdersXLSX}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Esporta Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportOrdersPDF}>
+                <FileText className="h-4 w-4 mr-2" /> Esporta PDF
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[11px]">Schede clienti</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportCustomerSheetsPDF}>
+                <UsersIcon className="h-4 w-4 mr-2" /> PDF schede clienti
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Importa</span>
+            <Sparkles className="h-3.5 w-3.5 ml-1 text-primary" />
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Altre azioni">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={exportOrdersCSV}>
-                <Download className="h-4 w-4 mr-2" /> Esporta CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportOrdersXLSX}>
-                <Download className="h-4 w-4 mr-2" /> Esporta Excel (XLSX)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                <Upload className="h-4 w-4 mr-2" /> Importa da file
+              <DropdownMenuItem onClick={exportCustomerSheetsPDF}>
+                <UsersIcon className="h-4 w-4 mr-2" /> Scarica schede clienti
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
