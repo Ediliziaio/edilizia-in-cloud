@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, ChevronRight, Search, CalendarX, Inbox } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, CalendarX, Inbox, User, UserCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -150,11 +150,21 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
             <TableRow>
               <TableHead className="w-10">#</TableHead>
               <TableHead>Titolo</TableHead>
-              <TableHead>Contatto</TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">
+                  <User className="h-3 w-3 text-muted-foreground" />
+                  Cliente
+                </span>
+              </TableHead>
               <TableHead>Stato</TableHead>
               <TableHead>Data / Ora</TableHead>
               <TableHead>Calendario</TableHead>
-              <TableHead>Titolare</TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">
+                  <UserCircle2 className="h-3 w-3 text-primary" />
+                  Venditore assegnato
+                </span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -200,7 +210,18 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                     {page * rowsPerPage + idx + 1}
                   </TableCell>
                   <TableCell className="font-medium">{apt.title}</TableCell>
-                  <TableCell className="text-sm">{apt.contact_name || "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {apt.contact_name ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold">
+                          {apt.contact_name.charAt(0).toUpperCase()}
+                        </span>
+                        {apt.contact_name}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/60">—</span>
+                    )}
+                  </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Select
                       value={apt.status}
@@ -229,7 +250,18 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                     )}
                   </TableCell>
                   <TableCell className="text-sm">{apt.calendar_name || "—"}</TableCell>
-                  <TableCell className="text-sm">{apt.assigned_name || "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {apt.assigned_name ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary/15 text-primary text-[10px] font-semibold">
+                          {apt.assigned_name.charAt(0).toUpperCase()}
+                        </span>
+                        {apt.assigned_name}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/60 italic text-xs">non assegnato</span>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}

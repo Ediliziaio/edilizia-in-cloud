@@ -1,9 +1,9 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { format, isSameDay, parseISO, isToday } from "date-fns";
 import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
-import { Car, AlertTriangle, MapPinOff } from "lucide-react";
+import { Car, AlertTriangle, MapPinOff, User } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
 import type { GoogleBusySlot } from "@/types/calendar";
 import { buildTimeSlots, buildColorMap, timeToMin } from "@/lib/marketingCalendarConstants";
@@ -119,6 +119,22 @@ export default function MarketingCalendarDayView({
   const todayFlag = isToday(date);
   const dateStr = format(date, "yyyy-MM-dd");
 
+  // Current time indicator (Google Calendar red line)
+  const [nowTick, setNowTick] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const nowMinutes = nowTick.getHours() * 60 + nowTick.getMinutes();
+  const firstSlotMinutes = useMemo(() => {
+    if (timeSlots.length === 0) return 0;
+    const [h, m] = timeSlots[0].split(":").map(Number);
+    return h * 60 + (m || 0);
+  }, [timeSlots]);
+  const totalSlotMinutes = timeSlots.length * slotDurationMinutes;
+  const isNowInRange = todayFlag && nowMinutes >= firstSlotMinutes && nowMinutes <= firstSlotMinutes + totalSlotMinutes;
+  const nowTopPx = isNowInRange ? (nowMinutes - firstSlotMinutes) * pxPerMinute : -1;
+
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
     setActiveApt(apt || null);
@@ -145,13 +161,18 @@ export default function MarketingCalendarDayView({
         <div className="grid grid-cols-[60px_1fr] border-b sticky top-0 z-10 bg-background">
           <div className="p-2 border-r text-xs text-muted-foreground" />
           <div className={cn("p-2 text-center", todayFlag && "bg-primary/5")}>
-            <div className="text-xs text-muted-foreground uppercase">
+            <div className={cn(
+              "text-[10px] uppercase tracking-wide font-medium",
+              todayFlag ? "text-primary" : "text-muted-foreground"
+            )}>
               {format(date, "EEEE", { locale: it })}
             </div>
             <div
               className={cn(
-                "text-sm font-semibold mt-0.5 w-7 h-7 flex items-center justify-center mx-auto rounded-full",
-                todayFlag && "bg-primary text-primary-foreground"
+                "text-base font-semibold mt-0.5 w-9 h-9 flex items-center justify-center mx-auto rounded-full transition-colors",
+                todayFlag
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-foreground"
               )}
             >
               {format(date, "d")}
@@ -160,7 +181,38 @@ export default function MarketingCalendarDayView({
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-[60px_1fr]">
+        <div className="grid grid-cols-[60px_1fr] relative">
+          {/* Current time indicator (Google Calendar red line) */}
+          {isNowInRange && (
+            <>
+              <div
+                className="absolute pointer-events-none z-20"
+                style={{
+                  top: `${nowTopPx}px`,
+                  left: "60px",
+                  right: 0,
+                  height: "2px",
+                }}
+              >
+                <div className="relative h-full">
+                  <span
+                    aria-hidden
+                    className="absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_0_2px_rgba(239,68,68,0.25)]"
+                  />
+                  <div className="h-full w-full bg-red-500" />
+                </div>
+              </div>
+              <div
+                className="absolute pointer-events-none z-20 text-[10px] font-semibold text-red-500 tabular-nums bg-background px-1 rounded"
+                style={{
+                  top: `${nowTopPx - 7}px`,
+                  left: "2px",
+                }}
+              >
+                {format(nowTick, "HH:mm")}
+              </div>
+            </>
+          )}
           {timeSlots.map((slotTime) => {
             const isHour = slotTime.endsWith(":00");
             const [h, m] = slotTime.split(":").map(Number);
@@ -249,22 +301,44 @@ export default function MarketingCalendarDayView({
                               onClickAppointment(apt);
                             }}
                             className={cn(
-                              "text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 mb-0.5",
+                              "flex flex-col text-[11px] leading-tight px-2 py-1 rounded-md border-l-[3px] cursor-pointer hover:brightness-95 transition-all mb-0.5 shadow-sm",
                               heightPx ? "h-full overflow-hidden" : "",
                               apt.is_blocked_slot
                                 ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
                                 : apt.calendar_id && colorMap[apt.calendar_id]
                                   ? colorMap[apt.calendar_id]
-                                  : "bg-muted border-muted-foreground/40 text-foreground"
+                                  : "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-100"
                             )}
                             title={apt.title}
                           >
-                            {apt.appointment_time && (
-                              <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="truncate min-w-0 flex-1">
+                                {apt.appointment_time && (
+                                  <span className="font-semibold">{apt.appointment_time.slice(0, 5)} </span>
+                                )}
+                                <span className="font-medium">{apt.title}</span>
+                                {apt.appointment_end_time && (
+                                  <span className="text-[10px] opacity-70"> – {apt.appointment_end_time.slice(0, 5)}</span>
+                                )}
+                              </span>
+                            </div>
+                            {!apt.is_blocked_slot && (apt as any).contact_name && (heightPx == null || heightPx >= 40) && (
+                              <div className="flex items-center gap-1 mt-0.5 opacity-80 truncate">
+                                <User className="h-2.5 w-2.5 shrink-0" />
+                                <span className="truncate text-[10px] font-medium">
+                                  {(apt as any).contact_name}
+                                </span>
+                              </div>
                             )}
-                            {apt.title}
-                            {apt.appointment_end_time && (
-                              <span className="text-[10px] opacity-70"> – {apt.appointment_end_time.slice(0, 5)}</span>
+                            {!apt.is_blocked_slot && (apt as any).assigned_name && (heightPx == null || heightPx >= 55) && (
+                              <div className="flex items-center gap-1 opacity-70 truncate">
+                                <span className="inline-flex items-center justify-center h-3 w-3 rounded-full bg-current/15 text-[8px] font-bold shrink-0">
+                                  {(apt as any).assigned_name.charAt(0).toUpperCase()}
+                                </span>
+                                <span className="truncate text-[10px]">
+                                  {(apt as any).assigned_name}
+                                </span>
+                              </div>
                             )}
                           </div>
                         </div>

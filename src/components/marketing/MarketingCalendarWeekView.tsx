@@ -1,9 +1,9 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
-import { Car, AlertTriangle, MapPinOff } from "lucide-react";
+import { Car, AlertTriangle, MapPinOff, User } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
 import type { GoogleBusySlot } from "@/types/calendar";
@@ -122,6 +122,23 @@ export default function MarketingCalendarWeekView({
 
   const today = new Date();
 
+  // Current time indicator (Google Calendar red line) — tick each minute
+  const [nowTick, setNowTick] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const nowMinutes = nowTick.getHours() * 60 + nowTick.getMinutes();
+  const firstSlotMinutes = useMemo(() => {
+    if (timeSlots.length === 0) return 0;
+    const [h, m] = timeSlots[0].split(":").map(Number);
+    return h * 60 + (m || 0);
+  }, [timeSlots]);
+  const totalSlotMinutes = timeSlots.length * slotDurationMinutes;
+  const isNowInRange = nowMinutes >= firstSlotMinutes && nowMinutes <= firstSlotMinutes + totalSlotMinutes;
+  const nowTopPx = isNowInRange ? (nowMinutes - firstSlotMinutes) * pxPerMinute : -1;
+  const todayColumnIndex = useMemo(() => days.findIndex((d) => isSameDay(d, nowTick)), [days, nowTick]);
+
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
     setActiveApt(apt || null);
@@ -156,13 +173,18 @@ export default function MarketingCalendarWeekView({
                   isSameDay(day, today) && "bg-primary/5"
                 )}
               >
-                <div className="text-xs text-muted-foreground uppercase">
+                <div className={cn(
+                  "text-[10px] uppercase tracking-wide font-medium",
+                  isSameDay(day, today) ? "text-primary" : "text-muted-foreground"
+                )}>
                   {format(day, "EEE", { locale: it })}
                 </div>
                 <div
                   className={cn(
-                    "text-sm font-semibold mt-0.5 w-7 h-7 flex items-center justify-center mx-auto rounded-full",
-                    isSameDay(day, today) && "bg-primary text-primary-foreground"
+                    "text-base font-semibold mt-0.5 w-9 h-9 flex items-center justify-center mx-auto rounded-full transition-colors",
+                    isSameDay(day, today)
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-foreground hover:bg-muted/60"
                   )}
                 >
                   {format(day, "d")}
@@ -172,7 +194,40 @@ export default function MarketingCalendarWeekView({
           </div>
 
           {/* Grid */}
-          <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))]">
+          <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] relative">
+            {/* Current time indicator line (Google Calendar style) */}
+            {isNowInRange && todayColumnIndex >= 0 && (
+              <>
+                {/* Linea orizzontale rossa solo nella colonna oggi */}
+                <div
+                  className="absolute pointer-events-none z-20"
+                  style={{
+                    top: `${nowTopPx}px`,
+                    left: `calc(60px + ${todayColumnIndex} * ((100% - 60px) / 7))`,
+                    width: `calc((100% - 60px) / 7)`,
+                    height: "2px",
+                  }}
+                >
+                  <div className="relative h-full">
+                    <span
+                      aria-hidden
+                      className="absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_0_2px_rgba(239,68,68,0.25)]"
+                    />
+                    <div className="h-full w-full bg-red-500" />
+                  </div>
+                </div>
+                {/* Etichetta ora corrente a sinistra */}
+                <div
+                  className="absolute pointer-events-none z-20 text-[10px] font-semibold text-red-500 tabular-nums bg-background px-1 rounded"
+                  style={{
+                    top: `${nowTopPx - 7}px`,
+                    left: "2px",
+                  }}
+                >
+                  {format(nowTick, "HH:mm")}
+                </div>
+              </>
+            )}
             {timeSlots.map((slotTime) => {
               const isHour = slotTime.endsWith(":00");
               const [h, m] = slotTime.split(":").map(Number);
@@ -223,17 +278,24 @@ export default function MarketingCalendarWeekView({
                           const heightPx = getHeightPx(apt);
                           const topOffset = getTopOffsetPx(apt, slotTime);
 
+                          // Tooltip strutturato: titolo, orario, cliente, venditore, indirizzo, tragitto
                           const tooltipLines: string[] = [apt.title];
                           if (apt.appointment_time) tooltipLines.unshift(apt.appointment_time.slice(0, 5));
                           if (apt.appointment_end_time) tooltipLines[0] += ` – ${apt.appointment_end_time.slice(0, 5)}`;
-                          if (apt.formatted_address) tooltipLines.push(apt.formatted_address);
+                          if ((apt as any).contact_name) tooltipLines.push(`👤 Cliente: ${(apt as any).contact_name}`);
+                          if ((apt as any).assigned_name) tooltipLines.push(`🧑‍💼 Venditore: ${(apt as any).assigned_name}`);
+                          if (apt.formatted_address) tooltipLines.push(`📍 ${apt.formatted_address}`);
                           if (leg) {
-                            tooltipLines.push(`${leg.duration_text} • ${leg.distance_text}`);
-                            if (leg.isLate) tooltipLines.push(`Ritardo stimato: +${leg.delayMinutes} min`);
+                            tooltipLines.push(`🚗 ${leg.duration_text} • ${leg.distance_text}`);
+                            if (leg.isLate) tooltipLines.push(`⚠️ Ritardo stimato: +${leg.delayMinutes} min`);
                           }
                           if (hasNoCoords && !apt.is_blocked_slot && !leg) {
-                            tooltipLines.push("Indirizzo mancante");
+                            tooltipLines.push("📍 Indirizzo mancante");
                           }
+                          const clientName = (apt as any).contact_name as string | null;
+                          const sellerName = (apt as any).assigned_name as string | null;
+                          // Mostra dettagli solo se l'altezza della card è sufficiente
+                          const showDetails = (heightPx ?? 0) >= 40;
 
                           return (
                             <DraggableAppointment
@@ -255,47 +317,66 @@ export default function MarketingCalendarWeekView({
                                       onClickAppointment(apt);
                                     }}
                                     className={cn(
-                                      "flex items-center gap-1 text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 cursor-pointer hover:opacity-80 mb-0.5 min-w-0 h-full",
+                                      "flex flex-col text-[11px] leading-tight px-1.5 py-1 rounded-md border-l-[3px] cursor-pointer hover:brightness-95 transition-all mb-0.5 min-w-0 h-full shadow-sm",
                                       apt.is_blocked_slot
                                         ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
                                         : apt.calendar_id && colorMap[apt.calendar_id]
                                           ? colorMap[apt.calendar_id]
-                                          : "bg-muted border-muted-foreground/40 text-foreground"
+                                          : "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-100"
                                     )}
                                   >
-                                    {hasNoCoords && !apt.is_blocked_slot && !leg && (
-                                      <MapPinOff className="h-2.5 w-2.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
-                                    )}
-                                    <span className="truncate">
-                                      {apt.appointment_time && (
-                                        <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
+                                    {/* Riga 1: orario + titolo + travel/alert */}
+                                    <div className="flex items-center gap-1 min-w-0">
+                                      {hasNoCoords && !apt.is_blocked_slot && !leg && (
+                                        <MapPinOff className="h-2.5 w-2.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
                                       )}
-                                      {apt.title}
-                                    </span>
-                                    {leg && (
-                                      <span
-                                        className={cn(
-                                          "ml-auto shrink-0 flex items-center gap-0.5 text-[9px] leading-none px-1 py-px rounded",
-                                          leg.isLate
-                                            ? "bg-destructive/15 text-destructive"
-                                            : "bg-muted/80 text-muted-foreground"
+                                      <span className="truncate min-w-0 flex-1">
+                                        {apt.appointment_time && (
+                                          <span className="font-semibold">{apt.appointment_time.slice(0, 5)} </span>
                                         )}
-                                      >
-                                        {leg.isLate ? (
-                                          <AlertTriangle className="h-2.5 w-2.5" />
-                                        ) : (
-                                          <Car className="h-2.5 w-2.5" />
-                                        )}
-                                        {leg.duration_text}
+                                        <span className={cn(!showDetails && "font-medium")}>{apt.title}</span>
                                       </span>
+                                      {leg && (
+                                        <span
+                                          className={cn(
+                                            "shrink-0 flex items-center gap-0.5 text-[9px] leading-none px-1 py-px rounded",
+                                            leg.isLate
+                                              ? "bg-destructive/15 text-destructive"
+                                              : "bg-white/60 dark:bg-black/20 text-current/80"
+                                          )}
+                                        >
+                                          {leg.isLate ? (
+                                            <AlertTriangle className="h-2.5 w-2.5" />
+                                          ) : (
+                                            <Car className="h-2.5 w-2.5" />
+                                          )}
+                                          {leg.duration_text}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {/* Riga 2: cliente (distinto dal venditore) */}
+                                    {showDetails && clientName && !apt.is_blocked_slot && (
+                                      <div className="flex items-center gap-1 truncate mt-0.5 opacity-80">
+                                        <User className="h-2.5 w-2.5 shrink-0" />
+                                        <span className="truncate text-[10px] font-medium">{clientName}</span>
+                                      </div>
+                                    )}
+                                    {/* Riga 3: venditore (pallino iniziale) */}
+                                    {showDetails && sellerName && !apt.is_blocked_slot && (
+                                      <div className="flex items-center gap-1 truncate opacity-70">
+                                        <span className="inline-flex items-center justify-center h-3 w-3 rounded-full bg-current/15 text-[8px] font-bold shrink-0">
+                                          {sellerName.charAt(0).toUpperCase()}
+                                        </span>
+                                        <span className="truncate text-[10px]">{sellerName}</span>
+                                      </div>
                                     )}
                                   </div>
                                 </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs max-w-[250px]">
+                                <TooltipContent side="top" className="text-xs max-w-[280px] space-y-0.5">
                                   {tooltipLines.map((line, i) => (
                                     <p key={i} className={cn(
-                                      i === 0 && "font-medium",
-                                      line.startsWith("Ritardo") && "text-destructive font-medium"
+                                      i === 0 && "font-semibold text-sm",
+                                      line.startsWith("⚠️") && "text-destructive font-medium"
                                     )}>{line}</p>
                                   ))}
                                 </TooltipContent>
