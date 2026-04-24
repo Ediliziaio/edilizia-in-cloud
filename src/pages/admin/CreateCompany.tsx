@@ -139,28 +139,62 @@ export default function CreateCompany() {
         body.operationalPostalCode = data.operationalPostalCode || null;
       }
 
-      const { data: result, error } = await supabase.functions.invoke("create-company", { body });
-
-      if (error) {
-        // Bug fix: supabase-js wrapper ritorna "Failed to send a request to
-        // the Edge Function" come messaggio generico quando la function
-        // risponde 4xx/5xx. Il vero messaggio è in error.context (Response).
-        // Estraiamo il body JSON per mostrare l'errore reale (es. "Company
-        // error: duplicate key" oppure "Auth error: email already exists").
-        let realMsg = error.message || "Errore sconosciuto";
-        try {
-          const ctx = (error as { context?: unknown }).context;
-          if (ctx instanceof Response) {
-            const body = await ctx.clone().json().catch(() => null);
-            if (body?.error) realMsg = String(body.error);
-            else if (body?.message) realMsg = String(body.message);
-          }
-        } catch {
-          /* non-JSON response, keep original message */
-        }
-        throw new Error(realMsg);
+      // Bug fix: supabase-js `functions.invoke()` spesso mostra il generico
+      // "Failed to send a request to the Edge Function" (FunctionsFetchError)
+      // o "Edge Function returned a non-2xx status code" (FunctionsHttpError)
+      // senza il body dell'errore reale. Facciamo una chiamata fetch diretta
+      // che ci dà pieno controllo sull'extraction dell'errore del server.
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const anonKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+                    || import.meta.env.VITE_SUPABASE_ANON_KEY) as string;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Sessione scaduta. Riesegui l'accesso.");
       }
-      if (!result?.success) throw new Error(result?.error ?? "Risposta non valida dal server");
+
+      let response: Response;
+      try {
+        response = await fetch(`${supabaseUrl}/functions/v1/create-company`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+            "apikey": anonKey,
+          },
+          body: JSON.stringify(body),
+        });
+      } catch (networkErr) {
+        // Network error o CORS bloccato
+        const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
+        throw new Error(
+          `Impossibile contattare il server Supabase (${msg}). ` +
+          `Verifica la connessione e che l'URL ${supabaseUrl} sia raggiungibile.`,
+        );
+      }
+
+      const rawText = await response.text();
+      let parsed: { success?: boolean; error?: string; message?: string; company?: { id: string } } | null = null;
+      try {
+        parsed = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        // Non-JSON response (es. 502 HTML gateway error)
+        throw new Error(
+          `Risposta server non-JSON (HTTP ${response.status}): ${rawText.slice(0, 200)}`,
+        );
+      }
+
+      if (!response.ok) {
+        const msg = parsed?.error
+          ?? parsed?.message
+          ?? `HTTP ${response.status} ${response.statusText}`;
+        throw new Error(String(msg));
+      }
+
+      if (!parsed?.success) {
+        throw new Error(parsed?.error ?? "Risposta non valida dal server");
+      }
+
+      const result = parsed;
 
       // If a referrer was selected, create referral_companies record
       const companyId = result.company?.id;
