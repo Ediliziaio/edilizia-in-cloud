@@ -1,9 +1,10 @@
-import { Building2 } from "lucide-react";
+import { Building2, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoUploader } from "@/components/settings/LogoUploader";
 import { CompanyProfileForm } from "@/components/settings/CompanyProfileForm";
 import { PersonalProfileForm } from "@/components/settings/PersonalProfileForm";
+import { CustomerPortalToggle } from "@/components/settings/CustomerPortalToggle";
 
 export default function SettingsProfile() {
   const { effectiveCompany, role, refreshAuth } = useAuth();
@@ -41,6 +42,25 @@ export default function SettingsProfile() {
             </CardHeader>
             <CardContent>
               <CompanyProfileForm />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Portale clienti</CardTitle>
+                  <CardDescription>
+                    Scegli se abilitare o meno l'accesso riservato per i tuoi clienti.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CustomerPortalToggle />
             </CardContent>
           </Card>
         </>
