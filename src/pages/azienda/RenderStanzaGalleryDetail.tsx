@@ -36,7 +36,7 @@ export default function RenderStanzaGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_stanza_sessions")
-        .select("*")
+        .select("id, status, original_photo_url, result_urls, config, provider_key, cost_billed, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -49,11 +49,13 @@ export default function RenderStanzaGalleryDetail() {
         config: Record<string, unknown> | null;
         provider_key: string | null;
         cost_billed: number | null;
-        prompt_used: string | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
         error_message: string | null;
+        created_by: string | null;
+        contact_id: string | null;
+        opportunity_id: string | null;
       } | null;
     },
     enabled: !!id && !!companyId,
@@ -119,7 +121,12 @@ export default function RenderStanzaGalleryDetail() {
   const statusCfg = STATUS_CONFIG[session.status as keyof typeof STATUS_CONFIG] ??
     STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
-  const config = session.config as { tipo_stanza?: string; stile_target?: string; intensita?: string } | null;
+  const config = session.config as (Record<string, unknown> & { tipo_stanza?: string; stile_target?: string; intensita?: string }) | null;
+  const activeChoices = config
+    ? Object.entries(config)
+      .filter(([, value]) => value && typeof value === "object" && "attivo" in (value as Record<string, unknown>) && (value as Record<string, unknown>).attivo)
+      .map(([key]) => key.replace(/_/g, " "))
+    : [];
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -267,16 +274,16 @@ export default function RenderStanzaGalleryDetail() {
       )}
 
       <RenderCrmSummaryCard
-        createdBy={(session as { created_by?: string | null }).created_by}
-        contactId={(session as { contact_id?: string | null }).contact_id}
-        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+        createdBy={session.created_by}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
       />
 
       {/* Configurazione */}
       {config && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Configurazione stanza</CardTitle>
+            <CardTitle className="text-sm">Scelte configurate</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -299,6 +306,18 @@ export default function RenderStanzaGalleryDetail() {
                 </div>
               )}
             </div>
+            {activeChoices.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Interventi attivi</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {activeChoices.map((choice) => (
+                    <Badge key={choice} variant="secondary" className="capitalize">
+                      {choice}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 mt-3 flex-wrap">
               {session.provider_key && (
                 <Badge variant="outline" className="text-xs gap-1">

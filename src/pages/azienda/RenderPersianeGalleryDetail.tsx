@@ -22,7 +22,6 @@ import {
   XCircle,
   Zap,
   Clock,
-  ShieldCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -47,7 +46,7 @@ export default function RenderPersianeGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_persiane_sessions")
-        .select("*")
+        .select("id, status, original_photo_url, result_urls, config, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -58,11 +57,13 @@ export default function RenderPersianeGalleryDetail() {
         original_photo_url: string | null;
         result_urls: string[] | null;
         config: Record<string, unknown> | null;
-        prompt_used: string | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
         error_message: string | null;
+        created_by: string | null;
+        contact_id: string | null;
+        opportunity_id: string | null;
       } | null;
     },
     enabled: !!id && !!companyId,
@@ -286,9 +287,9 @@ export default function RenderPersianeGalleryDetail() {
       )}
 
       <RenderCrmSummaryCard
-        createdBy={(session as { created_by?: string | null }).created_by}
-        contactId={(session as { contact_id?: string | null }).contact_id}
-        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+        createdBy={session.created_by}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
       />
 
       {renderConfig && (
@@ -329,58 +330,47 @@ export default function RenderPersianeGalleryDetail() {
           <div className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Piano di sostituzione</CardTitle>
+                <CardTitle className="text-sm">Scelte applicate</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {renderConfig.replacement_manifest.targetOpenings.map((item) => (
-                  <div key={item.openingId} className="rounded-lg border bg-muted/20 p-3">
-                    <p className="text-sm">{item.summary}</p>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="capitalize">
+                    {String(renderConfig.legacy_config.operazione ?? "sostituzione").replace(/_/g, " ")}
+                  </Badge>
+                  <Badge variant="secondary" className="capitalize">
+                    {String(renderConfig.legacy_config.tipo ?? "persiane").replace(/_/g, " ")}
+                  </Badge>
+                  <Badge variant="outline" className="capitalize">
+                    {String(renderConfig.legacy_config.materiale ?? "materiale selezionato").replace(/_/g, " ")}
+                  </Badge>
+                  {renderConfig.legacy_config.colore_nome ? (
+                    <Badge variant="outline" className="capitalize">
+                      {String(renderConfig.legacy_config.colore_nome).replace(/_/g, " ")}
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Aperture coinvolte</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {renderConfig.replacement_manifest.targetOpenings.map((item) => (
+                      <Badge key={item.openingId} variant="secondary">
+                        Apertura {item.openingId}
+                      </Badge>
+                    ))}
                   </div>
-                ))}
+                </div>
                 {renderConfig.replacement_manifest.untouchedOpenings.length > 0 && (
                   <div className="rounded-lg border bg-background p-3">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Aperture intoccate</p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {renderConfig.replacement_manifest.untouchedOpenings.map((opening) => (
                         <Badge key={opening.openingId} variant="outline">
-                          {opening.summary}
+                          Apertura {opening.openingId}
                         </Badge>
                       ))}
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Rimozioni e conversioni obbligatorie</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {renderConfig.replacement_manifest.removals.slice(0, 5).map((rule) => (
-                  <div key={rule.code} className="rounded-lg border bg-muted/20 p-3">
-                    <p className="text-sm">{rule.summary}</p>
-                    {rule.repairInstruction && (
-                      <p className="text-xs text-muted-foreground mt-1">{rule.repairInstruction}</p>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4" />
-                  Elementi da preservare
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {renderConfig.replacement_manifest.keepExactly.slice(0, 12).map((item) => (
-                  <Badge key={item} variant="outline">
-                    {item}
-                  </Badge>
-                ))}
               </CardContent>
             </Card>
           </div>

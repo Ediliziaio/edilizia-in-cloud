@@ -16,6 +16,7 @@ export interface RoomSceneAnalysis {
   movableObjects: string[];
   windowsAndDoors: string;
   kitchenElements: string[];
+  functionalAnchors: string[];
   floorDescription: string;
   wallDescription: string;
   ceilingDescription: string;

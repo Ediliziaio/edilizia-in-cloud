@@ -7,6 +7,17 @@ function pretty(value: string | null | undefined) {
   return value ? value.replace(/_/g, " ") : "non impostato";
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function valueFrom(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function SpecRow({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="rounded-lg border border-border/60 bg-background/70 px-3 py-2">
@@ -18,6 +29,14 @@ function SpecRow({ label, value }: { label: string; value: string | null | undef
 
 export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomRenderConfig }) {
   const { technical_specification: spec } = renderPlan;
+  const legacy = asRecord(renderPlan.legacy_config);
+  const wallTiles = asRecord(legacy.piastrelle_parete);
+  const floor = asRecord(legacy.pavimento);
+  const bathtub = asRecord(legacy.vasca);
+  const shower = asRecord(legacy.doccia);
+  const vanity = asRecord(legacy.vanity);
+  const sanitary = asRecord(legacy.sanitari);
+  const faucets = asRecord(legacy.rubinetteria);
   const activeSpecs = [
     spec.wallTiles.replace,
     spec.floor.replace,
@@ -55,14 +74,11 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <p className="text-sm font-semibold">Pareti</p>
               </div>
               <div className="grid gap-2">
-                <SpecRow label="Materiale" value={spec.wallTiles.effectDescription} />
-                <SpecRow label="Formato reale" value={`${spec.wallTiles.format} cm`} />
-                <SpecRow label="Posa" value={spec.wallTiles.layingPattern} />
-                <SpecRow label="Fuga" value={spec.wallTiles.groutColor} />
+                <SpecRow label="Materiale" value={valueFrom(wallTiles, "effetto") ?? spec.wallTiles.effectId} />
+                <SpecRow label="Formato" value={valueFrom(wallTiles, "formato") ?? spec.wallTiles.format} />
+                <SpecRow label="Posa" value={valueFrom(wallTiles, "posa") ?? spec.wallTiles.layingPattern} />
+                <SpecRow label="Fuga" value={valueFrom(wallTiles, "fuga_colore") ?? spec.wallTiles.groutColor} />
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                {spec.wallTiles.realScaleLockRule}
-              </p>
             </div>
           ) : null}
 
@@ -73,14 +89,11 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <p className="text-sm font-semibold">Pavimento</p>
               </div>
               <div className="grid gap-2">
-                <SpecRow label="Materiale" value={spec.floor.effectDescription} />
-                <SpecRow label="Formato reale" value={`${spec.floor.format} cm`} />
-                <SpecRow label="Posa" value={spec.floor.layingPattern} />
-                <SpecRow label="Fuga" value={spec.floor.groutColor} />
+                <SpecRow label="Materiale" value={valueFrom(floor, "effetto") ?? spec.floor.effectId} />
+                <SpecRow label="Formato" value={valueFrom(floor, "formato") ?? spec.floor.format} />
+                <SpecRow label="Posa" value={valueFrom(floor, "posa") ?? spec.floor.layingPattern} />
+                <SpecRow label="Fuga" value={valueFrom(floor, "fuga_colore") ?? spec.floor.groutColor} />
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                {spec.floor.realScaleLockRule}
-              </p>
             </div>
           ) : null}
 
@@ -91,14 +104,11 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <p className="text-sm font-semibold">Vasca</p>
               </div>
               <div className="grid gap-2">
-                <SpecRow label="Tipo" value={spec.bathtub.bathtubTypeLabel} />
-                <SpecRow label="Dimensione" value={spec.bathtub.nominalSize} />
-                <SpecRow label="Materiale" value={spec.bathtub.materialDescription} />
-                <SpecRow label="Rubinetteria" value={spec.bathtub.faucetPosition} />
+                <SpecRow label="Tipo" value={valueFrom(bathtub, "tipo") ?? spec.bathtub.bathtubTypeLabel} />
+                <SpecRow label="Dimensione" value={valueFrom(bathtub, "dimensione_cm") ?? spec.bathtub.nominalSize} />
+                <SpecRow label="Materiale" value={valueFrom(bathtub, "materiale") ?? spec.bathtub.materialDescription} />
+                <SpecRow label="Rubinetteria" value={valueFrom(bathtub, "rubinetteria_vasca") ?? spec.bathtub.faucetPosition} />
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                {spec.bathtub.scaleRule}
-              </p>
             </div>
           ) : null}
 
@@ -109,10 +119,10 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <p className="text-sm font-semibold">Doccia</p>
               </div>
               <div className="grid gap-2">
-                <SpecRow label="Tipo" value={spec.shower.showerTypeLabel} />
-                <SpecRow label="Vetro" value={spec.shower.glassType} />
-                <SpecRow label="Piatto" value={spec.shower.trayType} />
-                <SpecRow label="Profilo" value={spec.shower.frameFinish} />
+                <SpecRow label="Tipo" value={valueFrom(shower, "tipo") ?? spec.shower.showerTypeLabel} />
+                <SpecRow label="Vetro" value={valueFrom(shower, "box_vetro") ?? spec.shower.glassType} />
+                <SpecRow label="Piatto" value={valueFrom(shower, "piatto") ?? spec.shower.trayType} />
+                <SpecRow label="Profilo" value={valueFrom(shower, "profilo") ?? spec.shower.frameFinish} />
               </div>
             </div>
           ) : null}
@@ -124,10 +134,10 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <p className="text-sm font-semibold">Mobile e specchio</p>
               </div>
               <div className="grid gap-2">
-                <SpecRow label="Mobile" value={spec.vanity.styleLabel} />
-                <SpecRow label="Colore" value={spec.vanity.colorLabel} />
-                <SpecRow label="Top" value={spec.vanity.topDescription} />
-                <SpecRow label="Specchio" value={spec.vanity.mirrorType} />
+                <SpecRow label="Mobile" value={valueFrom(vanity, "stile") ?? spec.vanity.styleLabel} />
+                <SpecRow label="Colore" value={valueFrom(vanity, "colore") ?? spec.vanity.colorLabel} />
+                <SpecRow label="Top" value={valueFrom(vanity, "piano") ?? spec.vanity.topDescription} />
+                <SpecRow label="Specchio" value={valueFrom(vanity, "specchio") ?? spec.vanity.mirrorType} />
               </div>
             </div>
           ) : null}
@@ -139,10 +149,10 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <p className="text-sm font-semibold">Sanitari e metalli</p>
               </div>
               <div className="grid gap-2">
-                {spec.sanitaryWare.replace ? <SpecRow label="WC" value={spec.sanitaryWare.toiletType} /> : null}
-                {spec.sanitaryWare.replace ? <SpecRow label="Piastra WC" value={spec.sanitaryWare.flushPlateStyle} /> : null}
-                {spec.faucets.replace ? <SpecRow label="Finitura rubinetti" value={spec.faucets.finish} /> : null}
-                {spec.faucets.replace ? <SpecRow label="Stile rubinetti" value={spec.faucets.style} /> : null}
+                {spec.sanitaryWare.replace ? <SpecRow label="WC" value={valueFrom(sanitary, "tipo_wc") ?? spec.sanitaryWare.toiletType} /> : null}
+                {spec.sanitaryWare.replace ? <SpecRow label="Piastra WC" value={valueFrom(sanitary, "piastra_wc") ?? spec.sanitaryWare.flushPlateStyle} /> : null}
+                {spec.faucets.replace ? <SpecRow label="Finitura rubinetti" value={valueFrom(faucets, "finitura") ?? spec.faucets.finish} /> : null}
+                {spec.faucets.replace ? <SpecRow label="Stile rubinetti" value={valueFrom(faucets, "stile") ?? spec.faucets.style} /> : null}
               </div>
             </div>
           ) : null}

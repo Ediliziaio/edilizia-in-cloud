@@ -41,7 +41,7 @@ export default function RenderBagnoGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_bagno_sessions")
-        .select("*")
+        .select("id, stato, foto_originale_path, foto_originale_url, render_result_url, configurazione, tipo_intervento, analisi_bagno, provider_key, processing_started_at, processing_completed_at, created_at, galleria_titolo, galleria_note, user_id, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -56,12 +56,14 @@ export default function RenderBagnoGalleryDetail() {
         tipo_intervento: string | null;
         analisi_bagno: Record<string, unknown> | null;
         provider_key: string | null;
-        prompt_version: string | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
         galleria_titolo: string | null;
         galleria_note: string | null;
+        user_id: string | null;
+        contact_id: string | null;
+        opportunity_id: string | null;
       } | null;
     },
     enabled: !!id && !!companyId,
@@ -111,28 +113,6 @@ export default function RenderBagnoGalleryDetail() {
       scene.windowPresent ? `finestra ${scene.windowPosition.replace(/_/g, " ")}` : "senza finestra visibile",
       renderPlan.photo_meta?.orientation ? `foto ${renderPlan.photo_meta.orientation}` : "",
     ].filter(Boolean);
-  }, [renderPlan]);
-
-  const plannedChanges = useMemo(() => {
-    if (!renderPlan) return [];
-    return renderPlan.replacement_manifest.replacements
-      .filter((item) => !item.startsWith("Keep "))
-      .slice(0, 8);
-  }, [renderPlan]);
-
-  const plannedAdditions = useMemo(() => {
-    if (!renderPlan) return [];
-    return renderPlan.replacement_manifest.additions.slice(0, 6);
-  }, [renderPlan]);
-
-  const plannedRemovals = useMemo(() => {
-    if (!renderPlan) return [];
-    return renderPlan.replacement_manifest.removals.slice(0, 6);
-  }, [renderPlan]);
-
-  const preservedElements = useMemo(() => {
-    if (!renderPlan) return [];
-    return renderPlan.replacement_manifest.preserveExactly.slice(0, 10);
   }, [renderPlan]);
 
   const handleDownload = () => {
@@ -325,94 +305,30 @@ export default function RenderBagnoGalleryDetail() {
       )}
 
       <RenderCrmSummaryCard
-        createdBy={(session as { created_by?: string | null }).created_by}
-        contactId={(session as { contact_id?: string | null }).contact_id}
-        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+        createdBy={session.user_id}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
       />
 
       {renderPlan && <BathroomSelectionSummary renderPlan={renderPlan} />}
 
-      {/* Config summary */}
+      {/* Public scene summary: no operational prompt or replacement manifest is exposed here. */}
       {renderPlan && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Piano tecnico del render</CardTitle>
+            <CardTitle className="text-sm">Analisi sintetica della foto</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Analisi ambiente
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {sceneHighlights.map((item) => (
-                      <Badge key={item} variant="secondary" className="capitalize">
-                        {item}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Elementi da preservare
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {preservedElements.map((item) => (
-                      <Badge key={item} variant="outline" className="max-w-full whitespace-normal text-left">
-                        {item}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Modifiche pianificate
-                  </p>
-                  <ul className="mt-2 space-y-2 text-sm text-foreground">
-                    {plannedChanges.map((item) => (
-                      <li key={item} className="leading-relaxed">
-                        {item}
-                      </li>
-                    ))}
-                    {plannedChanges.length === 0 && (
-                      <li className="text-muted-foreground">Nessuna sostituzione esplicita registrata.</li>
-                    )}
-                  </ul>
-                </div>
-
-                {plannedAdditions.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Nuovi elementi
-                    </p>
-                    <ul className="mt-2 space-y-2 text-sm text-foreground">
-                      {plannedAdditions.map((item) => (
-                        <li key={item} className="leading-relaxed">
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {plannedRemovals.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Rimozioni obbligatorie
-                    </p>
-                    <ul className="mt-2 space-y-2 text-sm text-foreground">
-                      {plannedRemovals.map((rule) => (
-                        <li key={rule.code} className="leading-relaxed">
-                          {rule.summary}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+            <div className="rounded-xl border bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Ambiente rilevato
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {sceneHighlights.map((item) => (
+                  <Badge key={item} variant="secondary" className="capitalize">
+                    {item}
+                  </Badge>
+                ))}
               </div>
             </div>
 
@@ -421,11 +337,6 @@ export default function RenderBagnoGalleryDetail() {
                 <Badge variant="outline" className="text-xs gap-1">
                   <Zap className="h-3 w-3" />
                   {session.provider_key}
-                </Badge>
-              )}
-              {session.prompt_version && (
-                <Badge variant="outline" className="text-xs">
-                  Prompt v{session.prompt_version}
                 </Badge>
               )}
             </div>

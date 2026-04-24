@@ -65,6 +65,7 @@ Fixed architecture: ${normalizedConfig.scene_analysis.fixedArchitecture.join(", 
 Movable objects: ${normalizedConfig.scene_analysis.movableObjects.join(", ")}
 Windows / doors: ${normalizedConfig.scene_analysis.windowsAndDoors}
 Kitchen anchors: ${normalizedConfig.scene_analysis.kitchenElements.length ? normalizedConfig.scene_analysis.kitchenElements.join(", ") : "not a kitchen-specific intervention unless selected"}
+Functional anchors to preserve: ${normalizedConfig.scene_analysis.functionalAnchors.join(", ")}
 Current floor logic: ${normalizedConfig.scene_analysis.floorDescription}
 Current wall logic: ${normalizedConfig.scene_analysis.wallDescription}
 Current ceiling logic: ${normalizedConfig.scene_analysis.ceilingDescription}
@@ -82,9 +83,6 @@ ${interventionBullets(normalizedConfig)}
 
 Explicit removals / cleanup:
 ${bullets(normalizedConfig.replacement_manifest.removals.length ? normalizedConfig.replacement_manifest.removals : ["remove only elements made incompatible by selected interventions"])}
-
-Explicit additions / updates:
-${bullets(normalizedConfig.replacement_manifest.additions)}
 
 Strict preservation:
 ${bullets(normalizedConfig.replacement_manifest.strictPreservation)}`;
@@ -129,7 +127,7 @@ ${bullets([
       .join("\n\n"),
     negativePrompt:
       "different room, changed architecture, moved windows, moved doors, changed camera angle, changed image dimensions, random furniture, generic showroom, CGI, cartoon, warped perspective, object deformation, hybrid old/new surfaces",
-    promptVersion: "stanza-v2.0.0",
+    promptVersion: "stanza-v2.1.0",
     blocks,
     normalizedConfig,
     validation,

@@ -1050,6 +1050,17 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
                     />
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Note tecniche per il render</Label>
+                  <Textarea
+                    placeholder="es. lascia passaggio libero verso la finestra, non coprire il termosifone..."
+                    value={value.spazi_dettagli.note_tecniche ?? ""}
+                    onChange={(e) => set("spazi_dettagli", { ...value.spazi_dettagli!, note_tecniche: e.target.value })}
+                    disabled={disabled}
+                    rows={2}
+                    className="text-xs"
+                  />
+                </div>
               </AccordionContent>
             )}
           </AccordionItem>

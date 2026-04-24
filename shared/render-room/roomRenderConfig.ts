@@ -40,6 +40,58 @@ function normalizeRoomType(value: unknown): string {
   return ROOM_TYPE_LABELS[raw] ? raw : "altro";
 }
 
+function roomFunctionalAnchors(roomType: string): string[] {
+  const anchors: Record<string, string[]> = {
+    cucina: [
+      "cabinet layout and module rhythm",
+      "sink, cooktop, oven, fridge and appliance positions",
+      "countertop footprint and backsplash geometry",
+      "clear work triangle and walking path",
+    ],
+    soggiorno: [
+      "sofa and main seating footprint",
+      "TV/media wall or focal wall if visible",
+      "coffee table, rug and circulation path",
+      "window/door access and radiator positions",
+    ],
+    camera_da_letto: [
+      "bed position, headboard wall and bedside clearances",
+      "wardrobe/cabinet footprint",
+      "window, door and circulation around bed",
+    ],
+    sala_da_pranzo: [
+      "dining table position and chair clearance",
+      "sideboard/display furniture footprint",
+      "path around the table and openings",
+    ],
+    studio: [
+      "desk position and working clearance",
+      "bookcase/storage footprint",
+      "screen, sockets and light direction if visible",
+    ],
+    ingresso: [
+      "door swing area and passage clearance",
+      "coat/storage footprint",
+      "thresholds and hallway perspective",
+    ],
+    corridoio: [
+      "longitudinal perspective",
+      "door sequence and wall alignments",
+      "clear walking path",
+    ],
+    bagno: [
+      "sanitary fixture positions",
+      "vanity and mirror wall",
+      "shower/bathtub footprint if visible",
+    ],
+  };
+  return anchors[roomType] ?? [
+    "main furniture footprint",
+    "walking/circulation path",
+    "visible openings and fixed technical points",
+  ];
+}
+
 function mapRoomFloorType(value: unknown): TipoPavimento {
   const raw = str(value, "gres_porcellanato");
   const map: Record<string, TipoPavimento> = {
@@ -159,6 +211,9 @@ export function normalizeRoomSceneAnalysis(rawAnalysis?: unknown, rawConfig?: un
     kitchenElements: roomType === "cucina"
       ? ["cabinet layout", "sink position", "appliance positions", "countertop footprint", "backsplash geometry"]
       : [],
+    functionalAnchors: Array.isArray(analysis.ancore_funzione)
+      ? analysis.ancore_funzione.map(String)
+      : roomFunctionalAnchors(roomType),
     floorDescription: bool(floor.attivo)
       ? "existing floor will be replaced according to the selected floor manifest"
       : "existing floor must remain unchanged",
@@ -217,13 +272,26 @@ function buildFurnitureIntervention(furniture: Record<string, unknown>): RoomInt
 }
 
 function buildLightingIntervention(light: Record<string, unknown>): RoomIntervention {
+  const type = str(light.tipo, "misto");
+  const mountingRule = type === "misto"
+    ? "Use the existing visible lighting points as anchors; add only subtle integrated support lighting if physically plausible."
+    : type === "lampadario_centrale" || type === "lampade_sospensione"
+      ? "Use ceiling suspension points that are plausible in the photographed room; keep fixture scale proportional and avoid blocking sightlines."
+      : type === "applique_parete"
+        ? "Mount wall lights only on plausible wall planes with believable wiring/height and no overlap with art, switches or windows."
+        : type === "led_strip_perimetrale"
+          ? "Use concealed linear LED only along credible coves, shelves, under-cabinet runs or ceiling edges already compatible with the room."
+          : "Use recessed downlights only on plausible ceiling planes with realistic spacing and light cones.";
+
   return {
     key: "lighting",
     label: "Lighting",
-    specification: `Install/adjust ${str(light.tipo, "mixed lighting").replace(/_/g, " ")} with ${str(light.temperatura, "warm neutral")} color temperature and ${str(light.intensita_luce, "normal")} intensity.`,
+    specification: `Install/adjust ${type.replace(/_/g, " ")} with ${str(light.temperatura, "warm neutral").replace(/_/g, " ")} color temperature and ${str(light.intensita_luce, "normal").replace(/_/g, " ")} intensity.`,
     replacementRules: [
+      mountingRule,
       "Lighting fixtures must be physically mounted to plausible ceiling/wall positions.",
       "Light spill, shadows and reflections must remain consistent with the original photo and selected fixture type.",
+      "Do not invent a decorative chandelier, pendant cluster or visible fixture type unless that exact lighting type is selected.",
     ],
     preservationRules: ["Do not invent extra windows or change daylight direction."],
   };
@@ -241,6 +309,7 @@ function buildKitchenIntervention(kitchen: Record<string, unknown>): RoomInterve
     replacementRules: [
       "Preserve the photographed kitchen cabinet layout, module rhythm, sink position, appliance positions and backsplash geometry.",
       "Change cabinet fronts, handles and countertop only; do not invent a new kitchen footprint.",
+      "Keep base cabinets, wall cabinets, tall units and appliance voids aligned to the original perspective and real kitchen ergonomics.",
       bool(kitchen.cambia_piano_cottura)
         ? "Cooktop may be modernized in the same countertop position with correct scale and reflections."
         : "Keep the existing cooktop/appliance positions unchanged.",
@@ -290,9 +359,9 @@ export function buildRoomReplacementManifest(
     floorPromptExcerpt = [
       `Floor material: ${snapshot.technical_specification.materialDescription}`,
       `Format/scale: ${snapshot.technical_specification.formatRule}`,
-      `Pattern: ${snapshot.replacement_manifest.patternRules.join(" ")}`,
-      `Joints: ${snapshot.replacement_manifest.jointRules.join(" ")}`,
-      `Skirting: ${snapshot.replacement_manifest.skirtingRules.join(" ")}`,
+      `Pattern: ${snapshot.replacement_manifest.patternRules.slice(0, 2).join(" ")}`,
+      `Joints: ${snapshot.replacement_manifest.jointRules.slice(0, 2).join(" ")}`,
+      `Skirting: ${snapshot.replacement_manifest.skirtingRules.slice(0, 2).join(" ")}`,
     ].join("\n");
     active.push({
       key: "floor",
@@ -301,6 +370,7 @@ export function buildRoomReplacementManifest(
       replacementRules: [
         "Use the full floor coverage/pattern rules below; the floor must follow the room perspective and object contact shadows.",
         "Do not alter walls, furniture, doors, windows or ceiling while replacing the floor.",
+        "Never leave patches, ghosts, grout traces or color remnants from the previous floor on the replaced floor area.",
         ...snapshot.replacement_manifest.removals,
       ],
       preservationRules: snapshot.replacement_manifest.preservation,
@@ -369,10 +439,12 @@ export function buildRoomReplacementManifest(
         str(details.elementi_da_aggiungere) ? `Add: ${str(details.elementi_da_aggiungere)}.` : "",
         str(details.elementi_da_rimuovere) ? `Remove: ${str(details.elementi_da_rimuovere)}.` : "",
         str(details.elementi_da_mantenere) ? `Strictly keep: ${str(details.elementi_da_mantenere)}.` : "",
+        str(details.note_tecniche) ? `Technical notes: ${str(details.note_tecniche)}.` : "",
       ].filter(Boolean).join(" "),
       [
         "Any added decor must be realistic, sparse and physically placed on existing surfaces.",
         "Do not fill empty areas with random objects; preserve usable space and circulation.",
+        "If the layout strategy is keep-layout, do not move any major furniture; if optimizing space, keep changes local and plausible without changing architecture.",
       ],
     ));
   }
@@ -391,6 +463,7 @@ export function buildRoomReplacementManifest(
     additions: active.map((item) => item.specification),
     strictPreservation: [
       ...ROOM_INTEGRITY_CONSTRAINTS,
+      ...(scene?.functionalAnchors ?? []).map((item) => `preserve functional anchor: ${item}`),
       ...(scene?.fixedArchitecture ?? []).map((item) => `preserve ${item}`),
     ],
     geometryRules: [

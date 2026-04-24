@@ -34,7 +34,7 @@ export default function RenderFacciataGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_facciata_sessions")
-        .select("*")
+        .select("id, status, original_photo_url, result_urls, config, foto_analisi, provider_key, cost_billed, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -247,33 +247,17 @@ export default function RenderFacciataGalleryDetail() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Intervento pianificato</CardTitle>
+              <CardTitle className="text-sm">Scelte applicate</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {renderConfig.replacement_manifest.replacements.map((line) => (
-                <div key={line} className="rounded-lg border p-3 text-sm">{line}</div>
+            <CardContent className="flex flex-wrap gap-2">
+              {renderConfig.replacement_manifest.activeSystems.map((item) => (
+                <Badge key={item} variant="secondary">{item.replace(/_/g, " ")}</Badge>
               ))}
-              {renderConfig.replacement_manifest.repaintActions.map((line) => (
-                <div key={line} className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-sm">{line}</div>
-              ))}
+              {renderConfig.legacy_config.tipo_intervento ? (
+                <Badge variant="outline">{renderConfig.legacy_config.tipo_intervento.replace(/_/g, " ")}</Badge>
+              ) : null}
             </CardContent>
           </Card>
-
-          {renderConfig.replacement_manifest.removals.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Rimozioni e ripristini</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {renderConfig.replacement_manifest.removals.map((rule) => (
-                  <div key={rule.code} className="rounded-lg border p-3 text-sm">
-                    <p>{rule.summary}</p>
-                    {rule.patchRule && <p className="mt-2 text-xs text-muted-foreground">{rule.patchRule}</p>}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         <div className="space-y-4">
@@ -284,17 +268,6 @@ export default function RenderFacciataGalleryDetail() {
             <CardContent className="flex flex-wrap gap-2">
               {renderConfig.replacement_manifest.targetedZones.map((zone) => (
                 <Badge key={zone} variant="secondary">{zone}</Badge>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Elementi da preservare</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {renderConfig.replacement_manifest.keepExactly.slice(0, 14).map((item) => (
-                <Badge key={item} variant="outline">{item}</Badge>
               ))}
             </CardContent>
           </Card>

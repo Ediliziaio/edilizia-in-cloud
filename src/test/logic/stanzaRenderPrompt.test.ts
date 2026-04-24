@@ -46,7 +46,24 @@ describe("room render prompt pipeline", () => {
     const text = prompt.userPrompt.toLowerCase();
     expect(text).toContain("preserve the photographed kitchen cabinet layout");
     expect(text).toContain("sink position");
+    expect(text).toContain("clear work triangle");
     expect(text).toContain("keep the existing cooktop");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("keeps mixed lighting from inventing unrelated decorative fixtures", () => {
+    const cfg = config();
+    cfg.illuminazione = {
+      ...cfg.illuminazione,
+      attivo: true,
+      tipo: "misto",
+      temperatura: "neutra_3000k",
+    };
+
+    const prompt = buildRoomPrompt(cfg);
+    const text = prompt.userPrompt.toLowerCase();
+    expect(text).toContain("use the existing visible lighting points as anchors");
+    expect(text).toContain("do not invent a decorative chandelier");
     expect(prompt.validation.isValid).toBe(true);
   });
 
@@ -96,6 +113,22 @@ describe("room render prompt pipeline", () => {
     expect(text).toContain("applique laterali");
     expect(text).toContain("mobile basso vecchio");
     expect(text).toContain("divano e porta finestra");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("never leaks undefined strings into the final room prompt", () => {
+    const cfg = config();
+    cfg.pavimento = {
+      ...cfg.pavimento,
+      attivo: true,
+      tipo: "resina",
+      formato_piastrella: "continuo",
+      fuga_larghezza_mm: 0,
+    };
+
+    const prompt = buildRoomPrompt(cfg);
+    expect(prompt.userPrompt).not.toContain("undefined");
+    expect(prompt.systemPrompt).not.toContain("undefined");
     expect(prompt.validation.isValid).toBe(true);
   });
 });

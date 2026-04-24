@@ -35,7 +35,7 @@ export default function RenderTettoGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_tetto_sessions")
-        .select("*")
+        .select("id, status, original_photo_url, result_urls, config, provider_key, cost_billed, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -48,11 +48,13 @@ export default function RenderTettoGalleryDetail() {
         config: Record<string, unknown> | null;
         provider_key: string | null;
         cost_billed: number | null;
-        prompt_used: string | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
         error_message: string | null;
+        created_by: string | null;
+        contact_id: string | null;
+        opportunity_id: string | null;
       } | null;
     },
     enabled: !!id && !!companyId,
@@ -227,9 +229,9 @@ export default function RenderTettoGalleryDetail() {
       )}
 
       <RenderCrmSummaryCard
-        createdBy={(session as { created_by?: string | null }).created_by}
-        contactId={(session as { contact_id?: string | null }).contact_id}
-        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+        createdBy={session.created_by}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
       />
 
       {/* Config summary */}

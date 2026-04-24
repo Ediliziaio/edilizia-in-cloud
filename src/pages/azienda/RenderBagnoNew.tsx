@@ -877,24 +877,21 @@ export default function RenderBagnoNew() {
 
             <Card className="border-border/60">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Piano di sostituzione</CardTitle>
+                <CardTitle className="text-sm">Scelte principali</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <div className="space-y-1.5">
-                  {renderPlan.replacement_manifest.replacements.slice(0, 4).map((line) => (
-                    <p key={line}>• {line}</p>
-                  ))}
-                </div>
-                <div className="pt-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Da preservare</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {renderPlan.replacement_manifest.preserveExactly.slice(0, 6).map((item) => (
-                      <Badge key={item} variant="outline" className="text-[11px]">
-                        {item}
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(config.sostituzione)
+                    .filter(([, active]) => active)
+                    .map(([key]) => (
+                      <Badge key={key} variant="secondary" className="text-[11px] capitalize">
+                        {key.replace(/_/g, " ")}
                       </Badge>
                     ))}
-                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Le istruzioni operative del render sono protette: qui mostriamo solo le scelte configurate.
+                </p>
               </CardContent>
             </Card>
           </div>
