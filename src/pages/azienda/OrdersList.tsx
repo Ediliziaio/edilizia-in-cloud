@@ -252,95 +252,39 @@ function OrdersListInner() {
   const rawOrders = ordersResult?.orders ?? [];
   const totalCount = ordersResult?.totalCount ?? 0;
 
-  // B2 — query aggregati separata: calcola totali su TUTTI gli ordini filtrati, non solo la pagina
-  const { data: aggregates } = useQuery({
-    queryKey: ["orders-aggregates", effectiveCompany?.id, debouncedSearch, statusFilter, paymentFilter,
-      customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter,
-      hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange],
+  // KPI stats "assoluti": sempre tutti gli ordini azienda, NON toccati da
+  // nessun filtro (In Corso, statusFilter, payment, date, etc.). Le card
+  // devono mostrare la realtà aziendale, non la vista correntemente filtrata.
+  const { data: globalStats } = useQuery({
+    queryKey: ["orders-global-stats", effectiveCompany?.id, lastStatusId, supportStatusId],
     queryFn: async () => {
-      const EMPTY = { totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0 };
+      const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0 };
       if (!effectiveCompany?.id) return EMPTY;
-
-      let allowedIds: string[] | null = null;
-      if (salespersonFilter !== "all") {
-        const { data: r } = await supabase.from("order_salespeople").select("order_id").eq("salesperson_id", salespersonFilter);
-        const ids = (r || []).map(x => x.order_id);
-        if (!ids.length) return EMPTY;
-        allowedIds = ids;
-      }
-      if (laborFilter !== "all") {
-        const isTeam = laborFilter.startsWith("team-");
-        const realId = laborFilter.replace(/^(emp-|team-)/, "");
-        const { data: r } = await supabase
-          .from(isTeam ? "order_external_teams" : "order_employees")
-          .select("order_id")
-          .eq(isTeam ? "external_team_id" : "employee_id", realId);
-        const ids = (r || []).map(x => x.order_id);
-        if (!ids.length) return EMPTY;
-        allowedIds = allowedIds ? allowedIds.filter(id => ids.includes(id)) : ids;
-      }
-      if (supplierFilter !== "all") {
-        const { data: r } = await supabase.from("order_items").select("order_id").eq("supplier_id", supplierFilter);
-        const ids = [...new Set((r || []).map(x => x.order_id))];
-        if (!ids.length) return EMPTY;
-        allowedIds = allowedIds ? allowedIds.filter(id => ids.includes(id)) : ids;
-      }
-      if (allowedIds !== null && allowedIds.length === 0) return EMPTY;
-
-      let q = supabase
+      const { data, error } = await supabase
         .from("orders")
         .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_paid, payment_type, current_status_id")
         .eq("company_id", effectiveCompany.id);
-      if (allowedIds !== null) q = q.in("id", allowedIds);
-      if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
-      if (paymentFilter === "pending") q = q.or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false");
-      else if (paymentFilter === "paid") q = q.eq("deposit_paid", true).eq("balance_paid", true);
-      if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
-      if (statusFilter === "__da_completare__") {
-        const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
-        if (excl.length) q = q.not("current_status_id", "in", `(${excl.join(",")})`);
-      } else if (statusFilter === "__assistenza__") {
-        if (supportStatusId) q = q.eq("current_status_id", supportStatusId);
-      } else if (statusFilter === "__completati__") {
-        if (lastStatusId) q = q.eq("current_status_id", lastStatusId);
-      } else if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
-      if (hideCompleted && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
-      if (amountMin) q = q.gte("total_amount", parseFloat(amountMin));
-      if (amountMax) q = q.lte("total_amount", parseFloat(amountMax));
-      if (contractDateRange.from) q = q.gte("created_at", contractDateRange.from.toISOString());
-      if (contractDateRange.to) q = q.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
-      if (warehouseDateRange.from) q = q.gte("warehouse_arrival_date", warehouseDateRange.from.toISOString().split("T")[0]);
-      if (warehouseDateRange.to) q = q.lte("warehouse_arrival_date", new Date(warehouseDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
-      if (expectedDateRange.from) q = q.gte("expected_date", expectedDateRange.from.toISOString().split("T")[0]);
-      if (expectedDateRange.to) q = q.lte("expected_date", new Date(expectedDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
-
-      const { data, error } = await q;
       if (error) throw error;
       const rows = data || [];
       const totalGross = rows.reduce((sum, o) => sum + (o.total_amount || 0) * (1 + ((o.vat_rate ?? 22) / 100)), 0);
       const collected = rows.reduce((sum, o) => sum + getAmountCollected(o as any), 0);
       const pending = rows.reduce((sum, o) => sum + getAmountDue(o as any), 0);
-
-      // Ripartizione per stato:
-      // - Assistenza = is_support_phase
-      // - Completati = stato con position massima fra quelli non-Assistenza
-      // - Da Completare = tutti gli altri (incluso senza stato)
       let countAssistenza = 0;
       let countCompletati = 0;
       for (const o of rows) {
-        if (o.current_status_id && supportStatusId && o.current_status_id === supportStatusId) {
-          countAssistenza++;
-        } else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) {
-          countCompletati++;
-        }
+        if (o.current_status_id && supportStatusId && o.current_status_id === supportStatusId) countAssistenza++;
+        else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
       }
       const countDaCompletare = rows.length - countAssistenza - countCompletati;
-
-      return { totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare };
+      return { totalOrders: rows.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare };
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
   });
+
+  // (Rimossa la query "aggregates" filtrata: le KPI cards ora usano globalStats
+  // che NON reagisce ai filtri. Se in futuro serviranno statistiche della vista
+  // corrente, vanno derivate da `rawOrders` o da una nuova query dedicata.)
 
   // B3 — query indipendente per la vista Pipeline (tutti gli ordini, nessuna paginazione)
   const { data: allOrdersForPipeline = [] } = useQuery({
@@ -873,16 +817,18 @@ function OrdersListInner() {
   const showingFrom = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const showingTo = Math.min(page * pageSize, totalCount);
 
-  // B2 — stats usa la query aggregati (tutti gli ordini filtrati, non solo la pagina)
+  // KPI card usa globalStats (ignora filtri) per mostrare SEMPRE i totali reali.
+  // Le card cliccabili applicano il filtro alla TABELLA, ma i numeri restano
+  // costanti: agiscono come selettore, non come specchio del filtro attivo.
   const stats = useMemo(() => ({
-    totalOrders: totalCount,
-    totalGross: aggregates?.totalGross ?? 0,
-    collected: aggregates?.collected ?? 0,
-    pending: aggregates?.pending ?? 0,
-    countAssistenza: aggregates?.countAssistenza ?? 0,
-    countCompletati: aggregates?.countCompletati ?? 0,
-    countDaCompletare: aggregates?.countDaCompletare ?? 0,
-  }), [totalCount, aggregates]);
+    totalOrders: globalStats?.totalOrders ?? 0,
+    totalGross: globalStats?.totalGross ?? 0,
+    collected: globalStats?.collected ?? 0,
+    pending: globalStats?.pending ?? 0,
+    countAssistenza: globalStats?.countAssistenza ?? 0,
+    countCompletati: globalStats?.countCompletati ?? 0,
+    countDaCompletare: globalStats?.countDaCompletare ?? 0,
+  }), [globalStats]);
 
   // Export CSV
   // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
