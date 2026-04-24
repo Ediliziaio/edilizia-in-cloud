@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,18 +18,32 @@ function StatusIntegrationCard({ name, description, icon: Icon, iconColor, statu
   name: string; description: string; icon: any; iconColor: string;
   status: "connected" | "not_configured"; detail?: string;
 }) {
+  const connected = status === "connected";
   return (
-    <Card className="flex flex-col">
+    <Card className={cn(
+      "flex flex-col overflow-hidden border-l-4 transition-colors",
+      connected ? "border-l-emerald-500" : "border-l-slate-300"
+    )}>
       <CardHeader className="flex-row items-start gap-3 space-y-0">
-        <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
-          <Icon className={`h-5 w-5 ${iconColor}`} />
+        <div className={cn(
+          "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
+          connected ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-muted"
+        )}>
+          <Icon className={cn("h-5 w-5", iconColor)} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-base">{name}</CardTitle>
-            <Badge variant={status === "connected" ? "default" : "secondary"} className="text-[10px]">
-              {status === "connected" ? "Connesso" : "Non configurato"}
-            </Badge>
+            {connected ? (
+              <Badge className="text-[10px] gap-1 bg-emerald-600 hover:bg-emerald-600">
+                <CheckCircle2 className="h-2.5 w-2.5" />
+                Connesso
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                Non configurato
+              </Badge>
+            )}
           </div>
           <CardDescription className="mt-1 line-clamp-2">{description}</CardDescription>
         </div>
@@ -310,23 +325,41 @@ export default function SettingsIntegrations() {
     );
   }, [search, waConfig, stripeConfig]);
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Integrazioni</h1>
-        <p className="text-muted-foreground mt-1">
-          Collega servizi esterni per sincronizzare dati e automatizzare i processi.
-        </p>
-      </div>
+  // KPI integrazioni collegate
+  const connectedCount = mainIntegrations.filter(
+    (i) => i.integration?.status === "connected" || i.stats?.isConnected
+  ).length;
+  const totalCount = mainIntegrations.length;
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Cerca integrazioni..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+  return (
+    <div className="space-y-5">
+      {/* Header standardizzato */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Plug className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Integrazioni</h1>
+            <p className="text-sm text-muted-foreground">
+              Collega servizi esterni per sincronizzare dati e automatizzare processi
+              {totalCount > 0 && (
+                <> · <span className="font-medium text-foreground">{connectedCount}</span>
+                  <span className="text-muted-foreground">/{totalCount}</span> connesse
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="relative w-full sm:w-auto sm:min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Cerca integrazioni..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

@@ -35,7 +35,9 @@ import {
 import {
   Plus, Globe, Pencil, Trash2, Activity, CheckCircle2,
   XCircle, Clock, RotateCcw, RefreshCw, Zap, Loader2,
+  AlertTriangle, Webhook as WebhookIcon, ShieldCheck,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ===== WebhookFormDialog =====
 function WebhookFormDialog({
@@ -123,6 +125,15 @@ function WebhookFormDialog({
       toast({ title: "Campi obbligatori", description: "Inserisci nome, URL e seleziona almeno un evento.", variant: "destructive" });
       return;
     }
+    // Validazione HTTPS (i webhook production devono essere HTTPS)
+    if (!url.startsWith("https://") && !url.startsWith("http://localhost") && !url.startsWith("http://127.0.0.1")) {
+      toast({
+        title: "URL non valido",
+        description: "I webhook devono usare HTTPS (o localhost per testing).",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       if (webhook) {
         await updateMutation.mutateAsync({ id: webhook.id, name, url, secret: secret || null, events: selectedEvents });
@@ -131,8 +142,12 @@ function WebhookFormDialog({
       }
       toast({ title: webhook ? "Webhook aggiornato" : "Webhook creato" });
       onOpenChange(false);
-    } catch {
-      toast({ title: "Errore", description: "Impossibile salvare il webhook.", variant: "destructive" });
+    } catch (e) {
+      toast({
+        title: "Errore salvataggio webhook",
+        description: (e as Error).message || "Impossibile salvare il webhook.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -242,17 +257,35 @@ function DeliveriesSheet({
   const { data: deliveries = [], isLoading } = useWebhookDeliveries(open ? webhook?.id ?? null : null);
   const retryMutation = useRetryDelivery(webhook?.id ?? null);
   const { toast } = useToast();
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  // Reset paginazione quando si apre sheet nuovo
+  useEffect(() => {
+    if (open) setVisibleCount(20);
+  }, [open, webhook?.id]);
+
+  // KPI successi/fallimenti su deliveries caricate
+  const stats = (() => {
+    const success = deliveries.filter((d) => d.status === "success").length;
+    const failed = deliveries.filter((d) => d.status === "failed").length;
+    const total = deliveries.length;
+    const successRate = total > 0 ? Math.round((success / total) * 100) : null;
+    return { success, failed, total, successRate };
+  })();
+
+  const visibleDeliveries = deliveries.slice(0, visibleCount);
+  const hasMore = visibleCount < deliveries.length;
 
   const statusConfig: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-    success:  { label: "Successo",  className: "text-green-600 bg-green-100",  icon: CheckCircle2 },
-    failed:   { label: "Fallito",   className: "text-destructive bg-red-100",  icon: XCircle },
-    pending:  { label: "In attesa", className: "text-yellow-600 bg-yellow-100", icon: Clock },
-    retrying: { label: "Retry",     className: "text-blue-600 bg-blue-100",    icon: RotateCcw },
+    success:  { label: "Successo",  className: "text-green-600 bg-green-100 dark:bg-green-950/30 dark:text-green-400",  icon: CheckCircle2 },
+    failed:   { label: "Fallito",   className: "text-destructive bg-red-100 dark:bg-red-950/30 dark:text-red-400",  icon: XCircle },
+    pending:  { label: "In attesa", className: "text-yellow-600 bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-400", icon: Clock },
+    retrying: { label: "Retry",     className: "text-blue-600 bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400",    icon: RotateCcw },
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
@@ -261,13 +294,42 @@ function DeliveriesSheet({
           <SheetDescription>Ultimi 100 invii per questo webhook.</SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 space-y-3">
+        {/* KPI statistiche */}
+        {!isLoading && deliveries.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mt-4 p-3 rounded-lg bg-muted/30 border">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Totali</p>
+              <p className="text-lg font-bold tabular-nums">{stats.total}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Successi</p>
+              <p className="text-lg font-bold tabular-nums text-emerald-600">{stats.success}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Success rate</p>
+              <p className={cn(
+                "text-lg font-bold tabular-nums",
+                stats.successRate != null && stats.successRate >= 95 ? "text-emerald-600"
+                : stats.successRate != null && stats.successRate >= 80 ? "text-amber-600"
+                : "text-destructive"
+              )}>
+                {stats.successRate != null ? `${stats.successRate}%` : "—"}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 space-y-3">
           {isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
           ) : deliveries.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Nessun delivery trovato.</p>
+            <div className="text-center py-12">
+              <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="font-medium">Nessun delivery ancora</p>
+              <p className="text-xs text-muted-foreground mt-1">I log appariranno qui dopo il primo evento inviato.</p>
+            </div>
           ) : (
-            deliveries.map((d) => {
+            visibleDeliveries.map((d) => {
               const cfg = statusConfig[d.status] || statusConfig.failed;
               const Icon = cfg.icon;
               return (
@@ -291,13 +353,22 @@ function DeliveriesSheet({
                             try {
                               await retryMutation.mutateAsync(d.id);
                               toast({ title: "Retry inviato" });
-                            } catch {
-                              toast({ title: "Errore retry", variant: "destructive" });
+                            } catch (e) {
+                              toast({
+                                title: "Errore retry",
+                                description: (e as Error).message,
+                                variant: "destructive",
+                              });
                             }
                           }}
                           disabled={retryMutation.isPending}
                         >
-                          <RotateCcw className="h-3 w-3 mr-1" />Riprova
+                          {retryMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                          )}
+                          Riprova
                         </Button>
                       )}
                     </div>
@@ -310,6 +381,18 @@ function DeliveriesSheet({
                 </div>
               );
             })
+          )}
+
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVisibleCount((n) => n + 20)}
+              >
+                Carica altri {Math.min(20, deliveries.length - visibleCount)}
+              </Button>
+            </div>
           )}
         </div>
       </SheetContent>
@@ -342,27 +425,48 @@ export default function SettingsWebhooks() {
     try {
       await deleteMutation.mutateAsync(id);
       toast({ title: "Webhook eliminato" });
-    } catch {
-      toast({ title: "Errore", description: "Impossibile eliminare il webhook.", variant: "destructive" });
+    } catch (e) {
+      toast({
+        title: "Errore eliminazione",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
     }
   };
 
   const handleToggleActive = async (w: Webhook) => {
     try {
       await updateMutation.mutateAsync({ id: w.id, is_active: !w.is_active });
-    } catch {
-      toast({ title: "Errore", description: "Impossibile aggiornare lo stato del webhook.", variant: "destructive" });
+    } catch (e) {
+      toast({
+        title: "Errore",
+        description: "Impossibile aggiornare lo stato: " + (e as Error).message,
+        variant: "destructive",
+      });
     }
   };
 
+  const activeCount = webhooks.filter((w) => w.is_active).length;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Webhook</h2>
-          <p className="text-muted-foreground">Ricevi notifiche in tempo reale sugli eventi del tuo CRM su URL esterni.</p>
+    <div className="space-y-5">
+      {/* Header standardizzato */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <WebhookIcon className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Webhook</h1>
+            <p className="text-sm text-muted-foreground">
+              Ricevi notifiche eventi CRM su endpoint esterni
+              {webhooks.length > 0 && (
+                <> · <span className="font-medium text-foreground">{activeCount}</span> attivi / {webhooks.length} totali</>
+              )}
+            </p>
+          </div>
         </div>
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} className="h-9" size="sm">
           <Plus className="h-4 w-4 mr-2" />Crea Webhook
         </Button>
       </div>
@@ -370,55 +474,104 @@ export default function SettingsWebhooks() {
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : webhooks.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Globe className="h-12 w-12 text-muted-foreground/40 mb-4" />
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-14">
+            <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-4">
+              <WebhookIcon className="h-7 w-7 text-muted-foreground" />
+            </div>
             <h3 className="text-lg font-semibold">Nessun webhook configurato</h3>
-            <p className="text-muted-foreground text-sm mb-4">Crea il tuo primo webhook per integrare sistemi esterni.</p>
-            <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Crea Webhook</Button>
+            <p className="text-muted-foreground text-sm mb-4 text-center max-w-md">
+              I webhook ti permettono di ricevere notifiche in tempo reale quando
+              accadono eventi nel tuo CRM — creazione contatti, opportunità chiuse, ecc.
+            </p>
+            <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Crea il primo webhook</Button>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {webhooks.map((w) => (
-            <Card key={w.id}>
-              <CardContent className="flex items-center justify-between py-4">
-                <div className="flex items-center gap-4 min-w-0">
-                  <Globe className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <h3 className="font-semibold truncate">{w.name}</h3>
-                    <p className="text-sm text-muted-foreground truncate">{w.url}</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <Badge variant="secondary">{w.events.length} eventi</Badge>
-                      {w.secret && <Badge variant="outline">Firmato</Badge>}
-                      <span className="text-xs text-muted-foreground">Creato {formatRelativeTime(w.created_at)}</span>
+          {webhooks.map((w) => {
+            // Colore border-l: verde se attivo, grigio se spento
+            const borderColor = w.is_active ? "border-l-emerald-500" : "border-l-slate-300";
+            return (
+              <Card key={w.id} className={cn("overflow-hidden border-l-4 transition-colors", borderColor)}>
+                <CardContent className="flex items-center justify-between py-4 gap-4">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className={cn(
+                      "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
+                      w.is_active ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-muted"
+                    )}>
+                      <Globe className={cn(
+                        "h-4 w-4",
+                        w.is_active ? "text-emerald-600" : "text-muted-foreground"
+                      )} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold truncate">{w.name}</h3>
+                        {!w.is_active && (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">In pausa</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate font-mono">{w.url}</p>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <Badge variant="secondary" className="text-[10px] gap-1">
+                          <Zap className="h-2.5 w-2.5" /> {w.events.length} event{w.events.length === 1 ? "o" : "i"}
+                        </Badge>
+                        {w.secret && (
+                          <Badge variant="outline" className="text-[10px] gap-1 text-emerald-700 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30">
+                            <ShieldCheck className="h-2.5 w-2.5" /> Firmato HMAC
+                          </Badge>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">Creato {formatRelativeTime(w.created_at)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <Switch checked={w.is_active} onCheckedChange={() => handleToggleActive(w)} />
-                  <Button variant="ghost" size="icon" onClick={() => openLogs(w)}><Activity className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(w)}><Pencil className="h-4 w-4" /></Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4" /></Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Elimina webhook?</AlertDialogTitle>
-                        <AlertDialogDescription>Verranno eliminati anche tutti i log di delivery. Questa azione è irreversibile.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Annulla</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(w.id)}>Elimina</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Switch
+                      checked={w.is_active}
+                      onCheckedChange={() => handleToggleActive(w)}
+                      disabled={updateMutation.isPending}
+                    />
+                    <Button variant="ghost" size="icon" onClick={() => openLogs(w)} title="Log delivery" className="h-8 w-8">
+                      <Activity className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(w)} title="Modifica" className="h-8 w-8">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" title="Elimina" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Elimina il webhook "{w.name}"?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Verranno eliminati anche tutti i log di delivery. Gli eventi futuri non
+                            verranno più inviati a <code className="text-xs bg-muted px-1 py-0.5 rounded">{w.url}</code>. Azione irreversibile.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(w.id)}
+                            disabled={deleteMutation.isPending}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            {deleteMutation.isPending ? (
+                              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Elimino...</>
+                            ) : "Elimina"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
