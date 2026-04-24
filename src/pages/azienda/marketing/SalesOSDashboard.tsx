@@ -56,22 +56,64 @@ const fmt = (v: number) =>
 
 const pct = (v: number) => `${v.toFixed(1)}%`;
 
+// ─── WidgetState: loading / error / empty helper (Sprint 1.3) ──────────────
+function WidgetState({
+  loading, error, empty, loadingText = "Caricamento...", emptyText = "Nessun dato", height = 200,
+}: {
+  loading?: boolean; error?: Error | null | unknown; empty?: boolean;
+  loadingText?: string; emptyText?: string; height?: number;
+}) {
+  const baseClass = `flex items-center justify-center`;
+  const hStyle = { minHeight: `${height}px` };
+  if (loading) {
+    return (
+      <div className={baseClass} style={hStyle}>
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">{loadingText}</span>
+      </div>
+    );
+  }
+  if (error) {
+    const msg = (error as { message?: string })?.message ?? "Errore caricamento dati";
+    return (
+      <div className={`${baseClass} flex-col gap-2 px-4 text-center`} style={hStyle}>
+        <AlertTriangle className="h-5 w-5 text-red-500" />
+        <p className="text-sm text-red-600 font-medium">Impossibile caricare i dati</p>
+        <p className="text-xs text-muted-foreground max-w-xs break-words">{msg}</p>
+      </div>
+    );
+  }
+  if (empty) {
+    return (
+      <div className={`${baseClass} text-sm text-muted-foreground`} style={hStyle}>
+        {emptyText}
+      </div>
+    );
+  }
+  return null;
+}
+
 // ─── SalesVelocityCard ────────────────────────────────────────────────────────
 
 function SalesVelocityCard({ companyId }: { companyId: string }) {
-  const { data: velocity, isLoading } = useSalesVelocity(companyId);
+  const { data: velocity, isLoading, isError, error } = useSalesVelocity(companyId);
 
-  if (isLoading)
+  if (isLoading || isError || !velocity) {
     return (
       <Card>
-        <CardContent className="h-24 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">Calcolo velocità...</span>
+        <CardContent>
+          <WidgetState
+            loading={isLoading}
+            error={isError ? error : null}
+            empty={!isLoading && !isError && !velocity}
+            loadingText="Calcolo velocità..."
+            emptyText="Nessun dato disponibile"
+            height={100}
+          />
         </CardContent>
       </Card>
     );
-
-  if (!velocity) return null;
+  }
 
   return (
     <Card>
@@ -87,7 +129,7 @@ function SalesVelocityCard({ companyId }: { companyId: string }) {
           {fmt(velocity.sales_velocity)}
           <span className="text-sm font-normal text-muted-foreground ml-1">/giorno</span>
         </div>
-        <div className="grid grid-cols-4 gap-4 mt-3 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
           <div>
             <p className="font-semibold">{velocity.open_opportunities}</p>
             <span className="text-muted-foreground">Opp. aperte</span>
@@ -113,26 +155,24 @@ function SalesVelocityCard({ companyId }: { companyId: string }) {
 // ─── WeightedPipelineChart ────────────────────────────────────────────────────
 
 function WeightedPipelineChart({ companyId }: { companyId: string }) {
-  const { data: stages, isLoading } = useWeightedPipeline(companyId);
+  const { data: stages, isLoading, isError, error } = useWeightedPipeline(companyId);
 
-  if (isLoading)
+  if (isLoading || isError || !stages || stages.length === 0) {
     return (
       <Card>
-        <CardContent className="h-64 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">Caricamento pipeline...</span>
+        <CardContent>
+          <WidgetState
+            loading={isLoading}
+            error={isError ? error : null}
+            empty={!isLoading && !isError && (!stages || stages.length === 0)}
+            loadingText="Caricamento pipeline..."
+            emptyText="Nessuna opportunità aperta."
+            height={240}
+          />
         </CardContent>
       </Card>
     );
-
-  if (!stages || stages.length === 0)
-    return (
-      <Card>
-        <CardContent className="h-64 flex items-center justify-center text-sm text-muted-foreground">
-          Nessuna opportunità aperta.
-        </CardContent>
-      </Card>
-    );
+  }
 
   const chartData = stages.map((s) => ({
     name:
@@ -183,26 +223,24 @@ function WeightedPipelineChart({ companyId }: { companyId: string }) {
 // ─── SalesForecastChart ───────────────────────────────────────────────────────
 
 function SalesForecastChart({ companyId }: { companyId: string }) {
-  const { data: forecast, isLoading } = useSalesForecast(companyId, 3);
+  const { data: forecast, isLoading, isError, error } = useSalesForecast(companyId, 3);
 
-  if (isLoading)
+  if (isLoading || isError || !forecast || forecast.length === 0) {
     return (
       <Card>
-        <CardContent className="h-48 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">Calcolo forecast...</span>
+        <CardContent>
+          <WidgetState
+            loading={isLoading}
+            error={isError ? error : null}
+            empty={!isLoading && !isError && (!forecast || forecast.length === 0)}
+            loadingText="Calcolo forecast..."
+            emptyText="Nessuna opportunità con data chiusura impostata."
+            height={180}
+          />
         </CardContent>
       </Card>
     );
-
-  if (!forecast || forecast.length === 0)
-    return (
-      <Card>
-        <CardContent className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-          Nessuna opportunità con data chiusura impostata.
-        </CardContent>
-      </Card>
-    );
+  }
 
   const chartData = forecast.map((f) => ({
     mese: new Date(f.forecast_month).toLocaleDateString("it-IT", {
@@ -235,16 +273,19 @@ function SalesForecastChart({ companyId }: { companyId: string }) {
 // ─── StalledOpportunitiesPanel ────────────────────────────────────────────────
 
 function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
-  const { data: stalled, isLoading } = useStalledOpportunities(companyId);
+  const { data: stalled, isLoading, isError, error } = useStalledOpportunities(companyId);
   const navigate = useNavigate();
 
-  if (isLoading)
+  if (isLoading || isError) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Analisi opportunità ferme...</span>
-      </div>
+      <WidgetState
+        loading={isLoading}
+        error={isError ? error : null}
+        loadingText="Analisi opportunità ferme..."
+        height={160}
+      />
     );
+  }
 
   if (!stalled || stalled.length === 0)
     return (
@@ -308,19 +349,22 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
 
 function SellerComparisonTable({ companyId }: { companyId: string }) {
   const now = new Date();
-  const { data: sellers, isLoading } = useSellerPerformance(
+  const { data: sellers, isLoading, isError, error } = useSellerPerformance(
     companyId,
     now.getFullYear(),
     now.getMonth() + 1
   );
 
-  if (isLoading)
+  if (isLoading || isError) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Analisi team vendite...</span>
-      </div>
+      <WidgetState
+        loading={isLoading}
+        error={isError ? error : null}
+        loadingText="Analisi team vendite..."
+        height={160}
+      />
     );
+  }
 
   if (!sellers || sellers.length === 0)
     return (
@@ -392,15 +436,18 @@ function SellerComparisonTable({ companyId }: { companyId: string }) {
 // ─── ConversionBySourceChart ──────────────────────────────────────────────────
 
 function ConversionBySourceChart({ companyId }: { companyId: string }) {
-  const { data: sources, isLoading } = useConversionBySource(companyId);
+  const { data: sources, isLoading, isError, error } = useConversionBySource(companyId);
 
-  if (isLoading)
+  if (isLoading || isError) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Analisi fonti lead...</span>
-      </div>
+      <WidgetState
+        loading={isLoading}
+        error={isError ? error : null}
+        loadingText="Analisi fonti lead..."
+        height={200}
+      />
     );
+  }
 
   if (!sources || sources.length === 0)
     return (
@@ -453,15 +500,18 @@ function ConversionBySourceChart({ companyId }: { companyId: string }) {
 // ─── TopLeadsTable ────────────────────────────────────────────────────────────
 
 function TopLeadsTable({ companyId }: { companyId: string }) {
-  const { data: leads, isLoading } = useTopLeads(companyId, 10);
+  const { data: leads, isLoading, isError, error } = useTopLeads(companyId, 10);
 
-  if (isLoading)
+  if (isLoading || isError) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Calcolo lead score...</span>
-      </div>
+      <WidgetState
+        loading={isLoading}
+        error={isError ? error : null}
+        loadingText="Calcolo lead score..."
+        height={160}
+      />
     );
+  }
 
   if (!leads || leads.length === 0)
     return (

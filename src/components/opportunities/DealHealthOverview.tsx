@@ -16,7 +16,7 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId }
     queryFn: async () => {
       const { data, error } = await supabase
         .from('marketing_opportunities')
-        .select('id, updated_at, next_action, expected_close_date, probability, created_at')
+        .select('id, updated_at, last_activity_at, stage_changed_at, next_action, expected_close_date, probability, created_at, contact:marketing_contacts(is_decision_maker)')
         .eq('company_id', companyId)
         .eq('status', 'open');
       if (error) throw error;
@@ -29,7 +29,14 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId }
     const c = { healthy: 0, at_risk: 0, critical: 0, dead: 0 };
     if (!opportunities) return c;
     for (const opp of opportunities) {
-      const input = buildDealHealthInput(opp);
+      const oppRec = opp as typeof opp & {
+        contact?: { is_decision_maker?: boolean } | { is_decision_maker?: boolean }[] | null;
+      };
+      const contact = Array.isArray(oppRec.contact) ? oppRec.contact[0] : oppRec.contact;
+      const input = buildDealHealthInput({
+        ...opp,
+        contact_is_decision_maker: contact?.is_decision_maker ?? null,
+      });
       const health = calculateDealHealth(input);
       c[health.status]++;
     }
@@ -47,7 +54,7 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId }
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {items.map((item) => (
         <div key={item.label} className={`flex flex-col items-center p-3 rounded-lg ${item.bgClass}`}>
           <item.icon className={`h-4 w-4 ${item.iconClass} mb-1`} />

@@ -18107,6 +18107,7 @@ export type Database = {
           icp_score: number | null
           icp_tier: string | null
           id: string
+          is_decision_maker: boolean | null
           last_activity_at: string | null
           last_name: string | null
           last_score_update: string | null
@@ -18162,6 +18163,7 @@ export type Database = {
           icp_score?: number | null
           icp_tier?: string | null
           id?: string
+          is_decision_maker?: boolean | null
           last_activity_at?: string | null
           last_name?: string | null
           last_score_update?: string | null
@@ -18217,6 +18219,7 @@ export type Database = {
           icp_score?: number | null
           icp_tier?: string | null
           id?: string
+          is_decision_maker?: boolean | null
           last_activity_at?: string | null
           last_name?: string | null
           last_score_update?: string | null
@@ -18403,6 +18406,7 @@ export type Database = {
           expected_close_date: string | null
           follower_id: string | null
           id: string
+          last_activity_at: string | null
           loss_notes: string | null
           loss_reason: string | null
           lost_reason: string | null
@@ -18415,6 +18419,7 @@ export type Database = {
           probability: number | null
           sales_velocity_snapshot: Json | null
           source: string | null
+          stage_changed_at: string | null
           stage_id: string
           stalled_notified_at: string | null
           status: string
@@ -18433,6 +18438,7 @@ export type Database = {
           expected_close_date?: string | null
           follower_id?: string | null
           id?: string
+          last_activity_at?: string | null
           loss_notes?: string | null
           loss_reason?: string | null
           lost_reason?: string | null
@@ -18445,6 +18451,7 @@ export type Database = {
           probability?: number | null
           sales_velocity_snapshot?: Json | null
           source?: string | null
+          stage_changed_at?: string | null
           stage_id: string
           stalled_notified_at?: string | null
           status?: string
@@ -18463,6 +18470,7 @@ export type Database = {
           expected_close_date?: string | null
           follower_id?: string | null
           id?: string
+          last_activity_at?: string | null
           loss_notes?: string | null
           loss_reason?: string | null
           lost_reason?: string | null
@@ -18475,6 +18483,7 @@ export type Database = {
           probability?: number | null
           sales_velocity_snapshot?: Json | null
           source?: string | null
+          stage_changed_at?: string | null
           stage_id?: string
           stalled_notified_at?: string | null
           status?: string
@@ -35699,6 +35708,10 @@ export type Database = {
         Args: { p_quote_id: string }
         Returns: undefined
       }
+      ensure_sales_os_access: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
       execute_automation: {
         Args: {
           p_company_id: string
@@ -36233,9 +36246,11 @@ export type Database = {
         Returns: {
           avg_cycle_days: number
           avg_deal_size: number
+          lost_in_period: number
           open_opportunities: number
           sales_velocity: number
           win_rate: number
+          won_in_period: number
         }[]
       }
       get_scadenzario: {
@@ -36260,7 +36275,7 @@ export type Database = {
           assigned_to: string
           contact_name: string
           days_stalled: number
-          last_activity_at: string
+          last_activity: string
           opportunity_id: string
           opportunity_name: string
           stage_name: string

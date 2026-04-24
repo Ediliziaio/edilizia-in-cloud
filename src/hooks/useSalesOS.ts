@@ -239,21 +239,25 @@ export function useSellerPerformance(
       const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
       const monthEnd = new Date(year, month, 1).toISOString().split('T')[0];
 
-      const { data: opps, error: oppsError } = await supabase
-        .from('marketing_opportunities')
-        .select('assigned_to, status, value, created_at')
-        .eq('company_id', companyId!)
-        .gte('updated_at', monthStart)
-        .lt('updated_at', monthEnd);
-      if (oppsError) throw oppsError;
-
-      const { data: targets, error: targetsError } = await supabase
-        .from('sales_targets')
-        .select('assigned_to, target_amount')
-        .eq('company_id', companyId!)
-        .eq('year', year)
-        .eq('month', month);
-      if (targetsError) throw targetsError;
+      // Sprint 1.4: query parallele invece di seriali (-30ms latency)
+      const [oppsResult, targetsResult] = await Promise.all([
+        supabase
+          .from('marketing_opportunities')
+          .select('assigned_to, status, value, created_at')
+          .eq('company_id', companyId!)
+          .gte('updated_at', monthStart)
+          .lt('updated_at', monthEnd),
+        supabase
+          .from('sales_targets')
+          .select('assigned_to, target_amount')
+          .eq('company_id', companyId!)
+          .eq('year', year)
+          .eq('month', month),
+      ]);
+      if (oppsResult.error) throw oppsResult.error;
+      if (targetsResult.error) throw targetsResult.error;
+      const opps = oppsResult.data;
+      const targets = targetsResult.data;
 
       // Profili utenti — usa first_name + last_name (schema reale del progetto)
       const sellerIds = [...new Set((opps ?? []).map((o) => o.assigned_to).filter(Boolean))];
