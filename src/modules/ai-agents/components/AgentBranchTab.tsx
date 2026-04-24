@@ -319,14 +319,14 @@ function BranchOverrideDialog({ branch, agent, onClose, onSave }: OverrideDialog
   const [prompt, setPrompt] = useState(branch.system_prompt ?? "");
   const [firstMsg, setFirstMsg] = useState(branch.first_message ?? "");
   const [voiceId, setVoiceId] = useState(branch.voice_id ?? "");
-  const [llm, setLlm] = useState(branch.llm_model ?? "");
+  const [llm, setLlm] = useState(branch.llm_model ?? "__default__");
 
   const handleSave = () => {
     onSave({
       system_prompt: prompt || null,
       first_message: firstMsg || null,
       voice_id: voiceId || null,
-      llm_model: llm || null,
+      llm_model: llm && llm !== "__default__" ? llm : null,
     });
   };
 
@@ -392,7 +392,7 @@ function BranchOverrideDialog({ branch, agent, onClose, onSave }: OverrideDialog
                   <SelectValue placeholder={agent?.llm_model || "Modello principale"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Usa principale</SelectItem>
+                  <SelectItem value="__default__">Usa principale</SelectItem>
                   {LLM_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}

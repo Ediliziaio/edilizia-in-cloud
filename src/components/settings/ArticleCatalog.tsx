@@ -382,7 +382,7 @@ function ArticleDialog({
   const [modello, setModello] = useState(editingArticle?.modello ?? "");
   const [descrizione, setDescrizione] = useState(editingArticle?.description ?? "");
   const [vatRate, setVatRate] = useState<number>(editingArticle?.vat_rate ?? 22);
-  const [categoriaId, setCategoriaId] = useState(editingArticle?.categoria_id ?? "");
+  const [categoriaId, setCategoriaId] = useState(editingArticle?.categoria_id ?? "__none__");
 
   // Tab 2 — Modalità
   const [modalita, setModalita] = useState<Modalita>(editingArticle?.modalita_prezzo ?? "pz");
@@ -460,7 +460,7 @@ function ArticleDialog({
         modello: modello || null,
         description: descrizione || null,
         vat_rate: vatRate,
-        categoria_id: categoriaId || null,
+        categoria_id: categoriaId && categoriaId !== "__none__" ? categoriaId : null,
         modalita_prezzo: modalita,
         prezzo_vendita: prezzoVendita.trim() !== "" ? parseFloat(prezzoVendita) : null,
         unit_of_measure: unitMisura,
@@ -588,7 +588,7 @@ function ArticleDialog({
                   <Select value={categoriaId} onValueChange={setCategoriaId}>
                     <SelectTrigger><SelectValue placeholder="Seleziona categoria" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nessuna</SelectItem>
+                      <SelectItem value="__none__">Nessuna</SelectItem>
                       {categorie.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>

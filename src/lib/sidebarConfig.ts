@@ -101,8 +101,10 @@ export const macroAreas: MacroArea[] = [
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori" },
       // ─── Pianificazione ───
+      // Assistenza ora aggrega tutto: ticket di supporto + interventi sul campo.
+      // "Interventi" come voce separata è stata rimossa — accessibile via tab/filtro
+      // all'interno di /azienda/assistenza.
       { title: "Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets", groupLabel: "Pianificazione" },
-      { title: "Interventi", url: "/azienda/interventi", icon: Wrench, permissionKey: "canViewInterventi", groupLabel: "Pianificazione" },
       { title: "Manutenzione", url: "/azienda/manutenzione", icon: Settings, permissionKey: "canViewManutenzione", groupLabel: "Pianificazione" },
       { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
       // ─── Controllo ───

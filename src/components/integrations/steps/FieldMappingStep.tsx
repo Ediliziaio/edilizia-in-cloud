@@ -55,7 +55,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
 
   const [questions, setQuestions] = useState<MetaQuestion[]>([]);
   const [fieldMap, setFieldMap] = useState<Record<string, string>>({});
-  const [pipelineId, setPipelineId] = useState("");
+  const [pipelineId, setPipelineId] = useState("__none__");
   const [stageId, setStageId] = useState("");
   const [ownerUserId, setOwnerUserId] = useState("");
   const [source, setSource] = useState("Meta Lead Ads");
@@ -85,7 +85,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
   const { data: stages = [] } = useQuery({
     queryKey: ["pipeline-stages", pipelineId],
     queryFn: async () => {
-      if (!pipelineId) return [];
+      if (!pipelineId || pipelineId === "__none__") return [];
       const { data } = await supabase
         .from("marketing_pipeline_stages")
         .select("id, name")
@@ -93,7 +93,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
         .order("position");
       return data || [];
     },
-    enabled: !!pipelineId,
+    enabled: !!pipelineId && pipelineId !== "__none__",
   });
 
   // Fetch custom fields
@@ -174,7 +174,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
         transformations: {},
         tags_to_apply: tags.split(",").map((t) => t.trim()).filter(Boolean),
         pipeline_settings: {
-          pipeline_id: pipelineId || null,
+          pipeline_id: pipelineId && pipelineId !== "__none__" ? pipelineId : null,
           stage_id: stageId || null,
           owner_user_id: ownerUserId || null,
           source,
@@ -324,7 +324,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
                   <SelectValue placeholder="Nessuna" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessuna</SelectItem>
+                  <SelectItem value="__none__">Nessuna</SelectItem>
                   {pipelines.map((p: any) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -333,7 +333,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Fase</Label>
-              <Select value={stageId} onValueChange={setStageId} disabled={!pipelineId}>
+              <Select value={stageId} onValueChange={setStageId} disabled={!pipelineId || pipelineId === "__none__"}>
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Seleziona" />
                 </SelectTrigger>

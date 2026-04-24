@@ -40,7 +40,7 @@ export default function CreateCompanyTicket() {
   const [dataInterventoPrevista, setDataInterventoPrevista] = useState("");
   const [durataOre, setDurataOre] = useState("");
   const [tecnicoId, setTecnicoId] = useState("");
-  const [impiantoId, setImpiantoId] = useState("");
+  const [impiantoId, setImpiantoId] = useState("__none__");
 
   const isIntervento = tipo === "intervento" || tipo === "emergenza";
 
@@ -142,7 +142,7 @@ export default function CreateCompanyTicket() {
             indirizzo_intervento: indirizzoIntervento.trim() || null,
             data_intervento_prevista: dataInterventoPrevista ? new Date(dataInterventoPrevista).toISOString() : null,
             durata_ore: durataOre ? parseFloat(durataOre) : null,
-            impianto_id: impiantoId || null,
+            impianto_id: impiantoId && impiantoId !== "__none__" ? impiantoId : null,
           }),
         })
         .select("id")
@@ -354,7 +354,7 @@ export default function CreateCompanyTicket() {
                       <SelectValue placeholder="Seleziona impianto..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nessun impianto</SelectItem>
+                      <SelectItem value="__none__">Nessun impianto</SelectItem>
                       {impianti.map((im: any) => (
                         <SelectItem key={im.id} value={im.id}>
                           {im.tipo_impianto?.replace("_", " ")}{im.marca ? ` — ${im.marca}` : ""}{im.modello ? ` ${im.modello}` : ""}

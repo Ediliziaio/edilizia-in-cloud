@@ -141,9 +141,12 @@ export default function InterventiDetail() {
 
   const assegnaTecnicoMutation = useMutation({
     mutationFn: async (tecnicoId: string) => {
+      // "__unassign__" è il sentinel per rimuovere l'assegnazione (Radix Select
+      // non permette SelectItem con value="", quindi usiamo un valore fittizio).
+      const valueToSave = tecnicoId === "__unassign__" || !tecnicoId ? null : tecnicoId;
       const { error } = await supabase
         .from("tickets")
-        .update({ assigned_to: tecnicoId || null })
+        .update({ assigned_to: valueToSave })
         .eq("id", id!);
       if (error) throw error;
     },
@@ -366,7 +369,7 @@ export default function InterventiDetail() {
           <div className="bg-white rounded-lg border p-4 space-y-3">
             <h3 className="font-semibold text-gray-800">Tecnico Assegnato</h3>
             <Select
-              value={intervento.assigned_to ?? ""}
+              value={intervento.assigned_to ?? "__unassign__"}
               onValueChange={(v) => assegnaTecnicoMutation.mutate(v)}
               disabled={assegnaTecnicoMutation.isPending}
             >
@@ -374,7 +377,7 @@ export default function InterventiDetail() {
                 <SelectValue placeholder="Seleziona tecnico..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nessuno</SelectItem>
+                <SelectItem value="__unassign__">Nessuno</SelectItem>
                 {tecnici.map((t) => (
                   <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>
                 ))}

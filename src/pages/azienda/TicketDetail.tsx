@@ -15,9 +15,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Package, User, Mail, Phone,
-  AlertCircle, RefreshCw, Save, ChevronDown, Wrench, Loader2,
+  ArrowLeft, Package, User, Mail, Phone, MapPin, Clock, CalendarPlus,
+  AlertCircle, RefreshCw, Save, ChevronDown, Wrench, Loader2, CheckCircle2,
+  LifeBuoy, AlertTriangle,
 } from "lucide-react";
+import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
   formatRelativeTime,
   getTicketStatusColor,
@@ -46,12 +48,20 @@ export default function TicketDetail() {
   const [internalNotes, setInternalNotes] = useState<string>("");
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
-  // Escalation
+  // Escalation a intervento (disponibile per tipo=supporto)
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [escalationIndirizzo, setEscalationIndirizzo] = useState("");
   const [escalationData, setEscalationData] = useState("");
-  const [escalationTecnicoId, setEscalationTecnicoId] = useState("");
+  const [escalationTecnicoId, setEscalationTecnicoId] = useState("__unassign__");
   const [escalationNote, setEscalationNote] = useState("");
+  // Dialog appuntamento
+  const [appointmentOpen, setAppointmentOpen] = useState(false);
+  // Editing "dettagli intervento" inline
+  const [interventoIndirizzo, setInterventoIndirizzo] = useState("");
+  const [interventoData, setInterventoData] = useState("");
+  const [interventoDurata, setInterventoDurata] = useState("");
+  const [interventoNoteTecnico, setInterventoNoteTecnico] = useState("");
+  const [interventoLoaded, setInterventoLoaded] = useState(false);
   const { markTicketAsRead } = useUnreadTicketCounts();
 
   // Mark ticket as read when opening
@@ -67,8 +77,9 @@ export default function TicketDetail() {
       const { data, error } = await supabase
         .from("tickets")
         .select(`
-          id, subject, status, priority, tipo, created_at, customer_id, order_id,
+          id, subject, status, priority, tipo, fonte, created_at, customer_id, order_id,
           assigned_to, category, internal_notes,
+          data_intervento_prevista, data_intervento_effettiva, indirizzo_intervento, durata_ore, note_tecnico,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email, phone),
           order:orders(id, description)
         `)
@@ -82,14 +93,32 @@ export default function TicketDetail() {
     staleTime: 30 * 1000,
   });
 
-  // Inizializza le note interne dalla query solo al primo caricamento.
-  // Separato dalla queryFn per evitare setState durante render di React Query.
+  // Inizializza i dettagli dal primo caricamento (una sola volta per navigazione).
   useEffect(() => {
     if (ticket && !notesLoaded) {
       setInternalNotes(ticket.internal_notes || "");
       setNotesLoaded(true);
     }
   }, [ticket, notesLoaded]);
+  useEffect(() => {
+    if (ticket && !interventoLoaded) {
+      setInterventoIndirizzo(ticket.indirizzo_intervento ?? "");
+      // Converti ISO datetime → formato input datetime-local (YYYY-MM-DDTHH:mm)
+      const iso = ticket.data_intervento_prevista;
+      if (iso) {
+        const d = new Date(iso);
+        if (!isNaN(d.getTime())) {
+          const pad = (n: number) => String(n).padStart(2, "0");
+          setInterventoData(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+        }
+      } else {
+        setInterventoData("");
+      }
+      setInterventoDurata(ticket.durata_ore != null ? String(ticket.durata_ore) : "");
+      setInterventoNoteTecnico(ticket.note_tecnico ?? "");
+      setInterventoLoaded(true);
+    }
+  }, [ticket, interventoLoaded]);
 
   const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
     queryKey: queryKeys.adminTicketMessages.byTicket(id),
@@ -176,7 +205,7 @@ export default function TicketDetail() {
           data_intervento_prevista: escalationData
             ? new Date(escalationData).toISOString()
             : null,
-          assigned_to: escalationTecnicoId || null,
+          assigned_to: escalationTecnicoId && escalationTecnicoId !== "__unassign__" ? escalationTecnicoId : null,
           note_tecnico: escalationNote.trim() || null,
         })
         .eq("id", id);
@@ -185,10 +214,61 @@ export default function TicketDetail() {
     onSuccess: () => {
       toast.success("Ticket convertito in Intervento");
       setEscalationOpen(false);
+      // Dopo unificazione restiamo sulla stessa pagina — la vista mostra già
+      // i campi intervento aggiornati dopo invalidate.
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
-      navigate(`/azienda/interventi/${id}`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
     onError: () => toast.error("Errore nella conversione"),
+  });
+
+  // Salva modifiche "Dettagli Intervento"
+  const saveInterventoMutation = useMutation({
+    mutationFn: async () => {
+      if (!id || !effectiveCompany?.id) throw new Error("Dati mancanti");
+      const durataNum = interventoDurata ? parseFloat(interventoDurata) : null;
+      const { error } = await supabase
+        .from("tickets")
+        .update({
+          indirizzo_intervento: interventoIndirizzo.trim() || null,
+          data_intervento_prevista: interventoData ? new Date(interventoData).toISOString() : null,
+          durata_ore: durataNum && !isNaN(durataNum) ? durataNum : null,
+          note_tecnico: interventoNoteTecnico.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("company_id", effectiveCompany.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Dettagli intervento salvati");
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
+    },
+    onError: (err: Error) => toast.error(err.message || "Errore salvataggio"),
+  });
+
+  // Chiudi intervento: set status=risolto + data_intervento_effettiva=now
+  const chiudiMutation = useMutation({
+    mutationFn: async () => {
+      if (!id || !effectiveCompany?.id) throw new Error("Dati mancanti");
+      const { error } = await supabase
+        .from("tickets")
+        .update({
+          status: "risolto" as const,
+          data_intervento_effettiva: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("company_id", effectiveCompany.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Intervento chiuso");
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
+    },
+    onError: () => toast.error("Errore chiusura intervento"),
   });
 
   const updateTicketMutation = useMutation({
@@ -254,6 +334,22 @@ export default function TicketDetail() {
 
   const statusColor = getTicketStatusColor(ticket.status);
   const priorityColor = getTicketPriorityColor(ticket.priority);
+  const isIntervento = (ticket.tipo ?? "supporto") === "intervento" || (ticket.tipo ?? "") === "emergenza";
+  const isEmergenza = ticket.tipo === "emergenza";
+  const isClosed = ticket.status === "risolto" || ticket.status === "chiuso";
+  const TipoIcon = isEmergenza ? AlertTriangle : isIntervento ? Wrench : LifeBuoy;
+  const tipoLabel = isEmergenza ? "Emergenza" : isIntervento ? "Intervento" : "Supporto";
+
+  const interventoDirty =
+    (ticket.indirizzo_intervento ?? "") !== interventoIndirizzo ||
+    (ticket.durata_ore != null ? String(ticket.durata_ore) : "") !== interventoDurata ||
+    (ticket.note_tecnico ?? "") !== interventoNoteTecnico ||
+    (() => {
+      // data_intervento_prevista diff check via ISO string
+      const cur = ticket.data_intervento_prevista ? new Date(ticket.data_intervento_prevista).toISOString() : "";
+      const newIso = interventoData ? new Date(interventoData).toISOString() : "";
+      return cur !== newIso;
+    })();
 
   // Update notesOpen when ticket loads with notes
   if (ticket.internal_notes && !notesOpen && !notesLoaded) {
@@ -269,6 +365,18 @@ export default function TicketDetail() {
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            <Badge
+              variant="outline"
+              className="gap-1 text-[11px]"
+              style={{
+                backgroundColor: isEmergenza ? "#fee2e2" : isIntervento ? "#fef3c7" : "#eff6ff",
+                color: isEmergenza ? "#991b1b" : isIntervento ? "#92400e" : "#1e40af",
+                borderColor: isEmergenza ? "#fca5a5" : isIntervento ? "#fcd34d" : "#bfdbfe",
+              }}
+            >
+              <TipoIcon className="h-3 w-3" />
+              {tipoLabel}
+            </Badge>
             <h1 className="text-xl font-bold truncate">{ticket.subject}</h1>
             <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
               {getTicketStatusLabel(ticket.status)}
@@ -279,19 +387,45 @@ export default function TicketDetail() {
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
             Aperto {formatRelativeTime(ticket.created_at)}
+            {ticket.data_intervento_effettiva && (
+              <> · Chiuso il {new Date(ticket.data_intervento_effettiva).toLocaleDateString("it-IT")}</>
+            )}
           </p>
         </div>
-        {/* Bottone Escalation — visibile solo se tipo non è già intervento/emergenza */}
-        {!["intervento", "emergenza"].includes((ticket as any).tipo ?? "supporto") && (
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Escalation — solo per tipo=supporto */}
+          {!isIntervento && (
+            <Button
+              variant="outline"
+              className="gap-2 text-orange-700 border-orange-300 hover:bg-orange-50"
+              onClick={() => setEscalationOpen(true)}
+            >
+              <Wrench className="h-4 w-4" />
+              <span className="hidden sm:inline">Converti in Intervento</span>
+            </Button>
+          )}
+          {/* Crea appuntamento calendario */}
           <Button
             variant="outline"
-            className="gap-2 text-orange-700 border-orange-300 hover:bg-orange-50 shrink-0"
-            onClick={() => setEscalationOpen(true)}
+            className="gap-2"
+            onClick={() => setAppointmentOpen(true)}
           >
-            <Wrench className="h-4 w-4" />
-            Converti in Intervento
+            <CalendarPlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Appuntamento</span>
           </Button>
-        )}
+          {/* Chiudi intervento — visibile per tutti i tipi se non già chiuso */}
+          {!isClosed && (
+            <Button
+              variant="outline"
+              className="gap-2 text-green-700 border-green-300 hover:bg-green-50"
+              onClick={() => chiudiMutation.mutate()}
+              disabled={chiudiMutation.isPending}
+            >
+              {chiudiMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              <span className="hidden sm:inline">Chiudi</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       <Separator className="mb-4" />
@@ -409,6 +543,93 @@ export default function TicketDetail() {
             </CardContent>
           </Card>
 
+          {/* Dettagli Intervento — sempre visibile se tipo è intervento/emergenza,
+              altrimenti rimane collassato finché non si schedula */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="font-semibold text-sm">Dettagli Intervento</h3>
+                </div>
+                {interventoDirty && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => saveInterventoMutation.mutate()}
+                    disabled={saveInterventoMutation.isPending}
+                  >
+                    {saveInterventoMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                    Salva
+                  </Button>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Indirizzo intervento
+                </Label>
+                <Input
+                  value={interventoIndirizzo}
+                  onChange={(e) => setInterventoIndirizzo(e.target.value)}
+                  placeholder="Via, n°, città…"
+                  className="h-8 text-xs"
+                  disabled={isClosed}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Data prevista</Label>
+                  <Input
+                    type="datetime-local"
+                    value={interventoData}
+                    onChange={(e) => setInterventoData(e.target.value)}
+                    className="h-8 text-xs"
+                    disabled={isClosed}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Durata (h)
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={interventoDurata}
+                    onChange={(e) => setInterventoDurata(e.target.value)}
+                    placeholder="2"
+                    className="h-8 text-xs"
+                    disabled={isClosed}
+                  />
+                </div>
+              </div>
+
+              {ticket.data_intervento_effettiva && (
+                <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 text-green-800 dark:text-green-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Eseguito il {new Date(ticket.data_intervento_effettiva).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Note per il tecnico</Label>
+                <Textarea
+                  value={interventoNoteTecnico}
+                  onChange={(e) => setInterventoNoteTecnico(e.target.value)}
+                  placeholder="Istruzioni, materiali, accessi…"
+                  rows={2}
+                  className="text-xs resize-none"
+                  disabled={isClosed}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Note Interne collassabili */}
           <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
             <Card>
@@ -500,8 +721,8 @@ export default function TicketDetail() {
               <Select value={escalationTecnicoId} onValueChange={setEscalationTecnicoId}>
                 <SelectTrigger><SelectValue placeholder="Seleziona tecnico..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessuno</SelectItem>
-                  {tecnici.map((t: any) => (
+                  <SelectItem value="__unassign__">Nessuno</SelectItem>
+                  {tecnici.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>
                   ))}
                 </SelectContent>
@@ -530,6 +751,31 @@ export default function TicketDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Appuntamento in calendario, pre-compilato dai dati ticket */}
+      <AppointmentDialog
+        open={appointmentOpen}
+        onOpenChange={setAppointmentOpen}
+        defaultOrderId={ticket.order_id ?? undefined}
+        defaultDate={
+          ticket.data_intervento_prevista
+            ? new Date(ticket.data_intervento_prevista).toISOString().slice(0, 10)
+            : undefined
+        }
+        defaultTime={
+          ticket.data_intervento_prevista
+            ? (() => {
+                const d = new Date(ticket.data_intervento_prevista!);
+                return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+              })()
+            : undefined
+        }
+        showOrderSelect
+        onSaved={() => {
+          setAppointmentOpen(false);
+          toast.success("Appuntamento creato in calendario");
+        }}
+      />
     </div>
   );
 }

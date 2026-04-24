@@ -1,5 +1,11 @@
 import { lazy } from "react";
-import { Route, Navigate } from "react-router-dom";
+import { Route, Navigate, useParams } from "react-router-dom";
+
+/** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
+function InterventoDetailRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/azienda/assistenza/${id ?? ""}`} replace />;
+}
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -168,8 +174,7 @@ const SubappaltatoreDetail = lazy(() => import("@/pages/azienda/SubappaltatoreDe
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
-const InterventiList = lazy(() => import("@/pages/azienda/InterventiList"));
-const InterventiDetail = lazy(() => import("@/pages/azienda/InterventiDetail"));
+// InterventiList/InterventiDetail rimossi: funzionalità unificata in TicketsList/TicketDetail
 const ChiusuraIntervento = lazy(() => import("@/pages/azienda/ChiusuraIntervento"));
 const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
 const ImpiantoDetail = lazy(() => import("@/pages/azienda/ImpiantoDetail"));
@@ -282,9 +287,12 @@ export function companyRoutes() {
         <Route path="assistenza" element={<TicketsList />} />
         <Route path="assistenza/nuovo" element={<CreateCompanyTicket />} />
         <Route path="assistenza/:id" element={<TicketDetail />} />
-        {/* Interventi & manutenzione — gated: cantieri_avanzati (core) */}
-        <Route path="interventi" element={<FeatureRoute featureKey="cantieri_avanzati"><InterventiList /></FeatureRoute>} />
-        <Route path="interventi/:id" element={<FeatureRoute featureKey="cantieri_avanzati"><InterventiDetail /></FeatureRoute>} />
+        {/* Interventi unificati dentro Assistenza:
+            - /interventi → redirect a /assistenza con filtro tipo=intervento
+            - /interventi/:id → redirect a /assistenza/:id (stesso modello DB)
+            - /interventi/:id/chiudi resta (azione specifica, accessibile dal detail) */}
+        <Route path="interventi" element={<Navigate to="/azienda/assistenza?tipo=intervento" replace />} />
+        <Route path="interventi/:id" element={<InterventoDetailRedirect />} />
         <Route path="interventi/:id/chiudi" element={<FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>} />
         <Route path="manutenzione" element={<FeatureRoute featureKey="cantieri_avanzati"><ManutenzioneList /></FeatureRoute>} />
         <Route path="manutenzione/impianto/:id" element={<FeatureRoute featureKey="cantieri_avanzati"><ImpiantoDetail /></FeatureRoute>} />

@@ -1,5 +1,7 @@
-export type TicketStatus = "aperto" | "in_lavorazione" | "risolto";
-export type TicketPriority = "bassa" | "normale" | "alta" | "urgente";
+export type TicketStatus = "aperto" | "in_lavorazione" | "risolto" | "chiuso" | "in_attesa";
+export type TicketPriority = "bassa" | "normale" | "media" | "alta" | "urgente";
+export type TicketTipo = "supporto" | "intervento" | "emergenza";
+export type TicketFonte = "ufficio" | "campo" | "cliente" | "api";
 
 export interface TicketMessage {
   id: string;
@@ -18,7 +20,8 @@ export interface TicketListItem {
   subject: string;
   status: TicketStatus;
   priority: TicketPriority;
-  tipo?: string | null;
+  tipo?: TicketTipo | string | null;
+  fonte?: TicketFonte | string | null;
   created_at: string;
   updated_at: string;
   last_message_at: string | null;
@@ -26,6 +29,9 @@ export interface TicketListItem {
   impianto_id?: string | null;
   assigned_to: string | null;
   category: string | null;
+  data_intervento_prevista?: string | null;
+  data_intervento_effettiva?: string | null;
+  indirizzo_intervento?: string | null;
   customer?: {
     first_name: string;
     last_name: string;
@@ -45,7 +51,8 @@ export interface TicketDetail {
   subject: string;
   status: TicketStatus;
   priority: TicketPriority;
-  tipo?: string | null;
+  tipo?: TicketTipo | string | null;
+  fonte?: TicketFonte | string | null;
   created_at: string;
   customer_id: string;
   order_id: string | null;
@@ -53,6 +60,12 @@ export interface TicketDetail {
   assigned_to: string | null;
   category: string | null;
   internal_notes: string | null;
+  /** Campi "intervento" — erano esclusivi di InterventiDetail, ora qui per unificazione. */
+  data_intervento_prevista?: string | null;
+  data_intervento_effettiva?: string | null;
+  indirizzo_intervento?: string | null;
+  durata_ore?: number | null;
+  note_tecnico?: string | null;
   customer?: {
     first_name: string;
     last_name: string;

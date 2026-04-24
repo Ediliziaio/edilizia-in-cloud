@@ -54,7 +54,7 @@ export function ComposeBar({
   const [channel, setChannel]     = useState<Channel>("email");
   const [subject, setSubject]     = useState("");
   const [body, setBody]           = useState("");
-  const [templateId, setTemplateId] = useState<string>("");
+  const [templateId, setTemplateId] = useState<string>("__free__");
 
   const vars: Record<string, string> = {
     cliente_nome:  customerName,
@@ -67,7 +67,7 @@ export function ComposeBar({
 
   // Quando si seleziona un template, pre-riempie
   useEffect(() => {
-    if (!templateId) return;
+    if (!templateId || templateId === "__free__") return;
     const tpl = templates.find(t => t.id === templateId);
     if (!tpl) return;
     setBody(interpolate(tpl.body, vars));
@@ -77,7 +77,7 @@ export function ComposeBar({
 
   const handleChannelChange = (ch: Channel) => {
     setChannel(ch);
-    setTemplateId("");
+    setTemplateId("__free__");
     setBody("");
     setSubject("");
   };
@@ -94,12 +94,12 @@ export function ComposeBar({
         to_phone:  (channel === "sms" || channel === "whatsapp") ? customerPhone : undefined,
         subject:   channel === "email" ? subject : undefined,
         body:      body.trim(),
-        template_id: templateId || undefined,
+        template_id: templateId && templateId !== "__free__" ? templateId : undefined,
       });
     }
     setBody("");
     setSubject("");
-    setTemplateId("");
+    setTemplateId("__free__");
   };
 
   return (
@@ -135,7 +135,7 @@ export function ComposeBar({
               <SelectValue placeholder="Scegli un template..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Testo libero</SelectItem>
+              <SelectItem value="__free__">Testo libero</SelectItem>
               {channelTemplates.map(t => (
                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
               ))}

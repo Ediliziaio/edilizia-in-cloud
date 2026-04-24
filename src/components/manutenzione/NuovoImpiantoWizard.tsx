@@ -57,7 +57,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
   const [titoloManutenzione, setTitoloManutenzione] = useState("Manutenzione ordinaria");
   const [frequenza, setFrequenza] = useState("annuale");
   const [primaManutenzione, setPrimaManutenzione] = useState("");
-  const [tecnicoPreferito, setTecnicoPreferito] = useState("");
+  const [tecnicoPreferito, setTecnicoPreferito] = useState("__none__");
 
   // Step 3 fields
   const [hasContratto, setHasContratto] = useState(false);
@@ -146,7 +146,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
             titolo: titoloManutenzione.trim(),
             frequenza_tipo: frequenza,
             prossima_scadenza: primaManutenzione || null,
-            tecnico_preferito: tecnicoPreferito || null,
+            tecnico_preferito: tecnicoPreferito && tecnicoPreferito !== "__none__" ? tecnicoPreferito : null,
           });
         if (pianoErr) throw pianoErr;
       }
@@ -164,7 +164,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
     setCustomerId(""); setTipoImpianto(""); setMarca(""); setModello(""); setMatricola("");
     setDataInstallazione(""); setGaranziaScadenza("");
     setHasPiano(false); setTitoloManutenzione("Manutenzione ordinaria"); setFrequenza("annuale");
-    setPrimaManutenzione(""); setTecnicoPreferito("");
+    setPrimaManutenzione(""); setTecnicoPreferito("__none__");
     setHasContratto(false); setNomeContratto(""); setImportoCanone(""); setTipoFatturazione("annuale");
     setRinnovoAutomatico(true);
     onClose();
@@ -269,7 +269,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                     <Select value={tecnicoPreferito} onValueChange={setTecnicoPreferito}>
                       <SelectTrigger><SelectValue placeholder="Qualsiasi tecnico" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Qualsiasi tecnico</SelectItem>
+                        <SelectItem value="__none__">Qualsiasi tecnico</SelectItem>
                         {tecnici.map((t: any) => <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>)}
                       </SelectContent>
                     </Select>

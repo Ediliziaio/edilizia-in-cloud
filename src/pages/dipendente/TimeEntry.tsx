@@ -48,7 +48,7 @@ export default function TimeEntry() {
   const [hours, setHours] = useState("");
   const [description, setDescription] = useState("");
   const [activityType, setActivityType] = useState("lavoro");
-  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("__none__");
 
   // Fetch employee profile
   const { data: employee } = useQuery({
@@ -109,12 +109,12 @@ export default function TimeEntry() {
       setHours(String(existingLog.hours_worked));
       setDescription(existingLog.description || "");
       setActivityType(existingLog.activity_type || "lavoro");
-      setSelectedOrderId(existingLog.order_id || "");
+      setSelectedOrderId(existingLog.order_id || "__none__");
     } else {
       setHours("");
       setDescription("");
       setActivityType("lavoro");
-      setSelectedOrderId("");
+      setSelectedOrderId("__none__");
     }
   }, [existingLog]);
 
@@ -127,7 +127,7 @@ export default function TimeEntry() {
         hours_worked: parseFloat(hours),
         description: description || null,
         activity_type: activityType,
-        order_id: selectedOrderId || null,
+        order_id: selectedOrderId && selectedOrderId !== "__none__" ? selectedOrderId : null,
         is_approved: false, // Reset approval on edit
       };
 
@@ -295,7 +295,7 @@ export default function TimeEntry() {
                   <SelectValue placeholder="Seleziona un ordine" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessun ordine specifico</SelectItem>
+                  <SelectItem value="__none__">Nessun ordine specifico</SelectItem>
                   {orders.map((order) => (
                     <SelectItem key={order.id} value={order.id}>
                       {order.order_code || order.description.substring(0, 40)}
