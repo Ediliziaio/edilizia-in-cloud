@@ -11,11 +11,10 @@ Deno.serve(async (req) => {
     const verifyToken = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    // META_WEBHOOK_VERIFY_TOKEN è dedicato per Meta (non condiviso con WhatsApp)
-    // Backward compat: se non configurato, usa WHATSAPP_VERIFY_TOKEN
-    const expectedToken =
-      Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ||
-      Deno.env.get("WHATSAPP_VERIFY_TOKEN");
+    // META_WEBHOOK_VERIFY_TOKEN dedicato per Meta (fail-closed: no fallback
+    // al token WhatsApp per evitare accettazione inavvertita di webhook
+    // destinati ad altri prodotti)
+    const expectedToken = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN");
     if (!expectedToken) {
       console.error("meta-webhook: META_WEBHOOK_VERIFY_TOKEN non configurato");
       return new Response("Configuration error", { status: 500 });
