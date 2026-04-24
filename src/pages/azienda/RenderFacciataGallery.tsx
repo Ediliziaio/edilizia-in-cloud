@@ -1,158 +1,115 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Building2, GalleryHorizontalEnd, Image, Plus, Search } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import {
+  RenderUnifiedGallery,
+  type UnifiedRenderGalleryItem,
+} from "@/components/render/RenderUnifiedGallery";
 import { ensureFacciataRenderConfig } from "@/modules/render-facciata/lib/facciataRenderConfig";
+import {
+  loadRenderGalleryMeta,
+  resolveRenderGalleryMeta,
+  type RenderGalleryMeta,
+} from "@/lib/render/renderGalleryMeta";
+
+type FacciataGalleryRow = {
+  id: string;
+  status: string;
+  original_photo_url: string | null;
+  result_urls: string[] | null;
+  config: Record<string, unknown> | null;
+  foto_analisi: unknown;
+  created_at: string;
+  created_by: string | null;
+  contact_id: string | null;
+  opportunity_id: string | null;
+  meta: RenderGalleryMeta;
+};
 
 export default function RenderFacciataGallery() {
-  const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const [search, setSearch] = useState("");
 
-  const { data: sessions = [], isLoading } = useQuery({
+  const { data: sessions = [], isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["render-facciata-gallery", companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("render_facciata_sessions")
-        .select("id, status, original_photo_url, result_urls, config, foto_analisi, created_at")
+        .select("id, status, original_photo_url, result_urls, config, foto_analisi, created_at, created_by, contact_id, opportunity_id")
         .eq("company_id", companyId)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Array<Record<string, unknown>>;
+
+      const rows = (data ?? []) as Array<Omit<FacciataGalleryRow, "meta">>;
+      const metaSources = rows.map((row) => ({
+        created_by: row.created_by,
+        contact_id: row.contact_id,
+        opportunity_id: row.opportunity_id,
+      }));
+      const metaMaps = await loadRenderGalleryMeta(metaSources);
+      return rows.map((row, index) => ({
+        ...row,
+        meta: resolveRenderGalleryMeta(metaSources[index], metaMaps),
+      })) as FacciataGalleryRow[];
     },
     enabled: !!companyId,
   });
 
-  const normalized = useMemo(() => sessions.map((item) => {
-    const config = ensureFacciataRenderConfig(
-      (item.config as Record<string, unknown> | null) ?? {},
-      item.foto_analisi,
-    );
+  const items = useMemo<UnifiedRenderGalleryItem[]>(() => sessions.map((item) => {
+    const config = ensureFacciataRenderConfig(item.config ?? {}, item.foto_analisi);
+    const tags = [
+      config.legacy_config.tipo_intervento,
+      ...config.replacement_manifest.targetedZones.slice(0, 2),
+      ...config.replacement_manifest.activeSystems.slice(0, 1),
+    ].filter(Boolean);
+
     return {
-      id: String(item.id),
-      createdAt: String(item.created_at),
-      resultUrl: Array.isArray(item.result_urls) ? String(item.result_urls[0] ?? "") : "",
-      config,
+      id: item.id,
+      title: config.scene_analysis.buildingType || "Render facciata",
+      date: item.created_at,
+      detailPath: `/azienda/render/facciata/gallery/${item.id}`,
+      imageUrl: item.result_urls?.[0] ?? null,
+      originalUrl: item.original_photo_url,
+      tags,
+      searchableText: [
+        config.legacy_config.tipo_intervento,
+        config.scene_analysis.buildingStyle,
+        config.scene_analysis.buildingType,
+        ...config.replacement_manifest.activeSystems,
+        ...config.replacement_manifest.targetedZones,
+      ].join(" "),
+      createdById: item.created_by,
+      createdByName: item.meta.createdByName,
+      contactId: item.contact_id,
+      contactName: item.meta.contactName,
+      opportunityId: item.opportunity_id,
+      opportunityName: item.meta.opportunityName,
+      imageFit: "contain",
     };
   }), [sessions]);
 
-  const filtered = normalized.filter((item) => {
-    if (!search.trim()) return true;
-    const haystack = [
-      item.config.legacy_config.tipo_intervento,
-      ...item.config.replacement_manifest.activeSystems,
-      ...item.config.replacement_manifest.targetedZones,
-      item.config.scene_analysis.buildingType,
-      item.config.scene_analysis.buildingStyle,
-      format(new Date(item.createdAt), "d MMMM yyyy", { locale: it }),
-    ]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(search.toLowerCase());
-  });
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/facciata")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <GalleryHorizontalEnd className="h-5 w-5 text-orange-600" />
-            Galleria Facciata
-          </h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} di {normalized.length} render completati</p>
-        </div>
-        <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/azienda/render/facciata/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuovo render
-        </Button>
-      </div>
-
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cerca per intervento, zona o tipologia edificio..."
-          className="pl-9"
-        />
-      </div>
-
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {[1, 2, 3, 4].map((item) => (
-            <Skeleton key={item} className="h-72 rounded-xl" />
-          ))}
-        </div>
-      ) : normalized.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-            <Building2 className="h-14 w-14 text-muted-foreground/30" />
-            <div>
-              <p className="font-medium">Galleria vuota</p>
-              <p className="mt-1 text-sm text-muted-foreground">I render facciata completati appariranno qui.</p>
-            </div>
-            <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/azienda/render/facciata/new")}>
-              <Plus className="mr-2 h-4 w-4" />
-              Crea primo render
-            </Button>
-          </CardContent>
-        </Card>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-14 text-center">
-            <Search className="h-10 w-10 text-muted-foreground/30" />
-            <div>
-              <p className="font-medium">Nessun render corrisponde al filtro</p>
-              <p className="mt-1 text-sm text-muted-foreground">Prova a cercare per intervento, zona o materiale.</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((item) => (
-            <Card
-              key={item.id}
-              className="cursor-pointer overflow-hidden hover:border-orange-400 transition-colors"
-              onClick={() => navigate(`/azienda/render/facciata/gallery/${item.id}`)}
-            >
-              <div className="flex h-56 items-center justify-center bg-muted p-2">
-                {item.resultUrl ? (
-                  <img src={item.resultUrl} alt="Render facciata" className="max-h-full w-full object-contain" />
-                ) : (
-                  <Image className="h-10 w-10 text-muted-foreground/30" />
-                )}
-              </div>
-              <CardContent className="space-y-3 p-4">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{item.config.legacy_config.tipo_intervento.replace(/_/g, " ")}</Badge>
-                  {item.config.replacement_manifest.targetedZones.slice(0, 2).map((zone) => (
-                    <Badge key={zone} variant="outline">{zone}</Badge>
-                  ))}
-                </div>
-                <div>
-                  <p className="font-medium">{item.config.scene_analysis.buildingType}</p>
-                  <p className="text-sm text-muted-foreground">{format(new Date(item.createdAt), "d MMM yyyy, HH:mm", { locale: it })}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+    <RenderUnifiedGallery
+      moduleName="Facciata"
+      badgeLabel="Galleria facciate"
+      title="Render facciata salvati, filtrabili per zona e CRM."
+      description="Ogni proposta di facciata mostra intervento, zone target, autore e collegamenti commerciali senza dover aprire il dettaglio."
+      backPath="/azienda/render/facciata"
+      newPath="/azienda/render/facciata/new"
+      items={items}
+      isLoading={isLoading}
+      error={error}
+      isRefetching={isRefetching}
+      onRetry={refetch}
+      emptyTitle="Galleria vuota"
+      emptyDescription="I render facciata completati appariranno qui."
+      searchPlaceholder="Cerca intervento, zona, autore, contatto..."
+      emptyIcon={Building2}
+      accentClassName="text-orange-600"
+    />
   );
 }

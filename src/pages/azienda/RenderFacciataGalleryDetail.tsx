@@ -217,6 +217,9 @@ export default function RenderFacciataGalleryDetail() {
         createdBy={typeof session.created_by === "string" ? session.created_by : null}
         contactId={typeof session.contact_id === "string" ? session.contact_id : null}
         opportunityId={typeof session.opportunity_id === "string" ? session.opportunity_id : null}
+        sessionId={typeof session.id === "string" ? session.id : null}
+        sessionTable="render_facciata_sessions"
+        editable
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),360px]">

@@ -28,11 +28,24 @@ const HOW_IT_WORKS = [
   { icon: Share2, title: "4. Render & condividi", desc: "Ottieni una visualizzazione commerciale realistica." },
 ];
 
+type DbError = { message?: string } | null;
+type DbQuery = {
+  select: (columns?: string) => DbQuery;
+  eq: (column: string, value: unknown) => DbQuery;
+  order: (column: string, options?: { ascending?: boolean }) => DbQuery;
+  limit: (count: number) => DbQuery;
+  then: <TResult1 = { data: unknown; error: DbError }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown; error: DbError }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ) => PromiseLike<TResult1 | TResult2>;
+};
+type DynamicSupabase = { from: (table: string) => DbQuery };
+
 export default function RenderPergoleHub() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const db = supabase as any;
+  const db = supabase as unknown as DynamicSupabase;
 
   const { data: sessions = [], isLoading: loadingSessions } = useQuery({
     queryKey: ["render-pergole-sessions", companyId],
@@ -93,7 +106,7 @@ export default function RenderPergoleHub() {
               <Plus className="h-4 w-4" />
               Nuovo render pergola
             </Button>
-            <Button variant="outline" className="border-white/40 text-white hover:bg-white/10 gap-2" onClick={() => navigate("/azienda/render/pergole/gallery")}>
+            <Button variant="outline" className="border-white/50 bg-transparent text-white hover:bg-white/10 hover:text-white gap-2" onClick={() => navigate("/azienda/render/pergole/gallery")}>
               <GalleryHorizontalEnd className="h-4 w-4" />
               Galleria
             </Button>

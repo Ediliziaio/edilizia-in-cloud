@@ -80,6 +80,7 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
   const typeLabel: Record<string, string> = {
     infissi: "Infissi", bagno: "Bagno", facciata: "Facciata",
     pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", stanza: "Stanza",
+    pergole: "Pergole", piscine: "Piscine",
   };
 
   return (

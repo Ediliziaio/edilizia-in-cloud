@@ -137,6 +137,48 @@ describe("pergole render prompt", () => {
     expect(text).toContain("recolor-only");
     expect(text).toContain("preserve exact footprint");
     expect(text).toContain("post positions");
+    expect(text).toContain("strict scope");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("keeps recolor-only free from side closure, lighting and furniture additions", () => {
+    const prompt = buildPergolePrompt(baseConfig({
+      operazione: "recolor_only",
+      chiusure_laterali: {
+        tipo: "screen_zip",
+        stato: "chiuse",
+        colore_nome: "Grigio tecnico",
+      },
+      illuminazione: "strip_led_perimetrale",
+      arredo: {
+        gestisci_arredo: "aggiungi_minimo",
+        uso_area: "relax",
+      },
+    }));
+    const text = prompt.userPrompt.toLowerCase();
+
+    expect(text).toContain("preserve existing side closure condition exactly");
+    expect(prompt.normalizedConfig.replacement_manifest.additions).toHaveLength(0);
+    expect(prompt.normalizedConfig.replacement_manifest.replacements).toHaveLength(0);
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("treats addossata typology as wall-mounted even if the boolean is inconsistent", () => {
+    const prompt = buildPergolePrompt(baseConfig({
+      installazione: {
+        ...baseConfig().installazione,
+        addossata_si_no: false,
+      },
+      struttura: {
+        ...baseConfig().struttura,
+        tipo: "telo_addossata",
+      },
+      copertura: { tipo: "telo_retraibile", stato: "telo_disteso" },
+    }));
+    const text = prompt.userPrompt.toLowerCase();
+
+    expect(text).toContain("rear beam/ledger follows the facade plane");
+    expect(text).toContain("wall-mounted: yes");
     expect(prompt.validation.isValid).toBe(true);
   });
 

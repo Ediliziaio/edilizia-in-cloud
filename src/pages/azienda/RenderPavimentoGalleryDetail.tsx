@@ -271,6 +271,9 @@ export default function RenderPavimentoGalleryDetail() {
         createdBy={session.created_by}
         contactId={session.contact_id}
         opportunityId={session.opportunity_id}
+        sessionId={session.id}
+        sessionTable="render_pavimento_sessions"
+        editable
       />
 
       {/* Configurazione */}

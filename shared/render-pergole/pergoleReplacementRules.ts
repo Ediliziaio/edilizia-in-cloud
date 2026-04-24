@@ -25,6 +25,12 @@ export function isPergolaWallMounted(config: ConfigurazionePergole): boolean {
   return config.installazione.addossata_si_no || config.struttura.tipo.includes("addossata");
 }
 
+function allowsFullPergolaComposition(config: ConfigurazionePergole): boolean {
+  return config.operazione === "add_new_pergola" ||
+    config.operazione === "replace_existing_awning_with_pergola" ||
+    config.operazione === "replace_existing_pergola";
+}
+
 export function buildPergolaTechnicalSpecification(config: ConfigurazionePergole): PergolaTechnicalSpecification {
   const wallMounted = isPergolaWallMounted(config);
   const coverState = COVER_STATE_RULES[config.copertura.stato];
@@ -89,10 +95,12 @@ export function buildPergolaReplacementManifest(
     case "recolor_only":
       recolors.push(`Change only the surface finish/color of the existing pergola structure to ${technical.colorDescription}.`);
       conversions.push("Recolor-only: preserve exact footprint, post positions, beam geometry, cover type, side closures and all structural proportions.");
+      conversions.push("Strict scope: do not add lighting, side closures, furniture, new cover geometry, new posts or new wall attachment details.");
       break;
     case "change_cover_only":
       replacements.push(`Keep the existing pergola structure and replace only the roof/cover system with ${technical.coverDescription}; state ${technical.coverStateRule}.`);
       conversions.push("Cover-only change: no movement of posts or beams, no new footprint, only cover, edge trims and drainage details may adapt.");
+      conversions.push("Strict scope: preserve side closures, furniture, post anchors, wall attachment line and structural color unless explicitly selected in another operation.");
       break;
     case "add_side_closures":
       additions.push(`Add only side closures: ${technical.sideClosureDescription}.`);
@@ -105,23 +113,24 @@ export function buildPergolaReplacementManifest(
     case "change_open_state":
       replacements.push(`Change only the cover/opening state: ${technical.coverStateRule}.`);
       conversions.push("Open-state change: preserve structure, footprint, material, side closures and mounting; only louver angle / fabric extension / screen state changes.");
+      conversions.push("Strict scope: do not add side closures, lighting, furniture, posts, beams or new cover material.");
       break;
   }
 
-  if (config.chiusure_laterali.tipo !== "nessuna" && !["remove_side_closures"].includes(config.operazione)) {
+  if ((allowsFullPergolaComposition(config) || config.operazione === "add_side_closures") && config.chiusure_laterali.tipo !== "nessuna") {
     additions.push(`Include side closure system only where selected: ${technical.sideClosureDescription}; avoid generic decorative curtains.`);
   }
 
-  if (config.illuminazione !== "nessuna") {
+  if (allowsFullPergolaComposition(config) && config.illuminazione !== "nessuna") {
     additions.push(`Add integrated lighting: ${technical.lightingDescription}; keep it sparse, buildable and consistent with the pergola profiles.`);
   }
 
-  if (config.arredo.gestisci_arredo === "aggiungi_minimo") {
+  if (allowsFullPergolaComposition(config) && config.arredo.gestisci_arredo === "aggiungi_minimo") {
     additions.push(`Add only sparse coherent outdoor furniture for ${config.arredo.uso_area.replace(/_/g, " ")} use below the pergola, keeping existing spatial logic and avoiding showroom staging.`);
-  } else if (config.arredo.gestisci_arredo === "rimuovi_superfluo") {
+  } else if (allowsFullPergolaComposition(config) && config.arredo.gestisci_arredo === "rimuovi_superfluo") {
     removals.push("Declutter only small non-essential outdoor objects; do not remove primary functional furniture unless explicitly listed.");
   } else {
-    conversions.push("Preserve existing outdoor furniture in place; adapt only pergola shadows and light interaction over it.");
+    conversions.push("Preserve existing outdoor furniture in place; adapt only pergola shadows and light interaction over it unless the operation explicitly targets furniture.");
   }
 
   for (const item of config.elementi_da_rimuovere ?? []) {

@@ -290,6 +290,9 @@ export default function RenderPersianeGalleryDetail() {
         createdBy={session.created_by}
         contactId={session.contact_id}
         opportunityId={session.opportunity_id}
+        sessionId={session.id}
+        sessionTable="render_persiane_sessions"
+        editable
       />
 
       {renderConfig && (

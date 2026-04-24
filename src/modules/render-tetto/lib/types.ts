@@ -130,6 +130,43 @@ export interface RoofTargetSlopesMap {
   untouchedSlopes: string[];
   photovoltaicZone: string;
   accessoryZone: string;
+  preservedRoofGeometry: string[];
+  accessoryZonesInScope: string[];
+  accessoryZonesOutOfScope: string[];
+}
+
+export interface RoofBuildabilityEnvelope {
+  materialPitchCompatibility: string;
+  insulationThicknessEffect: string;
+  eaveAndEdgeAdaptation: string;
+  skylightIntegration: string;
+  photovoltaicIntegration: string;
+  gutterCompatibility: string;
+  forbiddenResults: string[];
+  compatibilityWarnings: string[];
+}
+
+export interface RoofWaterManagementRules {
+  ridgeCaps: string;
+  valleysAndHips: string;
+  eavesDripEdges: string;
+  flashingsAroundPenetrations: string;
+  guttersDownpipes: string;
+  noWaterTrapRules: string[];
+}
+
+export interface RoofAccessoryCompatibility {
+  preserveAccessories: string[];
+  replaceAccessories: string[];
+  removeAccessories: string[];
+  solarCompatibility: string;
+  skylightCompatibility: string;
+  snowGuardsLifeLines: string;
+}
+
+export interface RoofExecutionPriorityPlan {
+  phases: string[];
+  rules: string[];
 }
 
 export interface RoofReplacementManifest {
@@ -139,13 +176,18 @@ export interface RoofReplacementManifest {
   additions: string[];
   removals: string[];
   conversionRules: string[];
+  compatibilityAdjustments: string[];
+  restorationRules: string[];
   preserveExactly: string[];
+  preserveGeometry: string[];
+  preserveAccessories: string[];
 }
 
 export interface RoofPromptValidationResult {
   isValid: boolean;
   missingSections: string[];
   missingBusinessRules: string[];
+  warnings: string[];
 }
 
 export interface TettoPromptBuildResult {
@@ -156,6 +198,10 @@ export interface TettoPromptBuildResult {
   blocks: Record<string, string>;
   sceneAnalysis: RoofSceneAnalysis;
   targetSlopesMap: RoofTargetSlopesMap;
+  buildabilityEnvelope: RoofBuildabilityEnvelope;
+  waterManagementRules: RoofWaterManagementRules;
+  accessoryCompatibility: RoofAccessoryCompatibility;
+  executionPriorityPlan: RoofExecutionPriorityPlan;
   replacementManifest: RoofReplacementManifest;
   validation: RoofPromptValidationResult;
 }

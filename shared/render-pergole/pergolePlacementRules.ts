@@ -15,6 +15,10 @@ const ZONE_DESCRIPTIONS: Record<string, string> = {
   custom: "user-described installation zone",
 };
 
+function isPergolaWallMounted(config: ConfigurazionePergole): boolean {
+  return config.installazione.addossata_si_no || config.struttura.tipo.includes("addossata");
+}
+
 export function buildPergolaTargetAreaMap(
   config: ConfigurazionePergole,
   scene: PergolaSceneAnalysis,
@@ -22,7 +26,7 @@ export function buildPergolaTargetAreaMap(
   const zone = config.installazione.zona;
   const custom = config.installazione.descrizione_zona?.trim();
   const zoneDescription = zone === "custom" && custom ? custom : ZONE_DESCRIPTIONS[zone];
-  const wallMounted = config.installazione.addossata_si_no;
+  const wallMounted = isPergolaWallMounted(config);
 
   return {
     zone,
@@ -54,7 +58,7 @@ export function buildPergolaInstallabilityEnvelope(
   scene: PergolaSceneAnalysis,
   target: PergolaTargetAreaMap,
 ): PergolaInstallabilityEnvelope {
-  const wallMounted = config.installazione.addossata_si_no;
+  const wallMounted = isPergolaWallMounted(config);
   const postCount = config.installazione.numero_montanti ?? (wallMounted ? 2 : 4);
   const anchoring = config.installazione.ancoraggio_a_terra ?? (config.installazione.zona === "giardino_relax" ? "prato_con_plinti" : "pavimento");
 

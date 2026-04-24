@@ -90,6 +90,29 @@ describe("roof render prompt", () => {
     expect(prompt.validation.isValid).toBe(true);
   });
 
+  it("converts coppi into standing seam metal with seam, edge and flashing logic", () => {
+    const prompt = buildTettoPrompt(
+      baseConfig({
+        manto: {
+          tipo: "lamiera_aggraffata",
+          colore_hex: "#2f3437",
+          colore_nome: "Antracite aggraffato",
+          finitura: "opaco",
+        },
+      }),
+      baseAnalysis(),
+    );
+
+    const text = `${prompt.userPrompt}\n${JSON.stringify(prompt.waterManagementRules)}`.toLowerCase();
+    expect(text).toContain("standing seam metal roofing");
+    expect(text).toContain("remove all visible coppi/tiles");
+    expect(text).toContain("clear every trace of the previous tile/coppi rhythm");
+    expect(text).toContain("folded metal ridge/hip caps");
+    expect(text).toContain("waterproofing and flashing rules");
+    expect(prompt.buildabilityEnvelope.forbiddenResults.join(" ").toLowerCase()).toContain("tile rows visible below");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
   it("adds a skylight with waterproof flashing on the target slope", () => {
     const prompt = buildTettoPrompt(
       baseConfig({
@@ -170,6 +193,8 @@ describe("roof render prompt", () => {
     expect(text).toContain("main visible roof slope only");
     expect(text).toContain("add photovoltaic on falda principale");
     expect(text).toContain("align perfectly");
+    expect(text).toContain("mounted with realistic rails/standoffs");
+    expect(text).toContain("clear of chimneys, skylights, valleys");
     expect(text).toContain("all non-target visible roof planes");
     expect(prompt.validation.isValid).toBe(true);
   });
@@ -192,7 +217,54 @@ describe("roof render prompt", () => {
     expect(text).toContain("recolor/refinish the existing roof covering");
     expect(text).toContain("only surface color/finish changes");
     expect(text).toContain("without changing tile/panel geometry");
+    expect(text).toContain("no roof-system conversion");
+    expect(prompt.replacementManifest.preserveGeometry.join(" ").toLowerCase()).toContain("roof pitch");
     expect(text).not.toContain("convert traditional tile/coppi roof");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("adds insulated over-roof thickness with eave adaptation and no geometry distortion", () => {
+    const prompt = buildTettoPrompt(
+      baseConfig({
+        tipo_intervento: "sovracopertura_coibentata",
+        isolamento: {
+          attivo: true,
+          tipo: "fibra_legno",
+          spessore_cm: 12,
+        },
+      }),
+      baseAnalysis(),
+    );
+
+    const text = `${prompt.userPrompt}\n${JSON.stringify(prompt.buildabilityEnvelope)}`.toLowerCase();
+    expect(text).toContain("about 12 cm");
+    expect(text).toContain("eaves, verges");
+    expect(text).toContain("flashings and gutter relationship");
+    expect(text).toContain("no floating or swollen roof edges");
+    expect(text).toContain("do not inflate or deform the house");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("replaces only gutters/downpipes while preserving covering and facade", () => {
+    const prompt = buildTettoPrompt(
+      baseConfig({
+        tipo_intervento: "lattonerie_accessori",
+        grondaie: {
+          attivo: true,
+          materiale: "zinco_titanio",
+          colore_hex: "#7a8b8b",
+          colore_pluviale_hex: "#6f7c7c",
+        },
+      }),
+      baseAnalysis(),
+    );
+
+    const text = `${prompt.userPrompt}\n${JSON.stringify(prompt.accessoryCompatibility)}`.toLowerCase();
+    expect(text).toContain("keep existing roof covering unchanged");
+    expect(text).toContain("replace gutters and downpipes only");
+    expect(text).toContain("must align to the final drip edge");
+    expect(text).toContain("preserve roof covering, facade, pitch");
+    expect(text).not.toContain("replace roof covering on");
     expect(prompt.validation.isValid).toBe(true);
   });
 });

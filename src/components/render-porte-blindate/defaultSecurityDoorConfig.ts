@@ -1,0 +1,50 @@
+import type { ConfigurazionePortaBlindata } from "@/modules/render-porte-blindate/lib/types";
+
+export const DEFAULT_SECURITY_DOOR_CONFIG: ConfigurazionePortaBlindata = {
+  interventi: ["replace_existing_door"],
+  door_type: "appartamento_moderna",
+  leaf_type: "anta_singola",
+  side_context: "lato_interno",
+  visible_side: "interno",
+  stile: "moderno",
+  finitura_lato_visibile: "effetto_legno",
+  finitura_interna: "effetto_legno",
+  finitura_esterna: "liscio_opaco",
+  colore_lato_visibile: "rovere chiaro naturale",
+  colore_interno: "rovere chiaro naturale",
+  colore_esterno: "antracite opaco",
+  frame: {
+    tipo: "minimale",
+    colore: "antracite coordinato",
+    coprifilo: "minimale",
+  },
+  hardware: {
+    elementi: ["maniglia_moderna", "defender_visibile", "spioncino_standard"],
+    finitura: "nero_opaco",
+    posizione: "standard",
+  },
+  vetri: {
+    fiancoluce: false,
+    sopraluce: false,
+    finitura_vetro: "satinato",
+  },
+  soglia: {
+    attiva: true,
+    materiale: "alluminio",
+    finitura: "anodizzato scuro",
+  },
+  apertura: {
+    vano_target: "porta_principale",
+    larghezza_apparente: "standard",
+    altezza_apparente: "standard",
+    profondita_spallette: "media",
+    presenza_fiancoluce: false,
+    presenza_sopraluce: false,
+    rapporto_con_parete: "porta centrata nel vano esistente con pareti da preservare",
+    rapporto_con_pavimento: "soglia allineata al pavimento fotografato",
+    interferenze_note: [],
+  },
+  elementi_da_preservare: ["pareti circostanti", "pavimento", "zoccolini", "interruttori/citofono se visibili"],
+  elementi_da_rimuovere: [],
+  note_libere: "",
+};

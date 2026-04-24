@@ -151,7 +151,7 @@ export default function RenderBagnoHub() {
             </Button>
             <Button
               variant="outline"
-              className="border-white/40 text-white hover:bg-white/10 gap-2"
+              className="border-white/50 bg-transparent text-white hover:bg-white/10 hover:text-white gap-2"
               onClick={() => navigate("/azienda/render/bagno/gallery")}
             >
               <GalleryHorizontalEnd className="h-4 w-4" />

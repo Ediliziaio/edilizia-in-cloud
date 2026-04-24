@@ -37,6 +37,15 @@ export function buildPergolePrompt(
   const envelope = normalizedConfig.installability_envelope;
   const technical = normalizedConfig.technical_specification;
   const blocks: Record<string, string> = {};
+  const operation = normalizedConfig.replacement_manifest.operation;
+  const sideClosureInScope = operation === "add_new_pergola" ||
+    operation === "replace_existing_awning_with_pergola" ||
+    operation === "replace_existing_pergola" ||
+    operation === "add_side_closures" ||
+    operation === "remove_side_closures";
+  const sideClosureBehavior = sideClosureInScope
+    ? technical.sideClosureDescription
+    : "preserve existing side closure condition exactly; do not add, remove or change ZIP screens, curtains, glass panels or tracks in this operation scope";
 
   blocks.A = `[BLOCK A - MISSION]
 You are a SURGICAL PHOTOREALISTIC PERGOLA INSTALLATION IMAGE EDITOR.
@@ -105,7 +114,7 @@ Visual behavior: cover must read as the selected system, not as a generic canopy
 
   blocks.H = `[BLOCK H - SIDE CLOSURES SPECIFICATION]
 Side closure type: ${technical.sideClosureType}
-Side closure behavior: ${technical.sideClosureDescription}
+Side closure behavior: ${sideClosureBehavior}
 Side closure state must be physically attached to posts/beams with tracks, guides or panels where relevant; no random decorative curtains unless selected.`;
 
   blocks.I = `[BLOCK I - DRAINAGE / WATER MANAGEMENT RULES]

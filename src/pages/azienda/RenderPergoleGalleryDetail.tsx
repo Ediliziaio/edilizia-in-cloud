@@ -27,12 +27,28 @@ function label(value?: string | null) {
   return value ? value.replace(/_/g, " ") : null;
 }
 
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+type DbError = { message?: string } | null;
+type DbQuery = {
+  select: (columns?: string) => DbQuery;
+  eq: (column: string, value: unknown) => DbQuery;
+  single: () => PromiseLike<{ data: unknown; error: DbError }>;
+};
+type DynamicSupabase = { from: (table: string) => DbQuery };
+
 export default function RenderPergoleGalleryDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const db = supabase as any;
+  const db = supabase as unknown as DynamicSupabase;
 
   const { data: session, isLoading } = useQuery({
     queryKey: ["render-pergole-session-detail", id],
@@ -50,8 +66,8 @@ export default function RenderPergoleGalleryDetail() {
         status: string;
         original_photo_url: string | null;
         result_urls: string[] | null;
-        config: Record<string, any> | null;
-        config_snapshot: Record<string, any> | null;
+        config: Record<string, unknown> | null;
+        config_snapshot: Record<string, unknown> | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
@@ -81,7 +97,7 @@ export default function RenderPergoleGalleryDetail() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto">
         <Skeleton className="h-10 w-40" />
         <Skeleton className="aspect-video w-full rounded-xl" />
         <Skeleton className="h-32 w-full rounded-xl" />
@@ -102,11 +118,11 @@ export default function RenderPergoleGalleryDetail() {
   const resultUrl = session.result_urls?.[0] ?? null;
   const statusCfg = STATUS_CONFIG[session.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
-  const cfg = session.config ?? {};
-  const struttura = cfg.struttura ?? {};
-  const copertura = cfg.copertura ?? {};
-  const chiusure = cfg.chiusure_laterali ?? {};
-  const installazione = cfg.installazione ?? {};
+  const cfg = asObject(session.config);
+  const struttura = asObject(cfg.struttura);
+  const copertura = asObject(cfg.copertura);
+  const chiusure = asObject(cfg.chiusure_laterali);
+  const installazione = asObject(cfg.installazione);
 
   const handleDownload = () => {
     if (!resultUrl) return;
@@ -123,7 +139,7 @@ export default function RenderPergoleGalleryDetail() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto pb-12">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/pergole/gallery")}>
           <ArrowLeft className="h-4 w-4" />
@@ -174,11 +190,11 @@ export default function RenderPergoleGalleryDetail() {
       )}
 
       {session.status === "completed" && resultUrl && (
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1 gap-2 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={handleShare}>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <Button variant="outline" className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={handleShare}>
             <MessageCircle className="h-4 w-4" />WhatsApp
           </Button>
-          <Button variant="outline" className="flex-1 gap-2" onClick={handleShare}>
+          <Button variant="outline" className="gap-2" onClick={handleShare}>
             <Share2 className="h-4 w-4" />Condividi
           </Button>
           <RenderPdfDownloadButton
@@ -187,20 +203,27 @@ export default function RenderPergoleGalleryDetail() {
             title="Render AI Pergola"
             filename={`render_pergole_${id}.pdf`}
             size="default"
-            className="flex-1 gap-2"
+            className="gap-2"
             metadata={[
               { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
-              { label: "Tipologia", value: label(struttura.tipo) },
-              { label: "Copertura", value: label(copertura.tipo) },
+              { label: "Tipologia", value: label(asString(struttura.tipo)) },
+              { label: "Copertura", value: label(asString(copertura.tipo)) },
             ]}
           />
-          <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
+          <Button variant="outline" className="gap-2" onClick={handleDownload}>
             <Download className="h-4 w-4" />Download
           </Button>
         </div>
       )}
 
-      <RenderCrmSummaryCard createdBy={session.created_by} contactId={session.contact_id} opportunityId={session.opportunity_id} />
+      <RenderCrmSummaryCard
+        createdBy={session.created_by}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
+        sessionId={session.id}
+        sessionTable="render_pergole_sessions"
+        editable
+      />
 
       <Card>
         <CardHeader>
@@ -209,23 +232,23 @@ export default function RenderPergoleGalleryDetail() {
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Struttura</p>
-            <p className="font-medium capitalize">{label(struttura.tipo) ?? "Pergola"}</p>
-            <p className="text-muted-foreground capitalize">{label(struttura.materiale)} · {struttura.colore_nome}</p>
+            <p className="font-medium capitalize">{label(asString(struttura.tipo)) ?? "Pergola"}</p>
+            <p className="text-muted-foreground capitalize">{label(asString(struttura.materiale))} · {asString(struttura.colore_nome)}</p>
           </div>
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Copertura</p>
-            <p className="font-medium capitalize">{label(copertura.tipo) ?? "Non specificata"}</p>
-            <p className="text-muted-foreground capitalize">{label(copertura.stato)}</p>
+            <p className="font-medium capitalize">{label(asString(copertura.tipo)) ?? "Non specificata"}</p>
+            <p className="text-muted-foreground capitalize">{label(asString(copertura.stato))}</p>
           </div>
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Chiusure laterali</p>
-            <p className="font-medium capitalize">{label(chiusure.tipo) ?? "Nessuna"}</p>
-            <p className="text-muted-foreground capitalize">{label(chiusure.stato)}</p>
+            <p className="font-medium capitalize">{label(asString(chiusure.tipo)) ?? "Nessuna"}</p>
+            <p className="text-muted-foreground capitalize">{label(asString(chiusure.stato))}</p>
           </div>
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Installazione</p>
-            <p className="font-medium capitalize">{label(installazione.zona)}</p>
-            <p className="text-muted-foreground">{installazione.addossata_si_no ? "Addossata alla facciata" : "Autoportante"}</p>
+            <p className="font-medium capitalize">{label(asString(installazione.zona))}</p>
+            <p className="text-muted-foreground">{installazione.addossata_si_no === true ? "Addossata alla facciata" : "Autoportante"}</p>
           </div>
           {session.processing_started_at && session.processing_completed_at && (
             <p className="sm:col-span-2 text-xs text-muted-foreground">
