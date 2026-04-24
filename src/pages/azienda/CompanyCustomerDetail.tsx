@@ -259,6 +259,92 @@ export default function CompanyCustomerDetail() {
   const orderCount = orders.length;
   const totalOrderValue = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
+  // ── Name helpers + dataIssues + sanitizeMutation ────────────────────────────
+  // IMPORTANTE: questi hooks DEVONO stare sopra i `return` condizionali (loading
+  // / not-found) per rispettare le Rules of Hooks di React. Prima erano dopo e
+  // causavano "Rendered more hooks than during the previous render" al primo
+  // transitorio customer undefined → customer definito.
+  const first = (customer?.first_name || "").trim();
+  const last = (customer?.last_name || "").trim();
+  const biz = (customer?.business_name || "").trim();
+  const isFirstPlaceholder = first === "—" || first === "-" || first === "";
+  const isLastPlaceholder = last === "—" || last === "-" || last === "";
+  const fullName = useMemo(() => {
+    if (!customer) return "";
+    if (customer.is_business && biz) return biz;
+    const f = isFirstPlaceholder ? "" : first;
+    const l = isLastPlaceholder ? "" : last;
+    const joined = `${f} ${l}`.trim();
+    return joined || "(senza nome)";
+  }, [customer, biz, first, last, isFirstPlaceholder, isLastPlaceholder]);
+  const referentName = useMemo(() => {
+    if (!customer?.is_business) return null;
+    const f = isFirstPlaceholder ? "" : first;
+    const l = isLastPlaceholder ? "" : last;
+    const joined = `${f} ${l}`.trim();
+    return joined || null;
+  }, [customer, first, last, isFirstPlaceholder, isLastPlaceholder]);
+
+  // Detect dati problematici: nome/cognome è un numero, CF o email
+  const dataIssues = useMemo(() => {
+    const issues: Array<{ field: "first_name" | "last_name"; value: string; kind: string; label: string }> = [];
+    if (!customer) return issues;
+    if (first && looksLikePhone(first)) {
+      issues.push({ field: "first_name", value: first, kind: "phone", label: "Il nome è un numero di telefono" });
+    }
+    if (last && looksLikePhone(last)) {
+      issues.push({ field: "last_name", value: last, kind: "phone", label: "Il cognome è un numero di telefono" });
+    }
+    if (first && looksLikeFiscalCode(first)) {
+      issues.push({ field: "first_name", value: first, kind: "fiscal_code", label: "Il nome è un CF/P.IVA" });
+    }
+    if (last && looksLikeFiscalCode(last)) {
+      issues.push({ field: "last_name", value: last, kind: "fiscal_code", label: "Il cognome è un CF/P.IVA" });
+    }
+    if (first && looksLikeEmail(first)) {
+      issues.push({ field: "first_name", value: first, kind: "email", label: "Il nome è un'email" });
+    }
+    return issues;
+  }, [customer, first, last]);
+
+  const customerId = customer?.id;
+  const sanitizeMutation = useMutation({
+    mutationFn: async () => {
+      if (!customerId) throw new Error("Cliente non disponibile");
+      const { data, error } = await supabase.rpc("sanitize_customer_profile" as never, {
+        p_customer_id: customerId,
+      } as never);
+      if (error) throw error;
+      return data as unknown as { changed: boolean; fixes: string[]; error?: string };
+    },
+    onSuccess: (data) => {
+      if (data?.error) {
+        toast({ title: "Errore", description: data.error, variant: "destructive" });
+        return;
+      }
+      if (!data?.changed) {
+        toast({ title: "Nessuna correzione applicata", description: "I dati sono già coerenti." });
+        return;
+      }
+      toast({
+        title: "Correzioni applicate",
+        description: (data.fixes ?? []).join(" · ") || "Dati del cliente sistemati.",
+      });
+      if (customerId) {
+        queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customerId] });
+        queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      }
+      refetchCustomer();
+    },
+    onError: (e) => {
+      toast({
+        title: "Errore",
+        description: e instanceof Error ? e.message : "Impossibile correggere i dati",
+        variant: "destructive",
+      });
+    },
+  });
+
   // ── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (orderCount > 0) {
@@ -321,83 +407,6 @@ export default function CompanyCustomerDetail() {
       </div>
     );
   }
-
-  // Name helpers — aware di is_business (ragione sociale) e placeholder "—"
-  const first = (customer.first_name || "").trim();
-  const last = (customer.last_name || "").trim();
-  const biz = (customer.business_name || "").trim();
-  const isFirstPlaceholder = first === "—" || first === "-" || first === "";
-  const isLastPlaceholder = last === "—" || last === "-" || last === "";
-  const fullName = useMemo(() => {
-    if (customer.is_business && biz) return biz;
-    const f = isFirstPlaceholder ? "" : first;
-    const l = isLastPlaceholder ? "" : last;
-    const joined = `${f} ${l}`.trim();
-    return joined || "(senza nome)";
-  }, [customer.is_business, biz, first, last, isFirstPlaceholder, isLastPlaceholder]);
-  const referentName = useMemo(() => {
-    if (!customer.is_business) return null;
-    const f = isFirstPlaceholder ? "" : first;
-    const l = isLastPlaceholder ? "" : last;
-    const joined = `${f} ${l}`.trim();
-    return joined || null;
-  }, [customer.is_business, first, last, isFirstPlaceholder, isLastPlaceholder]);
-
-  // Detect dati problematici: nome/cognome è un numero, CF o email
-  const dataIssues = useMemo(() => {
-    const issues: Array<{ field: "first_name" | "last_name"; value: string; kind: string; label: string }> = [];
-    if (first && looksLikePhone(first)) {
-      issues.push({ field: "first_name", value: first, kind: "phone", label: "Il nome è un numero di telefono" });
-    }
-    if (last && looksLikePhone(last)) {
-      issues.push({ field: "last_name", value: last, kind: "phone", label: "Il cognome è un numero di telefono" });
-    }
-    if (first && looksLikeFiscalCode(first)) {
-      issues.push({ field: "first_name", value: first, kind: "fiscal_code", label: "Il nome è un CF/P.IVA" });
-    }
-    if (last && looksLikeFiscalCode(last)) {
-      issues.push({ field: "last_name", value: last, kind: "fiscal_code", label: "Il cognome è un CF/P.IVA" });
-    }
-    if (first && looksLikeEmail(first)) {
-      issues.push({ field: "first_name", value: first, kind: "email", label: "Il nome è un'email" });
-    }
-    return issues;
-  }, [first, last]);
-
-  // Mutation per il fix rapido via RPC
-  const sanitizeMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.rpc("sanitize_customer_profile" as never, {
-        p_customer_id: customer.id,
-      } as never);
-      if (error) throw error;
-      return data as unknown as { changed: boolean; fixes: string[]; error?: string };
-    },
-    onSuccess: (data) => {
-      if (data?.error) {
-        toast({ title: "Errore", description: data.error, variant: "destructive" });
-        return;
-      }
-      if (!data?.changed) {
-        toast({ title: "Nessuna correzione applicata", description: "I dati sono già coerenti." });
-        return;
-      }
-      toast({
-        title: "Correzioni applicate",
-        description: (data.fixes ?? []).join(" · ") || "Dati del cliente sistemati.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customer.id] });
-      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
-      refetchCustomer();
-    },
-    onError: (e) => {
-      toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Impossibile correggere i dati",
-        variant: "destructive",
-      });
-    },
-  });
 
   return (
     <div className="space-y-6">

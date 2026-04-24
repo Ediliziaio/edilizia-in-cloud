@@ -41,14 +41,18 @@ export default function SettingsSuppliers() {
   }, [isAdmin, navigate]);
 
   // Supplier list per l'export + KPI header (separata dal componente figlio
-  // per evitare coupling con il suo stato interno di filtri)
+  // per evitare coupling con il suo stato interno di filtri).
+  // Bug fix: rimossi `payment_terms_days` e `default_payment_method` che
+  // non esistono su suppliers (lo schema ha solo `payment_method`).
+  // Prima la query falliva silenziosamente e i KPI mostravano tutti 0
+  // mentre la tabella interna (che seleziona *) mostrava i dati.
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers-export", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("suppliers")
-        .select("id, name, product_category, vat_number, fiscal_code, email, phone, address, city, province, postal_code, country, is_foreign, is_active, notes, payment_terms_days, default_payment_method, created_at")
+        .select("id, name, product_category, vat_number, fiscal_code, email, phone, address, city, province, postal_code, country, is_foreign, is_active, notes, payment_method, created_at")
         .eq("company_id", effectiveCompany.id)
         .order("name");
       if (error) throw error;
@@ -82,8 +86,7 @@ export default function SettingsSuppliers() {
       city: s.city ?? "",
       province: s.province ?? "",
       country: s.country ?? "IT",
-      payment_terms_days: s.payment_terms_days != null ? String(s.payment_terms_days) : "",
-      default_payment_method: s.default_payment_method ?? "",
+      payment_method: s.payment_method ?? "",
       notes: (s.notes ?? "").replace(/\n/g, " / "),
       created_at: s.created_at ? format(new Date(s.created_at), "dd/MM/yyyy") : "",
     }));
@@ -103,8 +106,7 @@ export default function SettingsSuppliers() {
     { key: "city", label: "Città" },
     { key: "province", label: "Prov." },
     { key: "country", label: "Paese" },
-    { key: "payment_terms_days", label: "Termini pagamento (gg)" },
-    { key: "default_payment_method", label: "Metodo pagamento" },
+    { key: "payment_method", label: "Metodo pagamento" },
     { key: "notes", label: "Note" },
     { key: "created_at", label: "Data inserimento" },
   ]), []);

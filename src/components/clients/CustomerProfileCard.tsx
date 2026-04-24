@@ -114,11 +114,18 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Display helpers
+  // Display helpers — Bug fix: evita che il placeholder "—" finisca come
+  // iniziale dell'avatar (es. "—A" quando first_name è "—"). I placeholder
+  // sono trattati come vuoti per il calcolo delle iniziali.
   const displayName = getDisplayName(customer);
-  const initials = customer.is_business
-    ? (customer.business_name ?? "A").charAt(0).toUpperCase()
-    : (`${(customer.first_name ?? "").charAt(0)}${(customer.last_name ?? "").charAt(0)}`.toUpperCase() || "?");
+  const initialOf = (s: string | null | undefined) => {
+    const t = (s ?? "").trim();
+    if (!t || t === "—" || t === "-") return "";
+    return t.charAt(0).toUpperCase();
+  };
+  const initials = customer.is_business && customer.business_name
+    ? customer.business_name.trim().charAt(0).toUpperCase() || "A"
+    : (`${initialOf(customer.first_name)}${initialOf(customer.last_name)}` || "?");
   const avatarColor = getAvatarColor(displayName);
 
   // Form state

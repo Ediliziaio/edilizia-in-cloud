@@ -1458,9 +1458,11 @@ export default function OrdersList() {
       )}
 
       {activeTab === "acquisto" && (
-        <div className="[&>div:first-child>div:first-child]:hidden">
-          <PurchaseOrdersList />
-        </div>
+        /* Bug fix: rimosso wrapper [&>div:first-child>div:first-child]:hidden
+           che nascondeva il nuovo header h-10 w-10 + Esporta/Filtri/Nuovo OdA
+           che abbiamo aggiunto a PurchaseOrdersList. Era un hack per nascondere
+           il vecchio header ridondante, non più necessario. */
+        <PurchaseOrdersList />
       )}
 
       {activeTab === "ddt" && (

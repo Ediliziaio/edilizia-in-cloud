@@ -30,6 +30,11 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableMaterialItem } from "@/components/settings/SortableMaterialItem";
 
+// Shared empty array con riferimento stabile — evita di creare un nuovo []
+// ad ogni render (che farebbe triggerare inutilmente gli useEffect che
+// lo hanno in dependency list).
+const EMPTY_ARRAY: ReadonlyArray<never> = Object.freeze([]);
+
 const CATEGORIES = ["generale", "scheda_prodotto", "garanzia", "certificazione", "contratto", "altro"];
 const categoryLabels: Record<string, string> = {
   generale: "Generale",
@@ -66,7 +71,7 @@ export default function SettingsQuoteMaterials() {
     if (!isAdmin) navigate("/azienda", { replace: true });
   }, [isAdmin, navigate]);
 
-  const { data: materials = [], isLoading } = useQuery({
+  const { data: materialsData, isLoading } = useQuery({
     queryKey: ["quote-pdf-materials", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -76,9 +81,13 @@ export default function SettingsQuoteMaterials() {
         .eq("company_id", companyId!)
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
+  // Bug fix: usare il riferimento diretto da useQuery senza default inline `= []`.
+  // Il default inline rompe la referential equality ad ogni render (new array
+  // ogni volta) e fa loopare il useEffect qui sotto "Maximum update depth exceeded".
+  const materials = materialsData ?? EMPTY_ARRAY;
 
   // Sync query data → local state when no pending changes
   useEffect(() => {
