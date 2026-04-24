@@ -11,6 +11,7 @@ const statusConfig: Record<IntegrationStatus, { label: string; className: string
   disconnected: { label: "Non collegato", className: "bg-muted text-muted-foreground border-border" },
   error: { label: "Errore", className: "bg-destructive/10 text-destructive border-destructive/20" },
   token_expired: { label: "Token scaduto", className: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800" },
+  pending: { label: "In configurazione", className: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800" },
 };
 
 export function MetaStatusBadge({ status, health }: MetaStatusBadgeProps) {

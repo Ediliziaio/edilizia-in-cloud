@@ -94,6 +94,64 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ────────────────────────────────────────────────────────────
+    // RATE LIMITING — Meta Graph API: max 200 chiamate/ora/user
+    // Teniamo soglia a 180 per avere margine e evitare 429
+    // ────────────────────────────────────────────────────────────
+    const META_HOURLY_LIMIT = 180;
+    const hourStart = new Date();
+    hourStart.setMinutes(0, 0, 0);
+    const hourStartIso = hourStart.toISOString();
+    const hourEndIso = new Date(hourStart.getTime() + 3600_000).toISOString();
+    try {
+      // upsert counter corrente (insert o increment)
+      const { data: rateRow } = await adminClient
+        .from("meta_api_rate_limit")
+        .select("id, call_count, last_429_at")
+        .eq("company_id", company_id)
+        .eq("window_start", hourStartIso)
+        .maybeSingle();
+
+      const currentCount = rateRow?.call_count ?? 0;
+      if (currentCount >= META_HOURLY_LIMIT) {
+        const retryAfter = Math.ceil((hourStart.getTime() + 3600_000 - Date.now()) / 1000);
+        return new Response(
+          JSON.stringify({
+            error: "Rate limit reached — retry later",
+            retry_after_seconds: retryAfter,
+            calls_this_hour: currentCount,
+            limit: META_HOURLY_LIMIT,
+          }),
+          {
+            status: 429,
+            headers: {
+              ...getCorsHeaders(req),
+              "Content-Type": "application/json",
+              "Retry-After": String(retryAfter),
+            },
+          },
+        );
+      }
+      // Incrementa contatore (best-effort, no bloccante)
+      if (rateRow) {
+        await adminClient
+          .from("meta_api_rate_limit")
+          .update({ call_count: currentCount + 1, updated_at: new Date().toISOString() })
+          .eq("id", rateRow.id);
+      } else {
+        await adminClient.from("meta_api_rate_limit").insert({
+          company_id,
+          integration_id,
+          window_start: hourStartIso,
+          window_end: hourEndIso,
+          call_count: 1,
+        });
+      }
+    } catch (rateErr) {
+      // Non bloccare la request se il rate limit check fallisce (fail-open)
+      console.warn("Rate limit check failed (fail-open):", (rateErr as Error).message);
+    }
+
     // Get access token and page tokens
     const { data: creds } = await adminClient
       .from("integration_credentials")
