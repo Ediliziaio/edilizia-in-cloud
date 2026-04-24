@@ -41,6 +41,10 @@ export interface PlaybookExecution {
   id: string;
   playbook_id: string | null;
   company_id: string;
+  /** Nome azienda (join) — resolver side per UI più leggibile */
+  company_name?: string | null;
+  /** Nome playbook (join) */
+  playbook_name?: string | null;
   trigger_event: string;
   status: "pending" | "running" | "completed" | "failed";
   actions_log: Array<{ action: string; result: string; at: string }>;
@@ -59,6 +63,7 @@ export interface CreatePlaybookPayload {
 export interface UpdatePlaybookPayload {
   id: string;
   name: string;
+  trigger_event: Playbook["trigger_event"];
   is_active: boolean;
   delay_hours: number;
   actions: PlaybookAction[];
@@ -95,10 +100,16 @@ function normalizeExecution(raw: Record<string, unknown>): PlaybookExecution {
     ? (rawLog as PlaybookExecution["actions_log"])
     : [];
 
+  // PostgREST fornisce join come oggetto annidato (select "companies(name)")
+  const company = raw.companies as { name: string } | null | undefined;
+  const playbook = raw.lifecycle_playbooks as { name: string } | null | undefined;
+
   return {
     id: raw.id as string,
     playbook_id: (raw.playbook_id as string | null) ?? null,
     company_id: raw.company_id as string,
+    company_name: company?.name ?? null,
+    playbook_name: playbook?.name ?? null,
     trigger_event: raw.trigger_event as string,
     status: raw.status as PlaybookExecution["status"],
     actions_log,
@@ -131,23 +142,32 @@ export function usePlaybooksList() {
 // ─── Lista esecuzioni ─────────────────────────────────────
 
 /**
- * Carica le ultime 20 esecuzioni.
- * Se viene passato companyId, filtra per quella azienda.
+ * Carica le esecuzioni più recenti (default 100) con join company + playbook
+ * per mostrare nome leggibile invece di UUID grezzi.
+ * Filtri opzionali: companyId, status.
  */
-export function usePlaybookExecutions(companyId?: string) {
+export function usePlaybookExecutions(options?: {
+  companyId?: string;
+  status?: PlaybookExecution["status"] | "all";
+  limit?: number;
+}) {
+  const { companyId, status, limit = 100 } = options ?? {};
   return useQuery({
-    queryKey: [...EXECUTIONS_KEY, companyId ?? "all"],
+    queryKey: [...EXECUTIONS_KEY, companyId ?? "all", status ?? "all", limit],
     queryFn: async (): Promise<PlaybookExecution[]> => {
       let query = supabase
         .from("playbook_executions")
         .select(
-          "id, playbook_id, company_id, trigger_event, status, actions_log, started_at, completed_at, error_message"
+          "id, playbook_id, company_id, trigger_event, status, actions_log, started_at, completed_at, error_message, companies(name), lifecycle_playbooks(name)"
         )
         .order("started_at", { ascending: false })
-        .limit(20);
+        .limit(limit);
 
       if (companyId) {
         query = query.eq("company_id", companyId);
+      }
+      if (status && status !== "all") {
+        query = query.eq("status", status);
       }
 
       const { data, error } = await query;
@@ -156,7 +176,7 @@ export function usePlaybookExecutions(companyId?: string) {
 
       return (data ?? []).map((row) => normalizeExecution(row as Record<string, unknown>));
     },
-    staleTime: 60 * 1000, // 1 minuto
+    staleTime: 60 * 1000,
   });
 }
 
@@ -200,6 +220,7 @@ export function useUpdatePlaybook() {
         .from("lifecycle_playbooks")
         .update({
           name: payload.name,
+          trigger_event: payload.trigger_event,
           is_active: payload.is_active,
           delay_hours: payload.delay_hours,
           actions: payload.actions,
@@ -220,17 +241,20 @@ export function useUpdatePlaybook() {
 
 // ─── Elimina playbook ─────────────────────────────────────
 
-/** Mutation per eliminare un playbook. Mostra un confirm prima. */
+/**
+ * Mutation per eliminare un playbook.
+ *
+ * Il confirm UI DEVE avvenire a livello componente (AlertDialog), NON qui.
+ * Prima c'era `window.confirm()` dentro il mutationFn: antipattern doppio —
+ * (a) UI bloccante brutto, (b) se l'utente premeva Annulla la mutationFn
+ * ritornava void senza errore, onSuccess scattava comunque con toast
+ * "Playbook eliminato" mentre il record era ancora lì (falso positivo).
+ */
 export function useDeletePlaybook() {
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string): Promise<void> => {
-      const conferma = window.confirm(
-        "Sei sicuro di voler eliminare questo playbook? L'operazione non è reversibile."
-      );
-      if (!conferma) return;
-
       const { error } = await supabase
         .from("lifecycle_playbooks")
         .delete()
