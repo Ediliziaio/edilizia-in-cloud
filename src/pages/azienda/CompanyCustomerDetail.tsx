@@ -49,6 +49,16 @@ interface CustomerProfile {
   created_at: string;
   salesperson_id: string | null;
   marketing_contact_id?: string | null;
+  // Nuovi campi
+  is_business: boolean | null;
+  business_name: string | null;
+  city: string | null;
+  postal_code: string | null;
+  province: string | null;
+  country: string | null;
+  site_city: string | null;
+  site_postal_code: string | null;
+  site_province: string | null;
 }
 
 export default function CompanyCustomerDetail() {
@@ -65,7 +75,7 @@ export default function CompanyCustomerDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at, salesperson_id")
+        .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at, salesperson_id, is_business, business_name, city, postal_code, province, country, site_city, site_postal_code, site_province")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -312,17 +322,26 @@ export default function CompanyCustomerDetail() {
     );
   }
 
-  // Name helpers — safe rendering anche con valori null/placeholder "—"
+  // Name helpers — aware di is_business (ragione sociale) e placeholder "—"
   const first = (customer.first_name || "").trim();
   const last = (customer.last_name || "").trim();
+  const biz = (customer.business_name || "").trim();
   const isFirstPlaceholder = first === "—" || first === "-" || first === "";
   const isLastPlaceholder = last === "—" || last === "-" || last === "";
   const fullName = useMemo(() => {
+    if (customer.is_business && biz) return biz;
     const f = isFirstPlaceholder ? "" : first;
     const l = isLastPlaceholder ? "" : last;
     const joined = `${f} ${l}`.trim();
     return joined || "(senza nome)";
-  }, [first, last, isFirstPlaceholder, isLastPlaceholder]);
+  }, [customer.is_business, biz, first, last, isFirstPlaceholder, isLastPlaceholder]);
+  const referentName = useMemo(() => {
+    if (!customer.is_business) return null;
+    const f = isFirstPlaceholder ? "" : first;
+    const l = isLastPlaceholder ? "" : last;
+    const joined = `${f} ${l}`.trim();
+    return joined || null;
+  }, [customer.is_business, first, last, isFirstPlaceholder, isLastPlaceholder]);
 
   // Detect dati problematici: nome/cognome è un numero, CF o email
   const dataIssues = useMemo(() => {
@@ -397,15 +416,25 @@ export default function CompanyCustomerDetail() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold">
               {fullName}
-              {(isFirstPlaceholder && isLastPlaceholder) && (
+              {!customer.is_business && isFirstPlaceholder && isLastPlaceholder && !biz && (
                 <span className="text-xs font-normal text-muted-foreground ml-2">(anagrafica da completare)</span>
               )}
             </h1>
+            {customer.is_business && (
+              <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300">
+                Azienda
+              </Badge>
+            )}
             <Badge variant="secondary" className="gap-1">
               <ClipboardList className="h-3 w-3" />
               {orderCount} {orderCount === 1 ? "ordine" : "ordini"}
             </Badge>
           </div>
+          {referentName && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Referente: <span className="font-medium text-foreground">{referentName}</span>
+            </p>
+          )}
 
           {/* Chip cliccabili email / telefono / indirizzo */}
           <div className="flex flex-wrap items-center gap-2 mt-2">

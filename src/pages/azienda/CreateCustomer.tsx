@@ -3,7 +3,7 @@ import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, UserPlus, Copy, Check, ShieldCheck, ShieldOff, Mail, Phone, MapPin,
-  CreditCard, HardHat, FileText, Loader2,
+  CreditCard, HardHat, FileText, Loader2, Building2, User as UserIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -37,13 +38,21 @@ export default function CreateCustomer() {
     ?.customer_portal_enabled !== false;
 
   // ── Form state ─────────────────────────────────────────────
+  const [isBusiness, setIsBusiness] = useState(false);
+  const [businessName, setBusinessName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [fiscalCode, setFiscalCode] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [province, setProvince] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
+  const [siteCity, setSiteCity] = useState("");
+  const [sitePostalCode, setSitePostalCode] = useState("");
+  const [siteProvince, setSiteProvince] = useState("");
   const [notes, setNotes] = useState("");
 
   // Portale: default segue setting company, ma admin può disattivare per singolo cliente
@@ -81,8 +90,7 @@ export default function CreateCustomer() {
   }, [email]);
 
   const canSubmit =
-    firstName.trim().length > 0 &&
-    lastName.trim().length > 0 &&
+    (isBusiness ? businessName.trim().length > 0 : (firstName.trim().length > 0 && lastName.trim().length > 0)) &&
     email.trim().length > 0 &&
     !emailError &&
     !phoneError &&
@@ -92,13 +100,20 @@ export default function CreateCustomer() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!firstName.trim()) {
-      toast({ title: "Campo obbligatorio", description: "Inserisci il nome del cliente.", variant: "destructive" });
-      return;
-    }
-    if (!lastName.trim()) {
-      toast({ title: "Campo obbligatorio", description: "Inserisci il cognome del cliente.", variant: "destructive" });
-      return;
+    if (isBusiness) {
+      if (!businessName.trim()) {
+        toast({ title: "Campo obbligatorio", description: "Inserisci la ragione sociale.", variant: "destructive" });
+        return;
+      }
+    } else {
+      if (!firstName.trim()) {
+        toast({ title: "Campo obbligatorio", description: "Inserisci il nome del cliente.", variant: "destructive" });
+        return;
+      }
+      if (!lastName.trim()) {
+        toast({ title: "Campo obbligatorio", description: "Inserisci il cognome del cliente.", variant: "destructive" });
+        return;
+      }
     }
     if (!email.trim()) {
       toast({ title: "Campo obbligatorio", description: "Inserisci l'email del cliente.", variant: "destructive" });
@@ -120,21 +135,28 @@ export default function CreateCustomer() {
     setIsSubmitting(true);
 
     try {
-      // Normalizzazione client-side
       const cleanPhone = phone.replace(PHONE_CLEAN_REGEX, "").replace(/\s+/g, " ").trim() || null;
-      // Rispettiamo la scelta del company (se OFF → sempre OFF), altrimenti toggle UI
       const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
 
       const { data, error } = await supabase.functions.invoke("create-customer", {
         body: {
+          is_business: isBusiness,
+          business_name: isBusiness ? businessName.trim() : null,
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           email: email.trim().toLowerCase(),
           phone: cleanPhone,
           address: address.trim() || null,
+          city: city.trim() || null,
+          postal_code: postalCode.trim() || null,
+          province: province.trim().toUpperCase() || null,
+          country: "IT",
           company_id: effectiveCompany.id,
           fiscal_code: fiscalCode.trim() || null,
           site_address: siteAddress.trim() || null,
+          site_city: siteCity.trim() || null,
+          site_postal_code: sitePostalCode.trim() || null,
+          site_province: siteProvince.trim().toUpperCase() || null,
           notes: notes.trim() || null,
           create_portal_account: shouldCreatePortal,
           send_welcome_email: shouldCreatePortal && sendWelcomeEmail,
@@ -224,27 +246,66 @@ export default function CreateCustomer() {
                 <CardDescription>Informazioni di contatto del cliente</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Tipo cliente */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Tipo cliente</Label>
+                  <Tabs value={isBusiness ? "business" : "person"} onValueChange={(v) => setIsBusiness(v === "business")}>
+                    <TabsList className="grid grid-cols-2 w-full">
+                      <TabsTrigger value="person">
+                        <UserIcon className="h-3.5 w-3.5 mr-1.5" />
+                        Persona fisica
+                      </TabsTrigger>
+                      <TabsTrigger value="business">
+                        <Building2 className="h-3.5 w-3.5 mr-1.5" />
+                        Azienda / P. IVA
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+
+                {/* Ragione sociale (solo azienda) */}
+                {isBusiness && (
+                  <div className="space-y-2">
+                    <Label htmlFor="businessName" className="flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5" />
+                      Ragione sociale *
+                    </Label>
+                    <Input
+                      id="businessName"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="Es. Rossi Costruzioni S.r.l."
+                      maxLength={200}
+                      required
+                    />
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">Nome *</Label>
+                    <Label htmlFor="firstName">
+                      {isBusiness ? "Nome referente" : "Nome *"}
+                    </Label>
                     <Input
                       id="firstName"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="Mario"
+                      placeholder={isBusiness ? "Opzionale" : "Mario"}
                       autoComplete="given-name"
-                      required
+                      required={!isBusiness}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">Cognome *</Label>
+                    <Label htmlFor="lastName">
+                      {isBusiness ? "Cognome referente" : "Cognome *"}
+                    </Label>
                     <Input
                       id="lastName"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Rossi"
+                      placeholder={isBusiness ? "Opzionale" : "Rossi"}
                       autoComplete="family-name"
-                      required
+                      required={!isBusiness}
                     />
                   </div>
                 </div>
@@ -259,7 +320,7 @@ export default function CreateCustomer() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="mario.rossi@email.com"
+                    placeholder={isBusiness ? "info@azienda.it" : "mario.rossi@email.com"}
                     autoComplete="email"
                     required
                     aria-invalid={!!emailError}
@@ -287,13 +348,13 @@ export default function CreateCustomer() {
                 <div className="space-y-2">
                   <Label htmlFor="fiscalCode" className="flex items-center gap-1.5">
                     <CreditCard className="h-3.5 w-3.5" />
-                    Codice Fiscale / P.IVA
+                    {isBusiness ? "Partita IVA / Codice Fiscale" : "Codice Fiscale"}
                   </Label>
                   <Input
                     id="fiscalCode"
                     value={fiscalCode}
                     onChange={(e) => setFiscalCode(e.target.value.toUpperCase())}
-                    placeholder="RSSMRA80A01H501U"
+                    placeholder={isBusiness ? "IT01234567890" : "RSSMRA80A01H501U"}
                     maxLength={16}
                   />
                 </div>
@@ -307,37 +368,93 @@ export default function CreateCustomer() {
                   <MapPin className="h-4 w-4 text-blue-500" />
                   Indirizzi
                 </CardTitle>
-                <CardDescription>Residenza/sede legale e indirizzo del cantiere</CardDescription>
+                <CardDescription>
+                  {isBusiness ? "Sede legale e indirizzo del cantiere" : "Residenza e indirizzo del cantiere"}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5">
+                {/* Indirizzo residenza / sede legale */}
                 <div className="space-y-2">
-                  <Label htmlFor="address" className="flex items-center gap-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" />
-                    Indirizzo residenza / sede legale
+                    {isBusiness ? "Sede legale" : "Residenza"}
                   </Label>
-                  <Textarea
+                  <Input
                     id="address"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Via Roma 1, 00100 Roma"
-                    rows={2}
+                    placeholder="Via Roma, 1"
                     maxLength={200}
                   />
+                  <div className="grid grid-cols-6 gap-2">
+                    <Input
+                      className="col-span-2"
+                      value={postalCode}
+                      onChange={(e) => setPostalCode(e.target.value)}
+                      placeholder="CAP"
+                      maxLength={10}
+                      aria-label="CAP"
+                    />
+                    <Input
+                      className="col-span-3"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Città"
+                      maxLength={100}
+                      aria-label="Città"
+                    />
+                    <Input
+                      className="col-span-1"
+                      value={province}
+                      onChange={(e) => setProvince(e.target.value.toUpperCase())}
+                      placeholder="PR"
+                      maxLength={2}
+                      aria-label="Provincia"
+                    />
+                  </div>
                 </div>
 
+                <Separator />
+
+                {/* Indirizzo cantiere */}
                 <div className="space-y-2">
-                  <Label htmlFor="siteAddress" className="flex items-center gap-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
                     <HardHat className="h-3.5 w-3.5" />
-                    Indirizzo cantiere
+                    Indirizzo cantiere (opzionale)
                   </Label>
-                  <Textarea
+                  <Input
                     id="siteAddress"
                     value={siteAddress}
                     onChange={(e) => setSiteAddress(e.target.value)}
-                    placeholder="Via del Cantiere 5, 00100 Roma"
-                    rows={2}
+                    placeholder="Via del Cantiere, 5"
                     maxLength={200}
                   />
+                  <div className="grid grid-cols-6 gap-2">
+                    <Input
+                      className="col-span-2"
+                      value={sitePostalCode}
+                      onChange={(e) => setSitePostalCode(e.target.value)}
+                      placeholder="CAP"
+                      maxLength={10}
+                      aria-label="CAP cantiere"
+                    />
+                    <Input
+                      className="col-span-3"
+                      value={siteCity}
+                      onChange={(e) => setSiteCity(e.target.value)}
+                      placeholder="Città"
+                      maxLength={100}
+                      aria-label="Città cantiere"
+                    />
+                    <Input
+                      className="col-span-1"
+                      value={siteProvince}
+                      onChange={(e) => setSiteProvince(e.target.value.toUpperCase())}
+                      placeholder="PR"
+                      maxLength={2}
+                      aria-label="Provincia cantiere"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -479,7 +596,7 @@ export default function CreateCustomer() {
               Cliente creato con successo
             </DialogTitle>
             <DialogDescription>
-              <strong>{firstName} {lastName}</strong> è stato aggiunto all'anagrafica.
+              <strong>{isBusiness ? businessName : `${firstName} ${lastName}`.trim()}</strong> è stato aggiunto all'anagrafica.
             </DialogDescription>
           </DialogHeader>
 

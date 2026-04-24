@@ -22940,7 +22940,10 @@ export type Database = {
           block_reason: string | null
           blocked_at: string | null
           blocked_by: string | null
+          business_name: string | null
+          city: string | null
           company_id: string | null
+          country: string | null
           created_at: string
           email: string
           failed_login_count: number
@@ -22948,6 +22951,7 @@ export type Database = {
           fiscal_code: string | null
           id: string
           is_blocked: boolean | null
+          is_business: boolean
           last_login_at: string | null
           last_login_ip: unknown
           last_name: string
@@ -22957,9 +22961,14 @@ export type Database = {
           password_changed_at: string | null
           phone: string | null
           portal_disabled: boolean
+          postal_code: string | null
+          province: string | null
           require_2fa: boolean
           salesperson_id: string | null
           site_address: string | null
+          site_city: string | null
+          site_postal_code: string | null
+          site_province: string | null
           updated_at: string
         }
         Insert: {
@@ -22969,7 +22978,10 @@ export type Database = {
           block_reason?: string | null
           blocked_at?: string | null
           blocked_by?: string | null
+          business_name?: string | null
+          city?: string | null
           company_id?: string | null
+          country?: string | null
           created_at?: string
           email: string
           failed_login_count?: number
@@ -22977,6 +22989,7 @@ export type Database = {
           fiscal_code?: string | null
           id: string
           is_blocked?: boolean | null
+          is_business?: boolean
           last_login_at?: string | null
           last_login_ip?: unknown
           last_name: string
@@ -22986,9 +22999,14 @@ export type Database = {
           password_changed_at?: string | null
           phone?: string | null
           portal_disabled?: boolean
+          postal_code?: string | null
+          province?: string | null
           require_2fa?: boolean
           salesperson_id?: string | null
           site_address?: string | null
+          site_city?: string | null
+          site_postal_code?: string | null
+          site_province?: string | null
           updated_at?: string
         }
         Update: {
@@ -22998,7 +23016,10 @@ export type Database = {
           block_reason?: string | null
           blocked_at?: string | null
           blocked_by?: string | null
+          business_name?: string | null
+          city?: string | null
           company_id?: string | null
+          country?: string | null
           created_at?: string
           email?: string
           failed_login_count?: number
@@ -23006,6 +23027,7 @@ export type Database = {
           fiscal_code?: string | null
           id?: string
           is_blocked?: boolean | null
+          is_business?: boolean
           last_login_at?: string | null
           last_login_ip?: unknown
           last_name?: string
@@ -23015,9 +23037,14 @@ export type Database = {
           password_changed_at?: string | null
           phone?: string | null
           portal_disabled?: boolean
+          postal_code?: string | null
+          province?: string | null
           require_2fa?: boolean
           salesperson_id?: string | null
           site_address?: string | null
+          site_city?: string | null
+          site_postal_code?: string | null
+          site_province?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -36818,6 +36845,10 @@ export type Database = {
           p_variable_mapping: Json
         }
         Returns: number
+      }
+      profile_display_name: {
+        Args: { p_profile: Database["public"]["Tables"]["profiles"]["Row"] }
+        Returns: string
       }
       recalculate_invoice_totals: {
         Args: { p_invoice_id: string }

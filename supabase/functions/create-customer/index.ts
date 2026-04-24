@@ -22,10 +22,31 @@ Deno.serve(async (req) => {
       company_id,
       create_portal_account,       // boolean opt-in, client può forzare OFF
       send_welcome_email,           // boolean, default: true se portal abilitato
+      is_business,                  // boolean
+      business_name,
+      city,
+      postal_code,
+      province,
+      country,
+      site_city,
+      site_postal_code,
+      site_province,
     } = body as Record<string, unknown>;
 
     if (!company_id) {
       return errorResponse("Missing company_id");
+    }
+
+    const cleanTxt = (v: unknown, max: number) => {
+      if (v === null || v === undefined) return null;
+      const s = String(v).replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, " ").trim().slice(0, max);
+      return s || null;
+    };
+
+    const isBusiness = Boolean(is_business);
+    const businessName = cleanTxt(business_name, 200);
+    if (isBusiness && !businessName) {
+      return errorResponse("La ragione sociale è obbligatoria per i clienti Azienda");
     }
 
     // --- Sanitizzazione + auto-correzione input ---
@@ -49,17 +70,17 @@ Deno.serve(async (req) => {
     if (!EMAIL_REGEX.test(trimmedEmail)) {
       return errorResponse("Indirizzo email non valido");
     }
-    // Dopo il sanitize, se mancano ancora sia nome che cognome,
-    // rifiutiamo: nessuna identità ricostruibile.
-    if (!trimmedFirstName && !trimmedLastName) {
+    // Dopo il sanitize, se mancano ancora sia nome che cognome E non è
+    // un'azienda → rifiutiamo: nessuna identità ricostruibile.
+    if (!isBusiness && !trimmedFirstName && !trimmedLastName) {
       return errorResponse(
-        "Nome o cognome sono obbligatori. Se il documento non contiene un'identità chiara, correggi manualmente prima di importare."
+        "Nome o cognome sono obbligatori per i clienti persona. Se il documento non contiene un'identità chiara, correggi manualmente prima di importare."
       );
     }
-    // Se uno dei due è vuoto ma l'altro esiste, forziamo un placeholder
-    // "—" per rispettare il NOT NULL della tabella profiles senza perdere dati.
-    const safeFirstName = trimmedFirstName || "—";
-    const safeLastName = trimmedLastName || "—";
+    // Per clienti Azienda: first/last opzionali (referente). Per clienti
+    // persona: forziamo placeholder "—" se uno dei due è vuoto.
+    const safeFirstName = trimmedFirstName || (isBusiness ? "" : "—");
+    const safeLastName = trimmedLastName || (isBusiness ? (businessName ?? "—") : "—");
 
     // --- Company Scope Check + lettura setting portal ---
     const { data: companyRow } = await supabaseAdmin
@@ -127,6 +148,16 @@ Deno.serve(async (req) => {
       fiscal_code: sanitized.fiscal_code,
       site_address: sanitized.site_address,
       notes: sanitized.notes,
+      // Nuovi campi: business + address strutturato
+      is_business: isBusiness,
+      business_name: businessName,
+      city: cleanTxt(city, 100),
+      postal_code: cleanTxt(postal_code, 10),
+      province: cleanTxt(province, 10)?.toUpperCase() ?? null,
+      country: cleanTxt(country, 2)?.toUpperCase() ?? "IT",
+      site_city: cleanTxt(site_city, 100),
+      site_postal_code: cleanTxt(site_postal_code, 10),
+      site_province: cleanTxt(site_province, 10)?.toUpperCase() ?? null,
       // Flag anagrafica-only: cliente creato senza accesso al portale
       portal_disabled: !shouldCreatePortal,
       // Se portal disabilitato, blocchiamo subito l'account auth per chiarezza
@@ -158,7 +189,7 @@ Deno.serve(async (req) => {
           to:           [trimmedEmail],
           subject:      `Benvenuto su ${companyRow.name || "la piattaforma"}`,
           html: `<html><body>
-              <p>Ciao ${safeFirstName},</p>
+              <p>Ciao ${isBusiness ? businessName : safeFirstName},</p>
               <p>Il tuo account è stato creato su <strong>${companyRow.name || "la piattaforma"}</strong>.</p>
               <p>Ecco le tue credenziali di accesso:</p>
               <ul>

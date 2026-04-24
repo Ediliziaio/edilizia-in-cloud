@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   MessageCircle, Send, Loader2, Mail, Smartphone, MessageSquare, StickyNote,
-  AlertCircle, CheckCircle2, XCircle,
+  AlertCircle, CheckCircle2, XCircle, AtSign, User as UserIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -132,11 +136,15 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
   const [newMessage, setNewMessage] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [selectedChannel, setSelectedChannel] = useState<Channel>("chat");
+  const [confirmEmailOpen, setConfirmEmailOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
 
   const hasEmail = !!customerEmail && customerEmail.includes("@");
   const channels = useMemo(() => getChannels(hasEmail), [hasEmail]);
+
+  // Sender (azienda) info: mittente esposto nell'UI
+  const companyName = effectiveCompany?.name ?? "EdiliziaInCloud";
 
   const queryKey = ["staff-customer-messages", customerId];
 
@@ -280,7 +288,7 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
       const cost = data?.charged_eur ?? 0;
       toast({
         title: "Email inviata",
-        description: cost > 0 ? `Costo: € ${cost.toFixed(4)}. Consegna in corso.` : "Consegna in corso.",
+        description: `Inviata a ${customerEmail}${cost > 0 ? ` — costo € ${cost.toFixed(4)}` : ""}. Consegna in corso.`,
       });
       queryClient.invalidateQueries({ queryKey });
     },
@@ -316,15 +324,24 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
         });
         return;
       }
-      sendEmailMutation.mutate({ subject: subj, body: trimmed });
-      setNewMessage("");
-      setEmailSubject("");
+      // Apri conferma invece di inviare subito — previene invii accidentali
+      setConfirmEmailOpen(true);
       return;
     }
 
     setNewMessage("");
     sendMutation.mutate({ body: trimmed, channel: selectedChannel === "internal" ? "internal" : "chat" });
-  }, [newMessage, emailSubject, selectedChannel, hasEmail, sendMutation, sendEmailMutation, toast]);
+  }, [newMessage, emailSubject, selectedChannel, hasEmail, sendMutation, toast]);
+
+  const confirmAndSendEmail = useCallback(() => {
+    const trimmed = newMessage.trim();
+    const subj = emailSubject.trim();
+    if (!trimmed || !subj) return;
+    setConfirmEmailOpen(false);
+    sendEmailMutation.mutate({ subject: subj, body: trimmed });
+    setNewMessage("");
+    setEmailSubject("");
+  }, [newMessage, emailSubject, sendEmailMutation]);
 
   const isSending = sendMutation.isPending || sendEmailMutation.isPending;
 
@@ -422,9 +439,25 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
             </div>
           )}
           {selectedChannel === "email" && (
-            <div className="flex items-start gap-1.5 text-[11px] text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-500/30 rounded p-1.5">
-              <Mail className="h-3 w-3 mt-0.5 shrink-0" />
-              <span>L'email sarà inviata a <strong>{customerEmail}</strong> e consumerà un credito email.</span>
+            <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-900/10 p-2 space-y-1">
+              <div className="flex items-start gap-2 text-[11px] text-blue-800 dark:text-blue-300">
+                <UserIcon className="h-3 w-3 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-semibold">Da:</span>{" "}
+                  <span className="truncate">{companyName}</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 text-[11px] text-blue-800 dark:text-blue-300">
+                <AtSign className="h-3 w-3 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-semibold">A:</span>{" "}
+                  <span className="font-mono">{customerName}</span>{" "}
+                  <span className="opacity-75">&lt;{customerEmail}&gt;</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 pt-0.5 border-t border-blue-200 dark:border-blue-500/30">
+                Consuma 1 credito email. L'esito verrà mostrato nel diario.
+              </p>
             </div>
           )}
 
@@ -460,11 +493,69 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
           </div>
           <p className="text-[10px] text-muted-foreground">
             {selectedChannel === "email"
-              ? "Cmd/Ctrl + Enter per inviare"
+              ? "Cmd/Ctrl + Enter per inviare (con conferma)"
               : "Enter per inviare, Shift+Enter per nuova riga"}
           </p>
         </div>
       </CardContent>
+
+      {/* Dialog conferma invio email */}
+      <AlertDialog open={confirmEmailOpen} onOpenChange={setConfirmEmailOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-500" />
+              Conferma invio email
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <p>Stai per inviare un'email al cliente. Verifica i dettagli prima di confermare.</p>
+
+                <div className="rounded-lg border bg-muted/50 p-3 space-y-2 text-xs">
+                  <div className="flex items-start gap-2">
+                    <UserIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <span className="text-muted-foreground">Da:</span>{" "}
+                      <span className="font-semibold">{companyName}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <AtSign className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <span className="text-muted-foreground">A:</span>{" "}
+                      <span className="font-semibold">{customerName}</span>{" "}
+                      <span className="font-mono text-muted-foreground">&lt;{customerEmail}&gt;</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <MessageCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-muted-foreground">Oggetto:</span>{" "}
+                      <span className="font-semibold">{emailSubject.trim() || "(vuoto)"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border bg-background p-2 max-h-[160px] overflow-y-auto">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-1">Anteprima</p>
+                  <p className="text-xs whitespace-pre-wrap text-foreground">{newMessage.trim()}</p>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground">
+                  L'invio consuma 1 credito email. L'esito (consegnata / aperta / fallita) apparirà nel diario.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAndSendEmail} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Send className="h-4 w-4 mr-1.5" />
+              Invia ora
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

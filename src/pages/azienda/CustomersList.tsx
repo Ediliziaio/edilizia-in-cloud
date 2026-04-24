@@ -74,6 +74,15 @@ interface CustomerWithOrders {
   created_at: string;
   salesperson_id: string | null;
   portal_disabled?: boolean | null;
+  // Nuovi campi
+  is_business?: boolean | null;
+  business_name?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  province?: string | null;
+  site_city?: string | null;
+  site_postal_code?: string | null;
+  site_province?: string | null;
 }
 
 interface PaginatedResult {
@@ -108,13 +117,24 @@ type PortalState = "all" | "active" | "disabled";
 const PAGE_SIZES = [25, 50, 100, 200];
 
 const CUSTOMER_IMPORT_FIELDS: CustomerImportField[] = [
-  { key: "first_name", label: "Nome", required: true },
-  { key: "last_name", label: "Cognome", required: true },
+  // Per i clienti persona: first_name + last_name obbligatori.
+  // Per i clienti azienda: business_name obbligatorio (ma CSV non può sapere a priori
+  // il tipo, quindi mappiamo entrambi come opzionali e validiamo a valle: se
+  // business_name è valorizzato → cliente azienda; altrimenti first+last obbligatori).
+  { key: "business_name", label: "Ragione Sociale", required: false },
+  { key: "first_name", label: "Nome", required: false },
+  { key: "last_name", label: "Cognome", required: false },
   { key: "email", label: "Email", required: true, type: "email" },
   { key: "phone", label: "Telefono", required: false, type: "phone" },
   { key: "fiscal_code", label: "Codice Fiscale / P.IVA", required: false, type: "fiscal_code" },
-  { key: "address", label: "Indirizzo Residenza", required: false },
+  { key: "address", label: "Indirizzo (via + civico)", required: false },
+  { key: "postal_code", label: "CAP", required: false },
+  { key: "city", label: "Città", required: false },
+  { key: "province", label: "Provincia (sigla)", required: false },
   { key: "site_address", label: "Indirizzo Cantiere", required: false },
+  { key: "site_postal_code", label: "CAP Cantiere", required: false },
+  { key: "site_city", label: "Città Cantiere", required: false },
+  { key: "site_province", label: "Provincia Cantiere", required: false },
   { key: "notes", label: "Note", required: false },
 ];
 
@@ -171,14 +191,35 @@ function useColumnVisibility() {
 function formatFullName(first: string | null | undefined, last: string | null | undefined): string {
   const f = (first ?? "").trim();
   const l = (last ?? "").trim();
-  const joined = `${f} ${l}`.trim();
+  const isPlaceholderF = f === "—" || f === "-";
+  const isPlaceholderL = l === "—" || l === "-";
+  const joined = `${isPlaceholderF ? "" : f} ${isPlaceholderL ? "" : l}`.trim();
   return joined || "(senza nome)";
 }
 
-function formatInitials(first: string | null | undefined, last: string | null | undefined): string {
-  const f = (first ?? "").trim();
-  const l = (last ?? "").trim();
-  return (`${f.charAt(0)}${l.charAt(0)}`.toUpperCase()) || "?";
+// Display name aware di is_business (ragione sociale).
+function formatDisplayName(c: { is_business?: boolean | null; business_name?: string | null; first_name: string | null; last_name: string | null }): string {
+  if (c.is_business && c.business_name && c.business_name.trim()) {
+    return c.business_name.trim();
+  }
+  return formatFullName(c.first_name, c.last_name);
+}
+
+function formatInitials(c: { is_business?: boolean | null; business_name?: string | null; first_name: string | null; last_name: string | null }): string {
+  if (c.is_business && c.business_name && c.business_name.trim()) {
+    return c.business_name.trim().charAt(0).toUpperCase();
+  }
+  const f = (c.first_name ?? "").trim();
+  const l = (c.last_name ?? "").trim();
+  const isPlaceholderF = f === "—" || f === "-";
+  const isPlaceholderL = l === "—" || l === "-";
+  return (`${isPlaceholderF ? "" : f.charAt(0)}${isPlaceholderL ? "" : l.charAt(0)}`.toUpperCase()) || "?";
+}
+
+// Indirizzo compatto "CAP Città (PR)"
+function formatLocality(city?: string | null, cap?: string | null, province?: string | null): string | null {
+  const parts = [cap?.trim(), city?.trim(), province?.trim() ? `(${province.trim()})` : null].filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
 }
 
 function formatPhone(phone: string | null | undefined): string | null {
@@ -609,21 +650,32 @@ function CustomersListInner() {
   // ── Export CSV ─────────────────────────────────────────
   const buildCsvRows = (rows: CustomerWithOrders[]) => {
     const header = [
-      "Nome", "Cognome", "Email", "Telefono", "Codice Fiscale",
-      "Indirizzo", "Indirizzo Cantiere", "Note",
-      "N. Ordini", "Data Inserimento", "Venditore", "Accesso Portale",
+      "Tipo", "Ragione sociale", "Nome", "Cognome", "Email", "Telefono", "Codice Fiscale / P.IVA",
+      "Indirizzo", "CAP", "Città", "Provincia",
+      "Indirizzo Cantiere", "CAP Cantiere", "Città Cantiere", "Provincia Cantiere",
+      "Note", "N. Ordini", "Data Inserimento", "Venditore", "Accesso Portale",
     ];
     const csvRows = [header];
     rows.forEach((c) => {
       const sp = c.salesperson_id ? salespersonMap.get(c.salesperson_id) : null;
+      const firstClean = (c.first_name ?? "").trim();
+      const lastClean = (c.last_name ?? "").trim();
       csvRows.push([
-        c.first_name ?? "",
-        c.last_name ?? "",
+        c.is_business ? "Azienda" : "Persona",
+        c.business_name ?? "",
+        (firstClean === "—" || firstClean === "-") ? "" : firstClean,
+        (lastClean === "—" || lastClean === "-") ? "" : lastClean,
         c.email,
         formatPhone(c.phone) ?? "",
         c.fiscal_code || "",
         c.address || "",
+        c.postal_code || "",
+        c.city || "",
+        c.province || "",
         c.site_address || "",
+        c.site_postal_code || "",
+        c.site_city || "",
+        c.site_province || "",
         (c.notes || "").replace(/"/g, '""'),
         String(c.order_count),
         c.created_at ? format(new Date(c.created_at), "dd/MM/yyyy") : "",
@@ -705,7 +757,7 @@ function CustomersListInner() {
       }
       x = 40;
       const line = [
-        truncate(formatFullName(c.first_name, c.last_name), 30),
+        truncate(formatDisplayName(c), 30),
         truncate(c.email, 35),
         truncate(formatPhone(c.phone) ?? "", 20),
         truncate(c.fiscal_code ?? "", 20),
@@ -779,8 +831,14 @@ function CustomersListInner() {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         try {
-          if (!row.first_name?.trim()) { errors.push(`Riga ${i + 1}: Nome mancante`); continue; }
-          if (!row.last_name?.trim()) { errors.push(`Riga ${i + 1}: Cognome mancante`); continue; }
+          // Detect azienda vs persona: se business_name è valorizzato → azienda
+          const businessName = row.business_name?.trim();
+          const isBusinessRow = !!businessName;
+
+          if (!isBusinessRow) {
+            if (!row.first_name?.trim()) { errors.push(`Riga ${i + 1}: Nome mancante (per aziende usa "Ragione Sociale")`); continue; }
+            if (!row.last_name?.trim()) { errors.push(`Riga ${i + 1}: Cognome mancante`); continue; }
+          }
           if (!row.email?.trim()) { errors.push(`Riga ${i + 1}: Email mancante`); continue; }
 
           const emailLower = row.email.trim().toLowerCase();
@@ -795,13 +853,21 @@ function CustomersListInner() {
 
           const { data, error: fnError } = await supabase.functions.invoke("create-customer", {
             body: {
-              first_name: row.first_name.trim(),
-              last_name: row.last_name.trim(),
+              is_business: isBusinessRow,
+              business_name: businessName || null,
+              first_name: row.first_name?.trim() || "",
+              last_name: row.last_name?.trim() || "",
               email: emailLower,
               phone: cleanPhone,
               fiscal_code: row.fiscal_code?.trim() || null,
               address: row.address?.trim() || null,
+              city: row.city?.trim() || null,
+              postal_code: row.postal_code?.trim() || null,
+              province: row.province?.trim().toUpperCase() || null,
               site_address: row.site_address?.trim() || null,
+              site_city: row.site_city?.trim() || null,
+              site_postal_code: row.site_postal_code?.trim() || null,
+              site_province: row.site_province?.trim().toUpperCase() || null,
               notes: row.notes?.trim() || null,
               company_id: effectiveCompany.id,
               create_portal_account: options.create_portal_account,
@@ -1297,10 +1363,10 @@ function CustomersListInner() {
           {/* Mobile card list */}
           <div className="sm:hidden divide-y">
             {customers.map((customer) => {
-              const initials = formatInitials(customer.first_name, customer.last_name);
-              const fullName = formatFullName(customer.first_name, customer.last_name);
+              const initials = formatInitials(customer);
+              const fullName = formatDisplayName(customer);
               const cleanPhone = formatPhone(customer.phone);
-              const avatarColor = getAvatarColor(`${customer.first_name ?? ""}${customer.last_name ?? ""}`);
+              const avatarColor = getAvatarColor(fullName);
               const isSelected = selectedIds.has(customer.id);
               return (
                 <div key={customer.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors">
@@ -1319,6 +1385,11 @@ function CustomersListInner() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-sm truncate">{fullName}</p>
+                        {customer.is_business && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1 border-blue-500/40 text-blue-700 dark:text-blue-400">
+                            Azienda
+                          </Badge>
+                        )}
                         {customer.portal_disabled && (
                           <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
                             Anagrafica
@@ -1327,6 +1398,7 @@ function CustomersListInner() {
                       </div>
                       {cleanPhone && <p className="text-xs text-muted-foreground">{cleanPhone}</p>}
                       {customer.email && <p className="text-xs text-muted-foreground truncate">{customer.email}</p>}
+                      {customer.city && <p className="text-[11px] text-muted-foreground">{formatLocality(customer.city, customer.postal_code, customer.province)}</p>}
                     </div>
                     {customer.order_count > 0 && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
@@ -1388,10 +1460,11 @@ function CustomersListInner() {
             <TableBody>
               {customers.map((customer) => {
                 const sp = customer.salesperson_id ? salespersonMap.get(customer.salesperson_id) : null;
-                const avatarColor = getAvatarColor(`${customer.first_name ?? ""}${customer.last_name ?? ""}`);
-                const initials = formatInitials(customer.first_name, customer.last_name);
-                const fullName = formatFullName(customer.first_name, customer.last_name);
+                const initials = formatInitials(customer);
+                const fullName = formatDisplayName(customer);
+                const avatarColor = getAvatarColor(fullName);
                 const cleanPhone = formatPhone(customer.phone);
+                const locality = formatLocality(customer.city, customer.postal_code, customer.province);
                 const isSelected = selectedIds.has(customer.id);
                 return (
                   <TableRow
@@ -1418,21 +1491,34 @@ function CustomersListInner() {
                     )}
                     {visible.name && (
                       <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-semibold text-sm leading-tight truncate max-w-[180px]">{fullName}</p>
-                          {customer.portal_disabled && (
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <ShieldOff className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p className="text-xs max-w-[200px]">
-                                    Cliente solo anagrafica: nessun accesso al portale.
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-semibold text-sm leading-tight truncate max-w-[220px]">{fullName}</p>
+                            {customer.is_business && (
+                              <Badge variant="outline" className="h-4 px-1 text-[9px] border-blue-500/40 text-blue-700 dark:text-blue-400">
+                                Azienda
+                              </Badge>
+                            )}
+                            {customer.portal_disabled && (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <ShieldOff className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs max-w-[200px]">
+                                      Cliente solo anagrafica: nessun accesso al portale.
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                          {locality && (
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <MapPin className="h-2.5 w-2.5" />
+                              {locality}
+                            </p>
                           )}
                         </div>
                       </TableCell>
@@ -1679,7 +1765,7 @@ function CustomersListInner() {
           <DialogHeader>
             <DialogTitle>Password Resettata</DialogTitle>
             <DialogDescription>
-              La password per {formatFullName(resetPasswordDialog.customer?.first_name, resetPasswordDialog.customer?.last_name)} è stata resettata con successo.
+              La password per {resetPasswordDialog.customer ? formatDisplayName(resetPasswordDialog.customer) : ""} è stata resettata con successo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
