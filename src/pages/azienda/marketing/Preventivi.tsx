@@ -31,6 +31,7 @@ interface QuoteRow {
   opportunity_id?: string | null;
   margine_pct_snapshot?: number | null;
   commission_amount_snapshot?: number | null;
+  pdf_storage_path?: string | null;
 }
 
 /** Shape returned by the KPI query (partial select) */
@@ -78,6 +79,16 @@ import {
   type QuotesFilters,
 } from "@/components/marketing/preventivi/QuotesFiltersSheet";
 import { QuoteQuickViewSheet } from "@/components/marketing/preventivi/QuoteQuickViewSheet";
+import {
+  QuoteColumnsPicker,
+  loadVisibleColumns,
+  type QuoteColumnKey,
+} from "@/components/marketing/preventivi/QuoteColumnsPicker";
+import {
+  QuoteBulkToolbar,
+  type BulkQuoteLite,
+} from "@/components/marketing/preventivi/QuoteBulkToolbar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
@@ -181,6 +192,13 @@ export default function Preventivi() {
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const PAGE_SIZE = 50;
 
+  // Bulk + colonne (Sprint 5)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [visibleColumns, setVisibleColumns] = useState<Set<QuoteColumnKey>>(() =>
+    loadVisibleColumns()
+  );
+  const isColVisible = (k: QuoteColumnKey) => visibleColumns.has(k);
+
   // Debounce ricerca: aspetta 300ms prima di filtrare, resetta la pagina
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -198,7 +216,7 @@ export default function Preventivi() {
     queryFn: async () => {
       let query = supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id, margine_pct_snapshot, commission_amount_snapshot", { count: "exact" })
+        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id, margine_pct_snapshot, commission_amount_snapshot, pdf_storage_path", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
@@ -816,7 +834,22 @@ export default function Preventivi() {
               </Badge>
             )}
           </Button>
+          <QuoteColumnsPicker
+            visible={visibleColumns}
+            onChange={setVisibleColumns}
+            isAdmin={isAdmin}
+          />
         </div>
+
+        {/* Bulk actions toolbar — visibile solo con selezione attiva */}
+        <QuoteBulkToolbar
+          selectedIds={selectedIds}
+          selectedQuotes={
+            filtered.filter((q: QuoteRow) => selectedIds.has(q.id)) as unknown as BulkQuoteLite[]
+          }
+          onClearSelection={() => setSelectedIds(new Set())}
+          onReload={() => queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all })}
+        />
 
         <Tabs value={statusFilter} onValueChange={handleStatusFilter}>
           <TabsList>
@@ -886,63 +919,170 @@ export default function Preventivi() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Numero</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Titolo</TableHead>
-                <TableHead>Commerciale</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead className="text-right">Totale</TableHead>
-                <TableHead>Data</TableHead>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={
+                      filtered.length > 0 &&
+                      filtered.every((q: QuoteRow) => selectedIds.has(q.id))
+                    }
+                    onCheckedChange={(v) => {
+                      if (v) {
+                        setSelectedIds(new Set(filtered.map((q: QuoteRow) => q.id)));
+                      } else {
+                        setSelectedIds(new Set());
+                      }
+                    }}
+                    aria-label="Seleziona tutti"
+                  />
+                </TableHead>
+                {isColVisible("numero") && <TableHead>Numero</TableHead>}
+                {isColVisible("cliente") && <TableHead>Cliente</TableHead>}
+                {isColVisible("titolo") && <TableHead>Titolo</TableHead>}
+                {isColVisible("commerciale") && <TableHead>Commerciale</TableHead>}
+                {isColVisible("stato") && <TableHead>Stato</TableHead>}
+                {isColVisible("approvazione") && <TableHead>Approvazione</TableHead>}
+                {isColVisible("fonte") && <TableHead>Fonte</TableHead>}
+                {isColVisible("totale") && <TableHead className="text-right">Totale</TableHead>}
+                {isAdmin && isColVisible("margine") && (
+                  <TableHead className="text-right">Margine %</TableHead>
+                )}
+                {isAdmin && isColVisible("commissione") && (
+                  <TableHead className="text-right">Commissione</TableHead>
+                )}
+                {isColVisible("data") && <TableHead>Data</TableHead>}
+                {isColVisible("scadenza") && <TableHead>Scadenza</TableHead>}
+                {isColVisible("contatto") && <TableHead>Contatto</TableHead>}
+                {isColVisible("opportunita") && <TableHead>Opp.</TableHead>}
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((q: QuoteRow) => {
                 const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
+                const isSelected = selectedIds.has(q.id);
                 return (
                   <TableRow
                     key={q.id}
-                    className="cursor-pointer"
+                    className={`cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
                     onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
                   >
-                    <TableCell className="font-mono text-sm">
-                      {q.quote_number}
-                      {q.source === "computo_ai" && (
-                        <Badge variant="outline" className="ml-1.5 text-[9px] py-0 border-orange-300 text-orange-600 bg-orange-50">
-                          <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                          Computo AI
-                        </Badge>
-                      )}
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(v) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (v) next.add(q.id);
+                            else next.delete(q.id);
+                            return next;
+                          });
+                        }}
+                        aria-label={`Seleziona ${q.quote_number}`}
+                      />
                     </TableCell>
-                    <TableCell>{q.client_name || "—"}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{q.title || "—"}</TableCell>
-                    <TableCell className="text-xs">
-                      {q.salesperson_id ? (
-                        <span className="text-foreground">{salespersonNameById.get(q.salesperson_id) ?? "—"}</span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
+                    {isColVisible("numero") && (
+                      <TableCell className="font-mono text-sm">
+                        {q.quote_number}
+                        {q.source === "computo_ai" && (
+                          <Badge variant="outline" className="ml-1.5 text-[9px] py-0 border-orange-300 text-orange-600 bg-orange-50">
+                            <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                            Computo AI
+                          </Badge>
+                        )}
+                      </TableCell>
+                    )}
+                    {isColVisible("cliente") && (
+                      <TableCell>{q.client_name || "—"}</TableCell>
+                    )}
+                    {isColVisible("titolo") && (
+                      <TableCell className="max-w-[200px] truncate">{q.title || "—"}</TableCell>
+                    )}
+                    {isColVisible("commerciale") && (
+                      <TableCell className="text-xs">
+                        {q.salesperson_id ? (
+                          <span className="text-foreground">{salespersonNameById.get(q.salesperson_id) ?? "—"}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {isColVisible("stato") && (
+                      <TableCell>
                         <Badge variant={sc.variant}>{sc.label}</Badge>
+                      </TableCell>
+                    )}
+                    {isColVisible("approvazione") && (
+                      <TableCell>
                         {q.approval_status === "pending" && (
-                          <Badge variant="outline" className="border-orange-500 text-orange-600 text-[10px]">Sconto pending</Badge>
+                          <Badge variant="outline" className="border-orange-500 text-orange-600 text-[10px]">Pending</Badge>
                         )}
                         {q.approval_status === "approved" && (
-                          <Badge variant="outline" className="border-green-500 text-green-600 text-[10px]">Sconto OK</Badge>
+                          <Badge variant="outline" className="border-green-500 text-green-600 text-[10px]">OK</Badge>
                         )}
                         {q.approval_status === "rejected" && (
-                          <Badge variant="outline" className="border-red-500 text-red-600 text-[10px]">Sconto rifiutato</Badge>
+                          <Badge variant="outline" className="border-red-500 text-red-600 text-[10px]">Rifiutato</Badge>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(q.total || 0)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {format(new Date(q.created_at), "dd MMM yyyy", { locale: it })}
-                    </TableCell>
+                        {!q.approval_status && <span className="text-muted-foreground text-xs">—</span>}
+                      </TableCell>
+                    )}
+                    {isColVisible("fonte") && (
+                      <TableCell className="text-xs">
+                        {q.source ? (
+                          <Badge variant="secondary" className="text-[10px]">{q.source}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">manuale</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {isColVisible("totale") && (
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(q.total || 0)}
+                      </TableCell>
+                    )}
+                    {isAdmin && isColVisible("margine") && (
+                      <TableCell className="text-right text-xs">
+                        {q.margine_pct_snapshot != null
+                          ? `${Number(q.margine_pct_snapshot).toFixed(1)}%`
+                          : "—"}
+                      </TableCell>
+                    )}
+                    {isAdmin && isColVisible("commissione") && (
+                      <TableCell className="text-right text-xs">
+                        {q.commission_amount_snapshot != null
+                          ? formatCurrency(Number(q.commission_amount_snapshot))
+                          : "—"}
+                      </TableCell>
+                    )}
+                    {isColVisible("data") && (
+                      <TableCell className="text-muted-foreground text-sm">
+                        {format(new Date(q.created_at), "dd MMM yyyy", { locale: it })}
+                      </TableCell>
+                    )}
+                    {isColVisible("scadenza") && (
+                      <TableCell className="text-muted-foreground text-sm">
+                        {q.expires_at
+                          ? format(new Date(q.expires_at), "dd MMM yyyy", { locale: it })
+                          : "—"}
+                      </TableCell>
+                    )}
+                    {isColVisible("contatto") && (
+                      <TableCell>
+                        {q.contact_id ? (
+                          <span className="text-primary text-xs">✓</span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {isColVisible("opportunita") && (
+                      <TableCell>
+                        {q.opportunity_id ? (
+                          <span className="text-primary text-xs">✓</span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
