@@ -44,10 +44,15 @@ import {
   Receipt,
   FileSignature,
   Percent,
+  Download,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { DealHealthOverview } from "@/components/opportunities/DealHealthOverview";
+import { exportToCSV } from "@/lib/csvExport";
+import { Button } from "@/components/ui/button";
+import { LeadScoringConfigForm } from "@/components/marketing/LeadScoringConfigForm";
+import { Settings2 } from "lucide-react";
 import { getPeriodRange, PERIOD_OPTIONS, type SalesOSPeriod } from "@/lib/salesOSPeriod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, MousePointerClick } from "lucide-react";
@@ -156,6 +161,28 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: st
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── ExportCsvButton helper (Sprint 4) ────────────────────────────────────────
+
+function ExportCsvButton({
+  disabled,
+  onClick,
+}: {
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-7 gap-1 text-xs"
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <Download className="h-3.5 w-3.5" /> CSV
+    </Button>
   );
 }
 
@@ -392,6 +419,29 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
   const { data: stalled, isLoading, isError, error } = useStalledOpportunities(companyId);
   const navigate = useNavigate();
 
+  const handleExport = () => {
+    if (!stalled?.length) return;
+    exportToCSV(
+      stalled.map((s) => ({
+        opportunita: s.opportunity_name,
+        contatto: s.contact_name ?? "",
+        stage: s.stage_name,
+        giorni_ferma: String(s.days_stalled),
+        threshold: String(s.stalled_threshold),
+        valore: String(s.value ?? 0),
+      })),
+      [
+        { key: "opportunita", label: "Opportunità" },
+        { key: "contatto", label: "Contatto" },
+        { key: "stage", label: "Stage" },
+        { key: "giorni_ferma", label: "Ferma da (gg)" },
+        { key: "threshold", label: "Threshold (gg)" },
+        { key: "valore", label: "Valore (€)" },
+      ],
+      `opportunita-ferme-${new Date().toISOString().split("T")[0]}.csv`
+    );
+  };
+
   if (isLoading || isError) {
     return (
       <WidgetState
@@ -412,6 +462,10 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
     );
 
   return (
+    <>
+    <div className="flex justify-end mb-2">
+      <ExportCsvButton onClick={handleExport} />
+    </div>
     <Table>
       <TableHeader>
         <TableRow>
@@ -458,6 +512,7 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
         ))}
       </TableBody>
     </Table>
+    </>
   );
 }
 
@@ -479,6 +534,35 @@ function SellerComparisonTable({
     dateTo
   );
 
+  const handleExport = () => {
+    if (!sellers?.length) return;
+    exportToCSV(
+      sellers.map((s) => ({
+        venditore: s.display_name,
+        vinte: String(s.won_count),
+        aperte: String(s.open_count),
+        perse: String(s.lost_count),
+        win_rate: s.win_rate.toFixed(1),
+        valore_vinto: String(Math.round(s.won_value)),
+        valore_aperto: String(Math.round(s.open_value)),
+        target: String(Math.round(s.target_amount)),
+        target_raggiunto: s.target_achievement.toFixed(1),
+      })),
+      [
+        { key: "venditore", label: "Venditore" },
+        { key: "vinte", label: "Vinte" },
+        { key: "aperte", label: "Aperte" },
+        { key: "perse", label: "Perse" },
+        { key: "win_rate", label: "Win rate %" },
+        { key: "valore_vinto", label: "Valore vinto (€)" },
+        { key: "valore_aperto", label: "Valore aperto (€)" },
+        { key: "target", label: "Target (€)" },
+        { key: "target_raggiunto", label: "Target raggiunto %" },
+      ],
+      `venditori-${dateFrom}_${dateTo}.csv`
+    );
+  };
+
   if (isLoading || isError) {
     return (
       <WidgetState
@@ -498,6 +582,10 @@ function SellerComparisonTable({
     );
 
   return (
+    <>
+    <div className="flex justify-end mb-2">
+      <ExportCsvButton onClick={handleExport} />
+    </div>
     <Table>
       <TableHeader>
         <TableRow>
@@ -561,6 +649,7 @@ function SellerComparisonTable({
         ))}
       </TableBody>
     </Table>
+    </>
   );
 }
 
@@ -648,9 +737,38 @@ function ConversionBySourceChart({ companyId, dateFrom }: { companyId: string; d
 
 // ─── TopLeadsTable ────────────────────────────────────────────────────────────
 
-function TopLeadsTable({ companyId }: { companyId: string }) {
+function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: number }) {
   const navigate = useNavigate();
-  const { data: leads, isLoading, isError, error } = useTopLeads(companyId, 10);
+  const { data: leads, isLoading, isError, error } = useTopLeads(companyId, limit);
+
+  const handleExport = () => {
+    if (!leads?.length) return;
+    exportToCSV(
+      leads.map((l) => ({
+        nome: l.full_name,
+        azienda: l.company_name ?? "",
+        tier_icp: l.icp_tier ?? "",
+        lead_score: String(l.lead_score ?? 0),
+        icp_score: String(l.icp_score ?? 0),
+        fonte: l.source ?? "",
+        citta: l.city ?? "",
+        opp_aperte: String(l.open_opportunities_count),
+        ultima_attivita: l.last_activity_at ?? "",
+      })),
+      [
+        { key: "nome", label: "Nome" },
+        { key: "azienda", label: "Azienda" },
+        { key: "tier_icp", label: "Tier ICP" },
+        { key: "lead_score", label: "Lead score" },
+        { key: "icp_score", label: "ICP score" },
+        { key: "fonte", label: "Fonte" },
+        { key: "citta", label: "Città" },
+        { key: "opp_aperte", label: "Opp. aperte" },
+        { key: "ultima_attivita", label: "Ultima attività" },
+      ],
+      `top-lead-${new Date().toISOString().split("T")[0]}.csv`
+    );
+  };
 
   if (isLoading || isError) {
     return (
@@ -678,6 +796,10 @@ function TopLeadsTable({ companyId }: { companyId: string }) {
   };
 
   return (
+    <>
+    <div className="flex justify-end mb-2">
+      <ExportCsvButton onClick={handleExport} />
+    </div>
     <Table>
       <TableHeader>
         <TableRow>
@@ -734,6 +856,7 @@ function TopLeadsTable({ companyId }: { companyId: string }) {
         ))}
       </TableBody>
     </Table>
+    </>
   );
 }
 
@@ -744,6 +867,7 @@ export default function SalesOSDashboard() {
   const companyId = effectiveCompany?.id ?? null;
   const [activeTab, setActiveTab] = useState("pipeline");
   const [period, setPeriod] = useState<SalesOSPeriod>("30d");
+  const [topLeadsLimit, setTopLeadsLimit] = useState(10);
 
   const range = useMemo(() => getPeriodRange(period), [period]);
 
@@ -800,7 +924,7 @@ export default function SalesOSDashboard() {
 
       {/* Tabs principali */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 w-full max-w-lg">
+        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
           <TabsTrigger value="pipeline" className="flex items-center gap-1.5">
             <TrendingUp className="h-3.5 w-3.5" />
             Pipeline
@@ -816,6 +940,10 @@ export default function SalesOSDashboard() {
           <TabsTrigger value="analisi" className="flex items-center gap-1.5">
             <Zap className="h-3.5 w-3.5" />
             Analisi
+          </TabsTrigger>
+          <TabsTrigger value="config" className="flex items-center gap-1.5">
+            <Settings2 className="h-3.5 w-3.5" />
+            Config
           </TabsTrigger>
         </TabsList>
 
@@ -879,16 +1007,32 @@ export default function SalesOSDashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Target className="h-4 w-4 text-primary" />
                 Top Lead per Score
               </CardTitle>
+              <Select value={String(topLeadsLimit)} onValueChange={(v) => setTopLeadsLimit(Number(v))}>
+                <SelectTrigger className="w-[110px] h-8 text-xs">
+                  <SelectValue placeholder="Top 10" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">Top 10</SelectItem>
+                  <SelectItem value="25">Top 25</SelectItem>
+                  <SelectItem value="50">Top 50</SelectItem>
+                  <SelectItem value="100">Top 100</SelectItem>
+                </SelectContent>
+              </Select>
             </CardHeader>
             <CardContent>
-              <TopLeadsTable companyId={companyId} />
+              <TopLeadsTable companyId={companyId} limit={topLeadsLimit} />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* TAB: Config Lead Scoring (Sprint 4) */}
+        <TabsContent value="config" className="mt-4">
+          <LeadScoringConfigForm companyId={companyId} />
         </TabsContent>
 
         {/* TAB: Analisi conversione */}

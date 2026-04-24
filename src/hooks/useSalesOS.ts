@@ -2,7 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from '@/contexts/AuthContext';
-import { calculateLeadScore, getIcpTier } from '@/lib/leadScoring';
+import {
+  calculateLeadScoreWithConfig,
+  getIcpTierWithConfig,
+  DEFAULT_LEAD_SCORING_CONFIG,
+  type LeadScoringConfig,
+} from '@/hooks/useLeadScoringConfig';
 
 // ============================================================
 // TYPES
@@ -126,8 +131,8 @@ export const salesOSKeys = {
     [...salesOSKeys.all, 'seller-perf', companyId, dateFrom, dateTo] as const,
   conversionBySource: (companyId: string, dateFrom: string | null) =>
     [...salesOSKeys.all, 'conversion-source', companyId, dateFrom ?? 'all'] as const,
-  topLeads: (companyId: string) =>
-    [...salesOSKeys.all, 'top-leads', companyId] as const,
+  topLeads: (companyId: string, limit: number = 10) =>
+    [...salesOSKeys.all, 'top-leads', companyId, limit] as const,
   quoteRevenue: (companyId: string, dateFrom: string, dateTo: string) =>
     [...salesOSKeys.all, 'quote-revenue', companyId, dateFrom, dateTo] as const,
 };
@@ -403,7 +408,7 @@ export function useConversionBySource(companyId: string | null, dateFrom: string
 
 export function useTopLeads(companyId: string | null, limit = 20) {
   return useQuery({
-    queryKey: salesOSKeys.topLeads(companyId ?? ''),
+    queryKey: salesOSKeys.topLeads(companyId ?? '', limit),
     enabled: !!companyId,
     queryFn: async (): Promise<LeadScoreContact[]> => {
       const { data, error } = await supabase
@@ -604,6 +609,17 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
     mutationFn: async () => {
       if (!companyId) throw new Error('companyId mancante');
 
+      // Sprint 4: carica config dinamica (fallback default)
+      const { data: cfgRow } = await supabase
+        .from('lead_scoring_config' as any)
+        .select('*')
+        .eq('company_id', companyId)
+        .maybeSingle();
+      const cfg: LeadScoringConfig = (cfgRow as any) ?? {
+        company_id: companyId,
+        ...DEFAULT_LEAD_SCORING_CONFIG,
+      };
+
       // Fetch all contacts for this company
       const { data: contacts, error: cErr } = await supabase
         .from('marketing_contacts')
@@ -626,7 +642,7 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
           ]);
 
           const openOpps = (opps ?? []).filter((o) => o.status === 'open');
-          const { leadScore, icpScore } = calculateLeadScore({
+          const { leadScore, icpScore } = calculateLeadScoreWithConfig({
             hasCompanyName: !!contact.company_name,
             hasPhone: !!contact.phone,
             hasAddress: !!contact.address,
@@ -636,9 +652,9 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
             hasOpenOpportunity: openOpps.length > 0,
             hasRecentActivity: (recentCount ?? 0) > 0,
             opportunitiesCount: (opps ?? []).length,
-          });
+          }, cfg);
 
-          const icpTier = getIcpTier(icpScore);
+          const icpTier = getIcpTierWithConfig(icpScore, cfg);
           await supabase.from('marketing_contacts').update({
             lead_score: leadScore,
             icp_score: icpScore,
@@ -700,8 +716,19 @@ export function useRecalculateLeadScore(companyId: string | null) {
 
       const openOpps = (opps ?? []).filter((o) => o.status === 'open');
 
-      // 5. Calcola score
-      const { leadScore, icpScore, behavioralScore } = calculateLeadScore({
+      // Sprint 4: config dinamica per-company
+      const { data: cfgRow } = await supabase
+        .from('lead_scoring_config' as any)
+        .select('*')
+        .eq('company_id', companyId)
+        .maybeSingle();
+      const cfg: LeadScoringConfig = (cfgRow as any) ?? {
+        company_id: companyId,
+        ...DEFAULT_LEAD_SCORING_CONFIG,
+      };
+
+      // 5. Calcola score (con config dinamica)
+      const { leadScore, icpScore, behavioralScore } = calculateLeadScoreWithConfig({
         hasCompanyName: !!contact.company_name,
         hasPhone: !!contact.phone,
         hasAddress: !!contact.address,
@@ -711,9 +738,9 @@ export function useRecalculateLeadScore(companyId: string | null) {
         hasOpenOpportunity: openOpps.length > 0,
         hasRecentActivity: (recentCount ?? 0) > 0,
         opportunitiesCount: (opps ?? []).length,
-      });
+      }, cfg);
 
-      const icpTier = getIcpTier(icpScore);
+      const icpTier = getIcpTierWithConfig(icpScore, cfg);
 
       // 6. Aggiorna il contatto
       const { error: updateError } = await supabase
