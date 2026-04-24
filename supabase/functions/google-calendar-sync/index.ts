@@ -267,7 +267,19 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     source: "crm",
     last_synced_at: new Date().toISOString(),
     last_updated_by: "crm",
+    last_sync_source: "crm",
+    last_sync_at: new Date().toISOString(),
   });
+
+  // Marca la connessione: ultimo push viene dal CRM.
+  // Serve al webhook per ignorare l'echo che Google rispedirà entro 15s.
+  await admin
+    .from("google_calendar_connections")
+    .update({
+      last_sync_source: "crm",
+      last_sync_at: new Date().toISOString(),
+    })
+    .eq("id", conn.id);
 
   return json({ success: true, googleEventId: created.id });
 }
@@ -324,8 +336,19 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
       etag: updated.etag || null,
       last_synced_at: new Date().toISOString(),
       last_updated_by: "crm",
+      last_sync_source: "crm",
+      last_sync_at: new Date().toISOString(),
     })
     .eq("id", mapping.id);
+
+  // Loop prevention: segna che questo update viene dal CRM
+  await admin
+    .from("google_calendar_connections")
+    .update({
+      last_sync_source: "crm",
+      last_sync_at: new Date().toISOString(),
+    })
+    .eq("id", conn.id);
 
   return json({ success: true });
 }

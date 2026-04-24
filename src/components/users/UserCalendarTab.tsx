@@ -48,6 +48,7 @@ import {
   Apple,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 
 const BUFFER_OPTIONS = [
   { value: "0", label: "Nessun buffer" },
@@ -113,18 +114,20 @@ export function UserCalendarTab() {
   const handleSyncNow = async () => {
     setSyncing(true);
     try {
-      const { error } = await supabase.functions.invoke("sync-google-calendar", {
-        body: { userId, companyId },
+      const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
+        body: { action: "full-sync", userId, companyId },
       });
       if (error) throw error;
       toast({
-        title: "Sincronizzazione avviata",
-        description: "Gli eventi verranno sincronizzati entro pochi secondi.",
+        title: "Sincronizzazione completata",
+        description: data?.pulled != null
+          ? `${data.pulled ?? 0} eventi aggiornati · ${data.busySlots ?? 0} slot occupati`
+          : "Gli eventi sono stati sincronizzati.",
       });
-    } catch {
+    } catch (e) {
       toast({
-        title: "Errore",
-        description: "Impossibile avviare la sincronizzazione.",
+        title: "Errore sincronizzazione",
+        description: (e as Error).message || "Impossibile avviare la sincronizzazione.",
         variant: "destructive",
       });
     } finally {
@@ -145,10 +148,10 @@ export function UserCalendarTab() {
         title: "Calendario disconnesso",
         description: "La connessione con Google Calendar è stata rimossa.",
       });
-    } catch {
+    } catch (e) {
       toast({
-        title: "Errore",
-        description: "Impossibile disconnettere il calendario.",
+        title: "Errore disconnessione",
+        description: (e as Error).message || "Impossibile disconnettere il calendario.",
         variant: "destructive",
       });
     }
@@ -161,10 +164,10 @@ export function UserCalendarTab() {
         title: "Preferenze salvate",
         description: "Le impostazioni del calendario sono state aggiornate.",
       });
-    } catch {
+    } catch (e) {
       toast({
-        title: "Errore",
-        description: "Impossibile salvare le preferenze.",
+        title: "Errore salvataggio preferenze",
+        description: (e as Error).message || "Impossibile salvare le preferenze.",
         variant: "destructive",
       });
     }
@@ -181,19 +184,28 @@ export function UserCalendarTab() {
   return (
     <div className="space-y-6">
       {/* Google Calendar Connection */}
-      <Card>
+      <Card className={cn(
+        "overflow-hidden border-l-4 transition-colors",
+        isConnected ? "border-l-emerald-500" : "border-l-slate-300"
+      )}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
             <CardTitle className="text-base">Google Calendar</CardTitle>
+            {isConnected && (
+              <Badge className="ml-auto bg-emerald-600 hover:bg-emerald-600 gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Sync real-time attivo
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           {isConnected ? (
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                <div className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
                   <p className="font-medium text-sm">Connesso</p>
