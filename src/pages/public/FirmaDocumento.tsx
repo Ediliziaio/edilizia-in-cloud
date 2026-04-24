@@ -250,6 +250,15 @@ export default function FirmaDocumento() {
           {sessione.tipo_firmatario === 'b2c' && (
             <Badge className="bg-blue-100 text-blue-700 border-blue-200">Contratto B2C — tutele consumatore</Badge>
           )}
+          {!sessione.pdf_url && (
+            <div className="flex items-start gap-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
+              <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              <span>
+                Il PDF del documento non è ancora disponibile per il download. Puoi comunque procedere con la firma;
+                riceverai una copia firmata via email.
+              </span>
+            </div>
+          )}
         </div>
         <Button
           className="w-full h-12 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"

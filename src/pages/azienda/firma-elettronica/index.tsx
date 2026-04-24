@@ -1,18 +1,26 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FileText, FileSignature, Loader2 } from 'lucide-react';
+import { Plus, FileText, FileSignature, Loader2, Send, AlertTriangle } from 'lucide-react';
 import { DocumentiList } from '@/components/documenti/DocumentiList';
 import { useDocumentoSessioni } from '@/hooks/useDocumentoSessioni';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { FEABadge } from '@/components/fea/FEABadge';
 import { FEABannerEsVsFea } from "@/components/fea/FEABannerEsVsFea";
+import { RichiediFirmaDialog } from '@/components/fea/RichiediFirmaDialog';
 import type { DocumentoTemplate } from '@/types/fea';
 
 export default function FirmaElettronicaHub() {
   const navigate = useNavigate();
   const { sessioni, isLoading } = useDocumentoSessioni();
+  const [richiediFirmaOpen, setRichiediFirmaOpen] = useState<{
+    open: boolean;
+    documento_id: string;
+    titolo: string;
+    pdfMissing: boolean;
+  }>({ open: false, documento_id: "", titolo: "", pdfMissing: false });
 
   const handleSelectTemplate = (template: DocumentoTemplate) => {
     navigate(`/azienda/firma-elettronica/nuovo-template?templateId=${template.id}`);
@@ -66,30 +74,67 @@ export default function FirmaElettronicaHub() {
             </div>
           ) : (
             <div className="space-y-2">
-              {sessioni.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-4 p-4 bg-white border rounded-xl hover:shadow-sm transition-shadow"
-                >
-                  <FileText className="h-5 w-5 text-slate-400 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-800 truncate">{s.nome}</p>
-                    {s.template && (
-                      <p className="text-xs text-slate-500">{s.template.nome}</p>
-                    )}
+              {sessioni.map((s) => {
+                const canRequestSign = s.stato !== "firmato";
+                const pdfMissing = !(s as unknown as { pdf_url?: string | null }).pdf_url;
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-4 p-4 bg-white border rounded-xl hover:shadow-sm transition-shadow"
+                  >
+                    <FileText className="h-5 w-5 text-slate-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-800 truncate">{s.nome}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {s.template && (
+                          <p className="text-xs text-slate-500">{s.template.nome}</p>
+                        )}
+                        {pdfMissing && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded">
+                            <AlertTriangle className="h-2.5 w-2.5" />
+                            PDF non generato
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <FEABadge stato={s.stato === 'firmato' ? 'signed' : s.stato === 'in_firma' ? 'pending' : null} />
+                      <span className="text-xs text-slate-400">
+                        {format(new Date(s.created_at), 'dd MMM yyyy', { locale: it })}
+                      </span>
+                      {canRequestSign && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => setRichiediFirmaOpen({
+                            open: true,
+                            documento_id: s.id,
+                            titolo: s.nome,
+                            pdfMissing,
+                          })}
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Richiedi firma
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <FEABadge stato={s.stato === 'firmato' ? 'signed' : s.stato === 'in_firma' ? 'pending' : null} />
-                    <span className="text-xs text-slate-400">
-                      {format(new Date(s.created_at), 'dd MMM yyyy', { locale: it })}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </TabsContent>
       </Tabs>
+
+      <RichiediFirmaDialog
+        open={richiediFirmaOpen.open}
+        onOpenChange={(o) => setRichiediFirmaOpen((prev) => ({ ...prev, open: o }))}
+        tipo_documento="sessione"
+        documento_id={richiediFirmaOpen.documento_id}
+        documento_titolo={richiediFirmaOpen.titolo}
+        pdf_missing={richiediFirmaOpen.pdfMissing}
+      />
     </div>
   );
 }

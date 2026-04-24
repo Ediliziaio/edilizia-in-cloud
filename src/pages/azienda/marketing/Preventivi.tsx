@@ -79,6 +79,10 @@ import {
 } from "@/components/marketing/preventivi/QuotesFiltersSheet";
 import { QuoteQuickViewSheet } from "@/components/marketing/preventivi/QuoteQuickViewSheet";
 import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend,
+} from "recharts";
+import {
   Table,
   TableBody,
   TableCell,
@@ -246,6 +250,75 @@ export default function Preventivi() {
     salespeopleList.forEach((s) => m.set(s.id, `${s.first_name} ${s.last_name}`));
     return m;
   }, [salespeopleList]);
+
+  // KPI charts — fetch aggregato ultimi 6 mesi (no paginazione)
+  const { data: chartQuotes = [] } = useQuery({
+    queryKey: ["quotes-chart", companyId],
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("status, total, created_at")
+        .eq("company_id", companyId!)
+        .gte("created_at", sixMonthsAgo.toISOString());
+      if (error) throw error;
+      return data as Array<{ status: string; total: number | null; created_at: string }>;
+    },
+  });
+
+  const monthlyTrend = useMemo(() => {
+    // Ultimi 6 mesi con count creati + accettati
+    const now = new Date();
+    const buckets: Array<{ label: string; key: string; created: number; accepted: number; value: number }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleString("it-IT", { month: "short" });
+      buckets.push({ label, key, created: 0, accepted: 0, value: 0 });
+    }
+    const byKey = new Map(buckets.map((b) => [b.key, b]));
+    chartQuotes.forEach((q) => {
+      const d = new Date(q.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const b = byKey.get(key);
+      if (!b) return;
+      b.created++;
+      if (q.status === "accettata") {
+        b.accepted++;
+        b.value += q.total ?? 0;
+      }
+    });
+    return buckets;
+  }, [chartQuotes]);
+
+  const statusDistribution = useMemo(() => {
+    const map = new Map<string, number>();
+    chartQuotes.forEach((q) => map.set(q.status, (map.get(q.status) ?? 0) + 1));
+    const colors: Record<string, string> = {
+      bozza: "#94a3b8",
+      inviata: "#3b82f6",
+      visualizzata: "#8b5cf6",
+      accettata: "#16a34a",
+      rifiutata: "#ef4444",
+      scaduta: "#f97316",
+    };
+    const labels: Record<string, string> = {
+      bozza: "Bozza",
+      inviata: "Inviata",
+      visualizzata: "Visualizzata",
+      accettata: "Accettata",
+      rifiutata: "Rifiutata",
+      scaduta: "Scaduta",
+    };
+    return Array.from(map.entries()).map(([status, value]) => ({
+      name: labels[status] ?? status,
+      value,
+      color: colors[status] ?? "#64748b",
+    }));
+  }, [chartQuotes]);
 
   const quotes = quotesPage.data;
   const totalQuotes = quotesPage.total;
@@ -636,6 +709,75 @@ export default function Preventivi() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Grafici KPI — trend mensile + distribuzione stati */}
+      {chartQuotes.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-sm font-medium">Trend ultimi 6 mesi</p>
+                  <p className="text-xs text-muted-foreground">Preventivi creati vs accettati</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Valore accettato</p>
+                  <p className="text-sm font-semibold text-green-600">
+                    {formatCurrency(monthlyTrend.reduce((s, m) => s + m.value, 0))}
+                  </p>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={monthlyTrend} barCategoryGap="25%">
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                    formatter={(v: number, name: string) => [v, name]}
+                  />
+                  <Bar dataKey="created" name="Creati" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="accepted" name="Accettati" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="mb-2">
+                <p className="text-sm font-medium">Distribuzione stati</p>
+                <p className="text-xs text-muted-foreground">{chartQuotes.length} preventivi (6 mesi)</p>
+              </div>
+              {statusDistribution.length === 0 ? (
+                <div className="h-[180px] flex items-center justify-center text-muted-foreground text-xs">
+                  Nessun dato
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={statusDistribution}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {statusDistribution.map((d, i) => (
+                        <Cell key={i} fill={d.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col gap-3">
