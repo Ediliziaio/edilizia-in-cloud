@@ -86,12 +86,13 @@ function RoleBadge({ role }: { role: EffectiveRole }) {
  * Mostra TUTTI i ruoli dell'utente (primary + secondari).
  * Utile per capire subito se un operatore ha anche ruolo commerciale.
  */
-function RolesBadgeGroup({ roles }: { roles: string[] }) {
-  const primary = determineEffectiveRole(roles);
+function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
+  const safeRoles = Array.isArray(roles) ? roles : [];
+  const primary = determineEffectiveRole(safeRoles);
   const extras: EffectiveRole[] = [];
   // Marca il ruolo commerciale come "extra" se non è già il primary
-  if (primary !== "salesperson" && roles.includes("salesperson")) extras.push("salesperson");
-  if (primary !== "call_center" && roles.includes("call_center")) extras.push("call_center");
+  if (primary !== "salesperson" && safeRoles.includes("salesperson")) extras.push("salesperson");
+  if (primary !== "call_center" && safeRoles.includes("call_center")) extras.push("call_center");
   return (
     <div className="flex items-center gap-1 flex-wrap">
       <RoleBadge role={primary} />
@@ -542,14 +543,20 @@ export function UsersConfig() {
       userData: { first_name: string; last_name: string; email: string };
     }) => {
       if (add) {
-        // Aggiungi ruolo (idempotente: upsert)
-        const { error } = await supabase
+        // Aggiungi ruolo — select-then-insert (safe anche se non c'è
+        // unique index su user_roles(user_id, role))
+        const { data: existingRole } = await supabase
           .from("user_roles")
-          .upsert(
-            { user_id: userId, role: role as any },
-            { onConflict: "user_id,role", ignoreDuplicates: true }
-          );
-        if (error) throw error;
+          .select("user_id")
+          .eq("user_id", userId)
+          .eq("role", role as any)
+          .maybeSingle();
+        if (!existingRole) {
+          const { error } = await supabase
+            .from("user_roles")
+            .insert({ user_id: userId, role: role as any });
+          if (error) throw error;
+        }
 
         // Se stiamo aggiungendo "salesperson", creiamo anche la riga
         // in tabella salespeople (per provvigioni) se non esiste già
@@ -902,8 +909,9 @@ export function UsersConfig() {
                               <>
                                 <DropdownMenuSeparator />
                                 {(() => {
-                                  const isSalesperson = u.allRoles.includes("salesperson");
-                                  const isCallCenter = u.allRoles.includes("call_center");
+                                  const safeRoles = Array.isArray(u.allRoles) ? u.allRoles : [];
+                                  const isSalesperson = safeRoles.includes("salesperson");
+                                  const isCallCenter = safeRoles.includes("call_center");
                                   const isPrimarySales = u.effectiveRole === "salesperson";
                                   const isPrimaryCall = u.effectiveRole === "call_center";
                                   return (
