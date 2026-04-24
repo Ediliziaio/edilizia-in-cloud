@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Activity, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { FileText, RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Activity, CheckCircle2, XCircle, Clock, Loader2, Inbox, Facebook } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -20,6 +22,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export default function FacebookFormsPage() {
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
+  const navigate = useNavigate();
   const [backfillingFormId, setBackfillingFormId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // M10 — App Review checklist
@@ -147,19 +150,37 @@ export default function FacebookFormsPage() {
     setBackfillingFormId(formId);
     try {
       const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) throw new Error("Sessione scaduta, ricarica la pagina");
+      if (!integration?.id) throw new Error("Integrazione non trovata");
       const res = await fetch(`${SUPABASE_URL}/functions/v1/meta-api-proxy`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.session?.access_token}`,
+          Authorization: `Bearer ${session.session.access_token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ action: "backfill-leads", form_id: formId, company_id: companyId, integration_id: integration?.id }),
+        body: JSON.stringify({
+          action: "backfill-leads",
+          form_id: formId,
+          company_id: companyId,
+          integration_id: integration.id,
+        }),
       });
-      if (!res.ok) throw new Error("Backfill failed");
-      toast.success("Backfill avviato", { description: "I lead storici verranno importati a breve." });
-    } catch (err: any) {
-      toast.error("Errore durante il backfill", { description: err.message });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body?.error) msg = body.error;
+        } catch { /* no-op */ }
+        throw new Error(msg);
+      }
+      toast.success("Backfill avviato", {
+        description: "I lead storici verranno importati a breve. Ricarica la pagina tra 1-2 minuti per vedere i conteggi aggiornati.",
+      });
+    } catch (err) {
+      toast.error("Errore durante il backfill", {
+        description: (err as Error).message || "Errore sconosciuto",
+      });
     } finally {
       setBackfillingFormId(null);
     }
@@ -167,81 +188,124 @@ export default function FacebookFormsPage() {
 
   if (!integration) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
+        {/* Header standardizzato */}
         <div className="flex items-center gap-3">
-          <FileText className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>
-        </div>
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground">
-              Integrazione Meta non connessa. Vai in Impostazioni → Integrazioni per connettere il tuo account Meta.
+          <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+            <Facebook className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>
+            <p className="text-sm text-muted-foreground">
+              Gestione lead generation Facebook/Instagram
             </p>
+          </div>
+        </div>
+        <Card className="border-dashed">
+          <CardContent className="py-14 text-center">
+            <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="h-7 w-7 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1">Integrazione Meta non connessa</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
+              Per iniziare a ricevere lead dai moduli Facebook/Instagram devi prima
+              collegare il tuo account Meta dalle Impostazioni.
+            </p>
+            <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")}>
+              Vai alle integrazioni
+            </Button>
           </CardContent>
         </Card>
       </div>
     );
   }
 
+  const activeFormsCount = forms.filter((f: any) => f.status === "active").length;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <FileText className="h-7 w-7 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Gestisci i moduli di lead generation di Facebook collegati al tuo account.
-          </p>
+    <div className="space-y-5">
+      {/* Header standardizzato */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+            <Facebook className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>
+            <p className="text-sm text-muted-foreground">
+              {forms.length === 0
+                ? "Nessun modulo collegato"
+                : <>
+                  <span className="font-medium text-foreground">{activeFormsCount}</span> attivi
+                  <span className="text-muted-foreground">/{forms.length} totali</span>
+                  {webhookHealth && (
+                    <> · <span className="font-medium text-foreground">{webhookHealth.recentCount}</span> lead (7gg)</>
+                  )}
+                </>
+              }
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Webhook health status */}
+      {/* Webhook health status — border-l-4 dinamico per stato */}
       {webhookHealth && (
-        <Card>
+        <Card className={cn(
+          "overflow-hidden border-l-4 transition-colors",
+          webhookHealth.health === "healthy" ? "border-l-emerald-500"
+          : webhookHealth.health === "warn" ? "border-l-amber-500"
+          : "border-l-slate-300"
+        )}>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-muted-foreground" />
               <CardTitle className="text-sm font-medium">Stato Webhook Meta</CardTitle>
               {webhookHealth.health === "healthy" && (
-                <span className="ml-auto flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Attivo
-                </span>
+                <Badge className="ml-auto bg-emerald-600 hover:bg-emerald-600 gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Attivo
+                </Badge>
               )}
               {webhookHealth.health === "warn" && (
-                <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 font-medium">
-                  <Clock className="h-3.5 w-3.5" /> Nessun evento recente
-                </span>
+                <Badge variant="outline" className="ml-auto gap-1 border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                  <Clock className="h-3 w-3" /> Nessun evento recente
+                </Badge>
               )}
               {webhookHealth.health === "unknown" && (
-                <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground font-medium">
-                  <XCircle className="h-3.5 w-3.5" /> Nessun evento ricevuto
-                </span>
+                <Badge variant="outline" className="ml-auto gap-1 text-muted-foreground">
+                  <XCircle className="h-3 w-3" /> Nessun evento
+                </Badge>
               )}
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="flex gap-6 text-sm">
+            <div className="flex gap-6 text-sm flex-wrap">
               <div>
-                <p className="text-muted-foreground text-xs">Ultimi 7 giorni</p>
-                <p className="font-semibold">{webhookHealth.recentCount} eventi</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ultimi 7 giorni</p>
+                <p className="text-lg font-bold tabular-nums">{webhookHealth.recentCount} <span className="text-xs font-normal text-muted-foreground">event{webhookHealth.recentCount === 1 ? "o" : "i"}</span></p>
               </div>
               <div>
-                <p className="text-muted-foreground text-xs">Ultimo evento ricevuto</p>
-                <p className="font-semibold">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ultimo evento</p>
+                <p className="text-sm font-semibold tabular-nums">
                   {webhookHealth.lastEvent
-                    ? format(parseISO(webhookHealth.lastEvent.received_at), "dd/MM/yyyy HH:mm", { locale: it })
+                    ? format(parseISO(webhookHealth.lastEvent.received_at), "dd MMM HH:mm", { locale: it })
                     : "—"}
                 </p>
+                {webhookHealth.hoursSinceLast !== null && webhookHealth.hoursSinceLast < 48 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {webhookHealth.hoursSinceLast < 1
+                      ? `${Math.round(webhookHealth.hoursSinceLast * 60)} min fa`
+                      : `${Math.round(webhookHealth.hoursSinceLast)} ore fa`}
+                  </p>
+                )}
               </div>
               {webhookHealth.health === "warn" && (
-                <div className="text-amber-600 text-xs self-center">
-                  Verifica che il webhook sia correttamente configurato in Meta Business Manager.
+                <div className="flex-1 text-amber-700 text-xs self-center bg-amber-50 dark:bg-amber-950/20 rounded px-3 py-2 border border-amber-200 dark:border-amber-900/50">
+                  ⚠️ Verifica che il webhook sia correttamente configurato in Meta Business Manager (Impostazioni → Webhook).
                 </div>
               )}
               {webhookHealth.health === "unknown" && (
-                <div className="text-muted-foreground text-xs self-center">
-                  Nessun lead ricevuto negli ultimi 7 giorni. Il webhook potrebbe non essere attivo.
+                <div className="flex-1 text-muted-foreground text-xs self-center bg-muted/40 rounded px-3 py-2">
+                  Nessun lead ricevuto negli ultimi 7 giorni. Controlla la connessione del webhook in Meta.
                 </div>
               )}
             </div>
@@ -330,9 +394,22 @@ export default function FacebookFormsPage() {
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : forms.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Nessun modulo Lead Ads trovato. Completa la configurazione dell'integrazione Meta per importare i moduli.
-            </p>
+            <div className="text-center py-10">
+              <Inbox className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="font-medium">Nessun modulo Lead Ads collegato</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                Completa la configurazione dell'integrazione Meta selezionando almeno una pagina,
+                poi i moduli lead verranno sincronizzati automaticamente.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={() => navigate("/azienda/impostazioni/integrazioni")}
+              >
+                Configura integrazione Meta
+              </Button>
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -388,12 +465,18 @@ export default function FacebookFormsPage() {
                       <TableCell className="text-right">
                         <div className="flex items-center gap-1 justify-end">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
+                            className="h-7 text-xs"
                             onClick={() => handleBackfill(form.form_id)}
-                            disabled={backfillingFormId === form.form_id}
+                            disabled={!!backfillingFormId}
+                            title="Importa lead storici per questo form"
                           >
-                            <RefreshCw className={`h-4 w-4 mr-1 ${backfillingFormId === form.form_id ? "animate-spin" : ""}`} />
+                            {backfillingFormId === form.form_id ? (
+                              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                            )}
                             Backfill
                           </Button>
                         </div>

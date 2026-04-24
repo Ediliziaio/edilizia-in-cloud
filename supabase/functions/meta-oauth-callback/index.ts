@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { encrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { timingSafeEqual } from "../_shared/webhookSecurity.ts";
 
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -50,7 +51,8 @@ Deno.serve(async (req) => {
       const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(stateB64));
       const expectedHmac = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
 
-      if (receivedHmac !== expectedHmac) {
+      // Timing-safe comparison: previene timing attack sul state OAuth
+      if (!timingSafeEqual(receivedHmac, expectedHmac)) {
         console.error("State HMAC validation failed");
         return new Response(buildRedirectHtml("error", "invalid_state_signature"), {
           status: 200,
@@ -110,14 +112,16 @@ Deno.serve(async (req) => {
       const meRes = await fetch(`https://graph.facebook.com/v21.0/me?access_token=${accessToken}`);
       const meData = await meRes.json();
 
-      // Upsert integration
+      // STEP 1: Upsert integration in stato "pending" — non "connected" finché
+      // le credenziali non sono salvate. Previene race dove UI mostra
+      // "connected" ma token non è ancora presente in DB.
       const { data: integration, error: integErr } = await adminClient
         .from("integrations")
         .upsert(
           {
             company_id,
             provider: "meta",
-            status: "connected",
+            status: "pending",
             connected_by: user_id,
             health: "ok",
             last_error_code: null,
@@ -137,7 +141,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Store token with AES-GCM encryption
+      // STEP 2: Store token with AES-GCM encryption
       const encKey = getEncryptionKey();
       const tokenEncrypted = await encrypt(accessToken, encKey);
       const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
@@ -148,15 +152,42 @@ Deno.serve(async (req) => {
         .delete()
         .eq("integration_id", integration.id);
 
-      await adminClient.from("integration_credentials").insert({
-        integration_id: integration.id,
-        access_token_encrypted: tokenEncrypted,
-        token_type: "bearer",
-        expires_at: expiresAt,
-        granted_scopes: tokenData.scope ? tokenData.scope.split(",") : [],
-        meta_user_id: meData.id || null,
-        meta_user_name: meData.name || null,
-      });
+      const { error: credErr } = await adminClient
+        .from("integration_credentials")
+        .insert({
+          integration_id: integration.id,
+          access_token_encrypted: tokenEncrypted,
+          token_type: "bearer",
+          expires_at: expiresAt,
+          granted_scopes: tokenData.scope ? tokenData.scope.split(",") : [],
+          meta_user_id: meData.id || null,
+          meta_user_name: meData.name || null,
+        });
+
+      if (credErr) {
+        console.error("Credentials insert error:", credErr);
+        // ROLLBACK: metti integration in stato error per chiarezza — health check
+        // rileverà il problema e mostrerà UI "riconnetti"
+        await adminClient
+          .from("integrations")
+          .update({
+            status: "error",
+            health: "error",
+            last_error_code: "credentials_insert_failed",
+            last_error_message: credErr.message,
+          })
+          .eq("id", integration.id);
+        return new Response(buildRedirectHtml("error", "credentials_storage_failed"), {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
+      // STEP 3: Ora che le credenziali sono salvate, promuovi a "connected"
+      await adminClient
+        .from("integrations")
+        .update({ status: "connected" })
+        .eq("id", integration.id);
 
       const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 

@@ -11,11 +11,10 @@ Deno.serve(async (req) => {
     const verifyToken = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    // META_WEBHOOK_VERIFY_TOKEN è dedicato per Meta (non condiviso con WhatsApp)
-    // Backward compat: se non configurato, usa WHATSAPP_VERIFY_TOKEN
-    const expectedToken =
-      Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ||
-      Deno.env.get("WHATSAPP_VERIFY_TOKEN");
+    // META_WEBHOOK_VERIFY_TOKEN dedicato per Meta (fail-closed: no fallback
+    // al token WhatsApp per evitare accettazione inavvertita di webhook
+    // destinati ad altri prodotti)
+    const expectedToken = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN");
     if (!expectedToken) {
       console.error("meta-webhook: META_WEBHOOK_VERIFY_TOKEN non configurato");
       return new Response("Configuration error", { status: 500 });
@@ -65,6 +64,10 @@ Deno.serve(async (req) => {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+      // Flag per triggerare processing real-time solo se almeno 1 lead è
+      // stato enqueued
+      let hasEnqueued = false;
 
       // Process each entry
       for (const entry of payload.entry || []) {
@@ -122,11 +125,34 @@ Deno.serve(async (req) => {
 
           if (insertErr) {
             console.error("Failed to enqueue webhook event:", insertErr);
+          } else {
+            hasEnqueued = true;
           }
         }
       }
 
-      // Always respond 200 quickly
+      // REAL-TIME: se abbiamo enqueued almeno 1 lead, invochiamo
+      // meta-process-leads IMMEDIATAMENTE (fire-and-forget).
+      // Il cron ogni 2 minuti resta come fallback per retry di eventi falliti.
+      // Evitiamo di aspettare la risposta per non superare 20s timeout Meta.
+      if (hasEnqueued) {
+        const cronSecret = Deno.env.get("CRON_SECRET");
+        if (cronSecret) {
+          // fire-and-forget: NON aspettiamo la fetch, usiamo .then() senza await
+          fetch(`${supabaseUrl}/functions/v1/meta-process-leads`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-cron-secret": cronSecret,
+            },
+            body: "{}",
+          }).catch((e) => {
+            console.warn("meta-webhook: real-time invoke failed (fallback cron):", e.message);
+          });
+        }
+      }
+
+      // Always respond 200 quickly (entro ~100ms)
       return new Response("OK", { status: 200 });
     } catch (error) {
       console.error("meta-webhook error:", error);

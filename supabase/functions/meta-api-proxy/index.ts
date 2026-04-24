@@ -47,6 +47,111 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // SEC FIX — SEC-CRITICAL: valida che l'utente autenticato appartenga
+    // effettivamente a company_id richiesto. Prima il body.company_id era
+    // user-controlled e permetteva cross-tenant read dei token Meta.
+    // Accetta super_admin come bypass (cross-company per supporto).
+    const [profileRes, rolesRes] = await Promise.all([
+      adminClient
+        .from("profiles")
+        .select("company_id")
+        .eq("id", authUser.id)
+        .maybeSingle(),
+      adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", authUser.id),
+    ]);
+    const userCompanyId = profileRes.data?.company_id ?? null;
+    const isSuperAdmin = (rolesRes.data ?? []).some((r) => r.role === "super_admin");
+    if (!isSuperAdmin && userCompanyId !== company_id) {
+      console.error(
+        `meta-api-proxy: tenant mismatch — user=${authUser.id} profile.company=${userCompanyId} requested=${company_id}`,
+      );
+      return new Response(
+        JSON.stringify({ error: "Forbidden — tenant mismatch" }),
+        {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Verifica anche che integration_id appartenga a questa company (prevenire
+    // escalation: utente conosce integration_id di altra company).
+    const { data: integRow } = await adminClient
+      .from("integrations")
+      .select("id, company_id, provider")
+      .eq("id", integration_id)
+      .maybeSingle();
+    if (!integRow || (integRow.company_id !== company_id && !isSuperAdmin)) {
+      return new Response(
+        JSON.stringify({ error: "Integration not found or not owned by company" }),
+        {
+          status: 404,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // ────────────────────────────────────────────────────────────
+    // RATE LIMITING — Meta Graph API: max 200 chiamate/ora/user
+    // Teniamo soglia a 180 per avere margine e evitare 429
+    // ────────────────────────────────────────────────────────────
+    const META_HOURLY_LIMIT = 180;
+    const hourStart = new Date();
+    hourStart.setMinutes(0, 0, 0);
+    const hourStartIso = hourStart.toISOString();
+    const hourEndIso = new Date(hourStart.getTime() + 3600_000).toISOString();
+    try {
+      // upsert counter corrente (insert o increment)
+      const { data: rateRow } = await adminClient
+        .from("meta_api_rate_limit")
+        .select("id, call_count, last_429_at")
+        .eq("company_id", company_id)
+        .eq("window_start", hourStartIso)
+        .maybeSingle();
+
+      const currentCount = rateRow?.call_count ?? 0;
+      if (currentCount >= META_HOURLY_LIMIT) {
+        const retryAfter = Math.ceil((hourStart.getTime() + 3600_000 - Date.now()) / 1000);
+        return new Response(
+          JSON.stringify({
+            error: "Rate limit reached — retry later",
+            retry_after_seconds: retryAfter,
+            calls_this_hour: currentCount,
+            limit: META_HOURLY_LIMIT,
+          }),
+          {
+            status: 429,
+            headers: {
+              ...getCorsHeaders(req),
+              "Content-Type": "application/json",
+              "Retry-After": String(retryAfter),
+            },
+          },
+        );
+      }
+      // Incrementa contatore (best-effort, no bloccante)
+      if (rateRow) {
+        await adminClient
+          .from("meta_api_rate_limit")
+          .update({ call_count: currentCount + 1, updated_at: new Date().toISOString() })
+          .eq("id", rateRow.id);
+      } else {
+        await adminClient.from("meta_api_rate_limit").insert({
+          company_id,
+          integration_id,
+          window_start: hourStartIso,
+          window_end: hourEndIso,
+          call_count: 1,
+        });
+      }
+    } catch (rateErr) {
+      // Non bloccare la request se il rate limit check fallisce (fail-open)
+      console.warn("Rate limit check failed (fail-open):", (rateErr as Error).message);
+    }
+
     // Get access token and page tokens
     const { data: creds } = await adminClient
       .from("integration_credentials")

@@ -2,7 +2,7 @@
 
 export type IntegrationProvider = "meta" | "google_calendar" | "apple_calendar" | "google_ads";
 
-export type IntegrationStatus = "connected" | "disconnected" | "error" | "token_expired";
+export type IntegrationStatus = "connected" | "disconnected" | "error" | "token_expired" | "pending";
 
 export type IntegrationHealth = "ok" | "warn" | "critical";
 
