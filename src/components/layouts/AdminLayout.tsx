@@ -144,6 +144,7 @@ const adminMarketingNavItems: AdminNavItem[] = [
   { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
+  { title: "SMS Marketing", url: "/admin/marketing/sms", icon: MessageSquare, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
   { title: "WhatsApp", url: "/admin/marketing/whatsapp", icon: MessageCircle, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
   { title: "Automazioni", url: "/admin/marketing/automazioni", icon: Zap, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },
   { title: "Agenti AI", url: "/admin/marketing/agenti-ai", icon: Bot, permission: "can_manage_marketing", subcategory: "sa_mkt_automation" },

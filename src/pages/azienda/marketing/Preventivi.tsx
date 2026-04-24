@@ -150,6 +150,16 @@ export default function Preventivi() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "lista";
+  // NOTA: `isAdmin` controlla l'accesso a dati finanziari sensibili
+  // (margine %, commissioni, approvazioni sconto, analisi).
+  // - `company_admin`: admin DELL'AZIENDA corrente → corretto vedere margini
+  // - `super_admin`: staff EdiliziaInCloud → oggi vede sempre (globale),
+  //   è corretto quando è in `PlatformCompanyProvider` perché sta guardando
+  //   i preventivi della platform-company (i suoi dati).
+  //   ⚠️ Se in futuro staff potrà impersonare aziende clienti, valutare di
+  //   richiedere audit log per il caso super_admin + effectiveCompany.id !==
+  //   profile.company_id per evitare visibilità indesiderata su margini
+  //   commerciali di terzi.
   const isAdmin = role === "company_admin" || role === "super_admin";
   const handleTabChange = (tab: string) => {
     setSearchParams(tab === "lista" ? {} : { tab });
