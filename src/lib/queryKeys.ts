@@ -805,6 +805,8 @@ export const queryKeys = {
     all: ["customers-list"] as const,
     list: (companyId: string | undefined, ...filters: any[]) =>
       ["customers-list", companyId, ...filters] as const,
+    stats: (companyId: string | undefined) =>
+      ["customers-list", "stats", companyId] as const,
   },
 
   // ── Order Salespeople (Commissions) ───────────────────

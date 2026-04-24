@@ -1,12 +1,15 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Mail, Phone, MapPin, ClipboardList, Trash2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Loader2, Mail, Phone, MapPin, ClipboardList, Trash2, Wand2, AlertTriangle, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { looksLikePhone, looksLikeFiscalCode, looksLikeEmail } from "@/lib/customerDataSanitizer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +49,16 @@ interface CustomerProfile {
   created_at: string;
   salesperson_id: string | null;
   marketing_contact_id?: string | null;
+  // Nuovi campi
+  is_business: boolean | null;
+  business_name: string | null;
+  city: string | null;
+  postal_code: string | null;
+  province: string | null;
+  country: string | null;
+  site_city: string | null;
+  site_postal_code: string | null;
+  site_province: string | null;
 }
 
 export default function CompanyCustomerDetail() {
@@ -62,7 +75,7 @@ export default function CompanyCustomerDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at, salesperson_id")
+        .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at, salesperson_id, is_business, business_name, city, postal_code, province, country, site_city, site_postal_code, site_province")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -309,7 +322,82 @@ export default function CompanyCustomerDetail() {
     );
   }
 
-  const fullName = `${customer.first_name || ""} ${customer.last_name}`.trim();
+  // Name helpers — aware di is_business (ragione sociale) e placeholder "—"
+  const first = (customer.first_name || "").trim();
+  const last = (customer.last_name || "").trim();
+  const biz = (customer.business_name || "").trim();
+  const isFirstPlaceholder = first === "—" || first === "-" || first === "";
+  const isLastPlaceholder = last === "—" || last === "-" || last === "";
+  const fullName = useMemo(() => {
+    if (customer.is_business && biz) return biz;
+    const f = isFirstPlaceholder ? "" : first;
+    const l = isLastPlaceholder ? "" : last;
+    const joined = `${f} ${l}`.trim();
+    return joined || "(senza nome)";
+  }, [customer.is_business, biz, first, last, isFirstPlaceholder, isLastPlaceholder]);
+  const referentName = useMemo(() => {
+    if (!customer.is_business) return null;
+    const f = isFirstPlaceholder ? "" : first;
+    const l = isLastPlaceholder ? "" : last;
+    const joined = `${f} ${l}`.trim();
+    return joined || null;
+  }, [customer.is_business, first, last, isFirstPlaceholder, isLastPlaceholder]);
+
+  // Detect dati problematici: nome/cognome è un numero, CF o email
+  const dataIssues = useMemo(() => {
+    const issues: Array<{ field: "first_name" | "last_name"; value: string; kind: string; label: string }> = [];
+    if (first && looksLikePhone(first)) {
+      issues.push({ field: "first_name", value: first, kind: "phone", label: "Il nome è un numero di telefono" });
+    }
+    if (last && looksLikePhone(last)) {
+      issues.push({ field: "last_name", value: last, kind: "phone", label: "Il cognome è un numero di telefono" });
+    }
+    if (first && looksLikeFiscalCode(first)) {
+      issues.push({ field: "first_name", value: first, kind: "fiscal_code", label: "Il nome è un CF/P.IVA" });
+    }
+    if (last && looksLikeFiscalCode(last)) {
+      issues.push({ field: "last_name", value: last, kind: "fiscal_code", label: "Il cognome è un CF/P.IVA" });
+    }
+    if (first && looksLikeEmail(first)) {
+      issues.push({ field: "first_name", value: first, kind: "email", label: "Il nome è un'email" });
+    }
+    return issues;
+  }, [first, last]);
+
+  // Mutation per il fix rapido via RPC
+  const sanitizeMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc("sanitize_customer_profile" as never, {
+        p_customer_id: customer.id,
+      } as never);
+      if (error) throw error;
+      return data as unknown as { changed: boolean; fixes: string[]; error?: string };
+    },
+    onSuccess: (data) => {
+      if (data?.error) {
+        toast({ title: "Errore", description: data.error, variant: "destructive" });
+        return;
+      }
+      if (!data?.changed) {
+        toast({ title: "Nessuna correzione applicata", description: "I dati sono già coerenti." });
+        return;
+      }
+      toast({
+        title: "Correzioni applicate",
+        description: (data.fixes ?? []).join(" · ") || "Dati del cliente sistemati.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customer.id] });
+      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      refetchCustomer();
+    },
+    onError: (e) => {
+      toast({
+        title: "Errore",
+        description: e instanceof Error ? e.message : "Impossibile correggere i dati",
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -326,12 +414,27 @@ export default function CompanyCustomerDetail() {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold">{fullName}</h1>
+            <h1 className="text-2xl font-bold">
+              {fullName}
+              {!customer.is_business && isFirstPlaceholder && isLastPlaceholder && !biz && (
+                <span className="text-xs font-normal text-muted-foreground ml-2">(anagrafica da completare)</span>
+              )}
+            </h1>
+            {customer.is_business && (
+              <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300">
+                Azienda
+              </Badge>
+            )}
             <Badge variant="secondary" className="gap-1">
               <ClipboardList className="h-3 w-3" />
               {orderCount} {orderCount === 1 ? "ordine" : "ordini"}
             </Badge>
           </div>
+          {referentName && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Referente: <span className="font-medium text-foreground">{referentName}</span>
+            </p>
+          )}
 
           {/* Chip cliccabili email / telefono / indirizzo */}
           <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -360,8 +463,6 @@ export default function CompanyCustomerDetail() {
               </span>
             )}
           </div>
-
-          {/* TODO Sprint 2: aggiungere qui il banner "Contatto CRM collegato" quando marketing_contact_id è presente */}
         </div>
 
         <AlertDialog>
@@ -396,6 +497,42 @@ export default function CompanyCustomerDetail() {
         </AlertDialog>
       </div>
 
+      {/* ───── Banner data hygiene ───── */}
+      {dataIssues.length > 0 && (
+        <Alert variant="default" className="border-amber-400 bg-amber-50/50 dark:bg-amber-900/10">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800 dark:text-amber-300">Anagrafica da correggere</AlertTitle>
+          <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-2">
+            <ul className="list-disc pl-4 text-xs space-y-0.5">
+              {dataIssues.map((iss, i) => (
+                <li key={i}>
+                  {iss.label}: <code className="px-1 rounded bg-amber-100 dark:bg-amber-900/30 font-mono">{iss.value}</code>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white dark:bg-transparent border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100"
+                onClick={() => sanitizeMutation.mutate()}
+                disabled={sanitizeMutation.isPending}
+              >
+                {sanitizeMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Sistema automaticamente
+              </Button>
+              <p className="text-xs text-amber-700 dark:text-amber-300/80 self-center">
+                Oppure usa <Pencil className="h-3 w-3 inline -mt-0.5" /> per modificare a mano.
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* 2-column CRM layout: 2/5 left + 3/5 right */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* LEFT COLUMN — 2/5 */}
@@ -408,6 +545,7 @@ export default function CompanyCustomerDetail() {
           <CustomerDiaryPanel
             customerId={customer.id}
             customerName={fullName}
+            customerEmail={customer.email}
           />
         </div>
 
@@ -416,6 +554,7 @@ export default function CompanyCustomerDetail() {
           <CustomerBusinessTabs
             customerId={customer.id}
             companyId={effectiveCompany?.id ?? ""}
+            customerFullName={fullName}
             orders={orders}
             preventivi={preventivi}
             tickets={tickets}

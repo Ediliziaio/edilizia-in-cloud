@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera, Columns, FileCheck } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera, Columns, FileCheck, FileText, FileSpreadsheet, Sparkles, ChevronDown, Users as UsersIcon } from "lucide-react";
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
@@ -31,6 +31,7 @@ import { OrdersStatsCards } from "@/components/orders/OrdersStatsCards";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
@@ -105,6 +106,7 @@ function OrdersListInner() {
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
+  const [customerSheetsOpen, setCustomerSheetsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarFilters, setSidebarFilters] = useState<OrdersFilterState>(INITIAL_FILTER_STATE);
 
@@ -945,6 +947,90 @@ function OrdersListInner() {
     toast({ title: `Excel esportato — ${result.count} ordini` });
   }, [prepareExportData, toast]);
 
+  // Export PDF: tabella ordini landscape
+  const exportOrdersPDF = useCallback(async () => {
+    const result = await prepareExportData();
+    if (!result || result.count === 0) {
+      toast({ title: "Nessun ordine", description: "Non ci sono ordini da esportare.", variant: "destructive" });
+      return;
+    }
+    try {
+      const jsPDFModule = await import("jspdf");
+      const jsPDF = jsPDFModule.default ?? (jsPDFModule as any).jsPDF;
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      doc.setFontSize(14);
+      doc.text(`${effectiveCompany?.name ?? "Azienda"} — Ordini`, 40, 40);
+      doc.setFontSize(9);
+      doc.text(`Esportato il ${format(new Date(), "dd/MM/yyyy HH:mm")} — ${result.count} ordini`, 40, 56);
+
+      const cols = [
+        { key: "order_code", label: "Codice", w: 60 },
+        { key: "customer", label: "Cliente", w: 150 },
+        { key: "description", label: "Descrizione", w: 180 },
+        { key: "total_amount", label: "Totale", w: 70, align: "right" as const },
+        { key: "status", label: "Stato", w: 80 },
+        { key: "created_at", label: "Contratto", w: 70 },
+        { key: "expected_date", label: "Posa", w: 70 },
+        { key: "payment_status", label: "Pagamenti", w: 110 },
+      ];
+      let y = 80;
+      let x = 40;
+
+      // Header
+      doc.setFont("helvetica", "bold");
+      doc.setFillColor(240, 240, 240);
+      doc.rect(40, y - 12, cols.reduce((a, c) => a + c.w, 0), 18, "F");
+      cols.forEach((c) => {
+        doc.text(c.label, x + 4, y);
+        x += c.w;
+      });
+      y += 14;
+      doc.setFont("helvetica", "normal");
+
+      result.rows.forEach((row, i) => {
+        if (y > 550) {
+          doc.addPage();
+          y = 40;
+        }
+        x = 40;
+        if (i % 2 === 1) {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(40, y - 10, cols.reduce((a, c) => a + c.w, 0), 14, "F");
+        }
+        cols.forEach((c) => {
+          const val = String(row[c.key as keyof typeof row] ?? "");
+          const maxLen = Math.floor(c.w / 5);
+          const trimmed = val.length > maxLen ? val.slice(0, maxLen - 1) + "…" : val;
+          if (c.align === "right" && val) {
+            const formatted = String(row[c.key as keyof typeof row] ?? "").includes(".")
+              ? `€ ${Number(row[c.key as keyof typeof row]).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+              : trimmed;
+            doc.text(formatted, x + c.w - 4, y, { align: "right" });
+          } else {
+            doc.text(trimmed, x + 4, y);
+          }
+          x += c.w;
+        });
+        y += 13;
+      });
+
+      doc.save(`ordini-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast({ title: `PDF esportato — ${result.count} ordini` });
+    } catch (e) {
+      toast({
+        title: "Errore export PDF",
+        description: e instanceof Error ? e.message : "Generazione PDF fallita",
+        variant: "destructive",
+      });
+    }
+  }, [prepareExportData, effectiveCompany?.name, toast]);
+
+  // Export PDF: una scheda completa per ogni cliente con i suoi ordini
+  // Export schede clienti PDF: apre dialog con quantity selector + progress bar
+  // (vedi CustomerSheetsExportDialog per il fix del bug "1000 schede").
+  const openCustomerSheetsDialog = useCallback(() => setCustomerSheetsOpen(true), []);
+
+
   // Import handler
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
     if (!effectiveCompany?.id) return { success: 0, errors: ["Azienda non trovata"] };
@@ -1032,9 +1118,16 @@ function OrdersListInner() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Ordini</h1>
-          <p className="text-muted-foreground">Gestisci gli ordini della tua azienda</p>
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Package className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Ordini</h1>
+            <p className="text-sm text-muted-foreground">
+              Cantieri, ODA, DDT, anomalie e marginalità in un'unica vista.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {/* Filtri avanzati */}
@@ -1108,19 +1201,46 @@ function OrdersListInner() {
           </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">Esporta</span>
+                <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel className="text-[11px]">Ordini filtrati</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportOrdersCSV}>
+                <FileText className="h-4 w-4 mr-2" /> Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportOrdersXLSX}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Esporta Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportOrdersPDF}>
+                <FileText className="h-4 w-4 mr-2" /> Esporta PDF
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[11px]">Schede clienti</DropdownMenuLabel>
+              <DropdownMenuItem onClick={openCustomerSheetsDialog}>
+                <UsersIcon className="h-4 w-4 mr-2" /> PDF schede clienti
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Importa</span>
+            <Sparkles className="h-3.5 w-3.5 ml-1 text-primary" />
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Altre azioni">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={exportOrdersCSV}>
-                <Download className="h-4 w-4 mr-2" /> Esporta CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportOrdersXLSX}>
-                <Download className="h-4 w-4 mr-2" /> Esporta Excel (XLSX)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                <Upload className="h-4 w-4 mr-2" /> Importa da file
+              <DropdownMenuItem onClick={openCustomerSheetsDialog}>
+                <UsersIcon className="h-4 w-4 mr-2" /> Scarica schede clienti
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1279,6 +1399,11 @@ function OrdersListInner() {
         title="Importa Ordini"
         fields={ORDER_IMPORT_FIELDS}
         onImport={handleOrdersImport}
+      />
+
+      <CustomerSheetsExportDialog
+        open={customerSheetsOpen}
+        onOpenChange={setCustomerSheetsOpen}
       />
     </div>
   );

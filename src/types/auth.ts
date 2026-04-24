@@ -247,6 +247,9 @@ export interface Company {
   stripe_subscription_status?: string | null;
   trial_extensions_count?: number | null;
   last_payment_failure_at?: string | null;
+  // Area privata clienti: se false, i nuovi clienti vengono creati senza
+  // account auth (solo anagrafica). Default true per retro-compatibilità.
+  customer_portal_enabled?: boolean;
 }
 
 export interface AuthState {

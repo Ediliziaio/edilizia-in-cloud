@@ -17,7 +17,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, FileText, Loader2, Save } from "lucide-react";
+import { Upload, FileText, Loader2, Save, Paperclip, Package, Info, Search, ExternalLink } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
+import { Link } from "react-router-dom";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -46,6 +49,7 @@ export default function SettingsQuoteMaterials() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState("tutti");
+  const [searchQuery, setSearchQuery] = useState("");
   const [uploading, setUploading] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [editName, setEditName] = useState("");
@@ -236,23 +240,42 @@ export default function SettingsQuoteMaterials() {
     if (data?.signedUrl) setPreviewUrl(data.signedUrl);
   };
 
+  // Search + tab filter (composti)
   const filtered = localMaterials.filter((m: any) => {
-    if (activeTab === "tutti") return true;
-    if (activeTab === "globali") return !m.article_template_id;
-    if (activeTab === "prodotto") return !!m.article_template_id;
+    if (activeTab === "globali" && m.article_template_id) return false;
+    if (activeTab === "prodotto" && !m.article_template_id) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matches =
+        (m.name ?? "").toLowerCase().includes(q) ||
+        (m.category ?? "").toLowerCase().includes(q);
+      if (!matches) return false;
+    }
     return true;
   });
+
+  // Stats per KPI
+  const totalSizeMB = localMaterials.reduce((s, m) => s + Number(m.file_size_bytes || 0), 0) / (1024 * 1024);
+  const globali = localMaterials.filter((m: any) => !m.article_template_id).length;
+  const perProdotto = localMaterials.filter((m: any) => !!m.article_template_id).length;
 
   if (!isAdmin) return null;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Materiali Preventivi</h1>
-          <p className="text-muted-foreground">
-            Gestisci i PDF da allegare ai preventivi. Trascina per riordinare.
-          </p>
+      {/* Header con pattern h-10 w-10 */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Paperclip className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Materiali Preventivi</h1>
+            <p className="text-sm text-muted-foreground">
+              PDF (schede tecniche, garanzie, certificazioni) da allegare automaticamente ai preventivi
+              generati. Trascina per riordinare le priorità nel PDF finale.
+            </p>
+          </div>
         </div>
         {hasOrderChanges && (
           <Button onClick={handleSaveOrder} disabled={savingOrder} size="sm">
@@ -261,6 +284,62 @@ export default function SettingsQuoteMaterials() {
           </Button>
         )}
       </div>
+
+      {/* KPI / stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Totale PDF</p>
+            <p className="text-xl font-bold mt-0.5">{localMaterials.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Globali</p>
+            <p className="text-xl font-bold mt-0.5">{globali}</p>
+            <p className="text-[10px] text-muted-foreground">Allegati sempre</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Per prodotto</p>
+            <p className="text-xl font-bold mt-0.5">{perProdotto}</p>
+            <p className="text-[10px] text-muted-foreground">Solo se prodotto in preventivo</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Spazio usato</p>
+            <p className="text-xl font-bold mt-0.5">{totalSizeMB.toFixed(1)}<span className="text-sm"> MB</span></p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Info box: come funzionano i materiali nel preventivatore */}
+      <Alert className="border-blue-300 bg-blue-50/50 dark:bg-blue-900/10">
+        <Info className="h-4 w-4 text-blue-600" />
+        <AlertTitle className="text-blue-900 dark:text-blue-200 text-sm">Come vengono allegati ai preventivi</AlertTitle>
+        <AlertDescription className="text-xs text-blue-800 dark:text-blue-300 space-y-1">
+          <p>
+            · I PDF <strong>Globali</strong> (nessun prodotto collegato) vengono allegati a <em>tutti</em> i preventivi
+            nell'ordine mostrato qui.
+          </p>
+          <p>
+            · I PDF <strong>Per Prodotto</strong> vengono allegati solo quando l'articolo collegato è presente nel preventivo
+            (es. scheda tecnica di una specifica serie infissi).
+          </p>
+          <p>
+            · Il flag "Includi schede tecniche" in{" "}
+            <Link to="/azienda/impostazioni/margini" className="underline font-medium">/margini</Link>{" "}
+            controlla l'abilitazione globale dell'allegato al PDF finale.
+          </p>
+          <p>
+            · Per collegare un PDF a un prodotto specifico: apri l'articolo in{" "}
+            <Link to="/azienda/impostazioni/listino" className="underline font-medium">/listino</Link>{" "}
+            e usa la sezione "Schede tecniche".
+          </p>
+        </AlertDescription>
+      </Alert>
 
       {/* Upload dropzone */}
       <div
@@ -284,18 +363,31 @@ export default function SettingsQuoteMaterials() {
         )}
       </div>
 
-      {/* Filter tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="tutti">Tutti ({localMaterials.length})</TabsTrigger>
-          <TabsTrigger value="globali">
-            Globali ({localMaterials.filter((m: any) => !m.article_template_id).length})
-          </TabsTrigger>
-          <TabsTrigger value="prodotto">
-            Per Prodotto ({localMaterials.filter((m: any) => !!m.article_template_id).length})
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Filter tabs + search */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+          <TabsList>
+            <TabsTrigger value="tutti">Tutti ({localMaterials.length})</TabsTrigger>
+            <TabsTrigger value="globali">
+              <Paperclip className="h-3 w-3 mr-1" />
+              Globali ({globali})
+            </TabsTrigger>
+            <TabsTrigger value="prodotto">
+              <Package className="h-3 w-3 mr-1" />
+              Per Prodotto ({perProdotto})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cerca nome o categoria..."
+            className="pl-8 h-9 text-sm"
+          />
+        </div>
+      </div>
 
       {/* Materials list with DnD */}
       {isLoading ? (

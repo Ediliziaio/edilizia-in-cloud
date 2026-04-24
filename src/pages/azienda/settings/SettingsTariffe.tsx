@@ -1616,21 +1616,26 @@ export default function SettingsTariffe() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Tariffe Aziendali</h1>
-          <p className="text-muted-foreground text-sm">
-            Gestisci tariffe di posa, manodopera, trasporto e servizi. Ogni tariffa ha un prezzo di vendita
-            {isAdmin ? " e un costo interno (solo admin)" : ""}.
-          </p>
+      {/* Header pattern h-10 w-10 bg-primary/10 */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Wrench className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Tariffe Aziendali</h1>
+            <p className="text-sm text-muted-foreground">
+              Tariffe di posa, manodopera, trasporto e servizi. Ogni tariffa ha un prezzo di vendita
+              {isAdmin ? " e un costo interno (solo admin)" : ""}. Usate automaticamente nel preventivatore.
+            </p>
+          </div>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
-          <Button variant="outline" onClick={() => setStandardOpen(true)}>
-            <Zap className="h-4 w-4 mr-2" />Catalogo standard
+          <Button variant="outline" size="sm" onClick={() => setStandardOpen(true)}>
+            <Zap className="h-4 w-4 mr-1.5" />Catalogo standard
           </Button>
-          <Button onClick={openNew}>
-            <Plus className="h-4 w-4 mr-2" />Nuova tariffa
+          <Button size="sm" onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1.5" />Nuova tariffa
           </Button>
         </div>
       </div>

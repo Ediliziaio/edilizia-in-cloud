@@ -2,8 +2,14 @@ import React, { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
-import { COLOR_PALETTES, DEFAULT_TEMPLATE } from "@/types/quoteTemplate";
-import type { QuoteTemplate, QuoteTemplateLayout, LogoPosition, LogoSize, FontFamily } from "@/types/quoteTemplate";
+import {
+  COLOR_PALETTES, DEFAULT_TEMPLATE, FONT_SIZE_PRESETS, LINE_HEIGHT_PRESETS,
+  ROW_DENSITY_LABELS, TABLE_BORDERS_LABELS, HEADER_ALIGNMENT_LABELS,
+} from "@/types/quoteTemplate";
+import type {
+  QuoteTemplate, QuoteTemplateLayout, LogoPosition, LogoSize, FontFamily,
+  RowDensity, TableBorders, TextAlignment,
+} from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
-  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy,
+  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
 } from "lucide-react";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
@@ -137,14 +143,30 @@ export default function SettingsQuoteTemplates() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Template Offerte</h1>
-          <p className="text-muted-foreground text-sm">Personalizza l'aspetto grafico dei tuoi preventivi PDF</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Template Offerte</h1>
+            <p className="text-sm text-muted-foreground">
+              Personalizza il layout, colori, logo e tipografia dei PDF di preventivi e offerte.
+              Ogni modifica viene mostrata in anteprima live qui sotto.
+            </p>
+          </div>
         </div>
-        {isAdmin && !editing && (
-          <Button onClick={handleNew}><Plus className="h-4 w-4 mr-2" />Nuovo Template</Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!editing && templates.length > 0 && (
+            <Badge variant="outline" className="gap-1 text-[11px] h-6">
+              <Eye className="h-3 w-3" />
+              {templates.length} template · {templates.filter((t) => t.is_default).length > 0 ? "default attivo" : "nessun default"}
+            </Badge>
+          )}
+          {isAdmin && !editing && (
+            <Button onClick={handleNew} size="sm"><Plus className="h-4 w-4 mr-1.5" />Nuovo Template</Button>
+          )}
+        </div>
       </div>
 
       {!editing ? (
@@ -362,16 +384,208 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
 
-            {/* E: Font */}
+            {/* E: Tipografia — font, dimensioni, righe */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Tipografia</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Tipografia</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Font family */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Famiglia font</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {FONTS.map(f => (
+                      <Button
+                        key={f.key}
+                        variant={form.font_family === f.key ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => updateForm({ font_family: f.key })}
+                      >
+                        {f.label}
+                        <span className="ml-1.5 text-[10px] opacity-70">{f.desc}</span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Font size base */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Dimensione testo corpo</Label>
+                    <span className="text-xs font-mono font-semibold">{form.font_size_base ?? 10} pt</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={7}
+                    max={16}
+                    step={1}
+                    value={form.font_size_base ?? 10}
+                    onChange={(e) => updateForm({ font_size_base: Number(e.target.value) })}
+                    className="w-full accent-primary"
+                  />
+                  <div className="flex gap-1 flex-wrap">
+                    {FONT_SIZE_PRESETS.map((p) => (
+                      <Button
+                        key={p.value}
+                        variant={(form.font_size_base ?? 10) === p.value ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => updateForm({ font_size_base: p.value })}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Heading scale */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Scala titoli</Label>
+                    <span className="text-xs font-mono font-semibold">
+                      ×{(form.heading_size_scale ?? 1.6).toFixed(2)}
+                      <span className="opacity-60 ml-1">
+                        ≈ {Math.round((form.font_size_base ?? 10) * (form.heading_size_scale ?? 1.6))} pt
+                      </span>
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1.0}
+                    max={3.0}
+                    step={0.1}
+                    value={form.heading_size_scale ?? 1.6}
+                    onChange={(e) => updateForm({ heading_size_scale: Number(e.target.value) })}
+                    className="w-full accent-primary"
+                  />
+                </div>
+
+                {/* Line height */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Altezza riga</Label>
+                    <span className="text-xs font-mono font-semibold">{(form.line_height ?? 1.4).toFixed(2)}</span>
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    {LINE_HEIGHT_PRESETS.map((p) => (
+                      <Button
+                        key={p.value}
+                        variant={(form.line_height ?? 1.4) === p.value ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => updateForm({ line_height: p.value })}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Header alignment */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Allineamento testo header/titoli</Label>
+                  <div className="flex gap-2">
+                    {(['left', 'center', 'right'] as TextAlignment[]).map((a) => (
+                      <Button
+                        key={a}
+                        variant={(form.header_alignment ?? 'left') === a ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => updateForm({ header_alignment: a })}
+                      >
+                        {HEADER_ALIGNMENT_LABELS[a]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* E-bis: Layout tabella */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Tabella voci</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Row density */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Densità righe</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(Object.keys(ROW_DENSITY_LABELS) as RowDensity[]).map((d) => {
+                      const cfg = ROW_DENSITY_LABELS[d];
+                      const active = (form.row_density ?? 'normal') === d;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => updateForm({ row_density: d })}
+                          className={`border rounded-lg p-3 text-center transition-all hover:border-primary ${
+                            active ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-border'
+                          }`}
+                        >
+                          <p className="text-sm font-medium">{cfg.label}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{cfg.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Table borders */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Bordi tabella</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['none', 'horizontal', 'all'] as TableBorders[]).map((b) => (
+                      <Button
+                        key={b}
+                        variant={(form.table_borders ?? 'horizontal') === b ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => updateForm({ table_borders: b })}
+                      >
+                        {TABLE_BORDERS_LABELS[b]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Zebra */}
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label className="text-sm">Righe alternate (zebra)</Label>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Righe pari con sfondo grigio chiaro, più facile da leggere su tabelle lunghe.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.table_zebra ?? true}
+                    onCheckedChange={(v) => updateForm({ table_zebra: v })}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* E-ter: Pagina */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Margini pagina</CardTitle>
+              </CardHeader>
               <CardContent>
-                <div className="flex gap-3">
-                  {FONTS.map(f => (
-                    <Button key={f.key} variant={form.font_family === f.key ? 'default' : 'outline'} size="sm" onClick={() => updateForm({ font_family: f.key })}>
-                      {f.label}
-                    </Button>
-                  ))}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Margine laterale</Label>
+                    <span className="text-xs font-mono font-semibold">{form.page_margin_mm ?? 18} mm</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={8}
+                    max={30}
+                    step={1}
+                    value={form.page_margin_mm ?? 18}
+                    onChange={(e) => updateForm({ page_margin_mm: Number(e.target.value) })}
+                    className="w-full accent-primary"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Margini minori → più contenuto per pagina. Margini maggiori → PDF più elegante e arieggiato.
+                  </p>
                 </div>
               </CardContent>
             </Card>

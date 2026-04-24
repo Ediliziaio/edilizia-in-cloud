@@ -197,16 +197,24 @@ export default function SettingsSedi() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-[#1E3A5F]">Gestione Sedi</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Crea e gestisci le sedi della tua azienda per analytics disaggregati.
-          </p>
+      {/* Header pattern h-10 w-10 bg-primary/10 — bug fix: rimosso colore
+          hardcoded #1E3A5F che non rispettava il white-label per i clienti
+          con brand personalizzato. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <MapPin className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Sedi Aziendali</h1>
+            <p className="text-sm text-muted-foreground">
+              Showroom, cantieri, magazzini. Usa le sedi per analytics disaggregati su
+              dashboard, ordini e fatturazione. {sedi.length} {sedi.length === 1 ? "sede" : "sedi"} configurate.
+            </p>
+          </div>
         </div>
-        <Button onClick={openCreate} className="gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90">
-          <Plus className="h-4 w-4" />
+        <Button onClick={openCreate} size="sm" className="shrink-0">
+          <Plus className="h-4 w-4 mr-1.5" />
           Nuova Sede
         </Button>
       </div>
@@ -229,7 +237,7 @@ export default function SettingsSedi() {
               Aggiungi le sedi della tua azienda (showroom, cantieri, magazzini) per
               visualizzare analytics disaggregati in ogni dashboard.
             </p>
-            <Button onClick={openCreate} size="sm" className="mt-2 gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90">
+            <Button onClick={openCreate} size="sm" className="mt-2 gap-2 ">
               <Plus className="h-4 w-4" />
               Aggiungi la prima sede
             </Button>
@@ -405,7 +413,7 @@ export default function SettingsSedi() {
               </Button>
               <Button
                 type="submit"
-                className="bg-[#1E3A5F] hover:bg-[#1E3A5F]/90"
+                className=""
                 disabled={saveMutation.isPending}
               >
                 {saveMutation.isPending ? 'Salvataggio…' : editSede ? 'Salva modifiche' : 'Crea sede'}

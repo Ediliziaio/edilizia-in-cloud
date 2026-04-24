@@ -1,4 +1,3 @@
-Initialising login role...
 export type Json =
   | string
   | number
@@ -12,31 +11,6 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
-  }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
   }
   public: {
     Tables: {
@@ -7329,6 +7303,7 @@ export type Database = {
           computo_ai_reset_date: string | null
           consecutive_payment_failures: number | null
           created_at: string
+          customer_portal_enabled: boolean
           dunning_started_at: string | null
           dunning_status: string | null
           email: string
@@ -7428,6 +7403,7 @@ export type Database = {
           computo_ai_reset_date?: string | null
           consecutive_payment_failures?: number | null
           created_at?: string
+          customer_portal_enabled?: boolean
           dunning_started_at?: string | null
           dunning_status?: string | null
           email: string
@@ -7527,6 +7503,7 @@ export type Database = {
           computo_ai_reset_date?: string | null
           consecutive_payment_failures?: number | null
           created_at?: string
+          customer_portal_enabled?: boolean
           dunning_started_at?: string | null
           dunning_status?: string | null
           email?: string
@@ -9752,33 +9729,45 @@ export type Database = {
       customer_messages: {
         Row: {
           body: string
+          channel: string
           company_id: string
           created_at: string
           customer_id: string
+          delivery_metadata: Json
+          delivery_status: string
           id: string
           read_at: string | null
           sender_id: string
           sender_role: string
+          subject: string | null
         }
         Insert: {
           body: string
+          channel?: string
           company_id: string
           created_at?: string
           customer_id: string
+          delivery_metadata?: Json
+          delivery_status?: string
           id?: string
           read_at?: string | null
           sender_id: string
           sender_role: string
+          subject?: string | null
         }
         Update: {
           body?: string
+          channel?: string
           company_id?: string
           created_at?: string
           customer_id?: string
+          delivery_metadata?: Json
+          delivery_status?: string
           id?: string
           read_at?: string | null
           sender_id?: string
           sender_role?: string
+          subject?: string | null
         }
         Relationships: [
           {
@@ -13841,12 +13830,15 @@ export type Database = {
           id: string
           last_error: string | null
           last_sync_at: string | null
+          last_sync_source: string | null
+          last_webhook_processed_at: string | null
           refresh_token_encrypted: string | null
           status: string
           token_expires_at: string | null
           updated_at: string
           user_id: string
           webhook_channel_id: string | null
+          webhook_channel_token: string | null
           webhook_expiry_at: string | null
           webhook_resource_id: string | null
         }
@@ -13859,12 +13851,15 @@ export type Database = {
           id?: string
           last_error?: string | null
           last_sync_at?: string | null
+          last_sync_source?: string | null
+          last_webhook_processed_at?: string | null
           refresh_token_encrypted?: string | null
           status?: string
           token_expires_at?: string | null
           updated_at?: string
           user_id: string
           webhook_channel_id?: string | null
+          webhook_channel_token?: string | null
           webhook_expiry_at?: string | null
           webhook_resource_id?: string | null
         }
@@ -13877,12 +13872,15 @@ export type Database = {
           id?: string
           last_error?: string | null
           last_sync_at?: string | null
+          last_sync_source?: string | null
+          last_webhook_processed_at?: string | null
           refresh_token_encrypted?: string | null
           status?: string
           token_expires_at?: string | null
           updated_at?: string
           user_id?: string
           webhook_channel_id?: string | null
+          webhook_channel_token?: string | null
           webhook_expiry_at?: string | null
           webhook_resource_id?: string | null
         }
@@ -13912,6 +13910,9 @@ export type Database = {
           google_calendar_id: string | null
           google_event_id: string
           id: string
+          idempotency_key: string | null
+          last_sync_at: string | null
+          last_sync_source: string | null
           last_synced_at: string | null
           last_updated_by: string | null
           source: string
@@ -13926,6 +13927,9 @@ export type Database = {
           google_calendar_id?: string | null
           google_event_id: string
           id?: string
+          idempotency_key?: string | null
+          last_sync_at?: string | null
+          last_sync_source?: string | null
           last_synced_at?: string | null
           last_updated_by?: string | null
           source?: string
@@ -13940,6 +13944,9 @@ export type Database = {
           google_calendar_id?: string | null
           google_event_id?: string
           id?: string
+          idempotency_key?: string | null
+          last_sync_at?: string | null
+          last_sync_source?: string | null
           last_synced_at?: string | null
           last_updated_by?: string | null
           source?: string
@@ -15397,39 +15404,48 @@ export type Database = {
       }
       integrations: {
         Row: {
+          admin_alerted_at: string | null
           company_id: string
           connected_by: string | null
+          consecutive_errors: number
           created_at: string
           health: string
           id: string
           last_error_code: string | null
           last_error_message: string | null
+          last_healthy_at: string | null
           last_sync_at: string | null
           provider: string
           status: string
           updated_at: string
         }
         Insert: {
+          admin_alerted_at?: string | null
           company_id: string
           connected_by?: string | null
+          consecutive_errors?: number
           created_at?: string
           health?: string
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
+          last_healthy_at?: string | null
           last_sync_at?: string | null
           provider?: string
           status?: string
           updated_at?: string
         }
         Update: {
+          admin_alerted_at?: string | null
           company_id?: string
           connected_by?: string | null
+          consecutive_errors?: number
           created_at?: string
           health?: string
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
+          last_healthy_at?: string | null
           last_sync_at?: string | null
           provider?: string
           status?: string
@@ -16909,6 +16925,78 @@ export type Database = {
           },
         ]
       }
+      lead_scoring_config: {
+        Row: {
+          company_id: string
+          max_activity_points: number
+          max_history_points: number
+          points_per_activity: number
+          source_scores: Json
+          tier_a_threshold: number
+          tier_b_threshold: number
+          tier_c_threshold: number
+          updated_at: string
+          updated_by: string | null
+          weight_address: number
+          weight_city: number
+          weight_company_name: number
+          weight_open_opportunity: number
+          weight_phone: number
+          weight_recent_activity: number
+        }
+        Insert: {
+          company_id: string
+          max_activity_points?: number
+          max_history_points?: number
+          points_per_activity?: number
+          source_scores?: Json
+          tier_a_threshold?: number
+          tier_b_threshold?: number
+          tier_c_threshold?: number
+          updated_at?: string
+          updated_by?: string | null
+          weight_address?: number
+          weight_city?: number
+          weight_company_name?: number
+          weight_open_opportunity?: number
+          weight_phone?: number
+          weight_recent_activity?: number
+        }
+        Update: {
+          company_id?: string
+          max_activity_points?: number
+          max_history_points?: number
+          points_per_activity?: number
+          source_scores?: Json
+          tier_a_threshold?: number
+          tier_b_threshold?: number
+          tier_c_threshold?: number
+          updated_at?: string
+          updated_by?: string | null
+          weight_address?: number
+          weight_city?: number
+          weight_company_name?: number
+          weight_open_opportunity?: number
+          weight_phone?: number
+          weight_recent_activity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_scoring_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "lead_scoring_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leave_balances: {
         Row: {
           company_id: string
@@ -17171,78 +17259,6 @@ export type Database = {
           trigger_event?: string
         }
         Relationships: []
-      }
-      lead_scoring_config: {
-        Row: {
-          company_id: string
-          max_activity_points: number
-          max_history_points: number
-          points_per_activity: number
-          source_scores: Json
-          tier_a_threshold: number
-          tier_b_threshold: number
-          tier_c_threshold: number
-          updated_at: string
-          updated_by: string | null
-          weight_address: number
-          weight_city: number
-          weight_company_name: number
-          weight_open_opportunity: number
-          weight_phone: number
-          weight_recent_activity: number
-        }
-        Insert: {
-          company_id: string
-          max_activity_points?: number
-          max_history_points?: number
-          points_per_activity?: number
-          source_scores?: Json
-          tier_a_threshold?: number
-          tier_b_threshold?: number
-          tier_c_threshold?: number
-          updated_at?: string
-          updated_by?: string | null
-          weight_address?: number
-          weight_city?: number
-          weight_company_name?: number
-          weight_open_opportunity?: number
-          weight_phone?: number
-          weight_recent_activity?: number
-        }
-        Update: {
-          company_id?: string
-          max_activity_points?: number
-          max_history_points?: number
-          points_per_activity?: number
-          source_scores?: Json
-          tier_a_threshold?: number
-          tier_b_threshold?: number
-          tier_c_threshold?: number
-          updated_at?: string
-          updated_by?: string | null
-          weight_address?: number
-          weight_city?: number
-          weight_company_name?: number
-          weight_open_opportunity?: number
-          weight_phone?: number
-          weight_recent_activity?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_scoring_config_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: true
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "lead_scoring_config_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: true
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       listino_categorie: {
         Row: {
@@ -19349,6 +19365,61 @@ export type Database = {
           },
         ]
       }
+      meta_api_rate_limit: {
+        Row: {
+          call_count: number
+          company_id: string
+          id: string
+          integration_id: string | null
+          last_429_at: string | null
+          updated_at: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          call_count?: number
+          company_id: string
+          id?: string
+          integration_id?: string | null
+          last_429_at?: string | null
+          updated_at?: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          call_count?: number
+          company_id?: string
+          id?: string
+          integration_id?: string | null
+          last_429_at?: string | null
+          updated_at?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_api_rate_limit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_api_rate_limit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_api_rate_limit_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_assets: {
         Row: {
           asset_id: string
@@ -19470,6 +19541,8 @@ export type Database = {
           id: string
           integration_id: string
           last_pull_at: string | null
+          mapping_updated_at: string | null
+          mapping_version: number
           page_asset_id: string | null
           since_date: string | null
           status: string
@@ -19484,6 +19557,8 @@ export type Database = {
           id?: string
           integration_id: string
           last_pull_at?: string | null
+          mapping_updated_at?: string | null
+          mapping_version?: number
           page_asset_id?: string | null
           since_date?: string | null
           status?: string
@@ -19498,6 +19573,8 @@ export type Database = {
           id?: string
           integration_id?: string
           last_pull_at?: string | null
+          mapping_updated_at?: string | null
+          mapping_version?: number
           page_asset_id?: string | null
           since_date?: string | null
           status?: string
@@ -22863,7 +22940,10 @@ export type Database = {
           block_reason: string | null
           blocked_at: string | null
           blocked_by: string | null
+          business_name: string | null
+          city: string | null
           company_id: string | null
+          country: string | null
           created_at: string
           email: string
           failed_login_count: number
@@ -22871,6 +22951,7 @@ export type Database = {
           fiscal_code: string | null
           id: string
           is_blocked: boolean | null
+          is_business: boolean
           last_login_at: string | null
           last_login_ip: unknown
           last_name: string
@@ -22879,9 +22960,15 @@ export type Database = {
           notes: string | null
           password_changed_at: string | null
           phone: string | null
+          portal_disabled: boolean
+          postal_code: string | null
+          province: string | null
           require_2fa: boolean
           salesperson_id: string | null
           site_address: string | null
+          site_city: string | null
+          site_postal_code: string | null
+          site_province: string | null
           updated_at: string
         }
         Insert: {
@@ -22891,7 +22978,10 @@ export type Database = {
           block_reason?: string | null
           blocked_at?: string | null
           blocked_by?: string | null
+          business_name?: string | null
+          city?: string | null
           company_id?: string | null
+          country?: string | null
           created_at?: string
           email: string
           failed_login_count?: number
@@ -22899,6 +22989,7 @@ export type Database = {
           fiscal_code?: string | null
           id: string
           is_blocked?: boolean | null
+          is_business?: boolean
           last_login_at?: string | null
           last_login_ip?: unknown
           last_name: string
@@ -22907,9 +22998,15 @@ export type Database = {
           notes?: string | null
           password_changed_at?: string | null
           phone?: string | null
+          portal_disabled?: boolean
+          postal_code?: string | null
+          province?: string | null
           require_2fa?: boolean
           salesperson_id?: string | null
           site_address?: string | null
+          site_city?: string | null
+          site_postal_code?: string | null
+          site_province?: string | null
           updated_at?: string
         }
         Update: {
@@ -22919,7 +23016,10 @@ export type Database = {
           block_reason?: string | null
           blocked_at?: string | null
           blocked_by?: string | null
+          business_name?: string | null
+          city?: string | null
           company_id?: string | null
+          country?: string | null
           created_at?: string
           email?: string
           failed_login_count?: number
@@ -22927,6 +23027,7 @@ export type Database = {
           fiscal_code?: string | null
           id?: string
           is_blocked?: boolean | null
+          is_business?: boolean
           last_login_at?: string | null
           last_login_ip?: unknown
           last_name?: string
@@ -22935,9 +23036,15 @@ export type Database = {
           notes?: string | null
           password_changed_at?: string | null
           phone?: string | null
+          portal_disabled?: boolean
+          postal_code?: string | null
+          province?: string | null
           require_2fa?: boolean
           salesperson_id?: string | null
           site_address?: string | null
+          site_city?: string | null
+          site_postal_code?: string | null
+          site_province?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -24041,18 +24148,24 @@ export type Database = {
           created_at: string | null
           delivery_terms_text: string | null
           font_family: string | null
+          font_size_base: number
           footer_text: string | null
+          header_alignment: string
           header_text_color: string | null
+          heading_size_scale: number
           id: string
           is_active: boolean | null
           is_default: boolean | null
           layout: string
+          line_height: number
           logo_position: string | null
           logo_size: string | null
           logo_url: string | null
           name: string
+          page_margin_mm: number
           payment_terms_text: string | null
           primary_color: string | null
+          row_density: string
           secondary_color: string | null
           show_client_details: boolean | null
           show_company_details: boolean | null
@@ -24064,6 +24177,8 @@ export type Database = {
           show_quote_number: boolean | null
           show_validity_date: boolean | null
           show_watermark: boolean | null
+          table_borders: string
+          table_zebra: boolean
           text_color: string | null
           updated_at: string | null
           watermark_text: string | null
@@ -24076,18 +24191,24 @@ export type Database = {
           created_at?: string | null
           delivery_terms_text?: string | null
           font_family?: string | null
+          font_size_base?: number
           footer_text?: string | null
+          header_alignment?: string
           header_text_color?: string | null
+          heading_size_scale?: number
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
           layout?: string
+          line_height?: number
           logo_position?: string | null
           logo_size?: string | null
           logo_url?: string | null
           name?: string
+          page_margin_mm?: number
           payment_terms_text?: string | null
           primary_color?: string | null
+          row_density?: string
           secondary_color?: string | null
           show_client_details?: boolean | null
           show_company_details?: boolean | null
@@ -24099,6 +24220,8 @@ export type Database = {
           show_quote_number?: boolean | null
           show_validity_date?: boolean | null
           show_watermark?: boolean | null
+          table_borders?: string
+          table_zebra?: boolean
           text_color?: string | null
           updated_at?: string | null
           watermark_text?: string | null
@@ -24111,18 +24234,24 @@ export type Database = {
           created_at?: string | null
           delivery_terms_text?: string | null
           font_family?: string | null
+          font_size_base?: number
           footer_text?: string | null
+          header_alignment?: string
           header_text_color?: string | null
+          heading_size_scale?: number
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
           layout?: string
+          line_height?: number
           logo_position?: string | null
           logo_size?: string | null
           logo_url?: string | null
           name?: string
+          page_margin_mm?: number
           payment_terms_text?: string | null
           primary_color?: string | null
+          row_density?: string
           secondary_color?: string | null
           show_client_details?: boolean | null
           show_company_details?: boolean | null
@@ -24134,6 +24263,8 @@ export type Database = {
           show_quote_number?: boolean | null
           show_validity_date?: boolean | null
           show_watermark?: boolean | null
+          table_borders?: string
+          table_zebra?: boolean
           text_color?: string | null
           updated_at?: string | null
           watermark_text?: string | null
@@ -35479,6 +35610,9 @@ export type Database = {
         Args: { p_layout: Json }
         Returns: undefined
       }
+      _looks_like_email: { Args: { s: string }; Returns: boolean }
+      _looks_like_fiscal_code: { Args: { s: string }; Returns: boolean }
+      _looks_like_phone: { Args: { s: string }; Returns: boolean }
       add_email_credits_with_log: {
         Args: {
           p_amount: number
@@ -35541,6 +35675,14 @@ export type Database = {
         Returns: undefined
       }
       auto_expire_trials: { Args: never; Returns: number }
+      bulk_assign_salesperson: {
+        Args: {
+          p_company_id: string
+          p_customer_ids: string[]
+          p_salesperson_id: string
+        }
+        Returns: number
+      }
       calculate_monthly_commissions: {
         Args: { p_month: number; p_year: number }
         Returns: number
@@ -35607,6 +35749,7 @@ export type Database = {
       }
       cleanup_cestino_article_families: { Args: never; Returns: undefined }
       cleanup_cestino_documenti: { Args: never; Returns: undefined }
+      cleanup_meta_rate_limit: { Args: never; Returns: undefined }
       cleanup_notifiche_cooldown: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       clone_template_to_company: {
@@ -36081,20 +36224,42 @@ export type Database = {
         Args: { p_company_id: string; p_date_from: string; p_date_to: string }
         Returns: Json
       }
-      get_customers_paginated: {
-        Args: {
-          p_company_id: string
-          p_has_orders?: string
-          p_limit?: number
-          p_offset?: number
-          p_salesperson_id?: string
-          p_salesperson_none?: boolean
-          p_search?: string
-          p_sort_dir?: string
-          p_sort_field?: string
-        }
-        Returns: Json
-      }
+      get_customer_stats: { Args: { p_company_id: string }; Returns: Json }
+      get_customers_paginated:
+        | {
+            Args: {
+              p_company_id: string
+              p_has_orders?: string
+              p_limit?: number
+              p_offset?: number
+              p_salesperson_id?: string
+              p_salesperson_none?: boolean
+              p_search?: string
+              p_sort_dir?: string
+              p_sort_field?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_company_id: string
+              p_date_from?: string
+              p_date_to?: string
+              p_has_fiscal_code?: string
+              p_has_orders?: string
+              p_has_phone?: string
+              p_has_site_address?: string
+              p_limit?: number
+              p_offset?: number
+              p_portal_state?: string
+              p_salesperson_id?: string
+              p_salesperson_none?: boolean
+              p_search?: string
+              p_sort_dir?: string
+              p_sort_field?: string
+            }
+            Returns: Json
+          }
       get_dashboard: { Args: { p_dashboard_id: string }; Returns: Json }
       get_dashboard_kpis: {
         Args: {
@@ -36623,6 +36788,8 @@ export type Database = {
             }
             Returns: Json
           }
+      mask_pii_email: { Args: { input: string }; Returns: string }
+      mask_pii_phone: { Args: { input: string }; Returns: string }
       match_articles: {
         Args: {
           p_company_id: string
@@ -36702,6 +36869,10 @@ export type Database = {
           p_variable_mapping: Json
         }
         Returns: number
+      }
+      profile_display_name: {
+        Args: { p_profile: Database["public"]["Tables"]["profiles"]["Row"] }
+        Returns: string
       }
       recalculate_invoice_totals: {
         Args: { p_invoice_id: string }
@@ -36789,6 +36960,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      sanitize_customer_profile: {
+        Args: { p_customer_id: string }
+        Returns: Json
+      }
       save_dashboard: {
         Args: {
           p_dashboard_id: string
@@ -36814,6 +36989,7 @@ export type Database = {
         Args: { p_company_id: string; p_items: Json; p_quote_id: string }
         Returns: Json
       }
+      scan_customers_issues: { Args: { p_company_id: string }; Returns: Json }
       search_cantieri_by_trigram: {
         Args: { p_company_id: string; p_limit?: number; p_query: string }
         Returns: {
@@ -37094,9 +37270,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_role: [
@@ -37167,5 +37340,3 @@ export const Constants = {
     },
   },
 } as const
-A new version of Supabase CLI is available: v2.90.0 (currently installed v2.75.0)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

@@ -10,23 +10,38 @@
 //   • Dialog Nuovo DDT → wizard procedurale 3 step
 // ============================================================================
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover, PopoverTrigger, PopoverContent,
+} from "@/components/ui/popover";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   FileCheck, Plus, Loader2, Search, Truck, Warehouse as WarehouseIcon,
   FileText, ShoppingCart, ArrowRight, AlertTriangle, Paperclip,
   ShieldCheck, Image as ImageIcon, ChevronRight, Clock,
+  Download, ChevronDown, FileSpreadsheet, Filter, X, Calendar as CalendarIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDDTRicezioneList, type DDTStato } from "@/hooks/useDDTRicezione";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
+import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
+import { useToast } from "@/hooks/use-toast";
 
 type FilterKey = "tutti" | DDTStato;
 
@@ -41,23 +56,50 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
 
 export default function DDTRicezioneList() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [tab, setTab] = useState<FilterKey>("tutti");
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
 
+  // Advanced filters
+  const [filterSupplier, setFilterSupplier] = useState<string>("all");
+  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
+  const [filterDateTo, setFilterDateTo] = useState<string>("");
+  const [filterHasDamages, setFilterHasDamages] = useState<"all" | "yes" | "no">("all");
+  const [filterHasAttachments, setFilterHasAttachments] = useState<"all" | "yes" | "no">("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+
   const { data: ddtList = [], isLoading } = useDDTRicezioneList();
   const { orders } = usePurchaseOrders();
+  const { suppliers } = useOperationalSuppliers();
 
   const availablePOs = useMemo(
     () => orders.filter((o) => o.status !== "annullato"),
     [orders]
   );
 
+  const activeFiltersCount = useMemo(() => {
+    let n = 0;
+    if (filterSupplier !== "all") n++;
+    if (filterDateFrom) n++;
+    if (filterDateTo) n++;
+    if (filterHasDamages !== "all") n++;
+    if (filterHasAttachments !== "all") n++;
+    return n;
+  }, [filterSupplier, filterDateFrom, filterDateTo, filterHasDamages, filterHasAttachments]);
+
+  const clearFilters = () => {
+    setFilterSupplier("all");
+    setFilterDateFrom("");
+    setFilterDateTo("");
+    setFilterHasDamages("all");
+    setFilterHasAttachments("all");
+  };
+
   const filtered = useMemo(() => {
     let list = ddtList;
     if (tab !== "tutti") {
       list = list.filter((d) => {
-        // "atteso" include sia "atteso" che legacy "attesa"
         if (tab === "atteso") return d.stato === "atteso" || d.stato === "attesa";
         return d.stato === tab;
       });
@@ -77,8 +119,139 @@ export default function DDTRicezioneList() {
         );
       });
     }
+
+    if (filterSupplier !== "all") {
+      list = list.filter((d) => d.purchase_orders?.suppliers?.id === filterSupplier || d.purchase_orders?.supplier_id === filterSupplier);
+    }
+    if (filterDateFrom) {
+      const from = new Date(filterDateFrom + "T00:00:00").getTime();
+      list = list.filter((d) => d.data_ddt && new Date(d.data_ddt).getTime() >= from);
+    }
+    if (filterDateTo) {
+      const to = new Date(filterDateTo + "T23:59:59").getTime();
+      list = list.filter((d) => d.data_ddt && new Date(d.data_ddt).getTime() <= to);
+    }
+    if (filterHasDamages !== "all") {
+      list = list.filter((d) => filterHasDamages === "yes" ? (d.has_damages || d.stato === "non_conforme") : !(d.has_damages || d.stato === "non_conforme"));
+    }
+    if (filterHasAttachments !== "all") {
+      list = list.filter((d) => {
+        const has = (d.attachments?.length ?? 0) + (d.ddt_file_url ? 1 : 0) > 0;
+        return filterHasAttachments === "yes" ? has : !has;
+      });
+    }
+
     return list;
-  }, [ddtList, tab, search]);
+  }, [ddtList, tab, search, filterSupplier, filterDateFrom, filterDateTo, filterHasDamages, filterHasAttachments]);
+
+  // Export
+  const buildExportRows = useCallback(() => {
+    return filtered.map((d) => {
+      const po = d.purchase_orders;
+      return {
+        numero_ddt: d.numero_ddt,
+        data: d.data_ddt ? format(new Date(d.data_ddt), "dd/MM/yyyy") : "",
+        oda: po?.oda_number ?? "",
+        supplier: po?.suppliers?.name ?? "",
+        order_code: po?.orders?.order_code ?? "",
+        corriere: d.corriere ?? "",
+        autista: d.autista_nome ?? "",
+        stato: DDT_STATO_META[d.stato as keyof typeof DDT_STATO_META]?.label ?? d.stato,
+        quantita: String(d.quantita_ricevuta ?? 0),
+        has_damages: (d.has_damages || d.stato === "non_conforme") ? "Sì" : "No",
+        attachments_count: String((d.attachments?.length ?? 0) + (d.ddt_file_url ? 1 : 0)),
+      };
+    });
+  }, [filtered]);
+
+  const exportColumns = useMemo(() => ([
+    { key: "numero_ddt", label: "N° DDT" },
+    { key: "data", label: "Data" },
+    { key: "oda", label: "N° OdA" },
+    { key: "supplier", label: "Fornitore" },
+    { key: "order_code", label: "Ordine Cliente" },
+    { key: "corriere", label: "Corriere" },
+    { key: "autista", label: "Autista" },
+    { key: "stato", label: "Stato" },
+    { key: "quantita", label: "Q.tà Ricevuta" },
+    { key: "has_damages", label: "Non conforme" },
+    { key: "attachments_count", label: "N. Allegati" },
+  ]), []);
+
+  const exportCSV = useCallback(() => {
+    const rows = buildExportRows();
+    if (rows.length === 0) { toast({ title: "Nessun DDT da esportare", variant: "destructive" }); return; }
+    exportToCSV(rows, exportColumns, `ddt-${format(new Date(), "yyyy-MM-dd")}.csv`);
+    toast({ title: `CSV esportato — ${rows.length} DDT` });
+  }, [buildExportRows, exportColumns, toast]);
+
+  const exportXLSX = useCallback(async () => {
+    const rows = buildExportRows();
+    if (rows.length === 0) { toast({ title: "Nessun DDT da esportare", variant: "destructive" }); return; }
+    await exportToXLSX(rows, exportColumns, `ddt-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast({ title: `Excel esportato — ${rows.length} DDT` });
+  }, [buildExportRows, exportColumns, toast]);
+
+  const exportPDF = useCallback(async () => {
+    const rows = buildExportRows();
+    if (rows.length === 0) { toast({ title: "Nessun DDT da esportare", variant: "destructive" }); return; }
+    try {
+      const jsPDFModule = await import("jspdf");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jsPDF = jsPDFModule.default ?? (jsPDFModule as any).jsPDF;
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      doc.setFontSize(14);
+      doc.text("DDT Fornitori", 40, 40);
+      doc.setFontSize(9);
+      doc.text(`Esportato il ${format(new Date(), "dd/MM/yyyy HH:mm")} — ${rows.length} DDT`, 40, 56);
+
+      const cols = [
+        { key: "numero_ddt", label: "N° DDT", w: 70 },
+        { key: "data", label: "Data", w: 60 },
+        { key: "supplier", label: "Fornitore", w: 140 },
+        { key: "oda", label: "OdA", w: 60 },
+        { key: "corriere", label: "Corriere", w: 90 },
+        { key: "stato", label: "Stato", w: 80 },
+        { key: "quantita", label: "Q.tà", w: 50, align: "right" as const },
+        { key: "has_damages", label: "NC", w: 40 },
+        { key: "attachments_count", label: "All.", w: 40, align: "right" as const },
+      ];
+      let y = 80;
+      let x = 40;
+      doc.setFont("helvetica", "bold");
+      doc.setFillColor(240, 240, 240);
+      doc.rect(40, y - 12, cols.reduce((a, c) => a + c.w, 0), 18, "F");
+      cols.forEach((c) => { doc.text(c.label, x + 4, y); x += c.w; });
+      y += 14;
+      doc.setFont("helvetica", "normal");
+
+      rows.forEach((r, i) => {
+        if (y > 540) { doc.addPage(); y = 40; }
+        x = 40;
+        if (i % 2 === 1) {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(40, y - 10, cols.reduce((a, c) => a + c.w, 0), 14, "F");
+        }
+        cols.forEach((c) => {
+          const val = String(r[c.key as keyof typeof r] ?? "");
+          const maxLen = Math.floor(c.w / 5);
+          const trimmed = val.length > maxLen ? val.slice(0, maxLen - 1) + "…" : val;
+          if (c.align === "right") {
+            doc.text(trimmed, x + c.w - 4, y, { align: "right" });
+          } else {
+            doc.text(trimmed, x + 4, y);
+          }
+          x += c.w;
+        });
+        y += 13;
+      });
+
+      doc.save(`ddt-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast({ title: `PDF esportato — ${rows.length} DDT` });
+    } catch (e) {
+      toast({ title: "Errore export PDF", description: e instanceof Error ? e.message : "Generazione PDF fallita", variant: "destructive" });
+    }
+  }, [buildExportRows, toast]);
 
   const counts = useMemo(() => {
     const c: Record<FilterKey, number> = {
@@ -115,28 +288,122 @@ export default function DDTRicezioneList() {
   return (
     <div className="space-y-5">
       {/* ─── Header ──────────────────────────────────────────────── */}
-      <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-start sm:items-center gap-3 min-w-0">
-          <div className="rounded-xl bg-primary/10 p-2 shrink-0">
-            <FileCheck className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileCheck className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold truncate">DDT Fornitori</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Ricezioni merce con documenti, corriere, verifica e non conformità
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight truncate">DDT Fornitori</h1>
+            <p className="text-sm text-muted-foreground">
+              Ricezioni merce, corrieri, verifica e non conformità in un'unica vista.
             </p>
           </div>
         </div>
-        <Button
-          onClick={() => setNewOpen(true)}
-          className="shrink-0 h-10"
-          disabled={availablePOs.length === 0}
-          size="default"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden xs:inline ml-1.5">Nuovo DDT</span>
-          <span className="xs:hidden ml-1">Nuovo</span>
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Export */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">Esporta</span>
+                <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="text-[11px]">DDT filtrati ({filtered.length})</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportCSV}>
+                <FileText className="h-4 w-4 mr-2" /> CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportXLSX}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPDF}>
+                <FileText className="h-4 w-4 mr-2" /> PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Filtri avanzati */}
+          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="relative">
+                <Filter className="h-4 w-4 mr-1.5" />
+                Filtri
+                {activeFiltersCount > 0 && (
+                  <Badge className="ml-2 h-5 px-1.5 text-[10px] bg-primary">{activeFiltersCount}</Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[320px] p-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Filtri avanzati</p>
+                  {activeFiltersCount > 0 && (
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearFilters}>
+                      <X className="h-3 w-3 mr-1" /> Azzera
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Fornitore</Label>
+                  <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti i fornitori</SelectItem>
+                      {suppliers.filter((s) => s.is_active).map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs flex items-center gap-1"><CalendarIcon className="h-3 w-3" />DDT dal</Label>
+                    <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-9 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">DDT al</Label>
+                    <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9 text-xs" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Non conformità</Label>
+                  <Select value={filterHasDamages} onValueChange={(v) => setFilterHasDamages(v as "all" | "yes" | "no")}>
+                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti</SelectItem>
+                      <SelectItem value="yes">Con danni / non conformi</SelectItem>
+                      <SelectItem value="no">Solo conformi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Allegati</Label>
+                  <Select value={filterHasAttachments} onValueChange={(v) => setFilterHasAttachments(v as "all" | "yes" | "no")}>
+                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti</SelectItem>
+                      <SelectItem value="yes">Con allegati</SelectItem>
+                      <SelectItem value="no">Senza allegati</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            onClick={() => setNewOpen(true)}
+            size="sm"
+            disabled={availablePOs.length === 0}
+            className="shrink-0"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Nuovo DDT</span>
+            <span className="sm:hidden">Nuovo</span>
+          </Button>
+        </div>
       </div>
 
       {/* ─── KPI Cards ──────────────────────────────────────────── */}

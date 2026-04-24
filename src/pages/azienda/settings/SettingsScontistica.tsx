@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Pencil, Trash2, Percent, AlertCircle, Info } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Pencil, Trash2, Percent, AlertCircle, Info, Calculator, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -158,18 +158,20 @@ export default function SettingsScontistica() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Percent className="h-6 w-6 text-primary" />
-            Regole di scontistica
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Definisci i limiti di sconto per i commerciali. Le regole si combinano prendendo la più restrittiva.
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Percent className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Regole di scontistica</h1>
+            <p className="text-sm text-muted-foreground">
+              Limiti di sconto per i commerciali: {rules.length} regole configurate · {rules.filter((r) => r.is_active).length} attive.
+            </p>
+          </div>
         </div>
         <Button onClick={openNew} size="sm">
-          <Plus className="h-4 w-4 mr-2" />
+          <Plus className="h-4 w-4 mr-1.5" />
           Nuova regola
         </Button>
       </div>
@@ -186,6 +188,9 @@ export default function SettingsScontistica() {
           viene limitato automaticamente.
         </AlertDescription>
       </Alert>
+
+      {/* ─── Simulatore sconto ─────────────────────────────────────── */}
+      <DiscountSimulator rules={rules} salespeople={salespeople} />
 
       <Card>
         <CardHeader>
@@ -540,5 +545,222 @@ export default function SettingsScontistica() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Simulatore di sconto — live preview di quale regola si applica
+ *
+ * Data una combinazione (commerciale × categoria × importo × tipo lavoro),
+ * trova tutte le regole matchanti, mostra la "binding" (quella con lo
+ * sconto max più basso) e il risultato del check.
+ *
+ * Replica in-browser la stessa logica che il backend applicherà al
+ * preventivatore reale, così admin può testare le regole prima di farle
+ * ai venditori.
+ * ─────────────────────────────────────────────────────────────────────
+ */
+function DiscountSimulator({
+  rules,
+  salespeople,
+}: {
+  rules: DiscountRule[];
+  salespeople: Array<{ id: string; first_name: string; last_name: string }>;
+}) {
+  const [simImporto, setSimImporto] = useState<number>(5000);
+  const [simSconto, setSimSconto] = useState<number>(10);
+  const [simSalesperson, setSimSalesperson] = useState<string>("any");
+  const [simCategoria, setSimCategoria] = useState<string>("");
+  const [simTipoLavoro, setSimTipoLavoro] = useState<string>("");
+
+  const evaluation = useMemo(() => {
+    // Filtra regole matchanti
+    const active = rules.filter((r) => r.is_active);
+    const matching = active.filter((r) => {
+      // Scope
+      if (r.scope === "per_commerciale") {
+        if (!simSalesperson || simSalesperson === "any") return false;
+        if (r.salesperson_id !== simSalesperson) return false;
+      }
+      if (r.scope === "per_cliente_cat") {
+        if (!simCategoria.trim()) return false;
+        if (r.client_category?.toLowerCase() !== simCategoria.trim().toLowerCase()) return false;
+      }
+      // Tipo lavoro
+      if (r.tipo_lavoro && r.tipo_lavoro.trim()) {
+        if (r.tipo_lavoro.toLowerCase() !== simTipoLavoro.trim().toLowerCase()) return false;
+      }
+      // Fascia importo
+      const imMin = r.importo_min ?? 0;
+      const imMax = r.importo_max ?? Infinity;
+      if (simImporto < imMin || simImporto > imMax) return false;
+      return true;
+    });
+
+    if (matching.length === 0) {
+      // Fallback = 10% (come da UI empty-state)
+      return {
+        matchingRules: [] as DiscountRule[],
+        bindingSconto: 10,
+        bindingApprova: null as number | null,
+        bindingMargine: 0,
+        fallback: true,
+      };
+    }
+
+    // Binding = regola più restrittiva
+    const minSconto = Math.min(...matching.map((r) => r.sconto_max_pct));
+    const minApprova = matching
+      .filter((r) => r.approva_oltre_pct != null)
+      .reduce<number | null>((acc, r) => (acc == null ? r.approva_oltre_pct! : Math.min(acc, r.approva_oltre_pct!)), null);
+    const maxMargine = Math.max(...matching.map((r) => r.margine_min_pct));
+
+    return {
+      matchingRules: matching,
+      bindingSconto: minSconto,
+      bindingApprova: minApprova,
+      bindingMargine: maxMargine,
+      fallback: false,
+    };
+  }, [rules, simImporto, simSalesperson, simCategoria, simTipoLavoro]);
+
+  // Verdetto finale
+  const verdict = useMemo(() => {
+    const s = simSconto;
+    const cap = evaluation.bindingSconto;
+    const approva = evaluation.bindingApprova;
+    if (s > cap) return { kind: "blocked" as const, label: `Sconto oltre il limite (${cap}%) — richiede override admin` };
+    if (approva != null && s > approva) return { kind: "approve" as const, label: `Sconto oltre ${approva}% — richiede approvazione` };
+    return { kind: "ok" as const, label: `Applicabile liberamente dal commerciale` };
+  }, [simSconto, evaluation.bindingSconto, evaluation.bindingApprova]);
+
+  return (
+    <Card className="border-l-4 border-l-primary">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Calculator className="h-4 w-4 text-primary" />
+          Simulatore — verifica come si applicano le regole
+        </CardTitle>
+        <CardDescription>
+          Inserisci uno scenario reale e scopri quale regola scatta, qual è il tetto di sconto, se serve approvazione.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Commerciale</label>
+            <Select value={simSalesperson} onValueChange={setSimSalesperson}>
+              <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">— non specificato —</SelectItem>
+                {salespeople.map((sp) => (
+                  <SelectItem key={sp.id} value={sp.id}>
+                    {sp.first_name} {sp.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Categoria cliente (tag)</label>
+            <Input
+              value={simCategoria}
+              onChange={(e) => setSimCategoria(e.target.value)}
+              placeholder="es. vip, standard"
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Tipo lavoro</label>
+            <Input
+              value={simTipoLavoro}
+              onChange={(e) => setSimTipoLavoro(e.target.value)}
+              placeholder="es. ristrutturazione"
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Importo preventivo €</label>
+            <Input
+              type="number"
+              value={simImporto}
+              onChange={(e) => setSimImporto(Number(e.target.value) || 0)}
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Sconto richiesto %</label>
+            <Input
+              type="number"
+              value={simSconto}
+              onChange={(e) => setSimSconto(Number(e.target.value) || 0)}
+              className="h-9 text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Risultato */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-lg border p-3 bg-muted/30">
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Regole matchanti</p>
+            <p className="text-lg font-bold mt-0.5">{evaluation.matchingRules.length}</p>
+            {evaluation.fallback && (
+              <p className="text-[10px] text-muted-foreground">Nessuna → fallback 10%</p>
+            )}
+            {evaluation.matchingRules.length > 0 && (
+              <div className="mt-1.5 space-y-0.5 max-h-16 overflow-y-auto">
+                {evaluation.matchingRules.slice(0, 4).map((r) => (
+                  <Badge key={r.id} variant="outline" className="mr-1 text-[9px] h-4 px-1">
+                    {r.name}
+                  </Badge>
+                ))}
+                {evaluation.matchingRules.length > 4 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    +{evaluation.matchingRules.length - 4} altre
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="rounded-lg border p-3 bg-muted/30">
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Tetto sconto (binding)</p>
+            <p className="text-lg font-bold mt-0.5">{evaluation.bindingSconto}%</p>
+            {evaluation.bindingApprova != null && (
+              <p className="text-[10px] text-muted-foreground">
+                Approvazione oltre {evaluation.bindingApprova}%
+              </p>
+            )}
+          </div>
+          <div className="rounded-lg border p-3 bg-muted/30">
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Margine minimo</p>
+            <p className="text-lg font-bold mt-0.5">{evaluation.bindingMargine}%</p>
+            <p className="text-[10px] text-muted-foreground">Non si scende sotto</p>
+          </div>
+        </div>
+
+        {/* Verdetto */}
+        <div className={`rounded-lg border-l-4 p-3 flex items-start gap-2 ${
+          verdict.kind === "ok"
+            ? "border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10"
+            : verdict.kind === "approve"
+            ? "border-l-amber-500 bg-amber-50/50 dark:bg-amber-900/10"
+            : "border-l-red-500 bg-red-50/50 dark:bg-red-900/10"
+        }`}>
+          {verdict.kind === "ok" ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+          ) : verdict.kind === "approve" ? (
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          ) : (
+            <XCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+          )}
+          <div className="text-xs">
+            <p className="font-semibold">
+              {verdict.kind === "ok" ? "OK" : verdict.kind === "approve" ? "Richiede approvazione" : "Bloccato"}
+            </p>
+            <p className="text-muted-foreground">{verdict.label}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

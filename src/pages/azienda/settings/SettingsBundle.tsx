@@ -9,7 +9,10 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Copy, Package, Box, Wrench, Home, Sparkles } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Copy, Package, Box, Wrench, Home, Sparkles, Search, X,
+  CheckCircle2, Minus, Layers,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,6 +203,36 @@ export default function SettingsBundle() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState<DraftBundle>(emptyDraft());
   const [deleteTarget, setDeleteTarget] = useState<Bundle | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterAttivi, setFilterAttivi] = useState<"all" | "active" | "inactive">("all");
+
+  // ── Filtered list
+  const filteredBundles = useMemo(() => {
+    let list = bundles;
+    if (filterAttivi === "active") list = list.filter((b) => b.attivo);
+    if (filterAttivi === "inactive") list = list.filter((b) => !b.attivo);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((b) =>
+        b.nome.toLowerCase().includes(q) ||
+        (b.descrizione ?? "").toLowerCase().includes(q) ||
+        (b.tipo_lavoro ?? "").toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [bundles, search, filterAttivi]);
+
+  // ── Stats
+  const stats = useMemo(() => {
+    const attivi = bundles.filter((b) => b.attivo).length;
+    const totaleVoci = bundles.reduce((s, b) => s + (b.voci?.length ?? 0), 0);
+    return {
+      totali: bundles.length,
+      attivi,
+      disattivi: bundles.length - attivi,
+      totaleVoci,
+    };
+  }, [bundles]);
 
   const openNew = () => {
     setDraft(emptyDraft());
@@ -325,49 +358,143 @@ export default function SettingsBundle() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Bundle & Pacchetti</h1>
-          <p className="text-muted-foreground">
-            Pacchetti chiavi-in-mano pre-configurati applicabili a un preventivo con un click.
-          </p>
+      {/* Header pattern h-10 w-10 bg-primary/10 */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Package className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Bundle &amp; Pacchetti</h1>
+            <p className="text-sm text-muted-foreground">
+              Pacchetti chiavi-in-mano applicabili a un preventivo con un click.
+              Usabili nel preventivatore per partire da una configurazione standard.
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
           <Button
             variant="outline"
+            size="sm"
             onClick={() => installTemplatesMut.mutate()}
             disabled={installTemplatesMut.isPending || vertical !== "serramentista"}
             title={vertical !== "serramentista" ? "Template disponibili solo per vertical serramentista" : undefined}
           >
-            <Sparkles className="h-4 w-4 mr-2" />
+            <Sparkles className="h-4 w-4 mr-1.5" />
             {installTemplatesMut.isPending ? "Installazione…" : "Installa 5 template"}
           </Button>
-          <Button onClick={openNew}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button size="sm" onClick={openNew}>
+            <Plus className="h-4 w-4 mr-1.5" />
             Nuovo bundle
           </Button>
         </div>
       </div>
 
+      {/* KPI */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Totali</p>
+            <p className="text-xl font-bold mt-0.5">{stats.totali}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+              <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Attivi</p>
+            </div>
+            <p className="text-xl font-bold mt-0.5">{stats.attivi}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-muted">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-1.5">
+              <Minus className="h-3 w-3 text-muted-foreground" />
+              <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Disattivi</p>
+            </div>
+            <p className="text-xl font-bold mt-0.5">{stats.disattivi}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-1.5">
+              <Layers className="h-3 w-3 text-blue-500" />
+              <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Voci totali</p>
+            </div>
+            <p className="text-xl font-bold mt-0.5">{stats.totaleVoci}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            I tuoi bundle
-          </CardTitle>
-          <CardDescription>
-            {bundles.length === 0 ? "Nessun bundle configurato." : `${bundles.length} bundle totali`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-5 space-y-4">
+          {/* Search + filter toggles */}
+          {bundles.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Cerca nome, descrizione, tipo lavoro…"
+                  className="pl-8 pr-8 h-9 text-sm"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
+                    aria-label="Pulisci"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-1.5">
+                <Button
+                  variant={filterAttivi === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterAttivi("all")}
+                >
+                  Tutti ({stats.totali})
+                </Button>
+                <Button
+                  variant={filterAttivi === "active" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterAttivi("active")}
+                >
+                  Attivi ({stats.attivi})
+                </Button>
+                <Button
+                  variant={filterAttivi === "inactive" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterAttivi("inactive")}
+                >
+                  Disattivi ({stats.disattivi})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
-            <div className="text-sm text-muted-foreground">Caricamento…</div>
+            <div className="text-sm text-muted-foreground py-6 text-center">Caricamento…</div>
           ) : bundles.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Home className="h-12 w-12 mx-auto mb-3 opacity-40" />
-              <p>Nessun bundle ancora creato.</p>
+              <p className="font-medium">Nessun bundle ancora creato.</p>
+              <p className="text-xs mt-1 max-w-sm mx-auto">
+                Crea un bundle manualmente oppure installa i template pronti (solo vertical Serramentista).
+              </p>
               <Button variant="outline" className="mt-4" onClick={openNew}>
                 <Plus className="h-4 w-4 mr-2" /> Crea il primo bundle
+              </Button>
+            </div>
+          ) : filteredBundles.length === 0 ? (
+            <div className="py-10 text-center text-muted-foreground">
+              <p className="text-sm">Nessun bundle corrisponde ai filtri attuali.</p>
+              <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setSearch(""); setFilterAttivi("all"); }}>
+                Azzera filtri
               </Button>
             </div>
           ) : (
@@ -383,8 +510,8 @@ export default function SettingsBundle() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bundles.map((b) => (
-                  <TableRow key={b.id}>
+                {filteredBundles.map((b) => (
+                  <TableRow key={b.id} className={!b.attivo ? "opacity-60" : ""}>
                     <TableCell className="font-medium">
                       <div>{b.nome}</div>
                       {b.descrizione && (
