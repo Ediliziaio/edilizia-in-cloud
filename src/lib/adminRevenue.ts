@@ -34,6 +34,12 @@ export type AdminRevenueState =
   | "not_active"
   | "platform";
 
+// Tutti i valori che identificano un'azienda NON pagante:
+// - vuoto/none → metodo non configurato
+// - free/trial/gift/gifted/omaggio/gratis → legacy values
+// - manual_free/complimentary/comp/comped → policy di regalo (demo, partner, early adopter)
+// Il valore canonico in UI è "comped" (selectable in PaymentMethodCard);
+// gli altri restano per retrocompatibilità con dati pre-esistenti.
 const NON_PAYING_METHODS = new Set([
   "",
   "none",
@@ -46,6 +52,7 @@ const NON_PAYING_METHODS = new Set([
   "manual_free",
   "complimentary",
   "comp",
+  "comped",
 ]);
 
 const PAID_STRIPE_STATUSES = new Set(["active"]);

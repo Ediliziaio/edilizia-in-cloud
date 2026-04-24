@@ -6,10 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Save, Loader2, Link as LinkIcon, Copy, Check, CreditCard, Building2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Wallet, Save, Loader2, Link as LinkIcon, Copy, Check, CreditCard, Building2, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
 import type { Company } from "@/types/auth";
 
-type PaymentMethodType = "none" | "stripe" | "bank_transfer" | "sepa_debit" | "other";
+// NB: "comped" = regalata (demo, partner, early adopter). Non contabilizzata
+// nel MRR. La colonna companies.payment_method è TEXT senza enum DB, quindi
+// lo storage accetta il valore senza bisogno di migrazione.
+type PaymentMethodType = "none" | "stripe" | "bank_transfer" | "sepa_debit" | "comped" | "other";
 
 interface PaymentMethodCardProps {
   company: Company;
@@ -66,6 +69,7 @@ const METHOD_ICONS: Record<PaymentMethodType, React.ComponentType<{ className?: 
   stripe: CreditCard,
   bank_transfer: Building2,
   sepa_debit: Building2,
+  comped: Sparkles,
   other: Wallet,
 };
 
@@ -74,6 +78,7 @@ const METHOD_LABELS: Record<PaymentMethodType, string> = {
   stripe: "Carta di credito (Stripe)",
   bank_transfer: "Bonifico IBAN",
   sepa_debit: "Addebito SEPA",
+  comped: "Regalata (non pagante)",
   other: "Altro provider",
 };
 
@@ -108,7 +113,9 @@ export function PaymentMethodCard({
       bank_iban: (method === "bank_transfer" || method === "sepa_debit") ? iban.replace(/\s/g, "").toUpperCase() || null : null,
       bank_account_holder: (method === "bank_transfer" || method === "sepa_debit") ? accountHolder || null : null,
       bank_name: (method === "bank_transfer" || method === "sepa_debit") ? bankName || null : null,
-      payment_notes: method === "other" ? notes || null : null,
+      // FIX: notes salvate anche per "comped" (motivo regalo/demo/partner),
+      // prima venivano preservate solo per "other".
+      payment_notes: (method === "other" || method === "comped") ? notes || null : null,
     });
   };
 
@@ -140,7 +147,7 @@ export function PaymentMethodCard({
       accountHolder !== (company.bank_account_holder || "") ||
       bankName !== (company.bank_name || "")
     )) ||
-    (method === "other" && notes !== (company.payment_notes || ""));
+    ((method === "other" || method === "comped") && notes !== (company.payment_notes || ""));
 
   const MethodIcon = METHOD_ICONS[method] ?? Wallet;
   const isConfigured = method !== "none";
@@ -181,12 +188,44 @@ export function PaymentMethodCard({
               <SelectItem value="sepa_debit">
                 <div className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Addebito SEPA</div>
               </SelectItem>
+              <SelectItem value="comped">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-violet-600" /> Regalata (non pagante)
+                </div>
+              </SelectItem>
               <SelectItem value="other">
                 <div className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Altro provider</div>
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
+
+        {/* Sezione dedicata stato "comped": spiega l'impatto business */}
+        {method === "comped" && (
+          <div className="rounded-lg border border-violet-200 dark:border-violet-900 bg-violet-50 dark:bg-violet-950/30 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-violet-600" />
+              <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">
+                Azienda regalata
+              </p>
+            </div>
+            <p className="text-xs text-violet-800/80 dark:text-violet-200/80">
+              L'azienda ha accesso gratuito per policy (demo, partner, early adopter,
+              referral). <strong>Non verrà contabilizzata nel MRR</strong> della
+              piattaforma. Usa le <em>Note interne</em> per tracciare il motivo.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Motivo / Note interne</Label>
+              <Textarea
+                placeholder="Es. Demo per evento Milano 2025 · Partner strategico · Referral senior..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="text-sm bg-background"
+              />
+            </div>
+          </div>
+        )}
 
         {method === "stripe" && (
           <div className="space-y-3 pt-2">

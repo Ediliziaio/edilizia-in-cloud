@@ -36,6 +36,11 @@ import {
   useMonthlyOrdersExtended,
   type OverviewPeriod,
 } from "@/hooks/useCompanyOverviewExtras";
+import {
+  getEffectivePaymentStatus,
+  getEffectiveMRR,
+  PAYMENT_STATUS_META,
+} from "@/lib/paymentStatus";
 import { cn } from "@/lib/utils";
 
 interface MonthlyOrderData {
@@ -167,8 +172,24 @@ export function CompanyOverviewTab({
   const chartData =
     extendedMonthly.length > 0 || chartPeriod !== "6m" ? extendedMonthly : monthlyOrders;
 
-  const avgOrderValue = stats && stats.ordersCount > 0 ? stats.ordersValue / stats.ordersCount : 0;
-  const mrr = currentPlan?.price_monthly || 0;
+  const avgOrderValue =
+    stats && stats.ordersCount > 0 ? stats.ordersValue / stats.ordersCount : 0;
+  const nominalMrr = currentPlan?.price_monthly || 0;
+
+  // === Stato di pagamento effettivo ===
+  // Prima mostravamo sempre nominalMrr come MRR: un'azienda in trial,
+  // regalata o sospesa appariva con €547/mese anche se non generava ricavo.
+  // Ora calcoliamo l'MRR EFFETTIVO (0 se non pagante) e mostriamo un badge.
+  const paymentShape = {
+    status: companyStatus,
+    payment_method: paymentMethod,
+    trial_ends_at: trialEndsAt,
+  };
+  const effectiveStatus = getEffectivePaymentStatus(paymentShape);
+  const effectiveMrr = getEffectiveMRR(paymentShape, nominalMrr);
+  const paymentMeta = PAYMENT_STATUS_META[effectiveStatus];
+  const isPaying = effectiveStatus === "paying";
+
   const health = getHealthInfo(daysSinceLastOrder);
 
   const monthsActive = Math.max(
@@ -182,7 +203,8 @@ export function CompanyOverviewTab({
     0,
     differenceInDays(new Date(), new Date(companyCreatedAt)),
   );
-  const ltv = mrr * monthsActive;
+  // LTV = MRR effettivo × mesi. Se non pagante → LTV = 0 (coerenza con MRR).
+  const ltv = effectiveMrr * monthsActive;
 
   // Trend MoM: usa SEMPRE monthlyOrders (6m) per stabilità — il grafico
   // può cambiare periodo, il trend no.
@@ -216,8 +238,8 @@ export function CompanyOverviewTab({
 
   return (
     <div className="space-y-6">
-      {/* Trial Conversion Card */}
-      {companyStatus === "trial" && (
+      {/* Trial Conversion Card (solo quando davvero in trial, non comped) */}
+      {companyStatus === "trial" && effectiveStatus === "trial" && (
         <CompanyConversionCard
           trialEndsAt={trialEndsAt || null}
           onboardingPct={0}
@@ -225,6 +247,84 @@ export function CompanyOverviewTab({
           onExtendTrial={onExtendTrial}
           isExtendingTrial={isExtendingTrial}
         />
+      )}
+
+      {/* Banner stato non-pagante (comped / unconfigured) — visibile subito */}
+      {(effectiveStatus === "comped" || effectiveStatus === "unconfigured") && (
+        <Card
+          className={cn(
+            "border-l-4",
+            effectiveStatus === "comped"
+              ? "border-l-violet-500 bg-violet-50/50 dark:bg-violet-950/20"
+              : "border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20",
+          )}
+        >
+          <CardContent className="p-4 flex items-start gap-3">
+            <div
+              className={cn(
+                "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
+                effectiveStatus === "comped"
+                  ? "bg-violet-500/15"
+                  : "bg-amber-500/15",
+              )}
+            >
+              {effectiveStatus === "comped" ? (
+                <Sparkles className="h-4 w-4 text-violet-600" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-semibold">
+                  {effectiveStatus === "comped"
+                    ? "Azienda regalata — non pagante"
+                    : "Metodo di pagamento non configurato"}
+                </p>
+                <Badge
+                  variant="outline"
+                  className={cn("text-[10px] h-4 px-1.5", paymentMeta.className)}
+                >
+                  {paymentMeta.shortLabel}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {effectiveStatus === "comped" ? (
+                  <>
+                    Questa azienda ha <strong>accesso gratuito</strong> concesso
+                    per policy (demo, partner, early adopter).
+                    {nominalMrr > 0 && (
+                      <>
+                        {" "}
+                        Il prezzo di listino del piano è{" "}
+                        <strong>{formatCurrency(nominalMrr)}/mese</strong> ma non
+                        viene contabilizzato nel MRR.
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    L'azienda risulta <strong>attiva</strong> ma nessun metodo di
+                    pagamento è configurato. Il MRR è <strong>a rischio</strong>:
+                    vai alla tab <em>Abbonamento</em> per configurare
+                    Stripe/IBAN/SEPA o marcare l'azienda come regalata.
+                  </>
+                )}
+              </p>
+              {kpiClickable && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 mt-1 text-xs"
+                  onClick={() => go("abbonamento")}
+                >
+                  Vai a Abbonamento
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* === KPI Hero Row (click-through to related tabs) === */}
@@ -340,31 +440,87 @@ export function CompanyOverviewTab({
             kpiClickable && "cursor-pointer hover:ring-2 hover:ring-primary/30",
           )}
         >
-          <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-bl-full" />
+          <div
+            className={cn(
+              "absolute top-0 right-0 w-24 h-24 rounded-bl-full",
+              isPaying ? "bg-green-500/5" : "bg-muted/30",
+            )}
+          />
           <CardContent className="pt-5 pb-4">
             <div className="flex items-start justify-between">
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                   MRR
                   {kpiClickable && (
                     <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity" />
                   )}
                 </p>
-                <p className="text-2xl font-bold tracking-tight">{formatCurrency(mrr)}</p>
+                {/* Badge stato pagamento PRIMA del valore: l'utente capisce
+                    subito il contesto prima di leggere la cifra. */}
+                <TooltipProvider delayDuration={150}>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] px-1.5 py-0 h-4 font-semibold cursor-help",
+                          paymentMeta.className,
+                        )}
+                      >
+                        {paymentMeta.shortLabel}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      {paymentMeta.description}
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
+                <div className="flex items-baseline gap-2">
+                  <p
+                    className={cn(
+                      "text-2xl font-bold tracking-tight",
+                      !isPaying && "text-muted-foreground line-through decoration-2",
+                    )}
+                  >
+                    {formatCurrency(isPaying ? effectiveMrr : nominalMrr)}
+                  </p>
+                  {!isPaying && (
+                    <span className="text-sm font-semibold text-muted-foreground">
+                      → {formatCurrency(0)}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  {currentPlan?.name || "Nessun piano"}
+                  {currentPlan?.name ?? "Nessun piano"}
+                  {!isPaying && nominalMrr > 0 && (
+                    <span className="italic"> · listino {formatCurrency(nominalMrr)}/mese</span>
+                  )}
                 </p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center ring-1 ring-green-500/20">
-                <TrendingUp className="h-5 w-5 text-green-600" />
+              <div
+                className={cn(
+                  "h-10 w-10 rounded-xl flex items-center justify-center ring-1 shrink-0",
+                  isPaying
+                    ? "bg-green-500/10 ring-green-500/20"
+                    : "bg-muted ring-border",
+                )}
+              >
+                <TrendingUp
+                  className={cn(
+                    "h-5 w-5",
+                    isPaying ? "text-green-600" : "text-muted-foreground",
+                  )}
+                />
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between text-xs">
               <span className="text-muted-foreground">LTV</span>
-              <span className="font-semibold">{mrr > 0 ? formatCurrency(ltv) : "N/A"}</span>
+              <span className={cn("font-semibold", !isPaying && "text-muted-foreground")}>
+                {effectiveMrr > 0 ? formatCurrency(ltv) : formatCurrency(0)}
+              </span>
               <span className="text-muted-foreground">{monthsActive} mesi</span>
             </div>
-            {mrr > 0 && (
+            {effectiveMrr > 0 && (
               <Progress
                 value={Math.min(100, (monthsActive / 24) * 100)}
                 className="h-1 mt-1.5"
