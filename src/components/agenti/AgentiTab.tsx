@@ -19,6 +19,7 @@ import {
 } from "@/hooks/useUnifiedAgents";
 import type { TipoAgente } from "@/types/unifiedAgent.types";
 import { useNavigate } from "react-router-dom";
+import { useAiAgentsBasePath } from "@/hooks/useAiAgentsBasePath";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +49,9 @@ export function AgentiTab() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  // Prefix dinamico: /azienda/agenti-ai OR /admin/marketing/agenti-ai in base
+  // al contesto corrente, così le navigate non sbattono fuori dal SuperAdmin.
+  const basePath = useAiAgentsBasePath();
   const { data: agenti = [], isLoading } = useUnifiedAgents({
     tipo: filtroTipo,
     stato: filtroStato,
@@ -63,11 +67,11 @@ export function AgentiTab() {
   };
 
   const handleNavigate = (agente: { id: string; tipo: TipoAgente }) => {
-    navigate(`/azienda/agenti-ai/${agente.id}`);
+    navigate(`${basePath}/${agente.id}`);
   };
 
   const handleNavigateConversations = (id: string) => {
-    navigate(`/azienda/agenti-ai/${id}`);
+    navigate(`${basePath}/${id}`);
   };
 
   return (
@@ -193,7 +197,7 @@ export function AgentiTab() {
         onClose={() => setShowCreate(false)}
         onSuccess={(id) => {
           setShowCreate(false);
-          navigate(`/azienda/agenti-ai/${id}`);
+          navigate(`${basePath}/${id}`);
         }}
       />
 
