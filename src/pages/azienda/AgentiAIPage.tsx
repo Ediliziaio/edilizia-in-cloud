@@ -1,4 +1,5 @@
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
+import { useMemo } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Bot,
@@ -31,7 +32,11 @@ type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" |
 
 // MP-CLEANUP: tab "whatsapp" rimossa da AgentiAIPage.
 // L'hub WhatsApp è unico su /azienda/whatsapp (link sidebar "WhatsApp").
-const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] = [
+//
+// Alcune tab sono rilevanti solo nel contesto azienda (tracking budget
+// cliente), non per il SuperAdmin che è lui stesso il pagatore della
+// piattaforma. Vengono filtrate quando siamo in /admin/marketing/agenti-ai.
+const ALL_TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string; hiddenInAdmin?: boolean }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
   { key: "knowledge", label: "Knowledge Base", icon: BookOpen },
   { key: "telefonia", label: "Telefonia", icon: Phone },
@@ -39,12 +44,23 @@ const TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string }[] 
   { key: "chat", label: "Chat", icon: MessageSquare },
   { key: "campagne", label: "Campagne", icon: Megaphone },
   { key: "statistiche", label: "Statistiche", icon: BarChart2 },
-  { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard },
+  // Crediti & Utilizzo: il SuperAdmin paga l'intera piattaforma, non ha
+  // senso mostrargli un tracker di crediti/ricariche come se fosse un
+  // cliente. Per lui la voce è gestita altrove (billing piattaforma).
+  { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard, hiddenInAdmin: true },
 ];
 
 export default function AgentiAIPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { pathname } = useLocation();
+  const isAdminContext = pathname.startsWith("/admin");
+  // Filtra le tab non pertinenti al SuperAdmin (oggi solo "Crediti & Utilizzo").
+  const TABS = useMemo(
+    () => ALL_TABS.filter((t) => !(isAdminContext && t.hiddenInAdmin)),
+    [isAdminContext],
+  );
   const rawTab = searchParams.get("tab") as MainTab | null;
+  // Se l'admin atterra su una tab nascosta (es. deeplink), fallback ad "agenti".
   const activeTab: MainTab = rawTab && TABS.some((t) => t.key === rawTab) ? rawTab : "agenti";
   const companyId = useEffectiveCompanyId();
   const { data: stats, isLoading: statsLoading } = useAICompanyStats();
