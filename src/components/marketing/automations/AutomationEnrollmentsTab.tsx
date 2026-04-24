@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, RefreshCw, Users } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  CalendarIcon, RefreshCw, Users, MoreHorizontal, PauseCircle, PlayCircle, XCircle, Loader2,
+} from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Props {
   flowId: string;
@@ -33,11 +40,13 @@ const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | 
 };
 
 export function AutomationEnrollmentsTab({ flowId, companyId }: Props) {
+  const queryClient = useQueryClient();
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const PAGE_SIZE = 25;
 
   const { data, isLoading, refetch } = useQuery({
@@ -67,14 +76,89 @@ export function AutomationEnrollmentsTab({ flowId, companyId }: Props) {
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  // Reset selezione se cambia la pagina o i risultati
+  const pageIds = enrollments.map(e => e.id);
+  const allSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id));
+  const someSelected = pageIds.some(id => selected.has(id)) && !allSelected;
+
+  const toggleAll = () => {
+    const next = new Set(selected);
+    if (allSelected) pageIds.forEach(id => next.delete(id));
+    else pageIds.forEach(id => next.add(id));
+    setSelected(next);
+  };
+
+  const toggleOne = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+  };
+
+  // Mutazione unica per cambiare stato a N enrollments.
+  // `status` deve essere uno dei valori ammessi dallo schema DB.
+  const updateStatus = useMutation({
+    mutationFn: async ({ ids, newStatus }: { ids: string[]; newStatus: "paused" | "active" | "removed" }) => {
+      const { error } = await supabase
+        .from("automation_enrollments")
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", ids)
+        .eq("company_id", companyId);   // safety: vincolo su azienda
+      if (error) throw error;
+      return ids.length;
+    },
+    onSuccess: (n, { newStatus }) => {
+      const label = newStatus === "paused" ? "messe in pausa"
+        : newStatus === "active" ? "riprese"
+        : "rimosse";
+      toast.success(`${n} ${n === 1 ? "iscrizione" : "iscrizioni"} ${label}`);
+      setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["automation-enrollments", flowId] });
+      queryClient.invalidateQueries({ queryKey: ["automation-overview-stats", companyId] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Errore aggiornamento iscrizioni"),
+  });
+
+  const selectedCount = selected.size;
+  const hasSelection = selectedCount > 0;
+
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Cronologia delle iscrizioni</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Visualizza la cronologia di tutti i contatti iscritti a questo flusso di lavoro.
+          Visualizza e gestisci tutti i contatti iscritti a questo flusso di lavoro.
         </p>
       </div>
+
+      {/* Bulk action bar — visibile solo con selezione */}
+      {hasSelection && (
+        <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+          <span className="text-sm font-medium">
+            {selectedCount} iscrizion{selectedCount === 1 ? "e" : "i"} selezionat{selectedCount === 1 ? "a" : "e"}
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ ids: Array.from(selected), newStatus: "paused" })} disabled={updateStatus.isPending}>
+              <PauseCircle className="h-3.5 w-3.5 mr-1.5" />
+              Pausa
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ ids: Array.from(selected), newStatus: "active" })} disabled={updateStatus.isPending}>
+              <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+              Riprendi
+            </Button>
+            <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => updateStatus.mutate({ ids: Array.from(selected), newStatus: "removed" })} disabled={updateStatus.isPending}>
+              <XCircle className="h-3.5 w-3.5 mr-1.5" />
+              Rimuovi
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+              Deseleziona
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Popover>
@@ -132,22 +216,33 @@ export function AutomationEnrollmentsTab({ flowId, companyId }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleAll}
+                  aria-label="Seleziona tutto"
+                  disabled={enrollments.length === 0}
+                />
+              </TableHead>
               <TableHead>Entità</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Versione flusso</TableHead>
               <TableHead>Data iscrizione (CET)</TableHead>
               <TableHead>Stato</TableHead>
               <TableHead>Ultimo aggiornamento</TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">Caricamento...</TableCell>
+                <TableCell colSpan={8} className="h-48 text-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin inline mr-2" /> Caricamento...
+                </TableCell>
               </TableRow>
             ) : enrollments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-48">
+                <TableCell colSpan={8} className="h-48">
                   <div className="flex flex-col items-center justify-center text-muted-foreground">
                     <Users className="h-10 w-10 mb-3 opacity-30" />
                     <p className="text-sm font-medium">Nessuna iscrizione trovata</p>
@@ -156,20 +251,67 @@ export function AutomationEnrollmentsTab({ flowId, companyId }: Props) {
                 </TableCell>
               </TableRow>
             ) : (
-              enrollments.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="font-mono text-xs">{e.entity_id?.slice(0, 8)}...</TableCell>
-                  <TableCell>{e.entity_type}</TableCell>
-                  <TableCell>v{e.flow_version}</TableCell>
-                  <TableCell>{format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: it })}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANTS[e.status] ?? "outline"}>
-                      {STATUS_LABELS[e.status] ?? e.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{format(new Date(e.updated_at), "dd/MM/yyyy HH:mm", { locale: it })}</TableCell>
-                </TableRow>
-              ))
+              enrollments.map((e) => {
+                const canPause = e.status === "active";
+                const canResume = e.status === "paused";
+                const canRemove = e.status === "active" || e.status === "paused";
+                return (
+                  <TableRow key={e.id} className={selected.has(e.id) ? "bg-muted/40" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(e.id)}
+                        onCheckedChange={() => toggleOne(e.id)}
+                        aria-label="Seleziona iscrizione"
+                      />
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{e.entity_id?.slice(0, 8)}...</TableCell>
+                    <TableCell>{e.entity_type}</TableCell>
+                    <TableCell>v{e.flow_version}</TableCell>
+                    <TableCell>{format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: it })}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANTS[e.status] ?? "outline"}>
+                        {STATUS_LABELS[e.status] ?? e.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{format(new Date(e.updated_at), "dd/MM/yyyy HH:mm", { locale: it })}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {canPause && (
+                            <DropdownMenuItem onClick={() => updateStatus.mutate({ ids: [e.id], newStatus: "paused" })}>
+                              <PauseCircle className="h-3.5 w-3.5 mr-2" /> Metti in pausa
+                            </DropdownMenuItem>
+                          )}
+                          {canResume && (
+                            <DropdownMenuItem onClick={() => updateStatus.mutate({ ids: [e.id], newStatus: "active" })}>
+                              <PlayCircle className="h-3.5 w-3.5 mr-2" /> Riprendi
+                            </DropdownMenuItem>
+                          )}
+                          {canRemove && (
+                            <>
+                              {(canPause || canResume) && <DropdownMenuSeparator />}
+                              <DropdownMenuItem
+                                onClick={() => updateStatus.mutate({ ids: [e.id], newStatus: "removed" })}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-2" /> Rimuovi
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {!canPause && !canResume && !canRemove && (
+                            <DropdownMenuItem disabled>Nessuna azione disponibile</DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

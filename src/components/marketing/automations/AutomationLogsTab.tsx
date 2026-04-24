@@ -6,16 +6,29 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, RefreshCw, ScrollText } from "lucide-react";
+import { CalendarIcon, RefreshCw, ScrollText, AlertCircle, Copy, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Props {
   flowId: string;
   companyId: string;
+}
+
+interface LogRow {
+  id: string;
+  node_id: string | null;
+  node_type: string | null;
+  status: string;
+  created_at: string;
+  error_message: string | null;
+  context_json?: Record<string, unknown> | null;
+  enrollment_id?: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -25,11 +38,11 @@ const STATUS_LABELS: Record<string, string> = {
   skipped: "Saltato",
 };
 
-const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  success: "default",
-  failed: "destructive",
-  pending: "outline",
-  skipped: "secondary",
+const STATUS_STYLES: Record<string, string> = {
+  success: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300",
+  failed: "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300",
+  pending: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300",
+  skipped: "bg-muted text-muted-foreground border-transparent",
 };
 
 export function AutomationLogsTab({ flowId, companyId }: Props) {
@@ -39,6 +52,7 @@ export function AutomationLogsTab({ flowId, companyId }: Props) {
   const [statusFilter, setStatusFilter] = useState("all_status");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [errorDialog, setErrorDialog] = useState<LogRow | null>(null);
   const PAGE_SIZE = 25;
 
   const { data, isLoading, refetch } = useQuery({
@@ -60,7 +74,7 @@ export function AutomationLogsTab({ flowId, companyId }: Props) {
 
       const { data: logs, error, count } = await query;
       if (error) throw error;
-      return { logs: logs ?? [], total: count ?? 0 };
+      return { logs: (logs ?? []) as LogRow[], total: count ?? 0 };
     },
     enabled: !!flowId,
   });
@@ -69,13 +83,46 @@ export function AutomationLogsTab({ flowId, companyId }: Props) {
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  // Metriche mini per info veloce
+  const failedOnPage = logs.filter(l => l.status === "failed").length;
+  const successOnPage = logs.filter(l => l.status === "success").length;
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copiato");
+    } catch {
+      toast.error("Copia non riuscita");
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">Registro di esecuzione</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Visualizza il registro di tutte le azioni eseguite da questo flusso di lavoro.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Registro di esecuzione</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Visualizza il registro di tutte le azioni eseguite da questo flusso di lavoro.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          {successOnPage > 0 && (
+            <Badge variant="outline" className={STATUS_STYLES.success}>
+              {successOnPage} riuscite
+            </Badge>
+          )}
+          {failedOnPage > 0 && (
+            <Badge
+              variant="outline"
+              className={cn(STATUS_STYLES.failed, "cursor-pointer")}
+              onClick={() => { setStatusFilter("failed"); setPage(0); }}
+              title="Filtra solo gli errori"
+            >
+              <AlertCircle className="h-3 w-3 mr-1" />
+              {failedOnPage} fallite
+            </Badge>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -127,6 +174,7 @@ export function AutomationLogsTab({ flowId, companyId }: Props) {
             <SelectItem value="success">Successo</SelectItem>
             <SelectItem value="failed">Fallito</SelectItem>
             <SelectItem value="pending">In attesa</SelectItem>
+            <SelectItem value="skipped">Saltato</SelectItem>
           </SelectContent>
         </Select>
 
@@ -169,19 +217,42 @@ export function AutomationLogsTab({ flowId, companyId }: Props) {
                 </TableCell>
               </TableRow>
             ) : (
-              logs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="font-mono text-xs">{log.node_id?.slice(0, 8) ?? "—"}...</TableCell>
-                  <TableCell>{log.node_type ?? "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANTS[log.status] ?? "outline"}>
-                      {STATUS_LABELS[log.status] ?? log.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it })}</TableCell>
-                  <TableCell className="text-xs text-destructive max-w-[200px] truncate">{log.error_message ?? "—"}</TableCell>
-                </TableRow>
-              ))
+              logs.map((log) => {
+                const isFailed = log.status === "failed";
+                return (
+                  <TableRow
+                    key={log.id}
+                    className={cn(isFailed && "bg-rose-50/30 dark:bg-rose-950/10")}
+                  >
+                    <TableCell className="font-mono text-xs">{log.node_id?.slice(0, 8) ?? "—"}...</TableCell>
+                    <TableCell>{log.node_type ?? "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn("text-xs", STATUS_STYLES[log.status] ?? "")}>
+                        {STATUS_LABELS[log.status] ?? log.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{format(new Date(log.created_at), "dd/MM/yyyy HH:mm:ss", { locale: it })}</TableCell>
+                    <TableCell className="max-w-[280px]">
+                      {log.error_message ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-destructive truncate flex-1">{log.error_message}</span>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => setErrorDialog(log)}
+                            title="Visualizza errore completo"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -197,6 +268,82 @@ export function AutomationLogsTab({ flowId, companyId }: Props) {
           </div>
         </div>
       )}
+
+      {/* Error detail dialog — include context_json se disponibile */}
+      <Dialog open={!!errorDialog} onOpenChange={(o) => !o && setErrorDialog(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Dettaglio errore
+            </DialogTitle>
+          </DialogHeader>
+          {errorDialog && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Nodo</p>
+                  <p className="font-mono text-xs">{errorDialog.node_id ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Tipo</p>
+                  <p>{errorDialog.node_type ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Eseguito</p>
+                  <p>{format(new Date(errorDialog.created_at), "dd/MM/yyyy HH:mm:ss", { locale: it })}</p>
+                </div>
+                {errorDialog.enrollment_id && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Iscrizione</p>
+                    <p className="font-mono text-xs">{errorDialog.enrollment_id.slice(0, 8)}...</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground">Messaggio errore</p>
+                  {errorDialog.error_message && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs gap-1"
+                      onClick={() => copyToClipboard(errorDialog.error_message!)}
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copia
+                    </Button>
+                  )}
+                </div>
+                <pre className="bg-muted rounded p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">
+                  {errorDialog.error_message ?? "—"}
+                </pre>
+              </div>
+
+              {errorDialog.context_json && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-muted-foreground">Contesto esecuzione</p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs gap-1"
+                      onClick={() => copyToClipboard(JSON.stringify(errorDialog.context_json, null, 2))}
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copia JSON
+                    </Button>
+                  </div>
+                  <pre className="bg-muted rounded p-3 text-xs overflow-x-auto max-h-64">
+                    {JSON.stringify(errorDialog.context_json, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

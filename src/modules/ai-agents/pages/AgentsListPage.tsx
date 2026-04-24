@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Bot, Plus } from "lucide-react";
 import { AgentCard } from "../components/AgentCard";
+import { AgentOverviewStats } from "../components/AgentOverviewStats";
 import { CreateAgentWizard } from "../components/CreateAgentWizard";
 import { useAgents, useCreateAgent, useDeleteAgent } from "../hooks/useAgents";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -75,6 +76,9 @@ export default function AgentsListPage() {
           <Plus className="h-4 w-4 mr-2" /> Nuovo agente
         </Button>
       </div>
+
+      {/* KPI overview — sempre tutti gli agenti azienda, non filtrati */}
+      <AgentOverviewStats />
 
       {/* Filter: show archived */}
       {archivedCount > 0 && (

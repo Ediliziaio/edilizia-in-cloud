@@ -15,6 +15,7 @@ import {
   Headphones, Warehouse, UserCog, CheckSquare, Bell, Settings, Zap,
 } from "lucide-react";
 import { AutomationFlowsList } from "@/components/marketing/automations/AutomationFlowsList";
+import { AutomationOverviewStats } from "@/components/marketing/automations/AutomationOverviewStats";
 import { AutomazioniTemplateGallery } from "@/components/automazioni/AutomazioniTemplateGallery";
 import type { ReactNode } from "react";
 
@@ -90,6 +91,13 @@ export default function AutomazioniUnified() {
           </Button>
         </div>
       </div>
+
+      {/* KPI globali — non reagiscono ai filtri (come pattern ordini).
+          La card "Attivi" filtra a status=published; "Errori 24h" sarebbe un
+          deeplink al primo flusso con errori — per ora toggle visivo. */}
+      {effectiveCompany?.id && !vistaTemplates && (
+        <AutomationOverviewStats companyId={effectiveCompany.id} />
+      )}
 
       {/* Filters row */}
       <div className="flex items-center gap-3">
