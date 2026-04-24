@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,13 +11,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Pencil, X, Loader2, Phone, CreditCard, MapPin, HardHat, Calendar, ExternalLink } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Pencil, X, Loader2, Phone, CreditCard, MapPin, HardHat, Calendar, ExternalLink, AlertTriangle, ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { getInitials, getAvatarColor } from "@/lib/contactUtils";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { queryKeys } from "@/lib/queryKeys";
+import { looksLikePhone, looksLikeFiscalCode } from "@/lib/customerDataSanitizer";
 
 interface LinkedContact {
   id: string;
@@ -96,6 +98,74 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
     setSalespersonId(customer.salesperson_id || "");
   };
 
+  // ── Inline detection: quali fix sono disponibili sui campi attuali? ──
+  const inlineFixes = useMemo(() => {
+    const fixes: Array<{
+      label: string;
+      description: string;
+      apply: () => void;
+    }> = [];
+
+    // Nome è un telefono
+    if (firstName && looksLikePhone(firstName)) {
+      fixes.push({
+        label: phone ? "Nome numerico → Note (telefono già valorizzato)" : "Sposta Nome in Telefono",
+        description: phone
+          ? `Il campo Nome contiene "${firstName}" che sembra un telefono, ma Telefono è già "${phone}". Sposta il valore nelle Note.`
+          : `Il campo Nome contiene "${firstName}" che sembra un numero di telefono.`,
+        apply: () => {
+          if (phone && phone !== firstName) {
+            setNotes((n) => (n ? `${n}\n[Fix] Numero aggiuntivo: ${firstName}` : `[Fix] Numero aggiuntivo: ${firstName}`));
+          } else {
+            setPhone(firstName);
+          }
+          setFirstName("");
+        },
+      });
+    }
+    // Cognome è un telefono
+    if (lastName && looksLikePhone(lastName)) {
+      fixes.push({
+        label: phone ? "Cognome numerico → Note" : "Sposta Cognome in Telefono",
+        description: phone
+          ? `Il campo Cognome contiene "${lastName}" che sembra un telefono.`
+          : `Il campo Cognome contiene "${lastName}" che sembra un numero di telefono.`,
+        apply: () => {
+          if (phone && phone !== lastName) {
+            setNotes((n) => (n ? `${n}\n[Fix] Numero aggiuntivo: ${lastName}` : `[Fix] Numero aggiuntivo: ${lastName}`));
+          } else {
+            setPhone(lastName);
+          }
+          setLastName("");
+        },
+      });
+    }
+    // Nome è un CF
+    if (firstName && looksLikeFiscalCode(firstName)) {
+      fixes.push({
+        label: "Sposta Nome in CF / P.IVA",
+        description: `Il campo Nome contiene "${firstName}" che sembra un codice fiscale o una partita IVA.`,
+        apply: () => {
+          if (!fiscalCode) setFiscalCode(firstName.toUpperCase());
+          setFirstName("");
+        },
+      });
+    }
+    // Cognome è un CF
+    if (lastName && looksLikeFiscalCode(lastName)) {
+      fixes.push({
+        label: "Sposta Cognome in CF / P.IVA",
+        description: `Il campo Cognome contiene "${lastName}" che sembra un codice fiscale o una partita IVA.`,
+        apply: () => {
+          if (!fiscalCode) setFiscalCode(lastName.toUpperCase());
+          setLastName("");
+        },
+      });
+    }
+
+    return fixes;
+  }, [firstName, lastName, phone, fiscalCode]);
+
   // Display-safe helpers: i valori "—" o "-" sono placeholder salvati da
   // create-customer quando un nome/cognome era vuoto dopo il sanitize.
   // Non devono uscire in UI come "— —".
@@ -167,13 +237,53 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="pc-fn">Nome *</Label>
-                <Input id="pc-fn" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                <Input
+                  id="pc-fn"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  aria-invalid={looksLikePhone(firstName) || looksLikeFiscalCode(firstName)}
+                  className={looksLikePhone(firstName) || looksLikeFiscalCode(firstName) ? "border-amber-500 focus-visible:ring-amber-500" : ""}
+                />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="pc-ln">Cognome *</Label>
-                <Input id="pc-ln" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                <Input
+                  id="pc-ln"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  aria-invalid={looksLikePhone(lastName) || looksLikeFiscalCode(lastName)}
+                  className={looksLikePhone(lastName) || looksLikeFiscalCode(lastName) ? "border-amber-500 focus-visible:ring-amber-500" : ""}
+                />
               </div>
             </div>
+
+            {inlineFixes.length > 0 && (
+              <Alert variant="default" className="border-amber-400 bg-amber-50/50 dark:bg-amber-900/10 py-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-xs space-y-2 text-amber-800 dark:text-amber-200">
+                  <p className="font-semibold">Dati da sistemare rilevati</p>
+                  <ul className="space-y-1.5">
+                    {inlineFixes.map((fix, i) => (
+                      <li key={i} className="space-y-1">
+                        <p className="text-[11px] opacity-80">{fix.description}</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[11px] bg-white dark:bg-transparent border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100"
+                          onClick={fix.apply}
+                        >
+                          <ArrowRight className="h-3 w-3 mr-1" />
+                          {fix.label}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="space-y-1">
               <Label htmlFor="pc-phone">Telefono</Label>

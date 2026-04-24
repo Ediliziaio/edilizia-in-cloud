@@ -9729,33 +9729,45 @@ export type Database = {
       customer_messages: {
         Row: {
           body: string
+          channel: string
           company_id: string
           created_at: string
           customer_id: string
+          delivery_metadata: Json
+          delivery_status: string
           id: string
           read_at: string | null
           sender_id: string
           sender_role: string
+          subject: string | null
         }
         Insert: {
           body: string
+          channel?: string
           company_id: string
           created_at?: string
           customer_id: string
+          delivery_metadata?: Json
+          delivery_status?: string
           id?: string
           read_at?: string | null
           sender_id: string
           sender_role: string
+          subject?: string | null
         }
         Update: {
           body?: string
+          channel?: string
           company_id?: string
           created_at?: string
           customer_id?: string
+          delivery_metadata?: Json
+          delivery_status?: string
           id?: string
           read_at?: string | null
           sender_id?: string
           sender_role?: string
+          subject?: string | null
         }
         Relationships: [
           {
@@ -35547,6 +35559,9 @@ export type Database = {
         Args: { p_layout: Json }
         Returns: undefined
       }
+      _looks_like_email: { Args: { s: string }; Returns: boolean }
+      _looks_like_fiscal_code: { Args: { s: string }; Returns: boolean }
+      _looks_like_phone: { Args: { s: string }; Returns: boolean }
       add_email_credits_with_log: {
         Args: {
           p_amount: number
@@ -35609,6 +35624,14 @@ export type Database = {
         Returns: undefined
       }
       auto_expire_trials: { Args: never; Returns: number }
+      bulk_assign_salesperson: {
+        Args: {
+          p_company_id: string
+          p_customer_ids: string[]
+          p_salesperson_id: string
+        }
+        Returns: number
+      }
       calculate_monthly_commissions: {
         Args: { p_month: number; p_year: number }
         Returns: number
@@ -36151,20 +36174,41 @@ export type Database = {
         Returns: Json
       }
       get_customer_stats: { Args: { p_company_id: string }; Returns: Json }
-      get_customers_paginated: {
-        Args: {
-          p_company_id: string
-          p_has_orders?: string
-          p_limit?: number
-          p_offset?: number
-          p_salesperson_id?: string
-          p_salesperson_none?: boolean
-          p_search?: string
-          p_sort_dir?: string
-          p_sort_field?: string
-        }
-        Returns: Json
-      }
+      get_customers_paginated:
+        | {
+            Args: {
+              p_company_id: string
+              p_has_orders?: string
+              p_limit?: number
+              p_offset?: number
+              p_salesperson_id?: string
+              p_salesperson_none?: boolean
+              p_search?: string
+              p_sort_dir?: string
+              p_sort_field?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_company_id: string
+              p_date_from?: string
+              p_date_to?: string
+              p_has_fiscal_code?: string
+              p_has_orders?: string
+              p_has_phone?: string
+              p_has_site_address?: string
+              p_limit?: number
+              p_offset?: number
+              p_portal_state?: string
+              p_salesperson_id?: string
+              p_salesperson_none?: boolean
+              p_search?: string
+              p_sort_dir?: string
+              p_sort_field?: string
+            }
+            Returns: Json
+          }
       get_dashboard: { Args: { p_dashboard_id: string }; Returns: Json }
       get_dashboard_kpis: {
         Args: {
@@ -36861,6 +36905,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      sanitize_customer_profile: {
+        Args: { p_customer_id: string }
+        Returns: Json
+      }
       save_dashboard: {
         Args: {
           p_dashboard_id: string
@@ -36886,6 +36934,7 @@ export type Database = {
         Args: { p_company_id: string; p_items: Json; p_quote_id: string }
         Returns: Json
       }
+      scan_customers_issues: { Args: { p_company_id: string }; Returns: Json }
       search_cantieri_by_trigram: {
         Args: { p_company_id: string; p_limit?: number; p_query: string }
         Returns: {
@@ -37236,5 +37285,3 @@ export const Constants = {
     },
   },
 } as const
-A new version of Supabase CLI is available: v2.90.0 (currently installed v2.75.0)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

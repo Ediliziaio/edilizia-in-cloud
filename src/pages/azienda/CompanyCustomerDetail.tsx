@@ -516,6 +516,7 @@ export default function CompanyCustomerDetail() {
           <CustomerDiaryPanel
             customerId={customer.id}
             customerName={fullName}
+            customerEmail={customer.email}
           />
         </div>
 
@@ -524,6 +525,7 @@ export default function CompanyCustomerDetail() {
           <CustomerBusinessTabs
             customerId={customer.id}
             companyId={effectiveCompany?.id ?? ""}
+            customerFullName={fullName}
             orders={orders}
             preventivi={preventivi}
             tickets={tickets}
