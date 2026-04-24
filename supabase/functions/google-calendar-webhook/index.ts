@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
   // ── Google push notification webhook ──
   if (req.method === "POST" && !action) {
     const channelId = req.headers.get("x-goog-channel-id");
+    const channelToken = req.headers.get("x-goog-channel-token");
     const resourceState = req.headers.get("x-goog-resource-state");
 
     if (!channelId || resourceState === "sync") {
@@ -34,7 +35,7 @@ Deno.serve(async (req) => {
     // Find the connection by webhook_channel_id
     const { data: conn } = await admin
       .from("google_calendar_connections")
-      .select("id, user_id, company_id, calendar_id")
+      .select("id, user_id, company_id, calendar_id, webhook_channel_token, last_webhook_processed_at, last_sync_source, last_sync_at")
       .eq("webhook_channel_id", channelId)
       .eq("status", "connected")
       .maybeSingle();
@@ -43,6 +44,54 @@ Deno.serve(async (req) => {
       console.log("[google-calendar-webhook] No matching connection for channel:", channelId);
       return json({ ok: true });
     }
+
+    // SEC: verifica channel_token (se registrato) — evita CSRF/spoofing
+    // Fail-open se il token non è stato registrato (retrocompat con watch
+    // creati prima di questa feature)
+    if (conn.webhook_channel_token && conn.webhook_channel_token !== channelToken) {
+      console.warn(`[google-calendar-webhook] Invalid token for channel ${channelId}`);
+      return new Response("Invalid channel token", { status: 403 });
+    }
+
+    // DEBOUNCE: se abbiamo processato un webhook da questo channel entro
+    // 10s, skip (evita N full-sync quando Google manda burst di eventi).
+    // 10s lascia tempo a Google di batchare modifiche consecutive.
+    const DEBOUNCE_MS = 10_000;
+    if (conn.last_webhook_processed_at) {
+      const lastMs = new Date(conn.last_webhook_processed_at).getTime();
+      if (Date.now() - lastMs < DEBOUNCE_MS) {
+        console.log(`[google-calendar-webhook] Debounced: last sync ${Math.round((Date.now() - lastMs) / 1000)}s ago`);
+        return json({ ok: true, debounced: true });
+      }
+    }
+
+    // SYNC LOOP PREVENTION: se abbiamo fatto un push CRM→Google entro 15s,
+    // il webhook che ora arriva è probabilmente l'echo di quel push.
+    // Skippa per evitare di sovrascrivere il CRM con dati che provengono
+    // dal CRM stesso.
+    const LOOP_COOLDOWN_MS = 15_000;
+    if (conn.last_sync_source === "crm" && conn.last_sync_at) {
+      const lastMs = new Date(conn.last_sync_at).getTime();
+      if (Date.now() - lastMs < LOOP_COOLDOWN_MS) {
+        console.log(`[google-calendar-webhook] Loop prevention: CRM just pushed ${Math.round((Date.now() - lastMs) / 1000)}s ago`);
+        // aggiorna last_webhook_processed_at ma NON triggerare sync
+        await admin
+          .from("google_calendar_connections")
+          .update({ last_webhook_processed_at: new Date().toISOString() })
+          .eq("id", conn.id);
+        return json({ ok: true, loop_prevented: true });
+      }
+    }
+
+    // Marca il webhook come processato (prima di triggerare il sync, per
+    // garantire il debounce anche se il sync fallisce)
+    await admin
+      .from("google_calendar_connections")
+      .update({
+        last_webhook_processed_at: new Date().toISOString(),
+        last_sync_source: "google",
+      })
+      .eq("id", conn.id);
 
     // Trigger a sync by calling google-calendar-sync
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -129,6 +178,9 @@ Deno.serve(async (req) => {
 
     const calendarId = settings?.primary_calendar_id || "primary";
     const channelId = crypto.randomUUID();
+    // SEC: genera token randomico che Google rispedirà in x-goog-channel-token.
+    // Serve per verificare che le push arrivino davvero dal watch registrato.
+    const channelToken = crypto.randomUUID() + "-" + crypto.randomUUID();
     const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-webhook`;
     const expiration = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -144,6 +196,7 @@ Deno.serve(async (req) => {
           id: channelId,
           type: "web_hook",
           address: webhookUrl,
+          token: channelToken, // Google restituisce questo in x-goog-channel-token
           expiration: String(expiration),
         }),
       }
@@ -189,6 +242,7 @@ Deno.serve(async (req) => {
                 id: channelId,
                 type: "web_hook",
                 address: webhookUrl,
+                token: channelToken,
                 expiration: String(expiration),
               }),
             }
@@ -201,6 +255,7 @@ Deno.serve(async (req) => {
           const retryData = await retryRes.json();
           await admin.from("google_calendar_connections").update({
             webhook_channel_id: channelId,
+            webhook_channel_token: channelToken,
             webhook_resource_id: retryData.resourceId || null,
             webhook_expiry_at: new Date(expiration).toISOString(),
           }).eq("id", conn.id);
@@ -218,6 +273,7 @@ Deno.serve(async (req) => {
 
     await admin.from("google_calendar_connections").update({
       webhook_channel_id: channelId,
+      webhook_channel_token: channelToken,
       webhook_resource_id: watchData.resourceId || null,
       webhook_expiry_at: new Date(expiration).toISOString(),
     }).eq("id", conn.id);
@@ -269,6 +325,7 @@ Deno.serve(async (req) => {
           const accessToken = decrypt(conn.access_token_encrypted, encKey);
           const calendarId = connSettings?.primary_calendar_id || "primary";
           const newChannelId = crypto.randomUUID();
+          const newChannelToken = crypto.randomUUID() + "-" + crypto.randomUUID();
           const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-webhook`;
           const expiration = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
@@ -284,6 +341,7 @@ Deno.serve(async (req) => {
                 id: newChannelId,
                 type: "web_hook",
                 address: webhookUrl,
+                token: newChannelToken,
                 expiration: String(expiration),
               }),
             }
@@ -293,6 +351,7 @@ Deno.serve(async (req) => {
             const watchData = await watchRes.json();
             await admin.from("google_calendar_connections").update({
               webhook_channel_id: newChannelId,
+              webhook_channel_token: newChannelToken,
               webhook_resource_id: watchData.resourceId || null,
               webhook_expiry_at: new Date(expiration).toISOString(),
             }).eq("id", conn.id);
