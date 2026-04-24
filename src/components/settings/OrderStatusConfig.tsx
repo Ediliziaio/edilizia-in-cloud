@@ -89,9 +89,14 @@ export function OrderStatusConfig() {
     setHasChanges(true);
   }, []);
 
-  // Delete a status
+  // Delete a status — blocca eliminazione fase Assistenza
   const handleDeleteStatus = useCallback((id: string) => {
     setStatuses((prev) => {
+      const target = prev.find((s) => s.id === id);
+      if (target?.is_support_phase) {
+        toast.error("La fase Assistenza non può essere eliminata: viene usata automaticamente quando apri un ticket.");
+        return prev;
+      }
       const filtered = prev.filter((s) => s.id !== id);
       return filtered.map((s, index) => ({ ...s, position: index }));
     });
@@ -111,50 +116,57 @@ export function OrderStatusConfig() {
     setHasChanges(true);
   }, [statuses.length]);
 
-  // Save all changes
+  // Save all changes — usa RPC atomica save_order_statuses (non distruttiva,
+  // preserva UUID, storico ordini e current_status_id degli ordini esistenti)
   async function handleSave() {
     if (!company?.id) return;
 
     setIsSaving(true);
     try {
-      // Delete all existing statuses for the company
-      const { error: deleteError } = await supabase
-        .from("order_statuses")
-        .delete()
-        .eq("company_id", company.id);
-
-      if (deleteError) throw deleteError;
-
-      // Insert all statuses with correct positions
-      const statusesToInsert = statuses.map((s, index) => ({
-        company_id: company.id,
+      const payload = statuses.map((s, index) => ({
+        // Mantieni UUID solo se è un ID reale (non "temp-*")
+        id: s.id && !s.id.startsWith("temp-") ? s.id : undefined,
         name: s.name,
         icon: s.icon,
         color: s.color,
         position: index,
-        is_default: index === 0,
+        is_support_phase: s.is_support_phase === true,
       }));
 
-      const { data: insertedData, error: insertError } = await supabase
-        .from("order_statuses")
-        .insert(statusesToInsert)
-        .select();
+      const { data, error } = await supabase.rpc("save_order_statuses", {
+        p_company_id: company.id,
+        p_statuses: payload,
+      });
 
-      if (insertError) throw insertError;
+      if (error) throw error;
 
-      // Update local state with new IDs
-      if (insertedData) {
-        setStatuses(insertedData as OrderStatus[]);
+      if (data) {
+        setStatuses(data as OrderStatus[]);
       }
 
       setHasChanges(false);
       toast.success("Salvato: gli stati ordine sono stati aggiornati");
     } catch (error: unknown) {
-      // Handle specific error for status in use
-      let errorMsg = error instanceof Error ? error.message : "Impossibile salvare le modifiche";
-      if (errorMsg.includes("stato usato") || errorMsg.includes("storico ordini")) {
-        errorMsg = "Impossibile eliminare uno stato già in uso. Alcuni stati sono associati a ordini esistenti o presenti nello storico.";
+      const rawMsg = error instanceof Error ? error.message : "Impossibile salvare le modifiche";
+      let errorMsg = rawMsg;
+
+      // Traduzioni errori dalla RPC
+      if (rawMsg.includes("status_in_use")) {
+        // Estrai nome stato + numero ordini dal messaggio
+        const match = rawMsg.match(/lo stato "([^"]+)" è associato a (\d+) ordine/);
+        if (match) {
+          errorMsg = `Impossibile eliminare lo stato "${match[1]}": è associato a ${match[2]} ordine/i. Sposta prima gli ordini su un altro stato.`;
+        } else {
+          errorMsg = "Impossibile eliminare uno stato associato a ordini esistenti.";
+        }
+      } else if (rawMsg.includes("support_phase_required")) {
+        errorMsg = "La fase Assistenza non può essere rimossa: viene usata automaticamente quando apri un ticket.";
+      } else if (rawMsg.includes("forbidden")) {
+        errorMsg = "Non hai i permessi per modificare gli stati ordine.";
+      } else if (rawMsg.includes("almeno 2 stati")) {
+        errorMsg = "Sono richiesti almeno 2 stati ordine.";
       }
+
       toast.error(errorMsg);
     } finally {
       setIsSaving(false);

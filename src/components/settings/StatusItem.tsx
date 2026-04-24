@@ -1,10 +1,12 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, icons } from "lucide-react";
+import { GripVertical, Trash2, icons, LifeBuoy, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { IconPicker } from "./IconPicker";
 import { ColorPicker } from "./ColorPicker";
 import type { OrderStatus } from "@/components/orders/OrderProgressTracker";
@@ -31,7 +33,10 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
     transition,
   };
 
+  const isSupportPhase = status.is_support_phase === true;
   const IconComponent = icons[status.icon as keyof typeof icons] || icons.Circle;
+  // La fase Assistenza non è eliminabile mai.
+  const deleteEnabled = canDelete && !isSupportPhase;
 
   return (
     <div
@@ -39,7 +44,8 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
       style={style}
       className={cn(
         "flex items-center gap-3 p-3 rounded-lg border bg-card",
-        isDragging && "shadow-lg opacity-90 z-50"
+        isDragging && "shadow-lg opacity-90 z-50",
+        isSupportPhase && "border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20"
       )}
     >
       {/* Drag handle */}
@@ -58,7 +64,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
         className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium shrink-0"
         style={{ backgroundColor: status.color }}
       >
-        {status.position + 1}
+        {(status.position ?? 0) + 1}
       </div>
 
       {/* Status name input */}
@@ -70,9 +76,28 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
         maxLength={50}
       />
 
+      {isSupportPhase && (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className="gap-1 border-amber-400 bg-amber-100/80 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
+              >
+                <LifeBuoy className="h-3 w-3" />
+                Fase Assistenza
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs">
+              Quando apri un ticket per un ordine, l'ordine viene spostato automaticamente in questo stato. Può essere rinominato ma non eliminato.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
       {/* Icon picker */}
       <IconPicker
-        value={status.icon}
+        value={status.icon ?? "Circle"}
         onChange={(icon) => onUpdate(status.id, { icon })}
         color={status.color}
       />
@@ -84,18 +109,34 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
       />
 
       {/* Delete button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => onDelete(status.id)}
-        disabled={!canDelete}
-        className={cn(
-          "text-muted-foreground hover:text-destructive",
-          !canDelete && "opacity-50 cursor-not-allowed"
-        )}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => deleteEnabled && onDelete(status.id)}
+                disabled={!deleteEnabled}
+                aria-label={isSupportPhase ? "La fase Assistenza non può essere eliminata" : "Elimina stato"}
+                className={cn(
+                  "text-muted-foreground hover:text-destructive",
+                  !deleteEnabled && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {isSupportPhase ? <Lock className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {!deleteEnabled && (
+            <TooltipContent side="top">
+              {isSupportPhase
+                ? "La fase Assistenza è obbligatoria e non può essere eliminata"
+                : "Servono almeno 2 stati"}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 }

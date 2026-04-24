@@ -6,6 +6,7 @@ interface OrderStatusTemplate {
   icon: string;
   color: string;
   position: number;
+  is_support_phase?: boolean;
 }
 
 type CompanySector =
@@ -30,6 +31,7 @@ function getOrderStatusTemplate(sector: CompanySector): OrderStatusTemplate[] {
     { name: "Merce in Magazzino", icon: "Package", color: "#EA580C", position: 5 },
     { name: "Posa Programmata", icon: "Calendar", color: "#DB2777", position: 6 },
     { name: "Posa Completata", icon: "Home", color: "#16A34A", position: 7 },
+    { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 8, is_support_phase: true },
   ];
 
   const fotovoltaicoTemplate: OrderStatusTemplate[] = [
@@ -43,6 +45,7 @@ function getOrderStatusTemplate(sector: CompanySector): OrderStatusTemplate[] {
     { name: "Installazione Completata", icon: "Wrench", color: "#2563EB", position: 7 },
     { name: "Collaudo", icon: "Shield", color: "#CA8A04", position: 8 },
     { name: "Allaccio Rete", icon: "Zap", color: "#16A34A", position: 9 },
+    { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 10, is_support_phase: true },
   ];
 
   const bagniRistrutturazioniTemplate: OrderStatusTemplate[] = [
@@ -56,12 +59,14 @@ function getOrderStatusTemplate(sector: CompanySector): OrderStatusTemplate[] {
     { name: "Posa", icon: "Factory", color: "#DB2777", position: 7 },
     { name: "Finiture", icon: "PaintBucket", color: "#7C3AED", position: 8 },
     { name: "Consegna", icon: "Home", color: "#16A34A", position: 9 },
+    { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 10, is_support_phase: true },
   ];
 
   const defaultTemplate: OrderStatusTemplate[] = [
     { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
     { name: "In Lavorazione", icon: "Settings", color: "#CA8A04", position: 1 },
     { name: "Completato", icon: "CheckCircle", color: "#16A34A", position: 2 },
+    { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 3, is_support_phase: true },
   ];
 
   switch (sector) {
@@ -253,6 +258,7 @@ Deno.serve(async (req) => {
       color: status.color,
       position: status.position,
       is_default: index === 0,
+      is_support_phase: status.is_support_phase === true,
     }));
 
     const { error: statusError } = await supabaseAdmin

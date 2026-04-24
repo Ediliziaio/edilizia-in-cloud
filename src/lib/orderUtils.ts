@@ -219,6 +219,8 @@ export interface OrderStatus {
   color: string;
   icon?: string;
   position?: number;
+  is_default?: boolean;
+  is_support_phase?: boolean;
 }
 
 export interface OrderCustomer {
