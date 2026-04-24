@@ -2,7 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from '@/contexts/AuthContext';
-import { calculateLeadScore, getIcpTier } from '@/lib/leadScoring';
+import {
+  calculateLeadScoreWithConfig,
+  getIcpTierWithConfig,
+  DEFAULT_LEAD_SCORING_CONFIG,
+  type LeadScoringConfig,
+} from '@/hooks/useLeadScoringConfig';
 
 // ============================================================
 // TYPES
@@ -82,6 +87,16 @@ export interface ConversionBySource {
   avg_deal_size: number;
 }
 
+export interface QuoteRevenueSummary {
+  actual_revenue: number;            // somma total quote accettate/convertite nel periodo
+  signed_quotes_count: number;       // # preventivi accettati/convertiti
+  active_quotes_value: number;       // somma total preventivi inviati (pipeline preventivi)
+  active_quotes_count: number;       // # preventivi inviati
+  avg_signed_ticket: number;         // ricavo medio per preventivo firmato
+  opportunities_with_quote: number;  // # opportunità open con almeno un preventivo attivo
+  acceptance_rate: number;           // % (accettate / (accettate + rifiutate + scadute))
+}
+
 export interface LeadScoreContact {
   id: string;
   full_name: string;
@@ -108,16 +123,18 @@ export const salesOSKeys = {
     [...salesOSKeys.all, 'forecast', companyId, months] as const,
   stalled: (companyId: string) =>
     [...salesOSKeys.all, 'stalled', companyId] as const,
-  velocity: (companyId: string) =>
-    [...salesOSKeys.all, 'velocity', companyId] as const,
+  velocity: (companyId: string, daysBack: number) =>
+    [...salesOSKeys.all, 'velocity', companyId, daysBack] as const,
   targets: (companyId: string, year: number) =>
     [...salesOSKeys.all, 'targets', companyId, year] as const,
-  sellerPerformance: (companyId: string, year: number, month: number) =>
-    [...salesOSKeys.all, 'seller-perf', companyId, year, month] as const,
-  conversionBySource: (companyId: string) =>
-    [...salesOSKeys.all, 'conversion-source', companyId] as const,
-  topLeads: (companyId: string) =>
-    [...salesOSKeys.all, 'top-leads', companyId] as const,
+  sellerPerformance: (companyId: string, dateFrom: string, dateTo: string) =>
+    [...salesOSKeys.all, 'seller-perf', companyId, dateFrom, dateTo] as const,
+  conversionBySource: (companyId: string, dateFrom: string | null) =>
+    [...salesOSKeys.all, 'conversion-source', companyId, dateFrom ?? 'all'] as const,
+  topLeads: (companyId: string, limit: number = 10) =>
+    [...salesOSKeys.all, 'top-leads', companyId, limit] as const,
+  quoteRevenue: (companyId: string, dateFrom: string, dateTo: string) =>
+    [...salesOSKeys.all, 'quote-revenue', companyId, dateFrom, dateTo] as const,
 };
 
 // ============================================================
@@ -187,7 +204,7 @@ export function useStalledOpportunities(companyId: string | null) {
 
 export function useSalesVelocity(companyId: string | null, daysBack = 90) {
   return useQuery({
-    queryKey: salesOSKeys.velocity(companyId ?? ''),
+    queryKey: salesOSKeys.velocity(companyId ?? '', daysBack),
     enabled: !!companyId,
     queryFn: async (): Promise<SalesVelocity | null> => {
       const { data, error } = await supabase
@@ -229,31 +246,37 @@ export function useSalesTargets(companyId: string | null, year: number) {
 
 export function useSellerPerformance(
   companyId: string | null,
-  year: number,
-  month: number
+  dateFrom: string, // ISO YYYY-MM-DD inclusive
+  dateTo: string    // ISO YYYY-MM-DD exclusive
 ) {
   return useQuery({
-    queryKey: salesOSKeys.sellerPerformance(companyId ?? '', year, month),
+    queryKey: salesOSKeys.sellerPerformance(companyId ?? '', dateFrom, dateTo),
     enabled: !!companyId,
     queryFn: async (): Promise<SellerPerformance[]> => {
-      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-      const monthEnd = new Date(year, month, 1).toISOString().split('T')[0];
+      // Sprint 2: derive year/month from range start to look up matching target
+      const refDate = new Date(dateFrom);
+      const year = refDate.getFullYear();
+      const month = refDate.getMonth() + 1;
 
-      const { data: opps, error: oppsError } = await supabase
-        .from('marketing_opportunities')
-        .select('assigned_to, status, value, created_at')
-        .eq('company_id', companyId!)
-        .gte('updated_at', monthStart)
-        .lt('updated_at', monthEnd);
-      if (oppsError) throw oppsError;
-
-      const { data: targets, error: targetsError } = await supabase
-        .from('sales_targets')
-        .select('assigned_to, target_amount')
-        .eq('company_id', companyId!)
-        .eq('year', year)
-        .eq('month', month);
-      if (targetsError) throw targetsError;
+      // Sprint 1.4: query parallele invece di seriali (-30ms latency)
+      const [oppsResult, targetsResult] = await Promise.all([
+        supabase
+          .from('marketing_opportunities')
+          .select('assigned_to, status, value, created_at')
+          .eq('company_id', companyId!)
+          .gte('updated_at', dateFrom)
+          .lt('updated_at', dateTo),
+        supabase
+          .from('sales_targets')
+          .select('assigned_to, target_amount')
+          .eq('company_id', companyId!)
+          .eq('year', year)
+          .eq('month', month),
+      ]);
+      if (oppsResult.error) throw oppsResult.error;
+      if (targetsResult.error) throw targetsResult.error;
+      const opps = oppsResult.data;
+      const targets = targetsResult.data;
 
       // Profili utenti — usa first_name + last_name (schema reale del progetto)
       const sellerIds = [...new Set((opps ?? []).map((o) => o.assigned_to).filter(Boolean))];
@@ -329,16 +352,18 @@ export function useSellerPerformance(
   });
 }
 
-export function useConversionBySource(companyId: string | null) {
+export function useConversionBySource(companyId: string | null, dateFrom: string | null = null) {
   return useQuery({
-    queryKey: salesOSKeys.conversionBySource(companyId ?? ''),
+    queryKey: salesOSKeys.conversionBySource(companyId ?? '', dateFrom),
     enabled: !!companyId,
     queryFn: async (): Promise<ConversionBySource[]> => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('marketing_opportunities')
         .select('source, status, value')
         .eq('company_id', companyId!)
         .not('source', 'is', null);
+      if (dateFrom) q = q.gte('created_at', dateFrom);
+      const { data, error } = await q;
       if (error) throw error;
 
       const sourceMap = new Map<string, ConversionBySource>();
@@ -383,7 +408,7 @@ export function useConversionBySource(companyId: string | null) {
 
 export function useTopLeads(companyId: string | null, limit = 20) {
   return useQuery({
-    queryKey: salesOSKeys.topLeads(companyId ?? ''),
+    queryKey: salesOSKeys.topLeads(companyId ?? '', limit),
     enabled: !!companyId,
     queryFn: async (): Promise<LeadScoreContact[]> => {
       const { data, error } = await supabase
@@ -424,6 +449,90 @@ export function useTopLeads(companyId: string | null, limit = 20) {
       }));
     },
     staleTime: 1000 * 60 * 10,
+  });
+}
+
+// ============================================================
+// SPRINT 3: QUOTE REVENUE — integrazione preventivi
+// ============================================================
+/**
+ * Calcola ricavo effettivo (dalle quote firmate/convertite) e pipeline
+ * preventivi (quote inviate ma non ancora firmate) nel periodo.
+ *
+ * Chiavi:
+ *  - quote.status = 'accettata' | 'convertita' → ricavo effettivo
+ *  - quote.status = 'inviata'                  → pipeline preventivi
+ *  - quote.status in ('rifiutata','scaduta')   → persa (per acceptance_rate)
+ */
+export function useQuoteRevenue(
+  companyId: string | null,
+  dateFrom: string,
+  dateTo: string,
+) {
+  return useQuery({
+    queryKey: salesOSKeys.quoteRevenue(companyId ?? '', dateFrom, dateTo),
+    enabled: !!companyId,
+    queryFn: async (): Promise<QuoteRevenueSummary> => {
+      // Tutte le quote del periodo (per status) + quote attive open (indipendenti dal periodo)
+      const [periodResult, activeResult, oppsWithQuoteResult] = await Promise.all([
+        supabase
+          .from('quotes')
+          .select('status, total, signed_at, created_at')
+          .eq('company_id', companyId!)
+          .gte('created_at', dateFrom)
+          .lt('created_at', dateTo),
+        supabase
+          .from('quotes')
+          .select('status, total')
+          .eq('company_id', companyId!)
+          .eq('status', 'inviata'),
+        supabase
+          .from('marketing_opportunities')
+          .select('id, quotes!inner(id, status)')
+          .eq('company_id', companyId!)
+          .eq('status', 'open')
+          .in('quotes.status', ['inviata', 'accettata', 'convertita']),
+      ]);
+
+      if (periodResult.error) throw periodResult.error;
+      if (activeResult.error) throw activeResult.error;
+      if (oppsWithQuoteResult.error) throw oppsWithQuoteResult.error;
+
+      const period = periodResult.data ?? [];
+      const active = activeResult.data ?? [];
+      const oppsWithQuote = oppsWithQuoteResult.data ?? [];
+
+      let actual_revenue = 0;
+      let signed_quotes_count = 0;
+      let rejected_count = 0;
+      for (const q of period) {
+        const total = Number(q.total ?? 0);
+        if (q.status === 'accettata' || q.status === 'convertita') {
+          actual_revenue += total;
+          signed_quotes_count += 1;
+        } else if (q.status === 'rifiutata' || q.status === 'scaduta') {
+          rejected_count += 1;
+        }
+      }
+
+      let active_quotes_value = 0;
+      for (const q of active) {
+        active_quotes_value += Number(q.total ?? 0);
+      }
+
+      const closed_count = signed_quotes_count + rejected_count;
+
+      return {
+        actual_revenue,
+        signed_quotes_count,
+        active_quotes_value,
+        active_quotes_count: active.length,
+        avg_signed_ticket: signed_quotes_count > 0 ? actual_revenue / signed_quotes_count : 0,
+        opportunities_with_quote: oppsWithQuote.length,
+        acceptance_rate: closed_count > 0 ? (signed_quotes_count / closed_count) * 100 : 0,
+      };
+    },
+    staleTime: 1000 * 60 * 5,
   });
 }
 
@@ -500,6 +609,17 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
     mutationFn: async () => {
       if (!companyId) throw new Error('companyId mancante');
 
+      // Sprint 4: carica config dinamica (fallback default)
+      const { data: cfgRow } = await supabase
+        .from('lead_scoring_config' as any)
+        .select('*')
+        .eq('company_id', companyId)
+        .maybeSingle();
+      const cfg: LeadScoringConfig = (cfgRow as any) ?? {
+        company_id: companyId,
+        ...DEFAULT_LEAD_SCORING_CONFIG,
+      };
+
       // Fetch all contacts for this company
       const { data: contacts, error: cErr } = await supabase
         .from('marketing_contacts')
@@ -522,7 +642,7 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
           ]);
 
           const openOpps = (opps ?? []).filter((o) => o.status === 'open');
-          const { leadScore, icpScore } = calculateLeadScore({
+          const { leadScore, icpScore } = calculateLeadScoreWithConfig({
             hasCompanyName: !!contact.company_name,
             hasPhone: !!contact.phone,
             hasAddress: !!contact.address,
@@ -532,9 +652,9 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
             hasOpenOpportunity: openOpps.length > 0,
             hasRecentActivity: (recentCount ?? 0) > 0,
             opportunitiesCount: (opps ?? []).length,
-          });
+          }, cfg);
 
-          const icpTier = getIcpTier(icpScore);
+          const icpTier = getIcpTierWithConfig(icpScore, cfg);
           await supabase.from('marketing_contacts').update({
             lead_score: leadScore,
             icp_score: icpScore,
@@ -596,8 +716,19 @@ export function useRecalculateLeadScore(companyId: string | null) {
 
       const openOpps = (opps ?? []).filter((o) => o.status === 'open');
 
-      // 5. Calcola score
-      const { leadScore, icpScore, behavioralScore } = calculateLeadScore({
+      // Sprint 4: config dinamica per-company
+      const { data: cfgRow } = await supabase
+        .from('lead_scoring_config' as any)
+        .select('*')
+        .eq('company_id', companyId)
+        .maybeSingle();
+      const cfg: LeadScoringConfig = (cfgRow as any) ?? {
+        company_id: companyId,
+        ...DEFAULT_LEAD_SCORING_CONFIG,
+      };
+
+      // 5. Calcola score (con config dinamica)
+      const { leadScore, icpScore, behavioralScore } = calculateLeadScoreWithConfig({
         hasCompanyName: !!contact.company_name,
         hasPhone: !!contact.phone,
         hasAddress: !!contact.address,
@@ -607,9 +738,9 @@ export function useRecalculateLeadScore(companyId: string | null) {
         hasOpenOpportunity: openOpps.length > 0,
         hasRecentActivity: (recentCount ?? 0) > 0,
         opportunitiesCount: (opps ?? []).length,
-      });
+      }, cfg);
 
-      const icpTier = getIcpTier(icpScore);
+      const icpTier = getIcpTierWithConfig(icpScore, cfg);
 
       // 6. Aggiorna il contatto
       const { error: updateError } = await supabase

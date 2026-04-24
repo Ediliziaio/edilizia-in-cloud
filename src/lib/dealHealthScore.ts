@@ -90,27 +90,34 @@ export function calculateDealHealth(input: DealHealthInput): DealHealth {
   return { score, status, badge, color, reasons };
 }
 
-/** Helper to build DealHealthInput from a raw opportunity object */
+/** Helper to build DealHealthInput from a raw opportunity object.
+ *  Sprint 1.6: usa i nuovi campi DB last_activity_at + stage_changed_at +
+ *  is_decision_maker (tramite opp.contact.is_decision_maker) invece di
+ *  fallback su updated_at. Backward-compat: se campi mancano, usa proxy.
+ */
 export function buildDealHealthInput(opp: {
   updated_at?: string | null;
+  created_at?: string | null;
+  last_activity_at?: string | null;
+  stage_changed_at?: string | null;
   next_action?: string | null;
   expected_close_date?: string | null;
   probability?: number | null;
   notes_count?: number | null;
-  created_at?: string | null;
+  contact_is_decision_maker?: boolean | null;
 }, avgStageDays = 14): DealHealthInput {
   const now = new Date();
 
-  // Use updated_at as proxy for last activity
-  // TODO: use a dedicated last_activity_at field when available
-  const lastActivity = opp.updated_at ? new Date(opp.updated_at) : null;
+  // Preferisci last_activity_at (popolato da trigger), fallback updated_at.
+  const lastActivityIso = opp.last_activity_at ?? opp.updated_at ?? null;
+  const lastActivity = lastActivityIso ? new Date(lastActivityIso) : null;
   const daysSinceLastActivity = lastActivity
     ? Math.floor((now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24))
     : null;
 
-  // Use updated_at as proxy for stage change date
-  // TODO: use stage_changed_at field when available in DB
-  const stageChangeDate = opp.updated_at ? new Date(opp.updated_at) : (opp.created_at ? new Date(opp.created_at) : now);
+  // Preferisci stage_changed_at (popolato da trigger), fallback updated_at/created_at.
+  const stageChangeIso = opp.stage_changed_at ?? opp.updated_at ?? opp.created_at ?? null;
+  const stageChangeDate = stageChangeIso ? new Date(stageChangeIso) : now;
   const daysSinceStageChange = Math.floor(
     (now.getTime() - stageChangeDate.getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -125,7 +132,9 @@ export function buildDealHealthInput(opp: {
     closeDate,
     probabilityPercent: opp.probability ?? 50,
     numberOfActivities: opp.notes_count ?? 0,
-    hasDecisionMaker: true, // TODO: not available in DB yet — default true
+    // Flag reale dal contatto collegato. Se non passato o null → default true
+    // per non penalizzare opportunità legacy senza il flag settato.
+    hasDecisionMaker: opp.contact_is_decision_maker ?? true,
     avgStageDays,
   };
 }

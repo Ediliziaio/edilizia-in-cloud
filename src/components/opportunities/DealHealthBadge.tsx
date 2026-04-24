@@ -6,11 +6,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 interface DealHealthBadgeProps {
   opportunity: {
     updated_at?: string | null;
+    created_at?: string | null;
+    last_activity_at?: string | null;
+    stage_changed_at?: string | null;
     next_action?: string | null;
     expected_close_date?: string | null;
     probability?: number | null;
     notes_count?: number | null;
-    created_at?: string | null;
+    contact_is_decision_maker?: boolean | null;
   };
   /** Show only the dot without text */
   compact?: boolean;

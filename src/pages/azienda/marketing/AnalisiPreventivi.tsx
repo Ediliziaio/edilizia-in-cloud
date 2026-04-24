@@ -14,12 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ResponsiveContainer,
+  ReferenceLine, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import {
-  Loader2, BrainCircuit, Copy, Check, ChevronDown, ChevronUp,
+  Loader2, BrainCircuit, Copy, Check, ChevronDown, ChevronUp, Percent, ExternalLink,
+  TrendingUp, TrendingDown, Target, Award, AlertTriangle, Users,
 } from "lucide-react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,10 +62,60 @@ export default function AnalisiPreventivi() {
   const [loadingKpi, setLoadingKpi] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showAllRows, setShowAllRows] = useState(false);
+  const [spFilter, setSpFilter] = useState<string>("tutti");
+  const [statusRowFilter, setStatusRowFilter] = useState<string>("tutti");
 
   const { effectiveCompany, role, isLoading: authLoading } = useAuth() as any;
   const companyId = effectiveCompany?.id as string | undefined;
   const isAdmin = role === "company_admin" || role === "super_admin";
+
+  // Fetch commerciali per filtro
+  const { data: salespeopleList = [] } = useQuery({
+    queryKey: ["salespeople-for-analisi", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("salespeople")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId!)
+        .order("last_name");
+      if (error) throw error;
+      return data as Array<{ id: string; first_name: string; last_name: string }>;
+    },
+  });
+
+  // ─── Approvazioni pending (banner admin) ───────────────────────────────────
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ["analisi-pending-approvals", companyId],
+    enabled: !!companyId && isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quote_approvals")
+        .select("id, quote_id, sconto_richiesto_pct, importo_preventivo, requested_at")
+        .eq("company_id", companyId!)
+        .is("decision", null)
+        .order("requested_at", { ascending: false });
+      if (error) throw error;
+      return data as Array<{ id: string; quote_id: string; sconto_richiesto_pct: number; importo_preventivo: number; requested_at: string }>;
+    },
+  });
+
+  // ─── Arricchimento tabella con sconto/provv (join lato client) ─────────────
+  const { data: quotesExtra = [] } = useQuery({
+    queryKey: ["analisi-quotes-extra", companyId, dati?.preventivi.map((p) => p.quote_id).join(",")],
+    enabled: !!companyId && !!dati && dati.preventivi.length > 0,
+    queryFn: async () => {
+      const ids = dati!.preventivi.map((p) => p.quote_id);
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("id, discount_percent, commission_amount_snapshot, approval_status, salesperson_id")
+        .in("id", ids);
+      if (error) throw error;
+      return data as Array<{ id: string; discount_percent: number | null; commission_amount_snapshot: number | null; approval_status: string | null; salesperson_id: string | null }>;
+    },
+  });
+
+  const quotesExtraById = new Map(quotesExtra.map((q) => [q.id, q]));
 
   // ─── Legge il target margine dalle impostazioni aziendali ──────────────────
   const { data: impostazioni } = useQuery({
@@ -166,23 +217,99 @@ export default function AnalisiPreventivi() {
       }))
     : [];
 
+  // ─── Insights avanzati (v3) ───────────────────────────────────────────────
+  const insightsV3 = (() => {
+    if (!dati || dati.preventivi.length === 0) return null;
+    const preventivi = dati.preventivi;
+
+    // Distribuzione margine: ottimo (≥25%), ok (15-25%), critico (<15%)
+    const marginBuckets = { ottimo: 0, ok: 0, critico: 0, nd: 0 };
+    preventivi.forEach((p) => {
+      if (p.margine_pct == null) { marginBuckets.nd++; return; }
+      if (p.margine_pct >= 25) marginBuckets.ottimo++;
+      else if (p.margine_pct >= 15) marginBuckets.ok++;
+      else marginBuckets.critico++;
+    });
+
+    // Top commerciali per valore/margine medio
+    const bySalesperson = new Map<string, { name: string; count: number; ricavoTot: number; marginSum: number; marginCount: number }>();
+    quotesExtra.forEach((q) => {
+      const spId = q.salesperson_id ?? "none";
+      const name = spId === "none" ? "Senza commerciale" : salespeopleList.find((s) => s.id === spId)?.first_name + " " + salespeopleList.find((s) => s.id === spId)?.last_name || "?";
+      const prev = preventivi.find((p) => p.quote_id === q.id);
+      if (!prev) return;
+      const entry = bySalesperson.get(spId) ?? { name, count: 0, ricavoTot: 0, marginSum: 0, marginCount: 0 };
+      entry.count++;
+      entry.ricavoTot += prev.ricavo_totale ?? 0;
+      if (prev.margine_pct != null) { entry.marginSum += prev.margine_pct; entry.marginCount++; }
+      bySalesperson.set(spId, entry);
+    });
+    const topSalespeople = Array.from(bySalesperson.values())
+      .map((e) => ({ ...e, marginAvg: e.marginCount > 0 ? e.marginSum / e.marginCount : 0 }))
+      .sort((a, b) => b.ricavoTot - a.ricavoTot)
+      .slice(0, 5);
+
+    // Distribuzione sconti: 0-5, 5-10, 10-20, >20
+    const discountBuckets = { noSconto: 0, lieve: 0, medio: 0, forte: 0 };
+    quotesExtra.forEach((q) => {
+      const d = q.discount_percent ?? 0;
+      if (d === 0) discountBuckets.noSconto++;
+      else if (d < 10) discountBuckets.lieve++;
+      else if (d < 20) discountBuckets.medio++;
+      else discountBuckets.forte++;
+    });
+
+    // Trend margine (per mese - derivato da quote_id prefisso OFF-YYYY-NNN)
+    // Non abbiamo created_at qui → skip per ora.
+
+    return { marginBuckets, topSalespeople, discountBuckets };
+  })();
+
+  const MARGIN_COLORS = { ottimo: "#16a34a", ok: "#eab308", critico: "#ef4444", nd: "#94a3b8" };
+  const DISCOUNT_COLORS = { noSconto: "#16a34a", lieve: "#3b82f6", medio: "#f97316", forte: "#ef4444" };
+
+  const preventiviFiltered = (dati?.preventivi ?? []).filter((p) => {
+    const extra = quotesExtraById.get(p.quote_id);
+    if (spFilter !== "tutti") {
+      if (spFilter === "none" && extra?.salesperson_id) return false;
+      if (spFilter !== "none" && extra?.salesperson_id !== spFilter) return false;
+    }
+    if (statusRowFilter !== "tutti") {
+      if ((extra?.approval_status ?? "not_required") !== statusRowFilter) return false;
+    }
+    return true;
+  });
   const righeVisibili = showAllRows
-    ? (dati?.preventivi ?? [])
-    : (dati?.preventivi ?? []).slice(0, 10);
+    ? preventiviFiltered
+    : preventiviFiltered.slice(0, 10);
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BrainCircuit className="h-6 w-6 text-violet-600" /> Analisi Preventivi AI
-          </h1>
-          <p className="text-muted-foreground text-sm">Insights intelligenti sui tuoi preventivi storici</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-950/40 flex items-center justify-center shrink-0">
+            <BrainCircuit className="h-5 w-5 text-violet-600" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              Analisi preventivi <span className="text-violet-600">AI</span>
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Insights intelligenti sui tuoi preventivi storici
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* Filtri compatti */}
+      <div className="flex items-center gap-2 flex-wrap p-3 border rounded-lg bg-muted/30">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">
+          Filtri
+        </span>
         <Select value={periodoMesi} onValueChange={setPeriodoMesi}>
-          <SelectTrigger className="w-36">
+          <SelectTrigger className="w-[140px] h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -192,123 +319,285 @@ export default function AnalisiPreventivi() {
             <SelectItem value="24">Ultimi 2 anni</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={spFilter} onValueChange={setSpFilter}>
+          <SelectTrigger className="w-[180px] h-8 text-xs">
+            <SelectValue placeholder="Commerciale" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutti">Tutti i commerciali</SelectItem>
+            <SelectItem value="none">Senza commerciale</SelectItem>
+            {salespeopleList.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.first_name} {s.last_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusRowFilter} onValueChange={setStatusRowFilter}>
+          <SelectTrigger className="w-[170px] h-8 text-xs">
+            <SelectValue placeholder="Stato approvazione" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutti">Tutti gli stati</SelectItem>
+            <SelectItem value="not_required">Normali</SelectItem>
+            <SelectItem value="pending">In approvazione</SelectItem>
+            <SelectItem value="approved">Approvati</SelectItem>
+            <SelectItem value="rejected">Rifiutati</SelectItem>
+            <SelectItem value="counter_proposed">Contro-proposta</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      {isAdmin && pendingApprovals.length > 0 && (
+        <div className="flex items-center justify-between gap-4 p-3 rounded-lg border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 dark:border-orange-900/50">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center shrink-0">
+              <Percent className="h-4 w-4 text-orange-600" />
+            </div>
+            <div>
+              <p className="font-medium text-sm">
+                {pendingApprovals.length} richiest
+                {pendingApprovals.length === 1 ? "a" : "e"} di sconto in attesa
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Totale impattato:{" "}
+                <span className="font-medium text-foreground">
+                  {formatCurrency(
+                    pendingApprovals.reduce(
+                      (s, p) => s + (p.importo_preventivo ?? 0),
+                      0
+                    )
+                  )}
+                </span>
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" className="bg-orange-600 hover:bg-orange-700">
+            <Link to="/azienda/marketing/preventivi?tab=approvazioni">
+              Gestisci richieste
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {loadingKpi ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : (dati?.totalPreventivi ?? "—")}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="overflow-hidden border-l-4 border-l-slate-400">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Analizzati
+              </p>
+              <Users className="h-4 w-4 text-slate-500" />
             </div>
-            <p className="text-xs text-muted-foreground">Preventivi analizzati</p>
+            <div className="text-2xl font-bold mt-1.5">
+              {loadingKpi ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                dati?.totalPreventivi ?? "—"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">preventivi nel periodo</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {loadingKpi ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : (dati?.ricavoTotale != null ? formatCurrency(dati.ricavoTotale) : "—")}
+        <Card className="overflow-hidden border-l-4 border-l-primary">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Ricavo totale
+              </p>
+              <TrendingUp className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-xs text-muted-foreground">Ricavo totale</p>
+            <div className="text-2xl font-bold mt-1.5 truncate">
+              {loadingKpi ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : dati?.ricavoTotale != null ? (
+                formatCurrency(dati.ricavoTotale)
+              ) : (
+                "—"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">su preventivi chiusi</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {loadingKpi ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : (dati?.margineMediano != null ? `${dati.margineMediano.toFixed(1)}%` : "—")}
+        <Card
+          className={`overflow-hidden border-l-4 ${
+            dati?.margineMediano != null
+              ? dati.margineMediano >= margineTarget
+                ? "border-l-emerald-500"
+                : dati.margineMediano >= margineMin
+                ? "border-l-amber-500"
+                : "border-l-red-500"
+              : "border-l-slate-400"
+          }`}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Margine medio
+              </p>
+              <Target
+                className={`h-4 w-4 ${
+                  dati?.margineMediano != null
+                    ? dati.margineMediano >= margineTarget
+                      ? "text-emerald-500"
+                      : dati.margineMediano >= margineMin
+                      ? "text-amber-500"
+                      : "text-red-500"
+                    : "text-slate-500"
+                }`}
+              />
             </div>
-            <p className="text-xs text-muted-foreground">Margine medio</p>
+            <div className="text-2xl font-bold mt-1.5 tabular-nums">
+              {loadingKpi ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : dati?.margineMediano != null ? (
+                `${dati.margineMediano.toFixed(1)}%`
+              ) : (
+                "—"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              target {margineTarget}% · min {margineMin}%
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {loadingKpi ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : (dati?.valoreMediano != null ? formatCurrency(dati.valoreMediano) : "—")}
+        <Card className="overflow-hidden border-l-4 border-l-blue-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Valore medio
+              </p>
+              <Award className="h-4 w-4 text-blue-500" />
             </div>
-            <p className="text-xs text-muted-foreground">Valore medio preventivo</p>
+            <div className="text-2xl font-bold mt-1.5 truncate">
+              {loadingKpi ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : dati?.valoreMediano != null ? (
+                formatCurrency(dati.valoreMediano)
+              ) : (
+                "—"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">per preventivo</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* AI Analysis Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BrainCircuit className="h-5 w-5 text-violet-600" />
-            Cosa mi dice l'AI
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {/* AI Panel — redesign */}
+      <Card className="border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-50/30 to-transparent dark:from-violet-950/20">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
+              <BrainCircuit className="h-5 w-5 text-violet-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-semibold">Chiedi all'AI</h3>
+              <p className="text-xs text-muted-foreground">
+                Fai una domanda sul tuo storico — o usa un suggerimento rapido
+              </p>
+            </div>
+          </div>
+
           {/* Domande rapide */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {DOMANDE_RAPIDE.map((q) => (
-              <Badge
+              <Button
                 key={q}
                 variant="outline"
-                className="cursor-pointer hover:bg-violet-50 hover:border-violet-400 transition-colors text-xs"
-                onClick={() => setDomanda(q)}
+                size="sm"
+                className="h-7 text-xs border-violet-200 dark:border-violet-900/50 hover:bg-violet-50 hover:border-violet-400 dark:hover:bg-violet-950/40"
+                onClick={() => {
+                  setDomanda(q);
+                  setTimeout(() => handleAnalizza(q), 0);
+                }}
+                disabled={loading}
               >
                 {q}
-              </Badge>
+              </Button>
             ))}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-stretch">
             <Textarea
-              placeholder='Fai una domanda o scegli un suggerimento sopra…'
+              placeholder="Scrivi la tua domanda o scegli un suggerimento sopra… (Cmd/Ctrl+Enter per inviare)"
               value={domanda}
               onChange={(e) => setDomanda(e.target.value)}
               rows={2}
-              className="flex-1"
+              className="flex-1 resize-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleAnalizza();
               }}
             />
-            <div className="flex flex-col gap-2">
-              <Button onClick={() => handleAnalizza()} disabled={loading} className="whitespace-nowrap">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Analizza"}
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <Button
+                onClick={() => handleAnalizza()}
+                disabled={loading}
+                className="bg-violet-600 hover:bg-violet-700"
+                size="sm"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <BrainCircuit className="h-4 w-4 mr-1" />
+                )}
+                Analizza
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setDomanda("");
                   handleAnalizza("");
                 }}
                 disabled={loading}
-                className="whitespace-nowrap text-xs"
+                className="text-xs h-7"
                 title="Genera un'analisi completa senza domanda specifica"
               >
-                Analisi generale
+                Generale
               </Button>
             </div>
           </div>
 
           {loading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-3 px-3 rounded-md bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900/50">
               <Loader2 className="h-4 w-4 animate-spin text-violet-600" />
               L'AI sta analizzando {dati?.totalPreventivi ?? ""} preventivi…
             </div>
           )}
 
           {analisi && !loading && (
-            <div className="relative">
-              <div className="bg-muted/30 rounded-lg p-4 text-sm whitespace-pre-wrap leading-relaxed border-l-2 border-violet-400 pr-10">
+            <div className="relative rounded-lg border border-violet-200 dark:border-violet-900/50 bg-white dark:bg-card shadow-sm">
+              <div className="flex items-center justify-between border-b border-violet-100 dark:border-violet-900/50 px-4 py-2 bg-violet-50/40 dark:bg-violet-950/20 rounded-t-lg">
+                <div className="flex items-center gap-2 text-xs font-medium text-violet-900 dark:text-violet-200">
+                  <BrainCircuit className="h-3.5 w-3.5" />
+                  Risposta AI
+                  {analisiTimestamp && (
+                    <span className="font-normal text-muted-foreground">
+                      ·{" "}
+                      {format(analisiTimestamp, "d MMM 'ore' HH:mm", {
+                        locale: it,
+                      })}
+                    </span>
+                  )}
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={handleCopy}
+                  title="Copia analisi"
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <div className="p-4 text-sm whitespace-pre-wrap leading-relaxed">
                 {analisi}
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="absolute top-2 right-2 h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={handleCopy}
-                title="Copia analisi"
-              >
-                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-              </Button>
-              {analisiTimestamp && (
-                <p className="text-xs text-muted-foreground mt-1 text-right">
-                  Generata il {format(analisiTimestamp, "d MMM yyyy 'alle' HH:mm", { locale: it })}
-                </p>
-              )}
             </div>
           )}
         </CardContent>
@@ -336,6 +625,117 @@ export default function AnalisiPreventivi() {
             <p className="text-sm mt-1">Prova ad allargare il range temporale</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Insights v3 — distribuzioni e leaderboard */}
+      {insightsV3 && dati && dati.preventivi.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Target className="h-4 w-4 text-violet-600" />
+                Salute margine
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Distribuzione dei preventivi per fascia di margine</p>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Ottimo (≥25%)", value: insightsV3.marginBuckets.ottimo, color: MARGIN_COLORS.ottimo },
+                      { name: "OK (15-25%)", value: insightsV3.marginBuckets.ok, color: MARGIN_COLORS.ok },
+                      { name: "Critico (<15%)", value: insightsV3.marginBuckets.critico, color: MARGIN_COLORS.critico },
+                      { name: "N/D", value: insightsV3.marginBuckets.nd, color: MARGIN_COLORS.nd },
+                    ].filter((d) => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={65}
+                    dataKey="value"
+                    label={(e) => `${e.value}`}
+                  >
+                    {[MARGIN_COLORS.ottimo, MARGIN_COLORS.ok, MARGIN_COLORS.critico, MARGIN_COLORS.nd].map((c, i) => (
+                      <Cell key={i} fill={c} />
+                    ))}
+                  </Pie>
+                  <Legend verticalAlign="bottom" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Percent className="h-4 w-4 text-orange-500" />
+                Distribuzione sconti
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Quanto stai scontando in media</p>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart
+                  data={[
+                    { name: "0%", value: insightsV3.discountBuckets.noSconto, color: DISCOUNT_COLORS.noSconto },
+                    { name: "<10%", value: insightsV3.discountBuckets.lieve, color: DISCOUNT_COLORS.lieve },
+                    { name: "10-20%", value: insightsV3.discountBuckets.medio, color: DISCOUNT_COLORS.medio },
+                    { name: "≥20%", value: insightsV3.discountBuckets.forte, color: DISCOUNT_COLORS.forte },
+                  ]}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="value">
+                    {[DISCOUNT_COLORS.noSconto, DISCOUNT_COLORS.lieve, DISCOUNT_COLORS.medio, DISCOUNT_COLORS.forte].map((c, i) => (
+                      <Cell key={i} fill={c} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              {insightsV3.discountBuckets.forte > 0 && (
+                <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    {insightsV3.discountBuckets.forte} preventivo{insightsV3.discountBuckets.forte > 1 ? "i" : ""} con sconto ≥20%: verifica che siano autorizzati correttamente.
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Award className="h-4 w-4 text-green-600" />
+                Top commerciali per ricavo
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Chi sta performando meglio</p>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {insightsV3.topSalespeople.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nessun commerciale assegnato ai preventivi del periodo.</p>
+              ) : (
+                insightsV3.topSalespeople.map((sp, i) => (
+                  <div key={sp.name + i} className="flex items-center justify-between gap-2 py-1.5 border-b last:border-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-semibold ${i === 0 ? "bg-yellow-100 text-yellow-800" : i === 1 ? "bg-slate-100 text-slate-700" : i === 2 ? "bg-orange-100 text-orange-800" : "bg-muted text-muted-foreground"}`}>
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{sp.name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {sp.count} preventivi · margine medio {sp.marginAvg.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-sm font-semibold shrink-0">{formatCurrency(sp.ricavoTot)}</div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Bar Chart */}
@@ -398,19 +798,30 @@ export default function AnalisiPreventivi() {
                 <TableRow>
                   <TableHead>N°</TableHead>
                   <TableHead>Tipo lavoro</TableHead>
-                  <TableHead>Ricavo</TableHead>
-                  <TableHead>Costo</TableHead>
-                  <TableHead>Margine %</TableHead>
+                  <TableHead className="text-right">Ricavo</TableHead>
+                  <TableHead className="text-right">Costo</TableHead>
+                  <TableHead className="text-right">Sconto</TableHead>
+                  <TableHead className="text-right">Margine %</TableHead>
+                  <TableHead className="text-right">Provv.</TableHead>
+                  <TableHead>Approv.</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {righeVisibili.map((p) => (
+                {righeVisibili.map((p) => {
+                  const extra = quotesExtraById.get(p.quote_id);
+                  return (
                   <TableRow key={p.quote_id}>
                     <TableCell className="font-mono text-xs">{p.quote_number}</TableCell>
                     <TableCell>{p.tipo_lavoro || "—"}</TableCell>
-                    <TableCell>{p.ricavo_totale != null ? formatCurrency(p.ricavo_totale) : "—"}</TableCell>
-                    <TableCell>{p.costo_totale != null ? formatCurrency(p.costo_totale) : "—"}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">{p.ricavo_totale != null ? formatCurrency(p.ricavo_totale) : "—"}</TableCell>
+                    <TableCell className="text-right">{p.costo_totale != null ? formatCurrency(p.costo_totale) : "—"}</TableCell>
+                    <TableCell className="text-right">
+                      {extra?.discount_percent != null && extra.discount_percent > 0
+                        ? <span className="text-orange-600">{extra.discount_percent}%</span>
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
                       {p.margine_pct != null ? (
                         <span
                           className={`font-medium ${
@@ -427,8 +838,25 @@ export default function AnalisiPreventivi() {
                         "—"
                       )}
                     </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      {extra?.commission_amount_snapshot != null ? formatCurrency(extra.commission_amount_snapshot) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {extra?.approval_status === "pending" && <Badge variant="outline" className="border-orange-500 text-orange-600">Pending</Badge>}
+                      {extra?.approval_status === "approved" && <Badge className="bg-green-600">OK</Badge>}
+                      {extra?.approval_status === "rejected" && <Badge variant="destructive">Rifiutato</Badge>}
+                      {extra?.approval_status === "counter_proposed" && <Badge className="bg-blue-600">Contro</Badge>}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link to={`/azienda/marketing/preventivi/${p.quote_id}`}>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
             {dati.preventivi.length > 10 && (

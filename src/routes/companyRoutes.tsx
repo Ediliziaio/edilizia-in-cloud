@@ -49,6 +49,7 @@ const MatriceListiniPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.MatriceListiniPage })),
 );
 const SettingsMargini = lazy(() => import("@/pages/azienda/settings/SettingsMargini"));
+const SettingsScontistica = lazy(() => import("@/pages/azienda/settings/SettingsScontistica"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
 const SettingsEmailDomain = lazy(() => import("@/pages/azienda/settings/SettingsEmailDomain"));
@@ -201,6 +202,7 @@ const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder")
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 const QuoteMargini = lazy(() => import("@/pages/azienda/marketing/QuoteMargini"));
 // AnalisiPreventivi now rendered as tab inside Preventivi — lazy import removed
+// QuoteApprovals now rendered as tab inside Preventivi — deep-link /approvazioni redirect sotto
 const RitenuteGaranzia = lazy(() => import("@/pages/azienda/RitenuteGaranzia"));
 const ContabilitaFiscale = lazy(() => import("@/pages/azienda/ContabilitaFiscale"));
 const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostitutivo"));
@@ -422,6 +424,7 @@ export function companyRoutes() {
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
         <Route path="marketing/preventivi" element={<Preventivi />} />
+        <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
         <Route path="marketing/preventivi/nuovo" element={<QuoteBuilder />} />
         <Route path="marketing/preventivi/:id" element={<QuoteDetail />} />
         <Route path="marketing/preventivi/:id/modifica" element={<QuoteBuilder />} />
@@ -467,6 +470,7 @@ export function companyRoutes() {
             }
           />
           <Route path="margini" element={<SettingsMargini />} />
+          <Route path="scontistica" element={<SettingsScontistica />} />
           <Route path="stati-ordine" element={<SettingsOrderStatus />} />
           <Route path="fornitori" element={<SettingsSuppliers />} />
           <Route path="categorie-costi" element={<SettingsCostCategories />} />

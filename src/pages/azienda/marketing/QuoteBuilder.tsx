@@ -32,6 +32,8 @@ import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventiv
 import QuoteWizardSerramenti from "@/components/marketing/preventivi/QuoteWizardSerramenti";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
+import { QuoteDiscountControl } from "@/components/preventivi/QuoteDiscountControl";
+// mp-preventivi-v2: slider sconto limitato integrato nello step 1 per preventivi esistenti
 import { isPreventivatoreUnifiedOn } from "@/lib/featureFlags";
 import type { ConfiguredItem } from "@/types/catalogItem";
 import { useFamilies } from "@/hooks/useFamilies";
@@ -122,6 +124,7 @@ import {
   Settings2,
   Wallet,
   Percent,
+  Lock,
 } from "lucide-react";
 
 // ─── Helper components ────────────────────────────────────────────────────────
@@ -153,9 +156,11 @@ function MargineSemaforo({
 
 function SortableItem({
   id,
+  index,
   children,
 }: {
   id: string;
+  index?: number;
   children: (dragHandle: React.ReactNode) => React.ReactNode;
 }) {
   const {
@@ -171,21 +176,34 @@ function SortableItem({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
   };
 
+  // Drag handle più visibile: numero ordine + grip icon in pill rounded
   const handle = (
     <button
       {...attributes}
       {...listeners}
-      className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground p-1 touch-none shrink-0"
+      className="group/grip cursor-grab active:cursor-grabbing inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors touch-none shrink-0"
       tabIndex={-1}
+      aria-label="Riordina riga"
+      title="Trascina per riordinare"
     >
-      <GripVertical className="h-4 w-4" />
+      <GripVertical className="h-3.5 w-3.5 opacity-60 group-hover/grip:opacity-100" />
+      {typeof index === "number" && (
+        <span className="text-[10px] font-mono font-semibold tabular-nums">
+          {index + 1}
+        </span>
+      )}
     </button>
   );
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? "shadow-2xl ring-2 ring-primary/40 rounded-lg" : ""}
+    >
       {children(handle)}
     </div>
   );
@@ -644,6 +662,10 @@ export default function QuoteBuilder() {
   const [pianoInstallazione, setPianoInstallazione] = useState(0);
   const [kmCantiere, setKmCantiere] = useState(0);
 
+  // Commerciale assegnato al preventivo (per provvigioni e regole sconto)
+  const [salespersonId, setSalespersonId] = useState<string | null>(null);
+  const [approvalStatus, setApprovalStatus] = useState<"not_required" | "pending" | "approved" | "rejected" | "counter_proposed">("not_required");
+
   // Step 1: Items
   const [items, setItems] = useState<QuoteItemPro[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -676,6 +698,13 @@ export default function QuoteBuilder() {
   const [pdfImmagini, setPdfImmagini] = useState(true);
   const [pdfSchedeTecniche, setPdfSchedeTecniche] = useState(false);
   const [pdfFirma, setPdfFirma] = useState(true);
+  // MP-preventivi-v2: nuovi flag PDF (misure, attributi, note, condizioni, watermark, copia).
+  const [pdfMisure, setPdfMisure] = useState(true);
+  const [pdfAttributi, setPdfAttributi] = useState(true);
+  const [pdfNoteCliente, setPdfNoteCliente] = useState(true);
+  const [pdfCondizioni, setPdfCondizioni] = useState(true);
+  const [pdfWatermarkText, setPdfWatermarkText] = useState<string>("");
+  const [pdfCopiaDestinatario, setPdfCopiaDestinatario] = useState<string>("cliente");
 
   // Template
   const { templates, defaultTemplate } = useQuoteTemplates();
@@ -718,7 +747,55 @@ export default function QuoteBuilder() {
   const { families: articleFamilies } = useFamilies();
   const hasSerramentiFamilies = articleFamilies.length > 0;
 
-  // Sync PDF impostazioni for new quote
+  // MP-preventivi-v2: mappe lookup immagini prodotto (thumbnail riga).
+  // Le foto vengono lette dinamicamente dal listino, cosi` se aggiorni
+  // l'immagine del prodotto si riflette su tutti i preventivi.
+  const articleImageMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    articoli.forEach((a) => m.set(a.id, (a as { immagine_url?: string | null }).immagine_url ?? null));
+    return m;
+  }, [articoli]);
+  const familyImageMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    articleFamilies.forEach((f) => m.set(f.id, (f as { immagine_url?: string | null }).immagine_url ?? null));
+    return m;
+  }, [articleFamilies]);
+  const resolveItemImage = useCallback(
+    (it: QuoteItemPro): string | null => {
+      if (it.image_url) return it.image_url;
+      if (it.article_template_id) return articleImageMap.get(it.article_template_id) ?? null;
+      if (it.family_id) return familyImageMap.get(it.family_id) ?? null;
+      return null;
+    },
+    [articleImageMap, familyImageMap],
+  );
+  // Lookup assi famiglia: { familyId → { axisCode → { label, valueMap: { valueId → label } } } }
+  const familyAxesMap = useMemo(() => {
+    const m = new Map<string, Map<string, { label: string; valueMap: Map<string, string> }>>();
+    articleFamilies.forEach((f) => {
+      const axesMap = new Map<string, { label: string; valueMap: Map<string, string> }>();
+      const axes = (f as { axes?: Array<{ codice: string; nome: string; values?: Array<{ id: string; label: string }> }> }).axes ?? [];
+      axes.forEach((ax) => {
+        const valueMap = new Map<string, string>();
+        (ax.values ?? []).forEach((v) => valueMap.set(v.id, v.label));
+        axesMap.set(ax.codice, { label: ax.nome, valueMap });
+      });
+      m.set(f.id, axesMap);
+    });
+    return m;
+  }, [articleFamilies]);
+  const formatAxisEntry = useCallback(
+    (familyId: string | null | undefined, code: string, valueId: string): { label: string; value: string } => {
+      if (!familyId) return { label: code, value: valueId };
+      const axes = familyAxesMap.get(familyId);
+      const axis = axes?.get(code);
+      if (!axis) return { label: code, value: valueId };
+      return { label: axis.label, value: axis.valueMap.get(valueId) ?? valueId };
+    },
+    [familyAxesMap],
+  );
+
+  // Sync PDF impostazioni for new quote (company-level defaults → form state)
   useEffect(() => {
     if (impostazioni && Object.keys(impostazioni).length > 0 && !isEdit) {
       setPdfPrezziRiga(impostazioni.pdf_mostra_prezzi_per_riga ?? true);
@@ -727,6 +804,14 @@ export default function QuoteBuilder() {
       setPdfImmagini(impostazioni.pdf_mostra_immagini ?? true);
       setPdfSchedeTecniche(impostazioni.pdf_includi_schede_tecniche ?? false);
       setPdfFirma(impostazioni.firma_digitale_abilitata ?? true);
+      // MP-preventivi-v2: nuovi flag (default da preventivo_impostazioni)
+      const imp = impostazioni as Record<string, unknown>;
+      setPdfMisure((imp.pdf_mostra_misure as boolean | undefined) ?? true);
+      setPdfAttributi((imp.pdf_mostra_attributi as boolean | undefined) ?? true);
+      setPdfNoteCliente((imp.pdf_mostra_note_cliente as boolean | undefined) ?? true);
+      setPdfCondizioni((imp.pdf_mostra_condizioni as boolean | undefined) ?? true);
+      setPdfWatermarkText((imp.pdf_watermark_text as string | undefined) ?? "");
+      setPdfCopiaDestinatario((imp.pdf_copia_destinatario as string | undefined) ?? "cliente");
     }
   }, [impostazioni, isEdit]);
 
@@ -838,6 +923,50 @@ export default function QuoteBuilder() {
     setPdfSchedeTecniche,
     setPdfFirma,
     setLayoutOverride,
+  });
+
+  // Preventivi V2 — hydrate salesperson + approval status (fuori dal hook legacy)
+  useEffect(() => {
+    if (!existingQuote) return;
+    const q = existingQuote as unknown as {
+      salesperson_id: string | null;
+      approval_status: "not_required" | "pending" | "approved" | "rejected" | "counter_proposed" | null;
+    };
+    if (q.salesperson_id !== undefined) setSalespersonId(q.salesperson_id);
+    if (q.approval_status) setApprovalStatus(q.approval_status);
+  }, [existingQuote]);
+
+  // MP-preventivi-v2: hydrate PDF override da quote esistente (edit mode)
+  useEffect(() => {
+    if (!existingQuote || !isEdit) return;
+    const q = existingQuote as unknown as Record<string, unknown>;
+    if (q.pdf_mostra_prezzi_per_riga != null) setPdfPrezziRiga(q.pdf_mostra_prezzi_per_riga as boolean);
+    if (q.pdf_mostra_solo_totale != null) setPdfSoloTotale(q.pdf_mostra_solo_totale as boolean);
+    if (q.pdf_mostra_sconti != null) setPdfSconti(q.pdf_mostra_sconti as boolean);
+    if (q.pdf_mostra_immagini != null) setPdfImmagini(q.pdf_mostra_immagini as boolean);
+    if (q.pdf_includi_schede_tecniche != null) setPdfSchedeTecniche(q.pdf_includi_schede_tecniche as boolean);
+    if (q.pdf_mostra_misure != null) setPdfMisure(q.pdf_mostra_misure as boolean);
+    if (q.pdf_mostra_attributi != null) setPdfAttributi(q.pdf_mostra_attributi as boolean);
+    if (q.pdf_mostra_note_cliente != null) setPdfNoteCliente(q.pdf_mostra_note_cliente as boolean);
+    if (q.pdf_mostra_condizioni != null) setPdfCondizioni(q.pdf_mostra_condizioni as boolean);
+    if (typeof q.pdf_watermark_text === "string") setPdfWatermarkText(q.pdf_watermark_text);
+    if (typeof q.pdf_copia_destinatario === "string") setPdfCopiaDestinatario(q.pdf_copia_destinatario);
+  }, [existingQuote, isEdit]);
+
+  // Fetch lista commerciali attivi (per picker)
+  const { data: salespeople = [] } = useQuery({
+    queryKey: ["salespeople-active-for-quote", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("salespeople")
+        .select("id, first_name, last_name, compensation_mode")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .order("last_name");
+      if (error) throw error;
+      return data as Array<{ id: string; first_name: string; last_name: string; compensation_mode: string | null }>;
+    },
   });
 
   useEffect(() => {
@@ -1557,8 +1686,23 @@ export default function QuoteBuilder() {
         totale_costo_interno: totaliPro.costo_totale || null,
         totale_overhead: totaliPro.overhead_totale || null,
         margine_totale_percentuale: totaliPro.margine_totale_pct || null,
+        // Preventivi V2
+        salesperson_id: salespersonId,
+        margine_pct_snapshot: totaliPro.margine_totale_pct ?? null,
         firma_digitale_abilitata: pdfFirma,
         template_layout_override: layoutOverride || null,
+        // MP-preventivi-v2: persistenza completa flag PDF (admin-only input).
+        pdf_mostra_prezzi_per_riga: pdfPrezziRiga,
+        pdf_mostra_solo_totale: pdfSoloTotale,
+        pdf_mostra_sconti: pdfSconti,
+        pdf_mostra_immagini: pdfImmagini,
+        pdf_includi_schede_tecniche: pdfSchedeTecniche,
+        pdf_mostra_misure: pdfMisure,
+        pdf_mostra_attributi: pdfAttributi,
+        pdf_mostra_note_cliente: pdfNoteCliente,
+        pdf_mostra_condizioni: pdfCondizioni,
+        pdf_watermark_text: pdfWatermarkText || null,
+        pdf_copia_destinatario: pdfCopiaDestinatario || null,
         // P1 FIX wave 4: subtotal ora è il LORDO coerente con la UI che mostra:
         //   Subtotale (lordo) - Sconto - IVA = Totale.
         //   Prima salvavamo `subtotal - discountAmt` (netto) causando incoerenza
@@ -1655,6 +1799,15 @@ export default function QuoteBuilder() {
         );
       }
 
+      // Preventivi V2 — calcolo provvigione teorica (non-blocking)
+      if (quoteId && salespersonId) {
+        try {
+          await supabase.rpc("compute_quote_commission", { p_quote_id: quoteId });
+        } catch (commErr) {
+          console.warn("compute_quote_commission failed (non-critical):", commErr);
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(quoteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.items(quoteId) });
@@ -1671,178 +1824,233 @@ export default function QuoteBuilder() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 pb-24">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden md:inline-flex"
-          onClick={() => navigate("/azienda/marketing/preventivi")}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">
-            {isEdit ? "Modifica Preventivo" : "Nuovo Preventivo"}
-          </h1>
-          {autosaveFailed && (
-            <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
-              <AlertTriangle className="h-3 w-3" />
-              Salvataggio automatico fallito — salva manualmente
-            </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-lg shrink-0"
+            onClick={() => navigate("/azienda/marketing/preventivi")}
+            title="Torna alla lista"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileCheck className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              {isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
+            </h1>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+              <span>
+                Step {step + 1} di {STEPS.length} · {STEPS[step]?.label}
+              </span>
+              {autosaveFailed && (
+                <span className="text-destructive flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  salvataggio auto fallito
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Live totals badge (visibile quando c'è almeno un totale) */}
+          {total > 0 && (
+            <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg border bg-muted/30 text-xs">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Subtotale
+                </p>
+                <p className="font-semibold tabular-nums">
+                  {formatCurrency(subtotal)}
+                </p>
+              </div>
+              {discountAmt > 0 && (
+                <>
+                  <div className="h-6 w-px bg-border" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Sconto
+                    </p>
+                    <p className="font-semibold tabular-nums text-orange-600">
+                      -{formatCurrency(discountAmt)}
+                    </p>
+                  </div>
+                </>
+              )}
+              <div className="h-6 w-px bg-border" />
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Totale
+                </p>
+                <p className="font-bold tabular-nums text-primary">
+                  {formatCurrency(total)}
+                </p>
+              </div>
+            </div>
+          )}
+          {isAdmin && isEdit && id && (
+            <Link
+              to={`/azienda/marketing/preventivi/${id}/margini`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-100 transition-colors h-9"
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              Margini & pianificazione
+            </Link>
           )}
         </div>
-        {/* Sprint B — Badge admin "Margine & Pianificazione". Visibile solo in edit e solo ad admin. */}
-        {isAdmin && isEdit && id && (
-          <Link
-            to={`/azienda/marketing/preventivi/${id}/margini`}
-            className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
-          >
-            <TrendingUp className="h-3.5 w-3.5" />
-            Margini &amp; pianificazione
-          </Link>
-        )}
       </div>
 
-      {/* Stepper */}
-      <div className="flex items-center gap-2">
-        {STEPS.map((s, i) => (
-          <button
-            key={s.key}
-            onClick={() => setStep(i)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              i === step
-                ? "bg-primary text-primary-foreground"
-                : i < step
-                ? "bg-muted text-foreground"
-                : "bg-muted/50 text-muted-foreground"
-            }`}
-          >
-            <s.icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{s.label}</span>
-            <span className="sm:hidden">{i + 1}</span>
-          </button>
-        ))}
+      {/* Stepper pill moderno con progress visibile + check per step completati */}
+      <div className="relative">
+        <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-muted -translate-y-1/2 -z-0" aria-hidden />
+        <div
+          className="absolute top-1/2 left-0 h-[2px] bg-primary -translate-y-1/2 -z-0 transition-all duration-300"
+          style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }}
+          aria-hidden
+        />
+        <div className="relative flex items-center justify-between gap-2 z-10">
+          {STEPS.map((s, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <button
+                key={s.key}
+                onClick={() => setStep(i)}
+                className={`group relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                  active
+                    ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20"
+                    : done
+                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300"
+                    : "bg-background border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {done ? (
+                  <FileCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                ) : (
+                  <s.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                )}
+                <span className="hidden sm:inline">{s.label}</span>
+                <span
+                  className={`sm:hidden text-[10px] font-bold tabular-nums ${
+                    active ? "" : done ? "" : "text-muted-foreground"
+                  }`}
+                >
+                  {i + 1}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── STEP 0: Cliente ── */}
       {step === 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Dati Cliente</CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Dati cliente</CardTitle>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="outline" className="text-[10px]">Step 1 di 4</Badge>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Seleziona contatto esistente</Label>
-              <ContactCombobox
-                contacts={contacts}
-                value={contactId}
-                onChange={handleContactSelect}
-              />
+          <CardContent className="space-y-5">
+            {/* Blocco 1: Selezione rapida da contatto */}
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Seleziona contatto esistente</Label>
+              <div className="mt-1.5">
+                <ContactCombobox
+                  contacts={contacts}
+                  value={contactId}
+                  onChange={handleContactSelect}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Seleziona un contatto CRM per compilare automaticamente i campi sotto.
+              </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Nome cliente *</Label>
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={clientEmail}
-                  onChange={(e) => setClientEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Telefono</Label>
-                <Input
-                  value={clientPhone}
-                  onChange={(e) => setClientPhone(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Azienda</Label>
-                <Input
-                  value={clientCompany}
-                  onChange={(e) => setClientCompany(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Codice Fiscale</Label>
-                <Input
-                  value={clientFiscalCode}
-                  onChange={(e) => setClientFiscalCode(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>P.IVA</Label>
-                <Input
-                  value={clientVatNumber}
-                  onChange={(e) => setClientVatNumber(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Indirizzo</Label>
-                <Input
-                  value={clientAddress}
-                  onChange={(e) => setClientAddress(e.target.value)}
-                />
-              </div>
-            </div>
-            <hr />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Titolo offerta</Label>
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Validità (giorni)</Label>
-                <Input
-                  type="number"
-                  value={validityDays}
-                  onChange={(e) =>
-                    setValidityDays(parseInt(e.target.value) || 30)
-                  }
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Descrizione</Label>
-                <Textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div>
-                <Label>Note (visibili al cliente)</Label>
-                <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                />
-              </div>
-              <div>
-                <Label>Note interne</Label>
-                <Textarea
-                  value={internalNotes}
-                  onChange={(e) => setInternalNotes(e.target.value)}
-                  rows={2}
-                />
+
+            {/* Blocco 2: Anagrafica cliente */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Anagrafica cliente
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Nome cliente *</Label>
+                  <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Mario Rossi" />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="mario@example.com" />
+                </div>
+                <div>
+                  <Label>Telefono</Label>
+                  <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" />
+                </div>
+                <div>
+                  <Label>Azienda</Label>
+                  <Input value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} placeholder="Rossi Srl" />
+                </div>
+                <div>
+                  <Label>Codice Fiscale</Label>
+                  <Input value={clientFiscalCode} onChange={(e) => setClientFiscalCode(e.target.value)} className="uppercase" />
+                </div>
+                <div>
+                  <Label>P.IVA</Label>
+                  <Input value={clientVatNumber} onChange={(e) => setClientVatNumber(e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Indirizzo</Label>
+                  <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" />
+                </div>
               </div>
             </div>
 
-            {/* P03: Dettagli lavoro */}
-            <hr className="my-2" />
-            <h4 className="font-medium text-sm text-muted-foreground">
-              Dettagli lavoro
-            </h4>
+            {/* Blocco 3: Offerta */}
+            <div className="space-y-3 border-t pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Offerta
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <Label>Titolo offerta</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="es. Fornitura e posa serramenti PVC" />
+                </div>
+                <div>
+                  <Label>Validità (giorni)</Label>
+                  <Input type="number" value={validityDays} onChange={(e) => setValidityDays(parseInt(e.target.value) || 30)} />
+                </div>
+                <div className="md:col-span-3">
+                  <Label>Descrizione</Label>
+                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+                    placeholder="Breve descrizione dei lavori (appare sul PDF)" />
+                </div>
+                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Note visibili al cliente</Label>
+                    <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+                      placeholder="Pagamento, tempi consegna, garanzia..." />
+                  </div>
+                  <div>
+                    <Label>Note interne <span className="text-muted-foreground font-normal">(non mostrate al cliente)</span></Label>
+                    <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={2}
+                      placeholder="Info riservate per il team" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Blocco 4: Dettagli lavoro */}
+            <div className="space-y-3 border-t pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Dettagli lavoro e assegnazione
+              </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <Label>Tipo di lavoro</Label>
@@ -1859,6 +2067,30 @@ export default function QuoteBuilder() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Commerciale assegnato</Label>
+                <Select
+                  value={salespersonId ?? "__none__"}
+                  onValueChange={(v) => setSalespersonId(v === "__none__" ? null : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona commerciale" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nessuno (provvigione non calcolata)</SelectItem>
+                    {salespeople.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.first_name} {s.last_name}
+                        {s.compensation_mode === "fixed_only" && " — solo fisso"}
+                        {s.compensation_mode === "fixed_plus_commission" && " — fisso+provv"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  La provvigione teorica viene calcolata automaticamente in base alla configurazione del commerciale.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <Label>Indirizzo lavori (se diverso da cliente)</Label>
@@ -1908,6 +2140,7 @@ export default function QuoteBuilder() {
                   />
                 </div>
               )}
+            </div>
             </div>
           </CardContent>
         </Card>
@@ -1994,15 +2227,10 @@ export default function QuoteBuilder() {
                       >
                         <Layers className="h-4 w-4 mr-1" /> Bundle
                       </Button>
-                      {hasSerramentiFamilies && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setWizardSerramentiOpen(true)}
-                        >
-                          <Package className="h-4 w-4 mr-1" /> Serramento
-                        </Button>
-                      )}
+                      {/* MP-preventivi-v2: bottone "Serramento" top-level rimosso.
+                          Il wizard serramenti e` ora accessibile tramite "Dal listino"
+                          → selezione famiglia con assi, cosi` il tool resta generico
+                          per tutte le tipologie di aziende. */}
                       <Button
                         variant="outline"
                         size="sm"
@@ -2151,20 +2379,34 @@ export default function QuoteBuilder() {
                       );
 
                       return (
-                        <SortableItem key={`item-${idx}`} id={`item-${idx}`}>
+                        <SortableItem
+                          key={`item-${idx}`}
+                          id={`item-${idx}`}
+                          index={!isChild && !isNota && !isSubtotale && !isSconto ? idx : undefined}
+                        >
                           {(dragHandle) => (
                         <div
-                          className={`border rounded-lg p-3 flex gap-1 items-start ${
+                          className={`group/row border rounded-lg p-2.5 flex gap-1.5 items-start transition-all hover:border-primary/40 hover:shadow-sm ${
                             isChild
                               ? "ml-6 bg-muted/20 border-dashed"
+                              : "bg-card"
+                          } ${
+                            isNota
+                              ? "bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50"
                               : ""
-                          } ${isNota ? "bg-amber-50/50" : ""} ${
-                            isSubtotale ? "border-t-2 border-t-border" : ""
+                          } ${
+                            isSubtotale
+                              ? "border-t-2 border-t-primary/30 bg-muted/30"
+                              : ""
+                          } ${
+                            isSconto
+                              ? "bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900/50"
+                              : ""
                           }`}
                         >
                           {!isChild && dragHandle}
                           {isChild && (
-                            <span className="text-muted-foreground text-xs mr-2">
+                            <span className="text-muted-foreground/60 text-xs mr-2 mt-2 shrink-0">
                               └
                             </span>
                           )}
@@ -2217,7 +2459,29 @@ export default function QuoteBuilder() {
                               </Button>
                             </div>
                           ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex gap-3 items-start">
+                                {/* MP-preventivi-v2: thumbnail 48x48 per prodotti con foto */}
+                                {!isSconto && !isSubtotale && !isNota && (() => {
+                                  const img = resolveItemImage(item);
+                                  return (
+                                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted border">
+                                      {img ? (
+                                        <img
+                                          src={img}
+                                          alt={item.name}
+                                          loading="lazy"
+                                          className="h-full w-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center">
+                                          <Package className="h-5 w-5 text-muted-foreground/50" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                                <div className="flex-1">
                               <div className="grid grid-cols-12 gap-2 items-end">
                                 <div className="col-span-12 sm:col-span-4">
                                   <Label className="text-xs">
@@ -2371,6 +2635,51 @@ export default function QuoteBuilder() {
                                   </DropdownMenu>
                                 </div>
                               </div>
+                              {/* MP-preventivi-v2: dettagli riga (misure + assi + descrizione) */}
+                              {!isSconto && !isNota && (item.misura_x || item.misura_y || item.description || (item.axis_selections && Object.keys(item.axis_selections).length > 0)) && (
+                                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                  {(item.misura_x || item.misura_y) && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-medium text-foreground/70">Misure:</span>
+                                      <Input
+                                        type="number"
+                                        value={item.misura_x ?? ""}
+                                        onChange={(e) => updateItem(idx, "misura_x", e.target.value === "" ? null : parseFloat(e.target.value))}
+                                        className="h-7 w-20 text-xs"
+                                        placeholder="L"
+                                      />
+                                      <span>×</span>
+                                      <Input
+                                        type="number"
+                                        value={item.misura_y ?? ""}
+                                        onChange={(e) => updateItem(idx, "misura_y", e.target.value === "" ? null : parseFloat(e.target.value))}
+                                        className="h-7 w-20 text-xs"
+                                        placeholder="H"
+                                      />
+                                      <span>mm</span>
+                                    </div>
+                                  )}
+                                  {item.axis_selections && Object.entries(item.axis_selections).length > 0 && (
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      {Object.entries(item.axis_selections).map(([k, v]) => {
+                                        const formatted = formatAxisEntry(item.family_id, k, v);
+                                        return (
+                                          <Badge key={k} variant="outline" className="text-[10px] font-normal">
+                                            {formatted.label}: {formatted.value}
+                                          </Badge>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  {item.description && (
+                                    <span className="italic line-clamp-1 flex-1 min-w-[120px]">
+                                      {item.description}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              </div>
+                              </div>
                               {/* Badges visibili a tutti */}
                               {(item.is_optional || !item.mostra_nel_pdf) && (
                                 <div className="flex items-center gap-2 mt-1">
@@ -2414,43 +2723,76 @@ export default function QuoteBuilder() {
 
                 {/* Totals in step 1 */}
                 {items.length > 0 && (
-                  <div className="mt-6 flex justify-end">
-                    <div className="w-full max-w-xs space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Subtotale</span>
-                        <span>{formatCurrency(subtotal)}</span>
-                      </div>
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="text-muted-foreground">
-                          Sconto globale %
-                        </span>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={100}
-                          className="w-20 h-8 text-right"
-                          value={discountPercent}
-                          onChange={(e) =>
-                            setDiscountPercent(
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                        />
-                      </div>
-                      {discountPercent > 0 && (
-                        <div className="flex justify-between text-destructive">
-                          <span>Sconto</span>
-                          <span>-{formatCurrency(discountAmt)}</span>
+                  <div className="mt-6 space-y-4">
+                    {isEdit && id && (
+                      <QuoteDiscountControl
+                        quoteId={id}
+                        currentDiscount={discountPercent}
+                        approvalStatus={approvalStatus}
+                        onDiscountChange={setDiscountPercent}
+                        isAdmin={isAdmin}
+                      />
+                    )}
+                    <div className="flex justify-end">
+                      <div className="w-full max-w-sm rounded-lg border bg-gradient-to-br from-muted/30 to-muted/10 p-4 space-y-2.5 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Subtotale
+                          </span>
+                          <span className="tabular-nums font-medium">
+                            {formatCurrency(subtotal)}
+                          </span>
                         </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">IVA</span>
-                        <span>{formatCurrency(vatAmount)}</span>
-                      </div>
-                      <hr />
-                      <div className="flex justify-between font-bold text-base">
-                        <span>Totale</span>
-                        <span>{formatCurrency(total)}</span>
+                        {!isEdit && (
+                          <div className="flex justify-between items-center gap-2 py-1 border-t border-dashed">
+                            <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                              Sconto globale
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.5}
+                                className="w-16 h-7 text-right text-xs"
+                                value={discountPercent}
+                                onChange={(e) =>
+                                  setDiscountPercent(
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                              />
+                              <span className="text-xs text-muted-foreground">%</span>
+                            </div>
+                          </div>
+                        )}
+                        {discountPercent > 0 && (
+                          <div className="flex justify-between items-center text-orange-600 dark:text-orange-400">
+                            <span className="text-xs uppercase tracking-wide">
+                              Sconto applicato
+                            </span>
+                            <span className="tabular-nums font-medium">
+                              -{formatCurrency(discountAmt)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                            IVA
+                          </span>
+                          <span className="tabular-nums text-muted-foreground">
+                            {formatCurrency(vatAmount)}
+                          </span>
+                        </div>
+                        <div className="h-px bg-border" />
+                        <div className="flex justify-between items-baseline">
+                          <span className="font-semibold text-base">
+                            Totale
+                          </span>
+                          <span className="font-bold text-xl text-primary tabular-nums">
+                            {formatCurrency(total)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2565,62 +2907,120 @@ export default function QuoteBuilder() {
       {/* ── STEP 2: Documenti + PDF settings ── */}
       {step === 2 && (
         <div className="space-y-4">
+          {isAdmin ? (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings2 className="h-4 w-4" />
                 Impostazioni PDF (override per questo preventivo)
+                <Badge variant="secondary" className="ml-2 text-[10px]">Admin</Badge>
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Le modifiche qui valgono solo per questo preventivo. I valori di default si configurano in{" "}
+                <Link to="/azienda/impostazioni/margini" className="underline">Impostazioni → Preventivi & margini</Link>.
+              </p>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {[
-                {
-                  k: "pdfPrezziRiga",
-                  v: pdfPrezziRiga,
-                  s: setPdfPrezziRiga,
-                  l: "Mostra prezzo per ogni riga",
-                },
-                {
-                  k: "pdfSoloTotale",
-                  v: pdfSoloTotale,
-                  s: setPdfSoloTotale,
-                  l: "Solo totale finale (senza dettaglio righe)",
-                },
-                {
-                  k: "pdfSconti",
-                  v: pdfSconti,
-                  s: setPdfSconti,
-                  l: "Mostra sconti applicati",
-                },
-                {
-                  k: "pdfImmagini",
-                  v: pdfImmagini,
-                  s: setPdfImmagini,
-                  l: "Includi immagini prodotti",
-                },
-                {
-                  k: "pdfSchedeTecniche",
-                  v: pdfSchedeTecniche,
-                  s: setPdfSchedeTecniche,
-                  l: "Allega schede tecniche PDF",
-                },
-                {
-                  k: "pdfFirma",
-                  v: pdfFirma,
-                  s: setPdfFirma,
-                  l: "Firma digitale abilitata",
-                },
-              ].map(({ k, v, s, l }) => (
-                <div
-                  key={k}
-                  className="flex items-center justify-between py-1"
-                >
-                  <Label className="font-normal">{l}</Label>
-                  <Switch checked={v} onCheckedChange={s} />
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Struttura tabella</h4>
+                {[
+                  { k: "pdfPrezziRiga", v: pdfPrezziRiga, s: setPdfPrezziRiga, l: "Mostra prezzo per ogni riga", h: "Colonne Prezzo/Sconto/IVA sulla riga. Se off: solo Nome+Q.tà+Totale." },
+                  { k: "pdfSoloTotale", v: pdfSoloTotale, s: setPdfSoloTotale, l: "Solo totale finale (senza dettaglio righe)", h: "Omette del tutto la tabella prodotti." },
+                  { k: "pdfSconti", v: pdfSconti, s: setPdfSconti, l: "Mostra sconti applicati", h: "Colonna sconto e riga sconto globale." },
+                ].map(({ k, v, s, l, h }) => (
+                  <div key={k} className="flex items-start justify-between gap-4 py-1.5">
+                    <div className="flex-1">
+                      <Label className="font-normal">{l}</Label>
+                      <p className="text-xs text-muted-foreground">{h}</p>
+                    </div>
+                    <Switch checked={v} onCheckedChange={s} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dettagli prodotto</h4>
+                {[
+                  { k: "pdfImmagini", v: pdfImmagini, s: setPdfImmagini, l: "Includi miniature prodotti", h: "Foto 40x40 nella riga (se disponibili in listino)." },
+                  { k: "pdfMisure", v: pdfMisure, s: setPdfMisure, l: "Mostra misure (L × H mm)", h: "Sotto al nome per prodotti configurati con misure." },
+                  { k: "pdfAttributi", v: pdfAttributi, s: setPdfAttributi, l: "Mostra attributi / varianti", h: 'Es. "Colore: Bianco · Vetro: Doppio".' },
+                  { k: "pdfSchedeTecniche", v: pdfSchedeTecniche, s: setPdfSchedeTecniche, l: "Allega schede tecniche PDF", h: "Documenti prodotto selezionati sotto." },
+                ].map(({ k, v, s, l, h }) => (
+                  <div key={k} className="flex items-start justify-between gap-4 py-1.5">
+                    <div className="flex-1">
+                      <Label className="font-normal">{l}</Label>
+                      <p className="text-xs text-muted-foreground">{h}</p>
+                    </div>
+                    <Switch checked={v} onCheckedChange={s} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Note & condizioni</h4>
+                {[
+                  { k: "pdfNoteCliente", v: pdfNoteCliente, s: setPdfNoteCliente, l: "Stampa note cliente", h: "Le note compilate nello Step 0 (visibili al cliente)." },
+                  { k: "pdfCondizioni", v: pdfCondizioni, s: setPdfCondizioni, l: "Stampa condizioni contrattuali", h: "Termini e condizioni in pagina finale." },
+                ].map(({ k, v, s, l, h }) => (
+                  <div key={k} className="flex items-start justify-between gap-4 py-1.5">
+                    <div className="flex-1">
+                      <Label className="font-normal">{l}</Label>
+                      <p className="text-xs text-muted-foreground">{h}</p>
+                    </div>
+                    <Switch checked={v} onCheckedChange={s} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Firma & presentazione</h4>
+                <div className="flex items-start justify-between gap-4 py-1.5">
+                  <div className="flex-1">
+                    <Label className="font-normal">Firma digitale abilitata</Label>
+                    <p className="text-xs text-muted-foreground">Aggiunge QR code e link "Accetta preventivo" al PDF.</p>
+                  </div>
+                  <Switch checked={pdfFirma} onCheckedChange={setPdfFirma} />
                 </div>
-              ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-1.5">
+                  <div>
+                    <Label className="font-normal text-sm">Watermark (opzionale)</Label>
+                    <Input
+                      value={pdfWatermarkText}
+                      onChange={(e) => setPdfWatermarkText(e.target.value)}
+                      placeholder='es. "BOZZA", "RISERVATO"'
+                      className="mt-1 h-9"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Vuoto = nessun watermark.</p>
+                  </div>
+                  <div>
+                    <Label className="font-normal text-sm">Destinatario copia</Label>
+                    <Select value={pdfCopiaDestinatario || "cliente"} onValueChange={setPdfCopiaDestinatario}>
+                      <SelectTrigger className="mt-1 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cliente">Copia cliente</SelectItem>
+                        <SelectItem value="archivio">Copia archivio</SelectItem>
+                        <SelectItem value="commerciale">Copia commerciale</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">Intestazione visibile nel PDF.</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-4 flex items-start gap-3 text-sm text-muted-foreground">
+                <Lock className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  Le impostazioni di generazione PDF sono gestite dall'amministratore. I valori
+                  correnti verranno applicati automaticamente al salvataggio.
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -3076,47 +3476,66 @@ export default function QuoteBuilder() {
         </Card>
       )}
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between pt-2">
-        <Button
-          variant="outline"
-          onClick={() => setStep(Math.max(0, step - 1))}
-          disabled={step === 0}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Indietro
-        </Button>
-        <div className="flex gap-2">
+      {/* Sticky action bar — sempre visibile nella parte bassa */}
+      <div className="fixed bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-background/95 backdrop-blur-md border-t shadow-lg">
+        <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
           <Button
             variant="outline"
-            onClick={() => handleSave("bozza")}
-            disabled={saving}
+            size="sm"
+            onClick={() => setStep(Math.max(0, step - 1))}
+            disabled={step === 0}
+            className="h-9"
           >
-            {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            Salva Bozza
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Indietro
           </Button>
-          {step < STEPS.length - 1 ? (
-            <Button onClick={handleNext}>
-              Avanti
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          ) : (
+
+          {/* Totale live per mobile (desktop è nell'header) */}
+          {total > 0 && (
+            <div className="md:hidden flex items-center gap-3 text-xs flex-1 justify-center">
+              <span className="text-muted-foreground">Totale:</span>
+              <span className="font-bold text-primary tabular-nums text-sm">
+                {formatCurrency(total)}
+              </span>
+            </div>
+          )}
+
+          <div className="flex gap-2 items-center">
             <Button
+              variant="ghost"
+              size="sm"
               onClick={() => handleSave("bozza")}
-              disabled={saving || !clientName}
+              disabled={saving}
+              className="h-9 text-muted-foreground"
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
-                <FileCheck className="h-4 w-4 mr-2" />
+                <Save className="h-4 w-4 mr-2" />
               )}
-              Salva Preventivo
+              Bozza
             </Button>
-          )}
+            {step < STEPS.length - 1 ? (
+              <Button onClick={handleNext} size="sm" className="h-9">
+                Avanti · {STEPS[step + 1]?.label}
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            ) : (
+              <Button
+                onClick={() => handleSave("bozza")}
+                disabled={saving || !clientName}
+                size="sm"
+                className="h-9 bg-emerald-600 hover:bg-emerald-700"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileCheck className="h-4 w-4 mr-2" />
+                )}
+                Salva preventivo
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

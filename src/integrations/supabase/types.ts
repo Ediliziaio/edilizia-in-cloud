@@ -13,6 +13,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       active_impersonations: {
@@ -10103,6 +10128,85 @@ export type Database = {
           },
         ]
       }
+      discount_rules: {
+        Row: {
+          approva_oltre_pct: number | null
+          client_category: string | null
+          company_id: string
+          created_at: string
+          id: string
+          importo_max: number | null
+          importo_min: number | null
+          is_active: boolean
+          margine_min_pct: number
+          name: string
+          priority: number
+          salesperson_id: string | null
+          sconto_max_pct: number
+          scope: string
+          tipo_lavoro: string | null
+          updated_at: string
+        }
+        Insert: {
+          approva_oltre_pct?: number | null
+          client_category?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          importo_max?: number | null
+          importo_min?: number | null
+          is_active?: boolean
+          margine_min_pct?: number
+          name: string
+          priority?: number
+          salesperson_id?: string | null
+          sconto_max_pct?: number
+          scope?: string
+          tipo_lavoro?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approva_oltre_pct?: number | null
+          client_category?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          importo_max?: number | null
+          importo_min?: number | null
+          is_active?: boolean
+          margine_min_pct?: number
+          name?: string
+          priority?: number
+          salesperson_id?: string | null
+          sconto_max_pct?: number
+          scope?: string
+          tipo_lavoro?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "discount_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_rules_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documenti_dipendenti: {
         Row: {
           company_id: string
@@ -17076,6 +17180,7 @@ export type Database = {
           descrizione: string | null
           icona: string | null
           id: string
+          immagine_url: string | null
           macrocategoria_id: string | null
           margine_target_percentuale: number | null
           nome: string
@@ -17089,6 +17194,7 @@ export type Database = {
           descrizione?: string | null
           icona?: string | null
           id?: string
+          immagine_url?: string | null
           macrocategoria_id?: string | null
           margine_target_percentuale?: number | null
           nome: string
@@ -17102,6 +17208,7 @@ export type Database = {
           descrizione?: string | null
           icona?: string | null
           id?: string
+          immagine_url?: string | null
           macrocategoria_id?: string | null
           margine_target_percentuale?: number | null
           nome?: string
@@ -18000,6 +18107,7 @@ export type Database = {
           icp_score: number | null
           icp_tier: string | null
           id: string
+          is_decision_maker: boolean | null
           last_activity_at: string | null
           last_name: string | null
           last_score_update: string | null
@@ -18055,6 +18163,7 @@ export type Database = {
           icp_score?: number | null
           icp_tier?: string | null
           id?: string
+          is_decision_maker?: boolean | null
           last_activity_at?: string | null
           last_name?: string | null
           last_score_update?: string | null
@@ -18110,6 +18219,7 @@ export type Database = {
           icp_score?: number | null
           icp_tier?: string | null
           id?: string
+          is_decision_maker?: boolean | null
           last_activity_at?: string | null
           last_name?: string | null
           last_score_update?: string | null
@@ -18296,6 +18406,7 @@ export type Database = {
           expected_close_date: string | null
           follower_id: string | null
           id: string
+          last_activity_at: string | null
           loss_notes: string | null
           loss_reason: string | null
           lost_reason: string | null
@@ -18308,6 +18419,7 @@ export type Database = {
           probability: number | null
           sales_velocity_snapshot: Json | null
           source: string | null
+          stage_changed_at: string | null
           stage_id: string
           stalled_notified_at: string | null
           status: string
@@ -18326,6 +18438,7 @@ export type Database = {
           expected_close_date?: string | null
           follower_id?: string | null
           id?: string
+          last_activity_at?: string | null
           loss_notes?: string | null
           loss_reason?: string | null
           lost_reason?: string | null
@@ -18338,6 +18451,7 @@ export type Database = {
           probability?: number | null
           sales_velocity_snapshot?: Json | null
           source?: string | null
+          stage_changed_at?: string | null
           stage_id: string
           stalled_notified_at?: string | null
           status?: string
@@ -18356,6 +18470,7 @@ export type Database = {
           expected_close_date?: string | null
           follower_id?: string | null
           id?: string
+          last_activity_at?: string | null
           loss_notes?: string | null
           loss_reason?: string | null
           lost_reason?: string | null
@@ -18368,6 +18483,7 @@ export type Database = {
           probability?: number | null
           sales_velocity_snapshot?: Json | null
           source?: string | null
+          stage_changed_at?: string | null
           stage_id?: string
           stalled_notified_at?: string | null
           status?: string
@@ -22231,11 +22347,17 @@ export type Database = {
           numero_formato: string | null
           numero_prefisso: string | null
           overhead_percentuale: number | null
+          pdf_copia_destinatario: string | null
           pdf_includi_schede_tecniche: boolean | null
+          pdf_mostra_attributi: boolean
+          pdf_mostra_condizioni: boolean
           pdf_mostra_immagini: boolean | null
+          pdf_mostra_misure: boolean
+          pdf_mostra_note_cliente: boolean
           pdf_mostra_prezzi_per_riga: boolean | null
           pdf_mostra_sconti: boolean | null
           pdf_mostra_solo_totale: boolean | null
+          pdf_watermark_text: string | null
           soglia_margine_visibile: number | null
           visibilita_margini: string | null
         }
@@ -22253,11 +22375,17 @@ export type Database = {
           numero_formato?: string | null
           numero_prefisso?: string | null
           overhead_percentuale?: number | null
+          pdf_copia_destinatario?: string | null
           pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_attributi?: boolean
+          pdf_mostra_condizioni?: boolean
           pdf_mostra_immagini?: boolean | null
+          pdf_mostra_misure?: boolean
+          pdf_mostra_note_cliente?: boolean
           pdf_mostra_prezzi_per_riga?: boolean | null
           pdf_mostra_sconti?: boolean | null
           pdf_mostra_solo_totale?: boolean | null
+          pdf_watermark_text?: string | null
           soglia_margine_visibile?: number | null
           visibilita_margini?: string | null
         }
@@ -22275,11 +22403,17 @@ export type Database = {
           numero_formato?: string | null
           numero_prefisso?: string | null
           overhead_percentuale?: number | null
+          pdf_copia_destinatario?: string | null
           pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_attributi?: boolean
+          pdf_mostra_condizioni?: boolean
           pdf_mostra_immagini?: boolean | null
+          pdf_mostra_misure?: boolean
+          pdf_mostra_note_cliente?: boolean
           pdf_mostra_prezzi_per_riga?: boolean | null
           pdf_mostra_sconti?: boolean | null
           pdf_mostra_solo_totale?: boolean | null
+          pdf_watermark_text?: string | null
           soglia_margine_visibile?: number | null
           visibilita_margini?: string | null
         }
@@ -23243,6 +23377,86 @@ export type Database = {
           },
         ]
       }
+      quote_approvals: {
+        Row: {
+          company_id: string
+          decided_at: string | null
+          decided_by: string | null
+          decision: string | null
+          id: string
+          importo_preventivo: number
+          margine_stimato_pct: number | null
+          note_decisione: string | null
+          note_richiesta: string | null
+          quote_id: string
+          requested_at: string
+          requested_by: string
+          sconto_autorizzato_pct: number | null
+          sconto_richiesto_pct: number
+        }
+        Insert: {
+          company_id: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string | null
+          id?: string
+          importo_preventivo: number
+          margine_stimato_pct?: number | null
+          note_decisione?: string | null
+          note_richiesta?: string | null
+          quote_id: string
+          requested_at?: string
+          requested_by: string
+          sconto_autorizzato_pct?: number | null
+          sconto_richiesto_pct: number
+        }
+        Update: {
+          company_id?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string | null
+          id?: string
+          importo_preventivo?: number
+          margine_stimato_pct?: number | null
+          note_decisione?: string | null
+          note_richiesta?: string | null
+          quote_id?: string
+          requested_at?: string
+          requested_by?: string
+          sconto_autorizzato_pct?: number | null
+          sconto_richiesto_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_approvals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "quote_approvals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_approvals_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_approvals_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+        ]
+      }
       quote_items: {
         Row: {
           article_template_id: string | null
@@ -23668,6 +23882,84 @@ export type Database = {
           },
         ]
       }
+      quote_salespeople: {
+        Row: {
+          commission_amount: number
+          commission_type: string
+          commission_value: number
+          company_id: string
+          compensation_mode: string | null
+          created_at: string
+          fixed_monthly_eur: number | null
+          id: string
+          quote_id: string
+          salesperson_id: string
+          updated_at: string
+        }
+        Insert: {
+          commission_amount?: number
+          commission_type: string
+          commission_value?: number
+          company_id: string
+          compensation_mode?: string | null
+          created_at?: string
+          fixed_monthly_eur?: number | null
+          id?: string
+          quote_id: string
+          salesperson_id: string
+          updated_at?: string
+        }
+        Update: {
+          commission_amount?: number
+          commission_type?: string
+          commission_value?: number
+          company_id?: string
+          compensation_mode?: string | null
+          created_at?: string
+          fixed_monthly_eur?: number | null
+          id?: string
+          quote_id?: string
+          salesperson_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_salespeople_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "quote_salespeople_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_salespeople_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_salespeople_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+          {
+            foreignKeyName: "quote_salespeople_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_templates: {
         Row: {
           accent_color: string | null
@@ -23855,6 +24147,7 @@ export type Database = {
       }
       quotes: {
         Row: {
+          approval_status: string | null
           assigned_to: string | null
           client_address: string | null
           client_company: string | null
@@ -23863,6 +24156,7 @@ export type Database = {
           client_name: string | null
           client_phone: string | null
           client_vat_number: string | null
+          commission_amount_snapshot: number | null
           company_id: string
           computo_upload_id: string | null
           contact_id: string | null
@@ -23878,15 +24172,30 @@ export type Database = {
           indirizzo_lavori: string | null
           internal_notes: string | null
           km_cantiere: number | null
+          margine_pct_snapshot: number | null
           margine_totale_percentuale: number | null
           notes: string | null
           opportunity_id: string | null
+          pdf_copia_destinatario: string | null
           pdf_generated_at: string | null
+          pdf_includi_schede_tecniche: boolean | null
+          pdf_mostra_attributi: boolean | null
+          pdf_mostra_condizioni: boolean | null
+          pdf_mostra_immagini: boolean | null
+          pdf_mostra_misure: boolean | null
+          pdf_mostra_note_cliente: boolean | null
+          pdf_mostra_prezzi_per_riga: boolean | null
+          pdf_mostra_sconti: boolean | null
+          pdf_mostra_solo_totale: boolean | null
           pdf_storage_path: string | null
+          pdf_watermark_text: string | null
           piano_installazione: number | null
           quote_number: string
           refused_at: string | null
           refused_reason: string | null
+          salesperson_id: string | null
+          sconto_autorizzato_pct: number | null
+          sconto_richiesto_pct: number | null
           sede_id: string | null
           sent_at: string | null
           signature_token: string | null
@@ -23910,6 +24219,7 @@ export type Database = {
           viewed_at: string | null
         }
         Insert: {
+          approval_status?: string | null
           assigned_to?: string | null
           client_address?: string | null
           client_company?: string | null
@@ -23918,6 +24228,7 @@ export type Database = {
           client_name?: string | null
           client_phone?: string | null
           client_vat_number?: string | null
+          commission_amount_snapshot?: number | null
           company_id: string
           computo_upload_id?: string | null
           contact_id?: string | null
@@ -23933,15 +24244,30 @@ export type Database = {
           indirizzo_lavori?: string | null
           internal_notes?: string | null
           km_cantiere?: number | null
+          margine_pct_snapshot?: number | null
           margine_totale_percentuale?: number | null
           notes?: string | null
           opportunity_id?: string | null
+          pdf_copia_destinatario?: string | null
           pdf_generated_at?: string | null
+          pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_attributi?: boolean | null
+          pdf_mostra_condizioni?: boolean | null
+          pdf_mostra_immagini?: boolean | null
+          pdf_mostra_misure?: boolean | null
+          pdf_mostra_note_cliente?: boolean | null
+          pdf_mostra_prezzi_per_riga?: boolean | null
+          pdf_mostra_sconti?: boolean | null
+          pdf_mostra_solo_totale?: boolean | null
           pdf_storage_path?: string | null
+          pdf_watermark_text?: string | null
           piano_installazione?: number | null
           quote_number: string
           refused_at?: string | null
           refused_reason?: string | null
+          salesperson_id?: string | null
+          sconto_autorizzato_pct?: number | null
+          sconto_richiesto_pct?: number | null
           sede_id?: string | null
           sent_at?: string | null
           signature_token?: string | null
@@ -23965,6 +24291,7 @@ export type Database = {
           viewed_at?: string | null
         }
         Update: {
+          approval_status?: string | null
           assigned_to?: string | null
           client_address?: string | null
           client_company?: string | null
@@ -23973,6 +24300,7 @@ export type Database = {
           client_name?: string | null
           client_phone?: string | null
           client_vat_number?: string | null
+          commission_amount_snapshot?: number | null
           company_id?: string
           computo_upload_id?: string | null
           contact_id?: string | null
@@ -23988,15 +24316,30 @@ export type Database = {
           indirizzo_lavori?: string | null
           internal_notes?: string | null
           km_cantiere?: number | null
+          margine_pct_snapshot?: number | null
           margine_totale_percentuale?: number | null
           notes?: string | null
           opportunity_id?: string | null
+          pdf_copia_destinatario?: string | null
           pdf_generated_at?: string | null
+          pdf_includi_schede_tecniche?: boolean | null
+          pdf_mostra_attributi?: boolean | null
+          pdf_mostra_condizioni?: boolean | null
+          pdf_mostra_immagini?: boolean | null
+          pdf_mostra_misure?: boolean | null
+          pdf_mostra_note_cliente?: boolean | null
+          pdf_mostra_prezzi_per_riga?: boolean | null
+          pdf_mostra_sconti?: boolean | null
+          pdf_mostra_solo_totale?: boolean | null
           pdf_storage_path?: string | null
+          pdf_watermark_text?: string | null
           piano_installazione?: number | null
           quote_number?: string
           refused_at?: string | null
           refused_reason?: string | null
+          salesperson_id?: string | null
+          sconto_autorizzato_pct?: number | null
+          sconto_richiesto_pct?: number | null
           sede_id?: string | null
           sent_at?: string | null
           signature_token?: string | null
@@ -24060,6 +24403,13 @@ export type Database = {
             columns: ["opportunity_id"]
             isOneToOne: false
             referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
             referencedColumns: ["id"]
           },
           {
@@ -26757,12 +27107,15 @@ export type Database = {
           commission_type: string
           commission_value: number
           company_id: string
+          compensation_mode: string
           created_at: string
           email: string | null
           first_name: string
+          fixed_monthly_eur: number | null
           id: string
           is_active: boolean
           last_name: string
+          notes: string | null
           phone: string | null
           updated_at: string
           user_id: string | null
@@ -26771,12 +27124,15 @@ export type Database = {
           commission_type?: string
           commission_value?: number
           company_id: string
+          compensation_mode?: string
           created_at?: string
           email?: string | null
           first_name: string
+          fixed_monthly_eur?: number | null
           id?: string
           is_active?: boolean
           last_name: string
+          notes?: string | null
           phone?: string | null
           updated_at?: string
           user_id?: string | null
@@ -26785,12 +27141,15 @@ export type Database = {
           commission_type?: string
           commission_value?: number
           company_id?: string
+          compensation_mode?: string
           created_at?: string
           email?: string | null
           first_name?: string
+          fixed_monthly_eur?: number | null
           id?: string
           is_active?: boolean
           last_name?: string
+          notes?: string | null
           phone?: string | null
           updated_at?: string
           user_id?: string | null
@@ -35168,6 +35527,11 @@ export type Database = {
         Args: { p_company_id: string; p_step_key: string }
         Returns: undefined
       }
+      compute_max_discount: {
+        Args: { p_quote_id: string; p_user_id?: string }
+        Returns: Json
+      }
+      compute_quote_commission: { Args: { p_quote_id: string }; Returns: Json }
       consume_ai_credits: {
         Args: {
           p_agent_id?: string
@@ -35243,6 +35607,15 @@ export type Database = {
         Returns: Json
       }
       create_task_due_notifications: { Args: never; Returns: number }
+      decide_quote_approval: {
+        Args: {
+          p_approval_id: string
+          p_decision: string
+          p_note?: string
+          p_sconto_autorizzato_pct?: number
+        }
+        Returns: undefined
+      }
       decrement_scorta: {
         Args: { p_id: string; p_qty: number }
         Returns: undefined
@@ -35333,6 +35706,10 @@ export type Database = {
       }
       do_recalculate_quote_totals: {
         Args: { p_quote_id: string }
+        Returns: undefined
+      }
+      ensure_sales_os_access: {
+        Args: { p_company_id: string }
         Returns: undefined
       }
       execute_automation: {
@@ -35869,9 +36246,11 @@ export type Database = {
         Returns: {
           avg_cycle_days: number
           avg_deal_size: number
+          lost_in_period: number
           open_opportunities: number
           sales_velocity: number
           win_rate: number
+          won_in_period: number
         }[]
       }
       get_scadenzario: {
@@ -35896,7 +36275,7 @@ export type Database = {
           assigned_to: string
           contact_name: string
           days_stalled: number
-          last_activity_at: string
+          last_activity: string
           opportunity_id: string
           opportunity_name: string
           stage_name: string
@@ -36258,6 +36637,14 @@ export type Database = {
         Args: { p_integration_id: string }
         Returns: undefined
       }
+      request_quote_approval: {
+        Args: {
+          p_note?: string
+          p_quote_id: string
+          p_sconto_richiesto_pct: number
+        }
+        Returns: string
+      }
       reset_daily_budget_if_needed: {
         Args: { p_company_id: string }
         Returns: undefined
@@ -36617,6 +37004,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: [

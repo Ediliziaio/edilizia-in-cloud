@@ -12,6 +12,7 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
+  Percent,
 } from "lucide-react";
 import {
   Sheet,
@@ -37,6 +38,10 @@ const typeConfig: Record<string, { icon: typeof Bell; className: string }> = {
   task_assigned: { icon: CheckSquare, className: "text-purple-500" },
   task_due: { icon: CheckSquare, className: "text-purple-500" },
   installment_due: { icon: Banknote, className: "text-green-500" },
+  quote_approval_requested: { icon: Percent, className: "text-orange-500" },
+  quote_approval_approved: { icon: Percent, className: "text-green-600" },
+  quote_approval_rejected: { icon: Percent, className: "text-red-600" },
+  quote_approval_counter_proposed: { icon: Percent, className: "text-blue-500" },
   generic: { icon: Bell, className: "text-muted-foreground" },
 };
 
@@ -49,6 +54,7 @@ const entityTypeLabels: Record<string, string> = {
   project: "Progetto",
   invoice: "Fattura",
   installment: "Rata",
+  quote: "Preventivo",
   integration: "Integrazione",
 };
 

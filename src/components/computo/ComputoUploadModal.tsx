@@ -41,6 +41,13 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete?: (quoteId: string) => void;
+  /**
+   * Modalità del modale:
+   * - "computo" (default): caricamento computi metrici (PDF/Excel/XPWE)
+   * - "foto": scatto/foto di un preventivo scritto a mano o PDF informale,
+   *   l'AI estrae righe e fa matching col listino prodotti.
+   */
+  intent?: "computo" | "foto";
 }
 
 const ACCEPTED_TYPES = [
@@ -70,7 +77,8 @@ function getFileIcon(name: string) {
   return <FileUp className="h-8 w-8 text-slate-400" />;
 }
 
-export function ComputoUploadModal({ open, onOpenChange, onComplete }: Props) {
+export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "computo" }: Props) {
+  const isFotoMode = intent === "foto";
   const navigate = useNavigate();
   const {
     status,
@@ -219,11 +227,18 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-orange-500" />
-            {step === 1 && "Importa Computo Metrico"}
+            {step === 1 && (isFotoMode ? "Da Foto o PDF — estrai preventivo con AI" : "Importa Computo Metrico")}
             {step === 2 && "Configurazione"}
             {step === 3 && "Estrazione AI in corso..."}
             {step === 4 && "Revisione Voci Estratte"}
           </DialogTitle>
+          {step === 1 && isFotoMode && (
+            <p className="text-sm text-muted-foreground">
+              Scatta o carica la foto di un preventivo scritto a mano / stampato.
+              L'AI leggerà prodotti, misure, quantità e prezzi, poi farà match col tuo listino.
+              Potrai rivedere e modificare tutto prima di salvare.
+            </p>
+          )}
         </DialogHeader>
 
         {/* ── Step 1: Upload ────────────────────────────────────────────── */}

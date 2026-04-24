@@ -126,23 +126,33 @@ export function CategoryGrid({
               key={cat.id}
               type="button"
               onClick={() => onSelectCategory(cat)}
-              className="group flex min-h-[112px] flex-col items-start gap-2 rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+              title={cat.nome}
+              className="group flex min-h-[130px] w-full flex-col items-start gap-2 rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <div
-                className="flex h-14 w-14 items-center justify-center rounded-md text-primary"
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md text-primary overflow-hidden"
                 style={
-                  cat.colore
+                  cat.colore && !cat.immagine_url
                     ? { backgroundColor: `${cat.colore}1a`, color: cat.colore }
                     : undefined
                 }
               >
-                <CategoryIcon icona={cat.icona} />
+                {cat.immagine_url ? (
+                  <img
+                    src={cat.immagine_url}
+                    alt={cat.nome}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <CategoryIcon icona={cat.icona} />
+                )}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium leading-snug">
+              <div className="min-w-0 w-full">
+                <div className="text-sm font-medium leading-tight line-clamp-2 break-words">
                   {cat.nome}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="mt-0.5 text-xs text-muted-foreground">
                   {cat.total} prodott{cat.total === 1 ? "o" : "i"}
                 </div>
               </div>

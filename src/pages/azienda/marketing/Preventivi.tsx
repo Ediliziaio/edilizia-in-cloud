@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import AnalisiPreventivi from "./AnalisiPreventivi";
+import QuoteApprovals from "./QuoteApprovals";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -24,6 +25,13 @@ interface QuoteRow {
   created_at: string;
   expires_at: string | null;
   source?: string | null;
+  salesperson_id?: string | null;
+  approval_status?: string | null;
+  contact_id?: string | null;
+  opportunity_id?: string | null;
+  margine_pct_snapshot?: number | null;
+  commission_amount_snapshot?: number | null;
+  pdf_storage_path?: string | null;
 }
 
 /** Shape returned by the KPI query (partial select) */
@@ -57,9 +65,34 @@ interface QuoteForDuplicate extends QuoteRow {
 }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  QuotesFiltersSheet,
+  EMPTY_QUOTE_FILTERS,
+  countActiveQuoteFilters,
+  type QuotesFilters,
+} from "@/components/marketing/preventivi/QuotesFiltersSheet";
+import { QuoteQuickViewSheet } from "@/components/marketing/preventivi/QuoteQuickViewSheet";
+import {
+  QuoteColumnsPicker,
+  loadVisibleColumns,
+  type QuoteColumnKey,
+} from "@/components/marketing/preventivi/QuoteColumnsPicker";
+import {
+  QuoteBulkToolbar,
+  type BulkQuoteLite,
+} from "@/components/marketing/preventivi/QuoteBulkToolbar";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend,
+} from "recharts";
 import {
   Table,
   TableBody,
@@ -72,6 +105,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -99,8 +133,13 @@ import {
   Clock,
   Target,
   BrainCircuit,
+  Percent,
   FileUp,
   Sparkles,
+  SlidersHorizontal,
+  ChevronDown,
+  FileCheck2,
+  Euro,
 } from "lucide-react";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 
@@ -116,13 +155,53 @@ export default function Preventivi() {
     setSearchParams(tab === "lista" ? {} : { tab });
   };
 
-  const [statusFilter, setStatusFilter] = useState<string>("tutti");
+  // Count richieste approvazione sconto pending (solo per admin — badge nel tab)
+  const { data: pendingApprovalsCount = 0 } = useQuery({
+    queryKey: ["quote-approvals-pending-count", companyId],
+    enabled: !!companyId && isAdmin,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("quote_approvals")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .is("decision", null);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  // Sprint 3: accetta drill-down da Sales OS via ?status=inviata
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const qpStatus = searchParams.get("status");
+    return qpStatus || "tutti";
+  });
+  useEffect(() => {
+    if (searchParams.has("status")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("status");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [search, setSearch] = useState("");
+  // Filtri avanzati v4 — centralizzati in QuotesFilters (sheet laterale)
+  const [filters, setFilters] = useState<QuotesFilters>(EMPTY_QUOTE_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteQuote, setDeleteQuote] = useState<QuoteRow | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [showComputoModal, setShowComputoModal] = useState(false);
+  const [showFotoModal, setShowFotoModal] = useState(false);
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const PAGE_SIZE = 50;
+
+  // Bulk + colonne (Sprint 5)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [visibleColumns, setVisibleColumns] = useState<Set<QuoteColumnKey>>(() =>
+    loadVisibleColumns()
+  );
+  const isColVisible = (k: QuoteColumnKey) => visibleColumns.has(k);
 
   // Debounce ricerca: aspetta 300ms prima di filtrare, resetta la pagina
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,12 +215,12 @@ export default function Preventivi() {
   }, [search]);
 
   const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
-    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter],
+    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, filters],
     enabled: !!companyId,
     queryFn: async () => {
       let query = supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source", { count: "exact" })
+        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id, margine_pct_snapshot, commission_amount_snapshot, pdf_storage_path", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
@@ -149,6 +228,32 @@ export default function Preventivi() {
       if (statusFilter !== "tutti") {
         query = query.eq("status", statusFilter);
       }
+      if (filters.statuses.length > 0) {
+        query = query.in("status", filters.statuses);
+      }
+      if (filters.salespersonId) {
+        if (filters.salespersonId === "none") {
+          query = query.is("salesperson_id", null);
+        } else {
+          query = query.eq("salesperson_id", filters.salespersonId);
+        }
+      }
+      if (filters.source) {
+        if (filters.source === "manuale") {
+          query = query.or("source.is.null,source.eq.manual");
+        } else {
+          query = query.eq("source", filters.source);
+        }
+      }
+      if (filters.approvalStatus) {
+        query = query.eq("approval_status", filters.approvalStatus);
+      }
+      if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
+      if (filters.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
+      if (filters.importoMin) query = query.gte("total", parseFloat(filters.importoMin));
+      if (filters.importoMax) query = query.lte("total", parseFloat(filters.importoMax));
+      if (isAdmin && filters.marginMin) query = query.gte("margine_pct_snapshot", parseFloat(filters.marginMin));
+      if (isAdmin && filters.marginMax) query = query.lte("margine_pct_snapshot", parseFloat(filters.marginMax));
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -157,6 +262,97 @@ export default function Preventivi() {
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+
+  // Fetch commerciali per filtro dropdown
+  const { data: salespeopleList = [] } = useQuery({
+    queryKey: ["salespeople-for-filter", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("salespeople")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .order("last_name");
+      if (error) throw error;
+      return data as Array<{ id: string; first_name: string; last_name: string }>;
+    },
+  });
+
+  const salespersonNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    salespeopleList.forEach((s) => m.set(s.id, `${s.first_name} ${s.last_name}`));
+    return m;
+  }, [salespeopleList]);
+
+  // KPI charts — fetch aggregato ultimi 6 mesi (no paginazione)
+  const { data: chartQuotes = [] } = useQuery({
+    queryKey: ["quotes-chart", companyId],
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("status, total, created_at")
+        .eq("company_id", companyId!)
+        .gte("created_at", sixMonthsAgo.toISOString());
+      if (error) throw error;
+      return data as Array<{ status: string; total: number | null; created_at: string }>;
+    },
+  });
+
+  const monthlyTrend = useMemo(() => {
+    // Ultimi 6 mesi con count creati + accettati
+    const now = new Date();
+    const buckets: Array<{ label: string; key: string; created: number; accepted: number; value: number }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleString("it-IT", { month: "short" });
+      buckets.push({ label, key, created: 0, accepted: 0, value: 0 });
+    }
+    const byKey = new Map(buckets.map((b) => [b.key, b]));
+    chartQuotes.forEach((q) => {
+      const d = new Date(q.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const b = byKey.get(key);
+      if (!b) return;
+      b.created++;
+      if (q.status === "accettata") {
+        b.accepted++;
+        b.value += q.total ?? 0;
+      }
+    });
+    return buckets;
+  }, [chartQuotes]);
+
+  const statusDistribution = useMemo(() => {
+    const map = new Map<string, number>();
+    chartQuotes.forEach((q) => map.set(q.status, (map.get(q.status) ?? 0) + 1));
+    const colors: Record<string, string> = {
+      bozza: "#94a3b8",
+      inviata: "#3b82f6",
+      visualizzata: "#8b5cf6",
+      accettata: "#16a34a",
+      rifiutata: "#ef4444",
+      scaduta: "#f97316",
+    };
+    const labels: Record<string, string> = {
+      bozza: "Bozza",
+      inviata: "Inviata",
+      visualizzata: "Visualizzata",
+      accettata: "Accettata",
+      rifiutata: "Rifiutata",
+      scaduta: "Scaduta",
+    };
+    return Array.from(map.entries()).map(([status, value]) => ({
+      name: labels[status] ?? status,
+      value,
+      color: colors[status] ?? "#64748b",
+    }));
+  }, [chartQuotes]);
 
   const quotes = quotesPage.data;
   const totalQuotes = quotesPage.total;
@@ -395,6 +591,27 @@ export default function Preventivi() {
             <button
               type="button"
               role="tab"
+              aria-selected={activeTab === "approvazioni"}
+              onClick={() => handleTabChange("approvazioni")}
+              className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                activeTab === "approvazioni"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Percent className="h-4 w-4" aria-hidden="true" />
+              Approvazioni sconto
+              {pendingApprovalsCount > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
+                  {pendingApprovalsCount}
+                </Badge>
+              )}
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              type="button"
+              role="tab"
               aria-selected={activeTab === "analisi"}
               onClick={() => handleTabChange("analisi")}
               className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
@@ -412,135 +629,292 @@ export default function Preventivi() {
 
       {activeTab === "lista" && (
         <>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Preventivi</h1>
-          <p className="text-muted-foreground">Gestisci le offerte commerciali</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileSignature className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Preventivi</h1>
+            <p className="text-sm text-muted-foreground">Gestisci le offerte commerciali</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          {filtered.length > 0 && (
-            <Button variant="outline" onClick={handleExportExcel}>
-              <Download className="h-4 w-4 mr-2" />
-              Esporta Excel
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => setShowComputoModal(true)}>
-            <FileUp className="h-4 w-4 mr-2" />
-            Da Computo Metrico
-          </Button>
-          <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
+        <div className="flex gap-2 items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Crea da...
+                <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
+                <FileUp className="h-4 w-4 mr-2" />
+                Computo metrico
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
+                <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                Foto / PDF (AI)
+              </DropdownMenuItem>
+              {filtered.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleExportExcel}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Esporta Excel (tutti)
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")} size="sm" className="h-9">
             <Plus className="h-4 w-4 mr-2" />
-            Nuovo Preventivo
+            Nuovo preventivo
           </Button>
         </div>
       </div>
 
-      {/* KPI strip — base */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
+      {/* KPI Hero — 4 metriche chiave + 4 avanzati toggleable */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="overflow-hidden border-l-4 border-l-slate-400">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Bozze</p>
-            <p className="text-2xl font-bold">{bozze}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bozze</p>
+              <FileText className="h-4 w-4 text-slate-400" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">{bozze}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">da completare</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden border-l-4 border-l-blue-500">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Inviate</p>
-            <p className="text-2xl font-bold">{inviate}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Inviate</p>
+              <TrendingUp className="h-4 w-4 text-blue-500" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">{inviate}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {pipeline > 0 ? `${formatCurrency(pipeline)} in pipeline` : "nessuna pipeline"}
+            </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden border-l-4 border-l-emerald-500">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Accettate</p>
-            <p className="text-2xl font-bold">{accettate}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Accettate</p>
+              <FileCheck2 className="h-4 w-4 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">{accettate}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tassoConversione !== null ? `${tassoConversione}% conversion rate` : "—"}
+            </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden border-l-4 border-l-primary">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Valore Accettate</p>
-            <p className="text-2xl font-bold">{formatCurrency(valoreTotale)}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ricavo firmato</p>
+              <Euro className="h-4 w-4 text-primary" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5 truncate">{formatCurrency(valoreTotale)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {accettate > 0
+                ? `ticket medio ${formatCurrency(valoreTotale / accettate)}`
+                : "nessuna firmata"}
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* KPI avanzati */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Target className="h-4 w-4 text-[#1E3A5F]" />
-              <p className="text-sm text-muted-foreground">Tasso conversione</p>
-            </div>
-            <p className="text-2xl font-bold">
+      {/* KPI avanzati — più compatti, senza Card heavy */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-lg border bg-muted/30 p-3">
+        <div className="flex items-start gap-2.5">
+          <Target className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tasso conversione</p>
+            <p className="text-lg font-semibold">
               {tassoConversione !== null ? `${tassoConversione}%` : "—"}
             </p>
             {decisioni > 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {accettate} / {decisioni} con risposta
-              </p>
+              <p className="text-[10px] text-muted-foreground">{accettate}/{decisioni} con risposta</p>
             )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-4 w-4 text-[#1E3A5F]" />
-              <p className="text-sm text-muted-foreground">Pipeline attiva</p>
-            </div>
-            <p className="text-2xl font-bold">{formatCurrency(pipeline)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {inviate} offert{inviate === 1 ? "a" : "e"} in attesa
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <FileText className="h-4 w-4 text-[#1E3A5F]" />
-              <p className="text-sm text-muted-foreground">Valore medio offerta</p>
-            </div>
-            <p className="text-2xl font-bold">{formatCurrency(valoremedioOfferta)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              su {nonBozze.length} offert{nonBozze.length === 1 ? "a" : "e"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="h-4 w-4 text-[#1E3A5F]" />
-              <p className="text-sm text-muted-foreground">Tempo medio firma</p>
-            </div>
-            <p className="text-2xl font-bold">
+          </div>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <TrendingUp className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Pipeline attiva</p>
+            <p className="text-lg font-semibold truncate">{formatCurrency(pipeline)}</p>
+            <p className="text-[10px] text-muted-foreground">{inviate} offert{inviate === 1 ? "a" : "e"}</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <FileText className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Valore medio offerta</p>
+            <p className="text-lg font-semibold truncate">{formatCurrency(valoremedioOfferta)}</p>
+            <p className="text-[10px] text-muted-foreground">su {nonBozze.length} offert{nonBozze.length === 1 ? "a" : "e"}</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <Clock className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tempo medio firma</p>
+            <p className="text-lg font-semibold">
               {tempoMedioGiorni !== null ? `${tempoMedioGiorni}gg` : "—"}
             </p>
             {conRisposta.length > 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                su {conRisposta.length} firmat{conRisposta.length === 1 ? "a" : "e"}
-              </p>
+              <p className="text-[10px] text-muted-foreground">su {conRisposta.length} firmat{conRisposta.length === 1 ? "a" : "e"}</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
+      {/* Grafici KPI — trend mensile + distribuzione stati */}
+      {chartQuotes.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-sm font-medium">Trend ultimi 6 mesi</p>
+                  <p className="text-xs text-muted-foreground">Preventivi creati vs accettati</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Valore accettato</p>
+                  <p className="text-sm font-semibold text-green-600">
+                    {formatCurrency(monthlyTrend.reduce((s, m) => s + m.value, 0))}
+                  </p>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={monthlyTrend} barCategoryGap="25%">
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                    formatter={(v: number, name: string) => [v, name]}
+                  />
+                  <Bar dataKey="created" name="Creati" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="accepted" name="Accettati" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="mb-2">
+                <p className="text-sm font-medium">Distribuzione stati</p>
+                <p className="text-xs text-muted-foreground">{chartQuotes.length} preventivi (6 mesi)</p>
+              </div>
+              {statusDistribution.length === 0 ? (
+                <div className="h-[180px] flex items-center justify-center text-muted-foreground text-xs">
+                  Nessun dato
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={statusDistribution}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {statusDistribution.map((d, i) => (
+                        <Cell key={i} fill={d.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca per numero, cliente, titolo..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca per numero, cliente, titolo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFiltersOpen(true)}
+            className={`h-9 ${countActiveQuoteFilters(filters) > 0 ? "border-primary text-primary" : ""}`}
+          >
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filtri avanzati
+            {countActiveQuoteFilters(filters) > 0 && (
+              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
+                {countActiveQuoteFilters(filters)}
+              </Badge>
+            )}
+          </Button>
+          <QuoteColumnsPicker
+            visible={visibleColumns}
+            onChange={setVisibleColumns}
+            isAdmin={isAdmin}
           />
         </div>
+
+        {/* Bulk actions toolbar — visibile solo con selezione attiva */}
+        <QuoteBulkToolbar
+          selectedIds={selectedIds}
+          selectedQuotes={
+            filtered.filter((q: QuoteRow) => selectedIds.has(q.id)) as unknown as BulkQuoteLite[]
+          }
+          onClearSelection={() => setSelectedIds(new Set())}
+          onReload={() => queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all })}
+        />
+
         <Tabs value={statusFilter} onValueChange={handleStatusFilter}>
-          <TabsList>
-            <TabsTrigger value="tutti">Tutti</TabsTrigger>
-            <TabsTrigger value="bozza">Bozze</TabsTrigger>
-            <TabsTrigger value="inviata">Inviate</TabsTrigger>
-            <TabsTrigger value="accettata">Accettate</TabsTrigger>
-            <TabsTrigger value="rifiutata">Rifiutate</TabsTrigger>
+          <TabsList className="h-9">
+            <TabsTrigger value="tutti" className="gap-1.5 text-xs">
+              Tutti
+              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5 tabular-nums">
+                {kpiRows.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="bozza" className="gap-1.5 text-xs">
+              Bozze
+              <span className="text-[10px] bg-slate-200 dark:bg-slate-700 rounded px-1.5 py-0.5 tabular-nums">
+                {bozze}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="inviata" className="gap-1.5 text-xs">
+              Inviate
+              <span className="text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded px-1.5 py-0.5 tabular-nums">
+                {inviate}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="accettata" className="gap-1.5 text-xs">
+              Accettate
+              <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded px-1.5 py-0.5 tabular-nums">
+                {accettate}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="rifiutata" className="gap-1.5 text-xs">
+              Rifiutate
+              <span className="text-[10px] bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded px-1.5 py-0.5 tabular-nums">
+                {rifiutate}
+              </span>
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -602,44 +976,195 @@ export default function Preventivi() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Numero</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Titolo</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead className="text-right">Totale</TableHead>
-                <TableHead>Data</TableHead>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={(() => {
+                      if (filtered.length === 0) return false;
+                      const allSelected = filtered.every((q: QuoteRow) =>
+                        selectedIds.has(q.id)
+                      );
+                      if (allSelected) return true;
+                      const someSelected = filtered.some((q: QuoteRow) =>
+                        selectedIds.has(q.id)
+                      );
+                      return someSelected ? "indeterminate" : false;
+                    })()}
+                    onCheckedChange={(v) => {
+                      if (v) {
+                        setSelectedIds(
+                          new Set(filtered.map((q: QuoteRow) => q.id))
+                        );
+                      } else {
+                        setSelectedIds(new Set());
+                      }
+                    }}
+                    aria-label="Seleziona tutti"
+                  />
+                </TableHead>
+                {isColVisible("numero") && <TableHead>Numero</TableHead>}
+                {isColVisible("cliente") && <TableHead>Cliente</TableHead>}
+                {isColVisible("titolo") && <TableHead>Titolo</TableHead>}
+                {isColVisible("commerciale") && <TableHead>Commerciale</TableHead>}
+                {isColVisible("stato") && <TableHead>Stato</TableHead>}
+                {isColVisible("approvazione") && <TableHead>Approvazione</TableHead>}
+                {isColVisible("fonte") && <TableHead>Fonte</TableHead>}
+                {isColVisible("totale") && <TableHead className="text-right">Totale</TableHead>}
+                {isAdmin && isColVisible("margine") && (
+                  <TableHead className="text-right">Margine %</TableHead>
+                )}
+                {isAdmin && isColVisible("commissione") && (
+                  <TableHead className="text-right">Commissione</TableHead>
+                )}
+                {isColVisible("data") && <TableHead>Data</TableHead>}
+                {isColVisible("scadenza") && <TableHead>Scadenza</TableHead>}
+                {isColVisible("contatto") && <TableHead>Contatto</TableHead>}
+                {isColVisible("opportunita") && <TableHead>Opp.</TableHead>}
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((q: QuoteRow) => {
+              {filtered.map((q: QuoteRow, idx: number) => {
                 const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
+                const isSelected = selectedIds.has(q.id);
                 return (
                   <TableRow
                     key={q.id}
-                    className="cursor-pointer"
+                    className={`cursor-pointer transition-colors ${
+                      isSelected
+                        ? "bg-primary/10 hover:bg-primary/15"
+                        : idx % 2 === 1
+                        ? "bg-muted/30 hover:bg-muted/60"
+                        : "hover:bg-muted/40"
+                    }`}
                     onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
                   >
-                    <TableCell className="font-mono text-sm">
-                      {q.quote_number}
-                      {q.source === "computo_ai" && (
-                        <Badge variant="outline" className="ml-1.5 text-[9px] py-0 border-orange-300 text-orange-600 bg-orange-50">
-                          <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                          Computo AI
-                        </Badge>
-                      )}
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(v) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (v) next.add(q.id);
+                            else next.delete(q.id);
+                            return next;
+                          });
+                        }}
+                        aria-label={`Seleziona ${q.quote_number}`}
+                      />
                     </TableCell>
-                    <TableCell>{q.client_name || "—"}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{q.title || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={sc.variant}>{sc.label}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(q.total || 0)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {format(new Date(q.created_at), "dd MMM yyyy", { locale: it })}
-                    </TableCell>
+                    {isColVisible("numero") && (
+                      <TableCell className="font-mono text-sm">
+                        {q.quote_number}
+                        {q.source === "computo_ai" && (
+                          <Badge variant="outline" className="ml-1.5 text-[9px] py-0 border-orange-300 text-orange-600 bg-orange-50">
+                            <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                            Computo AI
+                          </Badge>
+                        )}
+                      </TableCell>
+                    )}
+                    {isColVisible("cliente") && (
+                      <TableCell>{q.client_name || "—"}</TableCell>
+                    )}
+                    {isColVisible("titolo") && (
+                      <TableCell className="max-w-[200px] truncate">{q.title || "—"}</TableCell>
+                    )}
+                    {isColVisible("commerciale") && (
+                      <TableCell className="text-xs">
+                        {q.salesperson_id ? (
+                          <span className="text-foreground">{salespersonNameById.get(q.salesperson_id) ?? "—"}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {isColVisible("stato") && (
+                      <TableCell>
+                        <Badge variant={sc.variant}>{sc.label}</Badge>
+                      </TableCell>
+                    )}
+                    {isColVisible("approvazione") && (
+                      <TableCell>
+                        {q.approval_status === "pending" && (
+                          <Badge variant="outline" className="border-orange-500 text-orange-600 text-[10px]">Pending</Badge>
+                        )}
+                        {q.approval_status === "approved" && (
+                          <Badge variant="outline" className="border-green-500 text-green-600 text-[10px]">OK</Badge>
+                        )}
+                        {q.approval_status === "rejected" && (
+                          <Badge variant="outline" className="border-red-500 text-red-600 text-[10px]">Rifiutato</Badge>
+                        )}
+                        {!q.approval_status && <span className="text-muted-foreground text-xs">—</span>}
+                      </TableCell>
+                    )}
+                    {isColVisible("fonte") && (
+                      <TableCell className="text-xs">
+                        {q.source ? (
+                          <Badge variant="secondary" className="text-[10px]">{q.source}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">manuale</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {isColVisible("totale") && (
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(q.total || 0)}
+                      </TableCell>
+                    )}
+                    {isAdmin && isColVisible("margine") && (
+                      <TableCell className="text-right text-xs">
+                        {q.margine_pct_snapshot != null
+                          ? `${Number(q.margine_pct_snapshot).toFixed(1)}%`
+                          : "—"}
+                      </TableCell>
+                    )}
+                    {isAdmin && isColVisible("commissione") && (
+                      <TableCell className="text-right text-xs">
+                        {q.commission_amount_snapshot != null
+                          ? formatCurrency(Number(q.commission_amount_snapshot))
+                          : "—"}
+                      </TableCell>
+                    )}
+                    {isColVisible("data") && (
+                      <TableCell className="text-muted-foreground text-sm">
+                        {format(new Date(q.created_at), "dd MMM yyyy", { locale: it })}
+                      </TableCell>
+                    )}
+                    {isColVisible("scadenza") && (
+                      <TableCell className="text-muted-foreground text-sm">
+                        {q.expires_at
+                          ? format(new Date(q.expires_at), "dd MMM yyyy", { locale: it })
+                          : "—"}
+                      </TableCell>
+                    )}
+                    {isColVisible("contatto") && (
+                      <TableCell>
+                        {q.contact_id ? (
+                          <span
+                            className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold"
+                            title="Collegato a contatto"
+                          >
+                            ✓
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/50 text-xs">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {isColVisible("opportunita") && (
+                      <TableCell>
+                        {q.opportunity_id ? (
+                          <span
+                            className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold"
+                            title="Collegato a opportunità"
+                          >
+                            ✓
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/50 text-xs">—</span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -657,6 +1182,17 @@ export default function Preventivi() {
                             <Eye className="h-4 w-4 mr-2" />
                             Apri
                           </DropdownMenuItem>
+                          {isAdmin && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickViewId(q.id);
+                              }}
+                            >
+                              <TrendingUp className="h-4 w-4 mr-2" />
+                              Anteprima admin (margini)
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
@@ -666,6 +1202,28 @@ export default function Preventivi() {
                             <Copy className="h-4 w-4 mr-2" />
                             Duplica
                           </DropdownMenuItem>
+                          {q.contact_id && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/azienda/marketing/contatti/${q.contact_id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Apri contatto
+                            </DropdownMenuItem>
+                          )}
+                          {q.opportunity_id && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/azienda/marketing/opportunita?id=${q.opportunity_id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Apri opportunità
+                            </DropdownMenuItem>
+                          )}
                           {q.status === "bozza" && (
                             <DropdownMenuItem
                               onClick={(e) => {
@@ -741,6 +1299,8 @@ export default function Preventivi() {
         </>
       )}
 
+      {activeTab === "approvazioni" && isAdmin && <QuoteApprovals />}
+
       {activeTab === "analisi" && isAdmin && <AnalisiPreventivi />}
 
       {/* Modal Computo Metrico AI */}
@@ -749,6 +1309,33 @@ export default function Preventivi() {
         onOpenChange={setShowComputoModal}
         onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
       />
+
+      {/* Modal Foto/PDF — AI vision estrae preventivo da foto cartaceo o PDF */}
+      <ComputoUploadModal
+        open={showFotoModal}
+        onOpenChange={setShowFotoModal}
+        intent="foto"
+        onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
+      />
+
+      {/* Sidebar filtri avanzati (stile Contatti/Opportunità) */}
+      <QuotesFiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        filters={filters}
+        onApply={(f) => { setFilters(f); setCurrentPage(0); }}
+        salespeople={salespeopleList}
+        isAdmin={isAdmin}
+      />
+
+      {/* Drawer anteprima admin con margini/provvigione/approvazioni */}
+      {isAdmin && (
+        <QuoteQuickViewSheet
+          quoteId={quickViewId}
+          open={!!quickViewId}
+          onOpenChange={(o) => { if (!o) setQuickViewId(null); }}
+        />
+      )}
     </div>
   );
 }

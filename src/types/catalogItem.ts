@@ -98,6 +98,7 @@ export interface CatalogCategory {
   nome: string;
   icona: string | null;
   colore: string | null;
+  immagine_url: string | null;
   sort_order: number;
   count_families: number;
   count_articles: number;

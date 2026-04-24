@@ -35,6 +35,8 @@ const salespersonSchema = z.object({
   last_name: z.string().min(1, "Il cognome è obbligatorio"),
   email: z.string().email("Email non valida").optional().or(z.literal("")),
   phone: z.string().optional(),
+  compensation_mode: z.enum(["only_commission", "fixed_plus_commission", "fixed_only"]),
+  fixed_monthly_eur: z.coerce.number().min(0, "Il fisso deve essere positivo").default(0),
   commission_type: z.enum(["fixed", "percentage_sold", "percentage_collected"]),
   commission_value: z.coerce.number().min(0, "Il valore deve essere positivo"),
 });
@@ -47,6 +49,8 @@ interface Salesperson {
   last_name: string;
   email: string | null;
   phone: string | null;
+  compensation_mode?: "only_commission" | "fixed_plus_commission" | "fixed_only";
+  fixed_monthly_eur?: number | null;
   commission_type: "fixed" | "percentage_sold" | "percentage_collected";
   commission_value: number;
   is_active: boolean;
@@ -74,6 +78,8 @@ export function SalespersonDialog({
       last_name: "",
       email: "",
       phone: "",
+      compensation_mode: "only_commission",
+      fixed_monthly_eur: 0,
       commission_type: "percentage_sold",
       commission_value: 0,
     },
@@ -87,6 +93,8 @@ export function SalespersonDialog({
           last_name: salesperson.last_name,
           email: salesperson.email || "",
           phone: salesperson.phone || "",
+          compensation_mode: salesperson.compensation_mode ?? "only_commission",
+          fixed_monthly_eur: salesperson.fixed_monthly_eur ?? 0,
           commission_type: salesperson.commission_type,
           commission_value: salesperson.commission_value,
         });
@@ -96,6 +104,8 @@ export function SalespersonDialog({
           last_name: "",
           email: "",
           phone: "",
+          compensation_mode: "only_commission",
+          fixed_monthly_eur: 0,
           commission_type: "percentage_sold",
           commission_value: 0,
         });
@@ -104,6 +114,9 @@ export function SalespersonDialog({
   }, [open, salesperson, form]);
 
   const commissionType = form.watch("commission_type");
+  const compensationMode = form.watch("compensation_mode");
+  const fixedMonthly = form.watch("fixed_monthly_eur");
+  const commissionValue = form.watch("commission_value");
 
   const handleSubmit = (data: SalespersonFormData) => {
     onSave({
@@ -194,64 +207,113 @@ export function SalespersonDialog({
             </div>
 
             <div className="border-t pt-4 mt-4">
-              <h4 className="font-medium mb-3">Provvigione Default</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="commission_type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleziona tipo" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="fixed">Importo Fisso</SelectItem>
-                          <SelectItem value="percentage_sold">
-                            % sul Venduto
-                          </SelectItem>
-                          <SelectItem value="percentage_collected">
-                            % sull'Incassato
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="commission_value"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {commissionType === "fixed" ? "Importo (€)" : "Percentuale (%)"}
-                      </FormLabel>
+              <h4 className="font-medium mb-3">Modalità compenso</h4>
+              <FormField
+                control={form.control}
+                name="compensation_mode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Come viene pagato</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <Input
-                          type="number"
-                          step={commissionType === "fixed" ? "0.01" : "0.1"}
-                          min="0"
-                          placeholder={commissionType === "fixed" ? "500.00" : "3.0"}
-                          {...field}
-                        />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleziona modalità" />
+                        </SelectTrigger>
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      <SelectContent>
+                        <SelectItem value="only_commission">Solo provvigioni</SelectItem>
+                        <SelectItem value="fixed_plus_commission">Fisso + provvigioni</SelectItem>
+                        <SelectItem value="fixed_only">Solo fisso (nessuna provvigione)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {(compensationMode === "fixed_plus_commission" || compensationMode === "fixed_only") && (
+                <div className="mt-3">
+                  <FormField
+                    control={form.control}
+                    name="fixed_monthly_eur"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fisso mensile (€)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" min="0" placeholder="1500.00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {compensationMode !== "fixed_only" && (
+                <>
+                  <h4 className="font-medium mt-5 mb-3">Provvigione sul preventivo</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="commission_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleziona tipo" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="fixed">Importo Fisso</SelectItem>
+                              <SelectItem value="percentage_sold">% sul Venduto</SelectItem>
+                              <SelectItem value="percentage_collected">% sull'Incassato</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="commission_value"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{commissionType === "fixed" ? "Importo (€)" : "Percentuale (%)"}</FormLabel>
+                          <FormControl>
+                            <Input type="number" step={commissionType === "fixed" ? "0.01" : "0.1"} min="0"
+                              placeholder={commissionType === "fixed" ? "500.00" : "3.0"} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="mt-3 p-3 rounded-md bg-muted/50 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">Simulazione su preventivo €10.000</p>
+                {compensationMode === "fixed_only" && (
+                  <p>Fisso mensile: €{(fixedMonthly ?? 0).toFixed(2)} · nessuna provvigione per preventivo.</p>
+                )}
+                {compensationMode !== "fixed_only" && commissionType === "fixed" && (
+                  <p>Provvigione per preventivo: €{(commissionValue ?? 0).toFixed(2)}
+                    {compensationMode === "fixed_plus_commission" && ` · + fisso €${(fixedMonthly ?? 0).toFixed(2)}/mese`}
+                  </p>
+                )}
+                {compensationMode !== "fixed_only" && commissionType === "percentage_sold" && (
+                  <p>Provvigione teorica: €{(10000 * (commissionValue ?? 0) / 100).toFixed(2)} ({commissionValue ?? 0}% di €10.000)
+                    {compensationMode === "fixed_plus_commission" && ` · + fisso €${(fixedMonthly ?? 0).toFixed(2)}/mese`}
+                  </p>
+                )}
+                {compensationMode !== "fixed_only" && commissionType === "percentage_collected" && (
+                  <p>Provvigione: {commissionValue ?? 0}% dell'importo effettivamente incassato (nota sul preventivo è 0, si calcola a incasso)
+                    {compensationMode === "fixed_plus_commission" && ` · + fisso €${(fixedMonthly ?? 0).toFixed(2)}/mese`}
+                  </p>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {commissionType === "fixed" && "Il venditore riceverà un importo fisso per ogni ordine."}
-                {commissionType === "percentage_sold" && "Il venditore riceverà una percentuale sull'imponibile dell'ordine."}
-                {commissionType === "percentage_collected" && "Il venditore riceverà una percentuale sull'imponibile effettivamente incassato."}
-              </p>
             </div>
 
             <DialogFooter>
