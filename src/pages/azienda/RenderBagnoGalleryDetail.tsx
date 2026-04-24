@@ -41,7 +41,7 @@ export default function RenderBagnoGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_bagno_sessions")
-        .select("id, stato, foto_originale_path, foto_originale_url, render_result_url, configurazione, tipo_intervento, analisi_bagno, provider_key, processing_started_at, processing_completed_at, created_at, galleria_titolo, galleria_note, user_id, contact_id, opportunity_id")
+        .select("id, stato, foto_originale_path, foto_originale_url, render_result_url, configurazione, tipo_intervento, analisi_bagno, processing_started_at, processing_completed_at, created_at, galleria_titolo, galleria_note, user_id, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -55,7 +55,6 @@ export default function RenderBagnoGalleryDetail() {
         configurazione: Record<string, unknown> | null;
         tipo_intervento: string | null;
         analisi_bagno: Record<string, unknown> | null;
-        provider_key: string | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
@@ -243,7 +242,6 @@ export default function RenderBagnoGalleryDetail() {
                 metadata={[
                   { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
                   { label: "Intervento", value: session.tipo_intervento },
-                  { label: "Provider", value: session.provider_key },
                 ]}
               />
               <Button variant="secondary" size="sm" onClick={() => navigate(`/azienda/render/bagno/new?template=${session.id}`)}>
@@ -332,14 +330,6 @@ export default function RenderBagnoGalleryDetail() {
               </div>
             </div>
 
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {session.provider_key && (
-                <Badge variant="outline" className="text-xs gap-1">
-                  <Zap className="h-3 w-3" />
-                  {session.provider_key}
-                </Badge>
-              )}
-            </div>
           </CardContent>
         </Card>
       )}

@@ -34,7 +34,7 @@ export default function RenderFacciataGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_facciata_sessions")
-        .select("id, status, original_photo_url, result_urls, config, foto_analisi, provider_key, cost_billed, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
+        .select("id, status, original_photo_url, result_urls, config, foto_analisi, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();

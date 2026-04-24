@@ -2,6 +2,8 @@ import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBranding } from "@/hooks/useBranding";
 import {
   downloadRenderBeforeAfterPdf,
   type RenderPdfMetadataItem,
@@ -31,6 +33,13 @@ export function RenderPdfDownloadButton({
   className,
 }: RenderPdfDownloadButtonProps) {
   const [loading, setLoading] = useState(false);
+  const { effectiveCompany } = useAuth();
+  const { branding } = useBranding();
+  const companyLogoUrl =
+    branding?.logo_url ||
+    branding?.email_header_logo_url ||
+    (effectiveCompany as { logo_url?: string | null } | null)?.logo_url ||
+    null;
 
   const handleClick = async () => {
     if (!afterUrl) return;
@@ -43,6 +52,7 @@ export function RenderPdfDownloadButton({
         subtitle,
         filename,
         metadata,
+        companyLogoUrl,
       });
       toast.success("PDF render creato");
     } catch (error) {

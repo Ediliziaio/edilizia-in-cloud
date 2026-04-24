@@ -35,7 +35,7 @@ export default function RenderTettoGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_tetto_sessions")
-        .select("id, status, original_photo_url, result_urls, config, provider_key, cost_billed, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
+        .select("id, status, original_photo_url, result_urls, config, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -46,8 +46,6 @@ export default function RenderTettoGalleryDetail() {
         original_photo_url: string | null;
         result_urls: string[] | null;
         config: Record<string, unknown> | null;
-        provider_key: string | null;
-        cost_billed: number | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
@@ -218,7 +216,6 @@ export default function RenderTettoGalleryDetail() {
             metadata={[
               { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
               { label: "Manto", value: manto?.tipo ? manto.tipo.replace(/_/g, " ") : null },
-              { label: "Provider", value: session.provider_key },
             ]}
           />
           <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>

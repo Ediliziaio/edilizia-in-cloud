@@ -17,7 +17,11 @@ import {
   type WizardTapp,
   type WizardTipo,
 } from "../../../../shared/render-window/catalog.ts";
-import { buildWindowRenderConfig, type WindowRenderBuildOptions } from "../../../../shared/render-window/windowRenderConfig.ts";
+import {
+  buildWindowRenderConfig,
+  ensureWindowRenderConfig,
+  type WindowRenderBuildOptions,
+} from "../../../../shared/render-window/windowRenderConfig.ts";
 
 export {
   PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
@@ -40,6 +44,8 @@ export type {
   WizardTapp,
   WizardTipo,
 };
+
+export { ensureWindowRenderConfig };
 
 export type MapperOutput = ReturnType<typeof buildWindowRenderConfig>;
 

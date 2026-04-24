@@ -36,7 +36,7 @@ export default function RenderStanzaGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_stanza_sessions")
-        .select("id, status, original_photo_url, result_urls, config, provider_key, cost_billed, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
+        .select("id, status, original_photo_url, result_urls, config, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -47,8 +47,6 @@ export default function RenderStanzaGalleryDetail() {
         original_photo_url: string | null;
         result_urls: string[] | null;
         config: Record<string, unknown> | null;
-        provider_key: string | null;
-        cost_billed: number | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
@@ -318,19 +316,6 @@ export default function RenderStanzaGalleryDetail() {
                 </div>
               </div>
             )}
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {session.provider_key && (
-                <Badge variant="outline" className="text-xs gap-1">
-                  <Zap className="h-3 w-3" />
-                  {session.provider_key}
-                </Badge>
-              )}
-              {session.cost_billed != null && (
-                <Badge variant="outline" className="text-xs">
-                  &euro;{session.cost_billed?.toFixed(3)} addebitato
-                </Badge>
-              )}
-            </div>
           </CardContent>
         </Card>
       )}

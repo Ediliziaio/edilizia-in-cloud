@@ -24,6 +24,9 @@ const STATUS_CONFIG = {
   failed:     { label: "Fallito",         variant: "destructive", icon: XCircle },
 } as const;
 
+const INTERNAL_CONFIG_KEY_RE =
+  /(schema|prompt|provider|openai|gemini|model|cost|costo|addeb|billing|token|api|manifest|rules|directives|analysis|analisi)/i;
+
 export default function RenderPavimentoGalleryDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -36,7 +39,7 @@ export default function RenderPavimentoGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_pavimento_sessions")
-        .select("id, status, original_photo_url, result_urls, config, provider_key, cost_billed, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
+        .select("id, status, original_photo_url, result_urls, config, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -47,8 +50,6 @@ export default function RenderPavimentoGalleryDetail() {
         original_photo_url: string | null;
         result_urls: string[] | null;
         config: Record<string, unknown> | null;
-        provider_key: string | null;
-        cost_billed: number | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
@@ -210,7 +211,6 @@ export default function RenderPavimentoGalleryDetail() {
                 filename={`render_pavimento_${id}.pdf`}
                 metadata={[
                   { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
-                  { label: "Provider", value: session.provider_key },
                 ]}
               />
               <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleDownload}>
@@ -282,7 +282,7 @@ export default function RenderPavimentoGalleryDetail() {
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {Object.entries(config)
-                .filter(([, v]) => v && typeof v !== "object")
+                .filter(([k, v]) => !INTERNAL_CONFIG_KEY_RE.test(k) && v && typeof v !== "object")
                 .map(([k, v]) => (
                   <div key={k} className="bg-muted/50 rounded-md p-2">
                     <p className="text-[10px] text-muted-foreground capitalize">
@@ -293,19 +293,6 @@ export default function RenderPavimentoGalleryDetail() {
                     </p>
                   </div>
                 ))}
-            </div>
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {session.provider_key && (
-                <Badge variant="outline" className="text-xs gap-1">
-                  <Zap className="h-3 w-3" />
-                  {session.provider_key}
-                </Badge>
-              )}
-              {session.cost_billed != null && (
-                <Badge variant="outline" className="text-xs">
-                  EUR {session.cost_billed?.toFixed(3)} addebitato
-                </Badge>
-              )}
             </div>
           </CardContent>
         </Card>
