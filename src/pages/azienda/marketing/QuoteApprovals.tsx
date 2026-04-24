@@ -18,6 +18,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { QuoteQuickViewSheet } from "@/components/marketing/preventivi/QuoteQuickViewSheet";
+import { Eye } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -129,6 +131,7 @@ export default function QuoteApprovals() {
   const pending = approvalsFiltered.filter((a) => a.decision === null);
   const decided = approvalsFiltered.filter((a) => a.decision !== null);
 
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{
     open: boolean;
     approval: QuoteApproval | null;
@@ -237,7 +240,17 @@ export default function QuoteApprovals() {
         <TableCell className="text-right">
           <div className="flex items-center gap-1 justify-end">
             {q && (
-              <Button variant="ghost" size="icon" asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Anteprima admin (margini + storico)"
+                onClick={() => setQuickViewId(q.id)}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            )}
+            {q && (
+              <Button variant="ghost" size="icon" asChild title="Apri preventivo">
                 <Link to={`/azienda/marketing/preventivi/${q.id}`}><ExternalLink className="h-4 w-4" /></Link>
               </Button>
             )}
@@ -399,6 +412,13 @@ export default function QuoteApprovals() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Drawer anteprima admin */}
+      <QuoteQuickViewSheet
+        quoteId={quickViewId}
+        open={!!quickViewId}
+        onOpenChange={(o) => { if (!o) setQuickViewId(null); }}
+      />
     </div>
   );
 }

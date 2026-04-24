@@ -29,6 +29,8 @@ interface QuoteRow {
   approval_status?: string | null;
   contact_id?: string | null;
   opportunity_id?: string | null;
+  margine_pct_snapshot?: number | null;
+  commission_amount_snapshot?: number | null;
 }
 
 /** Shape returned by the KPI query (partial select) */
@@ -69,6 +71,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  QuotesFiltersSheet,
+  EMPTY_QUOTE_FILTERS,
+  countActiveQuoteFilters,
+  type QuotesFilters,
+} from "@/components/marketing/preventivi/QuotesFiltersSheet";
+import { QuoteQuickViewSheet } from "@/components/marketing/preventivi/QuoteQuickViewSheet";
 import {
   Table,
   TableBody,
@@ -144,21 +153,16 @@ export default function Preventivi() {
   });
 
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
-  const [salespersonFilter, setSalespersonFilter] = useState<string>("tutti");
   const [search, setSearch] = useState("");
-  // Filtri avanzati (v3)
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
-  const [importoMin, setImportoMin] = useState<string>("");
-  const [importoMax, setImportoMax] = useState<string>("");
-  const [sourceFilter, setSourceFilter] = useState<string>("tutti");
-  const [approvalFilter, setApprovalFilter] = useState<string>("tutti");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  // Filtri avanzati v4 — centralizzati in QuotesFilters (sheet laterale)
+  const [filters, setFilters] = useState<QuotesFilters>(EMPTY_QUOTE_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteQuote, setDeleteQuote] = useState<QuoteRow | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [showComputoModal, setShowComputoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const PAGE_SIZE = 50;
 
   // Debounce ricerca: aspetta 300ms prima di filtrare, resetta la pagina
@@ -173,12 +177,12 @@ export default function Preventivi() {
   }, [search]);
 
   const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
-    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, salespersonFilter, dateFrom, dateTo, importoMin, importoMax, sourceFilter, approvalFilter],
+    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, filters],
     enabled: !!companyId,
     queryFn: async () => {
       let query = supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id", { count: "exact" })
+        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id, margine_pct_snapshot, commission_amount_snapshot", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
@@ -186,27 +190,32 @@ export default function Preventivi() {
       if (statusFilter !== "tutti") {
         query = query.eq("status", statusFilter);
       }
-      if (salespersonFilter !== "tutti") {
-        if (salespersonFilter === "none") {
+      if (filters.statuses.length > 0) {
+        query = query.in("status", filters.statuses);
+      }
+      if (filters.salespersonId) {
+        if (filters.salespersonId === "none") {
           query = query.is("salesperson_id", null);
         } else {
-          query = query.eq("salesperson_id", salespersonFilter);
+          query = query.eq("salesperson_id", filters.salespersonId);
         }
       }
-      if (sourceFilter !== "tutti") {
-        if (sourceFilter === "manuale") {
+      if (filters.source) {
+        if (filters.source === "manuale") {
           query = query.or("source.is.null,source.eq.manual");
         } else {
-          query = query.eq("source", sourceFilter);
+          query = query.eq("source", filters.source);
         }
       }
-      if (approvalFilter !== "tutti") {
-        query = query.eq("approval_status", approvalFilter);
+      if (filters.approvalStatus) {
+        query = query.eq("approval_status", filters.approvalStatus);
       }
-      if (dateFrom) query = query.gte("created_at", dateFrom);
-      if (dateTo) query = query.lte("created_at", `${dateTo}T23:59:59`);
-      if (importoMin) query = query.gte("total", parseFloat(importoMin));
-      if (importoMax) query = query.lte("total", parseFloat(importoMax));
+      if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
+      if (filters.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
+      if (filters.importoMin) query = query.gte("total", parseFloat(filters.importoMin));
+      if (filters.importoMax) query = query.lte("total", parseFloat(filters.importoMax));
+      if (isAdmin && filters.marginMin) query = query.gte("margine_pct_snapshot", parseFloat(filters.marginMin));
+      if (isAdmin && filters.marginMax) query = query.lte("margine_pct_snapshot", parseFloat(filters.marginMax));
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -630,7 +639,7 @@ export default function Preventivi() {
 
       {/* Filters */}
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -640,94 +649,20 @@ export default function Preventivi() {
               className="pl-9"
             />
           </div>
-          <Select value={salespersonFilter} onValueChange={setSalespersonFilter}>
-            <SelectTrigger className="sm:w-[220px]">
-              <SelectValue placeholder="Commerciale" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">Tutti i commerciali</SelectItem>
-              <SelectItem value="none">Senza commerciale</SelectItem>
-              {salespeopleList.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.first_name} {s.last_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Button
             variant="outline"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className={advancedOpen ? "border-primary text-primary" : ""}
+            onClick={() => setFiltersOpen(true)}
+            className={countActiveQuoteFilters(filters) > 0 ? "border-primary text-primary" : ""}
           >
             <SlidersHorizontal className="h-4 w-4 mr-2" />
             Filtri avanzati
-            {(dateFrom || dateTo || importoMin || importoMax || sourceFilter !== "tutti" || approvalFilter !== "tutti") && (
+            {countActiveQuoteFilters(filters) > 0 && (
               <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
-                {[dateFrom||dateTo, importoMin||importoMax, sourceFilter !== "tutti", approvalFilter !== "tutti"].filter(Boolean).length}
+                {countActiveQuoteFilters(filters)}
               </Badge>
             )}
           </Button>
         </div>
-
-        {advancedOpen && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-lg border bg-muted/30">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Data da</Label>
-              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Data a</Label>
-              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Importo min (€)</Label>
-              <Input type="number" min="0" step="100" value={importoMin} onChange={(e) => setImportoMin(e.target.value)} placeholder="0" className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Importo max (€)</Label>
-              <Input type="number" min="0" step="100" value={importoMax} onChange={(e) => setImportoMax(e.target.value)} placeholder="∞" className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Origine</Label>
-              <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tutti">Tutte le origini</SelectItem>
-                  <SelectItem value="manuale">Creato manualmente</SelectItem>
-                  <SelectItem value="computo_ai">Da Computo AI</SelectItem>
-                  <SelectItem value="foto_ai">Da Foto/PDF AI</SelectItem>
-                  <SelectItem value="opportunity">Da Opportunità</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Stato approvazione sconto</Label>
-              <Select value={approvalFilter} onValueChange={setApprovalFilter}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tutti">Tutti</SelectItem>
-                  <SelectItem value="not_required">Non richiesta</SelectItem>
-                  <SelectItem value="pending">In attesa</SelectItem>
-                  <SelectItem value="approved">Approvato</SelectItem>
-                  <SelectItem value="rejected">Rifiutato</SelectItem>
-                  <SelectItem value="counter_proposed">Contro-proposta</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="md:col-span-2 lg:col-span-4 flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setDateFrom(""); setDateTo(""); setImportoMin(""); setImportoMax("");
-                  setSourceFilter("tutti"); setApprovalFilter("tutti");
-                }}
-              >
-                Azzera filtri
-              </Button>
-            </div>
-          </div>
-        )}
 
         <Tabs value={statusFilter} onValueChange={handleStatusFilter}>
           <TabsList>
@@ -871,6 +806,17 @@ export default function Preventivi() {
                             <Eye className="h-4 w-4 mr-2" />
                             Apri
                           </DropdownMenuItem>
+                          {isAdmin && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickViewId(q.id);
+                              }}
+                            >
+                              <TrendingUp className="h-4 w-4 mr-2" />
+                              Anteprima admin (margini)
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
@@ -995,6 +941,25 @@ export default function Preventivi() {
         intent="foto"
         onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
       />
+
+      {/* Sidebar filtri avanzati (stile Contatti/Opportunità) */}
+      <QuotesFiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        filters={filters}
+        onApply={(f) => { setFilters(f); setCurrentPage(0); }}
+        salespeople={salespeopleList}
+        isAdmin={isAdmin}
+      />
+
+      {/* Drawer anteprima admin con margini/provvigione/approvazioni */}
+      {isAdmin && (
+        <QuoteQuickViewSheet
+          quoteId={quickViewId}
+          open={!!quickViewId}
+          onOpenChange={(o) => { if (!o) setQuickViewId(null); }}
+        />
+      )}
     </div>
   );
 }

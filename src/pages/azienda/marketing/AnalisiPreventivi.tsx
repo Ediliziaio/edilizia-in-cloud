@@ -14,10 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ResponsiveContainer,
+  ReferenceLine, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import {
   Loader2, BrainCircuit, Copy, Check, ChevronDown, ChevronUp, Percent, ExternalLink,
+  TrendingUp, TrendingDown, Target, Award, AlertTriangle, Users,
 } from "lucide-react";
 import { Navigate, Link } from "react-router-dom";
 
@@ -215,6 +216,57 @@ export default function AnalisiPreventivi() {
         margine: v.count > 0 ? Math.round((v.margine_sum / v.count) * 10) / 10 : 0,
       }))
     : [];
+
+  // ─── Insights avanzati (v3) ───────────────────────────────────────────────
+  const insightsV3 = (() => {
+    if (!dati || dati.preventivi.length === 0) return null;
+    const preventivi = dati.preventivi;
+
+    // Distribuzione margine: ottimo (≥25%), ok (15-25%), critico (<15%)
+    const marginBuckets = { ottimo: 0, ok: 0, critico: 0, nd: 0 };
+    preventivi.forEach((p) => {
+      if (p.margine_pct == null) { marginBuckets.nd++; return; }
+      if (p.margine_pct >= 25) marginBuckets.ottimo++;
+      else if (p.margine_pct >= 15) marginBuckets.ok++;
+      else marginBuckets.critico++;
+    });
+
+    // Top commerciali per valore/margine medio
+    const bySalesperson = new Map<string, { name: string; count: number; ricavoTot: number; marginSum: number; marginCount: number }>();
+    quotesExtra.forEach((q) => {
+      const spId = q.salesperson_id ?? "none";
+      const name = spId === "none" ? "Senza commerciale" : salespeopleList.find((s) => s.id === spId)?.first_name + " " + salespeopleList.find((s) => s.id === spId)?.last_name || "?";
+      const prev = preventivi.find((p) => p.quote_id === q.id);
+      if (!prev) return;
+      const entry = bySalesperson.get(spId) ?? { name, count: 0, ricavoTot: 0, marginSum: 0, marginCount: 0 };
+      entry.count++;
+      entry.ricavoTot += prev.ricavo_totale ?? 0;
+      if (prev.margine_pct != null) { entry.marginSum += prev.margine_pct; entry.marginCount++; }
+      bySalesperson.set(spId, entry);
+    });
+    const topSalespeople = Array.from(bySalesperson.values())
+      .map((e) => ({ ...e, marginAvg: e.marginCount > 0 ? e.marginSum / e.marginCount : 0 }))
+      .sort((a, b) => b.ricavoTot - a.ricavoTot)
+      .slice(0, 5);
+
+    // Distribuzione sconti: 0-5, 5-10, 10-20, >20
+    const discountBuckets = { noSconto: 0, lieve: 0, medio: 0, forte: 0 };
+    quotesExtra.forEach((q) => {
+      const d = q.discount_percent ?? 0;
+      if (d === 0) discountBuckets.noSconto++;
+      else if (d < 10) discountBuckets.lieve++;
+      else if (d < 20) discountBuckets.medio++;
+      else discountBuckets.forte++;
+    });
+
+    // Trend margine (per mese - derivato da quote_id prefisso OFF-YYYY-NNN)
+    // Non abbiamo created_at qui → skip per ora.
+
+    return { marginBuckets, topSalespeople, discountBuckets };
+  })();
+
+  const MARGIN_COLORS = { ottimo: "#16a34a", ok: "#eab308", critico: "#ef4444", nd: "#94a3b8" };
+  const DISCOUNT_COLORS = { noSconto: "#16a34a", lieve: "#3b82f6", medio: "#f97316", forte: "#ef4444" };
 
   const preventiviFiltered = (dati?.preventivi ?? []).filter((p) => {
     const extra = quotesExtraById.get(p.quote_id);
@@ -445,6 +497,117 @@ export default function AnalisiPreventivi() {
             <p className="text-sm mt-1">Prova ad allargare il range temporale</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Insights v3 — distribuzioni e leaderboard */}
+      {insightsV3 && dati && dati.preventivi.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Target className="h-4 w-4 text-violet-600" />
+                Salute margine
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Distribuzione dei preventivi per fascia di margine</p>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Ottimo (≥25%)", value: insightsV3.marginBuckets.ottimo, color: MARGIN_COLORS.ottimo },
+                      { name: "OK (15-25%)", value: insightsV3.marginBuckets.ok, color: MARGIN_COLORS.ok },
+                      { name: "Critico (<15%)", value: insightsV3.marginBuckets.critico, color: MARGIN_COLORS.critico },
+                      { name: "N/D", value: insightsV3.marginBuckets.nd, color: MARGIN_COLORS.nd },
+                    ].filter((d) => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={65}
+                    dataKey="value"
+                    label={(e) => `${e.value}`}
+                  >
+                    {[MARGIN_COLORS.ottimo, MARGIN_COLORS.ok, MARGIN_COLORS.critico, MARGIN_COLORS.nd].map((c, i) => (
+                      <Cell key={i} fill={c} />
+                    ))}
+                  </Pie>
+                  <Legend verticalAlign="bottom" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Percent className="h-4 w-4 text-orange-500" />
+                Distribuzione sconti
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Quanto stai scontando in media</p>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart
+                  data={[
+                    { name: "0%", value: insightsV3.discountBuckets.noSconto, color: DISCOUNT_COLORS.noSconto },
+                    { name: "<10%", value: insightsV3.discountBuckets.lieve, color: DISCOUNT_COLORS.lieve },
+                    { name: "10-20%", value: insightsV3.discountBuckets.medio, color: DISCOUNT_COLORS.medio },
+                    { name: "≥20%", value: insightsV3.discountBuckets.forte, color: DISCOUNT_COLORS.forte },
+                  ]}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="value">
+                    {[DISCOUNT_COLORS.noSconto, DISCOUNT_COLORS.lieve, DISCOUNT_COLORS.medio, DISCOUNT_COLORS.forte].map((c, i) => (
+                      <Cell key={i} fill={c} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              {insightsV3.discountBuckets.forte > 0 && (
+                <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    {insightsV3.discountBuckets.forte} preventivo{insightsV3.discountBuckets.forte > 1 ? "i" : ""} con sconto ≥20%: verifica che siano autorizzati correttamente.
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Award className="h-4 w-4 text-green-600" />
+                Top commerciali per ricavo
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Chi sta performando meglio</p>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {insightsV3.topSalespeople.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nessun commerciale assegnato ai preventivi del periodo.</p>
+              ) : (
+                insightsV3.topSalespeople.map((sp, i) => (
+                  <div key={sp.name + i} className="flex items-center justify-between gap-2 py-1.5 border-b last:border-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-semibold ${i === 0 ? "bg-yellow-100 text-yellow-800" : i === 1 ? "bg-slate-100 text-slate-700" : i === 2 ? "bg-orange-100 text-orange-800" : "bg-muted text-muted-foreground"}`}>
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{sp.name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {sp.count} preventivi · margine medio {sp.marginAvg.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-sm font-semibold shrink-0">{formatCurrency(sp.ricavoTot)}</div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Bar Chart */}
