@@ -343,6 +343,8 @@ verify_jwt = false
 [functions.generate-roof-render]
 verify_jwt = false
 
-[functions.generate-room-render]
+[functions.generate-pergola-render]
 verify_jwt = false
 
+[functions.generate-room-render]
+verify_jwt = false

@@ -120,6 +120,10 @@ const RenderTettoHub = lazy(() => import("@/pages/azienda/RenderTettoHub"));
 const RenderTettoNew = lazy(() => import("@/pages/azienda/RenderTettoNew"));
 const RenderTettoGallery = lazy(() => import("@/pages/azienda/RenderTettoGallery"));
 const RenderTettoGalleryDetail = lazy(() => import("@/pages/azienda/RenderTettoGalleryDetail"));
+const RenderPergoleHub = lazy(() => import("@/pages/azienda/RenderPergoleHub"));
+const RenderPergoleNew = lazy(() => import("@/pages/azienda/RenderPergoleNew"));
+const RenderPergoleGallery = lazy(() => import("@/pages/azienda/RenderPergoleGallery"));
+const RenderPergoleGalleryDetail = lazy(() => import("@/pages/azienda/RenderPergoleGalleryDetail"));
 const RenderStanzaHub = lazy(() => import("@/pages/azienda/RenderStanzaHub"));
 const RenderStanzaNew = lazy(() => import("@/pages/azienda/RenderStanzaNew"));
 const RenderStanzaGallery = lazy(() => import("@/pages/azienda/RenderStanzaGallery"));
@@ -374,6 +378,11 @@ export function companyRoutes() {
         <Route path="render/tetto/new" element={<FeatureRoute featureKey="render_ai"><RenderTettoNew /></FeatureRoute>} />
         <Route path="render/tetto/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTettoGallery /></FeatureRoute>} />
         <Route path="render/tetto/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTettoGalleryDetail /></FeatureRoute>} />
+        {/* Render Pergole */}
+        <Route path="render/pergole" element={<FeatureRoute featureKey="render_ai"><RenderPergoleHub /></FeatureRoute>} />
+        <Route path="render/pergole/new" element={<FeatureRoute featureKey="render_ai"><RenderPergoleNew /></FeatureRoute>} />
+        <Route path="render/pergole/gallery" element={<FeatureRoute featureKey="render_ai"><RenderPergoleGallery /></FeatureRoute>} />
+        <Route path="render/pergole/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderPergoleGalleryDetail /></FeatureRoute>} />
         {/* Render Stanza */}
         <Route path="render/stanza" element={<FeatureRoute featureKey="render_ai"><RenderStanzaHub /></FeatureRoute>} />
         <Route path="render/stanza/new" element={<FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>} />

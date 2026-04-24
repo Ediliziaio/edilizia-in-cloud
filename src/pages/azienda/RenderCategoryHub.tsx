@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import {
   DoorOpen, Bath, Building2, Grid3X3, PanelLeftClose, Home, Sofa,
-  Sparkles, Image, Clock,
+  Sparkles, Image, Clock, Sun,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -78,6 +78,16 @@ const categories = [
     badge: "Attivo",
   },
   {
+    id: "pergole",
+    title: "Pergole",
+    description: "Inserisci pergole, bioclimatiche, ZIP, telo o vetro su esterni reali",
+    icon: Sun,
+    color: "bg-emerald-50 text-emerald-600",
+    path: "/azienda/render/pergole",
+    active: true,
+    badge: "Attivo",
+  },
+  {
     id: "stanza",
     title: "Stanza / Interni",
     description: "Trasforma qualsiasi ambiente: cucina, soggiorno, camera",
@@ -115,12 +125,13 @@ export default function RenderCategoryHub() {
         { table: "render_pavimento_sessions", type: "pavimento", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
         { table: "render_persiane_sessions", type: "persiane", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
         { table: "render_tetto_sessions", type: "tetto", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
+        { table: "render_pergole_sessions", type: "pergole", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
         { table: "render_stanza_sessions", type: "stanza", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
       ] as const;
 
       const results = await Promise.all(
         tables.map(async (t) => {
-          const { data } = await supabase
+          const { data } = await (supabase as any)
             .from(t.table)
             // t.cols è una stringa dinamica composta: impossibile narrow via types
             .select(t.cols)
@@ -233,7 +244,7 @@ export default function RenderCategoryHub() {
               {recentSessions.map((s) => {
                 const typeLabel: Record<string, string> = {
                   infissi: "Infissi", bagno: "Bagno", facciata: "Facciata",
-                  pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", stanza: "Stanza",
+                  pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", pergole: "Pergole", stanza: "Stanza",
                 };
                 return (
                   <div
