@@ -338,6 +338,7 @@ export default function CompanyDetail() {
 
         <TabsContent value="panoramica">
           <CompanyOverviewTab
+            companyId={h.company.id}
             stats={h.stats} totalTeam={totalTeam}
             recentOrders={h.recentOrders} recentTickets={h.recentTickets}
             currentPlan={h.currentPlan} currentSubscription={h.currentSubscription}
@@ -348,6 +349,7 @@ export default function CompanyDetail() {
             paymentMethod={h.company.payment_method || "none"}
             onExtendTrial={(days) => h.extendTrialMutation.mutate(days)}
             isExtendingTrial={h.extendTrialMutation.isPending}
+            onNavigateToTab={selectTab}
           />
         </TabsContent>
 

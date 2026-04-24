@@ -1,24 +1,41 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  Tabs, TabsList, TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   ClipboardList, Users, MessageSquare, TrendingUp, Heart, DollarSign,
   Calendar, Activity, ArrowUpRight, ArrowDownRight, Minus, ShoppingCart,
-  Clock, AlertTriangle, Zap
+  Clock, AlertTriangle, Zap, ExternalLink, Info, Mail, Sparkles,
+  Cake, LogIn,
 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { ticketStatusLabels } from "@/lib/adminConstants";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer
+  ResponsiveContainer,
 } from "recharts";
 import { CompanyConversionCard } from "./CompanyConversionCard";
 import { Progress } from "@/components/ui/progress";
 import { useCompanyHealthScore } from "@/hooks/useHealthScores";
 import { HealthScoreBadge } from "./HealthScoreBadge";
 import type { CompanyStats } from "@/hooks/useCompanyDetail";
+import {
+  useCompanyCreditsSnapshot,
+  useCompanyLastActivity,
+  useMonthlyOrdersExtended,
+  type OverviewPeriod,
+} from "@/hooks/useCompanyOverviewExtras";
 import { cn } from "@/lib/utils";
 
 interface MonthlyOrderData {
@@ -43,7 +60,23 @@ interface CompanyOverviewTabProps {
   paymentMethod?: string;
   onExtendTrial?: (days: number) => void;
   isExtendingTrial?: boolean;
+  /** Callback per navigare ad un altro tab (attiva KPI click-through). */
+  onNavigateToTab?: (tab: string) => void;
 }
+
+/** Descrizioni criteri Health Score (mostrate in tooltip). */
+const HEALTH_CRITERIA: Record<string, string> = {
+  Login:
+    "Frequenza e recency dei login del team. 25 punti se almeno 3 utenti hanno fatto login negli ultimi 7gg.",
+  Ordini:
+    "Volume e recency degli ordini. 25 punti se c'è almeno 1 ordine nelle ultime 4 settimane con trend positivo.",
+  Funzionalità:
+    "Quante funzionalità moduli sono state usate almeno una volta (CRM, Marketing, Warehouse, ecc).",
+  Team:
+    "Numero di membri attivi (profilo creato + almeno 1 login). Max 15 punti con 5+ membri.",
+  Engagement:
+    "Mix di metriche comportamentali: note CS, ticket risposti, onboarding completato, feedback lasciati.",
+};
 
 function getHealthInfo(days: number | null) {
   if (days === null) return { color: "text-muted-foreground", label: "N/A", bgClass: "bg-muted/50", ring: "ring-muted" };
@@ -120,25 +153,66 @@ export function CompanyOverviewTab({
   companyId, stats, totalTeam, recentOrders, recentTickets,
   currentPlan, currentSubscription, monthlyOrders, daysSinceLastOrder,
   companyCreatedAt, companyStatus, trialEndsAt, paymentMethod,
-  onExtendTrial, isExtendingTrial,
+  onExtendTrial, isExtendingTrial, onNavigateToTab,
 }: CompanyOverviewTabProps) {
   const { data: serverHealth } = useCompanyHealthScore(companyId);
+  const { data: credits } = useCompanyCreditsSnapshot(companyId);
+  const { data: lastActivity } = useCompanyLastActivity(companyId);
+
+  // Period selector per il chart principale (default 6m = comportamento legacy)
+  const [chartPeriod, setChartPeriod] = useState<OverviewPeriod>("6m");
+  const { monthlyOrders: extendedMonthly, isLoading: isChartLoading } =
+    useMonthlyOrdersExtended(companyId, chartPeriod);
+  // Se abbiamo i dati estesi li usiamo, altrimenti cadiamo sul prop (SSR safety)
+  const chartData =
+    extendedMonthly.length > 0 || chartPeriod !== "6m" ? extendedMonthly : monthlyOrders;
+
   const avgOrderValue = stats && stats.ordersCount > 0 ? stats.ordersValue / stats.ordersCount : 0;
   const mrr = currentPlan?.price_monthly || 0;
   const health = getHealthInfo(daysSinceLastOrder);
 
-  const monthsActive = Math.max(1, Math.round((Date.now() - new Date(companyCreatedAt).getTime()) / (30 * 24 * 60 * 60 * 1000)));
+  const monthsActive = Math.max(
+    1,
+    Math.round(
+      (Date.now() - new Date(companyCreatedAt).getTime()) /
+        (30 * 24 * 60 * 60 * 1000),
+    ),
+  );
+  const daysSinceSignup = Math.max(
+    0,
+    differenceInDays(new Date(), new Date(companyCreatedAt)),
+  );
   const ltv = mrr * monthsActive;
 
-  const currentMonthValue = monthlyOrders.length > 0 ? monthlyOrders[monthlyOrders.length - 1].value : 0;
-  const prevMonthValue = monthlyOrders.length > 1 ? monthlyOrders[monthlyOrders.length - 2].value : 0;
-  const momVariation = prevMonthValue > 0 ? ((currentMonthValue - prevMonthValue) / prevMonthValue) * 100 : 0;
+  // Trend MoM: usa SEMPRE monthlyOrders (6m) per stabilità — il grafico
+  // può cambiare periodo, il trend no.
+  const currentMonthValue =
+    monthlyOrders.length > 0 ? monthlyOrders[monthlyOrders.length - 1].value : 0;
+  const prevMonthValue =
+    monthlyOrders.length > 1 ? monthlyOrders[monthlyOrders.length - 2].value : 0;
+  const momVariation =
+    prevMonthValue > 0
+      ? ((currentMonthValue - prevMonthValue) / prevMonthValue) * 100
+      : 0;
 
-  const currentMonthCount = monthlyOrders.length > 0 ? monthlyOrders[monthlyOrders.length - 1].count : 0;
-  const prevMonthCount = monthlyOrders.length > 1 ? monthlyOrders[monthlyOrders.length - 2].count : 0;
-  const momCountVar = prevMonthCount > 0 ? ((currentMonthCount - prevMonthCount) / prevMonthCount) * 100 : 0;
+  const currentMonthCount =
+    monthlyOrders.length > 0 ? monthlyOrders[monthlyOrders.length - 1].count : 0;
+  const prevMonthCount =
+    monthlyOrders.length > 1 ? monthlyOrders[monthlyOrders.length - 2].count : 0;
+  const momCountVar =
+    prevMonthCount > 0
+      ? ((currentMonthCount - prevMonthCount) / prevMonthCount) * 100
+      : 0;
 
-  const timeline = buildTimeline(recentOrders || [], recentTickets || [], companyCreatedAt);
+  const timeline = buildTimeline(
+    recentOrders || [],
+    recentTickets || [],
+    companyCreatedAt,
+  );
+
+  // Click-through: se non c'è callback, niente cursor pointer
+  const kpiClickable = !!onNavigateToTab;
+  const go = (tab: string) => onNavigateToTab?.(tab);
 
   return (
     <div className="space-y-6">
@@ -153,16 +227,36 @@ export function CompanyOverviewTab({
         />
       )}
 
-      {/* === KPI Hero Row === */}
+      {/* === KPI Hero Row (click-through to related tabs) === */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Revenue KPI */}
-        <Card className="relative overflow-hidden">
+        {/* Revenue KPI → Attività */}
+        <Card
+          role={kpiClickable ? "button" : undefined}
+          tabIndex={kpiClickable ? 0 : undefined}
+          onClick={kpiClickable ? () => go("attivita") : undefined}
+          onKeyDown={
+            kpiClickable
+              ? (e) => (e.key === "Enter" || e.key === " ") && go("attivita")
+              : undefined
+          }
+          className={cn(
+            "relative overflow-hidden group transition-all",
+            kpiClickable && "cursor-pointer hover:ring-2 hover:ring-primary/30",
+          )}
+        >
           <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full" />
           <CardContent className="pt-5 pb-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fatturato Ordini</p>
-                <p className="text-2xl font-bold tracking-tight">{formatCurrency(stats?.ordersValue || 0)}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  Fatturato Ordini
+                  {kpiClickable && (
+                    <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+                  )}
+                </p>
+                <p className="text-2xl font-bold tracking-tight">
+                  {formatCurrency(stats?.ordersValue || 0)}
+                </p>
                 <div className="flex items-center gap-2">
                   <TrendIndicator value={momVariation} />
                   <span className="text-xs text-muted-foreground">vs mese prec.</span>
@@ -178,17 +272,37 @@ export function CompanyOverviewTab({
           </CardContent>
         </Card>
 
-        {/* Orders KPI */}
-        <Card className="relative overflow-hidden">
+        {/* Orders KPI → Attività */}
+        <Card
+          role={kpiClickable ? "button" : undefined}
+          tabIndex={kpiClickable ? 0 : undefined}
+          onClick={kpiClickable ? () => go("attivita") : undefined}
+          onKeyDown={
+            kpiClickable
+              ? (e) => (e.key === "Enter" || e.key === " ") && go("attivita")
+              : undefined
+          }
+          className={cn(
+            "relative overflow-hidden group transition-all",
+            kpiClickable && "cursor-pointer hover:ring-2 hover:ring-primary/30",
+          )}
+        >
           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-bl-full" />
           <CardContent className="pt-5 pb-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ordini</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  Ordini
+                  {kpiClickable && (
+                    <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+                  )}
+                </p>
                 <p className="text-2xl font-bold tracking-tight">{stats?.ordersCount || 0}</p>
                 <div className="flex items-center gap-2">
                   <TrendIndicator value={momCountVar} />
-                  <span className="text-xs text-muted-foreground">media {formatCurrency(avgOrderValue)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    media {formatCurrency(avgOrderValue)}
+                  </span>
                 </div>
               </div>
               <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center ring-1 ring-blue-500/20">
@@ -196,23 +310,50 @@ export function CompanyOverviewTab({
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2 text-xs">
-              <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full", health.bgClass)}>
+              <div
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded-full",
+                  health.bgClass,
+                )}
+              >
                 <Heart className={cn("h-3 w-3", health.color)} />
-                <span className={cn("font-medium", health.color)}>Ultimo: {health.label}</span>
+                <span className={cn("font-medium", health.color)}>
+                  Ultimo: {health.label}
+                </span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* MRR & LTV */}
-        <Card className="relative overflow-hidden">
+        {/* MRR & LTV → Abbonamento */}
+        <Card
+          role={kpiClickable ? "button" : undefined}
+          tabIndex={kpiClickable ? 0 : undefined}
+          onClick={kpiClickable ? () => go("abbonamento") : undefined}
+          onKeyDown={
+            kpiClickable
+              ? (e) => (e.key === "Enter" || e.key === " ") && go("abbonamento")
+              : undefined
+          }
+          className={cn(
+            "relative overflow-hidden group transition-all",
+            kpiClickable && "cursor-pointer hover:ring-2 hover:ring-primary/30",
+          )}
+        >
           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-bl-full" />
           <CardContent className="pt-5 pb-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">MRR</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  MRR
+                  {kpiClickable && (
+                    <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+                  )}
+                </p>
                 <p className="text-2xl font-bold tracking-tight">{formatCurrency(mrr)}</p>
-                <p className="text-xs text-muted-foreground">{currentPlan?.name || "Nessun piano"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {currentPlan?.name || "Nessun piano"}
+                </p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-green-500/10 flex items-center justify-center ring-1 ring-green-500/20">
                 <TrendingUp className="h-5 w-5 text-green-600" />
@@ -224,19 +365,43 @@ export function CompanyOverviewTab({
               <span className="text-muted-foreground">{monthsActive} mesi</span>
             </div>
             {mrr > 0 && (
-              <Progress value={Math.min(100, (monthsActive / 24) * 100)} className="h-1 mt-1.5" />
+              <Progress
+                value={Math.min(100, (monthsActive / 24) * 100)}
+                className="h-1 mt-1.5"
+              />
             )}
           </CardContent>
         </Card>
 
-        {/* Team & Subscription */}
-        <Card className="relative overflow-hidden">
+        {/* Team & Subscription → Team */}
+        <Card
+          role={kpiClickable ? "button" : undefined}
+          tabIndex={kpiClickable ? 0 : undefined}
+          onClick={kpiClickable ? () => go("team") : undefined}
+          onKeyDown={
+            kpiClickable
+              ? (e) => (e.key === "Enter" || e.key === " ") && go("team")
+              : undefined
+          }
+          className={cn(
+            "relative overflow-hidden group transition-all",
+            kpiClickable && "cursor-pointer hover:ring-2 hover:ring-primary/30",
+          )}
+        >
           <div className="absolute top-0 right-0 w-24 h-24 bg-violet-500/5 rounded-bl-full" />
           <CardContent className="pt-5 pb-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Team & Rinnovo</p>
-                <p className="text-2xl font-bold tracking-tight">{totalTeam} <span className="text-sm font-normal text-muted-foreground">membri</span></p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  Team &amp; Rinnovo
+                  {kpiClickable && (
+                    <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+                  )}
+                </p>
+                <p className="text-2xl font-bold tracking-tight">
+                  {totalTeam}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">membri</span>
+                </p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center ring-1 ring-violet-500/20">
                 <Users className="h-5 w-5 text-violet-600" />
@@ -247,15 +412,130 @@ export function CompanyOverviewTab({
               <span className="text-muted-foreground">Rinnovo:</span>
               <span className="font-medium">
                 {currentSubscription?.current_period_end
-                  ? format(new Date(currentSubscription.current_period_end), "dd MMM yyyy", { locale: it })
+                  ? format(
+                      new Date(currentSubscription.current_period_end),
+                      "dd MMM yyyy",
+                      { locale: it },
+                    )
                   : "—"}
               </span>
             </div>
             <div className="mt-1 flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Ticket aperti:</span>
-              <Badge variant={stats?.openTicketsCount ? "destructive" : "secondary"} className="text-xs h-4 px-1.5">
+              <Badge
+                variant={stats?.openTicketsCount ? "destructive" : "secondary"}
+                className="text-xs h-4 px-1.5"
+              >
                 {stats?.openTicketsCount || 0}
               </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* === Quick Info Strip: Credits + Last Activity + Signup age === */}
+      <div className="grid gap-3 md:grid-cols-3">
+        {/* Credits */}
+        <Card
+          role={kpiClickable ? "button" : undefined}
+          tabIndex={kpiClickable ? 0 : undefined}
+          onClick={kpiClickable ? () => go("billing") : undefined}
+          onKeyDown={
+            kpiClickable
+              ? (e) => (e.key === "Enter" || e.key === " ") && go("billing")
+              : undefined
+          }
+          className={cn(
+            "group transition-all",
+            kpiClickable && "cursor-pointer hover:ring-2 hover:ring-primary/20",
+          )}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+              <Sparkles className="h-4 w-4 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                Crediti
+                {kpiClickable && (
+                  <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+                )}
+              </p>
+              <div className="flex items-center gap-3 mt-0.5">
+                <div className="flex items-center gap-1">
+                  <Mail className="h-3 w-3 text-blue-600" />
+                  <span className="text-sm font-semibold">
+                    {credits?.email_balance_eur != null
+                      ? formatCurrency(credits.email_balance_eur)
+                      : "—"}
+                  </span>
+                </div>
+                <span className="text-muted-foreground/40">·</span>
+                <div className="flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-violet-600" />
+                  <span className="text-sm font-semibold">
+                    {credits?.ai_balance_eur != null
+                      ? formatCurrency(credits.ai_balance_eur)
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Email · AI</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Last team activity */}
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+              <LogIn className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                Ultimo login team
+              </p>
+              {lastActivity?.last_login_at ? (
+                <>
+                  <p className="text-sm font-semibold truncate">
+                    {formatDistanceToNow(new Date(lastActivity.last_login_at), {
+                      addSuffix: true,
+                      locale: it,
+                    })}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {lastActivity.last_login_user_name ?? "Utente"}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm font-medium text-muted-foreground">
+                  Nessun login registrato
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Signup age */}
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
+              <Cake className="h-4 w-4 text-rose-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                Cliente da
+              </p>
+              <p className="text-sm font-semibold">
+                {daysSinceSignup < 30
+                  ? `${daysSinceSignup} giorn${daysSinceSignup === 1 ? "o" : "i"}`
+                  : monthsActive < 12
+                    ? `${monthsActive} mes${monthsActive === 1 ? "e" : "i"}`
+                    : `${Math.round((monthsActive / 12) * 10) / 10} anni`}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                dal {format(new Date(companyCreatedAt), "dd MMM yyyy", { locale: it })}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -274,33 +554,51 @@ export function CompanyOverviewTab({
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-5 gap-4">
-              {[
-                { label: "Login", value: serverHealth.login_score, max: 25, icon: "🔑" },
-                { label: "Ordini", value: serverHealth.orders_score, max: 25, icon: "📦" },
-                { label: "Funzionalità", value: serverHealth.features_score, max: 20, icon: "⚙️" },
-                { label: "Team", value: serverHealth.team_score, max: 15, icon: "👥" },
-                { label: "Engagement", value: serverHealth.engagement_score, max: 15, icon: "🔥" },
-              ].map((item) => {
-                const pct = (item.value / item.max) * 100;
-                return (
-                  <div key={item.label} className="space-y-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{item.icon}</span>
-                      <span className="text-xs font-medium">{item.label}</span>
+            <TooltipProvider delayDuration={150}>
+              <div className="grid grid-cols-5 gap-4">
+                {[
+                  { label: "Login", value: serverHealth.login_score, max: 25, icon: "🔑" },
+                  { label: "Ordini", value: serverHealth.orders_score, max: 25, icon: "📦" },
+                  { label: "Funzionalità", value: serverHealth.features_score, max: 20, icon: "⚙️" },
+                  { label: "Team", value: serverHealth.team_score, max: 15, icon: "👥" },
+                  { label: "Engagement", value: serverHealth.engagement_score, max: 15, icon: "🔥" },
+                ].map((item) => {
+                  const pct = (item.value / item.max) * 100;
+                  return (
+                    <div key={item.label} className="space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">{item.icon}</span>
+                        <span className="text-xs font-medium">{item.label}</span>
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 text-muted-foreground/70 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs text-xs">
+                            {HEALTH_CRITERIA[item.label] ?? ""}
+                          </TooltipContent>
+                        </UITooltip>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span
+                          className={cn(
+                            "text-lg font-bold",
+                            pct >= 70
+                              ? "text-green-600"
+                              : pct >= 40
+                                ? "text-yellow-600"
+                                : "text-red-600",
+                          )}
+                        >
+                          {item.value}
+                        </span>
+                        <span className="text-xs text-muted-foreground">/{item.max}</span>
+                      </div>
+                      <Progress value={pct} className="h-1.5" />
                     </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className={cn(
-                        "text-lg font-bold",
-                        pct >= 70 ? "text-green-600" : pct >= 40 ? "text-yellow-600" : "text-red-600"
-                      )}>{item.value}</span>
-                      <span className="text-xs text-muted-foreground">/{item.max}</span>
-                    </div>
-                    <Progress value={pct} className="h-1.5" />
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </TooltipProvider>
 
             {serverHealth.signals.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
@@ -330,16 +628,41 @@ export function CompanyOverviewTab({
         {/* Orders Chart - 2 cols */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Trend Ordini — Ultimi 6 Mesi
-            </CardTitle>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                Trend Ordini
+                <span className="text-xs font-normal text-muted-foreground">
+                  — {chartPeriod === "3m" ? "3 mesi" : chartPeriod === "12m" ? "12 mesi" : "6 mesi"}
+                </span>
+              </CardTitle>
+              <Tabs
+                value={chartPeriod}
+                onValueChange={(v) => setChartPeriod(v as OverviewPeriod)}
+              >
+                <TabsList className="h-7 p-0.5">
+                  <TabsTrigger value="3m" className="h-6 text-xs px-2">
+                    3m
+                  </TabsTrigger>
+                  <TabsTrigger value="6m" className="h-6 text-xs px-2">
+                    6m
+                  </TabsTrigger>
+                  <TabsTrigger value="12m" className="h-6 text-xs px-2">
+                    12m
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </CardHeader>
           <CardContent>
-            {monthlyOrders.length > 0 ? (
+            {isChartLoading && chartData.length === 0 ? (
+              <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">
+                Caricamento trend…
+              </div>
+            ) : chartData.length > 0 ? (
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyOrders}>
+                  <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -364,7 +687,7 @@ export function CompanyOverviewTab({
               </div>
             ) : (
               <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">
-                Nessun dato disponibile
+                Nessun ordine nel periodo selezionato
               </div>
             )}
           </CardContent>
@@ -421,7 +744,22 @@ export function CompanyOverviewTab({
                 <ClipboardList className="h-4 w-4 text-primary" />
                 Ultimi Ordini
               </CardTitle>
-              <Badge variant="secondary" className="text-xs">{recentOrders?.length || 0}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  {recentOrders?.length || 0}
+                </Badge>
+                {kpiClickable && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => go("attivita")}
+                  >
+                    Vai a Attività
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -472,9 +810,25 @@ export function CompanyOverviewTab({
                 <MessageSquare className="h-4 w-4 text-primary" />
                 Ultimi Ticket
               </CardTitle>
-              <Badge variant={stats?.openTicketsCount ? "destructive" : "secondary"} className="text-xs">
-                {stats?.openTicketsCount || 0} aperti
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant={stats?.openTicketsCount ? "destructive" : "secondary"}
+                  className="text-xs"
+                >
+                  {stats?.openTicketsCount || 0} aperti
+                </Badge>
+                {kpiClickable && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => go("supporto")}
+                  >
+                    Vai a Supporto
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
