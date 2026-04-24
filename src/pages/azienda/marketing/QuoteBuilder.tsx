@@ -156,9 +156,11 @@ function MargineSemaforo({
 
 function SortableItem({
   id,
+  index,
   children,
 }: {
   id: string;
+  index?: number;
   children: (dragHandle: React.ReactNode) => React.ReactNode;
 }) {
   const {
@@ -174,21 +176,34 @@ function SortableItem({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
   };
 
+  // Drag handle più visibile: numero ordine + grip icon in pill rounded
   const handle = (
     <button
       {...attributes}
       {...listeners}
-      className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground p-1 touch-none shrink-0"
+      className="group/grip cursor-grab active:cursor-grabbing inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors touch-none shrink-0"
       tabIndex={-1}
+      aria-label="Riordina riga"
+      title="Trascina per riordinare"
     >
-      <GripVertical className="h-4 w-4" />
+      <GripVertical className="h-3.5 w-3.5 opacity-60 group-hover/grip:opacity-100" />
+      {typeof index === "number" && (
+        <span className="text-[10px] font-mono font-semibold tabular-nums">
+          {index + 1}
+        </span>
+      )}
     </button>
   );
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? "shadow-2xl ring-2 ring-primary/40 rounded-lg" : ""}
+    >
       {children(handle)}
     </div>
   );
@@ -2364,20 +2379,34 @@ export default function QuoteBuilder() {
                       );
 
                       return (
-                        <SortableItem key={`item-${idx}`} id={`item-${idx}`}>
+                        <SortableItem
+                          key={`item-${idx}`}
+                          id={`item-${idx}`}
+                          index={!isChild && !isNota && !isSubtotale && !isSconto ? idx : undefined}
+                        >
                           {(dragHandle) => (
                         <div
-                          className={`border rounded-lg p-3 flex gap-1 items-start ${
+                          className={`group/row border rounded-lg p-2.5 flex gap-1.5 items-start transition-all hover:border-primary/40 hover:shadow-sm ${
                             isChild
                               ? "ml-6 bg-muted/20 border-dashed"
+                              : "bg-card"
+                          } ${
+                            isNota
+                              ? "bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50"
                               : ""
-                          } ${isNota ? "bg-amber-50/50" : ""} ${
-                            isSubtotale ? "border-t-2 border-t-border" : ""
+                          } ${
+                            isSubtotale
+                              ? "border-t-2 border-t-primary/30 bg-muted/30"
+                              : ""
+                          } ${
+                            isSconto
+                              ? "bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900/50"
+                              : ""
                           }`}
                         >
                           {!isChild && dragHandle}
                           {isChild && (
-                            <span className="text-muted-foreground text-xs mr-2">
+                            <span className="text-muted-foreground/60 text-xs mr-2 mt-2 shrink-0">
                               └
                             </span>
                           )}
@@ -2705,46 +2734,66 @@ export default function QuoteBuilder() {
                       />
                     )}
                     <div className="flex justify-end">
-                    <div className="w-full max-w-xs space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Subtotale</span>
-                        <span>{formatCurrency(subtotal)}</span>
-                      </div>
-                      {!isEdit && (
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="text-muted-foreground">
-                          Sconto globale %
-                        </span>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={100}
-                          className="w-20 h-8 text-right"
-                          value={discountPercent}
-                          onChange={(e) =>
-                            setDiscountPercent(
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                        />
-                      </div>
-                      )}
-                      {discountPercent > 0 && (
-                        <div className="flex justify-between text-destructive">
-                          <span>Sconto</span>
-                          <span>-{formatCurrency(discountAmt)}</span>
+                      <div className="w-full max-w-sm rounded-lg border bg-gradient-to-br from-muted/30 to-muted/10 p-4 space-y-2.5 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Subtotale
+                          </span>
+                          <span className="tabular-nums font-medium">
+                            {formatCurrency(subtotal)}
+                          </span>
                         </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">IVA</span>
-                        <span>{formatCurrency(vatAmount)}</span>
+                        {!isEdit && (
+                          <div className="flex justify-between items-center gap-2 py-1 border-t border-dashed">
+                            <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                              Sconto globale
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.5}
+                                className="w-16 h-7 text-right text-xs"
+                                value={discountPercent}
+                                onChange={(e) =>
+                                  setDiscountPercent(
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                              />
+                              <span className="text-xs text-muted-foreground">%</span>
+                            </div>
+                          </div>
+                        )}
+                        {discountPercent > 0 && (
+                          <div className="flex justify-between items-center text-orange-600 dark:text-orange-400">
+                            <span className="text-xs uppercase tracking-wide">
+                              Sconto applicato
+                            </span>
+                            <span className="tabular-nums font-medium">
+                              -{formatCurrency(discountAmt)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                            IVA
+                          </span>
+                          <span className="tabular-nums text-muted-foreground">
+                            {formatCurrency(vatAmount)}
+                          </span>
+                        </div>
+                        <div className="h-px bg-border" />
+                        <div className="flex justify-between items-baseline">
+                          <span className="font-semibold text-base">
+                            Totale
+                          </span>
+                          <span className="font-bold text-xl text-primary tabular-nums">
+                            {formatCurrency(total)}
+                          </span>
+                        </div>
                       </div>
-                      <hr />
-                      <div className="flex justify-between font-bold text-base">
-                        <span>Totale</span>
-                        <span>{formatCurrency(total)}</span>
-                      </div>
-                    </div>
                     </div>
                   </div>
                 )}
