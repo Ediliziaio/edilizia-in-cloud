@@ -41,9 +41,22 @@ export interface RoomReplacementManifest {
   floorPromptExcerpt?: string;
 }
 
+export interface RoomTargetZonesMap {
+  mainWall: string;
+  accentWall: string;
+  secondaryWalls: string;
+  floor: string;
+  ceiling: string;
+  windowTreatmentZones: string;
+  furnitureGroups: string;
+  kitchenBlock: string;
+  strictPreservationAreas: string[];
+}
+
 export interface RoomRenderConfig {
   legacy_config: Record<string, unknown>;
   scene_analysis: RoomSceneAnalysis;
+  target_zones_map: RoomTargetZonesMap;
   replacement_manifest: RoomReplacementManifest;
   integrity_constraints: string[];
   negative_constraints: string[];

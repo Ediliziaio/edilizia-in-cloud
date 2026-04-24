@@ -5,6 +5,7 @@ import {
   BATHTUB_TYPE_DESCRIPTIONS,
   FAUCET_FINISH_DESCRIPTIONS,
   FAUCET_STYLE_DESCRIPTIONS,
+  FLUSH_PLATE_COLOR_DESCRIPTIONS,
   FLUSH_PLATE_DESCRIPTIONS,
   INTERVENTION_DESCRIPTIONS,
   POSA_DESCRIPTIONS,
@@ -211,7 +212,7 @@ function inferSanitaryInstallationRule(config: ConfigurazioneBagno["sanitari"]):
     config.azione_wc !== "sostituisci"
       ? "keep the existing WC installation logic"
       : config.tipo_wc === "sospeso" || config.tipo_wc === "rimless_sospeso"
-        ? "WC must be truly wall-hung with compact projection and believable in-wall carrier support"
+        ? "WC must be a true wall-hung rimless-style installation: ceramic bowl visibly floating off the floor, clear shadow gap below, compact projection, believable in-wall carrier support and no floor contact pedestal"
         : "WC must be a real floor-standing model with coherent floor contact and compact modern proportions";
 
   const bidetRule =
@@ -232,22 +233,24 @@ function inferSanitaryCisternRule(config: ConfigurazioneBagno["sanitari"]): stri
   }
 
   if (config.tipo_wc === "sospeso" || config.tipo_wc === "rimless_sospeso") {
-    return "Use a concealed in-wall cistern: NO bulky exposed ceramic tank behind the WC, and only a slim flush plate visible on the wall.";
+    return "Use a concealed in-wall cistern hidden behind the finished wall: absolutely NO bulky exposed ceramic tank, no monobloc cistern, no rectangular tank sitting behind/above the WC; only the selected compact wall flush plate may be visible.";
   }
 
   return "If a floor-standing WC is selected, keep the cistern logic coherent with a floor-standing toilet and do not turn it into a wall-hung concealed-frame system.";
 }
 
-function inferFlushPlateRule(config: ConfigurazioneBagno["sanitari"]): { style: string | null; rule: string | null } {
-  if (config.azione_wc !== "sostituisci") return { style: null, rule: null };
+function inferFlushPlateRule(config: ConfigurazioneBagno["sanitari"]): { style: string | null; color: string | null; rule: string | null } {
+  if (config.azione_wc !== "sostituisci") return { style: null, color: null, rule: null };
   if (config.tipo_wc !== "sospeso" && config.tipo_wc !== "rimless_sospeso") {
-    return { style: null, rule: "Do not add a wall flush plate unless the selected WC typology requires a concealed cistern." };
+    return { style: null, color: null, rule: "Do not add a wall flush plate unless the selected WC typology requires a concealed cistern." };
   }
 
   const style = FLUSH_PLATE_DESCRIPTIONS[config.piastra_wc ?? "rettangolare_sottile"];
+  const color = FLUSH_PLATE_COLOR_DESCRIPTIONS[config.piastra_wc_colore ?? "nero_opaco"];
   return {
     style,
-    rule: `${style}. The flush plate must replace any old external tank logic and must stay proportionate, compact and aligned with the wall-hung WC.`,
+    color,
+    rule: `${style}, ${color}. The selected flush plate is mandatory and must be visible: mount it on the wall behind/above the wall-hung WC at realistic height, flush with the finished wall, crisp and proportionate. It replaces any old external tank logic and must not be omitted or turned into an exposed cistern.`,
   };
 }
 
@@ -428,10 +431,11 @@ export function buildBathroomRenderConfig(
     ceramicFinish: SANITARY_COLOR_DESCRIPTIONS[legacyConfig.sanitari.colore],
     cisternRule: inferSanitaryCisternRule(legacyConfig.sanitari),
     flushPlateStyle: flushPlate.style,
+    flushPlateColor: flushPlate.color,
     flushPlateRule: flushPlate.rule,
     scaleRule:
       legacyConfig.sanitari.tipo_wc === "sospeso" || legacyConfig.sanitari.tipo_wc === "rimless_sospeso"
-        ? "Sanitary ware must keep compact contemporary proportions; never render an oversized old-fashioned monobloc WC."
+        ? "Sanitary ware must keep compact contemporary proportions; the wall-hung WC must float cleanly with no floor pedestal, no exposed tank and no oversized old-fashioned monobloc WC."
         : "Sanitary ware proportions must stay compact and contemporary, with realistic spacing and no oversized ceramic volumes.",
   };
 

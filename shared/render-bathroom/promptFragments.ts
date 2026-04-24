@@ -2,6 +2,7 @@ import type {
   BathroomBathtubType,
   BathroomFaucetFinish,
   BathroomFaucetStyle,
+  BathroomFlushPlateColor,
   BathroomFlushPlateStyle,
   BathroomMirrorType,
   BathroomSanitaryColor,
@@ -217,6 +218,15 @@ export const FLUSH_PLATE_DESCRIPTIONS: Record<BathroomFlushPlateStyle, string> =
     "soft rounded dual-flush wall plate, compact and contemporary rather than old-fashioned",
 };
 
+export const FLUSH_PLATE_COLOR_DESCRIPTIONS: Record<BathroomFlushPlateColor, string> = {
+  bianco: "white flush plate, quiet and tone-on-tone with light wall finishes",
+  nero_opaco: "matte black flush plate, crisp rectangular contrast on the wall",
+  cromo: "polished chrome flush plate with realistic reflected highlights",
+  acciaio_spazzolato: "brushed stainless-steel flush plate with satin directional grain",
+  oro_rosa: "rose-gold satin flush plate, coordinated with rose-gold faucet finishes",
+  ottone_spazzolato: "brushed brass / champagne flush plate, warm metallic and refined",
+};
+
 export const FAUCET_FINISH_DESCRIPTIONS: Record<BathroomFaucetFinish, string> = {
   cromo: "polished chrome finish",
   nero_opaco: "matte black finish",
@@ -244,6 +254,8 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not change image dimensions or orientation",
   "do not render 120x240 slabs as a 60x60 or dense medium-tile grid",
   "do not render a freestanding bathtub as a tiny bowl, mini tub or undersized decorative object",
+  "do not render a floor-standing WC, monobloc WC or exposed cistern when a wall-hung WC is selected",
+  "do not omit the selected wall flush plate when a concealed-cistern WC is selected",
 ];
 
 export const DEFAULT_QUALITY_DIRECTIVES = [

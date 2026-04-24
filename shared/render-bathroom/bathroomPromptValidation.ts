@@ -65,22 +65,33 @@ export function validateBathroomPromptConfig(config: BathroomRenderConfig): Bath
 
   if (config.technical_specification.sanitaryWare.replace) {
     const spec = config.technical_specification.sanitaryWare;
-    const asksWallHung =
-      spec.toiletType.toLowerCase().includes("wall-hung") ||
-      (spec.bidetType?.toLowerCase().includes("wall-hung") ?? false);
-    if (asksWallHung && !spec.installationRule.toLowerCase().includes("wall-hung")) {
+    const asksWallHungToilet = spec.toiletType.toLowerCase().includes("wall-hung");
+    const asksWallHungBidet = spec.bidetType?.toLowerCase().includes("wall-hung") ?? false;
+    if ((asksWallHungToilet || asksWallHungBidet) && !spec.installationRule.toLowerCase().includes("wall-hung")) {
       missingBusinessRules.push("wall-hung sanitary ware must be explicit in the installation rule");
     }
-    if (asksWallHung && !spec.cisternRule.toLowerCase().includes("concealed")) {
+    if (asksWallHungToilet && !spec.cisternRule.toLowerCase().includes("concealed")) {
       missingBusinessRules.push("wall-hung WC must explicitly require a concealed cistern");
     }
-    if (asksWallHung && !spec.flushPlateRule?.toLowerCase().includes("flush plate")) {
+    if (asksWallHungToilet && !spec.flushPlateRule?.toLowerCase().includes("flush plate")) {
       missingBusinessRules.push("wall-hung WC must explicitly require a wall flush plate");
     }
-    if (asksWallHung && !spec.scaleRule.toLowerCase().includes("oversized")) {
+    if (asksWallHungToilet && !spec.flushPlateRule?.toLowerCase().includes("mandatory")) {
+      missingBusinessRules.push("wall-hung WC flush plate must be mandatory, not optional");
+    }
+    if (asksWallHungToilet && !spec.flushPlateRule?.toLowerCase().includes("visible")) {
+      missingBusinessRules.push("wall-hung WC flush plate must be visibly mounted on the wall");
+    }
+    if (asksWallHungToilet && !spec.flushPlateColor) {
+      missingBusinessRules.push("wall-hung WC must carry the selected flush plate color");
+    }
+    if (asksWallHungToilet && !spec.installationRule.toLowerCase().includes("no floor contact")) {
+      missingBusinessRules.push("wall-hung WC must reject floor contact / pedestal geometry");
+    }
+    if (asksWallHungToilet && !spec.scaleRule.toLowerCase().includes("oversized")) {
       missingBusinessRules.push("wall-hung WC must explicitly reject oversized exposed-tank proportions");
     }
-    if (asksWallHung) {
+    if (asksWallHungToilet) {
       const hasWallHungConversionRule = config.replacement_manifest.removals.some((rule) =>
         rule.code === "convert_existing_wc_to_wall_hung"
       );

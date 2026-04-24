@@ -61,6 +61,7 @@ export const DEFAULT_BATHROOM_CONFIG: ConfigurazioneBagno = {
     tipo_bidet: "sospeso",
     colore: "bianco",
     piastra_wc: "rettangolare_sottile",
+    piastra_wc_colore: "nero_opaco",
   },
   rubinetteria: {
     attivo: false,

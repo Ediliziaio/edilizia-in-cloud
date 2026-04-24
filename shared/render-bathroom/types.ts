@@ -145,6 +145,14 @@ export type BathroomFlushPlateStyle =
   | "vetro_minimal"
   | "tonda_soft";
 
+export type BathroomFlushPlateColor =
+  | "bianco"
+  | "nero_opaco"
+  | "cromo"
+  | "acciaio_spazzolato"
+  | "oro_rosa"
+  | "ottone_spazzolato";
+
 export interface ConfigSanitari {
   attivo: boolean;
   azione_wc: BathroomSanitaryAction;
@@ -153,6 +161,7 @@ export interface ConfigSanitari {
   tipo_bidet?: BathroomBidetType;
   colore: BathroomSanitaryColor;
   piastra_wc?: BathroomFlushPlateStyle;
+  piastra_wc_colore?: BathroomFlushPlateColor;
 }
 
 export type BathroomFaucetFinish =
@@ -426,6 +435,7 @@ export interface BathroomSanitarySpecification {
   ceramicFinish: string;
   cisternRule: string;
   flushPlateStyle: string | null;
+  flushPlateColor: string | null;
   flushPlateRule: string | null;
   scaleRule: string;
 }

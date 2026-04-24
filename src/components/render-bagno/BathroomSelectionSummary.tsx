@@ -151,6 +151,7 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
               <div className="grid gap-2">
                 {spec.sanitaryWare.replace ? <SpecRow label="WC" value={valueFrom(sanitary, "tipo_wc") ?? spec.sanitaryWare.toiletType} /> : null}
                 {spec.sanitaryWare.replace ? <SpecRow label="Piastra WC" value={valueFrom(sanitary, "piastra_wc") ?? spec.sanitaryWare.flushPlateStyle} /> : null}
+                {spec.sanitaryWare.replace ? <SpecRow label="Colore piastra" value={valueFrom(sanitary, "piastra_wc_colore") ?? spec.sanitaryWare.flushPlateColor} /> : null}
                 {spec.faucets.replace ? <SpecRow label="Finitura rubinetti" value={valueFrom(faucets, "finitura") ?? spec.faucets.finish} /> : null}
                 {spec.faucets.replace ? <SpecRow label="Stile rubinetti" value={valueFrom(faucets, "stile") ?? spec.faucets.style} /> : null}
               </div>
