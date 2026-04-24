@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,10 +9,60 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Search, AlertTriangle, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Calendar,
+  CheckCircle2,
+  GalleryHorizontalEnd,
+  Image,
+  Link2,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { loadRenderGalleryMeta, resolveRenderGalleryMeta } from "@/lib/render/renderGalleryMeta";
+import {
+  loadRenderGalleryMeta,
+  resolveRenderGalleryMeta,
+  type RenderGalleryMeta,
+} from "@/lib/render/renderGalleryMeta";
+
+type InfissiGalleryRow = {
+  id: string;
+  title: string | null;
+  original_url: string | null;
+  render_url: string | null;
+  tags: string[] | null;
+  config_summary: Record<string, string> | null;
+  created_at: string;
+  session_id: string | null;
+  created_by: string | null;
+  contact_id: string | null;
+  opportunity_id: string | null;
+  meta: RenderGalleryMeta;
+};
+
+const compactStrings = (items: Array<string | null | undefined>) =>
+  items.map((item) => item?.trim()).filter((item): item is string => Boolean(item));
+
+function getDisplayTitle(item: InfissiGalleryRow) {
+  return item.title || item.config_summary?.materiale || "Render infissi";
+}
+
+function getSummaryBadges(item: InfissiGalleryRow) {
+  return compactStrings([
+    item.config_summary?.materiale,
+    item.config_summary?.colore,
+    item.config_summary?.tipo,
+    ...(item.tags ?? []),
+  ]).slice(0, 4);
+}
 
 export default function RenderGallery() {
   const navigate = useNavigate();
@@ -22,6 +72,7 @@ export default function RenderGallery() {
   const [creatorFilter, setCreatorFilter] = useState("all");
   const [contactFilter, setContactFilter] = useState("all");
   const [opportunityFilter, setOpportunityFilter] = useState("all");
+  const [linkFilter, setLinkFilter] = useState("all");
 
   const { data: gallery = [], isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["render-gallery", companyId],
@@ -29,19 +80,11 @@ export default function RenderGallery() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("render_gallery")
-        .select("id, title, original_url, render_url, tags, created_at, session_id")
+        .select("id, title, original_url, render_url, tags, config_summary, created_at, session_id")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      const rows = (data ?? []) as {
-        id: string;
-        title: string | null;
-        original_url: string | null;
-        render_url: string | null;
-        tags: string[] | null;
-        created_at: string;
-        session_id: string | null;
-      }[];
+      const rows = (data ?? []) as Array<Omit<InfissiGalleryRow, "created_by" | "contact_id" | "opportunity_id" | "meta">>;
       const sessionIds = rows.map((row) => row.session_id).filter(Boolean) as string[];
       const { data: sessions, error: sessionError } = sessionIds.length
         ? await supabase
@@ -50,6 +93,7 @@ export default function RenderGallery() {
             .in("id", sessionIds)
         : { data: [], error: null };
       if (sessionError) throw sessionError;
+
       const sessionById = new Map((sessions ?? []).map((session) => [session.id, session]));
       const metaSources = rows.map((row) => {
         const session = row.session_id ? sessionById.get(row.session_id) : null;
@@ -69,90 +113,184 @@ export default function RenderGallery() {
           opportunity_id: source.opportunity_id,
           meta: resolveRenderGalleryMeta(source, metaMaps),
         };
-      });
+      }) as InfissiGalleryRow[];
     },
     enabled: !!companyId,
   });
 
-  const filtered = gallery.filter((item) => {
-    const s = search.toLowerCase();
-    const matchesSearch = !search || (
-      (item.title ?? "").toLowerCase().includes(s) ||
-      (item.tags ?? []).some((t) => t.toLowerCase().includes(s)) ||
-      (item.meta.createdByName ?? "").toLowerCase().includes(s) ||
-      (item.meta.contactName ?? "").toLowerCase().includes(s) ||
-      (item.meta.opportunityName ?? "").toLowerCase().includes(s) ||
-      format(new Date(item.created_at), "d MMMM yyyy", { locale: it }).toLowerCase().includes(s)
-    );
-    return matchesSearch &&
-      (creatorFilter === "all" || item.created_by === creatorFilter) &&
-      (contactFilter === "all" || item.contact_id === contactFilter) &&
-      (opportunityFilter === "all" || item.opportunity_id === opportunityFilter);
-  });
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return gallery.filter((item) => {
+      const linked = Boolean(item.contact_id || item.opportunity_id);
+      const haystack = [
+        item.title,
+        item.tags?.join(" "),
+        item.config_summary ? Object.values(item.config_summary).join(" ") : null,
+        item.meta.createdByName,
+        item.meta.contactName,
+        item.meta.opportunityName,
+        format(new Date(item.created_at), "d MMMM yyyy", { locale: it }),
+      ].filter(Boolean).join(" ").toLowerCase();
 
-  const creatorOptions = [...new Map(gallery.filter((item) => item.created_by && item.meta.createdByName).map((item) => [item.created_by!, item.meta.createdByName!])).entries()];
-  const contactOptions = [...new Map(gallery.filter((item) => item.contact_id && item.meta.contactName).map((item) => [item.contact_id!, item.meta.contactName!])).entries()];
-  const opportunityOptions = [...new Map(gallery.filter((item) => item.opportunity_id && item.meta.opportunityName).map((item) => [item.opportunity_id!, item.meta.opportunityName!])).entries()];
+      return (!needle || haystack.includes(needle)) &&
+        (creatorFilter === "all" || item.created_by === creatorFilter) &&
+        (contactFilter === "all" || item.contact_id === contactFilter) &&
+        (opportunityFilter === "all" || item.opportunity_id === opportunityFilter) &&
+        (linkFilter === "all" || (linkFilter === "linked" ? linked : !linked));
+    });
+  }, [contactFilter, creatorFilter, gallery, linkFilter, opportunityFilter, search]);
+
+  const creatorOptions = useMemo(
+    () => [...new Map(gallery
+      .filter((item) => item.created_by && item.meta.createdByName)
+      .map((item) => [item.created_by!, item.meta.createdByName!])).entries()],
+    [gallery],
+  );
+  const contactOptions = useMemo(
+    () => [...new Map(gallery
+      .filter((item) => item.contact_id && item.meta.contactName)
+      .map((item) => [item.contact_id!, item.meta.contactName!])).entries()],
+    [gallery],
+  );
+  const opportunityOptions = useMemo(
+    () => [...new Map(gallery
+      .filter((item) => item.opportunity_id && item.meta.opportunityName)
+      .map((item) => [item.opportunity_id!, item.meta.opportunityName!])).entries()],
+    [gallery],
+  );
+
+  const stats = useMemo(() => ({
+    total: gallery.length,
+    visible: filtered.length,
+    linked: gallery.filter((item) => item.contact_id || item.opportunity_id).length,
+    contacts: new Set(gallery.map((item) => item.contact_id).filter(Boolean)).size,
+  }), [filtered.length, gallery]);
+
+  const hasFilters = Boolean(search.trim()) ||
+    creatorFilter !== "all" ||
+    contactFilter !== "all" ||
+    opportunityFilter !== "all" ||
+    linkFilter !== "all";
+
+  const resetFilters = () => {
+    setSearch("");
+    setCreatorFilter("all");
+    setContactFilter("all");
+    setOpportunityFilter("all");
+    setLinkFilter("all");
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/infissi")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <GalleryHorizontalEnd className="h-5 w-5 text-primary" />
-            Galleria Render
-          </h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} render salvati</p>
+      <section className="rounded-2xl border bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_52%,#ffffff_100%)] p-5 shadow-sm">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/infissi")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <Badge variant="outline" className="mb-2 bg-white/70">
+                <GalleryHorizontalEnd className="mr-1 h-3.5 w-3.5 text-primary" />
+                Galleria infissi
+              </Badge>
+              <h1 className="text-2xl font-bold leading-tight text-slate-950 sm:text-3xl">
+                Render salvati, ordinati per vendita e CRM.
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Cerca rapidamente per cliente, opportunità, autore, materiale o data. Ogni card mostra subito
+                chi ha generato il render e dove è collegato.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="gap-2 bg-white/80" onClick={() => navigate("/azienda/render/infissi")}>
+              Panoramica
+            </Button>
+            <Button className="gap-2" onClick={() => navigate("/azienda/render/infissi/new")}>
+              <Plus className="h-4 w-4" />
+              Nuovo render
+            </Button>
+          </div>
         </div>
-        <Button onClick={() => navigate("/azienda/render/infissi/new")}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo render
-        </Button>
-      </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-4">
+          {[
+            { label: "Totali", value: stats.total, icon: GalleryHorizontalEnd },
+            { label: "Visibili", value: stats.visible, icon: Search },
+            { label: "Collegati CRM", value: stats.linked, icon: Link2 },
+            { label: "Contatti", value: stats.contacts, icon: UserRound },
+          ].map(({ label, value, icon: Icon }) => (
+            <div key={label} className="rounded-xl border bg-white/85 p-3 shadow-sm">
+              <Icon className="mb-2 h-4 w-4 text-primary" />
+              <p className="text-2xl font-bold leading-none">{value}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {gallery.length > 0 && (
-        <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_180px_180px_180px]">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Cerca render, autore, contatto..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Select value={creatorFilter} onValueChange={setCreatorFilter}>
-            <SelectTrigger><SelectValue placeholder="Creato da" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli autori</SelectItem>
-              {creatorOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={contactFilter} onValueChange={setContactFilter}>
-            <SelectTrigger><SelectValue placeholder="Contatto" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i contatti</SelectItem>
-              {contactOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={opportunityFilter} onValueChange={setOpportunityFilter}>
-            <SelectTrigger><SelectValue placeholder="Opportunità" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutte opportunità</SelectItem>
-              {opportunityOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <Card>
+          <CardContent className="p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold">Filtri galleria</p>
+              </div>
+              {hasFilters && (
+                <Button variant="ghost" size="sm" className="gap-2" onClick={resetFilters}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reset
+                </Button>
+              )}
+            </div>
+            <div className="grid gap-2 lg:grid-cols-[minmax(260px,1fr)_170px_190px_190px_170px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca render, materiale, autore, contatto..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={creatorFilter} onValueChange={setCreatorFilter}>
+                <SelectTrigger><SelectValue placeholder="Creato da" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli autori</SelectItem>
+                  {creatorOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={contactFilter} onValueChange={setContactFilter}>
+                <SelectTrigger><SelectValue placeholder="Contatto" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i contatti</SelectItem>
+                  {contactOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={opportunityFilter} onValueChange={setOpportunityFilter}>
+                <SelectTrigger><SelectValue placeholder="Opportunità" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte opportunità</SelectItem>
+                  {opportunityOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={linkFilter} onValueChange={setLinkFilter}>
+                <SelectTrigger><SelectValue placeholder="CRM" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti CRM</SelectItem>
+                  <SelectItem value="linked">Collegati</SelectItem>
+                  <SelectItem value="unlinked">Non collegati</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="aspect-[4/3] rounded-2xl" />)}
         </div>
       ) : error ? (
         <Card>
@@ -186,67 +324,112 @@ export default function RenderGallery() {
             </Button>
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-14 text-center">
+            <SlidersHorizontal className="mx-auto h-12 w-12 text-muted-foreground/35" />
+            <p className="mt-3 font-medium">Nessun render con questi filtri</p>
+            <p className="mt-1 text-sm text-muted-foreground">Prova a rimuovere qualche filtro o cerca un altro cliente.</p>
+            <Button variant="outline" className="mt-4 gap-2" onClick={resetFilters}>
+              <RotateCcw className="h-4 w-4" />
+              Mostra tutto
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filtered.map(item => (
-            <div
-              key={item.id}
-              className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border hover:border-primary/50 transition-all hover:shadow-md bg-muted"
-              onClick={() => item.session_id && navigate(`/azienda/render/infissi/gallery/${item.session_id}`)}
-            >
-              {item.render_url ? (
-                <img
-                  src={item.render_url}
-                  alt={item.title ?? "Render"}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Image className="h-8 w-8 text-muted-foreground/40" />
-                </div>
-              )}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map(item => {
+            const destination = item.session_id ? `/azienda/render/infissi/gallery/${item.session_id}` : null;
+            const badges = getSummaryBadges(item);
+            return (
+              <Card
+                key={item.id}
+                className="group overflow-hidden transition-all hover:border-primary/40 hover:shadow-md"
+              >
+                <button
+                  type="button"
+                  className="block w-full text-left"
+                  disabled={!destination}
+                  onClick={() => destination && navigate(destination)}
+                >
+                  <div className="relative aspect-[16/10] bg-muted">
+                    {item.render_url ? (
+                      <img
+                        src={item.render_url}
+                        alt={item.title ?? "Render"}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Image className="h-8 w-8 text-muted-foreground/40" />
+                      </div>
+                    )}
+                    {item.original_url && (
+                      <div className="absolute left-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] font-medium text-white">
+                        Prima / dopo disponibile
+                      </div>
+                    )}
+                    <div className="absolute right-3 top-3 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-800 shadow-sm">
+                      Infissi
+                    </div>
+                  </div>
 
-              {/* Overlay info */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
-                <p className="text-white text-xs font-medium truncate">
-                  {item.title ?? format(new Date(item.created_at), "d MMM yyyy", { locale: it })}
-                </p>
-                  {item.tags && item.tags.length > 0 && (
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {item.tags.slice(0, 2).map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-[10px] py-0">
-                          {tag}
-                        </Badge>
-                      ))}
-                      {item.meta.contactName && (
-                        <Badge variant="secondary" className="text-[10px] py-0">
-                          {item.meta.contactName}
-                        </Badge>
-                      )}
-                      {item.meta.createdByName && (
-                        <Badge variant="secondary" className="text-[10px] py-0">
-                          {item.meta.createdByName}
-                        </Badge>
-                      )}
+                  <div className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="truncate text-sm font-semibold">{getDisplayTitle(item)}</h2>
+                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {format(new Date(item.created_at), "d MMM yyyy, HH:mm", { locale: it })}
+                        </p>
+                      </div>
+                      <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                     </div>
-                  )}
-                  {(!item.tags || item.tags.length === 0) && (item.meta.contactName || item.meta.createdByName) && (
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {item.meta.contactName && (
-                        <Badge variant="secondary" className="text-[10px] py-0">
-                          {item.meta.contactName}
-                        </Badge>
-                      )}
-                      {item.meta.createdByName && (
-                        <Badge variant="secondary" className="text-[10px] py-0">
-                          {item.meta.createdByName}
-                        </Badge>
-                      )}
+
+                    {badges.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {badges.map((tag) => (
+                          <Badge key={tag} variant="outline" className="text-[10px] capitalize">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="grid gap-2 rounded-xl border bg-muted/20 p-3 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Creato da</span>
+                        <span className="truncate font-medium">{item.meta.createdByName ?? "Non disponibile"}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Contatto</span>
+                        <span className="truncate font-medium">{item.meta.contactName ?? "Non collegato"}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Opportunità</span>
+                        <span className="truncate font-medium">{item.meta.opportunityName ?? "Non collegata"}</span>
+                      </div>
                     </div>
-                  )}
-              </div>
-            </div>
-          ))}
+
+                    <div className="flex items-center justify-between">
+                      {item.contact_id || item.opportunity_id ? (
+                        <Badge variant="secondary" className="gap-1 text-[10px]">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Collegato CRM
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1 text-[10px] text-muted-foreground">
+                          <Link2 className="h-3 w-3" />
+                          Da collegare
+                        </Badge>
+                      )}
+                      <span className="text-xs font-medium text-primary">Apri dettaglio</span>
+                    </div>
+                  </div>
+                </button>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

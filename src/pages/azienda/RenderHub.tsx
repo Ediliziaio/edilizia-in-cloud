@@ -33,23 +33,41 @@ const STATUS_CONFIG = {
 const HOW_IT_WORKS = [
   {
     icon: Upload,
-    title: "1. Carica la foto",
-    desc: "Foto frontale della facciata con gli infissi attuali. JPG, PNG o WEBP.",
+    title: "Foto reale",
+    desc: "Usa uno scatto leggibile della facciata o del vano, con infissi e contorni visibili.",
   },
   {
     icon: Wand2,
-    title: "2. Analisi AI",
-    desc: "L'AI identifica automaticamente il tipo di finestra, materiale e condizioni.",
+    title: "Analisi aperture",
+    desc: "Il sistema mantiene prospettiva, muri, vetri, soglie e rapporto con la facciata.",
   },
   {
     icon: Sparkles,
-    title: "3. Configura",
-    desc: "Scegli materiale, colore RAL, maniglia e tipo di apertura desiderati.",
+    title: "Scelte tecniche",
+    desc: "Configura materiale, colore, profilo, maniglia, vetro, cassonetto e oscuranti.",
   },
   {
     icon: Share2,
-    title: "4. Render & condividi",
-    desc: "Ottieni un'immagine fotorealistica e condividila con il cliente via WhatsApp.",
+    title: "Output commerciale",
+    desc: "Salva in galleria, collega a CRM, scarica PDF e condividi con il cliente.",
+  },
+];
+
+const QUALITY_CHECKS = [
+  {
+    icon: ShieldCheck,
+    title: "Stessa facciata",
+    desc: "Il render deve preservare facciata, prospettiva, soglie, davanzali e contesto.",
+  },
+  {
+    icon: SlidersHorizontal,
+    title: "Scelte complete",
+    desc: "Più dettagli tecnici inserisci, meno l'AI inventa materiali o accessori.",
+  },
+  {
+    icon: Link2,
+    title: "CRM ordinato",
+    desc: "Associa il render a contatto o opportunità per recuperarlo nei preventivi.",
   },
 ];
 
@@ -254,6 +272,22 @@ export default function RenderHub() {
             </Card>
           ))}
         </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        {QUALITY_CHECKS.map(({ icon: Icon, title, desc }) => (
+          <Card key={title} className="border-primary/10 bg-primary/[0.03]">
+            <CardContent className="flex gap-3 p-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <Icon className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{desc}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* ── Galleria recente ──────────────────────────────────────────────────── */}

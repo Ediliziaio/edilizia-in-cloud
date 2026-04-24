@@ -1,5 +1,4 @@
 import { jsPDF } from "jspdf";
-import ediliziaInCloudLogoUrl from "@/assets/edilizia-in-cloud-logo.webp";
 
 export const RENDER_AI_DISCLAIMER =
   "Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo. L'immagine non rappresenta il risultato finale dell'intervento, che potrà variare in base a rilievi tecnici, materiali scelti, misure reali, condizioni dell'ambiente e fattibilità esecutiva.";
@@ -17,6 +16,7 @@ export interface DownloadRenderPdfArgs {
   filename: string;
   metadata?: RenderPdfMetadataItem[];
   companyLogoUrl?: string | null;
+  /** @deprecated The platform logo is intentionally not rendered in the PDF footer. */
   platformLogoUrl?: string | null;
 }
 
@@ -129,11 +129,10 @@ export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs):
   const imageCardW = (contentW - gap) / 2;
   const imageInnerW = imageCardW - 10;
 
-  const [beforeData, afterData, companyLogoData, platformLogoData] = await Promise.all([
+  const [beforeData, afterData, companyLogoData] = await Promise.all([
     args.beforeUrl ? imageUrlToDataUrl(args.beforeUrl) : Promise.resolve(null),
     imageUrlToDataUrl(args.afterUrl),
     optionalImage(args.companyLogoUrl),
-    optionalImage(args.platformLogoUrl ?? ediliziaInCloudLogoUrl),
   ]);
 
   doc.setFillColor(236, 244, 253);
@@ -193,17 +192,25 @@ export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs):
 
   drawRoundedBox(doc, margin, footerY, contentW, 17, [255, 255, 255], [219, 229, 243], 3);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.8);
-  doc.setTextColor(71, 85, 105);
-  doc.text("Realizzato da", margin + 6, footerY + 10.5);
-  if (platformLogoData && !addImageSafe(doc, platformLogoData, margin + 25, footerY + 5, 30, 7)) {
-    doc.text("Edilizia in Cloud", margin + 25, footerY + 10.5);
-  }
-  const disclaimerX = margin + 66;
-  const disclaimerLines = doc.splitTextToSize(RENDER_AI_DISCLAIMER, pageW - disclaimerX - margin - 6);
+  const disclaimerX = margin + 6;
+  const creditReserveW = 62;
+  const disclaimerLines = doc.splitTextToSize(
+    RENDER_AI_DISCLAIMER,
+    contentW - creditReserveW - 12,
+  );
   doc.setFontSize(5.9);
   doc.setTextColor(86, 103, 130);
-  doc.text(disclaimerLines.slice(0, 3), disclaimerX, footerY + 6.5);
+  doc.text(disclaimerLines.slice(0, 3), disclaimerX, footerY + 5.8);
+
+  const creditX = pageW - margin - 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(5.7);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Realizzato da", creditX, footerY + 6.2, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.2);
+  doc.setTextColor(37, 99, 235);
+  doc.text("Edilizia in Cloud", creditX, footerY + 11.2, { align: "right" });
 
   doc.save(args.filename.endsWith(".pdf") ? args.filename : `${args.filename}.pdf`);
 }
