@@ -43,11 +43,15 @@ export default function AdminCSTasks() {
   const canManageTasks = permissions.can_manage_companies || permissions.can_manage_tickets;
   const [showNew, setShowNew] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("open");
+  const [filterPriority, setFilterPriority] = useState<string>("all");
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newCompanyId, setNewCompanyId] = useState("");
   const [newPriority, setNewPriority] = useState("medium");
   const [newDueDate, setNewDueDate] = useState("");
+
+  // Data minima per il picker due_date — non permettere date nel passato
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   const { data: tasks = [], isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.csTasks.list(filterStatus),
@@ -89,6 +93,9 @@ export default function AdminCSTasks() {
       if (!user?.id) throw new Error("Sessione admin non disponibile. Ricarica la pagina e riprova.");
       if (!newCompanyId) throw new Error("Seleziona un'azienda.");
       if (!title) throw new Error("Inserisci un titolo per il task.");
+      if (newDueDate && newDueDate < todayIso) {
+        throw new Error("La scadenza non può essere nel passato.");
+      }
 
       const { error } = await supabase
         .from("cs_tasks" as never)
@@ -144,6 +151,14 @@ export default function AdminCSTasks() {
     task.status !== "completed" && !!task.due_date && task.due_date.slice(0, 10) < todayKey,
   [todayKey]);
 
+  // Filtro client-side per priorità (il filtro status è già server-side).
+  // Le KPI card rimangono calcolate su TUTTI i task (non filtrati), così da
+  // non reagire ai filtri di visualizzazione — coerente con pattern ordini.
+  const visibleTasks = useMemo(() => {
+    if (filterPriority === "all") return tasks;
+    return tasks.filter((t) => t.priority === filterPriority);
+  }, [tasks, filterPriority]);
+
   const taskStats = useMemo(() => {
     const open = tasks.filter((task) => task.status === "open").length;
     const inProgress = tasks.filter((task) => task.status === "in_progress").length;
@@ -173,7 +188,7 @@ export default function AdminCSTasks() {
           <h1 className="text-2xl font-bold">CS Tasks</h1>
           <p className="text-muted-foreground">Attività Customer Success per le aziende</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[140px]">
               <SelectValue />
@@ -183,6 +198,17 @@ export default function AdminCSTasks() {
               <SelectItem value="open">Aperti</SelectItem>
               <SelectItem value="in_progress">In Corso</SelectItem>
               <SelectItem value="completed">Completati</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterPriority} onValueChange={setFilterPriority}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Priorità" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte le priorità</SelectItem>
+              <SelectItem value="high">🔴 Alta</SelectItem>
+              <SelectItem value="medium">🟡 Media</SelectItem>
+              <SelectItem value="low">⚪️ Bassa</SelectItem>
             </SelectContent>
           </Select>
           <Dialog open={showNew} onOpenChange={setShowNew}>
@@ -225,7 +251,15 @@ export default function AdminCSTasks() {
                   </div>
                   <div>
                     <Label>Scadenza</Label>
-                    <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
+                    <Input
+                      type="date"
+                      value={newDueDate}
+                      min={todayIso}
+                      onChange={(e) => setNewDueDate(e.target.value)}
+                    />
+                    {newDueDate && newDueDate < todayIso && (
+                      <p className="text-xs text-red-600 mt-1">Data nel passato</p>
+                    )}
                   </div>
                 </div>
                 <Button onClick={() => createTask.mutate()} disabled={!newTitle.trim() || !newCompanyId || createTask.isPending} className="w-full">
@@ -304,9 +338,19 @@ export default function AdminCSTasks() {
                 Nuovo Task
               </Button>
             </div>
+          ) : visibleTasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <AlertCircle className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Nessun task con priorità <b>{filterPriority === "high" ? "Alta" : filterPriority === "medium" ? "Media" : "Bassa"}</b>.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setFilterPriority("all")}>
+                Mostra tutte le priorità
+              </Button>
+            </div>
           ) : isMobile ? (
             <div className="divide-y">
-              {tasks.map((task) => (
+              {visibleTasks.map((task) => (
                 <div key={task.id} className="p-3 space-y-2">
                   <div className="flex items-start gap-2">
                     <span className="mt-0.5">{statusIcon(task.status)}</span>
@@ -355,7 +399,7 @@ export default function AdminCSTasks() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((task) => (
+                {visibleTasks.map((task) => (
                   <TableRow key={task.id}>
                     <TableCell>{statusIcon(task.status)}</TableCell>
                     <TableCell>

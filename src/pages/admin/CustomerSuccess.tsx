@@ -90,6 +90,7 @@ export default function AdminOnboardingConfig() {
       setShowNewTemplate(false);
       toast.success("Template creato");
     },
+    onError: (err: Error) => toast.error(err.message || "Errore creazione template"),
   });
 
   const deleteTemplate = useMutation({
@@ -105,26 +106,32 @@ export default function AdminOnboardingConfig() {
       if (selectedTemplate) setSelectedTemplate(null);
       toast.success("Template eliminato");
     },
+    onError: (err: Error) => toast.error(err.message || "Errore eliminazione template"),
   });
 
   const setDefault = useMutation({
     mutationFn: async (id: string) => {
-      // Remove default from all
-      await supabase
+      // Step 1: rimuovi is_default da TUTTI gli altri (non atomico con il set,
+      // ma accetto il rischio: se uno dei due step fallisce, al massimo la
+      // UI mostra "nessun default" temporaneamente, non causa perdita dati).
+      const { error: clearErr } = await supabase
         .from("onboarding_templates" as never)
         .update({ is_default: false } as never)
-        .neq("id", "none" as never);
-      // Set this one as default
-      const { error } = await supabase
+        .neq("id", id as never);   // escludi il target — evita update inutile
+      if (clearErr) throw clearErr;
+
+      // Step 2: imposta il target come default
+      const { error: setErr } = await supabase
         .from("onboarding_templates" as never)
         .update({ is_default: true } as never)
         .eq("id", id as never);
-      if (error) throw error;
+      if (setErr) throw setErr;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
       toast.success("Template predefinito aggiornato");
     },
+    onError: (err: Error) => toast.error(err.message || "Errore impostazione default"),
   });
 
   const addStep = useMutation({
@@ -147,6 +154,7 @@ export default function AdminOnboardingConfig() {
       setNewStepAutoKey("");
       toast.success("Step aggiunto");
     },
+    onError: (err: Error) => toast.error(err.message || "Errore aggiunta step"),
   });
 
   const deleteStep = useMutation({
@@ -161,6 +169,7 @@ export default function AdminOnboardingConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingSteps(selectedTemplate) });
       toast.success("Step eliminato");
     },
+    onError: (err: Error) => toast.error(err.message || "Errore eliminazione step"),
   });
 
   return (

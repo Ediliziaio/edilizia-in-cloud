@@ -12,6 +12,8 @@ export default function GlobalTickets() {
   const { data: unansweredCount = 0 } = useQuery({
     queryKey: ["admin-support-unanswered-count"],
     queryFn: async () => {
+      // Filtra solo conversazioni non chiuse (le chiuse non contano mai e
+      // possono essere migliaia su sistema maturo). Limite di sicurezza.
       const [messagesRes, conversationsRes] = await Promise.all([
         supabase
           .from("support_messages")
@@ -20,7 +22,9 @@ export default function GlobalTickets() {
           .limit(1000),
         supabase
           .from("support_conversations")
-          .select("company_id, status"),
+          .select("company_id, status")
+          .in("status", ["open", "in_progress", "pending"])
+          .limit(500),
       ]);
       if (messagesRes.error) throw messagesRes.error;
       if (conversationsRes.error) throw conversationsRes.error;
@@ -36,11 +40,14 @@ export default function GlobalTickets() {
       }
 
       return Array.from(latestByCompany.entries()).filter(([companyId, message]) => {
-        const status = statusByCompany.get(companyId) || "open";
-        return message.sender_role !== "super_admin" && status !== "resolved" && status !== "closed";
+        const status = statusByCompany.get(companyId);
+        if (!status) return false; // conversazione chiusa o inesistente → non contare
+        return message.sender_role !== "super_admin";
       }).length;
     },
-    refetchInterval: 30000,
+    // 60s invece di 30s: riduce load su piattaforma con molti admin connessi
+    refetchInterval: 60 * 1000,
+    staleTime: 30 * 1000,
     enabled: permissions.can_manage_tickets,
   });
 
@@ -48,18 +55,20 @@ export default function GlobalTickets() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="hidden md:flex items-center gap-3">
-        <MessageSquare className="h-6 w-6 text-primary" />
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">Assistenza Aziende</h1>
+      {/* Header compatto mobile + pieno desktop — badge "da rispondere"
+          visibile in entrambe le viste */}
+      <div className="flex items-center gap-3">
+        <MessageSquare className="h-5 w-5 md:h-6 md:w-6 text-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-lg md:text-2xl font-bold">Assistenza Aziende</h1>
             {unansweredCount > 0 && (
               <Badge variant="destructive" className="text-xs">
                 {unansweredCount} da rispondere
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground">
+          <p className="hidden md:block text-muted-foreground text-sm mt-0.5">
             Gestisci le richieste di supporto diretto dalle aziende
           </p>
         </div>
