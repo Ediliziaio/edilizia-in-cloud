@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
-  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy,
+  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
 } from "lucide-react";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
@@ -137,14 +137,30 @@ export default function SettingsQuoteTemplates() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Template Offerte</h1>
-          <p className="text-muted-foreground text-sm">Personalizza l'aspetto grafico dei tuoi preventivi PDF</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Template Offerte</h1>
+            <p className="text-sm text-muted-foreground">
+              Personalizza il layout, colori, logo e tipografia dei PDF di preventivi e offerte.
+              Ogni modifica viene mostrata in anteprima live qui sotto.
+            </p>
+          </div>
         </div>
-        {isAdmin && !editing && (
-          <Button onClick={handleNew}><Plus className="h-4 w-4 mr-2" />Nuovo Template</Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!editing && templates.length > 0 && (
+            <Badge variant="outline" className="gap-1 text-[11px] h-6">
+              <Eye className="h-3 w-3" />
+              {templates.length} template · {templates.filter((t) => t.is_default).length > 0 ? "default attivo" : "nessun default"}
+            </Badge>
+          )}
+          {isAdmin && !editing && (
+            <Button onClick={handleNew} size="sm"><Plus className="h-4 w-4 mr-1.5" />Nuovo Template</Button>
+          )}
+        </div>
       </div>
 
       {!editing ? (

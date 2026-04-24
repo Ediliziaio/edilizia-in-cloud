@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Zap, Save } from "lucide-react";
+import { Plus, Pencil, Trash2, Zap, Save, TrendingUp, Info, Percent, Target, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -719,16 +719,63 @@ export default function SettingsMargini() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Preventivi & Margini</h1>
-        <p className="text-muted-foreground text-sm">
-          Configura overhead, margini target, impostazioni PDF e categorie prodotto
-        </p>
+      {/* Header pattern h-10 w-10 bg-primary/10 */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <TrendingUp className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Preventivi &amp; Margini</h1>
+            <p className="text-sm text-muted-foreground">
+              Overhead, margine minimo / target, categorie prodotto, render PDF e numerazione preventivi.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Glossary card — aiuta a capire cosa configurare */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-start gap-2">
+              <Percent className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Overhead</p>
+                <p className="text-xs mt-0.5">Costo fisso aziendale spalmato sul prodotto (ammortamento, spese struttura). Si somma al costo prima del margine.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-start gap-2">
+              <Target className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Margine min / target</p>
+                <p className="text-xs mt-0.5">Min = vincolo invalicabile (preventivatore avvisa). Target = margine desiderato, usato per il ricarico di default.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-start gap-2">
+              <Calculator className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Come si compone il prezzo</p>
+                <p className="text-xs mt-0.5 font-mono">
+                  Prezzo = (Costo + Overhead%) × (1 + Margine%)
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs defaultValue="margini">
         <TabsList>
-          <TabsTrigger value="margini">Margini & PDF</TabsTrigger>
+          <TabsTrigger value="margini">Margini &amp; PDF</TabsTrigger>
           <TabsTrigger value="categorie">Categorie</TabsTrigger>
         </TabsList>
         <TabsContent value="margini" className="mt-6">
@@ -738,6 +785,37 @@ export default function SettingsMargini() {
           <CategorieTab companyId={companyId} />
         </TabsContent>
       </Tabs>
+
+      {/* Integrazioni — collegamenti alle altre pagine correlate */}
+      <Card className="bg-muted/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Info className="h-4 w-4" />
+            Integrazioni
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-xs text-muted-foreground space-y-1.5">
+          <p>
+            · Le <strong>regole di scontistica</strong> sono gestite in{" "}
+            <a href="/azienda/impostazioni/scontistica" className="text-primary underline font-medium">/scontistica</a>{" "}
+            (limiti per commerciale e categoria cliente).
+          </p>
+          <p>
+            · I <strong>template PDF</strong> (layout, logo, colori) sono in{" "}
+            <a href="/azienda/impostazioni/template-preventivi" className="text-primary underline font-medium">/template-preventivi</a>.
+          </p>
+          <p>
+            · I <strong>PDF allegati</strong> (schede tecniche, garanzie) si gestiscono in{" "}
+            <a href="/azienda/impostazioni/materiali-preventivi" className="text-primary underline font-medium">/materiali-preventivi</a>{" "}
+            e vengono inclusi se "Includi schede tecniche" è attivo.
+          </p>
+          <p>
+            · Le <strong>categorie prodotto</strong> qui sotto servono a raggruppare gli articoli del listino ({" "}
+            <a href="/azienda/impostazioni/listino" className="text-primary underline font-medium">/listino</a>) e a
+            calcolare margini target specifici.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
