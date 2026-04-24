@@ -57,6 +57,10 @@ export interface PlaybookExecution {
 export interface CreatePlaybookPayload {
   name: string;
   trigger_event: Playbook["trigger_event"];
+  /** Azioni iniziali (es. da libreria/template). Default: array vuoto. */
+  actions?: PlaybookAction[];
+  /** Ritardo esecuzione in ore. Default: 0. */
+  delay_hours?: number;
 }
 
 /** Payload per aggiornare un playbook esistente */
@@ -192,8 +196,8 @@ export function useCreatePlaybook() {
         name: payload.name,
         trigger_event: payload.trigger_event,
         is_active: true,
-        delay_hours: 0,
-        actions: [],
+        delay_hours: payload.delay_hours ?? 0,
+        actions: payload.actions ?? [],
       });
 
       if (error) throw new Error(error.message);

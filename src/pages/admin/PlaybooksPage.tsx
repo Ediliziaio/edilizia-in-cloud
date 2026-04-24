@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Save, Loader2, Search, Play, CheckCircle2, XCircle, Activity, Workflow, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, Search, Play, CheckCircle2, XCircle, Activity, Workflow, AlertCircle, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -391,52 +391,309 @@ function EditorPlaybook({ playbook, onChiudi }: { playbook: Playbook; onChiudi: 
 
 // ─── Dialog: nuovo playbook ───────────────────────────────
 
+// ─── Libreria playbook prebuilt ───────────────────────────
+
+type LibraryPlaybook = {
+  id: string;
+  name: string;
+  description: string;
+  trigger: Playbook["trigger_event"];
+  delay_hours: number;
+  actions: PlaybookAction[];
+};
+
+const PLAYBOOK_LIBRARY: LibraryPlaybook[] = [
+  {
+    id: "welcome_trial",
+    name: "Benvenuto trial (welcome flow)",
+    description: "Email di benvenuto + tag + delay + email follow-up dopo 3 giorni",
+    trigger: "trial_started",
+    delay_hours: 0,
+    actions: [
+      { type: "add_tag", tag: "trial-attivo", delay_minutes: 0 },
+      { type: "send_email", template_id: "welcome_trial", delay_minutes: 5 },
+      { type: "send_email", template_id: "tips_week_1", delay_minutes: 60 * 24 * 3 },
+      { type: "notify_superadmin", message: "Nuova azienda in trial: {{name}}", delay_minutes: 0 },
+    ],
+  },
+  {
+    id: "trial_ending_nurture",
+    name: "Trial in scadenza (nurture)",
+    description: "Email warning 7gg + suggerimento upgrade + tag segmentazione",
+    trigger: "trial_expiring_7d",
+    delay_hours: 0,
+    actions: [
+      { type: "send_email", template_id: "trial_ending_warning", delay_minutes: 0 },
+      { type: "add_tag", tag: "trial-in-scadenza", delay_minutes: 0 },
+      { type: "send_email", template_id: "trial_upgrade_offer", delay_minutes: 60 * 24 * 3 },
+    ],
+  },
+  {
+    id: "trial_expired_recovery",
+    name: "Trial scaduto (recovery)",
+    description: "Email recovery + tag + notifica admin per azione manuale",
+    trigger: "trial_expired",
+    delay_hours: 2,
+    actions: [
+      { type: "add_tag", tag: "trial-scaduto", delay_minutes: 0 },
+      { type: "send_email", template_id: "trial_expired_recovery", delay_minutes: 0 },
+      { type: "notify_superadmin", message: "Trial scaduto per {{name}}, considera chiamata personale", delay_minutes: 0 },
+      { type: "update_flag", flag: "needs_attention", value: true, delay_minutes: 0 },
+    ],
+  },
+  {
+    id: "dunning_escalation",
+    name: "Pagamento fallito (dunning)",
+    description: "Sequenza recupero: email immediato + reminder 3gg + 7gg + notifica admin",
+    trigger: "payment_failed",
+    delay_hours: 0,
+    actions: [
+      { type: "add_tag", tag: "pagamento-fallito", delay_minutes: 0 },
+      { type: "send_email", template_id: "payment_failed_first", delay_minutes: 60 },
+      { type: "send_email", template_id: "payment_failed_reminder_3d", delay_minutes: 60 * 24 * 3 },
+      { type: "send_email", template_id: "payment_failed_final", delay_minutes: 60 * 24 * 7 },
+      { type: "notify_superadmin", message: "Dunning 7gg: {{name}} ancora non pagante", delay_minutes: 60 * 24 * 7 },
+    ],
+  },
+  {
+    id: "payment_recovered_thanks",
+    name: "Pagamento recuperato (thank-you)",
+    description: "Email di ringraziamento + rimozione tag dunning + notifica",
+    trigger: "payment_recovered",
+    delay_hours: 0,
+    actions: [
+      { type: "send_email", template_id: "payment_recovered_thanks", delay_minutes: 0 },
+      { type: "update_flag", flag: "needs_attention", value: false, delay_minutes: 0 },
+      { type: "notify_superadmin", message: "✅ Pagamento recuperato: {{name}}", delay_minutes: 0 },
+    ],
+  },
+  {
+    id: "upgrade_congrats",
+    name: "Upgrade piano (congratulazioni)",
+    description: "Email di ringraziamento per upgrade + onboarding feature nuove",
+    trigger: "plan_upgraded",
+    delay_hours: 0,
+    actions: [
+      { type: "add_tag", tag: "upgraded", delay_minutes: 0 },
+      { type: "send_email", template_id: "upgrade_thanks", delay_minutes: 5 },
+      { type: "send_email", template_id: "new_features_guide", delay_minutes: 60 * 24 },
+      { type: "notify_superadmin", message: "🎉 Upgrade: {{name}}", delay_minutes: 0 },
+    ],
+  },
+  {
+    id: "churn_winback",
+    name: "Churn (winback)",
+    description: "Email winback + offerta sconto + notifica per outreach personale",
+    trigger: "churned",
+    delay_hours: 24,
+    actions: [
+      { type: "add_tag", tag: "churned", delay_minutes: 0 },
+      { type: "send_email", template_id: "winback_offer", delay_minutes: 0 },
+      { type: "notify_superadmin", message: "Contatto per churn: {{name}}, valuta chiamata", delay_minutes: 0 },
+    ],
+  },
+  {
+    id: "reactivation_welcome_back",
+    name: "Riattivazione (welcome back)",
+    description: "Email welcome back + rimozione tag churned + tag re-attivato",
+    trigger: "reactivated",
+    delay_hours: 0,
+    actions: [
+      { type: "add_tag", tag: "reactivated", delay_minutes: 0 },
+      { type: "send_email", template_id: "welcome_back", delay_minutes: 0 },
+      { type: "notify_superadmin", message: "✅ Riattivazione: {{name}}", delay_minutes: 0 },
+    ],
+  },
+];
+
 function DialogNuovoPlaybook({ aperto, onChiudi }: { aperto: boolean; onChiudi: () => void }) {
+  const [tab, setTab] = useState<"library" | "custom">("library");
   const [nome, setNome] = useState("");
   const [evento, setEvento] = useState<Playbook["trigger_event"]>("trial_started");
+  const [selectedLib, setSelectedLib] = useState<LibraryPlaybook | null>(null);
+  const [libFilter, setLibFilter] = useState<Playbook["trigger_event"] | "all">("all");
   const { mutate: crea, isPending: creando } = useCreatePlaybook();
 
-  // BUG FIX: reset form on open/close così non trascina stato da sessione precedente
   useEffect(() => {
     if (aperto) {
+      setTab("library");
       setNome("");
       setEvento("trial_started");
+      setSelectedLib(null);
+      setLibFilter("all");
     }
   }, [aperto]);
 
-  function handleCrea() {
+  const filteredLib = useMemo(
+    () => libFilter === "all" ? PLAYBOOK_LIBRARY : PLAYBOOK_LIBRARY.filter(p => p.trigger === libFilter),
+    [libFilter],
+  );
+
+  function handleCreaCustom() {
     if (!nome.trim()) return;
     const payload: CreatePlaybookPayload = { name: nome.trim(), trigger_event: evento };
     crea(payload, { onSuccess: onChiudi });
   }
 
+  function handleCreaFromLibrary() {
+    if (!selectedLib) return;
+    const payload: CreatePlaybookPayload = {
+      name: selectedLib.name,
+      trigger_event: selectedLib.trigger,
+      delay_hours: selectedLib.delay_hours,
+      actions: selectedLib.actions,
+    };
+    crea(payload, { onSuccess: onChiudi });
+  }
+
   return (
     <Dialog open={aperto} onOpenChange={onChiudi}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Nuovo playbook</DialogTitle></DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
-            <Label>Nome playbook</Label>
-            <Input className="mt-1" placeholder="es. Benvenuto trial" value={nome} onChange={(e) => setNome(e.target.value)} />
-          </div>
-          <div>
-            <Label>Evento trigger</Label>
-            <Select value={evento} onValueChange={(v) => setEvento(v as Playbook["trigger_event"])}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TRIGGER_EVENTI.map((e) => (
-                  <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Nuovo playbook
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="library">
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Dalla libreria ({PLAYBOOK_LIBRARY.length})
+            </TabsTrigger>
+            <TabsTrigger value="custom">
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Crea da zero
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="library" className="mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                Playbook pre-configurati per i trigger più comuni. Modificabili dopo la creazione.
+              </p>
+              <Select value={libFilter} onValueChange={(v) => setLibFilter(v as Playbook["trigger_event"] | "all")}>
+                <SelectTrigger className="w-[220px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i trigger</SelectItem>
+                  {TRIGGER_EVENTI.map(e => (
+                    <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {filteredLib.map((lib) => {
+                const isSelected = selectedLib?.id === lib.id;
+                return (
+                  <button
+                    key={lib.id}
+                    type="button"
+                    onClick={() => setSelectedLib(lib)}
+                    className={`text-left rounded-lg border p-3 transition-all ${
+                      isSelected
+                        ? "border-primary ring-2 ring-primary/30 bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm truncate">{lib.name}</div>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{lib.description}</p>
+                      </div>
+                      {isSelected && <Workflow className="h-4 w-4 text-primary shrink-0 mt-0.5" />}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <BadgeEvento evento={lib.trigger} />
+                      <span className="text-[10px] text-muted-foreground">
+                        {lib.actions.length} azioni
+                      </span>
+                      {lib.delay_hours > 0 && (
+                        <Badge variant="outline" className="text-[10px] h-4">
+                          ritardo {lib.delay_hours}h
+                        </Badge>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {filteredLib.length === 0 && (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                Nessun playbook prefabbricato per questo trigger. Usa "Crea da zero".
+              </div>
+            )}
+
+            {/* Preview azioni selezionate */}
+            {selectedLib && (
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <p className="text-xs font-semibold">Anteprima azioni:</p>
+                <ol className="space-y-1.5 text-xs">
+                  {selectedLib.actions.map((a, i) => {
+                    const typeLabel = TIPI_AZIONE.find(t => t.value === a.type)?.label ?? a.type;
+                    return (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="font-mono text-[10px] w-5 shrink-0 mt-0.5 text-muted-foreground">{i + 1}.</span>
+                        <div className="flex-1">
+                          <span className="font-medium">{typeLabel}</span>
+                          {a.template_id && <span className="text-muted-foreground"> — <code>{a.template_id}</code></span>}
+                          {a.tag && <span className="text-muted-foreground"> — tag: <code>{a.tag}</code></span>}
+                          {a.flag && <span className="text-muted-foreground"> — flag: <code>{a.flag}</code> → <code>{String(a.value)}</code></span>}
+                          {a.message && <span className="text-muted-foreground"> — "{a.message.slice(0, 40)}..."</span>}
+                          {a.delay_minutes > 0 && (
+                            <span className="ml-2 text-[10px] text-amber-600 dark:text-amber-400">
+                              dopo {a.delay_minutes < 60 ? `${a.delay_minutes}m` : a.delay_minutes < 60*24 ? `${Math.round(a.delay_minutes/60)}h` : `${Math.round(a.delay_minutes/60/24)}g`}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="custom" className="mt-4 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Crea un playbook vuoto, poi aggiungi le azioni nell'editor.
+            </p>
+            <div>
+              <Label>Nome playbook *</Label>
+              <Input className="mt-1" placeholder="es. Benvenuto trial" value={nome} onChange={(e) => setNome(e.target.value)} />
+            </div>
+            <div>
+              <Label>Evento trigger</Label>
+              <Select value={evento} onValueChange={(v) => setEvento(v as Playbook["trigger_event"])}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TRIGGER_EVENTI.map((e) => (
+                    <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </TabsContent>
+        </Tabs>
+
         <DialogFooter>
           <Button variant="outline" onClick={onChiudi}>Annulla</Button>
-          <Button onClick={handleCrea} disabled={creando || !nome.trim()}>
-            {creando && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Crea playbook
-          </Button>
+          {tab === "library" ? (
+            <Button onClick={handleCreaFromLibrary} disabled={creando || !selectedLib}>
+              {creando && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Sparkles className="h-4 w-4 mr-2" />
+              {selectedLib ? `Usa "${selectedLib.name.slice(0, 30)}"` : "Seleziona un template"}
+            </Button>
+          ) : (
+            <Button onClick={handleCreaCustom} disabled={creando || !nome.trim()}>
+              {creando && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Plus className="h-4 w-4 mr-2" />
+              Crea vuoto
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

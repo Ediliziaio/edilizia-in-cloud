@@ -233,7 +233,12 @@ export default function AdminOnboardingConfig() {
   // ─── Mutations ──────────────────────────────────────────
 
   const createTemplate = useMutation({
-    mutationFn: async (payload: { name: string; description: string | null; cloneFromId?: string }) => {
+    mutationFn: async (payload: {
+      name: string;
+      description: string | null;
+      cloneFromId?: string;
+      seedSteps?: Array<Omit<Step, "id" | "template_id">>;
+    }) => {
       const { data: inserted, error } = await supabase
         .from("onboarding_templates" as never)
         .insert({
@@ -245,6 +250,7 @@ export default function AdminOnboardingConfig() {
         .select("id")
         .single();
       if (error) throw error;
+      const newTemplateId = (inserted as { id: string }).id;
 
       // Clone steps se richiesto
       if (payload.cloneFromId && inserted) {
@@ -257,7 +263,7 @@ export default function AdminOnboardingConfig() {
         if (sourceSteps && sourceSteps.length > 0) {
           const newStepsPayload = (sourceSteps as never[]).map((s) => ({
             ...(s as Record<string, unknown>),
-            template_id: (inserted as { id: string }).id,
+            template_id: newTemplateId,
           }));
           const { error: insertErr } = await supabase
             .from("onboarding_steps" as never)
@@ -265,7 +271,23 @@ export default function AdminOnboardingConfig() {
           if (insertErr) throw insertErr;
         }
       }
-      return (inserted as { id: string }).id;
+
+      // Seed steps dal prefab library (mutuamente esclusivo con cloneFromId)
+      if (payload.seedSteps && payload.seedSteps.length > 0) {
+        const rows = payload.seedSteps.map((s, i) => ({
+          template_id: newTemplateId,
+          title: s.title,
+          description: s.description,
+          sort_order: i,
+          is_required: s.is_required,
+          auto_check_key: s.auto_check_key,
+        }));
+        const { error: insertErr } = await supabase
+          .from("onboarding_steps" as never)
+          .insert(rows as never);
+        if (insertErr) throw insertErr;
+      }
+      return newTemplateId;
     },
     onSuccess: (newId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.onboardingTemplates });
@@ -1049,54 +1071,268 @@ function SortableStepRow({
 
 // --- Dialogs -----------------------------------------------------------------
 
+// ─── Library di template prebuilt per quick-start ─────────────────────────
+
+type LibraryTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  sector: string;
+  steps: Array<Omit<Step, "id" | "template_id" | "sort_order">>;
+};
+
+const TEMPLATE_LIBRARY: LibraryTemplate[] = [
+  {
+    id: "serramenti_standard",
+    name: "Onboarding Serramenti",
+    description: "5 step per aziende di serramenti: setup, catalogo, primo cliente, preventivo, ordine",
+    sector: "Serramenti",
+    steps: [
+      { title: "Carica il logo aziendale", description: "Personalizza l'aspetto del gestionale con il tuo brand.", is_required: false, auto_check_key: "has_logo" },
+      { title: "Importa il listino dei fornitori", description: "Importa articoli serramenti da Excel o PDF per usarli nei preventivi.", is_required: true, auto_check_key: null },
+      { title: "Aggiungi il primo cliente", description: "Manualmente o importando da Excel.", is_required: true, auto_check_key: "has_customers" },
+      { title: "Crea il primo preventivo", description: "Usa il builder preventivi con il tuo catalogo.", is_required: false, auto_check_key: "has_quote" },
+      { title: "Genera il primo ordine", description: "Converti il preventivo in ordine di produzione.", is_required: true, auto_check_key: "has_orders" },
+    ],
+  },
+  {
+    id: "fotovoltaico_completo",
+    name: "Onboarding Fotovoltaico",
+    description: "6 step completi per installatori fotovoltaici: GSE, sopralluogo, progettazione, ordine materiale, installazione",
+    sector: "Fotovoltaico",
+    steps: [
+      { title: "Carica il logo aziendale", description: "Brand personalizzato sui documenti.", is_required: false, auto_check_key: "has_logo" },
+      { title: "Configura la tua prima sede operativa", description: "Per geolocalizzare gli interventi.", is_required: true, auto_check_key: null },
+      { title: "Aggiungi i primi dipendenti / tecnici", description: "Staff che gestirà cantieri e sopralluoghi.", is_required: true, auto_check_key: "has_staff" },
+      { title: "Aggiungi il primo cliente", description: "Cliente finale per il quale attivare il progetto.", is_required: true, auto_check_key: "has_customers" },
+      { title: "Crea il primo ordine fotovoltaico", description: "Moduli, inverter, accumulo, progettazione.", is_required: true, auto_check_key: "has_orders" },
+      { title: "Attiva un fornitore principale", description: "Per tracciare acquisti e ODA.", is_required: false, auto_check_key: "has_supplier" },
+    ],
+  },
+  {
+    id: "bagni_ristrutturazioni",
+    name: "Onboarding Bagni/Ristrutturazioni",
+    description: "5 step per aziende di ristrutturazioni: setup, clienti, preventivo, ordine, fatturazione",
+    sector: "Ristrutturazioni",
+    steps: [
+      { title: "Imposta la tua azienda (P.IVA, PEC, SDI)", description: "Per emettere fatture elettroniche.", is_required: true, auto_check_key: null },
+      { title: "Importa il tuo elenco clienti", description: "Con nome, email, telefono e indirizzo.", is_required: true, auto_check_key: "has_customers" },
+      { title: "Configura il metodo di pagamento", description: "Stripe o bonifico per ricevere pagamenti.", is_required: true, auto_check_key: "has_payment_method" },
+      { title: "Crea il primo preventivo completo", description: "Con misurazioni, materiali e manodopera.", is_required: false, auto_check_key: "has_quote" },
+      { title: "Emetti la prima fattura", description: "A fine lavori o per acconto.", is_required: false, auto_check_key: "has_invoice" },
+    ],
+  },
+  {
+    id: "generico_base",
+    name: "Onboarding Generico (Base)",
+    description: "4 step minimi universali per qualsiasi tipo di azienda",
+    sector: "Generico",
+    steps: [
+      { title: "Carica il logo", description: "Personalizza il gestionale.", is_required: false, auto_check_key: "has_logo" },
+      { title: "Aggiungi almeno un cliente", description: "Manualmente o via import.", is_required: true, auto_check_key: "has_customers" },
+      { title: "Crea il primo ordine", description: "Anche vuoto, solo per iniziare.", is_required: true, auto_check_key: "has_orders" },
+      { title: "Configura il metodo di pagamento", description: "Per incassare online.", is_required: false, auto_check_key: "has_payment_method" },
+    ],
+  },
+  {
+    id: "completo_premium",
+    name: "Onboarding Completo Premium",
+    description: "10 step per aziende che sfruttano tutte le feature (CRM, ordini, fatture, fornitori, calendario)",
+    sector: "Premium",
+    steps: [
+      { title: "Carica il logo aziendale", description: "Brand identity.", is_required: false, auto_check_key: "has_logo" },
+      { title: "Configura sede e dati fiscali", description: "P.IVA, PEC, indirizzo.", is_required: true, auto_check_key: null },
+      { title: "Aggiungi primo dipendente", description: "Staff con accesso al gestionale.", is_required: false, auto_check_key: "has_staff" },
+      { title: "Configura il metodo di pagamento", description: "Per ricevere incassi.", is_required: true, auto_check_key: "has_payment_method" },
+      { title: "Importa il listino prodotti/servizi", description: "Da usare nei preventivi.", is_required: true, auto_check_key: null },
+      { title: "Aggiungi primo fornitore", description: "Per tracciare acquisti.", is_required: false, auto_check_key: "has_supplier" },
+      { title: "Aggiungi i primi 10 clienti", description: "Import Excel o manuale.", is_required: true, auto_check_key: "has_customers" },
+      { title: "Crea il primo preventivo", description: "Con listino e cliente.", is_required: true, auto_check_key: "has_quote" },
+      { title: "Pianifica il primo appuntamento", description: "Sopralluogo o consegna.", is_required: false, auto_check_key: "has_appointment" },
+      { title: "Emetti la prima fattura", description: "A fine cliclo.", is_required: false, auto_check_key: "has_invoice" },
+    ],
+  },
+];
+
 function NewTemplateDialog({
   open, onOpenChange, onCreate, creating,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (p: { name: string; description: string | null }) => void;
+  onCreate: (p: {
+    name: string;
+    description: string | null;
+    seedSteps?: Array<Omit<Step, "id" | "template_id">>;
+  }) => void;
   creating: boolean;
 }) {
+  const [tab, setTab] = useState<"library" | "custom">("library");
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [selectedLib, setSelectedLib] = useState<LibraryTemplate | null>(null);
 
   useEffect(() => {
-    if (open) { setName(""); setDesc(""); }
+    if (open) {
+      setTab("library");
+      setName("");
+      setDesc("");
+      setSelectedLib(null);
+    }
   }, [open]);
+
+  const handleCreateCustom = () => {
+    onCreate({ name: name.trim(), description: desc.trim() || null });
+  };
+
+  const handleCreateFromLibrary = () => {
+    if (!selectedLib) return;
+    onCreate({
+      name: selectedLib.name,
+      description: selectedLib.description,
+      seedSteps: selectedLib.steps.map((s) => ({
+        ...s,
+        sort_order: 0,  // Il parent ignora e usa l'index della map
+      })) as Array<Omit<Step, "id" | "template_id">>,
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuovo Template Onboarding</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Nuovo Template Onboarding
+          </DialogTitle>
           <DialogDescription>
-            Inizia con un template vuoto. Aggiungerai gli step nella fase successiva.
+            Scegli un template pre-configurato dalla libreria, o crea da zero.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 pt-2">
-          <div>
-            <Label>Nome *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Onboarding serramenti" />
-          </div>
-          <div>
-            <Label>Descrizione</Label>
-            <Textarea
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="A chi è rivolto, quanto dura, cosa include…"
-              rows={3}
-            />
-          </div>
-        </div>
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="library">
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Dalla libreria ({TEMPLATE_LIBRARY.length})
+            </TabsTrigger>
+            <TabsTrigger value="custom">
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Parti da zero
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="library" className="mt-4 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Template già configurati per settore. Clicca per selezionare, poi crea.
+              Potrai editare ogni step dopo la creazione.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {TEMPLATE_LIBRARY.map((lib) => {
+                const isSelected = selectedLib?.id === lib.id;
+                return (
+                  <button
+                    key={lib.id}
+                    type="button"
+                    onClick={() => setSelectedLib(lib)}
+                    className={cn(
+                      "text-left rounded-lg border p-3 transition-all",
+                      isSelected
+                        ? "border-primary ring-2 ring-primary/30 bg-primary/5"
+                        : "border-border hover:border-primary/50",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm truncate">{lib.name}</span>
+                          <Badge variant="secondary" className="text-[10px] h-4 shrink-0">{lib.sector}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{lib.description}</p>
+                      </div>
+                      {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />}
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <ListChecks className="h-3 w-3" />
+                        {lib.steps.length} step
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {lib.steps.filter(s => s.is_required).length} obbligatori
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Activity className="h-3 w-3" />
+                        {lib.steps.filter(s => s.auto_check_key).length} auto
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Preview step selezionati */}
+            {selectedLib && (
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <p className="text-xs font-semibold">Anteprima step:</p>
+                <ol className="space-y-1 text-xs text-muted-foreground">
+                  {selectedLib.steps.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="font-mono text-[10px] w-4 shrink-0 mt-0.5">{i + 1}.</span>
+                      <div className="flex-1">
+                        <span className="font-medium text-foreground">{s.title}</span>
+                        {s.is_required && (
+                          <Badge variant="outline" className="ml-2 text-[9px] h-3 border-amber-400 text-amber-700">
+                            obbligatorio
+                          </Badge>
+                        )}
+                        {s.auto_check_key && (
+                          <Badge variant="outline" className="ml-2 text-[9px] h-3 border-blue-300 text-blue-700">
+                            auto
+                          </Badge>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="custom" className="mt-4 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Crea un template vuoto e aggiungi gli step uno per uno dopo la creazione.
+            </p>
+            <div>
+              <Label>Nome *</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Onboarding serramenti" />
+            </div>
+            <div>
+              <Label>Descrizione</Label>
+              <Textarea
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                placeholder="A chi è rivolto, quanto dura, cosa include…"
+                rows={3}
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button
-            onClick={() => onCreate({ name: name.trim(), description: desc.trim() || null })}
-            disabled={!name.trim() || creating}
-          >
-            {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Crea Template
-          </Button>
+          {tab === "library" ? (
+            <Button onClick={handleCreateFromLibrary} disabled={!selectedLib || creating}>
+              {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Sparkles className="h-4 w-4 mr-2" />
+              {selectedLib ? `Usa "${selectedLib.name}"` : "Seleziona un template"}
+            </Button>
+          ) : (
+            <Button onClick={handleCreateCustom} disabled={!name.trim() || creating}>
+              {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Plus className="h-4 w-4 mr-2" />
+              Crea Template
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
