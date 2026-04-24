@@ -167,6 +167,8 @@ export default function MarketingAppointmentDialog({
   }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId]);
 
   // Update end time when calendar changes (non-editing only)
+  // Sprint UX: fix deps array — prima usava solo [calendarId], ora include
+  // isEditing/defaultCalendarId/calendars/startTime per coerenza.
   useEffect(() => {
     if (!isEditing && calendarId && calendarId !== "none" && calendarId !== defaultCalendarId) {
       const cal = calendars.find((c) => c.id === calendarId);
@@ -174,7 +176,8 @@ export default function MarketingAppointmentDialog({
         setEndTime(addMinutesToTime(startTime, cal.duration_minutes));
       }
     }
-  }, [calendarId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendarId, isEditing, defaultCalendarId]);
 
   // Contacts search
   const { data: contacts = [] } = useQuery({

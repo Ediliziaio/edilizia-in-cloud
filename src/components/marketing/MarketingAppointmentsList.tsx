@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, CalendarX, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -67,6 +67,9 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
   const paged = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
+    const current = appointments.find((a) => a.id === id);
+    if (current?.status === newStatus) return; // early return se lo status non cambia
+
     const { error } = await supabase.from("appointments").update({ status: newStatus } as any).eq("id", id).eq("company_id", companyId);
     if (error) {
       toast({ title: "Errore", description: error.message, variant: "destructive" });
@@ -76,30 +79,57 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
     }
   };
 
+  // Count per tab — evita re-eseguire il filter multiple volte
+  const counts = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const prossimo = appointments.filter(
+      (a) => a.status !== "annullato" && isAfter(parseISO(a.appointment_date), todayStart)
+    ).length;
+    const annullato = appointments.filter((a) => a.status === "annullato").length;
+    return { prossimo, annullato, tutti: appointments.length };
+  }, [appointments]);
+
   const subTabs = [
-    { key: "prossimo" as const, label: "Prossimo" },
-    { key: "annullato" as const, label: "Annullato" },
-    { key: "tutti" as const, label: "Tutti" },
+    { key: "prossimo" as const, label: "Prossimi", count: counts.prossimo },
+    { key: "annullato" as const, label: "Annullati", count: counts.annullato },
+    { key: "tutti" as const, label: "Tutti", count: counts.tutti },
   ];
 
   return (
     <div className="space-y-4">
-      {/* Sub-tabs */}
-      <div className="flex items-center gap-4 border-b">
-        {subTabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => { setSubTab(t.key); setPage(0); }}
-            className={cn(
-              "pb-2 text-sm font-medium border-b-2 transition-colors",
-              subTab === t.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Sub-tabs con count badge */}
+      <div className="flex items-center gap-1 border-b">
+        {subTabs.map((t) => {
+          const active = subTab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => {
+                setSubTab(t.key);
+                setPage(0);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 pb-2 pt-1 px-3 text-sm font-medium border-b-2 transition-colors",
+                active
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t.label}
+              <span
+                className={cn(
+                  "inline-flex items-center justify-center text-[10px] rounded px-1.5 py-0.5 tabular-nums font-semibold",
+                  active
+                    ? "bg-primary/15 text-primary"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {t.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
@@ -130,15 +160,40 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
           <TableBody>
             {paged.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  Nessun appuntamento trovato
+                <TableCell colSpan={7} className="py-12">
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    {search.trim() ? (
+                      <Search className="h-10 w-10 opacity-40" />
+                    ) : subTab === "annullato" ? (
+                      <CalendarX className="h-10 w-10 opacity-40" />
+                    ) : (
+                      <Inbox className="h-10 w-10 opacity-40" />
+                    )}
+                    <p className="font-medium text-foreground">
+                      {search.trim()
+                        ? "Nessun risultato"
+                        : subTab === "annullato"
+                        ? "Nessun appuntamento annullato"
+                        : subTab === "prossimo"
+                        ? "Nessun appuntamento imminente"
+                        : "Nessun appuntamento"}
+                    </p>
+                    <p className="text-xs">
+                      {search.trim()
+                        ? "Prova con un altro termine di ricerca"
+                        : "Crea un nuovo appuntamento dal calendario"}
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
               paged.map((apt, idx) => (
                 <TableRow
                   key={apt.id}
-                  className="cursor-pointer hover:bg-muted/50"
+                  className={cn(
+                    "cursor-pointer transition-colors",
+                    idx % 2 === 1 ? "bg-muted/30 hover:bg-muted/60" : "hover:bg-muted/40"
+                  )}
                   onClick={() => onClickAppointment(apt)}
                 >
                   <TableCell className="text-muted-foreground text-xs">
