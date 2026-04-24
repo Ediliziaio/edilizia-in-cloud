@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -149,29 +150,19 @@ export default function MarketingCalendar() {
     gcTime: 15 * 60 * 1000,
   });
 
-  // Fetch assignable users — use staff_permissions (company-level RLS) instead of user_roles
-  const { data: users = [] } = useQuery({
-    queryKey: ["marketing-calendar-users", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds)
-        .order("last_name");
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
+  // Fetch assignable users — FIX: usa useCompanyStaffUsers che filtra per
+  // user_roles (escludendo customer/referrer/platform_*). Prima la query
+  // restituiva anche i clienti con record orfani in staff_permissions.
+  const { data: rawStaffUsers = [] } = useCompanyStaffUsers(companyId);
+  const users = useMemo(
+    () =>
+      rawStaffUsers.map((u) => ({
+        id: u.id,
+        first_name: u.first_name ?? "",
+        last_name: u.last_name ?? "",
+      })),
+    [rawStaffUsers]
+  );
 
   // Initialize filters once when data loads
   useEffect(() => {

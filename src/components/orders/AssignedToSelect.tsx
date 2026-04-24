@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -19,34 +19,17 @@ interface AssignedToSelectProps {
 export function AssignedToSelect({ value, onChange, disabled }: AssignedToSelectProps) {
   const { effectiveCompany } = useAuth();
 
-  const { data: users = [] } = useQuery({
-    queryKey: ["company-assignable-users", effectiveCompany?.id],
-    queryFn: async () => {
-      // Use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
-      const { data: perms, error: permsErr } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", effectiveCompany!.id);
-      if (permsErr) throw permsErr;
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds);
-      if (error) throw error;
-
-      return (profiles || [])
-        .filter((p) => p.first_name || p.last_name)
-        .map((p) => ({
-          id: p.id,
-          name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
-        }));
-    },
-    enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000,
-  });
+  // FIX: usa useCompanyStaffUsers che esclude customer/referrer/platform_*
+  // (prima i clienti con record orfani in staff_permissions apparivano qui)
+  const { data: staffUsers = [] } = useCompanyStaffUsers(effectiveCompany?.id);
+  const users = useMemo(
+    () =>
+      staffUsers.map((p) => ({
+        id: p.id,
+        name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+      })),
+    [staffUsers]
+  );
 
   return (
     <div className="space-y-2">
