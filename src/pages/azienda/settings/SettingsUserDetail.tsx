@@ -38,6 +38,8 @@ interface UserDetail {
   blocked_by: string | null;
   block_reason: string | null;
   role: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor" | undefined;
+  /** Ruoli aggiuntivi commerciali (salesperson/call_center quando il primary è altro) */
+  additionalRoles: ("salesperson" | "call_center")[];
   permissions: StaffPermissions | null;
 }
 
@@ -112,6 +114,11 @@ export default function SettingsUserDetail() {
       else if (roleSet.has("worker")) effectiveRole = "employee"; // retrocompatibilità DB
       else if (roleSet.has("subcontractor")) effectiveRole = "subcontractor";
 
+      // Ruoli aggiuntivi commerciali (quando il primary NON è già quello)
+      const additionalRoles: ("salesperson" | "call_center")[] = [];
+      if (effectiveRole !== "salesperson" && roleSet.has("salesperson")) additionalRoles.push("salesperson");
+      if (effectiveRole !== "call_center" && roleSet.has("call_center")) additionalRoles.push("call_center");
+
       let permissions: StaffPermissions | null = null;
       // Load staff_permissions for any non-admin role (staff, salesperson, call_center all use it)
       if (effectiveRole && effectiveRole !== "company_admin") {
@@ -128,10 +135,89 @@ export default function SettingsUserDetail() {
       return {
         ...profile,
         role: effectiveRole,
+        additionalRoles,
         permissions,
       };
     },
     enabled: !!userId,
+  });
+
+  // ── Toggle ruolo aggiuntivo (salesperson/call_center secondario) ──
+  const toggleAdditionalRoleMutation = useMutation({
+    mutationFn: async ({ role: addRole, add }: { role: "salesperson" | "call_center"; add: boolean }) => {
+      if (!userId || !userData?.company_id) throw new Error("Utente non inizializzato");
+      if (add) {
+        // Select-then-insert (safe anche senza unique constraint)
+        const { data: existing } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("user_id", userId)
+          .eq("role", addRole as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+          .maybeSingle();
+        if (!existing) {
+          const { error } = await supabase
+            .from("user_roles")
+            .insert({ user_id: userId, role: addRole as any }); // eslint-disable-line @typescript-eslint/no-explicit-any
+          if (error) throw error;
+        }
+        // Se è salesperson, crea/riattiva riga in tabella salespeople
+        if (addRole === "salesperson") {
+          const { data: sp } = await supabase
+            .from("salespeople")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("company_id", userData.company_id)
+            .maybeSingle();
+          if (!sp) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await supabase.from("salespeople").insert({
+              user_id: userId,
+              company_id: userData.company_id,
+              first_name: userData.first_name || "",
+              last_name: userData.last_name || "",
+              email: userData.email || null,
+              is_active: true,
+            } as any);
+          } else {
+            await supabase.from("salespeople").update({ is_active: true }).eq("id", sp.id);
+          }
+        }
+      } else {
+        const { error } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", userId)
+          .eq("role", addRole as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (error) throw error;
+        if (addRole === "salesperson") {
+          await supabase
+            .from("salespeople")
+            .update({ is_active: false })
+            .eq("user_id", userId)
+            .eq("company_id", userData.company_id);
+        }
+      }
+    },
+    onSuccess: (_, { role: addRole, add }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
+      queryClient.invalidateQueries({ queryKey: ["company-staff-users"] });
+      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      const label = addRole === "salesperson" ? "Venditore" : "Call Center";
+      toast({
+        title: add ? `Ruolo "${label}" aggiunto` : `Ruolo "${label}" rimosso`,
+        description: add
+          ? "L'utente ora compare nel calendario CRM e nelle liste commerciali."
+          : "L'utente non appare più nel CRM (dati storici preservati).",
+      });
+    },
+    onError: (e: Error) => {
+      toast({
+        title: "Errore",
+        description: `Impossibile aggiornare il ruolo aggiuntivo: ${e.message}`,
+        variant: "destructive",
+      });
+    },
   });
 
   const saveProfileMutation = useMutation({
@@ -398,15 +484,22 @@ export default function SettingsUserDetail() {
           )}
           {activeTab === "permissions" && (
             <UserRolesPermissionsTab
-              key={`perms-${userData.id}-${userData.role}`}
+              key={`perms-${userData.id}-${userData.role}-${userData.additionalRoles.join(",")}`}
               user={{
                 ...userData,
                 role: userData.role,
+                additionalRoles: userData.additionalRoles,
               }}
               onSave={(perms) => savePermissionsMutation.mutate(perms)}
               onChangeRole={(role) => changeRoleMutation.mutate(role)}
+              onToggleAdditionalRole={(role, add) =>
+                toggleAdditionalRoleMutation.mutate({ role, add })
+              }
               isLoading={savePermissionsMutation.isPending}
-              isChangingRole={changeRoleMutation.isPending}
+              isChangingRole={
+                changeRoleMutation.isPending || toggleAdditionalRoleMutation.isPending
+              }
+              isCurrentUser={userId === currentUser?.id}
             />
           )}
           {activeTab === "sessions" && <UserSessionsTab userId={userId!} />}
