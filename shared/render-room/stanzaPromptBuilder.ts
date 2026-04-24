@@ -36,6 +36,26 @@ function interventionBullets(config: RoomRenderConfig): string {
     .join("\n\n");
 }
 
+function interventionsByKey(config: RoomRenderConfig, keys: string[]): string {
+  const selected = config.replacement_manifest.activeInterventions.filter((item) => keys.includes(item.key));
+  return selected.length ? interventionBullets({ ...config, replacement_manifest: { ...config.replacement_manifest, activeInterventions: selected } }) : "No intervention active for this system; preserve it exactly.";
+}
+
+function targetZoneLines(config: RoomRenderConfig): string[] {
+  const map = config.target_zones_map;
+  return [
+    `main wall: ${map.mainWall}`,
+    `accent wall: ${map.accentWall}`,
+    `secondary walls: ${map.secondaryWalls}`,
+    `floor: ${map.floor}`,
+    `ceiling: ${map.ceiling}`,
+    `window treatment zones: ${map.windowTreatmentZones}`,
+    `furniture groups: ${map.furnitureGroups}`,
+    `kitchen block: ${map.kitchenBlock}`,
+    `strict preservation areas: ${map.strictPreservationAreas.join(", ")}`,
+  ];
+}
+
 export function buildRoomPrompt(
   rawConfig?: unknown,
   rawAnalysis?: unknown,
@@ -77,7 +97,10 @@ Style direction: ${styleGuide}
 Intervention type: ${normalizedConfig.replacement_manifest.interventionType}
 Important: even with a strong redesign level, preserve the photographed architectural shell, camera angle, proportions and non-target elements.`;
 
-  blocks.D = `[BLOCK D - REPLACEMENT MANIFEST]
+  blocks.D = `[BLOCK D - TARGET ZONES MAP]
+${bullets(targetZoneLines(normalizedConfig))}`;
+
+  blocks.E = `[BLOCK E - REPLACEMENT MANIFEST]
 Active interventions:
 ${interventionBullets(normalizedConfig)}
 
@@ -87,32 +110,87 @@ ${bullets(normalizedConfig.replacement_manifest.removals.length ? normalizedConf
 Strict preservation:
 ${bullets(normalizedConfig.replacement_manifest.strictPreservation)}`;
 
-  blocks.E = `[BLOCK E - FLOOR / SURFACE GEOMETRY RULES]
+  blocks.F = `[BLOCK F - WALL / WALLPAPER / CLADDING RULES]
+${interventionsByKey(normalizedConfig, ["wall_paint", "wallpaper", "wall_cladding"])}
+
+Mandatory wall-plane behavior:
+${bullets([
+    "Apply paint, wallpaper or cladding only to the selected wall planes in the target map.",
+    "No spillover onto ceiling, floor, windows, doors, trims, baseboards, switches, outlets or furniture.",
+    "Accent wall means one single wall plane only; all other wall planes remain untouched.",
+    "Wallpaper scale, cladding seams and paint edges must follow the photographed perspective and corners.",
+  ])}`;
+
+  blocks.G = `[BLOCK G - FLOOR RULES]
 ${normalizedConfig.replacement_manifest.floorPromptExcerpt || "No floor replacement is active; preserve the photographed floor exactly."}
 
 Global geometry rules:
 ${bullets(normalizedConfig.replacement_manifest.geometryRules)}`;
 
-  blocks.F = `[BLOCK F - LIGHTING AND MATERIAL REALISM]
+  blocks.H = `[BLOCK H - FURNITURE RULES]
+${interventionsByKey(normalizedConfig, ["furniture"])}
+
+Furniture behavior lock:
 ${bullets([
-    "materials must respond to the original photo lighting with realistic roughness, reflection and shadow",
-    "new lights must have plausible mounting positions and physically believable falloff",
-    "wallpaper, cladding, paint and furniture finishes must follow the correct surface planes",
-    "floor, furniture and object contact shadows must be recomputed locally without moving objects",
+    "Color-only mode changes only surface finish/material appearance; geometry, size, number of pieces and position stay identical.",
+    "Style-refresh mode preserves footprint, circulation and main object positions while updating visual language.",
+    "Full replacement still must respect the same room function, scale, photographed architecture and plausible circulation.",
+    "No random luxury staging unrelated to the source room.",
   ])}`;
 
-  blocks.G = `[BLOCK G - SAME ROOM INTEGRITY]
+  blocks.I = `[BLOCK I - CEILING AND LIGHTING RULES]
+${interventionsByKey(normalizedConfig, ["ceiling", "lighting"])}
+
+Lighting / ceiling behavior:
+${bullets([
+    "new lights must have plausible mounting positions and physically believable falloff",
+    "do not invent unrelated chandeliers, pendant clusters or decorative fixtures outside the selected lighting type",
+    "ceiling interventions must keep room height, wall junctions and planes physically plausible",
+    "light spill, shadows and reflections must remain coherent with the original photo",
+  ])}`;
+
+  blocks.J = `[BLOCK J - CURTAINS / WINDOWS RULES]
+${interventionsByKey(normalizedConfig, ["curtains"])}
+
+Window behavior:
+${bullets([
+    "Preserve windows, glazing, frames and exterior view unless curtains/window treatment is explicitly active.",
+    "If curtains are removed, remove rods/rails/brackets and restore the reveal/wall area cleanly.",
+    "If curtains are installed, fabric folds, gravity, fullness and scale must be realistic.",
+  ])}`;
+
+  blocks.K = `[BLOCK K - KITCHEN RULES]
+${interventionsByKey(normalizedConfig, ["kitchen_restyling"])}
+
+Kitchen behavior:
+${bullets([
+    "If kitchen restyling is inactive, preserve all kitchen elements exactly.",
+    "If active, preserve cabinet layout, module rhythm, sink, hob, hood, appliance positions and technical clearances unless explicitly changed.",
+    "Update only the selected fronts, countertop, handles and finish systems.",
+  ])}`;
+
+  blocks.L = `[BLOCK L - SPACE PLANNING / DECLUTTER RULES]
+${interventionsByKey(normalizedConfig, ["space_details"])}
+
+Space behavior:
+${bullets([
+    "Declutter removes only loose visual clutter and redundant small items, never functional anchors or main furniture.",
+    "Any added decor must be sparse, realistic, physically placed and coherent with the target style.",
+    "Do not empty the room unnaturally and do not change architecture to optimize space.",
+  ])}`;
+
+  blocks.M = `[BLOCK M - SAME ROOM INTEGRITY]
 ${bullets(normalizedConfig.integrity_constraints)}
 Image: ${photoMetaLine(normalizedConfig)}`;
 
-  blocks.H = `[BLOCK H - NEGATIVE CONSTRAINTS]
+  blocks.N = `[BLOCK N - NEGATIVE CONSTRAINTS]
 ${bullets(normalizedConfig.negative_constraints)}`;
 
-  blocks.I = `[BLOCK I - QUALITY BAR]
+  blocks.O = `[BLOCK O - QUALITY BAR]
 ${bullets([
     ...normalizedConfig.quality_directives,
     validation.isValid
-      ? "Prompt validation passed: scene inventory, replacement manifest, floor/surface rules, integrity and negative constraints are present."
+      ? "Prompt validation passed: scene inventory, target zones, replacement manifest, floor/surface rules, integrity and negative constraints are present."
       : `Prompt validation warnings: missing sections = ${validation.missingSections.join(", ") || "none"}; missing rules = ${validation.missingBusinessRules.join(", ") || "none"}.`,
   ])}`;
 
@@ -122,7 +200,7 @@ ${bullets([
 
   return {
     systemPrompt: blocks.A,
-    userPrompt: [blocks.B, blocks.C, blocks.D, blocks.E, blocks.F, blocks.G, blocks.H, blocks.I, userNotes]
+    userPrompt: [blocks.B, blocks.C, blocks.D, blocks.E, blocks.F, blocks.G, blocks.H, blocks.I, blocks.J, blocks.K, blocks.L, blocks.M, blocks.N, blocks.O, userNotes]
       .filter(Boolean)
       .join("\n\n"),
     negativePrompt:

@@ -191,14 +191,19 @@ describe("bathroom render pipeline", () => {
     config.sanitari.azione_wc = "sostituisci";
     config.sanitari.tipo_wc = "rimless_sospeso";
     config.sanitari.piastra_wc = "rettangolare_sottile";
+    config.sanitari.piastra_wc_colore = "nero_opaco";
     config.sanitari.azione_bidet = "sostituisci";
     config.sanitari.tipo_bidet = "sospeso";
 
     const prompt = buildBathroomPrompt(config as unknown as Record<string, unknown>, baseAnalysis());
     expect(prompt.userPrompt.toLowerCase()).toContain("wall-hung sanitary ware");
     expect(prompt.userPrompt.toLowerCase()).toContain("concealed in-wall cistern");
-    expect(prompt.userPrompt.toLowerCase()).toContain("flush plate");
+    expect(prompt.userPrompt.toLowerCase()).toContain("selected wall flush plate is mandatory");
+    expect(prompt.userPrompt.toLowerCase()).toContain("matte black flush plate");
+    expect(prompt.userPrompt.toLowerCase()).toContain("no floor contact pedestal");
     expect(prompt.userPrompt.toLowerCase()).toContain("never an exposed old-style bulky tank");
+    expect(prompt.negativePrompt.toLowerCase()).toContain("missing wall flush plate");
+    expect(prompt.negativePrompt.toLowerCase()).toContain("floor-standing wc when wall-hung wc is selected");
     expect(prompt.validation.isValid).toBe(true);
   });
 

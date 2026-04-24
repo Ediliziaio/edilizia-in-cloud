@@ -93,6 +93,7 @@ function describeSanitarySpec(config: BathroomRenderConfig): string {
     `installation / spacing rule: ${spec.installationRule}`,
     `cistern rule: ${spec.cisternRule}`,
     `flush plate style: ${spec.flushPlateStyle ?? "not applicable"}`,
+    `flush plate color: ${spec.flushPlateColor ?? "not applicable"}`,
     `flush plate rule: ${spec.flushPlateRule ?? "not applicable"}`,
     `scale rule: ${spec.scaleRule}`,
     `ceramic finish: ${spec.ceramicFinish}`,
@@ -177,7 +178,14 @@ ${describeBathtubSpec(normalizedConfig)}`;
 ${describeVanitySpec(normalizedConfig)}`;
 
   blocks.G = `[BLOCK G – SANITARY WARE SPECIFICATION]
-${describeSanitarySpec(normalizedConfig)}`;
+${describeSanitarySpec(normalizedConfig)}
+
+Wall-hung WC lock, when selected:
+- the WC bowl must visibly float off the floor with a clean shadow gap underneath
+- no floor-standing pedestal, no monobloc base, no exposed ceramic tank, no old rectangular cistern behind the WC
+- the in-wall cistern must be hidden behind the finished wall
+- the selected wall flush plate is mandatory and must be visible on the wall above/behind the WC at realistic height, in the selected style and color
+- align the WC and bidet as a coherent suspended sanitary set when bidet replacement is selected`;
 
   blocks.H = `[BLOCK H – WALL TILES SPECIFICATION]
 ${spec.wallTiles.replace
@@ -260,7 +268,8 @@ Image lock:
 - if the selected wall or floor format is 120x240 or any slab / large-format choice, the surface must read as a few very large modules with sparse joints, never as a dense small-tile grid
 - 120x240 means a real 120 cm by 240 cm slab: do not downscale it into 60x60, 30x60, medium square modules, or a decorative grid; one 240 cm side should visually approach floor-to-ceiling height on bathroom walls where feasible
 - bathtub replacements must keep full adult product scale: never render a tiny freestanding tub, basin-like tub, miniature bowl, or undersized prop
-- if a wall-hung WC is selected, render a concealed cistern with a compact wall flush plate and never an exposed old-style bulky tank`;
+- if a wall-hung WC is selected, render a concealed in-wall cistern with the selected visible compact wall flush plate and never an exposed old-style bulky tank
+- if a flush plate style/color is selected, it must be visible as a real wall-mounted plate, not omitted and not replaced by a cistern volume`;
 
   blocks.N = `[BLOCK N – NEGATIVE CONSTRAINTS]
 ${bullets(DEFAULT_NEGATIVE_CONSTRAINTS)}`;
@@ -298,7 +307,7 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "generic luxury bathroom, fantasy redesign, wrong room geometry, changed perspective, changed crop, different lighting, floating vanity, floating sanitary ware, bathtub still visible after shower-only request, shower still visible after bathtub-only request, generic closed shower box instead of walk-in, non-target surfaces replaced, distorted tiles, dense small-tile grid despite selected large slabs, wrong tile scale, exposed bulky toilet tank when wall-hung WC is selected, tiny bathtub, miniature freestanding tub, basin-like bathtub, bathtub scaled smaller than a real adult product, 60x60 grid when 120x240 slabs are selected, too many grout joints on slab surfaces, CGI look, illustration, stylized render",
+      "generic luxury bathroom, fantasy redesign, wrong room geometry, changed perspective, changed crop, different lighting, floating vanity, bathtub still visible after shower-only request, shower still visible after bathtub-only request, generic closed shower box instead of walk-in, non-target surfaces replaced, distorted tiles, dense small-tile grid despite selected large slabs, wrong tile scale, exposed bulky toilet tank when wall-hung WC is selected, external toilet cistern when wall-hung WC is selected, missing wall flush plate, omitted flush plate, floor-standing WC when wall-hung WC is selected, monobloc toilet, toilet pedestal under wall-hung WC, tiny bathtub, miniature freestanding tub, basin-like bathtub, bathtub scaled smaller than a real adult product, 60x60 grid when 120x240 slabs are selected, too many grout joints on slab surfaces, CGI look, illustration, stylized render",
     promptVersion: "2.0.0",
     blocks,
     validation,

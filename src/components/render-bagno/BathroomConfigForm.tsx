@@ -198,6 +198,15 @@ const FLUSH_PLATE_OPTIONS = [
   { value: "tonda_soft", label: "Tonda soft" },
 ];
 
+const FLUSH_PLATE_COLOR_OPTIONS: VisualOption[] = [
+  { value: "bianco", label: "Bianco", hint: "Tono su tono", previewStyle: solidStyle("#f7f7f4") },
+  { value: "nero_opaco", label: "Nero opaco", hint: "Contrasto moderno", previewStyle: finishStyle("#17191d", "rgba(255,255,255,0.16)") },
+  { value: "cromo", label: "Cromo", hint: "Lucido", previewStyle: finishStyle("#c7d0d8", "rgba(255,255,255,0.75)") },
+  { value: "acciaio_spazzolato", label: "Acciaio satinato", hint: "Satinato tecnico", previewStyle: finishStyle("#91989f", "rgba(255,255,255,0.38)") },
+  { value: "oro_rosa", label: "Oro rosa", hint: "Coordinabile rubinetti", previewStyle: finishStyle("#c88c7f", "rgba(255,255,255,0.42)") },
+  { value: "ottone_spazzolato", label: "Ottone", hint: "Champagne caldo", previewStyle: finishStyle("#caa35b", "rgba(255,255,255,0.45)") },
+];
+
 const QUICK_PAINT_PRESETS = [
   { label: "Bianco caldo", value: "#F5F5F0" },
   { label: "Greige", value: "#D7CFC3" },
@@ -949,23 +958,34 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                   </Select>
                 </div>
                 {value.sanitari.tipo_wc === "sospeso" || value.sanitari.tipo_wc === "rimless_sospeso" ? (
-                  <div>
-                    <Label className="text-xs">Piastra WC a parete</Label>
-                    <Select
-                      value={value.sanitari.piastra_wc || "rettangolare_sottile"}
-                      onValueChange={(plate) =>
-                        update({ sanitari: { ...value.sanitari, piastra_wc: plate as NonNullable<BathroomConfig["sanitari"]["piastra_wc"]> } })
+                  <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
+                    <div>
+                      <Label className="text-xs">Piastra WC a parete</Label>
+                      <Select
+                        value={value.sanitari.piastra_wc || "rettangolare_sottile"}
+                        onValueChange={(plate) =>
+                          update({ sanitari: { ...value.sanitari, piastra_wc: plate as NonNullable<BathroomConfig["sanitari"]["piastra_wc"]> } })
+                        }
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {FLUSH_PLATE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <VisualOptionGrid
+                      label="Colore piastra"
+                      helper="La piastra deve comparire sulla parete sopra il WC sospeso"
+                      options={FLUSH_PLATE_COLOR_OPTIONS}
+                      value={value.sanitari.piastra_wc_colore || "nero_opaco"}
+                      onChange={(color) =>
+                        update({ sanitari: { ...value.sanitari, piastra_wc_colore: color as NonNullable<BathroomConfig["sanitari"]["piastra_wc_colore"]> } })
                       }
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {FLUSH_PLATE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Nei WC sospesi chiediamo cassetta da incasso e piastra compatta, non il vecchio serbatoio a vista.
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Nei WC sospesi forziamo vaso sospeso senza piede a pavimento, cassetta da incasso invisibile e piastra a parete visibile.
                     </p>
                   </div>
                 ) : null}

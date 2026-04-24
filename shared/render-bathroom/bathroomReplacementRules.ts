@@ -82,19 +82,19 @@ function buildBidetRemovalRule(config: BathroomRenderConfig): BathroomRemovalRul
 }
 
 function buildWallHungWcConversionRule(config: BathroomRenderConfig): BathroomRemovalRule | null {
-  const { technical_specification: spec, scene_analysis: scene } = config;
-  if (!spec.sanitaryWare.replace || !scene.sanitaryWare.wcPresent) return null;
+  const { technical_specification: spec } = config;
+  if (!spec.sanitaryWare.replace || spec.sanitaryWare.toiletAction !== "sostituisci") return null;
 
   const wantsWallHung = spec.sanitaryWare.toiletType.toLowerCase().includes("wall-hung");
   if (!wantsWallHung) return null;
 
   return {
     code: "convert_existing_wc_to_wall_hung",
-    summary: "Convert the existing toilet zone to a true wall-hung WC installation with concealed cistern and flush plate.",
+    summary: "Convert the existing toilet zone to a true wall-hung WC installation with concealed cistern and the selected visible wall flush plate.",
     repairInstruction:
-      "Remove any old visible toilet tank, monobloc mass, exposed cistern volume, outdated backbox or incompatible floor-standing WC geometry. Rebuild the wall behind the toilet cleanly so only the compact wall-hung WC and slim flush plate remain visible.",
+      `Remove any old visible toilet tank, monobloc mass, exposed cistern volume, outdated backbox, floor-standing pedestal or incompatible floor-standing WC geometry. Rebuild the wall behind the toilet cleanly so only the compact wall-hung WC and the selected flush plate remain visible. Mandatory flush plate: ${spec.sanitaryWare.flushPlateStyle ?? "selected wall flush plate"}${spec.sanitaryWare.flushPlateColor ? ` in ${spec.sanitaryWare.flushPlateColor}` : ""}.`,
     preserveInstruction:
-      "Keep the photographed toilet position, bathroom geometry and all non-target adjacent elements coherent while modernizing only the sanitary installation logic.",
+      "Keep the photographed toilet position, bathroom geometry and all non-target adjacent elements coherent while modernizing only the sanitary installation logic; the WC must float off the floor with a believable shadow gap.",
   };
 }
 

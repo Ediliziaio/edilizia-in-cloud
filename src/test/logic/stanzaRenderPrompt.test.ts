@@ -67,6 +67,75 @@ describe("room render prompt pipeline", () => {
     expect(prompt.validation.isValid).toBe(true);
   });
 
+  it("locks an accent wall to one wall plane only", () => {
+    const cfg = config();
+    cfg.verniciatura = {
+      attivo: true,
+      applica_a: "parete_accento",
+      colore_accento_hex: "#264653",
+      colore_accento_nome: "blu petrolio",
+      finitura: "opaco",
+    };
+
+    const prompt = buildRoomPrompt(cfg);
+    const text = prompt.userPrompt.toLowerCase();
+    expect(text).toContain("single accent wall only");
+    expect(text).toContain("paint one single accent wall plane only");
+    expect(text).toContain("do not repaint the remaining walls");
+    expect(text).toContain("do not change floor, ceiling, furniture or openings");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("keeps wallpaper on the selected wall without spillover", () => {
+    const cfg = config();
+    cfg.carta_da_parati = {
+      attivo: true,
+      stile_pattern: "botanico",
+      applica_a: "parete_principale",
+      colore_base: "avorio",
+      descrizione: "foglie sottili tono su tono",
+    };
+
+    const prompt = buildRoomPrompt(cfg);
+    const text = prompt.userPrompt.toLowerCase();
+    expect(text).toContain("wallpaper target: parete principale");
+    expect(text).toContain("do not spill onto ceiling");
+    expect(text).toContain("doors, windows, trim, baseboards or furniture");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("describes suspension lights without inventing unrelated chandeliers", () => {
+    const cfg = config();
+    cfg.illuminazione = {
+      attivo: true,
+      tipo: "lampade_sospensione",
+      temperatura: "calda_2700k",
+      intensita_luce: "normale",
+    };
+
+    const prompt = buildRoomPrompt(cfg);
+    const text = prompt.userPrompt.toLowerCase();
+    expect(text).toContain("lampade sospensione");
+    expect(text).toContain("ceiling suspension points");
+    expect(text).toContain("do not invent unrelated chandeliers");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("removes curtains and hardware while preserving the window", () => {
+    const cfg = config();
+    cfg.tende = {
+      attivo: true,
+      tipo: "nessuna",
+    };
+
+    const prompt = buildRoomPrompt(cfg);
+    const text = prompt.userPrompt.toLowerCase();
+    expect(text).toContain("remove visible curtains and curtain hardware");
+    expect(text).toContain("remove curtains, rods, rails and visible brackets only");
+    expect(text).toContain("exterior view");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
   it("does not allow radical mode to change the photographed architecture", () => {
     const cfg = config();
     cfg.intensita = "radicale";

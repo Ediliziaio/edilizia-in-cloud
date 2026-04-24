@@ -12,6 +12,7 @@ import type {
   RoomRenderConfig,
   RoomReplacementManifest,
   RoomSceneAnalysis,
+  RoomTargetZonesMap,
 } from "./types.ts";
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -230,14 +231,21 @@ export function normalizeRoomSceneAnalysis(rawAnalysis?: unknown, rawConfig?: un
 }
 
 function buildPaintIntervention(paint: Record<string, unknown>): RoomIntervention {
-  const target = str(paint.applica_a, "tutte").replace(/_/g, " ");
+  const targetKey = str(paint.applica_a, "tutte");
+  const target = targetKey.replace(/_/g, " ");
+  const color = targetKey === "parete_accento"
+    ? hexName(paint, "colore_accento_nome", "colore_accento_hex", "selected accent color")
+    : hexName(paint, "colore_nome", "colore_hex", "selected wall color");
   return {
     key: "wall_paint",
     label: "Wall paint / finish",
-    specification: `Apply ${hexName(paint, "colore_nome", "colore_hex", "selected wall color")} with ${str(paint.finitura, "satin")} finish to ${target}.`,
+    specification: `Apply ${color} with ${str(paint.finitura, "satin")} finish to ${target}.`,
     replacementRules: [
-      "Paint only the selected wall zones; keep trim, sockets, furniture, windows and doors clean and unpainted.",
+      targetKey === "parete_accento"
+        ? "Paint one single accent wall plane only; do not repaint the remaining walls, ceiling, floor, furniture, trims, doors or windows."
+        : "Paint only the selected wall zones; keep trim, sockets, furniture, windows and doors clean and unpainted.",
       "Preserve existing wall geometry, corners, shadows and imperfections unless painting naturally covers minor color variation.",
+      "Color must follow the photographed wall plane and perspective without bleeding over edges or openings.",
     ],
     preservationRules: ["Do not change floor, ceiling, furniture or openings because of wall paint."],
   };
@@ -261,6 +269,8 @@ function buildFurnitureIntervention(furniture: Record<string, unknown>): RoomInt
     replacementRules: [
       mode === "colore_sola"
         ? "Do not change furniture geometry, size, number of pieces or position; only surface finish changes."
+        : mode === "stile_mantenendo_layout"
+          ? "Preserve the current furniture footprint, circulation path, functional zones and main object positions while updating only the visual design language."
         : "Any new furniture must respect the photographed room footprint, object scale and circulation path.",
       preserveAppliances
         ? "Keep all appliances and technical devices exactly in place and unchanged."
@@ -396,7 +406,10 @@ export function buildRoomReplacementManifest(
       "wallpaper",
       "Wallpaper",
       `Wallpaper ${str(wallpaper.stile_pattern, "selected").replace(/_/g, " ")} on ${str(wallpaper.applica_a, "parete_principale").replace(/_/g, " ")}; base ${str(wallpaper.colore_base, "coherent selected base")}; ${str(wallpaper.descrizione)}`,
-      ["Pattern scale must follow perspective and wall plane; do not spill onto ceiling, floor, doors or furniture."],
+      [
+        "Pattern scale must follow perspective and wall plane; do not spill onto ceiling, floor, doors, windows, trim, baseboards or furniture.",
+        "Keep wallpaper edges crisp at corners, openings and furniture occlusion boundaries.",
+      ],
     ));
   }
 
@@ -406,7 +419,10 @@ export function buildRoomReplacementManifest(
       "wall_cladding",
       "Wall cladding",
       `Wall cladding ${str(cladding.tipo, "selected").replace(/_/g, " ")} on ${str(cladding.applica_a, "parete_principale").replace(/_/g, " ")} with color ${str(cladding.colore_hex, "selected")}.`,
-      ["Cladding must have believable thickness, seams and contact edges only on selected wall planes."],
+      [
+        "Cladding must have believable thickness, seams and contact edges only on selected wall planes.",
+        "Do not cover windows, doors, switches, sockets, trims or furniture; cut cleanly around them.",
+      ],
     ));
   }
 
@@ -420,8 +436,11 @@ export function buildRoomReplacementManifest(
         ? "Remove visible curtains and curtain hardware, restoring the wall/window area cleanly."
         : `Install ${str(curtains.tipo, "selected curtains").replace(/_/g, " ")} in ${hexName(curtains, "colore_nome", "colore_hex", "selected color")}.`,
       remove
-        ? ["Do not alter the window, frame, exterior view or wall geometry while removing curtains."]
-        : ["Curtains must hang with realistic gravity, fabric folds and window scale."],
+        ? [
+            "Remove curtains, rods, rails and visible brackets only; do not alter the window, frame, glazing, exterior view or wall geometry.",
+            "Restore the window reveal/wall area cleanly where curtain hardware was removed.",
+          ]
+        : ["Curtains must hang with realistic gravity, fabric folds, correct fullness and window scale."],
     ));
   }
 
@@ -444,8 +463,11 @@ export function buildRoomReplacementManifest(
       [
         "Any added decor must be realistic, sparse and physically placed on existing surfaces.",
         "Do not fill empty areas with random objects; preserve usable space and circulation.",
+        str(details.layout_strategy) === "declutter"
+          ? "Declutter means remove only loose visual clutter and redundant small items; never erase functional anchors, main furniture or fixed architecture."
+          : "",
         "If the layout strategy is keep-layout, do not move any major furniture; if optimizing space, keep changes local and plausible without changing architecture.",
-      ],
+      ].filter(Boolean),
     ));
   }
 
@@ -475,6 +497,57 @@ export function buildRoomReplacementManifest(
   };
 }
 
+export function buildRoomTargetZonesMap(rawConfig?: unknown, scene?: RoomSceneAnalysis): RoomTargetZonesMap {
+  const cfg = asRecord(rawConfig);
+  const paint = asRecord(cfg.verniciatura);
+  const wallpaper = asRecord(cfg.carta_da_parati);
+  const cladding = asRecord(cfg.rivestimento_pareti);
+  const floor = asRecord(cfg.pavimento);
+  const ceiling = asRecord(cfg.soffitto);
+  const curtains = asRecord(cfg.tende);
+  const furniture = asRecord(cfg.arredo);
+  const kitchen = asRecord(cfg.restyling_cucina);
+
+  const wallTargets = [
+    bool(paint.attivo) ? `paint target: ${str(paint.applica_a, "tutte").replace(/_/g, " ")}` : "",
+    bool(wallpaper.attivo) ? `wallpaper target: ${str(wallpaper.applica_a, "parete_principale").replace(/_/g, " ")}` : "",
+    bool(cladding.attivo) ? `cladding target: ${str(cladding.applica_a, "parete_principale").replace(/_/g, " ")}` : "",
+  ].filter(Boolean);
+
+  return {
+    mainWall: wallTargets.length ? wallTargets.join("; ") : "main wall unchanged unless directly targeted by an active wall intervention",
+    accentWall: bool(paint.attivo) && str(paint.applica_a) === "parete_accento"
+      ? "single accent wall only; all other walls untouched"
+      : "no accent-wall-only paint unless explicitly selected",
+    secondaryWalls: bool(paint.attivo) && str(paint.applica_a) === "tutte"
+      ? "all visible wall planes receive paint while trims/openings remain protected"
+      : "secondary walls remain unchanged unless selected",
+    floor: bool(floor.attivo)
+      ? "replace only the visible floor coverage area, including perspective-consistent cuts under/around objects"
+      : "floor unchanged",
+    ceiling: bool(ceiling.attivo)
+      ? "modify only the ceiling plane according to selected ceiling type"
+      : "ceiling unchanged",
+    windowTreatmentZones: bool(curtains.attivo)
+      ? "window treatment zone only: curtains/rails/brackets according to selected install/remove action"
+      : "windows, curtains and exterior view unchanged",
+    furnitureGroups: bool(furniture.attivo)
+      ? `furniture target mode: ${str(furniture.intensita_cambio, "stile_mantenendo_layout").replace(/_/g, " ")}`
+      : "furniture unchanged",
+    kitchenBlock: normalizeRoomType(cfg.tipo_stanza) === "cucina" && bool(kitchen.attivo)
+      ? "kitchen block active: preserve cabinet layout, sink/hob/hood/appliance technical positions and update selected fronts/top/handles only"
+      : "kitchen block unchanged unless selected",
+    strictPreservationAreas: [
+      ...(scene?.fixedArchitecture ?? ["walls", "ceiling", "doors", "windows"]),
+      ...(scene?.functionalAnchors ?? ["main furniture footprint", "circulation path"]),
+      "non-target decor",
+      "switches and outlets",
+      "radiators / HVAC units",
+      "image dimensions and crop",
+    ],
+  };
+}
+
 export function buildRoomRenderConfig(
   rawConfig?: unknown,
   rawAnalysis?: unknown,
@@ -482,10 +555,12 @@ export function buildRoomRenderConfig(
 ): RoomRenderConfig {
   const scene = normalizeRoomSceneAnalysis(rawAnalysis, rawConfig);
   const manifest = buildRoomReplacementManifest(rawConfig, scene, photoMeta ?? null);
+  const targetZones = buildRoomTargetZonesMap(rawConfig, scene);
 
   return {
     legacy_config: asRecord(rawConfig),
     scene_analysis: scene,
+    target_zones_map: targetZones,
     replacement_manifest: manifest,
     integrity_constraints: ROOM_INTEGRITY_CONSTRAINTS,
     negative_constraints: ROOM_NEGATIVE_CONSTRAINTS,
