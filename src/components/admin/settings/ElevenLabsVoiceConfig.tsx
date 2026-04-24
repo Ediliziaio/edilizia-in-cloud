@@ -1,35 +1,27 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import {
-  AlertCircle,
-  RefreshCw,
-  Mic,
-  Star,
-  Volume2,
+  AlertCircle, RefreshCw, Mic, Star, Volume2, Search, Square, ToggleLeft, ToggleRight,
 } from "lucide-react";
 import {
-  useElevenLabsVoicesDB,
-  useElevenLabsVoicesAPI,
-  useSyncVoicesToDB,
-  useToggleVoiceActive,
-  useSetDefaultVoice,
-  useUpdateVoiceUseCase,
+  useElevenLabsVoicesDB, useElevenLabsVoicesAPI, useSyncVoicesToDB,
+  useToggleVoiceActive, useSetDefaultVoice, useUpdateVoiceUseCase,
   type ElevenLabsVoiceDB,
 } from "@/hooks/useAdminElevenLabsVoices";
+import { toast } from "sonner";
 
 const USE_CASE_LABELS: Record<string, string> = {
   agent: "Agente AI",
@@ -42,6 +34,76 @@ const GENDER_LABELS: Record<string, string> = {
   female: "Donna",
   neutral: "Neutro",
 };
+
+/**
+ * Audio singleton: una sola anteprima può essere in riproduzione alla volta.
+ * FIX: prima ogni VoiceRow creava `new Audio()` ad ogni click; se l'utente
+ * spam-cliccava più righe, audio sovrapposti. Ora c'è un Map module-level di
+ * listener che spegne eventuali riproduzioni in corso.
+ */
+type PreviewSubscriber = (playingId: string | null) => void;
+const subscribers = new Set<PreviewSubscriber>();
+let currentAudio: HTMLAudioElement | null = null;
+let currentId: string | null = null;
+
+function notifyAll(id: string | null) {
+  currentId = id;
+  subscribers.forEach((s) => s(id));
+}
+
+function playPreview(id: string, url: string) {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  const audio = new Audio(url);
+  currentAudio = audio;
+  notifyAll(id);
+  audio
+    .play()
+    .catch((err) => {
+      notifyAll(null);
+      currentAudio = null;
+      toast.error(
+        "Impossibile riprodurre l'anteprima: " +
+          (err instanceof Error ? err.message : "autoplay bloccato?"),
+      );
+    });
+  audio.onended = () => {
+    if (currentAudio === audio) {
+      currentAudio = null;
+      notifyAll(null);
+    }
+  };
+  audio.onerror = () => {
+    if (currentAudio === audio) {
+      currentAudio = null;
+      notifyAll(null);
+    }
+  };
+}
+
+function stopPreview() {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+    notifyAll(null);
+  }
+}
+
+function usePlayingPreview(): string | null {
+  const [id, setId] = useState<string | null>(currentId);
+  useEffect(() => {
+    const sub: PreviewSubscriber = (v) => setId(v);
+    subscribers.add(sub);
+    return () => {
+      subscribers.delete(sub);
+    };
+  }, []);
+  return id;
+}
+
+// ─── VoiceRow ────────────────────────────────────────────
 
 function VoiceRow({
   voice,
@@ -56,18 +118,23 @@ function VoiceRow({
   isDefault: boolean;
   onToggleActive: (id: string, val: boolean) => void;
   onSetDefault: (id: string) => void;
-  onChangeUseCase: (id: string, uc: "agent" | "narration" | "general" | null) => void;
+  onChangeUseCase: (
+    id: string,
+    uc: "agent" | "narration" | "general" | null,
+  ) => void;
   isTogglingId: string | null;
   isSettingDefault: boolean;
 }) {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const playingId = usePlayingPreview();
+  const isPlaying = playingId === voice.id;
 
   const handlePreview = () => {
     if (!voice.preview_url) return;
-    const audio = new Audio(voice.preview_url);
-    setIsPlaying(true);
-    audio.play().catch(() => setIsPlaying(false));
-    audio.onended = () => setIsPlaying(false);
+    if (isPlaying) {
+      stopPreview();
+    } else {
+      playPreview(voice.id, voice.preview_url);
+    }
   };
 
   return (
@@ -89,11 +156,12 @@ function VoiceRow({
             {voice.language.toUpperCase()}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground font-mono mt-0.5">{voice.voice_id}</p>
+        <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
+          {voice.voice_id}
+        </p>
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Use case selector */}
         <Select
           value={voice.use_case ?? "general"}
           onValueChange={(v) =>
@@ -110,21 +178,22 @@ function VoiceRow({
           </SelectContent>
         </Select>
 
-        {/* Preview button */}
         {voice.preview_url && (
           <Button
             variant="ghost"
             size="sm"
             className="h-7 w-7 p-0"
             onClick={handlePreview}
-            disabled={isPlaying}
-            title="Ascolta anteprima"
+            title={isPlaying ? "Interrompi" : "Ascolta anteprima"}
           >
-            <Volume2 className={`h-4 w-4 ${isPlaying ? "text-primary animate-pulse" : ""}`} />
+            {isPlaying ? (
+              <Square className="h-4 w-4 text-primary" />
+            ) : (
+              <Volume2 className="h-4 w-4" />
+            )}
           </Button>
         )}
 
-        {/* Default radio */}
         <Button
           variant={isDefault ? "default" : "outline"}
           size="sm"
@@ -136,7 +205,6 @@ function VoiceRow({
           {isDefault ? "Default" : "Imposta"}
         </Button>
 
-        {/* Active toggle */}
         <Switch
           checked={voice.is_active}
           onCheckedChange={(v) => onToggleActive(voice.id, v)}
@@ -146,6 +214,8 @@ function VoiceRow({
     </div>
   );
 }
+
+// ─── Main ────────────────────────────────────────────────
 
 export function ElevenLabsVoiceConfig() {
   const { data: dbVoices = [], isLoading: dbLoading } = useElevenLabsVoicesDB();
@@ -163,12 +233,17 @@ export function ElevenLabsVoiceConfig() {
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [filterUseCase, setFilterUseCase] = useState<string>("all");
+  const [search, setSearch] = useState("");
+
+  // Stop preview quando si smonta la pagina
+  const stopRef = useRef(stopPreview);
+  useEffect(() => stopRef.current, []);
 
   const handleToggleActive = (id: string, val: boolean) => {
     setTogglingId(id);
     toggleActiveMutation.mutate(
       { id, is_active: val },
-      { onSettled: () => setTogglingId(null) }
+      { onSettled: () => setTogglingId(null) },
     );
   };
 
@@ -176,10 +251,36 @@ export function ElevenLabsVoiceConfig() {
     syncMutation.mutate(apiVoices);
   };
 
-  const filteredVoices = dbVoices.filter(
-    (v) => filterUseCase === "all" || v.use_case === filterUseCase
-  );
+  const filteredVoices = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return dbVoices.filter((v) => {
+      if (filterUseCase !== "all" && v.use_case !== filterUseCase) return false;
+      if (q) {
+        const hay = `${v.name} ${v.voice_id} ${v.language}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [dbVoices, filterUseCase, search]);
+
   const defaultVoiceId = dbVoices.find((v) => v.is_default)?.id ?? null;
+
+  const activeCount = filteredVoices.filter((v) => v.is_active).length;
+  const allActive = filteredVoices.length > 0 && activeCount === filteredVoices.length;
+  const someActive = activeCount > 0 && !allActive;
+
+  const bulkToggle = async (activate: boolean) => {
+    // Agisce su tutte le voci filtrate (rispetto all'attuale vista)
+    const targets = filteredVoices.filter((v) => v.is_active !== activate);
+    if (targets.length === 0) return;
+    // Esegui le mutazioni in parallelo
+    for (const v of targets) {
+      toggleActiveMutation.mutate({ id: v.id, is_active: activate });
+    }
+    toast.success(
+      `${targets.length} voci ${activate ? "attivate" : "disattivate"}`,
+    );
+  };
 
   const apiKeyMissing = apiError && apiVoices.length === 0;
 
@@ -196,14 +297,16 @@ export function ElevenLabsVoiceConfig() {
               Gestisci le voci italiane disponibili per gli agenti vocali AI
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               size="sm"
               onClick={() => void refetchAPI()}
               disabled={apiLoading}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${apiLoading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${apiLoading ? "animate-spin" : ""}`}
+              />
               Ricarica da API
             </Button>
             <Button
@@ -212,7 +315,9 @@ export function ElevenLabsVoiceConfig() {
               disabled={syncMutation.isPending || apiVoices.length === 0}
             >
               <RefreshCw
-                className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`}
+                className={`h-4 w-4 mr-2 ${
+                  syncMutation.isPending ? "animate-spin" : ""
+                }`}
               />
               Sincronizza voci ({apiVoices.length})
             </Button>
@@ -220,7 +325,6 @@ export function ElevenLabsVoiceConfig() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Alert se API key mancante */}
         {apiKeyMissing && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -231,7 +335,6 @@ export function ElevenLabsVoiceConfig() {
           </Alert>
         )}
 
-        {/* API voices available info */}
         {apiVoices.length > 0 && (
           <Alert>
             <AlertDescription>
@@ -243,26 +346,67 @@ export function ElevenLabsVoiceConfig() {
           </Alert>
         )}
 
-        {/* Filter by use case */}
+        {/* Toolbar: search + filter + bulk actions */}
         {dbVoices.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Filtra per:</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Cerca voce..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-8 text-sm"
+              />
+            </div>
+
+            <span className="text-sm text-muted-foreground">Filtra:</span>
             <RadioGroup
               value={filterUseCase}
               onValueChange={setFilterUseCase}
               className="flex gap-3"
             >
-              {[{ value: "all", label: "Tutte" }, ...Object.entries(USE_CASE_LABELS).map(([k, v]) => ({ value: k, label: v }))].map(
-                (opt) => (
-                  <div key={opt.value} className="flex items-center gap-1.5">
-                    <RadioGroupItem value={opt.value} id={`uc-${opt.value}`} />
-                    <Label htmlFor={`uc-${opt.value}`} className="text-sm cursor-pointer">
-                      {opt.label}
-                    </Label>
-                  </div>
-                )
-              )}
+              {[
+                { value: "all", label: "Tutte" },
+                ...Object.entries(USE_CASE_LABELS).map(([k, v]) => ({
+                  value: k,
+                  label: v,
+                })),
+              ].map((opt) => (
+                <div key={opt.value} className="flex items-center gap-1.5">
+                  <RadioGroupItem value={opt.value} id={`uc-${opt.value}`} />
+                  <Label htmlFor={`uc-${opt.value}`} className="text-sm cursor-pointer">
+                    {opt.label}
+                  </Label>
+                </div>
+              ))}
             </RadioGroup>
+
+            {filteredVoices.length > 0 && (
+              <div className="ml-auto flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => void bulkToggle(true)}
+                  disabled={allActive || toggleActiveMutation.isPending}
+                  title="Attiva tutte le voci filtrate"
+                >
+                  <ToggleRight className="h-3.5 w-3.5 mr-1" />
+                  Attiva tutte
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => void bulkToggle(false)}
+                  disabled={(!someActive && !allActive) || toggleActiveMutation.isPending}
+                  title="Disattiva tutte le voci filtrate"
+                >
+                  <ToggleLeft className="h-3.5 w-3.5 mr-1" />
+                  Disattiva tutte
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -279,8 +423,23 @@ export function ElevenLabsVoiceConfig() {
             <p className="text-sm">
               {dbVoices.length === 0
                 ? "Nessuna voce nel database. Sincronizza da ElevenLabs."
-                : "Nessuna voce per il filtro selezionato."}
+                : search || filterUseCase !== "all"
+                ? "Nessuna voce per i filtri selezionati."
+                : "Nessuna voce disponibile."}
             </p>
+            {(search || filterUseCase !== "all") && dbVoices.length > 0 && (
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setFilterUseCase("all");
+                }}
+                className="text-xs"
+              >
+                Reset filtri
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -303,7 +462,7 @@ export function ElevenLabsVoiceConfig() {
 
         {filteredVoices.length > 0 && (
           <p className="text-xs text-muted-foreground text-right">
-            {filteredVoices.filter((v) => v.is_active).length}/{filteredVoices.length} voci attive
+            {activeCount}/{filteredVoices.length} voci attive
           </p>
         )}
       </CardContent>

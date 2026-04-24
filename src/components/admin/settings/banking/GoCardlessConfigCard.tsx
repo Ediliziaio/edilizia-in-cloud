@@ -1,11 +1,15 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import {
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Landmark, Eye, EyeOff, ExternalLink, CheckCircle2, XCircle, Loader2, ShieldCheck } from "lucide-react";
+import {
+  Landmark, Eye, EyeOff, ExternalLink, CheckCircle2, XCircle, Loader2, ShieldCheck,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -16,7 +20,9 @@ interface GoCardlessConfigCardProps {
   onSaved: () => void;
 }
 
-export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, enabled: initialEnabled, onSaved }: GoCardlessConfigCardProps) {
+export default function GoCardlessConfigCard({
+  hasExistingId, hasExistingKey, enabled: initialEnabled, onSaved,
+}: GoCardlessConfigCardProps) {
   const [secretId, setSecretId] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [showId, setShowId] = useState(false);
@@ -28,28 +34,55 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
   const [editingId, setEditingId] = useState(false);
   const [editingKey, setEditingKey] = useState(false);
 
+  // Mantiene `enabled` sincronizzato col prop quando il parent refetcha
+  useEffect(() => {
+    setEnabled(initialEnabled);
+  }, [initialEnabled]);
+
   const isConfigured = hasExistingId && hasExistingKey;
-  const hasUnsavedChanges = editingId || editingKey || enabled !== initialEnabled;
+  const hasUnsavedChanges =
+    editingId || editingKey || enabled !== initialEnabled;
+
+  // FIX: quando l'utente modifica credenziali o modalità, il risultato del test
+  // precedente non è più valido → reset. Prima il badge "success" restava anche
+  // dopo cambio API key, trasmettendo falsa sicurezza.
+  useEffect(() => {
+    setTestResult(null);
+  }, [editingId, editingKey, enabled]);
 
   async function handleSave() {
+    // FIX: valida PRIMA di costruire upserts. Prima il codice aggiungeva
+    // "bank_gocardless_enabled" all'array e poi usciva con return se secretId/key
+    // mancavano → ma aveva già predisposto l'upsert incompleto.
+    if ((editingId || !hasExistingId) && !secretId.trim()) {
+      toast.error("Secret ID richiesto");
+      return;
+    }
+    if ((editingKey || !hasExistingKey) && !secretKey.trim()) {
+      toast.error("Secret Key richiesta");
+      return;
+    }
+
     setSaving(true);
     try {
       const upserts: { key: string; value: string }[] = [
         { key: "bank_gocardless_enabled", value: String(enabled) },
       ];
       if (editingId || !hasExistingId) {
-        if (!secretId.trim()) { toast.error("Secret ID richiesto"); setSaving(false); return; }
         upserts.push({ key: "bank_gocardless_secret_id", value: secretId });
       }
       if (editingKey || !hasExistingKey) {
-        if (!secretKey.trim()) { toast.error("Secret Key richiesta"); setSaving(false); return; }
         upserts.push({ key: "bank_gocardless_secret_key", value: secretKey });
       }
 
       for (const item of upserts) {
         const { error } = await supabase.from("platform_settings").upsert(
-          { key: item.key, value: item.value, updated_at: new Date().toISOString() },
-          { onConflict: "key" }
+          {
+            key: item.key,
+            value: item.value,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "key" },
         );
         if (error) throw error;
       }
@@ -59,18 +92,23 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
       setEditingKey(false);
       setSecretId("");
       setSecretKey("");
+      setTestResult(null); // obbliga il re-test con le nuove credenziali
       onSaved();
-    } catch (e: any) {
-      toast.error("Errore: " + e.message);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error("Errore: " + msg);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleTest() {
     setTesting(true);
     setTestResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke("bank-test-connection");
+      const { data, error } = await supabase.functions.invoke(
+        "bank-test-connection",
+      );
       if (error) throw error;
       if (data?.success) {
         setTestResult("success");
@@ -79,11 +117,13 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
         setTestResult("error");
         toast.error(data?.error || "Test fallito");
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       setTestResult("error");
-      toast.error("Errore: " + e.message);
+      toast.error("Errore: " + msg);
+    } finally {
+      setTesting(false);
     }
-    setTesting(false);
   }
 
   return (
@@ -96,12 +136,17 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
             </div>
             <div>
               <CardTitle className="text-lg">GoCardless Bank Account Data</CardTitle>
-              <CardDescription>Provider PSD2 Open Banking per banche europee</CardDescription>
+              <CardDescription>
+                Provider PSD2 Open Banking per banche europee
+              </CardDescription>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {isConfigured ? (
-              <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
+              <Badge
+                variant="outline"
+                className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+              >
                 <CheckCircle2 className="h-3 w-3 mr-1" /> Configurato
               </Badge>
             ) : (
@@ -112,6 +157,14 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
             {enabled && (
               <Badge variant="outline" className="border-primary/30 text-primary">
                 <ShieldCheck className="h-3 w-3 mr-1" /> Attivo
+              </Badge>
+            )}
+            {testResult === "success" && (
+              <Badge
+                variant="outline"
+                className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+              >
+                <CheckCircle2 className="h-3 w-3 mr-1" /> Test OK
               </Badge>
             )}
           </div>
@@ -129,7 +182,8 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
             >
               bankaccountdata.gocardless.com <ExternalLink className="h-3 w-3" />
             </a>{" "}
-            per ottenere le credenziali API. Dopo la registrazione, troverai Secret ID e Secret Key nella sezione "User Secrets".
+            per ottenere le credenziali API. Dopo la registrazione, troverai Secret ID
+            e Secret Key nella sezione "User Secrets".
           </p>
         </div>
 
@@ -139,7 +193,14 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
             {hasExistingId && !editingId ? (
               <div className="flex gap-2">
                 <Input value="••••••••••••••••" disabled className="font-mono text-sm" />
-                <Button variant="outline" size="sm" onClick={() => { setEditingId(true); setSecretId(""); }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingId(true);
+                    setSecretId("");
+                  }}
+                >
                   Modifica
                 </Button>
               </div>
@@ -151,6 +212,7 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
                   onChange={(e) => setSecretId(e.target.value)}
                   placeholder="Inserisci Secret ID"
                   className="pr-10 font-mono text-sm"
+                  autoComplete="off"
                 />
                 <Button
                   variant="ghost"
@@ -158,6 +220,7 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
                   className="absolute right-0 top-0 h-full"
                   onClick={() => setShowId(!showId)}
                   type="button"
+                  tabIndex={-1}
                 >
                   {showId ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
@@ -170,7 +233,14 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
             {hasExistingKey && !editingKey ? (
               <div className="flex gap-2">
                 <Input value="••••••••••••••••" disabled className="font-mono text-sm" />
-                <Button variant="outline" size="sm" onClick={() => { setEditingKey(true); setSecretKey(""); }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingKey(true);
+                    setSecretKey("");
+                  }}
+                >
                   Modifica
                 </Button>
               </div>
@@ -182,6 +252,7 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
                   onChange={(e) => setSecretKey(e.target.value)}
                   placeholder="Inserisci Secret Key"
                   className="pr-10 font-mono text-sm"
+                  autoComplete="off"
                 />
                 <Button
                   variant="ghost"
@@ -189,6 +260,7 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
                   className="absolute right-0 top-0 h-full"
                   onClick={() => setShowKey(!showKey)}
                   type="button"
+                  tabIndex={-1}
                 >
                   {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
@@ -200,12 +272,14 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div>
             <Label className="text-sm font-medium">Modulo Tesoreria</Label>
-            <p className="text-xs text-muted-foreground mt-0.5">Abilita la sezione Tesoreria per le aziende della piattaforma</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Abilita la sezione Tesoreria per le aziende della piattaforma
+            </p>
           </div>
           <Switch checked={enabled} onCheckedChange={setEnabled} />
         </div>
 
-        <div className="flex items-center gap-3 pt-2">
+        <div className="flex items-center gap-3 pt-2 flex-wrap">
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Salva Configurazione
@@ -213,7 +287,14 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
           <Button
             variant="outline"
             onClick={handleTest}
-            disabled={testing || !isConfigured}
+            disabled={testing || !isConfigured || hasUnsavedChanges}
+            title={
+              hasUnsavedChanges
+                ? "Salva le modifiche prima di testare"
+                : !isConfigured
+                ? "Configura credenziali per testare"
+                : ""
+            }
           >
             {testing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -225,7 +306,9 @@ export default function GoCardlessConfigCard({ hasExistingId, hasExistingKey, en
             Testa Connessione
           </Button>
           {hasUnsavedChanges && (
-            <span className="text-xs text-orange-600 dark:text-orange-400">● Modifiche non salvate</span>
+            <span className="text-xs text-orange-600 dark:text-orange-400">
+              ● Modifiche non salvate
+            </span>
           )}
         </div>
       </CardContent>

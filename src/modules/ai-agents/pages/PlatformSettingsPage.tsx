@@ -122,14 +122,34 @@ export default function PlatformSettingsPage() {
   const [editedPricing, setEditedPricing] = useState<PricingRow[]>([]);
   const [dirtyRows, setDirtyRows] = useState<Set<string>>(new Set());
 
+  // FIX: prima questo useEffect sovrascriveva `editedPricing` ad ogni refetch, perdendo
+  // le modifiche non salvate dell'utente. Ora se ci sono righe "dirty" le preserviamo,
+  // aggiornando solo le righe pulite e aggiungendo nuove righe server-side.
   useEffect(() => {
-    if (pricing) setEditedPricing(pricing);
-  }, [pricing]);
+    if (!pricing) return;
+    setEditedPricing((prev) => {
+      if (dirtyRows.size === 0) return pricing;
+      const prevById = new Map(prev.map((r) => [r.id, r]));
+      return pricing.map((serverRow) => {
+        if (dirtyRows.has(serverRow.id)) {
+          const local = prevById.get(serverRow.id);
+          return local ?? serverRow;
+        }
+        return serverRow;
+      });
+    });
+  }, [pricing, dirtyRows]);
 
   const handleTestConnection = async () => {
-    if (!apiKey.trim()) {
-      toast.error("Inserisci una API key");
+    // FIX: il test chiama l'edge function, che legge la chiave dal server (non
+    // dall'input). Se l'utente ha solo digitato una nuova chiave senza salvare,
+    // il test userebbe quella vecchia → messaggio ingannevole. Ora avvertiamo.
+    if (apiKey !== API_KEY_PLACEHOLDER && apiKey.trim() && !hasApiKey) {
+      toast.error("Salva la chiave prima di testare la connessione");
       return;
+    }
+    if (apiKey !== API_KEY_PLACEHOLDER && apiKey.trim() && hasApiKey) {
+      toast.info("Nota: il test verifica la chiave salvata sul server, non il nuovo valore.");
     }
     setTestStatus("loading");
     try {
@@ -143,43 +163,73 @@ export default function PlatformSettingsPage() {
   };
 
   const handleSave = async () => {
+    // FIX: validazione preventiva domain whitelist (un dominio per riga)
+    // I domini devono essere almeno "xxx.yy" — niente caratteri strani, niente protocolli.
+    const domains = domainWhitelist
+      .split("\n")
+      .map((d) => d.trim())
+      .filter(Boolean);
+    const invalidDomains = domains.filter(
+      (d) => !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(d),
+    );
+    if (invalidDomains.length > 0) {
+      toast.error(
+        `Domini non validi: ${invalidDomains.join(", ")}. Usa formato "esempio.it".`,
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
-      // NB: i valori possono essere stringhe vuote → la colonna è TEXT NOT NULL,
-      // stringa vuota è valida e serve per "cancellare" un campo (es. rimuovere API key).
-      // SECURITY: se l'apiKey è ancora il placeholder opaco, non riscriviamo (il
-      // server non ci ha mai dato il valore reale, scriverei il placeholder).
+      // NB: valori vuoti sono validi (colonna TEXT NOT NULL con '' accettato).
+      // SECURITY: se l'apiKey è ancora il placeholder opaco, non riscriviamo.
       const settings = [
         ...(apiKey === API_KEY_PLACEHOLDER
           ? []
           : [{ key: "elevenlabs_api_key", value: apiKey.trim() }]),
         { key: "default_llm_model", value: defaultLlm },
-        { key: "domain_whitelist", value: domainWhitelist.trim() },
+        { key: "domain_whitelist", value: domains.join("\n") },
         { key: "ai_subscription_price_eur", value: subscriptionPrice },
         { key: "ai_subscription_trial_days", value: trialDays },
         { key: "ai_welcome_bonus_eur", value: welcomeBonus },
       ];
 
-      for (const setting of settings) {
-        const { data, error } = await supabase
-          .from("platform_settings" as never)
-          .upsert(
-            { key: setting.key, value: setting.value, updated_at: new Date().toISOString() } as never,
-            { onConflict: "key" as never }
-          )
-          .select("key" as never);
+      // FIX: prima era un for...await (N query sequenziali, se una falliva le
+      // altre non venivano tentate). Ora Promise.all → parallelo, ma mantiene
+      // il check per-row su data.length per rilevare blocchi RLS.
+      const results = await Promise.all(
+        settings.map(async (setting) => {
+          const { data, error } = await supabase
+            .from("platform_settings" as never)
+            .upsert(
+              {
+                key: setting.key,
+                value: setting.value,
+                updated_at: new Date().toISOString(),
+              } as never,
+              { onConflict: "key" as never },
+            )
+            .select("key" as never);
+          return { setting, data, error };
+        }),
+      );
+
+      for (const { setting, data, error } of results) {
         if (error) throw new Error(`Upsert ${setting.key}: ${error.message}`);
         if (!data || (data as unknown as unknown[]).length === 0) {
           throw new Error(
-            `Salvataggio "${setting.key}" bloccato (0 righe scritte). Probabile RLS: verifica di essere super_admin.`
+            `Salvataggio "${setting.key}" bloccato (0 righe scritte). Probabile RLS: verifica di essere super_admin.`,
           );
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.elevenlabs });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.platformSettingsAI.elevenlabs,
+      });
       toast.success("Configurazione salvata con successo");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore nel salvataggio della configurazione";
+      const msg =
+        err instanceof Error ? err.message : "Errore nel salvataggio della configurazione";
       logger.error("Errore salvataggio configurazione", err);
       toast.error(msg);
     } finally {
@@ -236,22 +286,37 @@ export default function PlatformSettingsPage() {
     }
 
     try {
-      for (const row of editedPricing) {
-        const newBilled = Number((row.cost_real_per_min * markup).toFixed(6));
-        const { error } = await supabase
-          .from("platform_pricing" as never)
-          .update({
-            markup_multiplier: markup,
-            cost_billed_per_min: newBilled,
-            updated_at: new Date().toISOString(),
-          } as never)
-          .eq("id" as never, row.id as never);
-        if (error) throw new Error(`Update "${row.label || row.id}": ${error.message}`);
+      // FIX: parallelizza gli N update (prima era for...await sequenziale, lento su
+      // tariffe numerose e blocca gli altri se uno fallisce).
+      const results = await Promise.all(
+        editedPricing.map(async (row) => {
+          const newBilled = Number((row.cost_real_per_min * markup).toFixed(6));
+          const { error } = await supabase
+            .from("platform_pricing" as never)
+            .update({
+              markup_multiplier: markup,
+              cost_billed_per_min: newBilled,
+              updated_at: new Date().toISOString(),
+            } as never)
+            .eq("id" as never, row.id as never);
+          return { row, error };
+        }),
+      );
+      const failed = results.filter((r) => r.error);
+      if (failed.length > 0) {
+        throw new Error(
+          `Markup fallito su ${failed.length} tariffe: ${failed[0].error?.message}`,
+        );
       }
+      // Reset dirty state su tutte le righe (sono state salvate server-side)
+      setDirtyRows(new Set());
       toast.success(`Markup ${markup}x applicato a tutte le tariffe`);
-      queryClient.invalidateQueries({ queryKey: queryKeys.platformSettingsAI.pricing });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.platformSettingsAI.pricing,
+      });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore nell'applicazione del markup";
+      const msg =
+        err instanceof Error ? err.message : "Errore nell'applicazione del markup";
       toast.error(msg);
     }
   };
@@ -340,19 +405,28 @@ export default function PlatformSettingsPage() {
           : [{ key: "render_gemini_api_key", value: renderGeminiKey }]),
       ];
 
-      // Upsert con select + controllo errori + verifica scrittura effettiva (RLS-safe)
-      for (const row of upserts) {
-        const { data, error } = await supabase
-          .from("platform_settings" as never)
-          .upsert(
-            { key: row.key, value: row.value, updated_at: new Date().toISOString() } as never,
-            { onConflict: "key" as never }
-          )
-          .select("key" as never);
+      // FIX: parallelizza upsert con select + RLS check (prima for...await sequenziale)
+      const results = await Promise.all(
+        upserts.map(async (row) => {
+          const { data, error } = await supabase
+            .from("platform_settings" as never)
+            .upsert(
+              {
+                key: row.key,
+                value: row.value,
+                updated_at: new Date().toISOString(),
+              } as never,
+              { onConflict: "key" as never },
+            )
+            .select("key" as never);
+          return { row, data, error };
+        }),
+      );
+      for (const { row, data, error } of results) {
         if (error) throw new Error(`Upsert ${row.key} fallito: ${error.message}`);
         if (!data || (data as unknown as unknown[]).length === 0) {
           throw new Error(
-            `Salvataggio "${row.key}" bloccato (0 righe scritte). Probabile RLS: verifica di essere super_admin.`
+            `Salvataggio "${row.key}" bloccato (0 righe scritte). Probabile RLS: verifica di essere super_admin.`,
           );
         }
       }
