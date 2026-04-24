@@ -37,6 +37,14 @@ function lightingDescription(config: ConfigurazionePiscine): string {
   }
 }
 
+function allowsWholePoolFeatureChanges(config: ConfigurazionePiscine): boolean {
+  return config.operazione === "add_new_pool" || config.operazione === "replace_existing_pool";
+}
+
+function isStrictSurfaceOnlyOperation(config: ConfigurazionePiscine): boolean {
+  return config.operazione === "recolor_waterlook_or_liner_only" || config.operazione === "change_coping_only";
+}
+
 export function buildPiscinaTechnicalSpecification(config: ConfigurazionePiscine): PiscinaTechnicalSpecification {
   const accessoryDescriptions = (config.comfort.accessori ?? []).map((item) => ACCESSORY_DESCRIPTIONS[item]);
   const installationType = ["semi_incassata", "fuori_terra_premium", "minipiscina", "terrazzo_compatta"].includes(config.piscina.tipo)
@@ -98,10 +106,12 @@ export function buildPiscinaReplacementManifest(
     case "recolor_waterlook_or_liner_only":
       recolors.push(`Change only the perceived interior finish/water look to ${technical.interiorFinishDescription} and ${technical.waterLookDescription}.`);
       conversions.push("Waterlook/liner-only: preserve exact pool shape, footprint, coping, surrounding deck and visible pool geometry.");
+      conversions.push("Strict scope: do not add or modify steps, beach shelf, lighting, furniture, water features, coping, deck or pool footprint.");
       break;
     case "change_coping_only":
       replacements.push(`Preserve basin geometry and water; replace only coping/immediate pool edge with ${technical.copingDescription}.`);
       conversions.push("Coping-only: no footprint change, no water-system change, no basin shape change.");
+      conversions.push("Strict scope: do not add or modify access steps, beach shelf, ladders, water color, liner, pool lighting, furniture or surrounding deck beyond the immediate coping junction.");
       break;
     case "add_access_system":
       additions.push(`Add selected pool access feature: ${technical.accessDescription}.`);
@@ -113,18 +123,20 @@ export function buildPiscinaReplacementManifest(
       break;
   }
 
-  if (config.comfort.accesso !== "nessuno" && config.operazione !== "remove_existing_pool") {
+  if ((allowsWholePoolFeatureChanges(config) || config.operazione === "add_access_system") && config.comfort.accesso !== "nessuno") {
     additions.push(`Access detail: ${technical.accessDescription}.`);
   }
-  if (config.comfort.illuminazione !== "nessuna" && config.operazione !== "remove_existing_pool") {
+  if ((allowsWholePoolFeatureChanges(config) || config.operazione === "add_pool_features") && config.comfort.illuminazione !== "nessuna") {
     additions.push(`Lighting detail: ${technical.lightingDescription}.`);
   }
-  if (config.comfort.arredo === "aggiungi_minimo") {
+  if (allowsWholePoolFeatureChanges(config) && config.comfort.arredo === "aggiungi_minimo") {
     additions.push("Add only sparse coherent poolside furniture / sun loungers if there is enough visible space; avoid resort staging.");
-  } else if (config.comfort.arredo === "rimuovi_superfluo") {
+  } else if (allowsWholePoolFeatureChanges(config) && config.comfort.arredo === "rimuovi_superfluo") {
     removals.push("Declutter only small non-essential outdoor objects; do not remove fixed landscape or main furniture unless explicitly listed.");
   } else {
-    conversions.push("Preserve existing outdoor furniture in place; adapt only water/deck reflections and shadows around it.");
+    conversions.push(isStrictSurfaceOnlyOperation(config)
+      ? "Preserve existing outdoor furniture, access features and lighting exactly; do not reinterpret non-target poolside elements."
+      : "Preserve existing outdoor furniture in place; adapt only water/deck reflections and shadows around it.");
   }
 
   for (const item of config.elementi_da_rimuovere ?? []) {
@@ -156,11 +168,13 @@ export function buildPiscinaWaterRealismRules(config: ConfigurazionePiscine): st
       ? "infinity pool: only one plausible edge may visually spill toward the view/lower side; do not use if context is flat and enclosed"
       : "overflow pool: water level nearly flush with edge, continuous premium perimeter, no skimmer ambiguity";
 
-  const accessRule = config.comfort.accesso === "spiaggetta" || config.comfort.accesso === "beach_entry"
-    ? "shallow zone must be clearly readable with thinner transparent water and a smooth depth transition"
-    : config.comfort.accesso.includes("grad")
-      ? "steps must be visible, proportional, aligned to pool geometry and readable through the water"
-      : "do not invent access features beyond selected configuration";
+  const accessRule = isStrictSurfaceOnlyOperation(config) || config.operazione === "remove_existing_pool"
+    ? "preserve existing access geometry exactly; do not add or modify steps, ladders, beach shelf or lounge shelf in this operation scope"
+    : config.comfort.accesso === "spiaggetta" || config.comfort.accesso === "beach_entry"
+      ? "shallow zone must be clearly readable with thinner transparent water and a smooth depth transition"
+      : config.comfort.accesso.includes("grad")
+        ? "steps must be visible, proportional, aligned to pool geometry and readable through the water"
+        : "do not invent access features beyond selected configuration";
 
   return uniq([
     ...DEFAULT_WATER_REALISM_RULES,

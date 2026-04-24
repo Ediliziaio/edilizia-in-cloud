@@ -40,6 +40,28 @@ export function validatePergolePromptConfig(config: PergolaRenderConfig): Pergol
   if (config.legacy_config.operazione === "recolor_only" && !includesAny(allText, ["preserve exact footprint", "recolor-only"])) {
     missingBusinessRules.push("recolor only must not alter geometry or footprint");
   }
+  if (
+    config.legacy_config.operazione === "recolor_only" &&
+    (
+      config.replacement_manifest.additions.length > 0 ||
+      config.replacement_manifest.replacements.length > 0 ||
+      config.replacement_manifest.removals.length > 0
+    )
+  ) {
+    missingBusinessRules.push("recolor only must not add, replace or remove pergola systems");
+  }
+  if (
+    config.legacy_config.operazione === "change_cover_only" &&
+    config.replacement_manifest.additions.some((item) => /side closure|lighting|furniture/i.test(item))
+  ) {
+    missingBusinessRules.push("cover-only must not add side closures, lighting or furniture");
+  }
+  if (
+    config.legacy_config.operazione === "change_open_state" &&
+    config.replacement_manifest.additions.length > 0
+  ) {
+    missingBusinessRules.push("open-state change must not add new pergola systems");
+  }
   if (config.legacy_config.operazione.includes("replace_existing") && !includesAny(allText, ["remove", "patch", "restore"])) {
     missingBusinessRules.push("replacement of existing structure must include removal and restoration rules");
   }

@@ -48,11 +48,29 @@ export function validatePiscinePromptConfig(config: PiscinaRenderConfig): Piscin
   if (cfg.operazione === "recolor_waterlook_or_liner_only" && !allText.includes("preserve exact pool shape")) {
     missingBusinessRules.push("waterlook/liner-only must preserve shape, footprint and coping");
   }
+  if (
+    cfg.operazione === "recolor_waterlook_or_liner_only" &&
+    config.replacement_manifest.additions.some((item) => /access|lighting|furniture|water feature|deck|coping/i.test(item))
+  ) {
+    missingBusinessRules.push("waterlook/liner-only must not add access, lighting, furniture, deck or coping changes");
+  }
   if (cfg.operazione === "replace_existing_pool" && !allText.includes("remove the existing pool")) {
     missingBusinessRules.push("replace existing pool must include old pool removal rules");
   }
   if (cfg.operazione === "remove_existing_pool" && !allText.includes("restore")) {
     missingBusinessRules.push("remove pool must include ground/hardscape restoration rules");
+  }
+  if (
+    cfg.operazione === "change_coping_only" &&
+    config.replacement_manifest.additions.some((item) => /access|step|beach|ladder|lighting|furniture|water feature/i.test(item))
+  ) {
+    missingBusinessRules.push("coping-only must not add or modify access, lighting, furniture or pool features");
+  }
+  if (cfg.operazione === "change_coping_only" && !allText.includes("strict scope")) {
+    missingBusinessRules.push("coping-only requires strict scope rules");
+  }
+  if (cfg.operazione === "add_access_system" && cfg.comfort.accesso === "nessuno") {
+    missingBusinessRules.push("add_access_system requires a selected pool access feature");
   }
   if ((cfg.comfort.accesso === "spiaggetta" || cfg.comfort.accesso === "beach_entry") && !allText.includes("shallow")) {
     missingBusinessRules.push("beach/baja shelf requires shallow-water rules");

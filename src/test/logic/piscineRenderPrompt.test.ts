@@ -118,6 +118,27 @@ describe("piscine render prompt", () => {
     expect(text).toContain("coping-only");
     expect(text).toContain("no footprint change");
     expect(text).toContain("no basin shape change");
+    expect(text).toContain("strict scope");
+    expect(text).toContain("preserve existing access features exactly");
+    expect(text).not.toContain("access detail:");
+    expect(result.normalizedConfig.replacement_manifest.additions.join(" ").toLowerCase()).not.toContain("access");
+    expect(result.validation.isValid).toBe(true);
+  });
+
+  it("keeps waterlook-only free from access, coping, lighting and furniture additions", () => {
+    const { result, text } = promptText(baseConfig({
+      operazione: "recolor_waterlook_or_liner_only",
+      comfort: {
+        ...DEFAULT_PISCINE_CONFIG.comfort,
+        accesso: "spiaggetta",
+        illuminazione: "subacquea_soft",
+        arredo: "aggiungi_minimo",
+      },
+    }));
+
+    expect(text).toContain("waterlook/liner-only");
+    expect(text).toContain("strict scope");
+    expect(result.normalizedConfig.replacement_manifest.additions).toHaveLength(0);
     expect(result.validation.isValid).toBe(true);
   });
 

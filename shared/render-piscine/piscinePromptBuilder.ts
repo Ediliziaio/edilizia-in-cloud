@@ -35,6 +35,22 @@ export function buildPiscinePrompt(
   const envelope = normalizedConfig.buildability_envelope;
   const technical = normalizedConfig.technical_specification;
   const blocks: Record<string, string> = {};
+  const operation = normalizedConfig.replacement_manifest.operation;
+  const strictSurfaceOnly = operation === "change_coping_only" || operation === "recolor_waterlook_or_liner_only";
+  const removePool = operation === "remove_existing_pool";
+  const accessLine = strictSurfaceOnly
+    ? "Preserve existing access features exactly; do not add or modify ladders, steps, beach shelf or lounge shelf."
+    : removePool
+      ? "Remove pool access features with the pool and restore the ground/hardscape coherently."
+      : technical.accessDescription;
+  const accessoriesLine = strictSurfaceOnly || removePool
+    ? ["no extra water features, spa, shower, cover, lighting or resort furniture in this operation scope"]
+    : technical.accessoryDescriptions.length
+      ? technical.accessoryDescriptions
+      : ["no extra water features, spa, shower or cover unless explicitly selected"];
+  const lightingLine = strictSurfaceOnly
+    ? "Preserve existing lighting exactly; do not add pool lights in this operation scope."
+    : technical.lightingDescription;
 
   blocks.A = `[BLOCK A - MISSION]
 You are a SURGICAL PHOTOREALISTIC POOL INSERTION / REPLACEMENT IMAGE EDITOR.
@@ -107,10 +123,10 @@ Water look: ${technical.waterLookDescription}
 Water must not be a flat blue fill; it must respond to finish, depth, sky, facade, vegetation, shadows and camera angle.`;
 
   blocks.I = `[BLOCK I - ACCESS AND COMFORT FEATURES]
-Access system: ${technical.accessDescription}
+Access system: ${accessLine}
 Accessories:
-${bullets(technical.accessoryDescriptions.length ? technical.accessoryDescriptions : ["no extra water features, spa, shower or cover unless explicitly selected"])}
-Lighting: ${technical.lightingDescription}
+${bullets(accessoriesLine)}
+Lighting: ${lightingLine}
 If not selected, do not invent ladders, stairs, beach entry, jets, waterfalls, covers or resort furniture.`;
 
   blocks.J = `[BLOCK J - COPING AND SURROUNDING DECK RULES]
