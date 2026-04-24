@@ -41,6 +41,7 @@ export const DEFAULT_BATHROOM_CONFIG: ConfigurazioneBagno = {
     tipo: "freestanding_ovale",
     materiale: "acrilico_bianco",
     rubinetteria_vasca: "a_pavimento",
+    dimensione_cm: "170x75",
   },
   vanity: {
     attivo: false,

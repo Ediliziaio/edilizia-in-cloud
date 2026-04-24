@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
+import { BathroomSelectionSummary } from "@/components/render-bagno/BathroomSelectionSummary";
 import { ensureBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image,
@@ -265,6 +266,10 @@ export default function RenderBagnoGalleryDetail() {
                   { label: "Provider", value: session.provider_key },
                 ]}
               />
+              <Button variant="secondary" size="sm" onClick={() => navigate(`/azienda/render/bagno/new?template=${session.id}`)}>
+                <Wand2 className="h-4 w-4 mr-2" />
+                Modifica
+              </Button>
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -324,6 +329,8 @@ export default function RenderBagnoGalleryDetail() {
         contactId={(session as { contact_id?: string | null }).contact_id}
         opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
       />
+
+      {renderPlan && <BathroomSelectionSummary renderPlan={renderPlan} />}
 
       {/* Config summary */}
       {renderPlan && (

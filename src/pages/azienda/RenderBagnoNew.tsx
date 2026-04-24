@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +19,7 @@ import {
   type BathroomConfig,
 } from "@/components/render-bagno/BathroomConfigForm";
 import { DEFAULT_BATHROOM_CONFIG } from "@/components/render-bagno/defaultBathroomConfig";
+import { BathroomSelectionSummary } from "@/components/render-bagno/BathroomSelectionSummary";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
@@ -49,6 +50,7 @@ const MAX_POLL_SEC = 180;
 // ═════════════════════════════════════════════════════════════════════
 export default function RenderBagnoNew() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -60,6 +62,7 @@ export default function RenderBagnoNew() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoMeta, setPhotoMeta] = useState<PhotoMeta | null>(null);
+  const [sourceOriginalPath, setSourceOriginalPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -103,6 +106,75 @@ export default function RenderBagnoNew() {
     };
   }, [photoPreview]);
 
+  useEffect(() => {
+    const templateId = searchParams.get("template");
+    if (!templateId || !companyId) return;
+
+    let cancelled = false;
+    const loadTemplate = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("render_bagno_sessions")
+          .select("id, foto_originale_path, foto_originale_url, configurazione, analisi_bagno, contact_id, opportunity_id")
+          .eq("id", templateId)
+          .eq("company_id", companyId)
+          .single();
+
+        if (error || !data || cancelled) return;
+
+        const row = data as {
+          foto_originale_path: string | null;
+          foto_originale_url: string | null;
+          configurazione: Record<string, unknown> | null;
+          analisi_bagno: AnalisiBagno | null;
+          contact_id?: string | null;
+          opportunity_id?: string | null;
+        };
+
+        const normalized = buildBathroomRenderConfig(
+          (row.configurazione?.legacy_config as BathroomConfig | undefined) ?? (row.configurazione as unknown as BathroomConfig) ?? DEFAULT_BATHROOM_CONFIG,
+          { sceneAnalysis: row.analisi_bagno ?? row.configurazione?.scene_analysis },
+        );
+
+        setConfig(normalized.legacy_config);
+        setAnalisi(normalized.scene_analysis);
+        setPhotoMeta(
+          normalized.photo_meta && normalized.photo_meta.orientation !== "unknown"
+            ? normalized.photo_meta as PhotoMeta
+            : null,
+        );
+        setContactId(row.contact_id ?? null);
+        setOpportunityId(row.opportunity_id ?? null);
+        setSourceOriginalPath(row.foto_originale_path);
+        setSessionId(null);
+        setResultUrl(null);
+        setSavedToGallery(false);
+
+        let previewUrl = row.foto_originale_url ?? null;
+        if (row.foto_originale_path) {
+          const { data: signed } = await supabase.storage
+            .from("bagno-originals")
+            .createSignedUrl(row.foto_originale_path, 3600);
+          previewUrl = signed?.signedUrl ?? previewUrl;
+        }
+
+        if (!cancelled) {
+          setPhoto(null);
+          setPhotoPreview(previewUrl);
+          setStep(3);
+          toast.success("Configurazione caricata: puoi modificarla e rigenerare una nuova variante.");
+        }
+      } catch {
+        if (!cancelled) toast.error("Non sono riuscito a caricare il render da modificare.");
+      }
+    };
+
+    void loadTemplate();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, companyId]);
+
   // ── File handling ──────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,6 +189,7 @@ export default function RenderBagnoNew() {
     setAnalisi(null);
     setAnalysisError(undefined);
     setSessionId(null);
+    setSourceOriginalPath(null);
     setResultUrl(null);
     setSavedToGallery(false);
     setPhotoMeta(null);
@@ -301,7 +374,8 @@ export default function RenderBagnoNew() {
 
   // ── Step 3 -> Step 4: start render ─────────────────────────────────
   const startRender = useCallback(async () => {
-    if (!sessionId || !companyId) return;
+    if (!companyId || !user) return;
+    if (!sessionId && !sourceOriginalPath) return;
     // P1 FIX: guard contro double-click / doppio credit deduction.
     // Se c'è già un render in corso, ignora il click (pulsante "Genera" / "Rigenera").
     if (generating) return;
@@ -312,12 +386,49 @@ export default function RenderBagnoNew() {
     elapsedRef.current = 0;
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
-    // Save latest config to session
     const renderPayload = buildBathroomRenderConfig(config, {
       sceneAnalysis: analisi ?? undefined,
       photoMeta,
       notes: config.note_libere,
     });
+
+    let activeSessionId = sessionId;
+    if (!activeSessionId && sourceOriginalPath) {
+      const { data: newSession, error: createErr } = await supabase
+        .from("render_bagno_sessions")
+        .insert({
+          company_id: companyId,
+          user_id: user.id,
+          stato: "analysis_done",
+          foto_originale_path: sourceOriginalPath,
+          configurazione: renderPayload,
+          analisi_bagno: renderPayload.scene_analysis,
+          tipo_intervento: config.tipo_intervento,
+          contact_id: contactId,
+          opportunity_id: opportunityId,
+        })
+        .select("id")
+        .single();
+
+      if (createErr || !newSession) {
+        setGenerating(false);
+        setStep(3);
+        toast.error("Non sono riuscito a creare la nuova variante del render.");
+        return;
+      }
+
+      activeSessionId = (newSession as { id: string }).id;
+      setSessionId(activeSessionId);
+    }
+
+    if (!activeSessionId) {
+      setGenerating(false);
+      setStep(3);
+      toast.error("Sessione render non disponibile.");
+      return;
+    }
+
+    // Save latest config to session
     await supabase
       .from("render_bagno_sessions")
       .update({
@@ -325,7 +436,7 @@ export default function RenderBagnoNew() {
         analisi_bagno: renderPayload.scene_analysis,
         tipo_intervento: config.tipo_intervento,
       })
-      .eq("id", sessionId);
+      .eq("id", activeSessionId);
 
     const targetWidth = photoMeta?.width;
     const targetHeight = photoMeta?.height;
@@ -337,7 +448,7 @@ export default function RenderBagnoNew() {
       "generate-bathroom-render",
       {
         body: {
-          session_id: sessionId,
+          session_id: activeSessionId,
           ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
         },
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -380,8 +491,8 @@ export default function RenderBagnoNew() {
     }
 
     // Otherwise poll
-    startPolling(sessionId);
-  }, [sessionId, companyId, config, queryClient, generating, startPolling, photoMeta, analisi]);
+    startPolling(activeSessionId);
+  }, [sessionId, companyId, user, sourceOriginalPath, config, queryClient, generating, startPolling, photoMeta, analisi, contactId, opportunityId]);
 
   // ── Save to gallery ────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
@@ -928,6 +1039,8 @@ export default function RenderBagnoNew() {
             )}
           </Button>
 
+          <BathroomSelectionSummary renderPlan={renderPlan} />
+
           <Separator />
 
           {/* Config summary */}
@@ -969,6 +1082,7 @@ export default function RenderBagnoNew() {
                 setAnalisi(null);
                 setAnalysisError(undefined);
                 setSessionId(null);
+                setSourceOriginalPath(null);
                 setResultUrl(null);
                 setSavedToGallery(false);
                 setConfig(DEFAULT_BATHROOM_CONFIG);
@@ -976,6 +1090,21 @@ export default function RenderBagnoNew() {
             >
               Nuovo render
             </Button>
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={() => {
+                setResultUrl(null);
+                setSavedToGallery(false);
+                setGenerating(false);
+                setStep(3);
+              }}
+            >
+              Modifica e rigenera
+            </Button>
+          </div>
+
+          <div className="flex">
             <Button
               className="flex-1"
               onClick={() => navigate("/azienda/render/bagno/gallery")}

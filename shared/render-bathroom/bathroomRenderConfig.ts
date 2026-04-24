@@ -71,13 +71,22 @@ function inferTileScaleRules(
   format: string,
   effectId: string,
 ): {
+  nominalWidthCm: number | null;
+  nominalHeightCm: number | null;
   formatCategory: "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless";
   moduleScaleRule: string;
   groutDensityRule: string;
   cutLayoutRule: string;
+  realScaleLockRule: string;
   veinContinuityRule: string | null;
 } {
+  const parsedFormat = parseTileFormat(format);
   const formatCategory = categorizeTileFormat(format, effectId);
+  const longSide = Math.max(parsedFormat.width ?? 0, parsedFormat.height ?? 0);
+  const shortSide = Math.min(parsedFormat.width ?? 0, parsedFormat.height ?? 0);
+  const realScaleLockRule = parsedFormat.width && parsedFormat.height
+    ? `The selected module is ${parsedFormat.width}x${parsedFormat.height} cm in real life. Respect that exact visual scale: one module must look approximately ${shortSide} cm by ${longSide} cm, never like a smaller repeated tile.`
+    : "Respect the selected product scale and do not invent a smaller repetitive module.";
 
   const commonVeinRule = effectId.startsWith("marmo_")
     ? "Marble veining must read as realistic slab or tile veining, not as a repeated synthetic texture or a random small-tile grid."
@@ -86,58 +95,78 @@ function inferTileScaleRules(
   switch (formatCategory) {
     case "seamless":
       return {
+        nominalWidthCm: parsedFormat.width,
+        nominalHeightCm: parsedFormat.height,
         formatCategory,
         moduleScaleRule: "This finish must read as a continuous surface with no tile modules at all.",
         groutDensityRule: "No grout joints, no tile grid and no repeated module rhythm should be visible.",
         cutLayoutRule: "Keep the surface continuous around corners, drains and fixtures without introducing fake tile cuts.",
+        realScaleLockRule: "This is a continuous finish: remove every old joint, module edge, ghost grid and tile rhythm from the replaced surface.",
         veinContinuityRule: null,
       };
     case "mosaic":
       return {
+        nominalWidthCm: parsedFormat.width,
+        nominalHeightCm: parsedFormat.height,
         formatCategory,
         moduleScaleRule: "This surface must read as a dense small-module mosaic with a deliberately fine repetitive rhythm.",
         groutDensityRule: "Frequent, clearly visible grout joints are expected because the selected format is intentionally small.",
         cutLayoutRule: "Small module cuts around fixtures and corners are acceptable but must remain clean and believable.",
+        realScaleLockRule,
         veinContinuityRule: null,
       };
     case "plank":
       return {
+        nominalWidthCm: parsedFormat.width,
+        nominalHeightCm: parsedFormat.height,
         formatCategory,
         moduleScaleRule: "This surface must read as long elongated planks, not square tiles.",
         groutDensityRule: "Joint rhythm must be linear and relatively sparse, with long continuous modules dominating the view.",
         cutLayoutRule: "Keep plank direction consistent and avoid random short offcuts dominating visible areas.",
+        realScaleLockRule,
         veinContinuityRule: commonVeinRule,
       };
     case "architectural_slab":
       return {
+        nominalWidthCm: parsedFormat.width,
+        nominalHeightCm: parsedFormat.height,
         formatCategory,
         moduleScaleRule:
-          "This selection is an architectural large slab. Each visible wall or floor plane must read as only a few very large modules, never as a patchwork of many small tiles.",
+          "This selection is an architectural slab. Each visible wall or floor plane must read as only a few very large modules, never as a patchwork of many small tiles.",
         groutDensityRule:
-          "Grout density must be extremely low: only a handful of long joints should be visible, with very wide uninterrupted slab fields.",
+          "Grout density must be extremely low: only a handful of long joints should be visible, with very wide uninterrupted slab fields. Do not create a 60x60, 30x60 or medium-tile grid.",
         cutLayoutRule:
-          "Cuts around corners, niches, drains and sanitary fixtures must stay minimal and strategic. Do not fragment the surface into many small pieces.",
+          "Cuts around corners, niches, drains and sanitary fixtures must stay minimal and strategic. On walls, a 240 cm slab should read almost floor-to-ceiling where feasible, with no repeated horizontal seams every 60 cm. Do not fragment the surface into many small pieces.",
+        realScaleLockRule: parsedFormat.width && parsedFormat.height
+          ? `${realScaleLockRule} For bathroom walls around 240-270 cm high, the ${longSide} cm side must feel close to floor-to-ceiling slab scale; show sparse vertical seams and at most necessary perimeter trims.`
+          : realScaleLockRule,
         veinContinuityRule: effectId.startsWith("marmo_")
           ? "Because the selected format is slab-size, the marble veining must feel broad, continuous and slab-scaled, not broken into many tiny repeated tiles."
           : commonVeinRule,
       };
     case "large_format":
       return {
+        nominalWidthCm: parsedFormat.width,
+        nominalHeightCm: parsedFormat.height,
         formatCategory,
         moduleScaleRule:
           "This selection is large-format tiling. The room must show clearly oversized modules with a restrained number of joints.",
         groutDensityRule:
-          "Joint density must stay low and refined, much sparser than in small residential ceramic tiling.",
+          "Joint density must stay low and refined, much sparser than in small residential ceramic tiling. Avoid any dense small-tile rhythm.",
         cutLayoutRule:
           "Keep edge cuts clean and controlled so the visible layout still reads as large-format material rather than small repeated modules.",
+        realScaleLockRule,
         veinContinuityRule: commonVeinRule,
       };
     default:
       return {
+        nominalWidthCm: parsedFormat.width,
+        nominalHeightCm: parsedFormat.height,
         formatCategory,
         moduleScaleRule: "Keep a standard residential tile scale coherent with the selected format.",
         groutDensityRule: "Grout joints should be visible with a normal residential rhythm, neither oversized nor too dense.",
         cutLayoutRule: "Keep cut pieces and perimeter terminations neat and plausible around fixtures and corners.",
+        realScaleLockRule,
         veinContinuityRule: commonVeinRule,
       };
   }
@@ -266,7 +295,7 @@ function inferTubLayoutRule(type: ConfigurazioneBagno["vasca"]["tipo"]): string 
   switch (type) {
     case "freestanding_ovale":
     case "freestanding_rettangolare":
-      return "The bathtub must look clearly freestanding, detached from walls with believable floor contact and plumbing logic.";
+      return "The bathtub must look clearly freestanding, detached from walls with believable floor contact, visible air gap / floor shadow around the body, and coherent plumbing logic.";
     case "back_to_wall":
       return "The bathtub must read clearly as back-to-wall: clean contact to the wall, but still recognizably a bathtub and not a built-in masonry tub.";
     case "incassata":
@@ -274,6 +303,31 @@ function inferTubLayoutRule(type: ConfigurazioneBagno["vasca"]["tipo"]): string 
     case "angolare":
       return "The bathtub must fit coherently into the corner geometry without distorting room proportions.";
   }
+}
+
+function inferTubScaleRule(config: ConfigurazioneBagno["vasca"]): string {
+  const nominalSize = config.dimensione_cm ?? "170x75";
+  const [lengthCmRaw, widthCmRaw] = nominalSize.split("x");
+  const lengthCm = Number(lengthCmRaw) || 170;
+  const widthCm = Number(widthCmRaw) || 75;
+  const isFreestanding = config.tipo === "freestanding_ovale" || config.tipo === "freestanding_rettangolare";
+
+  return [
+    `Use a full adult bathtub footprint around ${lengthCm}x${widthCm} cm, with realistic height around 55-60 cm.`,
+    "The tub must be large enough for a reclining adult and visually larger than a WC or bidet; it must not become a small decorative bowl, mini tub, basin-like object or undersized prop.",
+    isFreestanding
+      ? "For freestanding type, preserve a real tub body with thick rim, plausible basin depth, floor contact shadow and enough visual length along the camera perspective."
+      : "Respect the selected tub typology with a believable full-size footprint.",
+    "If the photographed room is compact, adapt placement along the available wall or shower/tub zone instead of shrinking the bathtub unrealistically.",
+  ].join(" ");
+}
+
+function inferTubPlacementRule(config: ConfigurazioneBagno["vasca"], scenePosition: string): string {
+  const isFreestanding = config.tipo === "freestanding_ovale" || config.tipo === "freestanding_rettangolare";
+  if (isFreestanding) {
+    return `Place the tub in the selected bathtub zone or the most plausible former shower/tub zone (${scenePosition}), keeping walking clearances believable and without moving non-target fixtures.`;
+  }
+  return `Install the tub coherently in the existing bathtub/shower wall zone (${scenePosition}) without distorting room proportions.`;
 }
 
 export function buildBathroomRenderConfig(
@@ -338,7 +392,10 @@ export function buildBathroomRenderConfig(
     bathtubTypeLabel: BATHTUB_TYPE_DESCRIPTIONS[legacyConfig.vasca.tipo],
     materialDescription: BATHTUB_MATERIAL_DESCRIPTIONS[legacyConfig.vasca.materiale],
     faucetPosition: BATHTUB_FAUCET_DESCRIPTIONS[legacyConfig.vasca.rubinetteria_vasca],
+    nominalSize: `${legacyConfig.vasca.dimensione_cm ?? "170x75"} cm`,
     layoutRule: inferTubLayoutRule(legacyConfig.vasca.tipo),
+    scaleRule: inferTubScaleRule(legacyConfig.vasca),
+    placementRule: inferTubPlacementRule(legacyConfig.vasca, sceneAnalysis.bathtub.position || sceneAnalysis.shower.position || "unknown"),
   };
 
   const mirrorType = VANITY_MIRROR_DESCRIPTIONS[legacyConfig.vanity.specchio || "retroilluminato"];

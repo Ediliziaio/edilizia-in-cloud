@@ -23,6 +23,7 @@ export interface ConfigPiastrella {
   posa: string;
   fuga_colore: string;
   altezza_rivestimento?: string;
+  orientamento_lastra?: "automatico" | "verticale" | "orizzontale";
 }
 
 export type BathroomShowerType =
@@ -83,11 +84,19 @@ export type BathroomBathtubFaucetPosition =
   | "a_pavimento"
   | "bordo_vasca";
 
+export type BathroomBathtubSize =
+  | "150x70"
+  | "160x75"
+  | "170x75"
+  | "180x80"
+  | "190x90";
+
 export interface ConfigVasca {
   attivo: boolean;
   tipo: BathroomBathtubType;
   materiale: BathroomBathtubMaterial;
   rubinetteria_vasca: BathroomBathtubFaucetPosition;
+  dimensione_cm?: BathroomBathtubSize;
 }
 
 export type BathroomVanityStyle =
@@ -333,6 +342,8 @@ export interface BathroomTileSpecification {
   effectId: string;
   effectDescription: string;
   format: string;
+  nominalWidthCm: number | null;
+  nominalHeightCm: number | null;
   formatCategory: "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless";
   layingPattern: string;
   groutColor: string;
@@ -340,6 +351,7 @@ export interface BathroomTileSpecification {
   moduleScaleRule: string;
   groutDensityRule: string;
   cutLayoutRule: string;
+  realScaleLockRule: string;
   veinContinuityRule: string | null;
 }
 
@@ -348,6 +360,8 @@ export interface BathroomFloorSpecification {
   effectId: string;
   effectDescription: string;
   format: string;
+  nominalWidthCm: number | null;
+  nominalHeightCm: number | null;
   formatCategory: "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless";
   layingPattern: string;
   groutColor: string;
@@ -355,6 +369,7 @@ export interface BathroomFloorSpecification {
   moduleScaleRule: string;
   groutDensityRule: string;
   cutLayoutRule: string;
+  realScaleLockRule: string;
   veinContinuityRule: string | null;
 }
 
@@ -382,7 +397,10 @@ export interface BathroomBathtubSpecification {
   bathtubTypeLabel: string;
   materialDescription: string;
   faucetPosition: string;
+  nominalSize: string;
   layoutRule: string;
+  scaleRule: string;
+  placementRule: string;
 }
 
 export interface BathroomVanitySpecification {

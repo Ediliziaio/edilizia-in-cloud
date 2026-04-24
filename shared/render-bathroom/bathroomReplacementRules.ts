@@ -111,10 +111,10 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
 
   const replacements = [
     spec.wallTiles.replace
-      ? `Replace wall tiles with ${spec.wallTiles.effectDescription}, ${spec.wallTiles.format}, ${spec.wallTiles.layingPattern}. ${spec.wallTiles.moduleScaleRule} ${spec.wallTiles.groutDensityRule}`
+      ? `Replace wall tiles with ${spec.wallTiles.effectDescription}, ${spec.wallTiles.format}, ${spec.wallTiles.layingPattern}. ${spec.wallTiles.moduleScaleRule} ${spec.wallTiles.groutDensityRule} ${spec.wallTiles.realScaleLockRule}`
       : "Keep wall tiles unchanged.",
     spec.floor.replace
-      ? `Replace floor with ${spec.floor.effectDescription}, ${spec.floor.format}, ${spec.floor.layingPattern}. ${spec.floor.moduleScaleRule} ${spec.floor.groutDensityRule}`
+      ? `Replace floor with ${spec.floor.effectDescription}, ${spec.floor.format}, ${spec.floor.layingPattern}. ${spec.floor.moduleScaleRule} ${spec.floor.groutDensityRule} ${spec.floor.realScaleLockRule}`
       : "Keep floor unchanged.",
     spec.shower.replace ? `Replace shower zone with ${spec.shower.showerTypeLabel}.` : "Keep existing shower state unless incompatible with another requested replacement.",
     spec.bathtub.replace ? `Replace bathtub zone with ${spec.bathtub.bathtubTypeLabel}.` : "Keep existing bathtub state unless incompatible with another requested replacement.",
@@ -130,7 +130,7 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
       ? `Install ${spec.shower.showerTypeLabel} with ${spec.shower.enclosureType}, ${spec.shower.glassType}, ${spec.shower.framePresence}, ${spec.shower.trayType}, ${spec.shower.showerHeadType} and ${spec.shower.mixerFinish}.`
       : "",
     spec.bathtub.replace
-      ? `Install ${spec.bathtub.bathtubTypeLabel} in ${spec.bathtub.materialDescription} with ${spec.bathtub.faucetPosition}.`
+      ? `Install ${spec.bathtub.bathtubTypeLabel} in ${spec.bathtub.materialDescription} with ${spec.bathtub.faucetPosition}. ${spec.bathtub.scaleRule} ${spec.bathtub.placementRule}`
       : "",
     spec.vanity.replace
       ? `Install ${spec.vanity.styleLabel} in ${spec.vanity.colorLabel} with ${spec.vanity.topDescription}, ${spec.vanity.basinCount === 2 ? "double basin" : "single basin"} and ${spec.vanity.mirrorType}.`

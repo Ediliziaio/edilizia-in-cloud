@@ -460,7 +460,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                I formati grandi come 120x240 devono risultare come lastre con pochissime fughe visibili.
+                120x240 significa lastra reale alta circa 2,4 m: poche fughe, niente griglia 60x60 o piastrelle piccole.
               </p>
             </div>
             <div>
@@ -550,7 +550,7 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Su pavimento il formato scelto deve restare leggibile: grande formato = giunti radi e campi ampi.
+                Su pavimento il formato scelto deve restare leggibile: grande formato = giunti radi, campi ampi e scala coerente.
               </p>
             </div>
             <div>
@@ -753,6 +753,27 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                   <SelectItem value="bordo_vasca">Bordo vasca</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Dimensione vasca</Label>
+              <Select
+                value={value.vasca.dimensione_cm || "170x75"}
+                onValueChange={(size) =>
+                  update({ vasca: { ...value.vasca, dimensione_cm: size as BathroomConfig["vasca"]["dimensione_cm"] } })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="150x70">150x70 cm - compatta reale</SelectItem>
+                  <SelectItem value="160x75">160x75 cm - piccola ma adulta</SelectItem>
+                  <SelectItem value="170x75">170x75 cm - standard</SelectItem>
+                  <SelectItem value="180x80">180x80 cm - comfort</SelectItem>
+                  <SelectItem value="190x90">190x90 cm - scenografica</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Questa scala viene forzata nel prompt: la vasca non deve diventare una vaschetta piccola o decorativa.
+              </p>
             </div>
           </AccordionContent>
         </AccordionItem>

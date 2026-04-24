@@ -242,6 +242,8 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not mix incompatible shower and bathtub states unless explicitly requested",
   "do not alter surfaces that were not selected for replacement",
   "do not change image dimensions or orientation",
+  "do not render 120x240 slabs as a 60x60 or dense medium-tile grid",
+  "do not render a freestanding bathtub as a tiny bowl, mini tub or undersized decorative object",
 ];
 
 export const DEFAULT_QUALITY_DIRECTIVES = [
