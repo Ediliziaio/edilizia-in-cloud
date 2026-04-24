@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image, Home,
   CheckCircle2, XCircle, Zap, Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { toast } from "sonner";
 
 const STATUS_CONFIG = {
   pending:    { label: "In coda",        variant: "secondary",   icon: Clock },
@@ -34,7 +35,7 @@ export default function RenderTettoGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_tetto_sessions")
-        .select("*")
+        .select("id, status, original_photo_url, result_urls, config, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -45,13 +46,13 @@ export default function RenderTettoGalleryDetail() {
         original_photo_url: string | null;
         result_urls: string[] | null;
         config: Record<string, unknown> | null;
-        provider_key: string | null;
-        cost_billed: number | null;
-        prompt_used: string | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
         error_message: string | null;
+        created_by: string | null;
+        contact_id: string | null;
+        opportunity_id: string | null;
       } | null;
     },
     enabled: !!id && !!companyId,
@@ -205,12 +206,30 @@ export default function RenderTettoGalleryDetail() {
             <Share2 className="h-4 w-4" />
             Condividi
           </Button>
+          <RenderPdfDownloadButton
+            beforeUrl={originalUrl}
+            afterUrl={resultUrl}
+            title="Render AI Tetto"
+            filename={`render_tetto_${id}.pdf`}
+            size="default"
+            className="flex-1 gap-2"
+            metadata={[
+              { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
+              { label: "Manto", value: manto?.tipo ? manto.tipo.replace(/_/g, " ") : null },
+            ]}
+          />
           <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
             <Download className="h-4 w-4" />
             Download
           </Button>
         </div>
       )}
+
+      <RenderCrmSummaryCard
+        createdBy={session.created_by}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
+      />
 
       {/* Config summary */}
       <Card>

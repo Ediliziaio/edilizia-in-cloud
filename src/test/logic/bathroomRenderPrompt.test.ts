@@ -190,11 +190,57 @@ describe("bathroom render pipeline", () => {
     config.sanitari.attivo = true;
     config.sanitari.azione_wc = "sostituisci";
     config.sanitari.tipo_wc = "rimless_sospeso";
+    config.sanitari.piastra_wc = "rettangolare_sottile";
     config.sanitari.azione_bidet = "sostituisci";
     config.sanitari.tipo_bidet = "sospeso";
 
     const prompt = buildBathroomPrompt(config as unknown as Record<string, unknown>, baseAnalysis());
     expect(prompt.userPrompt.toLowerCase()).toContain("wall-hung sanitary ware");
+    expect(prompt.userPrompt.toLowerCase()).toContain("concealed in-wall cistern");
+    expect(prompt.userPrompt.toLowerCase()).toContain("flush plate");
+    expect(prompt.userPrompt.toLowerCase()).toContain("never an exposed old-style bulky tank");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("keeps slab-scale tile instructions explicit for 120x240 selections", () => {
+    const config = cloneConfig();
+    config.sostituzione.piastrelle_parete = true;
+    config.piastrelle_parete.attivo = true;
+    config.piastrelle_parete.effetto = "marmo_verde_guatemala";
+    config.piastrelle_parete.formato = "120x240";
+    config.sostituzione.pavimento = true;
+    config.pavimento.attivo = true;
+    config.pavimento.effetto = "marmo_carrara";
+    config.pavimento.formato = "120x240";
+
+    const renderConfig = buildBathroomRenderConfig(config, { sceneAnalysis: baseAnalysis() });
+    expect(renderConfig.technical_specification.wallTiles.formatCategory).toBe("architectural_slab");
+    expect(renderConfig.technical_specification.wallTiles.moduleScaleRule.toLowerCase()).toContain("few very large modules");
+    expect(renderConfig.technical_specification.floor.groutDensityRule.toLowerCase()).toContain("extremely low");
+    expect(renderConfig.technical_specification.wallTiles.realScaleLockRule.toLowerCase()).toContain("120x240 cm");
+    expect(renderConfig.technical_specification.wallTiles.realScaleLockRule.toLowerCase()).toContain("floor-to-ceiling");
+
+    const prompt = buildBathroomPrompt(config as unknown as Record<string, unknown>, baseAnalysis());
+    expect(prompt.userPrompt.toLowerCase()).toContain("format family: architectural_slab");
+    expect(prompt.userPrompt.toLowerCase()).toContain("few very large modules");
+    expect(prompt.userPrompt.toLowerCase()).toContain("never as a dense small-tile grid");
+    expect(prompt.userPrompt.toLowerCase()).toContain("do not downscale it into 60x60");
+    expect(prompt.negativePrompt.toLowerCase()).toContain("60x60 grid");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("forces freestanding bathtub to keep adult real-world scale", () => {
+    const config = cloneConfig();
+    config.sostituzione.vasca = true;
+    config.vasca.attivo = true;
+    config.vasca.tipo = "freestanding_ovale";
+    config.vasca.dimensione_cm = "180x80";
+
+    const prompt = buildBathroomPrompt(config as unknown as Record<string, unknown>, baseAnalysis());
+    expect(prompt.userPrompt.toLowerCase()).toContain("nominal real-world footprint: 180x80 cm");
+    expect(prompt.userPrompt.toLowerCase()).toContain("full adult bathtub footprint");
+    expect(prompt.userPrompt.toLowerCase()).toContain("must not become a small decorative bowl");
+    expect(prompt.negativePrompt.toLowerCase()).toContain("tiny bathtub");
     expect(prompt.validation.isValid).toBe(true);
   });
 

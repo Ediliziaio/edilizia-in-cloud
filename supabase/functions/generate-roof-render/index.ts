@@ -6,6 +6,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 
 // ── ROOF_PHYSICS ─────────────────────────────────────────────────────────────
 const ROOF_PHYSICS: Record<string, string> = {
@@ -348,7 +349,7 @@ Deno.serve(async (req) => {
     } else if (providerConfig.provider_key === "gemini") {
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
       const imgBuffer = await imgResp.arrayBuffer();
-      const imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
+      const imgB64 = bytesToBase64(imgBuffer);
 
       const geminiBody = {
         contents: [{

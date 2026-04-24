@@ -13,10 +13,8 @@ import {
   CheckCircle2, Download, Share2, RefreshCw, Wand2, Grid3X3,
 } from "lucide-react";
 
-import {
-  PavimentoConfigForm,
-  DEFAULT_PAVIMENTO_CONFIG,
-} from "@/components/render-pavimento/PavimentoConfigForm";
+import { PavimentoConfigForm } from "@/components/render-pavimento/PavimentoConfigForm";
+import { DEFAULT_PAVIMENTO_CONFIG } from "@/components/render-pavimento/defaultPavimentoConfig";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
@@ -178,77 +176,6 @@ export default function RenderPavimentoNew() {
     }
   }, [photo, companyId, user, config, contactId, opportunityId]);
 
-  // ── Step 2 -> Step 3: start render ─────────────────────────────────────
-  const startRender = useCallback(async () => {
-    if (!sessionId || !companyId) return;
-    if (generating) return;
-
-    setGenerating(true);
-    setStep(3);
-    pollCountRef.current = 0;
-    elapsedRef.current = 0;
-    setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
-
-    // Aggiorna config nella sessione
-    await supabase
-      .from("render_pavimento_sessions")
-      .update({ config: config as unknown })
-      .eq("id", sessionId);
-
-    // Ottieni dimensioni foto
-    let targetWidth: number | undefined;
-    let targetHeight: number | undefined;
-    if (photo) {
-      try {
-        const img = new window.Image();
-        img.src = photoPreview ?? "";
-        await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); });
-        targetWidth = img.naturalWidth || undefined;
-        targetHeight = img.naturalHeight || undefined;
-      } catch { /* ignore */ }
-    }
-
-    // Invoca generate-floor-render
-    const headers = await getEdgeFunctionAuthHeaders();
-    const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-floor-render", {
-      body: {
-        action: "render",
-        session_id: sessionId,
-        config: config,
-        ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
-      },
-      headers,
-    });
-
-    if (fnErr || fnData?.error) {
-      const msg = await resolveEdgeFunctionErrorMessage({
-        error: fnErr,
-        data: fnData,
-        fallback: "Generazione fallita",
-      });
-      setGenerating(false);
-      if (msg.includes("insufficient_credits")) {
-        toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
-      } else {
-        toast.error(msg);
-      }
-      setStep(2);
-      return;
-    }
-
-    if (fnData?.result_url || fnData?.result_urls) {
-      const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
-      setResultUrls(urls);
-      setGenerating(false);
-      queryClient.invalidateQueries({ queryKey: ["render-pavimento-sessions", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
-      setStep(4);
-      return;
-    }
-
-    startPolling(sessionId);
-  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
-
   const startPolling = useCallback((sid: string) => {
     if (pollRef.current) clearTimeout(pollRef.current);
     if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
@@ -307,6 +234,87 @@ export default function RenderPavimentoNew() {
 
     poll();
   }, [companyId, queryClient]);
+
+  // ── Step 2 -> Step 3: start render ─────────────────────────────────────
+  const startRender = useCallback(async () => {
+    if (!sessionId || !companyId) return;
+    if (generating) return;
+
+    setGenerating(true);
+    setStep(3);
+    pollCountRef.current = 0;
+    elapsedRef.current = 0;
+    setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
+
+    let targetWidth: number | undefined;
+    let targetHeight: number | undefined;
+    if (photo) {
+      try {
+        const img = new window.Image();
+        img.src = photoPreview ?? "";
+        await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); });
+        targetWidth = img.naturalWidth || undefined;
+        targetHeight = img.naturalHeight || undefined;
+      } catch { /* ignore */ }
+    }
+
+    const photoMeta = targetWidth && targetHeight
+      ? {
+          width: targetWidth,
+          height: targetHeight,
+          orientation: targetWidth > targetHeight ? "landscape" : targetWidth < targetHeight ? "portrait" : "square",
+        }
+      : undefined;
+
+    await supabase
+      .from("render_pavimento_sessions")
+      .update({
+        config: config as unknown,
+        ...(analisi ? { analisi_pavimento: analisi as unknown } : {}),
+      })
+      .eq("id", sessionId);
+
+    const headers = await getEdgeFunctionAuthHeaders();
+    const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-floor-render", {
+      body: {
+        action: "render",
+        session_id: sessionId,
+        config,
+        analysis: analisi,
+        photo_meta: photoMeta,
+        ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
+      },
+      headers,
+    });
+
+    if (fnErr || fnData?.error) {
+      const msg = await resolveEdgeFunctionErrorMessage({
+        error: fnErr,
+        data: fnData,
+        fallback: "Generazione fallita",
+      });
+      setGenerating(false);
+      if (msg.includes("insufficient_credits")) {
+        toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
+      } else {
+        toast.error(msg);
+      }
+      setStep(2);
+      return;
+    }
+
+    if (fnData?.result_url || fnData?.result_urls) {
+      const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
+      setResultUrls(urls);
+      setGenerating(false);
+      queryClient.invalidateQueries({ queryKey: ["render-pavimento-sessions", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
+      setStep(4);
+      return;
+    }
+
+    startPolling(sessionId);
+  }, [sessionId, companyId, generating, photo, photoPreview, config, analisi, queryClient, startPolling]);
 
   // ── Download result ────────────────────────────────────────────────────
   const downloadResult = useCallback(async () => {

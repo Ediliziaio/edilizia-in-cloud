@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
+import { ensureWindowRenderConfig } from "@/modules/render/lib/configMapper";
+import type { WindowRenderConfig, WindowTechnicalSpecification } from "@/modules/render/lib/types";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image,
   CheckCircle2, XCircle, Zap, Clock,
@@ -22,6 +27,74 @@ const STATUS_CONFIG = {
   failed:     { label: "Fallito",        variant: "destructive", icon: XCircle },
 } as const;
 
+const INTERNAL_CONFIG_KEY_RE =
+  /(schema|prompt|provider|openai|gemini|model|cost|costo|addeb|billing|token|api|manifest|rules|directives|analysis|analisi)/i;
+
+function formatPublicLabel(value: string): string {
+  return value
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatPublicValue(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "boolean") return value ? "Si" : "No";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return formatPublicLabel(value);
+  return null;
+}
+
+function fallbackConfigItems(config: Record<string, unknown>) {
+  return Object.entries(config)
+    .filter(([key, value]) => !INTERNAL_CONFIG_KEY_RE.test(key) && value && typeof value !== "object")
+    .map(([key, value]) => ({
+      label: formatPublicLabel(key),
+      value: formatPublicValue(value),
+    }))
+    .filter((item): item is { label: string; value: string } => Boolean(item.value));
+}
+
+function cassonettoLabel(spec: WindowTechnicalSpecification): string | null {
+  if (!spec.cassonetto.replace) return "Cassonetto esistente mantenuto";
+  return [
+    spec.cassonetto.materialLabel,
+    spec.cassonetto.colorLabel,
+    spec.cassonetto.dimensionRule ? "dimensioni coerenti con il vano esistente" : null,
+  ].filter(Boolean).join(" - ");
+}
+
+function tapparellaLabel(spec: WindowTechnicalSpecification): string | null {
+  if (!spec.shutter.replace) return "Oscurante esistente mantenuto";
+  return [
+    formatPublicLabel(spec.shutter.mode),
+    spec.shutter.isMotorized ? "motorizzata" : null,
+    spec.shutter.colorLabel,
+    spec.shutter.placementRule ? "posizionamento realistico nel cassonetto/vano" : null,
+  ].filter(Boolean).join(" - ");
+}
+
+function specDisplayItems(spec: WindowTechnicalSpecification) {
+  return [
+    { label: "Tipologia", value: formatPublicValue(spec.desiredOpeningType) },
+    { label: "Materiale", value: formatPublicValue(spec.material) },
+    {
+      label: "Finitura telaio",
+      value: [
+        spec.finish.name,
+        spec.finish.ral ? `RAL ${spec.finish.ral}` : null,
+        spec.finish.mode === "legno" ? "effetto legno" : null,
+      ].filter(Boolean).join(" - "),
+    },
+    { label: "Profilo", value: `${formatPublicLabel(spec.profileId)} - ${spec.slimnessLabel}` },
+    { label: "Maniglia", value: `${formatPublicLabel(spec.handleStyle)} - ${spec.handleFinish}` },
+    { label: "Cerniere", value: `${spec.hingeFinish}, ${spec.hingeCountVisible} visibili` },
+    { label: "Cassonetto", value: cassonettoLabel(spec) },
+    { label: "Tapparella/oscurante", value: tapparellaLabel(spec) },
+    { label: "Vetro", value: spec.glassSpec },
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value));
+}
+
 export default function RenderGalleryDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -34,7 +107,7 @@ export default function RenderGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_sessions")
-        .select("*")
+        .select("id, status, original_photo_url, result_urls, config, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -45,13 +118,13 @@ export default function RenderGalleryDetail() {
         original_photo_url: string | null;
         result_urls: string[] | null;
         config: Record<string, unknown> | null;
-        provider_key: string | null;
-        cost_billed: number | null;
-        prompt_used: string | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
         error_message: string | null;
+        created_by: string | null;
+        contact_id: string | null;
+        opportunity_id: string | null;
       } | null;
     },
     enabled: !!id && !!companyId,
@@ -75,6 +148,16 @@ export default function RenderGalleryDetail() {
   });
 
   const resultUrl = session?.result_urls?.[0] ?? null;
+  const rawConfig = session?.config as Record<string, unknown> | null;
+  const windowRenderPlan = useMemo<WindowRenderConfig | null>(() => {
+    if (!rawConfig) return null;
+    try {
+      return ensureWindowRenderConfig(rawConfig);
+    } catch {
+      return null;
+    }
+  }, [rawConfig]);
+  const firstSpec = windowRenderPlan?.technical_specification[0] ?? null;
 
   const handleDownload = () => {
     if (!resultUrl) return;
@@ -117,7 +200,6 @@ export default function RenderGalleryDetail() {
   const statusCfg = STATUS_CONFIG[session.status as keyof typeof STATUS_CONFIG] ??
     STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
-  const config = session.config as Record<string, unknown> | null;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -199,6 +281,18 @@ export default function RenderGalleryDetail() {
                 <Share2 className="h-4 w-4 mr-2" />
                 Condividi
               </Button>
+              <RenderPdfDownloadButton
+                beforeUrl={originalUrl}
+                afterUrl={resultUrl}
+                title="Render AI Infissi"
+                filename={`render_infissi_${id}.pdf`}
+                metadata={[
+                  { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
+                  { label: "Tipo", value: firstSpec ? formatPublicValue(firstSpec.desiredOpeningType) : null },
+                  { label: "Materiale", value: firstSpec ? formatPublicValue(firstSpec.material) : null },
+                  { label: "Finitura", value: firstSpec?.finish.name },
+                ]}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -214,6 +308,11 @@ export default function RenderGalleryDetail() {
           <CardContent className="p-4">
             <img src={resultUrl} alt="Render AI" className="w-full rounded-lg" />
             <div className="flex gap-2 mt-4 justify-end">
+              <RenderPdfDownloadButton
+                afterUrl={resultUrl}
+                title="Render AI Infissi"
+                filename={`render_infissi_${id}.pdf`}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -248,38 +347,72 @@ export default function RenderGalleryDetail() {
         </Card>
       )}
 
+      <RenderCrmSummaryCard
+        createdBy={session.created_by}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
+      />
+
       {/* Configurazione */}
-      {config && (
+      {rawConfig && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Configurazione infissi</CardTitle>
+            <CardTitle className="text-sm">Scelte infissi e finiture</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {Object.entries(config).filter(([, v]) => v).map(([k, v]) => (
-                <div key={k} className="bg-muted/50 rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground capitalize">
-                    {k.replace(/_/g, " ")}
-                  </p>
-                  <p className="text-sm font-medium capitalize">
-                    {String(v).replace(/-/g, " ")}
-                  </p>
+          <CardContent className="space-y-4">
+            {windowRenderPlan?.technical_specification.length ? (
+              windowRenderPlan.technical_specification.map((spec) => (
+                <div key={spec.openingId} className="rounded-xl border bg-muted/20 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary">{spec.openingLabel}</Badge>
+                    <p className="text-sm font-semibold">
+                      {formatPublicLabel(spec.desiredOpeningType)}
+                    </p>
+                    <Badge variant="outline">{spec.desiredSashCount} ante</Badge>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {specDisplayItems(spec).map((item) => (
+                      <div key={`${spec.openingId}-${item.label}`} className="rounded-md bg-background p-2">
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {item.label}
+                        </p>
+                        <p className="text-sm font-medium leading-snug">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {session.provider_key && (
-                <Badge variant="outline" className="text-xs gap-1">
-                  <Zap className="h-3 w-3" />
-                  {session.provider_key}
-                </Badge>
-              )}
-              {session.cost_billed != null && (
-                <Badge variant="outline" className="text-xs">
-                  €{session.cost_billed?.toFixed(3)} addebitato
-                </Badge>
-              )}
-            </div>
+              ))
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {fallbackConfigItems(rawConfig).map((item) => (
+                  <div key={item.label} className="bg-muted/50 rounded-md p-2">
+                    <p className="text-[10px] text-muted-foreground">{item.label}</p>
+                    <p className="text-sm font-medium">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {windowRenderPlan?.replacement_manifest.untouchedOpenings.length ? (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Aperture non modificate
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {windowRenderPlan.replacement_manifest.untouchedOpenings.map((opening) => (
+                    <Badge key={opening.openingId} variant="outline">
+                      {opening.openingLabel}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {!windowRenderPlan && fallbackConfigItems(rawConfig).length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Riepilogo commerciale non disponibile per questa sessione.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

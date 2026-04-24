@@ -2,6 +2,7 @@ import type {
   BathroomBathtubType,
   BathroomFaucetFinish,
   BathroomFaucetStyle,
+  BathroomFlushPlateStyle,
   BathroomMirrorType,
   BathroomSanitaryColor,
   BathroomShowerGlassType,
@@ -207,6 +208,15 @@ export const SANITARY_COLOR_DESCRIPTIONS: Record<BathroomSanitaryColor, string> 
   nero_opaco: "matte black ceramic finish",
 };
 
+export const FLUSH_PLATE_DESCRIPTIONS: Record<BathroomFlushPlateStyle, string> = {
+  rettangolare_sottile:
+    "slim rectangular wall flush plate, minimal and architectural, aligned above the WC",
+  vetro_minimal:
+    "minimal glass-look wall flush plate with crisp rectangular geometry and low visual bulk",
+  tonda_soft:
+    "soft rounded dual-flush wall plate, compact and contemporary rather than old-fashioned",
+};
+
 export const FAUCET_FINISH_DESCRIPTIONS: Record<BathroomFaucetFinish, string> = {
   cromo: "polished chrome finish",
   nero_opaco: "matte black finish",
@@ -232,6 +242,8 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not mix incompatible shower and bathtub states unless explicitly requested",
   "do not alter surfaces that were not selected for replacement",
   "do not change image dimensions or orientation",
+  "do not render 120x240 slabs as a 60x60 or dense medium-tile grid",
+  "do not render a freestanding bathtub as a tiny bowl, mini tub or undersized decorative object",
 ];
 
 export const DEFAULT_QUALITY_DIRECTIVES = [

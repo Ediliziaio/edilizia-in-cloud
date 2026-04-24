@@ -23,6 +23,7 @@ export interface ConfigPiastrella {
   posa: string;
   fuga_colore: string;
   altezza_rivestimento?: string;
+  orientamento_lastra?: "automatico" | "verticale" | "orizzontale";
 }
 
 export type BathroomShowerType =
@@ -83,11 +84,19 @@ export type BathroomBathtubFaucetPosition =
   | "a_pavimento"
   | "bordo_vasca";
 
+export type BathroomBathtubSize =
+  | "150x70"
+  | "160x75"
+  | "170x75"
+  | "180x80"
+  | "190x90";
+
 export interface ConfigVasca {
   attivo: boolean;
   tipo: BathroomBathtubType;
   materiale: BathroomBathtubMaterial;
   rubinetteria_vasca: BathroomBathtubFaucetPosition;
+  dimensione_cm?: BathroomBathtubSize;
 }
 
 export type BathroomVanityStyle =
@@ -131,6 +140,10 @@ export type BathroomBidetAction = "mantieni" | "sostituisci" | "rimuovi";
 export type BathroomToiletType = "sospeso" | "a_terra" | "rimless_sospeso";
 export type BathroomBidetType = "sospeso" | "a_terra";
 export type BathroomSanitaryColor = "bianco" | "grigio_chiaro" | "nero_opaco";
+export type BathroomFlushPlateStyle =
+  | "rettangolare_sottile"
+  | "vetro_minimal"
+  | "tonda_soft";
 
 export interface ConfigSanitari {
   attivo: boolean;
@@ -139,6 +152,7 @@ export interface ConfigSanitari {
   azione_bidet: BathroomBidetAction;
   tipo_bidet?: BathroomBidetType;
   colore: BathroomSanitaryColor;
+  piastra_wc?: BathroomFlushPlateStyle;
 }
 
 export type BathroomFaucetFinish =
@@ -328,9 +342,17 @@ export interface BathroomTileSpecification {
   effectId: string;
   effectDescription: string;
   format: string;
+  nominalWidthCm: number | null;
+  nominalHeightCm: number | null;
+  formatCategory: "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless";
   layingPattern: string;
   groutColor: string;
   coverage: string;
+  moduleScaleRule: string;
+  groutDensityRule: string;
+  cutLayoutRule: string;
+  realScaleLockRule: string;
+  veinContinuityRule: string | null;
 }
 
 export interface BathroomFloorSpecification {
@@ -338,9 +360,17 @@ export interface BathroomFloorSpecification {
   effectId: string;
   effectDescription: string;
   format: string;
+  nominalWidthCm: number | null;
+  nominalHeightCm: number | null;
+  formatCategory: "mosaic" | "standard" | "large_format" | "architectural_slab" | "plank" | "seamless";
   layingPattern: string;
   groutColor: string;
   reflectivityRule: string;
+  moduleScaleRule: string;
+  groutDensityRule: string;
+  cutLayoutRule: string;
+  realScaleLockRule: string;
+  veinContinuityRule: string | null;
 }
 
 export interface BathroomShowerSpecification {
@@ -367,7 +397,10 @@ export interface BathroomBathtubSpecification {
   bathtubTypeLabel: string;
   materialDescription: string;
   faucetPosition: string;
+  nominalSize: string;
   layoutRule: string;
+  scaleRule: string;
+  placementRule: string;
 }
 
 export interface BathroomVanitySpecification {
@@ -391,6 +424,10 @@ export interface BathroomSanitarySpecification {
   bidetType: string | null;
   installationRule: string;
   ceramicFinish: string;
+  cisternRule: string;
+  flushPlateStyle: string | null;
+  flushPlateRule: string | null;
+  scaleRule: string;
 }
 
 export interface BathroomFaucetSpecification {

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { ensurePersianeRenderConfig } from "@/modules/render-persiane/lib/persianeRenderConfig";
 
 const STATUS_CONFIG = {
   pending:    { label: "In coda",         color: "secondary",   icon: Clock },
@@ -87,7 +89,17 @@ export default function RenderPersianeHub() {
         : false,
   });
 
-  const hasProcessing = sessions.some((s) => s.status === "processing");
+  const hasProcessing = sessions.some((s) => ["pending", "processing"].includes(s.status));
+  const normalizedSessions = useMemo(
+    () =>
+      sessions.map((session) => ({
+        ...session,
+        renderConfig: session.config
+          ? ensurePersianeRenderConfig(session.config as Record<string, unknown>)
+          : null,
+      })),
+    [sessions],
+  );
 
   return (
     <div className="space-y-8">
@@ -190,7 +202,7 @@ export default function RenderPersianeHub() {
               <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
-        ) : sessions.length === 0 ? (
+        ) : normalizedSessions.length === 0 ? (
           <Card>
             <CardContent className="py-14 flex flex-col items-center gap-4 text-center">
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
@@ -213,17 +225,14 @@ export default function RenderPersianeHub() {
           </Card>
         ) : (
           <div className="space-y-2">
-            {sessions.map((session) => {
+            {normalizedSessions.map((session) => {
               const cfg =
                 STATUS_CONFIG[session.status as keyof typeof STATUS_CONFIG] ??
                 STATUS_CONFIG.pending;
               const Icon = cfg.icon;
               const resultUrl = session.result_urls?.[0];
-              const conf = session.config as {
-                operazione?: string;
-                tipo?: string;
-                colore_nome?: string;
-              } | null;
+              const thumbnailUrl = resultUrl;
+              const legacy = session.renderConfig?.legacy_config ?? null;
 
               return (
                 <Card
@@ -235,11 +244,11 @@ export default function RenderPersianeHub() {
                 >
                   <CardContent className="p-3 flex items-center gap-3">
                     <div className="w-16 h-12 rounded-lg overflow-hidden bg-muted shrink-0">
-                      {resultUrl ? (
+                      {thumbnailUrl ? (
                         <img
-                          src={resultUrl}
+                          src={thumbnailUrl}
                           alt="render"
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain bg-muted/20"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -259,17 +268,17 @@ export default function RenderPersianeHub() {
                           <Icon className="h-2.5 w-2.5" />
                           {cfg.label}
                         </Badge>
-                        {conf?.tipo && (
+                        {legacy?.tipo && (
                           <Badge
                             variant="outline"
                             className="text-xs h-5 capitalize"
                           >
-                            {String(conf.tipo).replace(/_/g, " ")}
+                            {String(legacy.tipo).replace(/_/g, " ")}
                           </Badge>
                         )}
-                        {conf?.colore_nome && (
+                        {legacy?.colore_nome && (
                           <Badge variant="outline" className="text-xs h-5">
-                            {String(conf.colore_nome)}
+                            {String(legacy.colore_nome)}
                           </Badge>
                         )}
                       </div>
@@ -278,9 +287,14 @@ export default function RenderPersianeHub() {
                           locale: it,
                         })}
                       </p>
+                      {session.renderConfig?.target_selection.targetLabels.length ? (
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Target: {session.renderConfig.target_selection.targetLabels.join(", ")}
+                        </p>
+                      ) : null}
                     </div>
 
-                    {session.status === "processing" && (
+                    {["pending", "processing"].includes(session.status) && (
                       <Zap className="h-4 w-4 text-green-600 animate-pulse shrink-0" />
                     )}
                   </CardContent>

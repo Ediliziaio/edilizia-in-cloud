@@ -56,7 +56,7 @@ export default function RenderHub() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("render_sessions")
-        .select("id, status, original_photo_url, result_urls, config, provider_key, created_at")
+        .select("id, status, original_photo_url, result_urls, config, created_at")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(10);
@@ -67,7 +67,6 @@ export default function RenderHub() {
         original_photo_url: string | null;
         result_urls: string[] | null;
         config: Record<string, unknown> | null;
-        provider_key: string | null;
         created_at: string;
       }[];
     },

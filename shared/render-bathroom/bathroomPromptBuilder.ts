@@ -60,7 +60,10 @@ function describeBathtubSpec(config: BathroomRenderConfig): string {
     `bathtub type: ${spec.bathtubTypeLabel}`,
     `material/look: ${spec.materialDescription}`,
     `faucet type / position: ${spec.faucetPosition}`,
+    `nominal real-world footprint: ${spec.nominalSize}`,
     `layout rule: ${spec.layoutRule}`,
+    `scale rule: ${spec.scaleRule}`,
+    `placement rule: ${spec.placementRule}`,
   ].join("\n");
 }
 
@@ -88,6 +91,10 @@ function describeSanitarySpec(config: BathroomRenderConfig): string {
     `bidet action: ${spec.bidetAction}`,
     `bidet type: ${spec.bidetType ?? "remove bidet / no replacement"}`,
     `installation / spacing rule: ${spec.installationRule}`,
+    `cistern rule: ${spec.cisternRule}`,
+    `flush plate style: ${spec.flushPlateStyle ?? "not applicable"}`,
+    `flush plate rule: ${spec.flushPlateRule ?? "not applicable"}`,
+    `scale rule: ${spec.scaleRule}`,
     `ceramic finish: ${spec.ceramicFinish}`,
   ].join("\n");
 }
@@ -177,9 +184,16 @@ ${spec.wallTiles.replace
     ? [
         `effect / material: ${spec.wallTiles.effectDescription}`,
         `format: ${spec.wallTiles.format}`,
+        `format family: ${spec.wallTiles.formatCategory}`,
         `laying pattern: ${spec.wallTiles.layingPattern}`,
         `grout color: ${spec.wallTiles.groutColor}`,
         `coverage height: ${spec.wallTiles.coverage}`,
+        `real-world module size: ${spec.wallTiles.nominalWidthCm ?? "unknown"}x${spec.wallTiles.nominalHeightCm ?? "unknown"} cm`,
+        `module scale rule: ${spec.wallTiles.moduleScaleRule}`,
+        `grout density rule: ${spec.wallTiles.groutDensityRule}`,
+        `cut layout rule: ${spec.wallTiles.cutLayoutRule}`,
+        `real scale lock: ${spec.wallTiles.realScaleLockRule}`,
+        spec.wallTiles.veinContinuityRule ? `vein continuity rule: ${spec.wallTiles.veinContinuityRule}` : "",
         "wet-area wall tile treatment must stay coherent around shower or bathtub zones",
       ].join("\n")
     : "Wall tile replacement not requested. Keep all existing wall tiles unchanged."}`;
@@ -189,9 +203,16 @@ ${spec.floor.replace
     ? [
         `material / effect: ${spec.floor.effectDescription}`,
         `format: ${spec.floor.format}`,
+        `format family: ${spec.floor.formatCategory}`,
+        `real-world module size: ${spec.floor.nominalWidthCm ?? "unknown"}x${spec.floor.nominalHeightCm ?? "unknown"} cm`,
         `laying pattern: ${spec.floor.layingPattern}`,
         `grout color: ${spec.floor.groutColor}`,
         `reflectivity: ${spec.floor.reflectivityRule}`,
+        `module scale rule: ${spec.floor.moduleScaleRule}`,
+        `grout density rule: ${spec.floor.groutDensityRule}`,
+        `cut layout rule: ${spec.floor.cutLayoutRule}`,
+        `real scale lock: ${spec.floor.realScaleLockRule}`,
+        spec.floor.veinContinuityRule ? `vein continuity rule: ${spec.floor.veinContinuityRule}` : "",
         "floor perspective, vanishing lines and junctions must remain coherent with the source photo",
       ].join("\n")
     : "Floor replacement not requested. Keep the existing floor unchanged."}`;
@@ -235,7 +256,11 @@ Image lock:
 - no distorted geometry
 - no showroom-like fake perfection if the source is a real lived-in bathroom
 - high-end interior renovation visualization quality
-- preserve the lived-in realism of the source room instead of turning it into a generic luxury set`;
+- preserve the lived-in realism of the source room instead of turning it into a generic luxury set
+- if the selected wall or floor format is 120x240 or any slab / large-format choice, the surface must read as a few very large modules with sparse joints, never as a dense small-tile grid
+- 120x240 means a real 120 cm by 240 cm slab: do not downscale it into 60x60, 30x60, medium square modules, or a decorative grid; one 240 cm side should visually approach floor-to-ceiling height on bathroom walls where feasible
+- bathtub replacements must keep full adult product scale: never render a tiny freestanding tub, basin-like tub, miniature bowl, or undersized prop
+- if a wall-hung WC is selected, render a concealed cistern with a compact wall flush plate and never an exposed old-style bulky tank`;
 
   blocks.N = `[BLOCK N – NEGATIVE CONSTRAINTS]
 ${bullets(DEFAULT_NEGATIVE_CONSTRAINTS)}`;
@@ -273,7 +298,7 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "generic luxury bathroom, fantasy redesign, wrong room geometry, changed perspective, changed crop, different lighting, floating vanity, floating sanitary ware, bathtub still visible after shower-only request, shower still visible after bathtub-only request, generic closed shower box instead of walk-in, non-target surfaces replaced, distorted tiles, wrong scale, CGI look, illustration, stylized render",
+      "generic luxury bathroom, fantasy redesign, wrong room geometry, changed perspective, changed crop, different lighting, floating vanity, floating sanitary ware, bathtub still visible after shower-only request, shower still visible after bathtub-only request, generic closed shower box instead of walk-in, non-target surfaces replaced, distorted tiles, dense small-tile grid despite selected large slabs, wrong tile scale, exposed bulky toilet tank when wall-hung WC is selected, tiny bathtub, miniature freestanding tub, basin-like bathtub, bathtub scaled smaller than a real adult product, 60x60 grid when 120x240 slabs are selected, too many grout joints on slab surfaces, CGI look, illustration, stylized render",
     promptVersion: "2.0.0",
     blocks,
     validation,

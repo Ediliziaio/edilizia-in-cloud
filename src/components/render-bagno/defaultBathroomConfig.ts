@@ -41,6 +41,7 @@ export const DEFAULT_BATHROOM_CONFIG: ConfigurazioneBagno = {
     tipo: "freestanding_ovale",
     materiale: "acrilico_bianco",
     rubinetteria_vasca: "a_pavimento",
+    dimensione_cm: "170x75",
   },
   vanity: {
     attivo: false,
@@ -59,6 +60,7 @@ export const DEFAULT_BATHROOM_CONFIG: ConfigurazioneBagno = {
     azione_bidet: "sostituisci",
     tipo_bidet: "sospeso",
     colore: "bianco",
+    piastra_wc: "rettangolare_sottile",
   },
   rubinetteria: {
     attivo: false,

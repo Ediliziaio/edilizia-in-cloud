@@ -192,6 +192,12 @@ const MIRROR_OPTIONS = [
   { value: "verticale", label: "Verticale" },
 ];
 
+const FLUSH_PLATE_OPTIONS = [
+  { value: "rettangolare_sottile", label: "Rettangolare sottile" },
+  { value: "vetro_minimal", label: "Vetro minimal" },
+  { value: "tonda_soft", label: "Tonda soft" },
+];
+
 const QUICK_PAINT_PRESETS = [
   { label: "Bianco caldo", value: "#F5F5F0" },
   { label: "Greige", value: "#D7CFC3" },
@@ -338,6 +344,9 @@ function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
 
             <div className="absolute bottom-[22%] right-[14%] h-[30%] w-[18%] rounded-t-[32px] border border-black/8 shadow-md" style={value.sostituzione.sanitari ? sanitaryColor.previewStyle : solidStyle("#fbfbfa")} />
             <div className="absolute bottom-[22%] right-[34%] h-[26%] w-[14%] rounded-t-[18px] border border-black/8 shadow-sm" style={value.sostituzione.sanitari ? sanitaryColor.previewStyle : solidStyle("#fbfbfa")} />
+            {value.sostituzione.sanitari && value.sanitari.azione_wc === "sostituisci" && (value.sanitari.tipo_wc === "sospeso" || value.sanitari.tipo_wc === "rimless_sospeso") ? (
+              <div className="absolute bottom-[56%] right-[17%] h-[3.5%] w-[9%] rounded-[6px] border border-black/10 bg-white/90 shadow-sm" />
+            ) : null}
 
             <div className="absolute right-[6%] top-[14%] h-[48%] w-[28%] rounded-[22px] border border-white/70 bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.4)] backdrop-blur-[1px]" />
             <div className="absolute right-[31%] top-[16%] h-[44%] w-1 rounded-full" style={value.sostituzione.rubinetteria ? faucetFinish.previewStyle : finishStyle("#cfd5dc", "rgba(255,255,255,0.72)")} />
@@ -362,6 +371,7 @@ function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
               <li>- Il render deve mantenere lo stesso bagno e la stessa inquadratura.</li>
               <li>- Le modifiche riguardano solo gli elementi che attivi qui sotto.</li>
               <li>- Anche una foto verticale deve restare verticale nel risultato.</li>
+              <li>- Se scegli 120x240, il render deve leggere poche fughe e lastre davvero grandi.</li>
             </ul>
           </div>
         </div>
@@ -449,6 +459,9 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                120x240 significa lastra reale alta circa 2,4 m: poche fughe, niente griglia 60x60 o piastrelle piccole.
+              </p>
             </div>
             <div>
               <Label className="text-xs">Posa</Label>
@@ -536,6 +549,9 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Su pavimento il formato scelto deve restare leggibile: grande formato = giunti radi, campi ampi e scala coerente.
+              </p>
             </div>
             <div>
               <Label className="text-xs">Posa</Label>
@@ -738,6 +754,27 @@ export function BathroomConfigForm({ value, onChange }: Props) {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label className="text-xs">Dimensione vasca</Label>
+              <Select
+                value={value.vasca.dimensione_cm || "170x75"}
+                onValueChange={(size) =>
+                  update({ vasca: { ...value.vasca, dimensione_cm: size as BathroomConfig["vasca"]["dimensione_cm"] } })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="150x70">150x70 cm - compatta reale</SelectItem>
+                  <SelectItem value="160x75">160x75 cm - piccola ma adulta</SelectItem>
+                  <SelectItem value="170x75">170x75 cm - standard</SelectItem>
+                  <SelectItem value="180x80">180x80 cm - comfort</SelectItem>
+                  <SelectItem value="190x90">190x90 cm - scenografica</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Questa scala viene forzata nel prompt: la vasca non deve diventare una vaschetta piccola o decorativa.
+              </p>
+            </div>
           </AccordionContent>
         </AccordionItem>
 
@@ -894,22 +931,45 @@ export function BathroomConfigForm({ value, onChange }: Props) {
               </Select>
             </div>
             {value.sanitari.azione_wc === "sostituisci" ? (
-              <div>
-                <Label className="text-xs">Tipo WC</Label>
-                <Select
-                  value={value.sanitari.tipo_wc}
-                  onValueChange={(type) =>
-                    update({ sanitari: { ...value.sanitari, tipo_wc: type as BathroomConfig["sanitari"]["tipo_wc"] } })
-                  }
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sospeso">Sospeso</SelectItem>
-                    <SelectItem value="a_terra">A terra</SelectItem>
-                    <SelectItem value="rimless_sospeso">Rimless sospeso</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div>
+                  <Label className="text-xs">Tipo WC</Label>
+                  <Select
+                    value={value.sanitari.tipo_wc}
+                    onValueChange={(type) =>
+                      update({ sanitari: { ...value.sanitari, tipo_wc: type as BathroomConfig["sanitari"]["tipo_wc"] } })
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sospeso">Sospeso</SelectItem>
+                      <SelectItem value="a_terra">A terra</SelectItem>
+                      <SelectItem value="rimless_sospeso">Rimless sospeso</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {value.sanitari.tipo_wc === "sospeso" || value.sanitari.tipo_wc === "rimless_sospeso" ? (
+                  <div>
+                    <Label className="text-xs">Piastra WC a parete</Label>
+                    <Select
+                      value={value.sanitari.piastra_wc || "rettangolare_sottile"}
+                      onValueChange={(plate) =>
+                        update({ sanitari: { ...value.sanitari, piastra_wc: plate as NonNullable<BathroomConfig["sanitari"]["piastra_wc"]> } })
+                      }
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FLUSH_PLATE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Nei WC sospesi chiediamo cassetta da incasso e piastra compatta, non il vecchio serbatoio a vista.
+                    </p>
+                  </div>
+                ) : null}
+              </>
             ) : null}
             <div>
               <Label className="text-xs">Bidet</Label>

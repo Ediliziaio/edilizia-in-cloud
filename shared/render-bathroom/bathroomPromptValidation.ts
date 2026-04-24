@@ -68,8 +68,47 @@ export function validateBathroomPromptConfig(config: BathroomRenderConfig): Bath
     const asksWallHung =
       spec.toiletType.toLowerCase().includes("wall-hung") ||
       (spec.bidetType?.toLowerCase().includes("wall-hung") ?? false);
-    if (asksWallHung && !spec.installationRule.toLowerCase().includes("sosp")) {
+    if (asksWallHung && !spec.installationRule.toLowerCase().includes("wall-hung")) {
       missingBusinessRules.push("wall-hung sanitary ware must be explicit in the installation rule");
+    }
+    if (asksWallHung && !spec.cisternRule.toLowerCase().includes("concealed")) {
+      missingBusinessRules.push("wall-hung WC must explicitly require a concealed cistern");
+    }
+    if (asksWallHung && !spec.flushPlateRule?.toLowerCase().includes("flush plate")) {
+      missingBusinessRules.push("wall-hung WC must explicitly require a wall flush plate");
+    }
+    if (asksWallHung && !spec.scaleRule.toLowerCase().includes("oversized")) {
+      missingBusinessRules.push("wall-hung WC must explicitly reject oversized exposed-tank proportions");
+    }
+    if (asksWallHung) {
+      const hasWallHungConversionRule = config.replacement_manifest.removals.some((rule) =>
+        rule.code === "convert_existing_wc_to_wall_hung"
+      );
+      if (!hasWallHungConversionRule) {
+        missingBusinessRules.push("wall-hung WC conversion must explicitly remove exposed tank / monobloc logic");
+      }
+    }
+  }
+
+  if (config.technical_specification.wallTiles.replace) {
+    const spec = config.technical_specification.wallTiles;
+    const requiresLowJointDensity = spec.formatCategory === "large_format" || spec.formatCategory === "architectural_slab";
+    if (requiresLowJointDensity && !spec.groutDensityRule.toLowerCase().includes("low")) {
+      missingBusinessRules.push("large-format wall tiles must explicitly reduce joint density");
+    }
+    if (spec.formatCategory === "architectural_slab" && !spec.moduleScaleRule.toLowerCase().includes("few very large modules")) {
+      missingBusinessRules.push("architectural slab wall tiles must read as a few very large modules");
+    }
+  }
+
+  if (config.technical_specification.floor.replace) {
+    const spec = config.technical_specification.floor;
+    const requiresLowJointDensity = spec.formatCategory === "large_format" || spec.formatCategory === "architectural_slab";
+    if (requiresLowJointDensity && !spec.groutDensityRule.toLowerCase().includes("low")) {
+      missingBusinessRules.push("large-format floor tiles must explicitly reduce joint density");
+    }
+    if (spec.formatCategory === "architectural_slab" && !spec.moduleScaleRule.toLowerCase().includes("few very large modules")) {
+      missingBusinessRules.push("architectural slab floor tiles must read as a few very large modules");
     }
   }
 

@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Sofa,
   CheckCircle2, XCircle, Zap, Clock,
@@ -34,7 +36,7 @@ export default function RenderStanzaGalleryDetail() {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
         .from("render_stanza_sessions")
-        .select("*")
+        .select("id, status, original_photo_url, result_urls, config, processing_started_at, processing_completed_at, created_at, error_message, created_by, contact_id, opportunity_id")
         .eq("id", id)
         .eq("company_id", companyId)
         .single();
@@ -45,13 +47,13 @@ export default function RenderStanzaGalleryDetail() {
         original_photo_url: string | null;
         result_urls: string[] | null;
         config: Record<string, unknown> | null;
-        provider_key: string | null;
-        cost_billed: number | null;
-        prompt_used: string | null;
         processing_started_at: string | null;
         processing_completed_at: string | null;
         created_at: string;
         error_message: string | null;
+        created_by: string | null;
+        contact_id: string | null;
+        opportunity_id: string | null;
       } | null;
     },
     enabled: !!id && !!companyId,
@@ -117,7 +119,12 @@ export default function RenderStanzaGalleryDetail() {
   const statusCfg = STATUS_CONFIG[session.status as keyof typeof STATUS_CONFIG] ??
     STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
-  const config = session.config as { tipo_stanza?: string; stile_target?: string; intensita?: string } | null;
+  const config = session.config as (Record<string, unknown> & { tipo_stanza?: string; stile_target?: string; intensita?: string }) | null;
+  const activeChoices = config
+    ? Object.entries(config)
+      .filter(([, value]) => value && typeof value === "object" && "attivo" in (value as Record<string, unknown>) && (value as Record<string, unknown>).attivo)
+      .map(([key]) => key.replace(/_/g, " "))
+    : [];
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -199,6 +206,17 @@ export default function RenderStanzaGalleryDetail() {
                 <Share2 className="h-4 w-4 mr-2" />
                 Condividi
               </Button>
+              <RenderPdfDownloadButton
+                beforeUrl={originalUrl}
+                afterUrl={resultUrl}
+                title="Render AI Stanza"
+                filename={`render_stanza_${id}.pdf`}
+                metadata={[
+                  { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
+                  { label: "Stanza", value: config?.tipo_stanza ? String(config.tipo_stanza).replace(/_/g, " ") : null },
+                  { label: "Stile", value: config?.stile_target ? String(config.stile_target).replace(/_/g, " ") : null },
+                ]}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -214,6 +232,11 @@ export default function RenderStanzaGalleryDetail() {
           <CardContent className="p-4">
             <img src={resultUrl} alt="Render AI" className="w-full rounded-lg" />
             <div className="flex gap-2 mt-4 justify-end">
+              <RenderPdfDownloadButton
+                afterUrl={resultUrl}
+                title="Render AI Stanza"
+                filename={`render_stanza_${id}.pdf`}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -248,11 +271,17 @@ export default function RenderStanzaGalleryDetail() {
         </Card>
       )}
 
+      <RenderCrmSummaryCard
+        createdBy={session.created_by}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
+      />
+
       {/* Configurazione */}
       {config && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Configurazione stanza</CardTitle>
+            <CardTitle className="text-sm">Scelte configurate</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -275,19 +304,18 @@ export default function RenderStanzaGalleryDetail() {
                 </div>
               )}
             </div>
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {session.provider_key && (
-                <Badge variant="outline" className="text-xs gap-1">
-                  <Zap className="h-3 w-3" />
-                  {session.provider_key}
-                </Badge>
-              )}
-              {session.cost_billed != null && (
-                <Badge variant="outline" className="text-xs">
-                  &euro;{session.cost_billed?.toFixed(3)} addebitato
-                </Badge>
-              )}
-            </div>
+            {activeChoices.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Interventi attivi</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {activeChoices.map((choice) => (
+                    <Badge key={choice} variant="secondary" className="capitalize">
+                      {choice}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
