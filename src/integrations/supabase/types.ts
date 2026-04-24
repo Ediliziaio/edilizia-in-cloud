@@ -1,4 +1,3 @@
-Initialising login role...
 export type Json =
   | string
   | number
@@ -12,31 +11,6 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
-  }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
   }
   public: {
     Tables: {
@@ -7329,6 +7303,7 @@ export type Database = {
           computo_ai_reset_date: string | null
           consecutive_payment_failures: number | null
           created_at: string
+          customer_portal_enabled: boolean
           dunning_started_at: string | null
           dunning_status: string | null
           email: string
@@ -7428,6 +7403,7 @@ export type Database = {
           computo_ai_reset_date?: string | null
           consecutive_payment_failures?: number | null
           created_at?: string
+          customer_portal_enabled?: boolean
           dunning_started_at?: string | null
           dunning_status?: string | null
           email: string
@@ -7527,6 +7503,7 @@ export type Database = {
           computo_ai_reset_date?: string | null
           consecutive_payment_failures?: number | null
           created_at?: string
+          customer_portal_enabled?: boolean
           dunning_started_at?: string | null
           dunning_status?: string | null
           email?: string
@@ -13841,12 +13818,15 @@ export type Database = {
           id: string
           last_error: string | null
           last_sync_at: string | null
+          last_sync_source: string | null
+          last_webhook_processed_at: string | null
           refresh_token_encrypted: string | null
           status: string
           token_expires_at: string | null
           updated_at: string
           user_id: string
           webhook_channel_id: string | null
+          webhook_channel_token: string | null
           webhook_expiry_at: string | null
           webhook_resource_id: string | null
         }
@@ -13859,12 +13839,15 @@ export type Database = {
           id?: string
           last_error?: string | null
           last_sync_at?: string | null
+          last_sync_source?: string | null
+          last_webhook_processed_at?: string | null
           refresh_token_encrypted?: string | null
           status?: string
           token_expires_at?: string | null
           updated_at?: string
           user_id: string
           webhook_channel_id?: string | null
+          webhook_channel_token?: string | null
           webhook_expiry_at?: string | null
           webhook_resource_id?: string | null
         }
@@ -13877,12 +13860,15 @@ export type Database = {
           id?: string
           last_error?: string | null
           last_sync_at?: string | null
+          last_sync_source?: string | null
+          last_webhook_processed_at?: string | null
           refresh_token_encrypted?: string | null
           status?: string
           token_expires_at?: string | null
           updated_at?: string
           user_id?: string
           webhook_channel_id?: string | null
+          webhook_channel_token?: string | null
           webhook_expiry_at?: string | null
           webhook_resource_id?: string | null
         }
@@ -13912,6 +13898,9 @@ export type Database = {
           google_calendar_id: string | null
           google_event_id: string
           id: string
+          idempotency_key: string | null
+          last_sync_at: string | null
+          last_sync_source: string | null
           last_synced_at: string | null
           last_updated_by: string | null
           source: string
@@ -13926,6 +13915,9 @@ export type Database = {
           google_calendar_id?: string | null
           google_event_id: string
           id?: string
+          idempotency_key?: string | null
+          last_sync_at?: string | null
+          last_sync_source?: string | null
           last_synced_at?: string | null
           last_updated_by?: string | null
           source?: string
@@ -13940,6 +13932,9 @@ export type Database = {
           google_calendar_id?: string | null
           google_event_id?: string
           id?: string
+          idempotency_key?: string | null
+          last_sync_at?: string | null
+          last_sync_source?: string | null
           last_synced_at?: string | null
           last_updated_by?: string | null
           source?: string
@@ -15397,39 +15392,48 @@ export type Database = {
       }
       integrations: {
         Row: {
+          admin_alerted_at: string | null
           company_id: string
           connected_by: string | null
+          consecutive_errors: number
           created_at: string
           health: string
           id: string
           last_error_code: string | null
           last_error_message: string | null
+          last_healthy_at: string | null
           last_sync_at: string | null
           provider: string
           status: string
           updated_at: string
         }
         Insert: {
+          admin_alerted_at?: string | null
           company_id: string
           connected_by?: string | null
+          consecutive_errors?: number
           created_at?: string
           health?: string
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
+          last_healthy_at?: string | null
           last_sync_at?: string | null
           provider?: string
           status?: string
           updated_at?: string
         }
         Update: {
+          admin_alerted_at?: string | null
           company_id?: string
           connected_by?: string | null
+          consecutive_errors?: number
           created_at?: string
           health?: string
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
+          last_healthy_at?: string | null
           last_sync_at?: string | null
           provider?: string
           status?: string
@@ -16909,6 +16913,78 @@ export type Database = {
           },
         ]
       }
+      lead_scoring_config: {
+        Row: {
+          company_id: string
+          max_activity_points: number
+          max_history_points: number
+          points_per_activity: number
+          source_scores: Json
+          tier_a_threshold: number
+          tier_b_threshold: number
+          tier_c_threshold: number
+          updated_at: string
+          updated_by: string | null
+          weight_address: number
+          weight_city: number
+          weight_company_name: number
+          weight_open_opportunity: number
+          weight_phone: number
+          weight_recent_activity: number
+        }
+        Insert: {
+          company_id: string
+          max_activity_points?: number
+          max_history_points?: number
+          points_per_activity?: number
+          source_scores?: Json
+          tier_a_threshold?: number
+          tier_b_threshold?: number
+          tier_c_threshold?: number
+          updated_at?: string
+          updated_by?: string | null
+          weight_address?: number
+          weight_city?: number
+          weight_company_name?: number
+          weight_open_opportunity?: number
+          weight_phone?: number
+          weight_recent_activity?: number
+        }
+        Update: {
+          company_id?: string
+          max_activity_points?: number
+          max_history_points?: number
+          points_per_activity?: number
+          source_scores?: Json
+          tier_a_threshold?: number
+          tier_b_threshold?: number
+          tier_c_threshold?: number
+          updated_at?: string
+          updated_by?: string | null
+          weight_address?: number
+          weight_city?: number
+          weight_company_name?: number
+          weight_open_opportunity?: number
+          weight_phone?: number
+          weight_recent_activity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_scoring_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "lead_scoring_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leave_balances: {
         Row: {
           company_id: string
@@ -17171,78 +17247,6 @@ export type Database = {
           trigger_event?: string
         }
         Relationships: []
-      }
-      lead_scoring_config: {
-        Row: {
-          company_id: string
-          max_activity_points: number
-          max_history_points: number
-          points_per_activity: number
-          source_scores: Json
-          tier_a_threshold: number
-          tier_b_threshold: number
-          tier_c_threshold: number
-          updated_at: string
-          updated_by: string | null
-          weight_address: number
-          weight_city: number
-          weight_company_name: number
-          weight_open_opportunity: number
-          weight_phone: number
-          weight_recent_activity: number
-        }
-        Insert: {
-          company_id: string
-          max_activity_points?: number
-          max_history_points?: number
-          points_per_activity?: number
-          source_scores?: Json
-          tier_a_threshold?: number
-          tier_b_threshold?: number
-          tier_c_threshold?: number
-          updated_at?: string
-          updated_by?: string | null
-          weight_address?: number
-          weight_city?: number
-          weight_company_name?: number
-          weight_open_opportunity?: number
-          weight_phone?: number
-          weight_recent_activity?: number
-        }
-        Update: {
-          company_id?: string
-          max_activity_points?: number
-          max_history_points?: number
-          points_per_activity?: number
-          source_scores?: Json
-          tier_a_threshold?: number
-          tier_b_threshold?: number
-          tier_c_threshold?: number
-          updated_at?: string
-          updated_by?: string | null
-          weight_address?: number
-          weight_city?: number
-          weight_company_name?: number
-          weight_open_opportunity?: number
-          weight_phone?: number
-          weight_recent_activity?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_scoring_config_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: true
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "lead_scoring_config_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: true
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       listino_categorie: {
         Row: {
@@ -19349,6 +19353,61 @@ export type Database = {
           },
         ]
       }
+      meta_api_rate_limit: {
+        Row: {
+          call_count: number
+          company_id: string
+          id: string
+          integration_id: string | null
+          last_429_at: string | null
+          updated_at: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          call_count?: number
+          company_id: string
+          id?: string
+          integration_id?: string | null
+          last_429_at?: string | null
+          updated_at?: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          call_count?: number
+          company_id?: string
+          id?: string
+          integration_id?: string | null
+          last_429_at?: string | null
+          updated_at?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_api_rate_limit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_api_rate_limit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_api_rate_limit_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_assets: {
         Row: {
           asset_id: string
@@ -19470,6 +19529,8 @@ export type Database = {
           id: string
           integration_id: string
           last_pull_at: string | null
+          mapping_updated_at: string | null
+          mapping_version: number
           page_asset_id: string | null
           since_date: string | null
           status: string
@@ -19484,6 +19545,8 @@ export type Database = {
           id?: string
           integration_id: string
           last_pull_at?: string | null
+          mapping_updated_at?: string | null
+          mapping_version?: number
           page_asset_id?: string | null
           since_date?: string | null
           status?: string
@@ -19498,6 +19561,8 @@ export type Database = {
           id?: string
           integration_id?: string
           last_pull_at?: string | null
+          mapping_updated_at?: string | null
+          mapping_version?: number
           page_asset_id?: string | null
           since_date?: string | null
           status?: string
@@ -22879,6 +22944,7 @@ export type Database = {
           notes: string | null
           password_changed_at: string | null
           phone: string | null
+          portal_disabled: boolean
           require_2fa: boolean
           salesperson_id: string | null
           site_address: string | null
@@ -22907,6 +22973,7 @@ export type Database = {
           notes?: string | null
           password_changed_at?: string | null
           phone?: string | null
+          portal_disabled?: boolean
           require_2fa?: boolean
           salesperson_id?: string | null
           site_address?: string | null
@@ -22935,6 +23002,7 @@ export type Database = {
           notes?: string | null
           password_changed_at?: string | null
           phone?: string | null
+          portal_disabled?: boolean
           require_2fa?: boolean
           salesperson_id?: string | null
           site_address?: string | null
@@ -35607,6 +35675,7 @@ export type Database = {
       }
       cleanup_cestino_article_families: { Args: never; Returns: undefined }
       cleanup_cestino_documenti: { Args: never; Returns: undefined }
+      cleanup_meta_rate_limit: { Args: never; Returns: undefined }
       cleanup_notifiche_cooldown: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       clone_template_to_company: {
@@ -36081,6 +36150,7 @@ export type Database = {
         Args: { p_company_id: string; p_date_from: string; p_date_to: string }
         Returns: Json
       }
+      get_customer_stats: { Args: { p_company_id: string }; Returns: Json }
       get_customers_paginated: {
         Args: {
           p_company_id: string
@@ -36623,6 +36693,8 @@ export type Database = {
             }
             Returns: Json
           }
+      mask_pii_email: { Args: { input: string }; Returns: string }
+      mask_pii_phone: { Args: { input: string }; Returns: string }
       match_articles: {
         Args: {
           p_company_id: string
@@ -37094,9 +37166,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_role: [
