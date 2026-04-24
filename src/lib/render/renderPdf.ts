@@ -73,6 +73,26 @@ function addImageSafe(
   }
 }
 
+function drawRoundedBox(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  fill: [number, number, number],
+  stroke?: [number, number, number],
+  radius = 3,
+) {
+  doc.setFillColor(...fill);
+  if (stroke) {
+    doc.setDrawColor(...stroke);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(x, y, w, h, radius, radius, "FD");
+    return;
+  }
+  doc.roundedRect(x, y, w, h, radius, radius, "F");
+}
+
 async function optionalImage(url?: string | null): Promise<string | null> {
   if (!url) return null;
   try {
@@ -93,14 +113,21 @@ export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs):
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const margin = 14;
+  const margin = 12;
+  const contentW = pageW - margin * 2;
+  const headerY = margin;
+  const headerH = 27;
+  const metaY = headerY + headerH + 5;
+  const metaH = 10;
+  const imageY = metaY + metaH + 7;
+  const footerY = pageH - margin - 17;
+  const imageCardH = footerY - imageY - 7;
+  const imageLabelH = 11;
+  const imageInnerTop = imageY + imageLabelH + 4;
+  const imageInnerH = imageCardH - imageLabelH - 8;
   const gap = 8;
-  const headerH = 26;
-  const footerH = 18;
-  const metaH = 18;
-  const imageTop = margin + headerH + metaH;
-  const imageH = pageH - imageTop - footerH - margin;
-  const imageW = (pageW - margin * 2 - gap) / 2;
+  const imageCardW = (contentW - gap) / 2;
+  const imageInnerW = imageCardW - 10;
 
   const [beforeData, afterData, companyLogoData, platformLogoData] = await Promise.all([
     args.beforeUrl ? imageUrlToDataUrl(args.beforeUrl) : Promise.resolve(null),
@@ -109,77 +136,74 @@ export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs):
     optionalImage(args.platformLogoUrl ?? ediliziaInCloudLogoUrl),
   ]);
 
-  doc.setFillColor(246, 248, 251);
+  doc.setFillColor(236, 244, 253);
   doc.rect(0, 0, pageW, pageH, "F");
-  doc.setFillColor(255, 255, 255);
-  doc.roundedRect(margin, margin, pageW - margin * 2, pageH - margin * 2, 3, 3, "F");
 
-  const headerX = margin + 8;
-  let titleX = headerX;
+  drawRoundedBox(doc, margin, headerY, contentW, headerH, [255, 255, 255], [219, 229, 243], 4);
+
+  const headerX = margin + 9;
   if (companyLogoData) {
-    const added = addImageSafe(doc, companyLogoData, headerX, margin + 4, 30, 13);
-    titleX = added ? headerX + 36 : headerX;
+    addImageSafe(doc, companyLogoData, pageW - margin - 42, headerY + 5, 34, 13);
   }
 
   doc.setTextColor(18, 28, 45);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text(args.title, titleX, margin + 11);
+  doc.setFontSize(17);
+  doc.text(args.title, headerX, headerY + 11);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(86, 103, 130);
-  doc.text(args.subtitle || "Confronto prima / dopo", titleX, margin + 18);
+  doc.setTextColor(71, 85, 105);
+  doc.text(args.subtitle || "Confronto fotografico prima / dopo", headerX, headerY + 19);
 
   const visibleMeta = (args.metadata ?? []).filter(isPublicMetadata);
-  let metaX = margin + 8;
-  const metaY = margin + 31;
+  let metaX = margin;
   doc.setFontSize(8);
-  for (const item of visibleMeta.slice(0, 5)) {
+  for (const item of visibleMeta.slice(0, 6)) {
     const text = `${item.label}: ${item.value}`;
-    const chipW = Math.min(doc.getTextWidth(text) + 8, 62);
-    doc.setFillColor(241, 245, 249);
-    doc.roundedRect(metaX, metaY - 5, chipW, 8, 2, 2, "F");
+    const chipW = Math.min(doc.getTextWidth(text) + 10, 66);
+    drawRoundedBox(doc, metaX, metaY, chipW, metaH, [255, 255, 255], [219, 229, 243], 3);
+    doc.setFont("helvetica", "normal");
     doc.setTextColor(51, 65, 85);
-    doc.text(text.substring(0, 48), metaX + 4, metaY);
+    doc.text(text.substring(0, 50), metaX + 5, metaY + 6.3);
     metaX += chipW + 4;
+    if (metaX > pageW - margin - 50) break;
   }
 
-  const beforeX = margin + 8;
-  const afterX = beforeX + imageW + gap;
-  const cardY = imageTop - 2;
-  const cardH = imageH + 12;
+  const beforeX = margin;
+  const afterX = beforeX + imageCardW + gap;
 
   for (const [x, label] of [[beforeX, "PRIMA"], [afterX, "DOPO"]] as const) {
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(x, cardY, imageW, cardH, 3, 3, "F");
+    drawRoundedBox(doc, x, imageY, imageCardW, imageCardH, [255, 255, 255], [219, 229, 243], 4);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
-    doc.text(label, x + 4, cardY + 6);
+    doc.setFontSize(8.5);
+    doc.setTextColor(28, 52, 84);
+    doc.text(label, x + 5, imageY + 7);
+    doc.setDrawColor(226, 232, 240);
+    doc.line(x + 5, imageY + imageLabelH, x + imageCardW - 5, imageY + imageLabelH);
   }
 
   if (beforeData) {
-    fitImage(doc, beforeData, beforeX + 4, cardY + 9, imageW - 8, imageH);
+    fitImage(doc, beforeData, beforeX + 5, imageInnerTop, imageInnerW, imageInnerH);
   } else {
     doc.setTextColor(148, 163, 184);
     doc.setFontSize(11);
-    doc.text("Originale non disponibile", beforeX + imageW / 2, cardY + cardH / 2, { align: "center" });
+    doc.text("Originale non disponibile", beforeX + imageCardW / 2, imageY + imageCardH / 2, { align: "center" });
   }
-  fitImage(doc, afterData, afterX + 4, cardY + 9, imageW - 8, imageH);
+  fitImage(doc, afterData, afterX + 5, imageInnerTop, imageInnerW, imageInnerH);
 
-  doc.setDrawColor(226, 232, 240);
-  doc.line(margin + 8, pageH - margin - 13, pageW - margin - 8, pageH - margin - 13);
+  drawRoundedBox(doc, margin, footerY, contentW, 17, [255, 255, 255], [219, 229, 243], 3);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(7);
-  doc.text("Realizzato da", margin + 8, pageH - margin - 7);
-  if (platformLogoData && !addImageSafe(doc, platformLogoData, margin + 30, pageH - margin - 12, 30, 8)) {
-    doc.text("Edilizia in Cloud", margin + 30, pageH - margin - 7);
+  doc.setFontSize(6.8);
+  doc.setTextColor(71, 85, 105);
+  doc.text("Realizzato da", margin + 6, footerY + 10.5);
+  if (platformLogoData && !addImageSafe(doc, platformLogoData, margin + 25, footerY + 5, 30, 7)) {
+    doc.text("Edilizia in Cloud", margin + 25, footerY + 10.5);
   }
-  const disclaimerLines = doc.splitTextToSize(RENDER_AI_DISCLAIMER, pageW - margin * 2 - 82);
-  doc.setFontSize(6.3);
-  doc.text(disclaimerLines, margin + 70, pageH - margin - 9);
+  const disclaimerX = margin + 66;
+  const disclaimerLines = doc.splitTextToSize(RENDER_AI_DISCLAIMER, pageW - disclaimerX - margin - 6);
+  doc.setFontSize(5.9);
+  doc.setTextColor(86, 103, 130);
+  doc.text(disclaimerLines.slice(0, 3), disclaimerX, footerY + 6.5);
 
   doc.save(args.filename.endsWith(".pdf") ? args.filename : `${args.filename}.pdf`);
 }
