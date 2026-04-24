@@ -6,6 +6,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
+import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
+import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
 
 // ── STYLE GUIDE (mirrored from stanzaPromptBuilder) ──────────────────────────
 const STYLE_GUIDE: Record<string, string> = {
@@ -144,107 +147,54 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", session_id);
 
-    // Get signed URL for original photo
-    const { data: signedData } = await supabase.storage
-      .from("stanza-originals")
-      .createSignedUrl(session.original_photo_url, 600);
-    const imageUrl = signedData?.signedUrl;
+    const prepared = await prepareInputImage({
+      supabase,
+      bucket: "stanza-originals",
+      originalPath: session.original_photo_url,
+      hintWidth: target_width,
+      hintHeight: target_height,
+    });
+    const imageUrl = prepared.url;
     if (!imageUrl) throw new Error("Cannot get signed URL for original photo");
 
-    // Build prompt
+    // Build prompt with the production room prompt engine. This replaces the
+    // old flat descriptive prompt with a scene inventory + replacement manifest,
+    // and reuses the floor rules when room-floor replacement is active.
     const cfg = config || session.config;
-    const roomLabel = TIPO_STANZA_LABEL[cfg?.tipo_stanza] ?? "interior room";
-    const stileTarget = cfg?.stile_target ?? "moderno";
-    const intensita = cfg?.intensita ?? "medio";
-
-    const styleDesc = STYLE_GUIDE[stileTarget] ?? STYLE_GUIDE.moderno;
-    const intensityDesc = INTENSITY_MAP[intensita] ?? INTENSITY_MAP.medio;
-
-    // Collect active interventions for prompt
-    const interventionBlocks: string[] = [];
-
-    if (cfg?.verniciatura?.attivo) {
-      interventionBlocks.push(
-        `WALL PAINT: Apply ${cfg.verniciatura.colore_nome || cfg.verniciatura.colore_hex || "neutral"} paint, ` +
-        `finish ${cfg.verniciatura.finitura || "satin"}, ` +
-        `apply to ${cfg.verniciatura.applica_a === "parete_principale" ? "main wall only" : cfg.verniciatura.applica_a === "parete_accento" ? "accent wall" : "all walls"}.`
-      );
-    }
-    if (cfg?.pavimento?.attivo) {
-      interventionBlocks.push(
-        `FLOORING: Replace with ${cfg.pavimento.tipo || "porcelain tile"}, ` +
-        `color ${cfg.pavimento.colore_hex || "neutral"}, pattern ${cfg.pavimento.pattern || "straight"}, finish ${cfg.pavimento.finitura || "matte"}.`
-      );
-    }
-    if (cfg?.arredo?.attivo) {
-      interventionBlocks.push(
-        `FURNITURE: ${cfg.arredo.intensita_cambio === "arredo_completo" ? "Replace all furniture" : cfg.arredo.intensita_cambio === "colore_sola" ? "Change furniture colors only" : "Change style keeping layout"}, ` +
-        `material ${(cfg.arredo.materiale || "wood").replace(/_/g, " ")}.` +
-        `${cfg.arredo.mantieni_elettrodomestici ? " Keep all appliances as-is." : ""}`
-      );
-    }
-    if (cfg?.soffitto?.attivo) {
-      interventionBlocks.push(
-        `CEILING: ${cfg.soffitto.tipo === "travi_legno" ? "Add exposed wood beams" : cfg.soffitto.tipo === "controsoffitto_cartongesso" ? "Add dropped plasterboard ceiling" : "Modify ceiling"}, ` +
-        `color ${cfg.soffitto.colore_hex || "white"}.`
-      );
-    }
-    if (cfg?.illuminazione?.attivo) {
-      interventionBlocks.push(
-        `LIGHTING: ${(cfg.illuminazione.tipo || "mixed").replace(/_/g, " ")}, ` +
-        `temperature ${cfg.illuminazione.temperatura || "warm"}, intensity ${cfg.illuminazione.intensita_luce || "normal"}.`
-      );
-    }
-    if (cfg?.carta_da_parati?.attivo) {
-      interventionBlocks.push(
-        `WALLPAPER: ${(cfg.carta_da_parati.stile_pattern || "geometric").replace(/_/g, " ")} pattern on ${cfg.carta_da_parati.applica_a === "tutte" ? "all walls" : "main wall"}.`
-      );
-    }
-    if (cfg?.rivestimento_pareti?.attivo) {
-      interventionBlocks.push(
-        `WALL CLADDING: ${(cfg.rivestimento_pareti.tipo || "wood paneling").replace(/_/g, " ")} on ${cfg.rivestimento_pareti.applica_a === "tutte" ? "all walls" : "main wall"}.`
-      );
-    }
-    if (cfg?.tende?.attivo) {
-      interventionBlocks.push(
-        `CURTAINS: ${(cfg.tende.tipo || "classic curtains").replace(/_/g, " ")}, color ${cfg.tende.colore_nome || cfg.tende.colore_hex || "neutral"}.`
-      );
-    }
-    if (cfg?.tipo_stanza === "cucina" && cfg?.restyling_cucina?.attivo) {
-      interventionBlocks.push(
-        `KITCHEN: ${(cfg.restyling_cucina.materiale_frontali || "lacquered").replace(/_/g, " ")} cabinets, ` +
-        `color ${cfg.restyling_cucina.colore_frontali_hex || "white"}, ` +
-        `countertop ${(cfg.restyling_cucina.piano_lavoro_materiale || "quartz").replace(/_/g, " ")}, ` +
-        `handles ${(cfg.restyling_cucina.maniglie || "handleless").replace(/_/g, " ")}.`
-      );
-    }
-
-    const interventionsText = interventionBlocks.length > 0
-      ? interventionBlocks.join("\n")
-      : "Apply the target style globally to all room elements.";
-
-    const fullPrompt =
-      `Transform this ${roomLabel} photo into a ${stileTarget.replace(/_/g, " ")} style interior.\n\n` +
-      `STYLE: ${styleDesc}\n\n` +
-      `INTENSITY: ${intensityDesc}\n\n` +
-      `INTERVENTIONS:\n${interventionsText}\n\n` +
-      `${cfg?.note_libere ? `ADDITIONAL NOTES: ${cfg.note_libere}\n\n` : ""}` +
-      `PRESERVATION RULES:\n` +
-      `- Keep room dimensions, perspective, camera angle IDENTICAL.\n` +
-      `- Keep window/door positions unchanged.\n` +
-      `- Keep natural light direction consistent.\n` +
-      `- Elements NOT targeted for change must remain EXACTLY as in original.\n` +
-      `- Output must be PHOTOREALISTIC — like a real interior photograph.\n` +
-      `- Maintain same resolution and aspect ratio as input.`;
+    const photoMeta: RoomPhotoMeta = {
+      width: prepared.effective_width ?? target_width ?? null,
+      height: prepared.effective_height ?? target_height ?? null,
+      orientation: (prepared.effective_width && prepared.effective_height)
+        ? prepared.effective_width > prepared.effective_height
+          ? "landscape"
+          : prepared.effective_width < prepared.effective_height
+            ? "portrait"
+            : "square"
+        : null,
+    };
+    const {
+      systemPrompt,
+      userPrompt,
+      promptVersion,
+      blocks,
+      normalizedConfig,
+      validation,
+    } = buildRoomPrompt(cfg, session.config_snapshot, photoMeta);
+    const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
     // Store prompt
     await supabase
       .from("render_stanza_sessions")
       .update({
         prompt_used: fullPrompt,
-        prompt_version: "stanza-v1.0.0",
+        prompt_version: promptVersion,
         prompt_char_count: fullPrompt.length,
-        config_snapshot: cfg,
+        prompt_blocks: blocks,
+        config_snapshot: {
+          ...normalizedConfig,
+          prompt_validation: validation,
+          input_image_meta: prepared.meta,
+        },
       })
       .eq("id", session_id);
 
@@ -269,13 +219,8 @@ Deno.serve(async (req: Request) => {
           formData.append("model", provider.model || "gpt-image-1");
           formData.append("n", "1");
           formData.append("quality", provider.quality || "high");
-          if (target_width && target_height) {
-            // OpenAI accepts size as WxH string
-            const size = target_width <= 1024 && target_height <= 1024
-              ? "1024x1024"
-              : "1536x1024";
-            formData.append("size", size);
-          }
+          const size = pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024";
+          formData.append("size", size);
           return formData;
         })(),
       });
@@ -347,7 +292,7 @@ Deno.serve(async (req: Request) => {
             }],
             generationConfig: {
               responseModalities: ["IMAGE", "TEXT"],
-              temperature: 0.4,
+              temperature: 0.35,
             },
           }),
         }

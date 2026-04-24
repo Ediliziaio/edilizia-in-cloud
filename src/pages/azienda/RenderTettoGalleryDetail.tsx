@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image, Home,
   CheckCircle2, XCircle, Zap, Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { toast } from "sonner";
 
 const STATUS_CONFIG = {
   pending:    { label: "In coda",        variant: "secondary",   icon: Clock },
@@ -205,12 +206,31 @@ export default function RenderTettoGalleryDetail() {
             <Share2 className="h-4 w-4" />
             Condividi
           </Button>
+          <RenderPdfDownloadButton
+            beforeUrl={originalUrl}
+            afterUrl={resultUrl}
+            title="Render AI Tetto"
+            filename={`render_tetto_${id}.pdf`}
+            size="default"
+            className="flex-1 gap-2"
+            metadata={[
+              { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
+              { label: "Manto", value: manto?.tipo ? manto.tipo.replace(/_/g, " ") : null },
+              { label: "Provider", value: session.provider_key },
+            ]}
+          />
           <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
             <Download className="h-4 w-4" />
             Download
           </Button>
         </div>
       )}
+
+      <RenderCrmSummaryCard
+        createdBy={(session as { created_by?: string | null }).created_by}
+        contactId={(session as { contact_id?: string | null }).contact_id}
+        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+      />
 
       {/* Config summary */}
       <Card>

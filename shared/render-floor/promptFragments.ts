@@ -129,7 +129,7 @@ export const SCALE_DESCRIPTIONS: Record<ScalaPattern, string> = {
   compatta: "compact module scale with many visible pieces, but still geometrically regular",
   standard: "standard residential module scale",
   grande_formato: "large-format modules with fewer, larger visible pieces and sparse joints",
-  maxi_lastre: "maxi slab scale: very large slabs, extremely low joint density, no small-tile grid",
+  maxi_lastre: "maxi slab scale: very large slabs, extremely low joint density, no small-tile grid, no visual subdivision into smaller tiles",
 };
 
 export const THRESHOLD_DESCRIPTIONS: Record<SogliePorte, string> = {

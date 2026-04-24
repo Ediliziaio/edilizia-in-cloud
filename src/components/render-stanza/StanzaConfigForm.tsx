@@ -28,7 +28,17 @@ export const DEFAULT_STANZA_CONFIG: ConfigurazioneStanza = {
   stile_target: "moderno",
   intensita: "medio",
   verniciatura: { attivo: false, finitura: "satinato", applica_a: "tutte" },
-  pavimento: { attivo: false, tipo: "gres_porcellanato", finitura: "matte" },
+  pavimento: {
+    attivo: false,
+    tipo: "gres_porcellanato",
+    finitura: "opaco",
+    effetto_visivo: "cemento",
+    pattern: "dritto",
+    formato_piastrella: "60x60",
+    fuga_larghezza_mm: 2,
+    fuga_colore: "tono_su_tono",
+    battiscopa_azione: "mantieni",
+  },
   arredo: { attivo: false, intensita_cambio: "stile_mantenendo_layout", materiale: "legno_chiaro", mantieni_elettrodomestici: true },
   soffitto: { attivo: false, tipo: "piano" },
   illuminazione: { attivo: false, tipo: "misto", temperatura: "calda_2700k", intensita_luce: "normale" },
@@ -36,6 +46,7 @@ export const DEFAULT_STANZA_CONFIG: ConfigurazioneStanza = {
   rivestimento_pareti: { attivo: false, tipo: "boiserie_legno", applica_a: "parete_principale" },
   tende: { attivo: false, tipo: "tende_classiche" },
   restyling_cucina: { attivo: false, materiale_frontali: "laccato", piano_lavoro_materiale: "quarzo", maniglie: "senza_maniglia", cambia_piano_cottura: false },
+  spazi_dettagli: { attivo: false, layout_strategy: "mantieni_layout" },
   note_libere: "",
 };
 
@@ -96,6 +107,7 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
     value.rivestimento_pareti.attivo,
     value.tende.attivo,
     value.tipo_stanza === "cucina" && value.restyling_cucina?.attivo,
+    value.spazi_dettagli?.attivo,
   ].filter(Boolean).length;
 
   return (
@@ -297,10 +309,14 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
                         <SelectItem value="gres_porcellanato">Gres porcellanato</SelectItem>
                         <SelectItem value="parquet_legno">Parquet legno</SelectItem>
                         <SelectItem value="parquet_laminato">Laminato effetto legno</SelectItem>
+                        <SelectItem value="vinile_lvt">Vinile LVT/SPC</SelectItem>
                         <SelectItem value="cotto">Cotto</SelectItem>
                         <SelectItem value="marmo">Marmo</SelectItem>
                         <SelectItem value="resina">Resina</SelectItem>
                         <SelectItem value="cemento_spatolato">Cemento spatolato</SelectItem>
+                        <SelectItem value="microcemento">Microcemento</SelectItem>
+                        <SelectItem value="moquette">Moquette</SelectItem>
+                        <SelectItem value="terrazzo_veneziano">Terrazzo veneziano</SelectItem>
                         <SelectItem value="mosaico">Mosaico</SelectItem>
                         <SelectItem value="pietra_naturale">Pietra naturale</SelectItem>
                       </SelectContent>
@@ -319,6 +335,48 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
+                    <Label className="text-xs">Effetto visivo</Label>
+                    <Select
+                      value={value.pavimento.effetto_visivo ?? "cemento"}
+                      onValueChange={(v) => set("pavimento", { ...value.pavimento, effetto_visivo: v })}
+                      disabled={disabled}
+                    >
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="legno">Legno</SelectItem>
+                        <SelectItem value="marmo">Marmo</SelectItem>
+                        <SelectItem value="pietra">Pietra</SelectItem>
+                        <SelectItem value="cemento">Cemento</SelectItem>
+                        <SelectItem value="resina">Resina continua</SelectItem>
+                        <SelectItem value="cotto">Cotto</SelectItem>
+                        <SelectItem value="tessile">Tessile</SelectItem>
+                        <SelectItem value="terrazzo">Terrazzo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Formato / scala</Label>
+                    <Select
+                      value={value.pavimento.formato_piastrella ?? "60x60"}
+                      onValueChange={(v) => set("pavimento", { ...value.pavimento, formato_piastrella: v })}
+                      disabled={disabled}
+                    >
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="30x60">30x60</SelectItem>
+                        <SelectItem value="60x60">60x60</SelectItem>
+                        <SelectItem value="60x120">60x120</SelectItem>
+                        <SelectItem value="80x80">80x80</SelectItem>
+                        <SelectItem value="120x120">120x120 grande formato</SelectItem>
+                        <SelectItem value="120x240">120x240 maxi lastra</SelectItem>
+                        <SelectItem value="listelli_standard">Listelli standard</SelectItem>
+                        <SelectItem value="continuo">Continuo senza fughe</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
                     <Label className="text-xs">Pattern</Label>
                     <Select
                       value={value.pavimento.pattern ?? "dritto"}
@@ -330,27 +388,85 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
                         <SelectItem value="dritto">Dritto</SelectItem>
                         <SelectItem value="diagonale">Diagonale</SelectItem>
                         <SelectItem value="spina_pesce">Spina di pesce</SelectItem>
+                        <SelectItem value="spina_ungherese">Spina ungherese</SelectItem>
                         <SelectItem value="cassero_regolare">Cassero regolare</SelectItem>
+                        <SelectItem value="cassero_irregolare">Cassero irregolare</SelectItem>
                         <SelectItem value="opus_romano">Opus romano</SelectItem>
+                        <SelectItem value="sfalsato_33">Sfalsato 33%</SelectItem>
+                        <SelectItem value="esagonale">Esagonale</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Finitura</Label>
                     <Select
-                      value={value.pavimento.finitura ?? "matte"}
+                      value={value.pavimento.finitura ?? "opaco"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, finitura: v })}
                       disabled={disabled}
                     >
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="matte">Opaco</SelectItem>
+                        <SelectItem value="opaco">Opaco</SelectItem>
                         <SelectItem value="satinato">Satinato</SelectItem>
                         <SelectItem value="lucido">Lucido</SelectItem>
                         <SelectItem value="strutturato">Strutturato</SelectItem>
+                        <SelectItem value="spazzolato">Spazzolato</SelectItem>
+                        <SelectItem value="naturale">Naturale</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Fuga / giunto</Label>
+                    <Select
+                      value={String(value.pavimento.fuga_larghezza_mm ?? 2)}
+                      onValueChange={(v) => set("pavimento", { ...value.pavimento, fuga_larghezza_mm: Number(v) })}
+                      disabled={disabled}
+                    >
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">0 mm (senza fughe)</SelectItem>
+                        <SelectItem value="1">1 mm</SelectItem>
+                        <SelectItem value="2">2 mm</SelectItem>
+                        <SelectItem value="3">3 mm</SelectItem>
+                        <SelectItem value="5">5 mm</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Colore fuga</Label>
+                    <Select
+                      value={value.pavimento.fuga_colore ?? "tono_su_tono"}
+                      onValueChange={(v) => set("pavimento", { ...value.pavimento, fuga_colore: v as never })}
+                      disabled={disabled}
+                    >
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tono_su_tono">Tono su tono</SelectItem>
+                        <SelectItem value="bianco">Bianco</SelectItem>
+                        <SelectItem value="grigio_chiaro">Grigio chiaro</SelectItem>
+                        <SelectItem value="grigio_scuro">Grigio scuro</SelectItem>
+                        <SelectItem value="beige">Beige</SelectItem>
+                        <SelectItem value="nero">Nero</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Battiscopa</Label>
+                  <Select
+                    value={value.pavimento.battiscopa_azione ?? "mantieni"}
+                    onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_azione: v as never })}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mantieni">Mantieni esistente</SelectItem>
+                      <SelectItem value="sostituisci">Sostituisci coordinato</SelectItem>
+                      <SelectItem value="rimuovi">Rimuovi</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </AccordionContent>
             )}
@@ -866,6 +982,77 @@ export function StanzaConfigForm({ value, onChange, disabled }: Props) {
               )}
             </AccordionItem>
           )}
+
+          {/* SPAZI E DETTAGLI */}
+          <AccordionItem value="spazi_dettagli" className="border rounded-lg px-3">
+            <AccordionTrigger className="py-2.5 hover:no-underline">
+              <div className="flex items-center gap-2 flex-1">
+                <LayoutList className="h-4 w-4 text-violet-500" />
+                <span className="text-sm font-medium">Spazi e dettagli</span>
+                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={value.spazi_dettagli?.attivo ?? false}
+                    onCheckedChange={(v) => set("spazi_dettagli", { ...(value.spazi_dettagli ?? { layout_strategy: "mantieni_layout" }), attivo: v })}
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+            </AccordionTrigger>
+            {value.spazi_dettagli?.attivo && (
+              <AccordionContent className="pb-3 space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Logica spazio</Label>
+                  <Select
+                    value={value.spazi_dettagli.layout_strategy ?? "mantieni_layout"}
+                    onValueChange={(v) => set("spazi_dettagli", { ...value.spazi_dettagli!, layout_strategy: v as never })}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mantieni_layout">Mantieni layout</SelectItem>
+                      <SelectItem value="ottimizza_spazio">Ottimizza spazio senza cambiare architettura</SelectItem>
+                      <SelectItem value="aggiungi_arredo_leggero">Aggiungi arredo leggero</SelectItem>
+                      <SelectItem value="declutter">Semplifica / declutter</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Elementi da mantenere</Label>
+                  <Input
+                    placeholder="es. divano, tavolo, finestra, radiatore..."
+                    value={value.spazi_dettagli.elementi_da_mantenere ?? ""}
+                    onChange={(e) => set("spazi_dettagli", { ...value.spazi_dettagli!, elementi_da_mantenere: e.target.value })}
+                    disabled={disabled}
+                    className="text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Aggiungi</Label>
+                    <Textarea
+                      placeholder="es. due applique, pianta, tappeto neutro..."
+                      value={value.spazi_dettagli.elementi_da_aggiungere ?? ""}
+                      onChange={(e) => set("spazi_dettagli", { ...value.spazi_dettagli!, elementi_da_aggiungere: e.target.value })}
+                      disabled={disabled}
+                      rows={2}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Rimuovi</Label>
+                    <Textarea
+                      placeholder="es. mobile basso, tende vecchie..."
+                      value={value.spazi_dettagli.elementi_da_rimuovere ?? ""}
+                      onChange={(e) => set("spazi_dettagli", { ...value.spazi_dettagli!, elementi_da_rimuovere: e.target.value })}
+                      disabled={disabled}
+                      rows={2}
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+              </AccordionContent>
+            )}
+          </AccordionItem>
         </Accordion>
       </div>
 

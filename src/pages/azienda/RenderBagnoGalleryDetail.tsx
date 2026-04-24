@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { ensureBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image,
@@ -252,6 +254,17 @@ export default function RenderBagnoGalleryDetail() {
                 <Share2 className="h-4 w-4 mr-2" />
                 Condividi
               </Button>
+              <RenderPdfDownloadButton
+                beforeUrl={originalDisplayUrl}
+                afterUrl={resultUrl}
+                title="Render AI Bagno"
+                filename={`render_bagno_${id}.pdf`}
+                metadata={[
+                  { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
+                  { label: "Intervento", value: session.tipo_intervento },
+                  { label: "Provider", value: session.provider_key },
+                ]}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -267,6 +280,11 @@ export default function RenderBagnoGalleryDetail() {
           <CardContent className="p-4">
             <img src={resultUrl} alt="Render AI Bagno" className="w-full rounded-lg" />
             <div className="flex gap-2 mt-4 justify-end">
+              <RenderPdfDownloadButton
+                afterUrl={resultUrl}
+                title="Render AI Bagno"
+                filename={`render_bagno_${id}.pdf`}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -300,6 +318,12 @@ export default function RenderBagnoGalleryDetail() {
           </CardContent>
         </Card>
       )}
+
+      <RenderCrmSummaryCard
+        createdBy={(session as { created_by?: string | null }).created_by}
+        contactId={(session as { contact_id?: string | null }).contact_id}
+        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+      />
 
       {/* Config summary */}
       {renderPlan && (

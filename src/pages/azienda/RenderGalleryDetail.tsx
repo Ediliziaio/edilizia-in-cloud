@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image,
   CheckCircle2, XCircle, Zap, Clock,
@@ -199,6 +201,16 @@ export default function RenderGalleryDetail() {
                 <Share2 className="h-4 w-4 mr-2" />
                 Condividi
               </Button>
+              <RenderPdfDownloadButton
+                beforeUrl={originalUrl}
+                afterUrl={resultUrl}
+                title="Render AI Infissi"
+                filename={`render_infissi_${id}.pdf`}
+                metadata={[
+                  { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
+                  { label: "Provider", value: session.provider_key },
+                ]}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -214,6 +226,11 @@ export default function RenderGalleryDetail() {
           <CardContent className="p-4">
             <img src={resultUrl} alt="Render AI" className="w-full rounded-lg" />
             <div className="flex gap-2 mt-4 justify-end">
+              <RenderPdfDownloadButton
+                afterUrl={resultUrl}
+                title="Render AI Infissi"
+                filename={`render_infissi_${id}.pdf`}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -247,6 +264,12 @@ export default function RenderGalleryDetail() {
           </CardContent>
         </Card>
       )}
+
+      <RenderCrmSummaryCard
+        createdBy={(session as { created_by?: string | null }).created_by}
+        contactId={(session as { contact_id?: string | null }).contact_id}
+        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+      />
 
       {/* Configurazione */}
       {config && (

@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Sofa,
   CheckCircle2, XCircle, Zap, Clock,
@@ -199,6 +201,17 @@ export default function RenderStanzaGalleryDetail() {
                 <Share2 className="h-4 w-4 mr-2" />
                 Condividi
               </Button>
+              <RenderPdfDownloadButton
+                beforeUrl={originalUrl}
+                afterUrl={resultUrl}
+                title="Render AI Stanza"
+                filename={`render_stanza_${id}.pdf`}
+                metadata={[
+                  { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
+                  { label: "Stanza", value: config?.tipo_stanza ? String(config.tipo_stanza).replace(/_/g, " ") : null },
+                  { label: "Stile", value: config?.stile_target ? String(config.stile_target).replace(/_/g, " ") : null },
+                ]}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -214,6 +227,11 @@ export default function RenderStanzaGalleryDetail() {
           <CardContent className="p-4">
             <img src={resultUrl} alt="Render AI" className="w-full rounded-lg" />
             <div className="flex gap-2 mt-4 justify-end">
+              <RenderPdfDownloadButton
+                afterUrl={resultUrl}
+                title="Render AI Stanza"
+                filename={`render_stanza_${id}.pdf`}
+              />
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -247,6 +265,12 @@ export default function RenderStanzaGalleryDetail() {
           </CardContent>
         </Card>
       )}
+
+      <RenderCrmSummaryCard
+        createdBy={(session as { created_by?: string | null }).created_by}
+        contactId={(session as { contact_id?: string | null }).contact_id}
+        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+      />
 
       {/* Configurazione */}
       {config && (

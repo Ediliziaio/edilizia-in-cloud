@@ -546,7 +546,7 @@ Use short values. Do not describe a renovation.`;
         }],
         generationConfig: {
           responseModalities: ["IMAGE", "TEXT"],
-          temperature: 1,
+          temperature: 0.35,
         },
       };
 

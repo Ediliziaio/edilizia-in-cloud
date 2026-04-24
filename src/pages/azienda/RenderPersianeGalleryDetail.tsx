@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { ensurePersianeRenderConfig } from "@/modules/render-persiane/lib/persianeRenderConfig";
 import {
   ArrowLeft,
@@ -217,6 +219,16 @@ export default function RenderPersianeGalleryDetail() {
                 <Share2 className="h-4 w-4 mr-2" />
                 Condividi
               </Button>
+              <RenderPdfDownloadButton
+                beforeUrl={originalUrl}
+                afterUrl={resultUrl}
+                title="Render AI Persiane"
+                filename={`render_persiane_${id}.pdf`}
+                metadata={[
+                  { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
+                  { label: "Operazione", value: renderConfig?.legacy_config.operazione ? String(renderConfig.legacy_config.operazione).replace(/_/g, " ") : null },
+                ]}
+              />
               <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -259,6 +271,11 @@ export default function RenderPersianeGalleryDetail() {
               className="w-full max-h-[75vh] object-contain rounded-lg"
             />
             <div className="flex gap-2 mt-4 justify-end">
+              <RenderPdfDownloadButton
+                afterUrl={resultUrl}
+                title="Render AI Persiane"
+                filename={`render_persiane_${id}.pdf`}
+              />
               <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Scarica render
@@ -267,6 +284,12 @@ export default function RenderPersianeGalleryDetail() {
           </CardContent>
         </Card>
       )}
+
+      <RenderCrmSummaryCard
+        createdBy={(session as { created_by?: string | null }).created_by}
+        contactId={(session as { contact_id?: string | null }).contact_id}
+        opportunityId={(session as { opportunity_id?: string | null }).opportunity_id}
+      />
 
       {renderConfig && (
         <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">

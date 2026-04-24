@@ -77,7 +77,7 @@ function formatRule(config: ConfigurazionePavimento, type: TipoPavimento, seamle
   if (config.formato_piastrella && TILE_TYPES.has(type)) {
     const format = config.formato_piastrella;
     const isLarge = /120x120|120x240|80x80|60x120/.test(format);
-    return `${format} cm modules${isLarge ? "; large-format scale must be visible with sparse joints and plausible perimeter cuts" : ""}`;
+    return `${format} cm modules${isLarge ? "; preserve real large-format scale with sparse joints, large uninterrupted slab faces, plausible perimeter cuts, and absolutely no small-tile subdivision" : ""}`;
   }
 
   if (config.larghezza_listello_mm && config.lunghezza_listello_mm) {

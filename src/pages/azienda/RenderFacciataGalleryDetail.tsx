@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { ArrowLeft, Building2, CheckCircle2, Download, Image, Loader2, Share2, XCircle, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -171,6 +173,17 @@ export default function RenderFacciataGalleryDetail() {
                 <Share2 className="mr-2 h-4 w-4" />
                 Condividi
               </Button>
+              <RenderPdfDownloadButton
+                beforeUrl={originalUrl}
+                afterUrl={resultUrl}
+                title="Render AI Facciata"
+                filename={`render_facciata_${id}.pdf`}
+                size="default"
+                metadata={[
+                  { label: "Data", value: format(new Date(String(session.created_at)), "dd/MM/yyyy HH:mm", { locale: it }) },
+                  { label: "Intervento", value: renderConfig.legacy_config.tipo_intervento?.replace(/_/g, " ") },
+                ]}
+              />
               <Button className="bg-orange-600 hover:bg-orange-700" onClick={handleDownload}>
                 <Download className="mr-2 h-4 w-4" />
                 Scarica render
@@ -199,6 +212,12 @@ export default function RenderFacciataGalleryDetail() {
           </CardContent>
         </Card>
       )}
+
+      <RenderCrmSummaryCard
+        createdBy={typeof session.created_by === "string" ? session.created_by : null}
+        contactId={typeof session.contact_id === "string" ? session.contact_id : null}
+        opportunityId={typeof session.opportunity_id === "string" ? session.opportunity_id : null}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),360px]">
         <div className="space-y-4">
