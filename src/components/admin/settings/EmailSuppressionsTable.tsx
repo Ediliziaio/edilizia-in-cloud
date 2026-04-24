@@ -15,7 +15,7 @@
 // con cast `as unknown as ...` per bypassare il tipo legacy.
 // ============================================================================
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -52,6 +52,7 @@ import {
   Ban,
   Globe,
   Building2,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -145,7 +146,6 @@ export function EmailSuppressionsTable() {
     },
   });
 
-  // Reset pagina quando cambiano filtri (no effect needed — just clamp in derived state)
   const filtered = useMemo(() => {
     const rows = query.data ?? [];
     const q = search.trim().toLowerCase();
@@ -159,10 +159,56 @@ export function EmailSuppressionsTable() {
     });
   }, [query.data, search, reasonFilter, scopeFilter]);
 
+  // Breakdown per motivo (per KPI + badge)
+  const reasonBreakdown = useMemo(() => {
+    const counts = new Map<SuppressionReason, number>();
+    for (const r of query.data ?? []) {
+      counts.set(r.reason, (counts.get(r.reason) ?? 0) + 1);
+    }
+    return counts;
+  }, [query.data]);
+
   // Paginazione client (SAFETY_CAP = 1000 quindi fattibile)
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
   const pageRows = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+  // FIX: sincronizza `page` con `safePage` quando i filtri riducono la lista.
+  // Senza questo, cliccando "Successiva" da pagina 5 quando filtered ha solo 2
+  // pagine, il click alla pagina successiva partiva da `page=5+1=6` invece di
+  // `safePage+1`, lasciando l'utente bloccato sull'ultima pagina valida.
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage);
+  }, [page, safePage]);
+
+  const handleExportCsv = () => {
+    if (filtered.length === 0) return;
+    const headers = ["Email", "Motivo", "Scope", "Provider", "Data", "Note"];
+    const escape = (v: string | null | undefined) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = filtered.map((r) =>
+      [
+        escape(r.email),
+        escape(REASON_LABEL[r.reason]),
+        escape(r.company_id === null ? "globale" : "per-azienda"),
+        escape(r.source_provider),
+        escape(format(new Date(r.suppressed_at), "yyyy-MM-dd HH:mm")),
+        escape(r.notes),
+      ].join(","),
+    );
+    const csv = [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `email-suppressions-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Esportate ${filtered.length} soppressioni`);
+  };
 
   if (query.isLoading) {
     return (
@@ -183,7 +229,65 @@ export function EmailSuppressionsTable() {
     );
   }
 
+  const totalSuppressed = query.data?.length ?? 0;
+  const hardBounce = reasonBreakdown.get("hard_bounce") ?? 0;
+  const spam = reasonBreakdown.get("spam_complaint") ?? 0;
+  const unsubscribe = reasonBreakdown.get("unsubscribe") ?? 0;
+
   return (
+    <div className="space-y-4">
+      {/* KPI breakdown per motivo */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Totale
+            </p>
+            <p className="text-2xl font-bold mt-1">
+              {totalSuppressed.toLocaleString("it-IT")}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Hard bounce
+            </p>
+            <p
+              className={`text-2xl font-bold mt-1 ${
+                hardBounce > 0 ? "text-destructive" : ""
+              }`}
+            >
+              {hardBounce.toLocaleString("it-IT")}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Spam complaint
+            </p>
+            <p
+              className={`text-2xl font-bold mt-1 ${
+                spam > 0 ? "text-destructive" : ""
+              }`}
+            >
+              {spam.toLocaleString("it-IT")}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Unsubscribe
+            </p>
+            <p className="text-2xl font-bold mt-1">
+              {unsubscribe.toLocaleString("it-IT")}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
@@ -242,9 +346,9 @@ export function EmailSuppressionsTable() {
           </Select>
         </div>
 
-        {/* Counter */}
-        <div className="text-xs text-muted-foreground flex items-center justify-between">
-          <span>
+        {/* Counter + Export */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">
             {filtered.length.toLocaleString("it-IT")} risultati
             {filtered.length !== (query.data?.length ?? 0) && (
               <> (di {(query.data?.length ?? 0).toLocaleString("it-IT")} totali)</>
@@ -255,6 +359,16 @@ export function EmailSuppressionsTable() {
               Mostrate solo le ultime {SAFETY_CAP.toLocaleString("it-IT")}
             </Badge>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            disabled={filtered.length === 0}
+            className="ml-auto h-8"
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            Esporta CSV
+          </Button>
         </div>
 
         {/* Table */}
@@ -317,6 +431,7 @@ export function EmailSuppressionsTable() {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }
 

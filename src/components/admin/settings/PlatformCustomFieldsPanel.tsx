@@ -331,10 +331,16 @@ export function PlatformCustomFieldsPanel() {
       toast.error("Esiste gia un campo admin con questa chiave");
       return;
     }
+    // FIX: prima l'ID usava `Date.now() + Math.random()` con collision possibile
+    // su inserimenti ravvicinati. Ora crypto.randomUUID con fallback.
+    const uuid =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const next: PlatformField[] = [
       ...customFields,
       {
-        id: `platform-field-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: `platform-field-${uuid}`,
         name: cleanName,
         fieldType,
         namespace,

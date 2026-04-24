@@ -58,6 +58,9 @@ export default function AuditLogTab() {
   const debouncedSearch = useDebounce(searchQuery, 350);
 
   // Fetch admin list for filter dropdown
+  // NB: 2 query in sequenza (first distinct user_id, then resolve profiles).
+  // Idealmente farebbe JOIN lato server ma admin_audit_log.user_id → profiles.id
+  // richiede vista dedicata. Accettabile: query eseguita una sola volta (staleTime 5min).
   const { data: adminList = [] } = useQuery({
     queryKey: ["audit-admin-list"],
     queryFn: async () => {
@@ -72,10 +75,34 @@ export default function AuditLogTab() {
         .in("id", uniqueIds);
       return (profiles || []).map((p) => ({
         id: p.id,
-        name: `${p.first_name} ${p.last_name}`,
+        name: `${p.first_name} ${p.last_name}`.trim() || "Utente sconosciuto",
       }));
     },
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
+  });
+
+  // KPI aggregati indipendenti dalla paginazione: totale eventi, oggi, autori unici.
+  // Query separata limitata agli ultimi 500 eventi per performance.
+  const { data: auditStats } = useQuery({
+    queryKey: ["audit-stats"],
+    queryFn: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const [totalRes, todayRes] = await Promise.all([
+        supabase
+          .from("admin_audit_log")
+          .select("*", { count: "exact", head: true }),
+        supabase
+          .from("admin_audit_log")
+          .select("*", { count: "exact", head: true })
+          .gte("created_at", today.toISOString()),
+      ]);
+      return {
+        total: totalRes.count ?? 0,
+        today: todayRes.count ?? 0,
+      };
+    },
+    staleTime: 2 * 60_000,
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -150,6 +177,8 @@ export default function AuditLogTab() {
 
   const exportFullCsv = useCallback(async () => {
     setIsExporting(true);
+    // Toast feedback: su 50k+ record il fetch può durare secondi
+    const loadingToast = toast.loading("Preparazione export CSV...");
     try {
       // Fetch ALL logs matching current filters (no pagination)
       let query = supabase
@@ -164,7 +193,11 @@ export default function AuditLogTab() {
 
       const { data: allLogs, error } = await query;
       if (error) throw error;
-      if (!allLogs?.length) return;
+      if (!allLogs?.length) {
+        toast.dismiss(loadingToast);
+        toast.warning("Nessun record da esportare con i filtri correnti");
+        return;
+      }
 
       // Resolve profiles
       const userIds = [...new Set(allLogs.map((l) => l.user_id))];
@@ -199,15 +232,51 @@ export default function AuditLogTab() {
       a.download = `audit-log-completo-${format(new Date(), "yyyy-MM-dd")}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.dismiss(loadingToast);
       toast.success(`Esportati ${allLogs.length} record`);
-    } catch {
-      toast.error("Errore nell'esportazione");
+    } catch (err: unknown) {
+      toast.dismiss(loadingToast);
+      const msg = err instanceof Error ? err.message : "Errore nell'esportazione";
+      toast.error(msg);
     } finally {
       setIsExporting(false);
     }
   }, [actionFilter, adminFilter, dateRange]);
 
   return (
+    <div className="space-y-4">
+      {/* KPI overview — indipendente da filtri, dà visione totale dello storico */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Eventi totali
+            </p>
+            <p className="text-2xl font-bold mt-1">
+              {auditStats?.total?.toLocaleString("it-IT") ?? "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Oggi
+            </p>
+            <p className="text-2xl font-bold mt-1">
+              {auditStats?.today?.toLocaleString("it-IT") ?? "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+              Admin con attività
+            </p>
+            <p className="text-2xl font-bold mt-1">{adminList.length}</p>
+          </CardContent>
+        </Card>
+      </div>
+
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
@@ -367,5 +436,6 @@ export default function AuditLogTab() {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

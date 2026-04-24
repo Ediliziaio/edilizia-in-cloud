@@ -2,7 +2,7 @@
 // PlatformEmailSignaturePanel — Firma di piattaforma (super_admin)
 // ============================================================================
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Card,
   CardContent,
@@ -44,12 +44,23 @@ export function PlatformEmailSignaturePanel() {
   const [form, setForm] = useState<PlatformEmailSignature>(EMPTY);
   const [dirty, setDirty] = useState(false);
 
+  // FIX: evita di sovrascrivere modifiche in corso dell'utente se un refetch
+  // silenzioso del server completa DOPO che l'utente ha iniziato a digitare.
+  // Prima lo useEffect su query.data ricaricava il form anche se dirty=true.
+  const mountedRef = useRef(true);
   useEffect(() => {
-    if (query.data) {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (query.data && !dirty) {
       setForm(query.data);
-      setDirty(false);
     }
-  }, [query.data]);
+  }, [query.data, dirty]);
 
   const update = <K extends keyof PlatformEmailSignature>(
     key: K,

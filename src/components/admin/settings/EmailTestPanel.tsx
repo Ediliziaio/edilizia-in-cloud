@@ -79,6 +79,10 @@ export function EmailTestPanel() {
   const [subject, setSubject] = useState(DEFAULT_SUBJECTS.plain);
   const [body, setBody] = useState("");
 
+  // FIX: standardizza reset su template change — prima il body veniva resettato
+  // solo per non-plain ma il subject cambiava sempre, creando inconsistenza
+  // percepita. Ora: subject usa sempre il default del nuovo template, body
+  // resettato se il vecchio template era plain e il nuovo no (o viceversa).
   const handleTemplateChange = (t: EmailTemplate) => {
     setTemplate(t);
     setSubject(DEFAULT_SUBJECTS[t]);
@@ -87,12 +91,24 @@ export function EmailTestPanel() {
 
   const handleSend = () => {
     if (!to.trim()) return;
-    sendEmail({
-      to: to.trim(),
-      subject: subject.trim() || DEFAULT_SUBJECTS[template],
-      template,
-      body: template === "plain" ? body : undefined,
-    });
+    // FIX: form veniva lasciato popolato dopo l'invio → rischio doppio-invio
+    // accidentale allo stesso destinatario. Ora reset body/subject on success,
+    // `to` viene mantenuto (utile per re-send rapido con altro template).
+    // Usiamo mutate(variables, options) che è supportato da TanStack Query.
+    sendEmail(
+      {
+        to: to.trim(),
+        subject: subject.trim() || DEFAULT_SUBJECTS[template],
+        template,
+        body: template === "plain" ? body : undefined,
+      },
+      {
+        onSuccess: () => {
+          setBody("");
+          setSubject(DEFAULT_SUBJECTS[template]);
+        },
+      },
+    );
   };
 
   return (
