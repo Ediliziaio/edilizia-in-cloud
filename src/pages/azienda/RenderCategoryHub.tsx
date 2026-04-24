@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import {
   DoorOpen, Bath, Building2, Grid3X3, PanelLeftClose, Home, Sofa,
-  Sparkles, Image, Clock, Sun,
+  Sparkles, Image, Clock, Sun, Waves,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -88,6 +88,16 @@ const categories = [
     badge: "Attivo",
   },
   {
+    id: "piscine",
+    title: "Piscine",
+    description: "Inserisci piscine, sfioro, infinity, coping, deck e acqua realistica",
+    icon: Waves,
+    color: "bg-teal-50 text-teal-600",
+    path: "/azienda/render/piscine",
+    active: true,
+    badge: "Attivo",
+  },
+  {
     id: "stanza",
     title: "Stanza / Interni",
     description: "Trasforma qualsiasi ambiente: cucina, soggiorno, camera",
@@ -126,6 +136,7 @@ export default function RenderCategoryHub() {
         { table: "render_persiane_sessions", type: "persiane", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
         { table: "render_tetto_sessions", type: "tetto", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
         { table: "render_pergole_sessions", type: "pergole", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
+        { table: "render_piscine_sessions", type: "piscine", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
         { table: "render_stanza_sessions", type: "stanza", cols: "id,status,result_urls,created_at", statusField: "status", completedVal: "completed" },
       ] as const;
 
@@ -244,7 +255,7 @@ export default function RenderCategoryHub() {
               {recentSessions.map((s) => {
                 const typeLabel: Record<string, string> = {
                   infissi: "Infissi", bagno: "Bagno", facciata: "Facciata",
-                  pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", pergole: "Pergole", stanza: "Stanza",
+                  pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", pergole: "Pergole", piscine: "Piscine", stanza: "Stanza",
                 };
                 return (
                   <div

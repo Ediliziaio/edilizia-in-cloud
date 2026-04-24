@@ -346,5 +346,8 @@ verify_jwt = false
 [functions.generate-pergola-render]
 verify_jwt = false
 
+[functions.generate-pool-render]
+verify_jwt = false
+
 [functions.generate-room-render]
 verify_jwt = false
