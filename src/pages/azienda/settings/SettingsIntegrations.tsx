@@ -331,6 +331,23 @@ export default function SettingsIntegrations() {
   ).length;
   const totalCount = mainIntegrations.length;
 
+  // Token expiry warning — integrazioni OAuth con updated_at > 60gg
+  // (indica token vecchi che potrebbero aver bisogno di refresh/riconnessione)
+  const TOKEN_STALE_DAYS = 60;
+  const staleTokenWarnings: string[] = [];
+  if (gcalConnection && gcalConnection.status === "connected" && (gcalConnection as any).updated_at) {
+    const ageDays = Math.floor(
+      (Date.now() - new Date((gcalConnection as any).updated_at).getTime()) / 86400000
+    );
+    if (ageDays > TOKEN_STALE_DAYS) staleTokenWarnings.push(`Google Calendar (${ageDays}gg)`);
+  }
+  if (appleCalConnection && appleCalConnection.status === "connected" && (appleCalConnection as any).updated_at) {
+    const ageDays = Math.floor(
+      (Date.now() - new Date((appleCalConnection as any).updated_at).getTime()) / 86400000
+    );
+    if (ageDays > TOKEN_STALE_DAYS) staleTokenWarnings.push(`Apple Calendar (${ageDays}gg)`);
+  }
+
   return (
     <div className="space-y-5">
       {/* Header standardizzato */}
@@ -361,6 +378,19 @@ export default function SettingsIntegrations() {
           />
         </div>
       </div>
+
+      {/* Stale token warning */}
+      {staleTokenWarnings.length > 0 && (
+        <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-sm">Token OAuth non più aggiornati</AlertTitle>
+          <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
+            Il token di <strong>{staleTokenWarnings.join(", ")}</strong> non si
+            aggiorna da più di {TOKEN_STALE_DAYS} giorni. Se la sincronizzazione
+            non funziona, riconnetti l'account dalla scheda relativa.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {mainIntegrations.map((item) => (

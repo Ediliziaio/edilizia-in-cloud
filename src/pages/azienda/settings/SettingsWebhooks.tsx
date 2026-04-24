@@ -59,6 +59,8 @@ function WebhookFormDialog({
   const [url, setUrl] = useState("");
   const [secret, setSecret] = useState("");
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
+  const [timeoutSec, setTimeoutSec] = useState<number>(15);
+  const [allowedIpsText, setAllowedIpsText] = useState<string>("");
   const [testResult, setTestResult] = useState<{ status: string; http_status: number | null } | null>(null);
   const [testing, setTesting] = useState(false);
 
@@ -68,6 +70,11 @@ function WebhookFormDialog({
       setUrl(webhook?.url || "");
       setSecret(webhook?.secret || "");
       setSelectedEvents(webhook?.events || []);
+      // Nuovi campi (migration 20261024110000) — letti tramite cast as any
+      // finché i types non sono rigenerati
+      const w = webhook as (Webhook & { timeout_seconds?: number; allowed_ips?: string[] }) | null;
+      setTimeoutSec(w?.timeout_seconds ?? 15);
+      setAllowedIpsText((w?.allowed_ips ?? []).join("\n"));
       setTestResult(null);
     }
   }, [open, webhook]);
@@ -134,11 +141,27 @@ function WebhookFormDialog({
       });
       return;
     }
+    // Parsa gli IP dalla textarea (uno per riga, ignora commenti e righe vuote)
+    const allowed_ips = allowedIpsText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#"));
+
     try {
+      // Payload esteso con campi security (any cast finché i types non sono rigenerati)
+      const basePayload = {
+        name,
+        url,
+        secret: secret || null,
+        events: selectedEvents,
+        timeout_seconds: timeoutSec,
+        allowed_ips,
+      } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
       if (webhook) {
-        await updateMutation.mutateAsync({ id: webhook.id, name, url, secret: secret || null, events: selectedEvents });
+        await updateMutation.mutateAsync({ id: webhook.id, ...basePayload });
       } else {
-        await createMutation.mutateAsync({ name, url, secret: secret || null, events: selectedEvents });
+        await createMutation.mutateAsync(basePayload);
       }
       toast({ title: webhook ? "Webhook aggiornato" : "Webhook creato" });
       onOpenChange(false);
@@ -200,6 +223,46 @@ function WebhookFormDialog({
 
           <Separator />
 
+          {/* Advanced security */}
+          <details className="rounded-lg border bg-muted/20 overflow-hidden group">
+            <summary className="cursor-pointer px-3 py-2 text-sm font-medium flex items-center gap-2 hover:bg-muted/40">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+              Sicurezza avanzata
+              <span className="ml-auto text-xs text-muted-foreground group-open:hidden">Espandi</span>
+            </summary>
+            <div className="p-3 pt-2 space-y-4 border-t">
+              <div className="space-y-2">
+                <Label className="text-xs">Timeout richiesta (secondi)</Label>
+                <Input
+                  type="number"
+                  min={3}
+                  max={60}
+                  value={timeoutSec}
+                  onChange={(e) => setTimeoutSec(Math.max(3, Math.min(60, Number(e.target.value) || 15)))}
+                  className="w-28"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Tempo massimo di attesa risposta dal tuo endpoint. Default 15s, min 3s, max 60s.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">IP/CIDR whitelist (opzionale)</Label>
+                <textarea
+                  value={allowedIpsText}
+                  onChange={(e) => setAllowedIpsText(e.target.value)}
+                  placeholder={"# Una riga per IP o range CIDR\n203.0.113.42\n10.0.0.0/24"}
+                  className="w-full min-h-[90px] font-mono text-xs rounded-md border border-input bg-background p-2"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Se compilata, il tuo endpoint rifiuterà richieste da IP non autorizzati
+                  (controllo lato server nell'edge function). Lascia vuoto per nessuna restrizione.
+                </p>
+              </div>
+            </div>
+          </details>
+
+          <Separator />
+
           {/* Events */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -241,6 +304,55 @@ function WebhookFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ===== WebhookHealthIndicator (Circuit Breaker client-side) =====
+/**
+ * Mostra un alert quando le ultime N delivery sono tutte fallite.
+ * Suggerisce auto-disable per evitare spam di chiamate verso un endpoint down.
+ */
+function WebhookHealthIndicator({
+  webhook,
+  onDisable,
+}: {
+  webhook: Webhook;
+  onDisable: () => void;
+}) {
+  const { data: deliveries = [] } = useWebhookDeliveries(
+    webhook.is_active ? webhook.id : null
+  );
+
+  // Soglia: se le ultime 10 delivery sono tutte FAILED → circuit breaker warning
+  const CIRCUIT_THRESHOLD = 10;
+  const recent = deliveries.slice(0, CIRCUIT_THRESHOLD);
+  const allFailed = recent.length >= 5 && recent.every((d) => d.status === "failed");
+
+  if (!webhook.is_active || !allFailed) return null;
+
+  return (
+    <div className="mx-4 mb-3 p-3 rounded-lg border border-destructive/40 bg-destructive/5 dark:bg-destructive/10">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+        <div className="flex-1 text-xs">
+          <p className="font-medium text-destructive">
+            Endpoint apparentemente down — {recent.length} fallimenti consecutivi
+          </p>
+          <p className="text-destructive/80 mt-0.5">
+            Gli eventi continuano ad essere inviati. Consigliamo di disabilitare
+            temporaneamente il webhook per evitare latenze sul sistema.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 h-7 text-xs border-destructive/40 hover:bg-destructive/10"
+            onClick={onDisable}
+          >
+            Disabilita ora
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -494,6 +606,10 @@ export default function SettingsWebhooks() {
             const borderColor = w.is_active ? "border-l-emerald-500" : "border-l-slate-300";
             return (
               <Card key={w.id} className={cn("overflow-hidden border-l-4 transition-colors", borderColor)}>
+                <WebhookHealthIndicator
+                  webhook={w}
+                  onDisable={() => handleToggleActive(w)}
+                />
                 <CardContent className="flex items-center justify-between py-4 gap-4">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className={cn(

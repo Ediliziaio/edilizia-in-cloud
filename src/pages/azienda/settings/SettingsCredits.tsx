@@ -18,8 +18,9 @@ import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Mail, Bot, MessageSquare, Wallet, ArrowUpRight, ArrowDownRight, Clock, CreditCard, Zap, Loader2, Image, AlertTriangle, TrendingDown } from "lucide-react";
+import { Mail, Bot, MessageSquare, Wallet, ArrowUpRight, ArrowDownRight, Clock, CreditCard, Zap, Loader2, Image, AlertTriangle, TrendingDown, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { computeCreditForecast, formatDaysRemaining } from "@/lib/creditForecasting";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
@@ -311,6 +312,15 @@ export default function SettingsCredits() {
     (w) => w.type !== "render" && w.balance > 0 && w.balance < LOW_BALANCE_THRESHOLD && !w.blocked
   );
 
+  // Forecasting — ETA esaurimento saldo email basato su storico 14gg
+  const emailForecast = emailLog && emailLog.length > 0
+    ? computeCreditForecast(
+        wallets.find(w => w.type === "email")?.balance ?? 0,
+        emailLog as any,
+        14,
+      )
+    : null;
+
   return (
     <div className="space-y-5">
       {/* Header standardizzato */}
@@ -345,6 +355,22 @@ export default function SettingsCredits() {
           <AlertDescription className="text-amber-900 dark:text-amber-200">
             <strong>Saldo in esaurimento</strong> su {lowWallets.map((w) => w.label).join(", ")}.
             Ricarica prima che i servizi vengano sospesi.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {emailForecast && emailForecast.severity === "critical" && emailForecast.daysRemaining != null && (
+        <Alert variant="destructive">
+          <Calendar className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Stima esaurimento crediti email:</strong>{" "}
+            {formatDaysRemaining(emailForecast.daysRemaining)}
+            {emailForecast.depletionDate && (
+              <> (intorno al{" "}
+              {format(emailForecast.depletionDate, "d MMM yyyy", { locale: it })})
+              </>
+            )}
+            {" "}— consumo medio {formatEur(emailForecast.dailyBurnRate)}/giorno negli ultimi {emailForecast.daysAnalyzed}gg.
           </AlertDescription>
         </Alert>
       )}
