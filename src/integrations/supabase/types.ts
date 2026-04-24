@@ -17172,6 +17172,78 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_scoring_config: {
+        Row: {
+          company_id: string
+          max_activity_points: number
+          max_history_points: number
+          points_per_activity: number
+          source_scores: Json
+          tier_a_threshold: number
+          tier_b_threshold: number
+          tier_c_threshold: number
+          updated_at: string
+          updated_by: string | null
+          weight_address: number
+          weight_city: number
+          weight_company_name: number
+          weight_open_opportunity: number
+          weight_phone: number
+          weight_recent_activity: number
+        }
+        Insert: {
+          company_id: string
+          max_activity_points?: number
+          max_history_points?: number
+          points_per_activity?: number
+          source_scores?: Json
+          tier_a_threshold?: number
+          tier_b_threshold?: number
+          tier_c_threshold?: number
+          updated_at?: string
+          updated_by?: string | null
+          weight_address?: number
+          weight_city?: number
+          weight_company_name?: number
+          weight_open_opportunity?: number
+          weight_phone?: number
+          weight_recent_activity?: number
+        }
+        Update: {
+          company_id?: string
+          max_activity_points?: number
+          max_history_points?: number
+          points_per_activity?: number
+          source_scores?: Json
+          tier_a_threshold?: number
+          tier_b_threshold?: number
+          tier_c_threshold?: number
+          updated_at?: string
+          updated_by?: string | null
+          weight_address?: number
+          weight_city?: number
+          weight_company_name?: number
+          weight_open_opportunity?: number
+          weight_phone?: number
+          weight_recent_activity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_scoring_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "lead_scoring_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       listino_categorie: {
         Row: {
           colore: string | null
@@ -34065,38 +34137,56 @@ export type Database = {
       }
       webhooks: {
         Row: {
+          allowed_ips: string[] | null
           company_id: string
+          consecutive_failures: number | null
           created_at: string | null
           created_by: string | null
           events: string[]
           id: string
           is_active: boolean
+          max_consecutive_failures: number | null
           name: string
+          paused_at: string | null
+          paused_reason: string | null
           secret: string | null
+          timeout_seconds: number | null
           updated_at: string | null
           url: string
         }
         Insert: {
+          allowed_ips?: string[] | null
           company_id: string
+          consecutive_failures?: number | null
           created_at?: string | null
           created_by?: string | null
           events?: string[]
           id?: string
           is_active?: boolean
+          max_consecutive_failures?: number | null
           name: string
+          paused_at?: string | null
+          paused_reason?: string | null
           secret?: string | null
+          timeout_seconds?: number | null
           updated_at?: string | null
           url: string
         }
         Update: {
+          allowed_ips?: string[] | null
           company_id?: string
+          consecutive_failures?: number | null
           created_at?: string | null
           created_by?: string | null
           events?: string[]
           id?: string
           is_active?: boolean
+          max_consecutive_failures?: number | null
           name?: string
+          paused_at?: string | null
+          paused_reason?: string | null
           secret?: string | null
+          timeout_seconds?: number | null
           updated_at?: string | null
           url?: string
         }

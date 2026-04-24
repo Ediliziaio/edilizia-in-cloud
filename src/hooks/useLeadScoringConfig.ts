@@ -60,12 +60,17 @@ export function useLeadScoringConfig(companyId: string | null) {
     enabled: !!companyId,
     queryFn: async (): Promise<LeadScoringConfig> => {
       const { data, error } = await supabase
-        .from("lead_scoring_config" as any)
+        .from("lead_scoring_config")
         .select("*")
         .eq("company_id", companyId!)
         .maybeSingle();
       if (error && error.code !== "PGRST116") throw error;
-      if (data) return data as LeadScoringConfig;
+      if (data) {
+        return {
+          ...(data as unknown as LeadScoringConfig),
+          source_scores: (data.source_scores ?? DEFAULT_LEAD_SCORING_CONFIG.source_scores) as Record<string, number>,
+        };
+      }
       return { company_id: companyId!, ...DEFAULT_LEAD_SCORING_CONFIG };
     },
     staleTime: 1000 * 60 * 30,
@@ -79,8 +84,8 @@ export function useUpsertLeadScoringConfig(companyId: string | null) {
       if (!companyId) throw new Error("companyId mancante");
       const payload = { company_id: companyId, ...config };
       const { error } = await supabase
-        .from("lead_scoring_config" as any)
-        .upsert(payload as any, { onConflict: "company_id" });
+        .from("lead_scoring_config")
+        .upsert(payload, { onConflict: "company_id" });
       if (error) throw error;
     },
     onSuccess: () => {

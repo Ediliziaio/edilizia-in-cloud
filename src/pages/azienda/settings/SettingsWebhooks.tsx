@@ -70,11 +70,9 @@ function WebhookFormDialog({
       setUrl(webhook?.url || "");
       setSecret(webhook?.secret || "");
       setSelectedEvents(webhook?.events || []);
-      // Nuovi campi (migration 20261024110000) — letti tramite cast as any
-      // finché i types non sono rigenerati
-      const w = webhook as (Webhook & { timeout_seconds?: number; allowed_ips?: string[] }) | null;
-      setTimeoutSec(w?.timeout_seconds ?? 15);
-      setAllowedIpsText((w?.allowed_ips ?? []).join("\n"));
+      // Campi security (migration 20261024110000)
+      setTimeoutSec(webhook?.timeout_seconds ?? 15);
+      setAllowedIpsText((webhook?.allowed_ips ?? []).join("\n"));
       setTestResult(null);
     }
   }, [open, webhook]);
@@ -148,7 +146,7 @@ function WebhookFormDialog({
       .filter((l) => l && !l.startsWith("#"));
 
     try {
-      // Payload esteso con campi security (any cast finché i types non sono rigenerati)
+      // Payload esteso con campi security (migration 20261024110000)
       const basePayload = {
         name,
         url,
@@ -156,7 +154,7 @@ function WebhookFormDialog({
         events: selectedEvents,
         timeout_seconds: timeoutSec,
         allowed_ips,
-      } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      };
 
       if (webhook) {
         await updateMutation.mutateAsync({ id: webhook.id, ...basePayload });
