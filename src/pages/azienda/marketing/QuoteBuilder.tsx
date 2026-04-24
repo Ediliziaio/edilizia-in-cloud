@@ -1809,59 +1809,128 @@ export default function QuoteBuilder() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 pb-24">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden md:inline-flex"
-          onClick={() => navigate("/azienda/marketing/preventivi")}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">
-            {isEdit ? "Modifica Preventivo" : "Nuovo Preventivo"}
-          </h1>
-          {autosaveFailed && (
-            <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
-              <AlertTriangle className="h-3 w-3" />
-              Salvataggio automatico fallito — salva manualmente
-            </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-lg shrink-0"
+            onClick={() => navigate("/azienda/marketing/preventivi")}
+            title="Torna alla lista"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileCheck className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              {isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
+            </h1>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+              <span>
+                Step {step + 1} di {STEPS.length} · {STEPS[step]?.label}
+              </span>
+              {autosaveFailed && (
+                <span className="text-destructive flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  salvataggio auto fallito
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Live totals badge (visibile quando c'è almeno un totale) */}
+          {total > 0 && (
+            <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg border bg-muted/30 text-xs">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Subtotale
+                </p>
+                <p className="font-semibold tabular-nums">
+                  {formatCurrency(subtotal)}
+                </p>
+              </div>
+              {discountAmt > 0 && (
+                <>
+                  <div className="h-6 w-px bg-border" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Sconto
+                    </p>
+                    <p className="font-semibold tabular-nums text-orange-600">
+                      -{formatCurrency(discountAmt)}
+                    </p>
+                  </div>
+                </>
+              )}
+              <div className="h-6 w-px bg-border" />
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Totale
+                </p>
+                <p className="font-bold tabular-nums text-primary">
+                  {formatCurrency(total)}
+                </p>
+              </div>
+            </div>
+          )}
+          {isAdmin && isEdit && id && (
+            <Link
+              to={`/azienda/marketing/preventivi/${id}/margini`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-100 transition-colors h-9"
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              Margini & pianificazione
+            </Link>
           )}
         </div>
-        {/* Sprint B — Badge admin "Margine & Pianificazione". Visibile solo in edit e solo ad admin. */}
-        {isAdmin && isEdit && id && (
-          <Link
-            to={`/azienda/marketing/preventivi/${id}/margini`}
-            className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
-          >
-            <TrendingUp className="h-3.5 w-3.5" />
-            Margini &amp; pianificazione
-          </Link>
-        )}
       </div>
 
-      {/* Stepper */}
-      <div className="flex items-center gap-2">
-        {STEPS.map((s, i) => (
-          <button
-            key={s.key}
-            onClick={() => setStep(i)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              i === step
-                ? "bg-primary text-primary-foreground"
-                : i < step
-                ? "bg-muted text-foreground"
-                : "bg-muted/50 text-muted-foreground"
-            }`}
-          >
-            <s.icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{s.label}</span>
-            <span className="sm:hidden">{i + 1}</span>
-          </button>
-        ))}
+      {/* Stepper pill moderno con progress visibile + check per step completati */}
+      <div className="relative">
+        <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-muted -translate-y-1/2 -z-0" aria-hidden />
+        <div
+          className="absolute top-1/2 left-0 h-[2px] bg-primary -translate-y-1/2 -z-0 transition-all duration-300"
+          style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }}
+          aria-hidden
+        />
+        <div className="relative flex items-center justify-between gap-2 z-10">
+          {STEPS.map((s, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <button
+                key={s.key}
+                onClick={() => setStep(i)}
+                className={`group relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                  active
+                    ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20"
+                    : done
+                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300"
+                    : "bg-background border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {done ? (
+                  <FileCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                ) : (
+                  <s.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                )}
+                <span className="hidden sm:inline">{s.label}</span>
+                <span
+                  className={`sm:hidden text-[10px] font-bold tabular-nums ${
+                    active ? "" : done ? "" : "text-muted-foreground"
+                  }`}
+                >
+                  {i + 1}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── STEP 0: Cliente ── */}
@@ -3358,47 +3427,66 @@ export default function QuoteBuilder() {
         </Card>
       )}
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between pt-2">
-        <Button
-          variant="outline"
-          onClick={() => setStep(Math.max(0, step - 1))}
-          disabled={step === 0}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Indietro
-        </Button>
-        <div className="flex gap-2">
+      {/* Sticky action bar — sempre visibile nella parte bassa */}
+      <div className="fixed bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-background/95 backdrop-blur-md border-t shadow-lg">
+        <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
           <Button
             variant="outline"
-            onClick={() => handleSave("bozza")}
-            disabled={saving}
+            size="sm"
+            onClick={() => setStep(Math.max(0, step - 1))}
+            disabled={step === 0}
+            className="h-9"
           >
-            {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            Salva Bozza
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Indietro
           </Button>
-          {step < STEPS.length - 1 ? (
-            <Button onClick={handleNext}>
-              Avanti
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          ) : (
+
+          {/* Totale live per mobile (desktop è nell'header) */}
+          {total > 0 && (
+            <div className="md:hidden flex items-center gap-3 text-xs flex-1 justify-center">
+              <span className="text-muted-foreground">Totale:</span>
+              <span className="font-bold text-primary tabular-nums text-sm">
+                {formatCurrency(total)}
+              </span>
+            </div>
+          )}
+
+          <div className="flex gap-2 items-center">
             <Button
+              variant="ghost"
+              size="sm"
               onClick={() => handleSave("bozza")}
-              disabled={saving || !clientName}
+              disabled={saving}
+              className="h-9 text-muted-foreground"
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
-                <FileCheck className="h-4 w-4 mr-2" />
+                <Save className="h-4 w-4 mr-2" />
               )}
-              Salva Preventivo
+              Bozza
             </Button>
-          )}
+            {step < STEPS.length - 1 ? (
+              <Button onClick={handleNext} size="sm" className="h-9">
+                Avanti · {STEPS[step + 1]?.label}
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            ) : (
+              <Button
+                onClick={() => handleSave("bozza")}
+                disabled={saving || !clientName}
+                size="sm"
+                className="h-9 bg-emerald-600 hover:bg-emerald-700"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileCheck className="h-4 w-4 mr-2" />
+                )}
+                Salva preventivo
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

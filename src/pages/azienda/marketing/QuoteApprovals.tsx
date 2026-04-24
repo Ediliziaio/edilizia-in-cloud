@@ -3,29 +3,63 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { AlertCircle, Check, Clock, ExternalLink, Send, XCircle } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Clock,
+  ExternalLink,
+  Send,
+  XCircle,
+  Percent,
+  TrendingDown,
+  Inbox,
+  Eye,
+  MoreHorizontal,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { QuoteQuickViewSheet } from "@/components/marketing/preventivi/QuoteQuickViewSheet";
-import { Eye } from "lucide-react";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { QuoteQuickViewSheet } from "@/components/marketing/preventivi/QuoteQuickViewSheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 
 interface QuoteApproval {
   id: string;
@@ -75,7 +109,10 @@ export default function QuoteApprovals() {
     },
   });
 
-  const quoteIds = useMemo(() => [...new Set(approvals.map((a) => a.quote_id))], [approvals]);
+  const quoteIds = useMemo(
+    () => [...new Set(approvals.map((a) => a.quote_id))],
+    [approvals]
+  );
 
   const { data: quotes = [] } = useQuery({
     queryKey: ["quote-approvals-quotes", quoteIds],
@@ -83,7 +120,9 @@ export default function QuoteApprovals() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, total, salesperson_id, commission_amount_snapshot")
+        .select(
+          "id, quote_number, client_name, title, total, salesperson_id, commission_amount_snapshot"
+        )
         .in("id", quoteIds);
       if (error) throw error;
       return data as QuoteInfo[];
@@ -96,7 +135,6 @@ export default function QuoteApprovals() {
     return m;
   }, [quotes]);
 
-  // Filtro commerciale (derivato via quote lookup)
   const [spFilter, setSpFilter] = useState<string>("tutti");
 
   const { data: salespeopleList = [] } = useQuery({
@@ -115,7 +153,9 @@ export default function QuoteApprovals() {
 
   const salespersonNameById = useMemo(() => {
     const m = new Map<string, string>();
-    salespeopleList.forEach((s) => m.set(s.id, `${s.first_name} ${s.last_name}`));
+    salespeopleList.forEach((s) =>
+      m.set(s.id, `${s.first_name} ${s.last_name}`)
+    );
     return m;
   }, [salespeopleList]);
 
@@ -131,6 +171,32 @@ export default function QuoteApprovals() {
   const pending = approvalsFiltered.filter((a) => a.decision === null);
   const decided = approvalsFiltered.filter((a) => a.decision !== null);
 
+  // KPI computati
+  const approvedCount = decided.filter((a) => a.decision === "approved").length;
+  const rejectedCount = decided.filter((a) => a.decision === "rejected").length;
+  const counterCount = decided.filter(
+    (a) => a.decision === "counter_proposed"
+  ).length;
+  const approvalRate =
+    decided.length > 0
+      ? Math.round(((approvedCount + counterCount) / decided.length) * 100)
+      : null;
+  const avgApprovedDiscount = useMemo(() => {
+    const approvedOnes = decided.filter(
+      (a) =>
+        (a.decision === "approved" || a.decision === "counter_proposed") &&
+        a.sconto_autorizzato_pct !== null
+    );
+    if (approvedOnes.length === 0) return null;
+    return (
+      approvedOnes.reduce(
+        (s, a) => s + (a.sconto_autorizzato_pct ?? 0),
+        0
+      ) / approvedOnes.length
+    );
+  }, [decided]);
+  const pendingValue = pending.reduce((s, a) => s + a.importo_preventivo, 0);
+
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{
     open: boolean;
@@ -142,7 +208,10 @@ export default function QuoteApprovals() {
 
   const decideMutation = useMutation({
     mutationFn: async ({
-      approval_id, decision, sconto_autorizzato_pct, p_note,
+      approval_id,
+      decision,
+      sconto_autorizzato_pct,
+      p_note,
     }: {
       approval_id: string;
       decision: "approved" | "rejected" | "counter_proposed";
@@ -159,7 +228,9 @@ export default function QuoteApprovals() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quote-approvals", companyId] });
-      qc.invalidateQueries({ queryKey: ["quote-approvals-quotes", quoteIds] });
+      qc.invalidateQueries({
+        queryKey: ["quote-approvals-quotes", quoteIds],
+      });
       toast.success("Decisione registrata");
       setDialog({ open: false, approval: null, mode: null });
       setNote("");
@@ -168,7 +239,10 @@ export default function QuoteApprovals() {
     onError: (e: Error) => toast.error(`Errore: ${e.message}`),
   });
 
-  const openDecide = (a: QuoteApproval, mode: "approve" | "reject" | "counter") => {
+  const openDecide = (
+    a: QuoteApproval,
+    mode: "approve" | "reject" | "counter"
+  ) => {
     setDialog({ open: true, approval: a, mode });
     setCounterPct(Math.floor(a.sconto_richiesto_pct * 0.7 * 10) / 10);
     setNote("");
@@ -176,7 +250,12 @@ export default function QuoteApprovals() {
 
   const confirmDecide = () => {
     if (!dialog.approval || !dialog.mode) return;
-    const decision = dialog.mode === "approve" ? "approved" : dialog.mode === "reject" ? "rejected" : "counter_proposed";
+    const decision =
+      dialog.mode === "approve"
+        ? "approved"
+        : dialog.mode === "reject"
+        ? "rejected"
+        : "counter_proposed";
     decideMutation.mutate({
       approval_id: dialog.approval.id,
       decision,
@@ -198,73 +277,202 @@ export default function QuoteApprovals() {
     );
   }
 
-  const renderRow = (a: QuoteApproval) => {
+  // ─── Helper: riga tabella
+  const renderRow = (a: QuoteApproval, idx: number) => {
     const q = quotesById.get(a.quote_id);
     const isPending = a.decision === null;
     return (
-      <TableRow key={a.id}>
+      <TableRow
+        key={a.id}
+        className={`transition-colors ${
+          idx % 2 === 1 ? "bg-muted/30 hover:bg-muted/60" : "hover:bg-muted/40"
+        }`}
+      >
         <TableCell>
-          <div className="font-medium">{q?.quote_number ?? "—"}</div>
-          <div className="text-xs text-muted-foreground">{q?.client_name ?? q?.title ?? ""}</div>
+          <div className="font-mono text-sm font-medium">
+            {q?.quote_number ?? "—"}
+          </div>
+          <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+            {q?.client_name ?? q?.title ?? "—"}
+          </div>
         </TableCell>
         <TableCell className="text-xs">
           {q?.salesperson_id ? (
-            <span className="text-foreground">{salespersonNameById.get(q.salesperson_id) ?? "—"}</span>
+            <span className="text-foreground">
+              {salespersonNameById.get(q.salesperson_id) ?? "—"}
+            </span>
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground/50">—</span>
           )}
         </TableCell>
-        <TableCell className="text-right">{formatCurrency(a.importo_preventivo)}</TableCell>
-        <TableCell className="text-right font-medium text-orange-600">
-          {a.sconto_richiesto_pct.toFixed(1)}%
-        </TableCell>
         <TableCell className="text-right">
-          {a.margine_stimato_pct != null ? `${a.margine_stimato_pct.toFixed(1)}%` : "—"}
-        </TableCell>
-        <TableCell className="text-right text-xs text-muted-foreground">
-          {q?.commission_amount_snapshot != null ? formatCurrency(q.commission_amount_snapshot) : "—"}
-        </TableCell>
-        <TableCell className="max-w-[200px]">
-          <div className="text-xs truncate" title={a.note_richiesta ?? ""}>
-            {a.note_richiesta ?? "—"}
+          <div className="font-medium tabular-nums">
+            {formatCurrency(a.importo_preventivo)}
           </div>
         </TableCell>
-        <TableCell>
-          {a.decision === "approved" && <Badge className="bg-green-600"><Check className="h-3 w-3 mr-1" />Approvato</Badge>}
-          {a.decision === "rejected" && <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rifiutato</Badge>}
-          {a.decision === "counter_proposed" && (
-            <Badge className="bg-blue-600"><Send className="h-3 w-3 mr-1" />Contro {a.sconto_autorizzato_pct?.toFixed(1)}%</Badge>
+        <TableCell className="text-right">
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 text-xs font-semibold tabular-nums">
+            <TrendingDown className="h-3 w-3" />
+            {a.sconto_richiesto_pct.toFixed(1)}%
+          </div>
+          {a.decision === "counter_proposed" && a.sconto_autorizzato_pct != null && (
+            <div className="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5 tabular-nums">
+              → {a.sconto_autorizzato_pct.toFixed(1)}%
+            </div>
           )}
-          {isPending && <Badge variant="outline" className="border-orange-500 text-orange-600"><Clock className="h-3 w-3 mr-1" />Pending</Badge>}
         </TableCell>
         <TableCell className="text-right">
-          <div className="flex items-center gap-1 justify-end">
-            {q && (
-              <Button
-                variant="ghost"
-                size="icon"
-                title="Anteprima admin (margini + storico)"
-                onClick={() => setQuickViewId(q.id)}
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-            )}
-            {q && (
-              <Button variant="ghost" size="icon" asChild title="Apri preventivo">
-                <Link to={`/azienda/marketing/preventivi/${q.id}`}><ExternalLink className="h-4 w-4" /></Link>
-              </Button>
-            )}
-            {isPending && (
+          {a.margine_stimato_pct != null ? (
+            <span
+              className={`text-xs tabular-nums font-medium ${
+                a.margine_stimato_pct < 15
+                  ? "text-red-600"
+                  : a.margine_stimato_pct < 25
+                  ? "text-orange-600"
+                  : "text-emerald-600"
+              }`}
+            >
+              {a.margine_stimato_pct.toFixed(1)}%
+            </span>
+          ) : (
+            <span className="text-muted-foreground/50 text-xs">—</span>
+          )}
+        </TableCell>
+        <TableCell className="max-w-[180px]">
+          {a.note_richiesta ? (
+            <div
+              className="text-xs text-muted-foreground truncate italic"
+              title={a.note_richiesta}
+            >
+              "{a.note_richiesta}"
+            </div>
+          ) : (
+            <span className="text-muted-foreground/50 text-xs">—</span>
+          )}
+        </TableCell>
+        <TableCell>
+          {a.decision === "approved" && (
+            <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1">
+              <Check className="h-3 w-3" />
+              Approvato
+            </Badge>
+          )}
+          {a.decision === "rejected" && (
+            <Badge variant="destructive" className="gap-1">
+              <XCircle className="h-3 w-3" />
+              Rifiutato
+            </Badge>
+          )}
+          {a.decision === "counter_proposed" && (
+            <Badge className="bg-blue-600 hover:bg-blue-600 gap-1">
+              <Send className="h-3 w-3" />
+              Contro-proposta
+            </Badge>
+          )}
+          {isPending && (
+            <Badge
+              variant="outline"
+              className="border-orange-500 text-orange-600 gap-1 bg-orange-50 dark:bg-orange-950/30"
+            >
+              <Clock className="h-3 w-3" />
+              Pending
+            </Badge>
+          )}
+          {a.decided_at && (
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {format(new Date(a.decided_at), "dd MMM yy", { locale: it })}
+            </div>
+          )}
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center justify-end gap-1">
+            {isPending ? (
               <>
-                <Button size="sm" variant="outline" onClick={() => openDecide(a, "approve")}>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => openDecide(a, "approve")}
+                >
+                  <Check className="h-3 w-3 mr-1" />
                   Approva
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => openDecide(a, "counter")}>
-                  Contro-proposta
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => openDecide(a, "counter")}
+                >
+                  <Send className="h-3 w-3 mr-1" />
+                  Contro
                 </Button>
-                <Button size="sm" variant="outline" className="text-destructive" onClick={() => openDecide(a, "reject")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs text-destructive border-destructive/30"
+                  onClick={() => openDecide(a, "reject")}
+                >
+                  <XCircle className="h-3 w-3 mr-1" />
                   Rifiuta
                 </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {q && (
+                      <DropdownMenuItem onClick={() => setQuickViewId(q.id)}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        Anteprima margini
+                      </DropdownMenuItem>
+                    )}
+                    {q && (
+                      <DropdownMenuItem asChild>
+                        <Link to={`/azienda/marketing/preventivi/${q.id}`}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Apri preventivo
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    {q?.commission_amount_snapshot != null && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled className="text-xs">
+                          Provv. teorica:{" "}
+                          {formatCurrency(q.commission_amount_snapshot)}
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <>
+                {q && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title="Anteprima margini"
+                    onClick={() => setQuickViewId(q.id)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                )}
+                {q && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    asChild
+                    className="h-7 w-7"
+                    title="Apri preventivo"
+                  >
+                    <Link to={`/azienda/marketing/preventivi/${q.id}`}>
+                      <ExternalLink className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -274,109 +482,233 @@ export default function QuoteApprovals() {
   };
 
   const renderTable = (rows: QuoteApproval[]) => (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Preventivo</TableHead>
-          <TableHead>Commerciale</TableHead>
-          <TableHead className="text-right">Importo</TableHead>
-          <TableHead className="text-right">Sconto richiesto</TableHead>
-          <TableHead className="text-right">Margine stim.</TableHead>
-          <TableHead className="text-right">Provv. teorica</TableHead>
-          <TableHead>Nota</TableHead>
-          <TableHead>Stato</TableHead>
-          <TableHead className="text-right">Azioni</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map(renderRow)}
-      </TableBody>
-    </Table>
+    <div className="border rounded-lg overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Preventivo</TableHead>
+            <TableHead>Commerciale</TableHead>
+            <TableHead className="text-right">Importo</TableHead>
+            <TableHead className="text-right">Sconto</TableHead>
+            <TableHead className="text-right">Margine</TableHead>
+            <TableHead>Nota richiesta</TableHead>
+            <TableHead>Stato</TableHead>
+            <TableHead className="text-right">Azioni</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>{rows.map((r, idx) => renderRow(r, idx))}</TableBody>
+      </Table>
+    </div>
   );
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold">Approvazioni sconto preventivi</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Valuta le richieste dei commerciali. Vedi margine e provvigione per decidere.
-          </p>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
+            <Percent className="h-5 w-5 text-orange-600" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              Approvazioni sconto
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Valuta le richieste dei commerciali · margine e provvigione in chiaro
+            </p>
+          </div>
         </div>
-        <Select value={spFilter} onValueChange={setSpFilter}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Filtro commerciale" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="tutti">Tutti i commerciali</SelectItem>
-            <SelectItem value="none">Senza commerciale</SelectItem>
-            {salespeopleList.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.first_name} {s.last_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={spFilter} onValueChange={setSpFilter}>
+            <SelectTrigger className="w-[200px] h-9">
+              <SelectValue placeholder="Tutti i commerciali" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti i commerciali</SelectItem>
+              <SelectItem value="none">Senza commerciale</SelectItem>
+              {salespeopleList.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.first_name} {s.last_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
+      {/* KPI hero */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="overflow-hidden border-l-4 border-l-orange-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                In attesa
+              </p>
+              <Clock className="h-4 w-4 text-orange-500" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">{pending.length}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {pendingValue > 0 ? formatCurrency(pendingValue) + " da decidere" : "nessuna richiesta"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="overflow-hidden border-l-4 border-l-emerald-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Approvate
+              </p>
+              <Check className="h-4 w-4 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">
+              {approvedCount + counterCount}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {counterCount > 0
+                ? `${approvedCount} + ${counterCount} contro-proposte`
+                : "nel totale storico"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="overflow-hidden border-l-4 border-l-red-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Rifiutate
+              </p>
+              <XCircle className="h-4 w-4 text-red-500" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">{rejectedCount}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {approvalRate !== null
+                ? `${approvalRate}% approval rate`
+                : "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="overflow-hidden border-l-4 border-l-primary">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Sconto medio autorizzato
+              </p>
+              <TrendingDown className="h-4 w-4 text-primary" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5 tabular-nums">
+              {avgApprovedDiscount !== null
+                ? `${avgApprovedDiscount.toFixed(1)}%`
+                : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              su {approvedCount + counterCount} autorizzat
+              {approvedCount + counterCount === 1 ? "a" : "e"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
       <Tabs defaultValue="pending">
-        <TabsList>
-          <TabsTrigger value="pending">
+        <TabsList className="h-9">
+          <TabsTrigger value="pending" className="gap-1.5 text-xs">
             Da decidere
-            {pending.length > 0 && <Badge className="ml-2" variant="secondary">{pending.length}</Badge>}
+            <span
+              className={`text-[10px] rounded px-1.5 py-0.5 tabular-nums ${
+                pending.length > 0
+                  ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                  : "bg-muted"
+              }`}
+            >
+              {pending.length}
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="history">Storico</TabsTrigger>
+          <TabsTrigger value="history" className="gap-1.5 text-xs">
+            Storico
+            <span className="text-[10px] bg-muted rounded px-1.5 py-0.5 tabular-nums">
+              {decided.length}
+            </span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pending">
-          <Card>
-            <CardHeader>
-              <CardTitle>Richieste in attesa</CardTitle>
-              <CardDescription>{pending.length} richieste</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="p-8 text-center text-muted-foreground">Caricamento…</div>
-              ) : pending.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">Nessuna richiesta in attesa.</div>
-              ) : (
-                renderTable(pending)
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="pending" className="mt-4">
+          {isLoading ? (
+            <div className="p-12 text-center text-muted-foreground border rounded-lg">
+              Caricamento…
+            </div>
+          ) : pending.length === 0 ? (
+            <div className="border rounded-lg p-12 text-center">
+              <Inbox className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="font-medium">Nessuna richiesta in attesa</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Ottimo! Tutte le richieste sono state evase.
+              </p>
+            </div>
+          ) : (
+            renderTable(pending)
+          )}
         </TabsContent>
 
-        <TabsContent value="history">
-          <Card>
-            <CardHeader>
-              <CardTitle>Storico decisioni</CardTitle>
-              <CardDescription>Ultime {decided.length} richieste già decise</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {decided.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">Nessuna richiesta decisa.</div>
-              ) : (
-                renderTable(decided)
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="history" className="mt-4">
+          {decided.length === 0 ? (
+            <div className="border rounded-lg p-12 text-center">
+              <Inbox className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="font-medium">Nessuna decisione ancora</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Lo storico comparirà qui dopo la prima decisione.
+              </p>
+            </div>
+          ) : (
+            renderTable(decided)
+          )}
         </TabsContent>
       </Tabs>
 
-      <Dialog open={dialog.open} onOpenChange={(o) => setDialog({ ...dialog, open: o })}>
+      {/* Dialog decisione */}
+      <Dialog
+        open={dialog.open}
+        onOpenChange={(o) => setDialog({ ...dialog, open: o })}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {dialog.mode === "approve" && "Approva lo sconto"}
-              {dialog.mode === "reject" && "Rifiuta la richiesta"}
-              {dialog.mode === "counter" && "Contro-proposta"}
+            <DialogTitle className="flex items-center gap-2">
+              {dialog.mode === "approve" && (
+                <>
+                  <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
+                    <Check className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  Approva lo sconto
+                </>
+              )}
+              {dialog.mode === "reject" && (
+                <>
+                  <div className="h-8 w-8 rounded-lg bg-red-100 dark:bg-red-950/40 flex items-center justify-center">
+                    <XCircle className="h-4 w-4 text-red-600" />
+                  </div>
+                  Rifiuta la richiesta
+                </>
+              )}
+              {dialog.mode === "counter" && (
+                <>
+                  <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center">
+                    <Send className="h-4 w-4 text-blue-600" />
+                  </div>
+                  Contro-proposta
+                </>
+              )}
             </DialogTitle>
             <DialogDescription>
               {dialog.approval && (
                 <>
-                  Preventivo {quotesById.get(dialog.approval.quote_id)?.quote_number ?? dialog.approval.quote_id.slice(0, 8)} ·
-                  richiesto <strong>{dialog.approval.sconto_richiesto_pct.toFixed(1)}%</strong> su{" "}
-                  {formatCurrency(dialog.approval.importo_preventivo)}
+                  Preventivo{" "}
+                  <span className="font-mono">
+                    {quotesById.get(dialog.approval.quote_id)?.quote_number ??
+                      dialog.approval.quote_id.slice(0, 8)}
+                  </span>{" "}
+                  · richiesto{" "}
+                  <strong className="text-orange-600">
+                    {dialog.approval.sconto_richiesto_pct.toFixed(1)}%
+                  </strong>{" "}
+                  su {formatCurrency(dialog.approval.importo_preventivo)}
                 </>
               )}
             </DialogDescription>
@@ -386,38 +718,65 @@ export default function QuoteApprovals() {
               <div>
                 <Label>Sconto autorizzato (%)</Label>
                 <Input
-                  type="number" step="0.1" min="0" max="100"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
                   value={counterPct}
                   onChange={(e) => setCounterPct(Number(e.target.value))}
                 />
               </div>
             )}
             <div>
-              <Label>{dialog.mode === "reject" ? "Motivazione rifiuto" : "Nota per il commerciale (opzionale)"}</Label>
+              <Label>
+                {dialog.mode === "reject"
+                  ? "Motivazione rifiuto"
+                  : "Nota per il commerciale (opzionale)"}
+              </Label>
               <Textarea
                 rows={3}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder={dialog.mode === "reject" ? "Spiega perché non puoi autorizzare..." : "Nota (facoltativa)"}
+                placeholder={
+                  dialog.mode === "reject"
+                    ? "Spiega perché non puoi autorizzare..."
+                    : "Nota (facoltativa)"
+                }
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog({ open: false, approval: null, mode: null })}>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setDialog({ open: false, approval: null, mode: null })
+              }
+            >
               Annulla
             </Button>
-            <Button onClick={confirmDecide} disabled={decideMutation.isPending}>
-              Conferma
+            <Button
+              onClick={confirmDecide}
+              disabled={decideMutation.isPending}
+              className={
+                dialog.mode === "reject"
+                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : dialog.mode === "approve"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : ""
+              }
+            >
+              {decideMutation.isPending ? "Invio..." : "Conferma"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Drawer anteprima admin */}
       <QuoteQuickViewSheet
         quoteId={quickViewId}
         open={!!quickViewId}
-        onOpenChange={(o) => { if (!o) setQuickViewId(null); }}
+        onOpenChange={(o) => {
+          if (!o) setQuickViewId(null);
+        }}
       />
     </div>
   );

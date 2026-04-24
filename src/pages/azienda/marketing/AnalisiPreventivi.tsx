@@ -285,191 +285,319 @@ export default function AnalisiPreventivi() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BrainCircuit className="h-6 w-6 text-violet-600" /> Analisi Preventivi AI
-          </h1>
-          <p className="text-muted-foreground text-sm">Insights intelligenti sui tuoi preventivi storici</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-950/40 flex items-center justify-center shrink-0">
+            <BrainCircuit className="h-5 w-5 text-violet-600" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              Analisi preventivi <span className="text-violet-600">AI</span>
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Insights intelligenti sui tuoi preventivi storici
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Select value={spFilter} onValueChange={setSpFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Commerciale" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">Tutti i commerciali</SelectItem>
-              <SelectItem value="none">Senza commerciale</SelectItem>
-              {salespeopleList.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={statusRowFilter} onValueChange={setStatusRowFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Stato approvazione" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">Tutti gli stati</SelectItem>
-              <SelectItem value="not_required">Normali</SelectItem>
-              <SelectItem value="pending">In approvazione</SelectItem>
-              <SelectItem value="approved">Approvati</SelectItem>
-              <SelectItem value="rejected">Rifiutati</SelectItem>
-              <SelectItem value="counter_proposed">Contro-proposta</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={periodoMesi} onValueChange={setPeriodoMesi}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="3">Ultimi 3 mesi</SelectItem>
-              <SelectItem value="6">Ultimi 6 mesi</SelectItem>
-              <SelectItem value="12">Ultimo anno</SelectItem>
-              <SelectItem value="24">Ultimi 2 anni</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      </div>
+
+      {/* Filtri compatti */}
+      <div className="flex items-center gap-2 flex-wrap p-3 border rounded-lg bg-muted/30">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">
+          Filtri
+        </span>
+        <Select value={periodoMesi} onValueChange={setPeriodoMesi}>
+          <SelectTrigger className="w-[140px] h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="3">Ultimi 3 mesi</SelectItem>
+            <SelectItem value="6">Ultimi 6 mesi</SelectItem>
+            <SelectItem value="12">Ultimo anno</SelectItem>
+            <SelectItem value="24">Ultimi 2 anni</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={spFilter} onValueChange={setSpFilter}>
+          <SelectTrigger className="w-[180px] h-8 text-xs">
+            <SelectValue placeholder="Commerciale" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutti">Tutti i commerciali</SelectItem>
+            <SelectItem value="none">Senza commerciale</SelectItem>
+            {salespeopleList.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.first_name} {s.last_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusRowFilter} onValueChange={setStatusRowFilter}>
+          <SelectTrigger className="w-[170px] h-8 text-xs">
+            <SelectValue placeholder="Stato approvazione" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutti">Tutti gli stati</SelectItem>
+            <SelectItem value="not_required">Normali</SelectItem>
+            <SelectItem value="pending">In approvazione</SelectItem>
+            <SelectItem value="approved">Approvati</SelectItem>
+            <SelectItem value="rejected">Rifiutati</SelectItem>
+            <SelectItem value="counter_proposed">Contro-proposta</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {isAdmin && pendingApprovals.length > 0 && (
-        <Card className="border-orange-500/50 bg-orange-50/50 dark:bg-orange-950/20">
-          <CardContent className="p-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Percent className="h-5 w-5 text-orange-600" />
-              <div>
-                <p className="font-medium text-sm">
-                  {pendingApprovals.length} richiest{pendingApprovals.length === 1 ? "a" : "e"} di autorizzazione sconto in attesa
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Totale impattato: {formatCurrency(pendingApprovals.reduce((s, p) => s + (p.importo_preventivo ?? 0), 0))}
-                </p>
-              </div>
+        <div className="flex items-center justify-between gap-4 p-3 rounded-lg border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 dark:border-orange-900/50">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center shrink-0">
+              <Percent className="h-4 w-4 text-orange-600" />
             </div>
-            <Button asChild size="sm">
-              <Link to="/azienda/marketing/preventivi/approvazioni">Gestisci richieste</Link>
-            </Button>
-          </CardContent>
-        </Card>
+            <div>
+              <p className="font-medium text-sm">
+                {pendingApprovals.length} richiest
+                {pendingApprovals.length === 1 ? "a" : "e"} di sconto in attesa
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Totale impattato:{" "}
+                <span className="font-medium text-foreground">
+                  {formatCurrency(
+                    pendingApprovals.reduce(
+                      (s, p) => s + (p.importo_preventivo ?? 0),
+                      0
+                    )
+                  )}
+                </span>
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" className="bg-orange-600 hover:bg-orange-700">
+            <Link to="/azienda/marketing/preventivi?tab=approvazioni">
+              Gestisci richieste
+            </Link>
+          </Button>
+        </div>
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {loadingKpi ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : (dati?.totalPreventivi ?? "—")}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="overflow-hidden border-l-4 border-l-slate-400">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Analizzati
+              </p>
+              <Users className="h-4 w-4 text-slate-500" />
             </div>
-            <p className="text-xs text-muted-foreground">Preventivi analizzati</p>
+            <div className="text-2xl font-bold mt-1.5">
+              {loadingKpi ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                dati?.totalPreventivi ?? "—"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">preventivi nel periodo</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {loadingKpi ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : (dati?.ricavoTotale != null ? formatCurrency(dati.ricavoTotale) : "—")}
+        <Card className="overflow-hidden border-l-4 border-l-primary">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Ricavo totale
+              </p>
+              <TrendingUp className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-xs text-muted-foreground">Ricavo totale</p>
+            <div className="text-2xl font-bold mt-1.5 truncate">
+              {loadingKpi ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : dati?.ricavoTotale != null ? (
+                formatCurrency(dati.ricavoTotale)
+              ) : (
+                "—"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">su preventivi chiusi</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {loadingKpi ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : (dati?.margineMediano != null ? `${dati.margineMediano.toFixed(1)}%` : "—")}
+        <Card
+          className={`overflow-hidden border-l-4 ${
+            dati?.margineMediano != null
+              ? dati.margineMediano >= margineTarget
+                ? "border-l-emerald-500"
+                : dati.margineMediano >= margineMin
+                ? "border-l-amber-500"
+                : "border-l-red-500"
+              : "border-l-slate-400"
+          }`}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Margine medio
+              </p>
+              <Target
+                className={`h-4 w-4 ${
+                  dati?.margineMediano != null
+                    ? dati.margineMediano >= margineTarget
+                      ? "text-emerald-500"
+                      : dati.margineMediano >= margineMin
+                      ? "text-amber-500"
+                      : "text-red-500"
+                    : "text-slate-500"
+                }`}
+              />
             </div>
-            <p className="text-xs text-muted-foreground">Margine medio</p>
+            <div className="text-2xl font-bold mt-1.5 tabular-nums">
+              {loadingKpi ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : dati?.margineMediano != null ? (
+                `${dati.margineMediano.toFixed(1)}%`
+              ) : (
+                "—"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              target {margineTarget}% · min {margineMin}%
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {loadingKpi ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : (dati?.valoreMediano != null ? formatCurrency(dati.valoreMediano) : "—")}
+        <Card className="overflow-hidden border-l-4 border-l-blue-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Valore medio
+              </p>
+              <Award className="h-4 w-4 text-blue-500" />
             </div>
-            <p className="text-xs text-muted-foreground">Valore medio preventivo</p>
+            <div className="text-2xl font-bold mt-1.5 truncate">
+              {loadingKpi ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : dati?.valoreMediano != null ? (
+                formatCurrency(dati.valoreMediano)
+              ) : (
+                "—"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">per preventivo</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* AI Analysis Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BrainCircuit className="h-5 w-5 text-violet-600" />
-            Cosa mi dice l'AI
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {/* AI Panel — redesign */}
+      <Card className="border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-50/30 to-transparent dark:from-violet-950/20">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
+              <BrainCircuit className="h-5 w-5 text-violet-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-semibold">Chiedi all'AI</h3>
+              <p className="text-xs text-muted-foreground">
+                Fai una domanda sul tuo storico — o usa un suggerimento rapido
+              </p>
+            </div>
+          </div>
+
           {/* Domande rapide */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {DOMANDE_RAPIDE.map((q) => (
-              <Badge
+              <Button
                 key={q}
                 variant="outline"
-                className="cursor-pointer hover:bg-violet-50 hover:border-violet-400 transition-colors text-xs"
-                onClick={() => setDomanda(q)}
+                size="sm"
+                className="h-7 text-xs border-violet-200 dark:border-violet-900/50 hover:bg-violet-50 hover:border-violet-400 dark:hover:bg-violet-950/40"
+                onClick={() => {
+                  setDomanda(q);
+                  setTimeout(() => handleAnalizza(q), 0);
+                }}
+                disabled={loading}
               >
                 {q}
-              </Badge>
+              </Button>
             ))}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-stretch">
             <Textarea
-              placeholder='Fai una domanda o scegli un suggerimento sopra…'
+              placeholder="Scrivi la tua domanda o scegli un suggerimento sopra… (Cmd/Ctrl+Enter per inviare)"
               value={domanda}
               onChange={(e) => setDomanda(e.target.value)}
               rows={2}
-              className="flex-1"
+              className="flex-1 resize-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleAnalizza();
               }}
             />
-            <div className="flex flex-col gap-2">
-              <Button onClick={() => handleAnalizza()} disabled={loading} className="whitespace-nowrap">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Analizza"}
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <Button
+                onClick={() => handleAnalizza()}
+                disabled={loading}
+                className="bg-violet-600 hover:bg-violet-700"
+                size="sm"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <BrainCircuit className="h-4 w-4 mr-1" />
+                )}
+                Analizza
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setDomanda("");
                   handleAnalizza("");
                 }}
                 disabled={loading}
-                className="whitespace-nowrap text-xs"
+                className="text-xs h-7"
                 title="Genera un'analisi completa senza domanda specifica"
               >
-                Analisi generale
+                Generale
               </Button>
             </div>
           </div>
 
           {loading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-3 px-3 rounded-md bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900/50">
               <Loader2 className="h-4 w-4 animate-spin text-violet-600" />
               L'AI sta analizzando {dati?.totalPreventivi ?? ""} preventivi…
             </div>
           )}
 
           {analisi && !loading && (
-            <div className="relative">
-              <div className="bg-muted/30 rounded-lg p-4 text-sm whitespace-pre-wrap leading-relaxed border-l-2 border-violet-400 pr-10">
+            <div className="relative rounded-lg border border-violet-200 dark:border-violet-900/50 bg-white dark:bg-card shadow-sm">
+              <div className="flex items-center justify-between border-b border-violet-100 dark:border-violet-900/50 px-4 py-2 bg-violet-50/40 dark:bg-violet-950/20 rounded-t-lg">
+                <div className="flex items-center gap-2 text-xs font-medium text-violet-900 dark:text-violet-200">
+                  <BrainCircuit className="h-3.5 w-3.5" />
+                  Risposta AI
+                  {analisiTimestamp && (
+                    <span className="font-normal text-muted-foreground">
+                      ·{" "}
+                      {format(analisiTimestamp, "d MMM 'ore' HH:mm", {
+                        locale: it,
+                      })}
+                    </span>
+                  )}
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={handleCopy}
+                  title="Copia analisi"
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <div className="p-4 text-sm whitespace-pre-wrap leading-relaxed">
                 {analisi}
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="absolute top-2 right-2 h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={handleCopy}
-                title="Copia analisi"
-              >
-                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-              </Button>
-              {analisiTimestamp && (
-                <p className="text-xs text-muted-foreground mt-1 text-right">
-                  Generata il {format(analisiTimestamp, "d MMM yyyy 'alle' HH:mm", { locale: it })}
-                </p>
-              )}
             </div>
           )}
         </CardContent>
