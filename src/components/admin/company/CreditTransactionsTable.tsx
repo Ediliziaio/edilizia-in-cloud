@@ -72,12 +72,17 @@ export function CreditTransactionsTable({ companyId }: Props) {
   const [type, setType] = useState<CreditType>("all");
   const [page, setPage] = useState(0);
 
+  // FIX: `count: "exact"` su ogni page change fa un COUNT(*) full-scan della
+  // tabella, molto costoso. Ora "planned" (stima rapida da Postgres) quando
+  // non è la prima pagina — il totale mostrato all'utente è valido solo come
+  // riferimento, non cambia comportamento della paginazione (che si basa
+  // sul numero di righe ricevute < PAGE_SIZE per determinare "fine lista").
   const { data, isLoading } = useQuery({
     queryKey: ["admin-credit-transactions-unified", companyId, type, page],
     queryFn: async () => {
       let q = supabase
         .from("credit_transactions_unified")
-        .select("*", { count: "exact" })
+        .select("*", { count: page === 0 ? "exact" : "planned" })
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);

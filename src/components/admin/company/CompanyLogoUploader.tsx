@@ -23,14 +23,29 @@ const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const OUTPUT_SIZE = 400; // px
 const SIGNED_URL_EXPIRES = 365 * 24 * 60 * 60; // 1 year in seconds
 
-/** Ridimensiona e converte in WebP 400×400 via Canvas */
+/**
+ * Ridimensiona e converte in WebP 400×400 via Canvas.
+ * FIX: aggiunto timeout 15s — prima se l'immagine era corrotta o il browser
+ * faceva hang silenzioso (caso raro ma possibile con GIF animate enormi),
+ * la Promise non si risolveva mai e il pulsante "Carica" restava disabled.
+ */
 async function resizeToWebP(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
 
-    img.onload = () => {
+    const timeoutId = setTimeout(() => {
       URL.revokeObjectURL(objectUrl);
+      reject(new Error("Timeout caricamento immagine (>15s)"));
+    }, 15_000);
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      URL.revokeObjectURL(objectUrl);
+    };
+
+    img.onload = () => {
+      cleanup();
 
       const canvas = document.createElement("canvas");
       canvas.width = OUTPUT_SIZE;
@@ -60,7 +75,7 @@ async function resizeToWebP(file: File): Promise<Blob> {
     };
 
     img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
+      cleanup();
       reject(new Error("Impossibile leggere l'immagine"));
     };
 
@@ -95,17 +110,10 @@ export function CompanyLogoUploader({ company, onLogoUpdated }: CompanyLogoUploa
         const timestamp = Date.now();
         const storagePath = `logos/${company.id}/${timestamp}.webp`;
 
-        // Rimuovi vecchi loghi nello stesso prefisso
-        const { data: existingFiles } = await supabase.storage
-          .from("company-logos")
-          .list(`logos/${company.id}`);
-
-        if (existingFiles && existingFiles.length > 0) {
-          const toDelete = existingFiles.map((f) => `logos/${company.id}/${f.name}`);
-          await supabase.storage.from("company-logos").remove(toDelete);
-        }
-
-        // Upload
+        // FIX ordine operazioni: PRIMA upload nuovo logo, POI aggiorna companies,
+        // SOLO DOPO tutto success elimina i vecchi. Prima si eliminava per primo:
+        // se upload falliva, il logo precedente era già stato cancellato → azienda
+        // con `logo_url` valorizzato ma storage vuoto = logo rotto.
         const { error: uploadError } = await supabase.storage
           .from("company-logos")
           .upload(storagePath, webpBlob, {
@@ -115,10 +123,18 @@ export function CompanyLogoUploader({ company, onLogoUpdated }: CompanyLogoUploa
         if (uploadError) throw uploadError;
 
         // Signed URL (1 anno)
+        // NB: architectural note — dopo 1 anno il signed URL scade. Mitigazione
+        // applicativa: ogni ri-upload rigenera il link. Per una soluzione robusta
+        // servirebbe un proxy server-side che rigenera on-demand.
         const { data: signedData, error: signedError } = await supabase.storage
           .from("company-logos")
           .createSignedUrl(storagePath, SIGNED_URL_EXPIRES);
-        if (signedError) throw signedError;
+        if (signedError) {
+          // Cleanup: il blob appena caricato è orfano se non riusciamo a ottenere
+          // il signed URL, rimuoviamolo per evitare accumulo storage
+          await supabase.storage.from("company-logos").remove([storagePath]);
+          throw signedError;
+        }
 
         const logoUrl = signedData.signedUrl;
 
@@ -127,7 +143,31 @@ export function CompanyLogoUploader({ company, onLogoUpdated }: CompanyLogoUploa
           .from("companies")
           .update({ logo_url: logoUrl })
           .eq("id", company.id);
-        if (updateError) throw updateError;
+        if (updateError) {
+          // Cleanup: il blob è orfano anche qui
+          await supabase.storage.from("company-logos").remove([storagePath]);
+          throw updateError;
+        }
+
+        // Success path: ORA è sicuro eliminare i vecchi loghi (escludendo quello
+        // appena caricato, che matchia il timestamp corrente).
+        try {
+          const { data: existingFiles } = await supabase.storage
+            .from("company-logos")
+            .list(`logos/${company.id}`);
+
+          if (existingFiles && existingFiles.length > 0) {
+            const toDelete = existingFiles
+              .map((f) => `logos/${company.id}/${f.name}`)
+              .filter((p) => p !== storagePath);
+            if (toDelete.length > 0) {
+              await supabase.storage.from("company-logos").remove(toDelete);
+            }
+          }
+        } catch (cleanupErr) {
+          // Cleanup non-critico: log ma non fallire l'upload
+          logger.warn("CompanyLogoUploader old logo cleanup failed:", cleanupErr);
+        }
 
         toast.success("Logo caricato", {
           description: "Ridimensionato a 400×400 WebP e salvato",

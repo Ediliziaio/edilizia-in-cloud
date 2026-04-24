@@ -49,12 +49,19 @@ export function CompanyDetailsTab({
   const [exporting, setExporting] = useState(false);
 
   const handleGDPRExport = async () => {
+    // FIX: guard se già in corso (evita doppio click → race su setExporting)
+    if (exporting) return;
     setExporting(true);
+    // Toast di feedback: l'export GDPR può richiedere secondi su aziende grandi
+    const loadingToast = toast.loading('Preparazione export GDPR...');
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Sessione non valida. Effettua di nuovo il login.');
+      }
       const res = await supabase.functions.invoke('gdpr-compliance', {
         body: { action: 'admin_export_company_data', company_id: company.id },
-        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.error) throw res.error;
       const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
@@ -64,12 +71,18 @@ export function CompanyDetailsTab({
       a.download = `gdpr-export-${company.id}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.dismiss(loadingToast);
       toast.success('Export GDPR scaricato');
     } catch (e: unknown) {
+      toast.dismiss(loadingToast);
       const err = e instanceof Error ? e : new Error('Errore sconosciuto');
       toast.error('Errore export: ' + err.message);
+    } finally {
+      // FIX: uso finally per assicurarmi di resettare lo stato anche su throw
+      // (prima il setExporting(false) era dopo il try/catch, funzionava ma
+      // non era robusto rispetto a errori inaspettati di React).
+      setExporting(false);
     }
-    setExporting(false);
   };
 
   return (

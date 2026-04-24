@@ -54,9 +54,13 @@ export function CompanyNotes({ companyId }: CompanyNotesProps) {
 
   const addNoteMutation = useMutation({
     mutationFn: async (content: string) => {
+      // FIX: prima usava `user!.id` — se la sessione era scaduta o AuthContext
+      // non aveva completato il caricamento, questo crashava (null pointer).
+      // Ora throw esplicito con messaggio utile per l'utente.
+      if (!user?.id) throw new Error("Sessione scaduta: effettua di nuovo il login");
       const { error } = await supabase.from("company_notes").insert({
         company_id: companyId,
-        author_id: user!.id,
+        author_id: user.id,
         content,
       });
       if (error) throw error;
@@ -66,8 +70,9 @@ export function CompanyNotes({ companyId }: CompanyNotesProps) {
       setNewNote("");
       toast.success("Nota aggiunta");
     },
-    onError: (err: any) => {
-      toast.error("Errore", { description: err.message });
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore", { description: msg });
     },
   });
 

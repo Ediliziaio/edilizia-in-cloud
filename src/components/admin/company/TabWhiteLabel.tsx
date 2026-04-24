@@ -99,26 +99,28 @@ export function TabWhiteLabel({ companyId }: Props) {
     pwa_theme_color: "",
   });
 
+  // FIX: se l'utente sta editando, NON sovrascrivere il form con i dati del
+  // server (es. refetch in background su focus window) — perderebbe le modifiche.
+  // Prima il sync avveniva sempre, ora solo quando editMode=false.
   useEffect(() => {
-    if (branding) {
-      setForm({
-        whitelabel_tier: (branding as any).whitelabel_tier || "none",
-        platform_name: (branding as any).platform_name || "",
-        primary_color: (branding as any).primary_color || "",
-        secondary_color: (branding as any).secondary_color || "",
-        accent_color: (branding as any).accent_color || "",
-        custom_domain: (branding as any).custom_domain || "",
-        custom_domain_verified: (branding as any).custom_domain_verified || false,
-        hide_platform_branding: (branding as any).hide_platform_branding || false,
-        powered_by_text: (branding as any).powered_by_text || "",
-        custom_css: (branding as any).custom_css || "",
-        email_from_name: (branding as any).email_from_name || "",
-        pwa_name: (branding as any).pwa_name || "",
-        pwa_short_name: (branding as any).pwa_short_name || "",
-        pwa_theme_color: (branding as any).pwa_theme_color || "",
-      });
-    }
-  }, [branding]);
+    if (!branding || editMode) return;
+    setForm({
+      whitelabel_tier: (branding as any).whitelabel_tier || "none",
+      platform_name: (branding as any).platform_name || "",
+      primary_color: (branding as any).primary_color || "",
+      secondary_color: (branding as any).secondary_color || "",
+      accent_color: (branding as any).accent_color || "",
+      custom_domain: (branding as any).custom_domain || "",
+      custom_domain_verified: (branding as any).custom_domain_verified || false,
+      hide_platform_branding: (branding as any).hide_platform_branding || false,
+      powered_by_text: (branding as any).powered_by_text || "",
+      custom_css: (branding as any).custom_css || "",
+      email_from_name: (branding as any).email_from_name || "",
+      pwa_name: (branding as any).pwa_name || "",
+      pwa_short_name: (branding as any).pwa_short_name || "",
+      pwa_theme_color: (branding as any).pwa_theme_color || "",
+    });
+  }, [branding, editMode]);
 
   // Save mutation
   const saveMutation = useMutation({

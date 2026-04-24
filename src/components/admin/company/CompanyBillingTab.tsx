@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -159,10 +159,19 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     },
   });
 
-  // Sync state from fetched data on first load
+  // FIX: sync solo al PRIMO load effettivo, non ad ogni refetch.
+  // Prima ogni refetch sovrascriveva `customMaxOrders` — se l'utente aveva
+  // digitato un valore diverso e il background refetch scattava (es. tab
+  // torna in focus), il suo input veniva resettato al valore server.
+  const limitsSyncedRef = useRef(false);
   useEffect(() => {
+    if (limitsSyncedRef.current) return;
     if (limitsOverride?.custom_max_orders != null) {
       setCustomMaxOrders(String(limitsOverride.custom_max_orders));
+      limitsSyncedRef.current = true;
+    } else if (limitsOverride === null) {
+      // Query completa (maybeSingle ritorna null → nessuna row) — sync done
+      limitsSyncedRef.current = true;
     }
   }, [limitsOverride]);
 
