@@ -106,19 +106,22 @@ export default function FirmaElettronicaHub() {
     );
   }, [requests, search]);
 
-  // ── Stats email provider transazionale (Resend / SendGrid / ElasticEmail)
+  // ── Stato provider email transazionale piattaforma (Resend via platform_settings)
+  // La configurazione è centralizzata a livello superadmin: ogni company eredita
+  // il provider globale. Qui leggiamo platform_settings per mostrare lo stato.
   const { data: emailProvider } = useQuery({
-    queryKey: ["email-provider-status", companyId],
+    queryKey: ["platform-email-provider"],
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      // Controlla email_provider_settings per stream transazionale
       const { data } = await supabase
-        .from("email_provider_settings" as never)
-        .select("provider, is_active")
-        .eq("company_id", companyId!)
-        .eq("stream", "transactional")
+        .from("platform_settings" as never)
+        .select("key, value")
+        .eq("key", "email_transactional_provider")
         .maybeSingle();
-      return data as { provider: string; is_active: boolean } | null;
+      const row = data as { key: string; value: string } | null;
+      const provider = row?.value?.replace(/"/g, "") ?? null;
+      return { provider, is_active: !!provider };
     },
   });
 
