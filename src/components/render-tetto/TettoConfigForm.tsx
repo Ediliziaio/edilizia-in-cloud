@@ -87,6 +87,8 @@ const ISOLAMENTI = [
 const SPESSORI_ISOLAMENTO = [6, 8, 10, 12, 14, 16] as const;
 
 // ── Default config ────────────────────────────────────────────────────────────
+// Shared by the render page when initializing the roof wizard.
+// eslint-disable-next-line react-refresh/only-export-components
 export const DEFAULT_TETTO_CONFIG: ConfigurazioneTetto = {
   tipo_intervento: "sostituzione_manto",
   target: {
@@ -184,8 +186,36 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
     });
   };
 
+  const guardrails = [
+    "Falde target",
+    "Scossaline e acqua",
+    "Bordi falda",
+    value.isolamento?.attivo || value.tipo_intervento === "sovracopertura_coibentata" ? "Spessore coibentazione" : "Geometria invariata",
+    value.pannelli_solari?.attivo ? "Fotovoltaico allineato" : "Accessori preservati",
+    value.lucernari.attivo ? "Lucernari controllati" : "No lucernari inventati",
+  ];
+
   return (
     <div className="space-y-6">
+      <div className="rounded-lg border bg-muted/30 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <Label className="text-sm font-semibold">Controlli tecnici del render</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Il render protegge geometria, falde non target, dettagli d'acqua, scossaline e accessori non selezionati.
+            </p>
+          </div>
+          <Badge variant="secondary" className="w-fit text-[10px]">Roof v2.1</Badge>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {guardrails.map(item => (
+            <Badge key={item} variant="outline" className="bg-background text-[10px]">
+              {item}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
       {/* ── Tipo intervento ────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div>

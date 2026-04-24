@@ -5,10 +5,14 @@ import type {
   ConfigurazioneTetto,
   FinituraMantoTetto,
   MaterialeGrondaia,
+  RoofAccessoryCompatibility,
+  RoofBuildabilityEnvelope,
+  RoofExecutionPriorityPlan,
   RoofPromptValidationResult,
   RoofReplacementManifest,
   RoofSceneAnalysis,
   RoofTargetSlopesMap,
+  RoofWaterManagementRules,
   TargetFaldeTetto,
   TettoPromptBuildResult,
   TipoInterventoTetto,
@@ -83,10 +87,6 @@ const INTERVENTION_DESCRIPTIONS: Record<TipoInterventoTetto, string> = {
   rifacimento_completo:
     "complete roof renovation: covering, accessory integration, flashings and edge details are coordinated as one buildable system",
 };
-
-function str(value: unknown, fallback = ""): string {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
-}
 
 function uniq(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
@@ -170,6 +170,26 @@ function buildTargetSlopesMap(config: ConfigurazioneTetto, scene: RoofSceneAnaly
       ? (config.pannelli_solari.posizione || "falda_principale").replace(/_/g, " ")
       : "no photovoltaic target zone",
     accessoryZone: "gutters, downpipes, skylights, dormers, ridges, hips, valleys and flashings only where explicitly active",
+    preservedRoofGeometry: [
+      "roof pitch",
+      "ridge line",
+      "hip and valley geometry",
+      "eave overhang",
+      "building proportions",
+      "non-target roof planes",
+    ],
+    accessoryZonesInScope: uniq([
+      config.grondaie.attivo ? "gutters and downpipes" : "",
+      config.lucernari.attivo ? "skylight / dormer zones" : "",
+      config.pannelli_solari?.attivo ? "photovoltaic mounting zone" : "",
+      coveringIsActive(config) ? "local ridge, valley, eave and penetration flashings required by the new covering" : "",
+    ]),
+    accessoryZonesOutOfScope: uniq([
+      config.grondaie.attivo ? "" : "existing gutters and downpipes",
+      config.lucernari.attivo ? "" : "existing skylights and dormers",
+      config.pannelli_solari?.attivo ? "" : "existing photovoltaic / solar state",
+      "chimneys, antennas, life lines and snow guards unless explicitly modified",
+    ]),
   };
 }
 
@@ -181,11 +201,159 @@ function currentLooksTraditional(scene: RoofSceneAnalysis): boolean {
   return /coppi|tegole|tile|terracotta|clay/i.test(scene.currentCovering);
 }
 
+function pitchLooksLow(scene: RoofSceneAnalysis): boolean {
+  return /flat|low|piano|bassa|basso|5|10|15/i.test(scene.roofType) || /flat|low|piano|bassa|basso|5|10|15/i.test(scene.apparentPitch);
+}
+
+function isMembrane(type: TipoManto): boolean {
+  return type.startsWith("guaina");
+}
+
 function coveringIsActive(config: ConfigurazioneTetto): boolean {
   const intervention = config.tipo_intervento || "sostituzione_manto";
   return intervention === "sostituzione_manto" ||
     intervention === "sovracopertura_coibentata" ||
     intervention === "rifacimento_completo";
+}
+
+function buildRoofBuildabilityEnvelope(
+  config: ConfigurazioneTetto,
+  scene: RoofSceneAnalysis,
+  target: RoofTargetSlopesMap,
+): RoofBuildabilityEnvelope {
+  const warnings: string[] = [];
+  const coveringType = config.manto.tipo;
+  const coveringFamily = isMetalOrMembrane(coveringType)
+    ? isMembrane(coveringType) ? "membrane/waterproofing roof system" : "metal roof system"
+    : coveringType === "tegole_fotovoltaiche" ? "building-integrated solar tile system" : "tile/slate roof system";
+
+  if (isMembrane(coveringType) && !pitchLooksLow(scene)) {
+    warnings.push("Selected membrane covering on a non-low-slope-looking roof: keep seams and edge waterproofing plausible, avoid a tile-like pitched roof texture.");
+  }
+  if (config.pannelli_solari?.attivo && target.scope !== "tutto_tetto" && config.pannelli_solari.posizione === "distribuiti") {
+    warnings.push("Photovoltaic is distributed while the roof target scope is partial: keep panels only on clearly visible compatible target/support slopes.");
+  }
+
+  const insulationActive = Boolean(config.isolamento?.attivo || config.tipo_intervento === "sovracopertura_coibentata");
+  const thickness = config.isolamento?.spessore_cm ?? 10;
+
+  return {
+    materialPitchCompatibility: `${coveringFamily} must follow the photographed pitch (${scene.apparentPitch}) with correct module scale, eave-to-ridge direction and no roof-plane warping.`,
+    insulationThicknessEffect: insulationActive
+      ? `Insulated over-roof build-up is active: show about ${thickness} cm only as plausible added thickness at eaves, verge/edge lines, flashings and gutter relationship; do not inflate or deform the house.`
+      : "No insulation build-up is active: facade depth, eaves thickness, sill relationship and roof edge thickness remain unchanged.",
+    eaveAndEdgeAdaptation: insulationActive
+      ? "Eaves, fascia, verge trim, drip edges and gutter brackets must be adapted to the new roof package thickness with crisp continuous lines."
+      : "Eaves, fascia, verge trim, drip edges and gutter brackets must preserve their original depth unless their material is explicitly replaced.",
+    skylightIntegration: config.lucernari.attivo && config.lucernari.azione === "aggiungi"
+      ? "New skylights require a real roof opening, curb/frame, side/head/sill flashing and local covering returns aligned to the target slope."
+      : config.lucernari.attivo && config.lucernari.azione === "rimuovi"
+        ? "Removed skylights require continuous rebuilt covering, restored waterproofing and no frame, curb, flashing scar or ghost outline."
+        : "Existing skylights/dormers are preserved unless explicitly active; adapt only immediate flashings if the surrounding covering changes.",
+    photovoltaicIntegration: config.pannelli_solari?.attivo
+      ? "Photovoltaic modules must fit within the visible slope plane, align in clean rows, use realistic rails/standoffs or flush integrated solar tiles, and never float above seams or ridges."
+      : "No photovoltaic is added; preserve existing solar elements only if visible and not in scope.",
+    gutterCompatibility: config.grondaie.attivo
+      ? "New gutters/downpipes must connect credibly to the eave/drip-edge logic, with brackets, elbows and downpipe path aligned to the facade."
+      : "Existing gutters/downpipes stay unchanged; only local relation to a changed covering/insulation edge may be visually adapted if physically necessary.",
+    forbiddenResults: [
+      "floating over-roof thickness",
+      "tile rows visible below a new metal or membrane system",
+      "solar panels crossing ridges, valleys or skylights",
+      "water-trap details around chimneys, skylights, valleys or wall abutments",
+      "changed facade or changed building proportions",
+      "mixed tile and metal module logic on the same target roof plane unless explicitly selected",
+    ],
+    compatibilityWarnings: warnings,
+  };
+}
+
+function buildRoofWaterManagementRules(
+  config: ConfigurazioneTetto,
+  scene: RoofSceneAnalysis,
+): RoofWaterManagementRules {
+  const metal = config.manto.tipo.startsWith("lamiera");
+  const membrane = isMembrane(config.manto.tipo);
+  return {
+    ridgeCaps: metal
+      ? "Use folded metal ridge/hip caps compatible with standing seam or corrugated sheet geometry; no clay ridge tiles remain on target slopes."
+      : membrane
+        ? "Use membrane-compatible cappings/termination bars at ridges, upstands or parapets; no tile ridge logic remains."
+        : "Use coherent ridge/hip caps matching the selected tile/slate system, with realistic overlap and shadow.",
+    valleysAndHips: "Valleys, hips and converse lines must remain exactly aligned to the photographed roof geometry, with crisp waterproof transitions and no smeared AI seams.",
+    eavesDripEdges: "Eaves require a believable drip edge, fascia/verge finish and runoff path into the gutter when present; no impossible water trap at the roof edge.",
+    flashingsAroundPenetrations: scene.chimneys !== "no clearly visible chimneys" || config.lucernari.attivo
+      ? "Chimneys, skylights, dormers and wall abutments need visible compatible step/apron/side flashings, correctly tucked under/over the selected covering."
+      : "If penetrations are visible in the photo, preserve them and update only the immediate flashing required by the selected covering.",
+    guttersDownpipes: config.grondaie.attivo
+      ? "New gutters/downpipes must collect from the drip edge with plausible slope, brackets, joints, end caps, elbows and facade-mounted downpipe continuity."
+      : "Existing gutters/downpipes remain as photographed unless an insulated edge requires a subtle physically necessary relationship update.",
+    noWaterTrapRules: [
+      "no open gaps uphill of skylights or chimneys",
+      "no reverse-lap seams",
+      "no valleys draining into blocked edges",
+      "no decorative trims that would trap water",
+      "no random gutter segments disconnected from downpipes",
+    ],
+  };
+}
+
+function buildRoofAccessoryCompatibility(
+  config: ConfigurazioneTetto,
+  scene: RoofSceneAnalysis,
+): RoofAccessoryCompatibility {
+  const replaceAccessories = uniq([
+    config.grondaie.attivo ? "gutters and downpipes" : "",
+    config.lucernari.attivo && config.lucernari.azione === "aggiungi" ? "new skylight/dormer kit" : "",
+    config.pannelli_solari?.attivo ? "photovoltaic mounting system" : "",
+  ]);
+  const removeAccessories = uniq([
+    config.lucernari.attivo && config.lucernari.azione === "rimuovi" ? "existing skylights/dormers and their frames/curbs/flashings" : "",
+  ]);
+  return {
+    preserveAccessories: uniq([
+      config.grondaie.attivo ? "" : "existing gutters/downpipes",
+      config.lucernari.attivo ? "" : "existing skylights/dormers",
+      "chimneys",
+      "antennas",
+      "life lines",
+      "snow guards / paraneve if visible",
+      "non-target photovoltaic if visible",
+    ]),
+    replaceAccessories,
+    removeAccessories,
+    solarCompatibility: config.pannelli_solari?.attivo
+      ? "Solar must be placed only on compatible visible roof planes, aligned to slope rows, with realistic mounting and no collision with skylights, chimneys, valleys or ridges."
+      : "Solar state is preserved; do not invent photovoltaic panels.",
+    skylightCompatibility: config.lucernari.attivo
+      ? "Skylight/dormer action must use compatible flashing and local roof-plane continuity for the selected covering."
+      : "Skylights/dormers are out of scope and must not drift.",
+    snowGuardsLifeLines: scene.antennasLifeLines || "Preserve existing life lines, antennas and snow guards; do not invent new safety devices unless selected in user notes.",
+  };
+}
+
+function buildRoofExecutionPriorityPlan(
+  config: ConfigurazioneTetto,
+  manifest: RoofReplacementManifest,
+): RoofExecutionPriorityPlan {
+  const phases = uniq([
+    manifest.removals.length ? "1. Remove obsolete skylights, old incompatible accessories and old covering details first." : "1. Lock original roof geometry and preserve non-target accessories first.",
+    coveringIsActive(config) ? "2. Rebuild target roof covering system with correct module/seam direction and roof-plane scale." : "2. Apply the selected accessory/color intervention without changing the covering system.",
+    config.isolamento?.attivo || config.tipo_intervento === "sovracopertura_coibentata" ? "3. Resolve insulation thickness at eaves, verges, flashings and gutter relationship." : "",
+    "4. Resolve waterproofing, ridges, hips, valleys, eaves and penetration flashings.",
+    config.grondaie.attivo ? "5. Install/finish gutters and downpipes after edge/drip logic is defined." : "",
+    config.lucernari.attivo ? "6. Integrate or remove skylights/dormers with restored roof-plane continuity." : "",
+    config.pannelli_solari?.attivo ? "7. Place photovoltaic modules last, aligned to the final roof plane and avoiding all penetrations." : "",
+  ]);
+  return {
+    phases,
+    rules: [
+      "Geometry and waterproofing constraints override decorative appearance.",
+      "Covering replacement must clear old incompatible roof-system details before new details are introduced.",
+      "Accessory-only interventions must not drift into covering/facade redesign.",
+      "Color-only interventions preserve exact module geometry and all accessories.",
+    ],
+  };
 }
 
 function buildInsulationRule(config: ConfigurazioneTetto): string | null {
@@ -226,46 +394,62 @@ function buildReplacementManifest(
   const additions: string[] = [];
   const removals: string[] = [];
   const conversionRules: string[] = [];
+  const compatibilityAdjustments: string[] = [];
+  const restorationRules: string[] = [];
   const mantoDesc = ROOF_COVERING_DESCRIPTIONS[config.manto.tipo];
   const mantoColor = config.manto.colore_nome || config.manto.colore_hex;
 
   if (coveringIsActive(config)) {
     replacements.push(`Replace roof covering on ${target.targetDescription} with ${mantoDesc}, color ${mantoColor}, ${FINISH_DESCRIPTIONS[config.manto.finitura]}.`);
     conversionRules.push("Preserve the exact roof pitch, ridges, hips, valleys, eaves, openings and camera perspective while changing only the covering system on target slopes.");
+    compatibilityAdjustments.push("Adapt ridge caps, valley/converse details, eaves, drip edges, flashings and local accessory returns to the selected covering family.");
     if (currentLooksTraditional(scene) && isMetalOrMembrane(config.manto.tipo)) {
       conversionRules.push("Convert traditional tile/coppi roof to the selected metal/membrane system: remove all visible coppi/tiles, tile overlaps, tile rows and old ridge tile logic; introduce coherent panels/seams/laps, metal cappings, drip edges, flashings and edge trims with no hybrid tile remnants.");
+      restorationRules.push("Clear every trace of the previous tile/coppi rhythm before drawing metal seams or membrane laps on the same target roof plane.");
     } else {
       conversionRules.push("Remove incompatible details from the previous roof system and replace them with coherent ridge caps, flashing, valley and eave details for the selected new covering.");
     }
   } else if (interventionType === "solo_colore") {
     recolors.push(`Recolor/refinish the existing roof covering on ${target.targetDescription} to ${mantoColor}, ${FINISH_DESCRIPTIONS[config.manto.finitura]}, without changing tile/panel geometry or roof accessories.`);
     conversionRules.push("Color-only means preserve current modules, tile rows, panel seams, ridge geometry, gutters, skylights, chimneys and all construction details; only surface color/finish changes.");
+    compatibilityAdjustments.push("No roof-system conversion, thickness change, new flashings, accessory relocation or geometry drift is allowed in color-only mode.");
   } else {
     replacements.push("Keep existing roof covering unchanged unless local accessory integration requires small physically necessary flashing adjustments.");
+    compatibilityAdjustments.push("Accessory-only scope: preserve roof covering, facade, pitch, ridges and module geometry; update only selected accessory materials/details.");
   }
 
   const insulation = buildInsulationRule(config);
-  if (insulation) additions.push(insulation);
+  if (insulation) {
+    additions.push(insulation);
+    compatibilityAdjustments.push("Resolve added roof package thickness at eaves, verges, wall abutments, ridge caps and gutter brackets; no floating or swollen roof edges.");
+  }
 
   if (config.grondaie.attivo) {
     replacements.push(`Replace gutters and downpipes only with ${GUTTER_DESCRIPTIONS[config.grondaie.materiale]}, gutter color ${config.grondaie.colore_hex}${config.grondaie.colore_pluviale_hex ? `, downpipe color ${config.grondaie.colore_pluviale_hex}` : ""}.`);
     conversionRules.push("Gutter replacement must not change roof covering, facade, eave geometry or downpipe path except for material/color/detail of gutters, brackets, elbows and joints.");
+    compatibilityAdjustments.push("Gutters/downpipes must align to the final drip edge and keep a plausible runoff path, bracket rhythm, joints, elbows and facade-mounted vertical line.");
   }
 
   if (config.lucernari.attivo) {
     if (config.lucernari.azione === "rimuovi") {
       removals.push("Remove existing skylights/dormers completely and rebuild continuous roof covering at their former positions, with no ghost outline, frame, curb, flashing or color scar.");
+      restorationRules.push("After skylight/dormer removal, restore the roof plane as uninterrupted covering: same module/seam rhythm, no rectangular scars, no old flashing shadow, no glass reflection.");
     } else if (config.lucernari.azione === "aggiungi") {
       const type = config.lucernari.tipo || "piatto";
       additions.push(`Add ${config.lucernari.quantita || 1} ${SKYLIGHT_DESCRIPTIONS[type]} at ${(config.lucernari.posizione || "centrale").replace(/_/g, " ")} on the target slope, with frame color ${config.lucernari.colore_telaio_hex || "#3c3c3c"}.`);
       conversionRules.push("Skylights must be integrated into the roof plane with correct opening cut, waterproof flashing kit, material returns, shadows and scale.");
+      compatibilityAdjustments.push("New skylights/dormers must avoid ridges, valleys, chimneys and photovoltaic arrays, and must show correct head/sill/side flashing for the selected roof system.");
     } else {
       conversionRules.push("Keep existing skylights/dormers in place and adapt only their flashing if the surrounding covering changes.");
+      compatibilityAdjustments.push("Existing skylight/dormer geometry remains fixed; only immediate local flashings may adapt to the new surrounding covering.");
     }
   }
 
   const photovoltaic = buildPhotovoltaicRule(config);
-  if (photovoltaic) additions.push(photovoltaic);
+  if (photovoltaic) {
+    additions.push(photovoltaic);
+    compatibilityAdjustments.push("Photovoltaic modules must be rectangular, coplanar with the target slope, parallel to eaves/ridges, clear of skylights/chimneys/valleys, and mounted with credible rails or flush integration.");
+  }
 
   return {
     interventionType,
@@ -274,6 +458,8 @@ function buildReplacementManifest(
     additions: uniq(additions),
     removals: uniq(removals),
     conversionRules: uniq(conversionRules),
+    compatibilityAdjustments: uniq(compatibilityAdjustments),
+    restorationRules: uniq(restorationRules),
     preserveExactly: uniq([
       ...scene.untouchableElements,
       ...scene.contextToPreserve,
@@ -284,6 +470,23 @@ function buildReplacementManifest(
       "sky, vegetation and neighboring buildings",
       "image dimensions, crop and orientation",
     ]),
+    preserveGeometry: uniq([
+      "roof pitch",
+      "ridge/hip/valley geometry",
+      "eave overhang position",
+      "facade plane and building proportions",
+      "openings, balconies and chimneys unless explicitly modified",
+      "all non-target roof planes",
+    ]),
+    preserveAccessories: uniq([
+      config.grondaie.attivo ? "" : "existing gutters/downpipes",
+      config.lucernari.attivo ? "" : "existing skylights/dormers",
+      config.pannelli_solari?.attivo ? "" : "existing photovoltaic/solar state",
+      "chimneys",
+      "antennas",
+      "life lines",
+      "snow guards / paraneve if visible",
+    ]),
   };
 }
 
@@ -292,24 +495,46 @@ function validateRoofPromptConfig(
   scene: RoofSceneAnalysis,
   target: RoofTargetSlopesMap,
   manifest: RoofReplacementManifest,
+  buildability: RoofBuildabilityEnvelope,
+  water: RoofWaterManagementRules,
+  accessories: RoofAccessoryCompatibility,
 ): RoofPromptValidationResult {
   const missingSections: string[] = [];
   const missingBusinessRules: string[] = [];
   const manifestText = JSON.stringify(manifest).toLowerCase();
+  const buildabilityText = JSON.stringify(buildability).toLowerCase();
+  const waterText = JSON.stringify(water).toLowerCase();
+  const accessoryText = JSON.stringify(accessories).toLowerCase();
+  const warnings = [...buildability.compatibilityWarnings];
 
   if (!scene.roofType) missingSections.push("scene_analysis.roofType");
   if (target.targetSlopes.length === 0) missingSections.push("target_slopes_map.targetSlopes");
+  if (!buildability.materialPitchCompatibility) missingSections.push("buildability_envelope.materialPitchCompatibility");
+  if (!water.flashingsAroundPenetrations) missingSections.push("water_management_rules.flashingsAroundPenetrations");
+  if (accessories.preserveAccessories.length === 0 && accessories.replaceAccessories.length === 0) {
+    missingSections.push("accessory_compatibility");
+  }
   if (manifest.replacements.length + manifest.recolors.length + manifest.additions.length + manifest.removals.length === 0) {
     missingSections.push("replacement_manifest");
   }
 
-  if (config.tipo_intervento === "solo_colore" && !manifestText.includes("only surface color")) {
+  if (config.tipo_intervento === "solo_colore" && (!manifestText.includes("only surface color") || manifestText.includes("replace roof covering on"))) {
     missingBusinessRules.push("recolor-only must not change roof geometry or covering modules");
   }
   if (currentLooksTraditional(scene) && isMetalOrMembrane(config.manto.tipo) && coveringIsActive(config) && !manifestText.includes("remove all visible coppi/tiles")) {
     missingBusinessRules.push("tile/coppi to metal/membrane conversion must remove old tile system");
   }
-  if (config.lucernari.attivo && config.lucernari.azione === "aggiungi" && !manifestText.includes("waterproof flashing")) {
+  if (
+    coveringIsActive(config) &&
+    !manifestText.includes("remove incompatible details") &&
+    !manifestText.includes("remove all visible coppi/tiles")
+  ) {
+    missingBusinessRules.push("covering replacement must remove incompatible old construction details");
+  }
+  if (config.tipo_intervento === "sovracopertura_coibentata" && !buildabilityText.includes("eaves") && !buildabilityText.includes("thickness")) {
+    missingBusinessRules.push("insulated over-roof must include edge thickness and eave adaptation");
+  }
+  if (config.lucernari.attivo && config.lucernari.azione === "aggiungi" && (!manifestText.includes("waterproof flashing") || !waterText.includes("flashing"))) {
     missingBusinessRules.push("new skylight must include waterproof flashing integration");
   }
   if (config.lucernari.attivo && config.lucernari.azione === "rimuovi" && !manifestText.includes("no ghost outline")) {
@@ -321,14 +546,21 @@ function validateRoofPromptConfig(
   if (config.pannelli_solari?.attivo && !manifestText.includes("align perfectly")) {
     missingBusinessRules.push("photovoltaic panels must align to the selected roof slope");
   }
+  if (config.pannelli_solari?.attivo && (!buildabilityText.includes("rails") || !accessoryText.includes("collision"))) {
+    missingBusinessRules.push("photovoltaic must include mounting, alignment and collision-avoidance logic");
+  }
   if (config.isolamento?.attivo && !manifestText.includes("increase roof build-up thickness")) {
     missingBusinessRules.push("insulation must include realistic thickness/eave adaptation");
+  }
+  if (isMembrane(config.manto.tipo) && !pitchLooksLow(scene)) {
+    warnings.push("Membrane covering selected on a non-low-slope-looking roof: review technical feasibility or use metal/slate/tile if the photo shows a high-pitch residential roof.");
   }
 
   return {
     isValid: missingSections.length === 0 && missingBusinessRules.length === 0,
     missingSections,
     missingBusinessRules,
+    warnings: uniq(warnings),
   };
 }
 
@@ -339,7 +571,11 @@ export function buildTettoPrompt(
   const scene = normalizeRoofSceneAnalysis(analisi);
   const target = buildTargetSlopesMap(config, scene);
   const manifest = buildReplacementManifest(config, scene, target);
-  const validation = validateRoofPromptConfig(config, scene, target, manifest);
+  const buildability = buildRoofBuildabilityEnvelope(config, scene, target);
+  const waterManagement = buildRoofWaterManagementRules(config, scene);
+  const accessoryCompatibility = buildRoofAccessoryCompatibility(config, scene);
+  const executionPlan = buildRoofExecutionPriorityPlan(config, manifest);
+  const validation = validateRoofPromptConfig(config, scene, target, manifest, buildability, waterManagement, accessoryCompatibility);
   const mantoDesc = ROOF_COVERING_DESCRIPTIONS[config.manto.tipo];
   const mantoColor = config.manto.colore_nome || config.manto.colore_hex;
   const blocks: Record<string, string> = {};
@@ -378,7 +614,24 @@ Untouched slopes: ${target.untouchedSlopes.length ? target.untouchedSlopes.join(
 Photovoltaic zone: ${target.photovoltaicZone}
 Accessory zone: ${target.accessoryZone}`;
 
-  blocks.D = `[BLOCK D - REPLACEMENT MANIFEST]
+  blocks.D = `[BLOCK D - BUILDABILITY ENVELOPE]
+Material / pitch compatibility:
+- ${buildability.materialPitchCompatibility}
+Insulation / over-roof thickness:
+- ${buildability.insulationThicknessEffect}
+Eave and edge adaptation:
+- ${buildability.eaveAndEdgeAdaptation}
+Skylight / dormer integration:
+- ${buildability.skylightIntegration}
+Photovoltaic integration:
+- ${buildability.photovoltaicIntegration}
+Gutter compatibility:
+- ${buildability.gutterCompatibility}
+Forbidden impossible results:
+${bullets(buildability.forbiddenResults)}
+${buildability.compatibilityWarnings.length ? `Compatibility warnings:\n${bullets(buildability.compatibilityWarnings)}` : "Compatibility warnings: none."}`;
+
+  blocks.E = `[BLOCK E - REPLACEMENT MANIFEST]
 Intervention: ${INTERVENTION_DESCRIPTIONS[manifest.interventionType]}
 Replacements:
 ${bullets(manifest.replacements.length ? manifest.replacements : ["no covering replacement unless explicitly listed"])}
@@ -388,10 +641,18 @@ Additions:
 ${bullets(manifest.additions.length ? manifest.additions : ["no roof additions unless explicitly listed"])}
 Removals:
 ${bullets(manifest.removals.length ? manifest.removals : ["remove only construction details made incompatible by selected interventions"])}
+Compatibility adjustments:
+${bullets(manifest.compatibilityAdjustments.length ? manifest.compatibilityAdjustments : ["no compatibility adjustments beyond physically necessary local flashings"])}
+Restoration rules:
+${bullets(manifest.restorationRules.length ? manifest.restorationRules : ["restore only surfaces directly affected by removals or conversion details"])}
+Preserve geometry:
+${bullets(manifest.preserveGeometry)}
+Preserve accessories:
+${bullets(manifest.preserveAccessories)}
 Preserve exactly:
 ${bullets(manifest.preserveExactly)}`;
 
-  blocks.E = `[BLOCK E - NEW ROOF SPECIFICATION]
+  blocks.F = `[BLOCK F - NEW ROOF SYSTEM SPECIFICATION]
 Covering active: ${coveringIsActive(config) ? "yes" : config.tipo_intervento === "solo_colore" ? "recolor only" : "no"}
 Covering type: ${config.manto.tipo}
 Material / construction: ${mantoDesc}
@@ -401,18 +662,66 @@ Edge logic: eaves, fascia, drip edges and roof borders must stay aligned to the 
 Flashing logic: chimney, skylight, valley and wall flashings must be plausible for the selected covering.
 Profile/module geometry: preserve scale and perspective; tiles, seams, ribs, panels or membrane laps must follow the real roof plane.`;
 
-  blocks.F = `[BLOCK F - ACCESSORY RULES]
+  blocks.G = `[BLOCK G - WATERPROOFING AND FLASHING RULES]
+Ridge caps / cappings:
+- ${waterManagement.ridgeCaps}
+Valleys / hips / converse:
+- ${waterManagement.valleysAndHips}
+Eaves / drip edges:
+- ${waterManagement.eavesDripEdges}
+Flashings around penetrations:
+- ${waterManagement.flashingsAroundPenetrations}
+Gutters / downpipes:
+- ${waterManagement.guttersDownpipes}
+No-water-trap rules:
+${bullets(waterManagement.noWaterTrapRules)}`;
+
+  blocks.H = `[BLOCK H - GUTTERS / DOWNPIPES / ACCESSORIES]
 Gutters/downpipes: ${config.grondaie.attivo ? GUTTER_DESCRIPTIONS[config.grondaie.materiale] : "keep existing gutters and downpipes unchanged"}
 Skylights/dormers: ${config.lucernari.attivo ? config.lucernari.azione : "unchanged"}
-Photovoltaic: ${config.pannelli_solari?.attivo ? "active; see replacement manifest" : "do not add photovoltaic panels"}
+Photovoltaic: ${config.pannelli_solari?.attivo ? "active; see replacement manifest and solar rules" : "do not add photovoltaic panels"}
 Insulation / over-roof: ${config.isolamento?.attivo || config.tipo_intervento === "sovracopertura_coibentata" ? "active; adapt thickness, eaves, flashings and gutters realistically" : "not active"}
-Chimneys / antennas / life lines: preserve unless explicitly listed, but update only necessary local flashings around them when covering changes.`;
+Preserve accessories:
+${bullets(accessoryCompatibility.preserveAccessories)}
+Replace accessories:
+${bullets(accessoryCompatibility.replaceAccessories.length ? accessoryCompatibility.replaceAccessories : ["no accessory replacement unless explicitly selected"])}
+Remove accessories:
+${bullets(accessoryCompatibility.removeAccessories.length ? accessoryCompatibility.removeAccessories : ["no accessory removal unless explicitly selected"])}
+Solar compatibility:
+- ${accessoryCompatibility.solarCompatibility}
+Skylight compatibility:
+- ${accessoryCompatibility.skylightCompatibility}
+Snow guards / life lines:
+- ${accessoryCompatibility.snowGuardsLifeLines}`;
 
-  blocks.G = `[BLOCK G - REMOVAL / CONVERSION RULES]
+  blocks.I = `[BLOCK I - SOLAR AND SKYLIGHT RULES]
+${bullets([
+    config.pannelli_solari?.attivo
+      ? "Photovoltaic panels/tiles must be coplanar with the final roof plane, aligned parallel to eaves and ridges, mounted with realistic rails/standoffs or flush integrated solar-tile logic, and clear of chimneys, skylights, valleys and ridge caps."
+      : "Do not add photovoltaic panels, solar tiles, rails, cables or mounting hardware.",
+    config.lucernari.attivo && config.lucernari.azione === "aggiungi"
+      ? "Added skylights/dormers must show an actual roof cut, frame/curb, head/sill/side flashings, correct glass reflection and local covering returns."
+      : null,
+    config.lucernari.attivo && config.lucernari.azione === "rimuovi"
+      ? "Removed skylights/dormers must disappear completely; rebuild the module/seam rhythm across the former opening with no ghost outline."
+      : null,
+    !config.lucernari.attivo
+      ? "Do not invent skylights or dormers; preserve existing ones exactly if visible."
+      : null,
+  ])}`;
+
+  blocks.J = `[BLOCK J - CONVERSION / REMOVAL RULES]
 ${bullets(manifest.conversionRules)}
+${manifest.compatibilityAdjustments.length ? bullets(manifest.compatibilityAdjustments) : ""}
+${manifest.restorationRules.length ? bullets(manifest.restorationRules) : ""}
 ${manifest.removals.length ? bullets(manifest.removals) : "- Do not leave hybrid old/new roof states, ghost outlines, incompatible old rows, wrong flashings or random patches."}`;
 
-  blocks.H = `[BLOCK H - BUILDING INTEGRITY]
+  blocks.K = `[BLOCK K - EXECUTION PRIORITY]
+${bullets(executionPlan.phases)}
+Priority rules:
+${bullets(executionPlan.rules)}`;
+
+  blocks.L = `[BLOCK L - BUILDING INTEGRITY]
 ${bullets([
     "preserve facade, wall color, windows, doors, balconies and architectural proportions",
     "preserve roof shape, pitch, ridge line, hip/valley geometry and eave overhang unless insulation requires only realistic edge thickness",
@@ -421,7 +730,7 @@ ${bullets([
     "do not alter non-target roof planes or non-target roof accessories",
   ])}`;
 
-  blocks.I = `[BLOCK I - PHOTOREALISM RULES]
+  blocks.M = `[BLOCK M - PHOTOREALISM RULES]
 ${bullets([
     "material response must be physically plausible: clay, slate, metal, membrane, glass and photovoltaic surfaces must look different",
     "shadows, contact shadows, roof-plane perspective and overlap depths must match the original lighting",
@@ -429,7 +738,7 @@ ${bullets([
     "no floating panels, no warped seams, no random tile scales, no fake CGI showroom look",
   ])}`;
 
-  blocks.J = `[BLOCK J - NEGATIVE CONSTRAINTS]
+  blocks.N = `[BLOCK N - NEGATIVE CONSTRAINTS]
 ${bullets([
     "do not redesign the building",
     "do not change facade color, windows, doors or wall geometry",
@@ -441,7 +750,7 @@ ${bullets([
     "do not stylize, illustrate, over-beautify or create a different house",
   ])}`;
 
-  blocks.K = `[BLOCK K - QUALITY BAR]
+  blocks.O = `[BLOCK O - QUALITY BAR]
 ${bullets([
     "professional architectural roof renovation visualization",
     "same-building realism suitable for sales/preventivi",
@@ -449,6 +758,7 @@ ${bullets([
     validation.isValid
       ? "Prompt validation passed: scene analysis, target slopes map, replacement manifest, conversion/removal rules and integrity constraints are explicit."
       : `Prompt validation warnings: missing sections = ${validation.missingSections.join(", ") || "none"}; missing rules = ${validation.missingBusinessRules.join(", ") || "none"}.`,
+    validation.warnings.length ? `Compatibility warnings: ${validation.warnings.join("; ")}.` : "No unresolved roof compatibility warning.",
   ])}`;
 
   const notes = config.note_libere?.trim()
@@ -466,6 +776,10 @@ ${bullets([
     blocks.I,
     blocks.J,
     blocks.K,
+    blocks.L,
+    blocks.M,
+    blocks.N,
+    blocks.O,
     notes,
   ].filter(Boolean).join("\n\n");
 
@@ -474,10 +788,14 @@ ${bullets([
     userPrompt,
     negativePrompt:
       "different building, changed facade, changed roof geometry, moved windows, changed camera angle, changed sky, extra dormers, invented skylights, invented chimneys, hybrid old/new covering, old tile remnants on metal roof, ghost skylight outline, floating solar panels, misaligned photovoltaic modules, warped roof seams, CGI, illustration, stylized render",
-    promptVersion: "roof-v2.0.0",
+    promptVersion: "roof-v2.1.0",
     blocks,
     sceneAnalysis: scene,
     targetSlopesMap: target,
+    buildabilityEnvelope: buildability,
+    waterManagementRules: waterManagement,
+    accessoryCompatibility,
+    executionPriorityPlan: executionPlan,
     replacementManifest: manifest,
     validation,
   };
