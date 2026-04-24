@@ -8,6 +8,7 @@ import {
   useSellerPerformance,
   useConversionBySource,
   useTopLeads,
+  useQuoteRevenue,
 } from "@/hooks/useSalesOS";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,9 @@ import {
   Target,
   Zap,
   Loader2,
+  Receipt,
+  FileSignature,
+  Percent,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
@@ -148,6 +152,97 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: st
           <div>
             <p className="font-semibold">{velocity.avg_cycle_days}gg</p>
             <span className="text-muted-foreground">Ciclo medio</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── QuoteRevenueCard (Sprint 3) — ricavo effettivo da preventivi ─────────────
+
+function QuoteRevenueCard({
+  companyId,
+  dateFrom,
+  dateTo,
+  periodLabel,
+}: {
+  companyId: string;
+  dateFrom: string;
+  dateTo: string;
+  periodLabel: string;
+}) {
+  const navigate = useNavigate();
+  const { data, isLoading, isError, error } = useQuoteRevenue(companyId, dateFrom, dateTo);
+
+  if (isLoading || isError || !data) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Receipt className="h-4 w-4 text-primary" />
+            Ricavo effettivo (preventivi firmati)
+            <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <WidgetState
+            loading={isLoading}
+            error={isError ? error : null}
+            empty={!isLoading && !isError && !data}
+            loadingText="Calcolo ricavo..."
+            emptyText="Nessun dato preventivi"
+            height={100}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <Receipt className="h-4 w-4 text-primary" />
+          Ricavo effettivo (preventivi firmati)
+          <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{fmt(data.actual_revenue)}</div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {data.signed_quotes_count} preventivi firmati · ticket medio {fmt(data.avg_signed_ticket)}
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3 text-sm">
+          <button
+            onClick={() => navigate(`/azienda/marketing/preventivi?status=inviata`)}
+            className="text-left rounded-md hover:bg-muted/50 p-1 -m-1 transition"
+          >
+            <p className="font-semibold flex items-center gap-1">
+              <FileSignature className="h-3.5 w-3.5 text-amber-500" />
+              {fmt(data.active_quotes_value)}
+            </p>
+            <span className="text-muted-foreground text-xs">
+              {data.active_quotes_count} preventivi inviati
+            </span>
+          </button>
+          <button
+            onClick={() => navigate(`/azienda/marketing/opportunita?status=open`)}
+            className="text-left rounded-md hover:bg-muted/50 p-1 -m-1 transition"
+          >
+            <p className="font-semibold">{data.opportunities_with_quote}</p>
+            <span className="text-muted-foreground text-xs">
+              Opp. con preventivo attivo
+            </span>
+          </button>
+          <div>
+            <p className="font-semibold flex items-center gap-1">
+              <Percent className="h-3.5 w-3.5 text-emerald-600" />
+              {pct(data.acceptance_rate)}
+            </p>
+            <span className="text-muted-foreground text-xs">
+              Tasso di accettazione
+            </span>
           </div>
         </div>
       </CardContent>
@@ -693,7 +788,15 @@ export default function SalesOSDashboard() {
       </div>
 
       {/* KPI Bar — sempre visibile */}
-      <SalesVelocityCard companyId={companyId} daysBack={range.daysBack} periodLabel={range.label} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SalesVelocityCard companyId={companyId} daysBack={range.daysBack} periodLabel={range.label} />
+        <QuoteRevenueCard
+          companyId={companyId}
+          dateFrom={range.dateFrom}
+          dateTo={range.dateTo}
+          periodLabel={range.label}
+        />
+      </div>
 
       {/* Tabs principali */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

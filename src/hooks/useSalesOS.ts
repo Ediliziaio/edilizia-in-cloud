@@ -82,6 +82,16 @@ export interface ConversionBySource {
   avg_deal_size: number;
 }
 
+export interface QuoteRevenueSummary {
+  actual_revenue: number;            // somma total quote accettate/convertite nel periodo
+  signed_quotes_count: number;       // # preventivi accettati/convertiti
+  active_quotes_value: number;       // somma total preventivi inviati (pipeline preventivi)
+  active_quotes_count: number;       // # preventivi inviati
+  avg_signed_ticket: number;         // ricavo medio per preventivo firmato
+  opportunities_with_quote: number;  // # opportunità open con almeno un preventivo attivo
+  acceptance_rate: number;           // % (accettate / (accettate + rifiutate + scadute))
+}
+
 export interface LeadScoreContact {
   id: string;
   full_name: string;
@@ -118,6 +128,8 @@ export const salesOSKeys = {
     [...salesOSKeys.all, 'conversion-source', companyId, dateFrom ?? 'all'] as const,
   topLeads: (companyId: string) =>
     [...salesOSKeys.all, 'top-leads', companyId] as const,
+  quoteRevenue: (companyId: string, dateFrom: string, dateTo: string) =>
+    [...salesOSKeys.all, 'quote-revenue', companyId, dateFrom, dateTo] as const,
 };
 
 // ============================================================
@@ -432,6 +444,90 @@ export function useTopLeads(companyId: string | null, limit = 20) {
       }));
     },
     staleTime: 1000 * 60 * 10,
+  });
+}
+
+// ============================================================
+// SPRINT 3: QUOTE REVENUE — integrazione preventivi
+// ============================================================
+/**
+ * Calcola ricavo effettivo (dalle quote firmate/convertite) e pipeline
+ * preventivi (quote inviate ma non ancora firmate) nel periodo.
+ *
+ * Chiavi:
+ *  - quote.status = 'accettata' | 'convertita' → ricavo effettivo
+ *  - quote.status = 'inviata'                  → pipeline preventivi
+ *  - quote.status in ('rifiutata','scaduta')   → persa (per acceptance_rate)
+ */
+export function useQuoteRevenue(
+  companyId: string | null,
+  dateFrom: string,
+  dateTo: string,
+) {
+  return useQuery({
+    queryKey: salesOSKeys.quoteRevenue(companyId ?? '', dateFrom, dateTo),
+    enabled: !!companyId,
+    queryFn: async (): Promise<QuoteRevenueSummary> => {
+      // Tutte le quote del periodo (per status) + quote attive open (indipendenti dal periodo)
+      const [periodResult, activeResult, oppsWithQuoteResult] = await Promise.all([
+        supabase
+          .from('quotes')
+          .select('status, total, signed_at, created_at')
+          .eq('company_id', companyId!)
+          .gte('created_at', dateFrom)
+          .lt('created_at', dateTo),
+        supabase
+          .from('quotes')
+          .select('status, total')
+          .eq('company_id', companyId!)
+          .eq('status', 'inviata'),
+        supabase
+          .from('marketing_opportunities')
+          .select('id, quotes!inner(id, status)')
+          .eq('company_id', companyId!)
+          .eq('status', 'open')
+          .in('quotes.status', ['inviata', 'accettata', 'convertita']),
+      ]);
+
+      if (periodResult.error) throw periodResult.error;
+      if (activeResult.error) throw activeResult.error;
+      if (oppsWithQuoteResult.error) throw oppsWithQuoteResult.error;
+
+      const period = periodResult.data ?? [];
+      const active = activeResult.data ?? [];
+      const oppsWithQuote = oppsWithQuoteResult.data ?? [];
+
+      let actual_revenue = 0;
+      let signed_quotes_count = 0;
+      let rejected_count = 0;
+      for (const q of period) {
+        const total = Number(q.total ?? 0);
+        if (q.status === 'accettata' || q.status === 'convertita') {
+          actual_revenue += total;
+          signed_quotes_count += 1;
+        } else if (q.status === 'rifiutata' || q.status === 'scaduta') {
+          rejected_count += 1;
+        }
+      }
+
+      let active_quotes_value = 0;
+      for (const q of active) {
+        active_quotes_value += Number(q.total ?? 0);
+      }
+
+      const closed_count = signed_quotes_count + rejected_count;
+
+      return {
+        actual_revenue,
+        signed_quotes_count,
+        active_quotes_value,
+        active_quotes_count: active.length,
+        avg_signed_ticket: signed_quotes_count > 0 ? actual_revenue / signed_quotes_count : 0,
+        opportunities_with_quote: oppsWithQuote.length,
+        acceptance_rate: closed_count > 0 ? (signed_quotes_count / closed_count) * 100 : 0,
+      };
+    },
+    staleTime: 1000 * 60 * 5,
   });
 }
 

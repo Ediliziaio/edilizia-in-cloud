@@ -156,7 +156,19 @@ export default function Preventivi() {
     },
   });
 
-  const [statusFilter, setStatusFilter] = useState<string>("tutti");
+  // Sprint 3: accetta drill-down da Sales OS via ?status=inviata
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const qpStatus = searchParams.get("status");
+    return qpStatus || "tutti";
+  });
+  useEffect(() => {
+    if (searchParams.has("status")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("status");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [search, setSearch] = useState("");
   // Filtri avanzati v4 — centralizzati in QuotesFilters (sheet laterale)
   const [filters, setFilters] = useState<QuotesFilters>(EMPTY_QUOTE_FILTERS);
