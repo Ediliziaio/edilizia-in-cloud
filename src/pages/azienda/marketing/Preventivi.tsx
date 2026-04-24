@@ -105,6 +105,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -136,6 +137,9 @@ import {
   FileUp,
   Sparkles,
   SlidersHorizontal,
+  ChevronDown,
+  FileCheck2,
+  Euro,
 } from "lucide-react";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 
@@ -625,119 +629,146 @@ export default function Preventivi() {
 
       {activeTab === "lista" && (
         <>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Preventivi</h1>
-          <p className="text-muted-foreground">Gestisci le offerte commerciali</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileSignature className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Preventivi</h1>
+            <p className="text-sm text-muted-foreground">Gestisci le offerte commerciali</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          {filtered.length > 0 && (
-            <Button variant="outline" onClick={handleExportExcel}>
-              <Download className="h-4 w-4 mr-2" />
-              Esporta Excel
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => setShowComputoModal(true)}>
-            <FileUp className="h-4 w-4 mr-2" />
-            Da Computo Metrico
-          </Button>
-          <Button variant="outline" onClick={() => setShowFotoModal(true)} className="border-orange-300 text-orange-700 hover:bg-orange-50">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Da Foto/PDF
-          </Button>
-          <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
+        <div className="flex gap-2 items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Crea da...
+                <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
+                <FileUp className="h-4 w-4 mr-2" />
+                Computo metrico
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
+                <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                Foto / PDF (AI)
+              </DropdownMenuItem>
+              {filtered.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleExportExcel}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Esporta Excel (tutti)
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")} size="sm" className="h-9">
             <Plus className="h-4 w-4 mr-2" />
-            Nuovo Preventivo
+            Nuovo preventivo
           </Button>
         </div>
       </div>
 
-      {/* KPI strip — base */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
+      {/* KPI Hero — 4 metriche chiave + 4 avanzati toggleable */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="overflow-hidden border-l-4 border-l-slate-400">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Bozze</p>
-            <p className="text-2xl font-bold">{bozze}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bozze</p>
+              <FileText className="h-4 w-4 text-slate-400" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">{bozze}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">da completare</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden border-l-4 border-l-blue-500">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Inviate</p>
-            <p className="text-2xl font-bold">{inviate}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Inviate</p>
+              <TrendingUp className="h-4 w-4 text-blue-500" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">{inviate}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {pipeline > 0 ? `${formatCurrency(pipeline)} in pipeline` : "nessuna pipeline"}
+            </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden border-l-4 border-l-emerald-500">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Accettate</p>
-            <p className="text-2xl font-bold">{accettate}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Accettate</p>
+              <FileCheck2 className="h-4 w-4 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5">{accettate}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tassoConversione !== null ? `${tassoConversione}% conversion rate` : "—"}
+            </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden border-l-4 border-l-primary">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Valore Accettate</p>
-            <p className="text-2xl font-bold">{formatCurrency(valoreTotale)}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ricavo firmato</p>
+              <Euro className="h-4 w-4 text-primary" />
+            </div>
+            <p className="text-2xl font-bold mt-1.5 truncate">{formatCurrency(valoreTotale)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {accettate > 0
+                ? `ticket medio ${formatCurrency(valoreTotale / accettate)}`
+                : "nessuna firmata"}
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* KPI avanzati */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Target className="h-4 w-4 text-[#1E3A5F]" />
-              <p className="text-sm text-muted-foreground">Tasso conversione</p>
-            </div>
-            <p className="text-2xl font-bold">
+      {/* KPI avanzati — più compatti, senza Card heavy */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-lg border bg-muted/30 p-3">
+        <div className="flex items-start gap-2.5">
+          <Target className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tasso conversione</p>
+            <p className="text-lg font-semibold">
               {tassoConversione !== null ? `${tassoConversione}%` : "—"}
             </p>
             {decisioni > 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {accettate} / {decisioni} con risposta
-              </p>
+              <p className="text-[10px] text-muted-foreground">{accettate}/{decisioni} con risposta</p>
             )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-4 w-4 text-[#1E3A5F]" />
-              <p className="text-sm text-muted-foreground">Pipeline attiva</p>
-            </div>
-            <p className="text-2xl font-bold">{formatCurrency(pipeline)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {inviate} offert{inviate === 1 ? "a" : "e"} in attesa
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <FileText className="h-4 w-4 text-[#1E3A5F]" />
-              <p className="text-sm text-muted-foreground">Valore medio offerta</p>
-            </div>
-            <p className="text-2xl font-bold">{formatCurrency(valoremedioOfferta)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              su {nonBozze.length} offert{nonBozze.length === 1 ? "a" : "e"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="h-4 w-4 text-[#1E3A5F]" />
-              <p className="text-sm text-muted-foreground">Tempo medio firma</p>
-            </div>
-            <p className="text-2xl font-bold">
+          </div>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <TrendingUp className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Pipeline attiva</p>
+            <p className="text-lg font-semibold truncate">{formatCurrency(pipeline)}</p>
+            <p className="text-[10px] text-muted-foreground">{inviate} offert{inviate === 1 ? "a" : "e"}</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <FileText className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Valore medio offerta</p>
+            <p className="text-lg font-semibold truncate">{formatCurrency(valoremedioOfferta)}</p>
+            <p className="text-[10px] text-muted-foreground">su {nonBozze.length} offert{nonBozze.length === 1 ? "a" : "e"}</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <Clock className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tempo medio firma</p>
+            <p className="text-lg font-semibold">
               {tempoMedioGiorni !== null ? `${tempoMedioGiorni}gg` : "—"}
             </p>
             {conRisposta.length > 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                su {conRisposta.length} firmat{conRisposta.length === 1 ? "a" : "e"}
-              </p>
+              <p className="text-[10px] text-muted-foreground">su {conRisposta.length} firmat{conRisposta.length === 1 ? "a" : "e"}</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Grafici KPI — trend mensile + distribuzione stati */}
@@ -818,13 +849,14 @@ export default function Preventivi() {
               placeholder="Cerca per numero, cliente, titolo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-9 h-9"
             />
           </div>
           <Button
             variant="outline"
+            size="sm"
             onClick={() => setFiltersOpen(true)}
-            className={countActiveQuoteFilters(filters) > 0 ? "border-primary text-primary" : ""}
+            className={`h-9 ${countActiveQuoteFilters(filters) > 0 ? "border-primary text-primary" : ""}`}
           >
             <SlidersHorizontal className="h-4 w-4 mr-2" />
             Filtri avanzati
@@ -852,12 +884,37 @@ export default function Preventivi() {
         />
 
         <Tabs value={statusFilter} onValueChange={handleStatusFilter}>
-          <TabsList>
-            <TabsTrigger value="tutti">Tutti</TabsTrigger>
-            <TabsTrigger value="bozza">Bozze</TabsTrigger>
-            <TabsTrigger value="inviata">Inviate</TabsTrigger>
-            <TabsTrigger value="accettata">Accettate</TabsTrigger>
-            <TabsTrigger value="rifiutata">Rifiutate</TabsTrigger>
+          <TabsList className="h-9">
+            <TabsTrigger value="tutti" className="gap-1.5 text-xs">
+              Tutti
+              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5 tabular-nums">
+                {kpiRows.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="bozza" className="gap-1.5 text-xs">
+              Bozze
+              <span className="text-[10px] bg-slate-200 dark:bg-slate-700 rounded px-1.5 py-0.5 tabular-nums">
+                {bozze}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="inviata" className="gap-1.5 text-xs">
+              Inviate
+              <span className="text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded px-1.5 py-0.5 tabular-nums">
+                {inviate}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="accettata" className="gap-1.5 text-xs">
+              Accettate
+              <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded px-1.5 py-0.5 tabular-nums">
+                {accettate}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="rifiutata" className="gap-1.5 text-xs">
+              Rifiutate
+              <span className="text-[10px] bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded px-1.5 py-0.5 tabular-nums">
+                {rifiutate}
+              </span>
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -921,13 +978,22 @@ export default function Preventivi() {
               <TableRow>
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={
-                      filtered.length > 0 &&
-                      filtered.every((q: QuoteRow) => selectedIds.has(q.id))
-                    }
+                    checked={(() => {
+                      if (filtered.length === 0) return false;
+                      const allSelected = filtered.every((q: QuoteRow) =>
+                        selectedIds.has(q.id)
+                      );
+                      if (allSelected) return true;
+                      const someSelected = filtered.some((q: QuoteRow) =>
+                        selectedIds.has(q.id)
+                      );
+                      return someSelected ? "indeterminate" : false;
+                    })()}
                     onCheckedChange={(v) => {
                       if (v) {
-                        setSelectedIds(new Set(filtered.map((q: QuoteRow) => q.id)));
+                        setSelectedIds(
+                          new Set(filtered.map((q: QuoteRow) => q.id))
+                        );
                       } else {
                         setSelectedIds(new Set());
                       }
@@ -957,13 +1023,19 @@ export default function Preventivi() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((q: QuoteRow) => {
+              {filtered.map((q: QuoteRow, idx: number) => {
                 const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
                 const isSelected = selectedIds.has(q.id);
                 return (
                   <TableRow
                     key={q.id}
-                    className={`cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
+                    className={`cursor-pointer transition-colors ${
+                      isSelected
+                        ? "bg-primary/10 hover:bg-primary/15"
+                        : idx % 2 === 1
+                        ? "bg-muted/30 hover:bg-muted/60"
+                        : "hover:bg-muted/40"
+                    }`}
                     onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -1068,18 +1140,28 @@ export default function Preventivi() {
                     {isColVisible("contatto") && (
                       <TableCell>
                         {q.contact_id ? (
-                          <span className="text-primary text-xs">✓</span>
+                          <span
+                            className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold"
+                            title="Collegato a contatto"
+                          >
+                            ✓
+                          </span>
                         ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
+                          <span className="text-muted-foreground/50 text-xs">—</span>
                         )}
                       </TableCell>
                     )}
                     {isColVisible("opportunita") && (
                       <TableCell>
                         {q.opportunity_id ? (
-                          <span className="text-primary text-xs">✓</span>
+                          <span
+                            className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold"
+                            title="Collegato a opportunità"
+                          >
+                            ✓
+                          </span>
                         ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
+                          <span className="text-muted-foreground/50 text-xs">—</span>
                         )}
                       </TableCell>
                     )}

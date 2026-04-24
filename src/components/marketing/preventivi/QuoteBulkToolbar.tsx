@@ -232,31 +232,40 @@ export function QuoteBulkToolbar({
 
   return (
     <>
-      <div className="sticky top-14 z-40 bg-primary text-primary-foreground rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 flex-wrap">
+      <div className="sticky top-14 z-40 bg-slate-900/95 dark:bg-slate-950/95 text-slate-50 rounded-xl shadow-2xl ring-1 ring-white/10 backdrop-blur-md px-3 py-2 flex items-center gap-2 flex-wrap animate-in slide-in-from-top-2 duration-200">
         <Button
           size="icon"
           variant="ghost"
-          className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/10"
+          className="h-8 w-8 text-slate-50 hover:bg-white/10 rounded-full"
           onClick={onClearSelection}
           aria-label="Deseleziona tutto"
         >
           <X className="h-4 w-4" />
         </Button>
-        <div className="text-sm font-medium">
-          <Badge variant="secondary" className="mr-2">
+        <div className="flex items-center gap-2 text-sm font-medium pr-2">
+          <span className="inline-flex items-center justify-center h-6 min-w-6 px-2 rounded-full bg-white text-slate-900 text-xs font-bold tabular-nums">
             {count}
-          </Badge>
-          selezionat{count === 1 ? "o" : "i"}
+          </span>
+          <span className="text-slate-200">
+            {count === 1 ? "preventivo selezionato" : "preventivi selezionati"}
+          </span>
         </div>
+
+        <div className="h-6 w-px bg-white/20 mx-1" />
 
         <div className="flex-1" />
 
         {/* Cambia stato */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="secondary" disabled={!!working}>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!!working}
+              className="h-8 text-slate-50 hover:bg-white/10 gap-1"
+            >
               Cambia stato
-              <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -278,14 +287,15 @@ export function QuoteBulkToolbar({
         {/* Export CSV */}
         <Button
           size="sm"
-          variant="secondary"
+          variant="ghost"
           onClick={handleExportCsv}
           disabled={!!working}
+          className="h-8 text-slate-50 hover:bg-white/10 gap-1.5"
         >
           {working === "csv" ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <FileDown className="h-3.5 w-3.5 mr-1" />
+            <FileDown className="h-3.5 w-3.5" />
           )}
           CSV
         </Button>
@@ -293,35 +303,39 @@ export function QuoteBulkToolbar({
         {/* ZIP PDF */}
         <Button
           size="sm"
-          variant="secondary"
+          variant="ghost"
           onClick={handleDownloadPdfZip}
           disabled={!!working}
+          className="h-8 text-slate-50 hover:bg-white/10 gap-1.5"
         >
           {working === "zip" ? (
             <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
               {zipProgress
                 ? `${zipProgress.done}/${zipProgress.total}`
-                : "..."}
+                : ""}
             </>
           ) : (
             <>
-              <FileArchive className="h-3.5 w-3.5 mr-1" /> PDF ZIP
+              <FileArchive className="h-3.5 w-3.5" /> PDF ZIP
             </>
           )}
         </Button>
 
-        {/* Elimina */}
+        <div className="h-6 w-px bg-white/20 mx-1" />
+
+        {/* Elimina — destructive visuale */}
         <Button
           size="sm"
-          variant="destructive"
+          variant="ghost"
           onClick={() => setConfirmDelete(true)}
           disabled={!!working}
+          className="h-8 text-red-300 hover:bg-red-500/20 hover:text-red-100 gap-1.5"
         >
           {working === "delete" ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <Trash2 className="h-3.5 w-3.5 mr-1" />
+            <Trash2 className="h-3.5 w-3.5" />
           )}
           Elimina
         </Button>
