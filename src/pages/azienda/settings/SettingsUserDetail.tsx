@@ -222,7 +222,8 @@ export default function SettingsUserDetail() {
 
   const saveProfileMutation = useMutation({
     mutationFn: async (data: { first_name: string; last_name: string; email: string; phone: string | null }) => {
-      const { error } = await supabase.from("profiles").update(data).eq("id", userId!);
+      if (!userId) throw new Error("userId mancante");
+      const { error } = await supabase.from("profiles").update(data).eq("id", userId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -230,13 +231,23 @@ export default function SettingsUserDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       toast({ title: "Profilo aggiornato", description: "I dati dell'utente sono stati salvati." });
     },
-    onError: () => {
-      toast({ title: "Errore", description: "Impossibile salvare il profilo.", variant: "destructive" });
+    onError: (e: Error) => {
+      toast({
+        title: "Errore salvataggio profilo",
+        description: e.message || "Impossibile salvare il profilo.",
+        variant: "destructive",
+      });
     },
   });
 
   const savePermissionsMutation = useMutation({
     mutationFn: async (permissions: StaffPermissions) => {
+      if (!userId) throw new Error("userId mancante");
+      const companyId = userData?.company_id;
+      if (!companyId) {
+        throw new Error("company_id mancante nel profilo utente");
+      }
+
       // Filter to only known permission keys to avoid sending id, user_id, created_at etc.
       const allowedKeys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
       const base: Record<string, boolean> = {};
@@ -247,8 +258,11 @@ export default function SettingsUserDetail() {
       // Sync legacy aggregate flags using the shared helpers (single source of truth)
       const synced = syncLegacySettingsFlags(syncLegacyMarketingFlags(base as unknown as StaffPermissions));
 
-      const companyId = userData?.company_id;
-      const { error } = await supabase.from("staff_permissions").update(synced).eq("user_id", userId!).eq("company_id", companyId!);
+      const { error } = await supabase
+        .from("staff_permissions")
+        .update(synced)
+        .eq("user_id", userId)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -269,72 +283,121 @@ export default function SettingsUserDetail() {
       }
       toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
     },
-    onError: () => {
-      toast({ title: "Errore", description: "Errore durante il salvataggio dei permessi.", variant: "destructive" });
+    onError: (e: Error) => {
+      toast({
+        title: "Errore salvataggio permessi",
+        description: e.message || "Errore durante il salvataggio dei permessi.",
+        variant: "destructive",
+      });
     },
   });
 
   const changeRoleMutation = useMutation({
     mutationFn: async (newRole: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor") => {
+      if (!userId) throw new Error("userId mancante");
       const currentRole = userData?.role;
       if (currentRole === newRole) return;
 
       const companyId = userData?.company_id;
       if (!companyId) throw new Error("company_id mancante nel profilo utente");
 
+      // GUARD 1: self-edit — non permettere di revocare il proprio ruolo admin
+      if (userId === currentUser?.id && currentRole === "company_admin" && newRole !== "company_admin") {
+        throw new Error(
+          "Non puoi rimuovere il tuo ruolo di Amministratore. Chiedi a un altro admin di farlo."
+        );
+      }
+
+      // GUARD 2: last admin — impedisci di revocare l'ultimo admin della company
+      if (currentRole === "company_admin" && newRole !== "company_admin") {
+        const { data: admins, error: adminCountErr } = await supabase
+          .from("user_roles")
+          .select("user_id, profiles!inner(company_id)")
+          .eq("role", "company_admin")
+          .eq("profiles.company_id", companyId);
+        if (adminCountErr) {
+          // Fallback: query diretta profiles
+          const { data: profs } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", "company_admin");
+          const adminIds = (profs ?? []).map((p) => p.user_id);
+          if (adminIds.length > 0) {
+            const { count } = await supabase
+              .from("profiles")
+              .select("id", { count: "exact", head: true })
+              .in("id", adminIds)
+              .eq("company_id", companyId);
+            if ((count ?? 0) <= 1) {
+              throw new Error(
+                "Impossibile rimuovere l'ultimo amministratore. Assegna prima un altro admin."
+              );
+            }
+          }
+        } else {
+          if ((admins ?? []).length <= 1) {
+            throw new Error(
+              "Impossibile rimuovere l'ultimo amministratore. Assegna prima un altro admin."
+            );
+          }
+        }
+      }
+
       // Remove all company-level roles first
       const { error: deleteError } = await supabase.from("user_roles").delete()
-        .eq("user_id", userId!)
+        .eq("user_id", userId)
         .in("role", ["company_admin", "company_staff", "salesperson", "call_center", "employee", "worker", "subcontractor"]);
       if (deleteError) throw deleteError;
 
       if (newRole === "company_admin") {
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_admin" });
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "company_admin" });
         if (error) throw error;
       } else if (newRole === "salesperson" || newRole === "call_center") {
         // Dual-role: specific role + company_staff
-        const { error: e1 } = await supabase.from("user_roles").insert({ user_id: userId!, role: newRole });
+        const { error: e1 } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
         if (e1) throw e1;
-        const { error: e2 } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_staff" });
+        const { error: e2 } = await supabase.from("user_roles").insert({ user_id: userId, role: "company_staff" });
         if (e2) throw e2;
       } else if (newRole === "employee") {
         // Employee gets employee role
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "employee" });
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "employee" });
         if (error) throw error;
       } else if (newRole === "subcontractor") {
         // Subcontractor gets subcontractor role
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "subcontractor" });
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "subcontractor" });
         if (error) throw error;
       } else {
         // Plain company_staff
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_staff" });
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "company_staff" });
         if (error) throw error;
       }
 
       // Ensure staff_permissions row exists for non-admin roles
       if (newRole !== "company_admin") {
-        const { data: existing } = await supabase.from("staff_permissions").select("user_id").eq("user_id", userId!).maybeSingle();
+        const { data: existing } = await supabase.from("staff_permissions").select("user_id").eq("user_id", userId).maybeSingle();
         if (!existing) {
-          await supabase.from("staff_permissions").insert({ user_id: userId!, company_id: companyId } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+          await supabase.from("staff_permissions").insert({ user_id: userId, company_id: companyId } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
         }
       }
 
-      // If salesperson, ensure salespeople record exists
+      // If salesperson, ensure salespeople record exists (o riattiva se era disattivata)
       if (newRole === "salesperson") {
-        const { data: existingSp } = await supabase.from("salespeople").select("id").eq("user_id", userId!).maybeSingle();
+        const { data: existingSp } = await supabase.from("salespeople").select("id, is_active").eq("user_id", userId).eq("company_id", companyId).maybeSingle();
         if (!existingSp) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const salespersonPayload = { user_id: userId!, company_id: companyId, first_name: userData?.first_name || "", last_name: userData?.last_name || "", email: userData?.email || "", is_active: true } as any;
+          const salespersonPayload = { user_id: userId, company_id: companyId, first_name: userData?.first_name || "", last_name: userData?.last_name || "", email: userData?.email || "", is_active: true } as any;
           await supabase.from("salespeople").insert(salespersonPayload);
+        } else if (!existingSp.is_active) {
+          await supabase.from("salespeople").update({ is_active: true }).eq("id", existingSp.id);
         }
       }
 
       // If subcontractor, ensure subcontractors record exists
       if (newRole === "subcontractor") {
-        const { data: existingSub } = await supabase.from("subcontractors").select("id").eq("user_id", userId!).maybeSingle();
+        const { data: existingSub } = await supabase.from("subcontractors").select("id").eq("user_id", userId).maybeSingle();
         if (!existingSub) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const subPayload = { user_id: userId!, company_id: companyId, company_name: `${userData?.first_name || ""} ${userData?.last_name || ""}`.trim(), contact_name: `${userData?.first_name || ""} ${userData?.last_name || ""}`.trim(), email: userData?.email || "", is_active: true } as any;
+          const subPayload = { user_id: userId, company_id: companyId, company_name: `${userData?.first_name || ""} ${userData?.last_name || ""}`.trim(), contact_name: `${userData?.first_name || ""} ${userData?.last_name || ""}`.trim(), email: userData?.email || "", is_active: true } as any;
           await supabase.from("subcontractors").insert(subPayload);
         }
       }
@@ -353,8 +416,12 @@ export default function SettingsUserDetail() {
       }
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },
-    onError: () => {
-      toast({ title: "Errore", description: "Impossibile cambiare il ruolo.", variant: "destructive" });
+    onError: (e: Error) => {
+      toast({
+        title: "Impossibile cambiare il ruolo",
+        description: e.message || "Errore sconosciuto.",
+        variant: "destructive",
+      });
     },
   });
 

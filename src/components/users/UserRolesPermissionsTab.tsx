@@ -273,6 +273,7 @@ export function UserRolesPermissionsTab({
   onToggleAdditionalRole,
   isLoading,
   isChangingRole,
+  isCurrentUser = false,
 }: UserRolesPermissionsTabProps) {
   const [permissions, setPermissions] = useState<StaffPermissions>(user.permissions || DEFAULT_PERMISSIONS);
   const [searchQuery, setSearchQuery] = useState("");
@@ -282,16 +283,17 @@ export function UserRolesPermissionsTab({
   const [selectedRole, setSelectedRole] = useState<CompanyRole>(user.role || "company_staff");
   const [pendingRoleChange, setPendingRoleChange] = useState<CompanyRole | null>(null);
 
-  const additionalRoles = user.additionalRoles ?? [];
+  const additionalRoles = Array.isArray(user.additionalRoles) ? user.additionalRoles : [];
   const originalPermissions = useMemo(() => user.permissions || DEFAULT_PERMISSIONS, [user.permissions]);
 
+  // Reset state quando cambia l'utente corrente O quando i dati vengono re-fetched
   useEffect(() => {
     if (user.permissions) setPermissions(user.permissions);
-  }, [user.permissions]);
+  }, [user.id, user.permissions]);
 
   useEffect(() => {
     if (user.role) setSelectedRole(user.role);
-  }, [user.role]);
+  }, [user.id, user.role]);
 
   const isDirty = useMemo(() => {
     const keys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
@@ -302,6 +304,10 @@ export function UserRolesPermissionsTab({
   const handleRoleChange = (value: string) => {
     const newRole = value as CompanyRole;
     if (newRole === selectedRole) return;
+    // Self-edit protection: non si può revocare il proprio ruolo admin dal detail
+    if (isCurrentUser && selectedRole === "company_admin" && newRole !== "company_admin") {
+      return; // il select è già disabled visivamente, ma doppia guardia
+    }
     setPendingRoleChange(newRole);
   };
 
@@ -498,7 +504,11 @@ export function UserRolesPermissionsTab({
               <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 block">
                 Ruolo primario
               </Label>
-              <Select value={selectedRole} onValueChange={handleRoleChange} disabled={isChangingRole}>
+              <Select
+                value={selectedRole}
+                onValueChange={handleRoleChange}
+                disabled={isChangingRole || (isCurrentUser && selectedRole === "company_admin")}
+              >
                 <SelectTrigger className="w-full md:w-[320px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -517,6 +527,13 @@ export function UserRolesPermissionsTab({
                   })}
                 </SelectContent>
               </Select>
+              {isCurrentUser && selectedRole === "company_admin" && (
+                <p className="text-xs text-muted-foreground mt-1.5 flex items-start gap-1.5">
+                  <Lock className="h-3 w-3 mt-0.5 shrink-0" />
+                  Non puoi modificare il tuo ruolo admin da qui. Chiedi a un altro
+                  amministratore di farlo.
+                </p>
+              )}
             </div>
 
             {/* Additional commercial roles — visible only if onToggleAdditionalRole available and primary is not admin/salesperson/call_center */}
