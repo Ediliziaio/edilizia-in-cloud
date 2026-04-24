@@ -10,7 +10,7 @@
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Shield, TrendingUp, Users, UsersRound, Loader2, Building2 } from "lucide-react";
+import { Shield, TrendingUp, Users, UsersRound, Loader2, Building2, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
@@ -107,6 +107,23 @@ export default function SettingsPeople() {
 
       {canViewUsers && (
         <TabsContent value="utenti">
+          {/* Info multi-ruolo */}
+          <div className="flex items-start gap-3 p-3 mb-4 rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900/50">
+            <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0">
+              <Info className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+            </div>
+            <div className="text-sm space-y-0.5">
+              <p className="font-medium">
+                Un utente può avere più ruoli contemporaneamente
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Se un impiegato d'ufficio si occupa <strong>anche</strong> di vendita,
+                dal menu <strong>⋮</strong> sulla riga utente scegli{" "}
+                <em>"Aggiungi ruolo Venditore"</em>: comparirà nel calendario CRM,
+                nei dropdown venditori e nelle provvigioni.
+              </p>
+            </div>
+          </div>
           <UsersConfig />
         </TabsContent>
       )}

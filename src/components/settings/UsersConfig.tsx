@@ -48,6 +48,12 @@ interface CompanyUser {
   email: string;
   phone: string | null;
   effectiveRole: EffectiveRole;
+  /**
+   * Tutti i ruoli assegnati (multi-ruolo supportato).
+   * Esempio: un operatore d'ufficio può avere `["company_staff", "salesperson"]`
+   * così compare anche nel calendario CRM e nei dropdown venditori.
+   */
+  allRoles: string[];
   permissions: StaffPermissions | null;
   last_login_at: string | null;
   locked_until: string | null;
@@ -73,6 +79,44 @@ function RoleBadge({ role }: { role: EffectiveRole }) {
       <Icon className="h-3 w-3" />
       {label}
     </Badge>
+  );
+}
+
+/**
+ * Mostra TUTTI i ruoli dell'utente (primary + secondari).
+ * Utile per capire subito se un operatore ha anche ruolo commerciale.
+ */
+function RolesBadgeGroup({ roles }: { roles: string[] }) {
+  const primary = determineEffectiveRole(roles);
+  const extras: EffectiveRole[] = [];
+  // Marca il ruolo commerciale come "extra" se non è già il primary
+  if (primary !== "salesperson" && roles.includes("salesperson")) extras.push("salesperson");
+  if (primary !== "call_center" && roles.includes("call_center")) extras.push("call_center");
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      <RoleBadge role={primary} />
+      {extras.map((r) => {
+        const cfg = ROLE_CONFIG[r];
+        if (!cfg) return null;
+        const Icon = cfg.icon;
+        return (
+          <Tooltip key={r}>
+            <TooltipTrigger asChild>
+              <Badge
+                className={`${cfg.color} font-normal gap-1 opacity-90 border-dashed`}
+                variant="outline"
+              >
+                <Icon className="h-3 w-3" />
+                {cfg.label}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              Ruolo aggiuntivo: appare anche nel CRM (calendario, venditori).
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
   );
 }
 
@@ -305,9 +349,11 @@ export function UsersConfig() {
       return companyUserIds.flatMap((uid) => {
         const profile = profiles.find((p) => p.id === uid);
         if (!profile) return [];
+        const userRoles = rolesByUser[uid] || [];
         return [{
           ...profile,
-          effectiveRole: determineEffectiveRole(rolesByUser[uid] || []),
+          effectiveRole: determineEffectiveRole(userRoles),
+          allRoles: userRoles,
           permissions: permissionsMap[uid] || null,
           active_sessions: sessionsByUser[uid] || 0,
           is_blocked: profile.is_blocked ?? false,
@@ -477,6 +523,92 @@ export function UsersConfig() {
       toast.success(block ? "Accesso bloccato" : "Accesso ripristinato");
     },
     onError: () => toast.error("Errore nel cambio stato accesso"),
+  });
+
+  // ── Toggle ruolo secondario (salesperson/call_center) ──────────────
+  // Permette a un utente con primary role "operatore ufficio" di avere
+  // ANCHE il ruolo commerciale così compare nel calendario CRM, dropdown
+  // venditori, ecc.
+  const toggleSecondaryRoleMutation = useMutation({
+    mutationFn: async ({
+      userId,
+      role,
+      add,
+      userData,
+    }: {
+      userId: string;
+      role: "salesperson" | "call_center";
+      add: boolean;
+      userData: { first_name: string; last_name: string; email: string };
+    }) => {
+      if (add) {
+        // Aggiungi ruolo (idempotente: upsert)
+        const { error } = await supabase
+          .from("user_roles")
+          .upsert(
+            { user_id: userId, role: role as any },
+            { onConflict: "user_id,role", ignoreDuplicates: true }
+          );
+        if (error) throw error;
+
+        // Se stiamo aggiungendo "salesperson", creiamo anche la riga
+        // in tabella salespeople (per provvigioni) se non esiste già
+        if (role === "salesperson" && effectiveCompanyId) {
+          const { data: existing } = await supabase
+            .from("salespeople")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("company_id", effectiveCompanyId)
+            .maybeSingle();
+          if (!existing) {
+            await supabase.from("salespeople").insert({
+              company_id: effectiveCompanyId,
+              user_id: userId,
+              first_name: userData.first_name || "",
+              last_name: userData.last_name || "",
+              email: userData.email || null,
+              is_active: true,
+            });
+          } else {
+            // Riattiva se era stato disattivato
+            await supabase
+              .from("salespeople")
+              .update({ is_active: true })
+              .eq("id", existing.id);
+          }
+        }
+      } else {
+        // Rimuovi ruolo
+        const { error } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", userId)
+          .eq("role", role as any);
+        if (error) throw error;
+
+        // Se rimuoviamo "salesperson" disattiviamo la riga salespeople
+        // (non cancelliamo, perché potrebbe avere provvigioni storiche legate)
+        if (role === "salesperson" && effectiveCompanyId) {
+          await supabase
+            .from("salespeople")
+            .update({ is_active: false })
+            .eq("user_id", userId)
+            .eq("company_id", effectiveCompanyId);
+        }
+      }
+    },
+    onSuccess: (_, { role, add }) => {
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: ["company-staff-users"] });
+      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      const label = role === "salesperson" ? "Venditore" : "Call Center";
+      toast.success(
+        add
+          ? `Ruolo "${label}" aggiunto — ora compare nel CRM`
+          : `Ruolo "${label}" rimosso`
+      );
+    },
+    onError: (e: Error) => toast.error(`Errore: ${e.message}`),
   });
 
   // ── Filters ─────────────────────────────────────────────────────────
@@ -743,7 +875,7 @@ export function UsersConfig() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <RoleBadge role={u.effectiveRole} />
+                      <RolesBadgeGroup roles={u.allRoles} />
                     </TableCell>
                     <TableCell>
                       <UserStatus u={u} />
@@ -764,6 +896,77 @@ export function UsersConfig() {
                               <DropdownMenuItem onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}?tab=permissions`)}>
                                 <Shield className="h-4 w-4 mr-2" /> Permessi
                               </DropdownMenuItem>
+                            )}
+                            {/* Toggle ruoli commerciali (multi-role) */}
+                            {canManageUsers && u.effectiveRole !== "company_admin" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                {(() => {
+                                  const isSalesperson = u.allRoles.includes("salesperson");
+                                  const isCallCenter = u.allRoles.includes("call_center");
+                                  const isPrimarySales = u.effectiveRole === "salesperson";
+                                  const isPrimaryCall = u.effectiveRole === "call_center";
+                                  return (
+                                    <>
+                                      {/* Se ha già salesperson come primary → non mostrare toggle */}
+                                      {!isPrimarySales && (
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            toggleSecondaryRoleMutation.mutate({
+                                              userId: u.id,
+                                              role: "salesperson",
+                                              add: !isSalesperson,
+                                              userData: {
+                                                first_name: u.first_name,
+                                                last_name: u.last_name,
+                                                email: u.email,
+                                              },
+                                            })
+                                          }
+                                        >
+                                          <TrendingUp
+                                            className={`h-4 w-4 mr-2 ${
+                                              isSalesperson ? "text-emerald-600" : ""
+                                            }`}
+                                          />
+                                          {isSalesperson ? (
+                                            <>Rimuovi ruolo Venditore</>
+                                          ) : (
+                                            <>Aggiungi ruolo Venditore</>
+                                          )}
+                                        </DropdownMenuItem>
+                                      )}
+                                      {!isPrimaryCall && (
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            toggleSecondaryRoleMutation.mutate({
+                                              userId: u.id,
+                                              role: "call_center",
+                                              add: !isCallCenter,
+                                              userData: {
+                                                first_name: u.first_name,
+                                                last_name: u.last_name,
+                                                email: u.email,
+                                              },
+                                            })
+                                          }
+                                        >
+                                          <Phone
+                                            className={`h-4 w-4 mr-2 ${
+                                              isCallCenter ? "text-blue-600" : ""
+                                            }`}
+                                          />
+                                          {isCallCenter ? (
+                                            <>Rimuovi ruolo Call Center</>
+                                          ) : (
+                                            <>Aggiungi ruolo Call Center</>
+                                          )}
+                                        </DropdownMenuItem>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </>
                             )}
                             {((u.locked_until && new Date(u.locked_until) > new Date()) || u.failed_login_count > 0) && (
                               <DropdownMenuItem onClick={() => unlockAccountMutation.mutate(u.id)}>
