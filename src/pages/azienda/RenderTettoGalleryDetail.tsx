@@ -229,6 +229,9 @@ export default function RenderTettoGalleryDetail() {
         createdBy={session.created_by}
         contactId={session.contact_id}
         opportunityId={session.opportunity_id}
+        sessionId={session.id}
+        sessionTable="render_tetto_sessions"
+        editable
       />
 
       {/* Config summary */}

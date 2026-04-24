@@ -306,6 +306,9 @@ export default function RenderBagnoGalleryDetail() {
         createdBy={session.user_id}
         contactId={session.contact_id}
         opportunityId={session.opportunity_id}
+        sessionId={session.id}
+        sessionTable="render_bagno_sessions"
+        editable
       />
 
       {renderPlan && <BathroomSelectionSummary renderPlan={renderPlan} />}

@@ -92,7 +92,7 @@ export default function RenderPiscineGalleryDetail() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto">
         <Skeleton className="h-10 w-40" />
         <Skeleton className="aspect-video w-full rounded-xl" />
         <Skeleton className="h-32 w-full rounded-xl" />
@@ -137,7 +137,7 @@ export default function RenderPiscineGalleryDetail() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto pb-12">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/piscine/gallery")}>
           <ArrowLeft className="h-4 w-4" />
@@ -188,11 +188,11 @@ export default function RenderPiscineGalleryDetail() {
       )}
 
       {session.status === "completed" && resultUrl && (
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1 gap-2 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={handleShare}>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <Button variant="outline" className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={handleShare}>
             <MessageCircle className="h-4 w-4" />WhatsApp
           </Button>
-          <Button variant="outline" className="flex-1 gap-2" onClick={handleShare}>
+          <Button variant="outline" className="gap-2" onClick={handleShare}>
             <Share2 className="h-4 w-4" />Condividi
           </Button>
           <RenderPdfDownloadButton
@@ -201,7 +201,7 @@ export default function RenderPiscineGalleryDetail() {
             title="Render AI Piscina"
             filename={`render_piscine_${id}.pdf`}
             size="default"
-            className="flex-1 gap-2"
+            className="gap-2"
             metadata={[
               { label: "Data", value: format(new Date(session.created_at), "dd/MM/yyyy HH:mm", { locale: it }) },
               { label: "Tipologia", value: label(asString(piscina.tipo)) },
@@ -209,13 +209,20 @@ export default function RenderPiscineGalleryDetail() {
               { label: "Rivestimento", value: label(asString(finiture.rivestimento_interno)) },
             ]}
           />
-          <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
+          <Button variant="outline" className="gap-2" onClick={handleDownload}>
             <Download className="h-4 w-4" />Download
           </Button>
         </div>
       )}
 
-      <RenderCrmSummaryCard createdBy={session.created_by} contactId={session.contact_id} opportunityId={session.opportunity_id} />
+      <RenderCrmSummaryCard
+        createdBy={session.created_by}
+        contactId={session.contact_id}
+        opportunityId={session.opportunity_id}
+        sessionId={session.id}
+        sessionTable="render_piscine_sessions"
+        editable
+      />
 
       <Card>
         <CardHeader>

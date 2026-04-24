@@ -128,7 +128,7 @@ export default function RenderFacciataHub() {
               <Plus className="mr-2 h-4 w-4" />
               Nuovo render
             </Button>
-            <Button variant="outline" className="border-white/40 text-white hover:bg-white/10" onClick={() => navigate("/azienda/render/facciata/gallery")}>
+            <Button variant="outline" className="border-white/50 bg-transparent text-white hover:bg-white/10 hover:text-white" onClick={() => navigate("/azienda/render/facciata/gallery")}>
               <GalleryHorizontalEnd className="mr-2 h-4 w-4" />
               Galleria
             </Button>

@@ -8,16 +8,33 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Image, Plus, GalleryHorizontalEnd, Sun, Search } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { loadRenderGalleryMeta, resolveRenderGalleryMeta } from "@/lib/render/renderGalleryMeta";
+
+type DbError = { message?: string } | null;
+type DbQuery = {
+  select: (columns?: string) => DbQuery;
+  eq: (column: string, value: unknown) => DbQuery;
+  order: (column: string, options?: { ascending?: boolean }) => DbQuery;
+  then: <TResult1 = { data: unknown; error: DbError }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown; error: DbError }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ) => PromiseLike<TResult1 | TResult2>;
+};
+type DynamicSupabase = { from: (table: string) => DbQuery };
 
 export default function RenderPergoleGallery() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const db = supabase as any;
+  const db = supabase as unknown as DynamicSupabase;
   const [search, setSearch] = useState("");
+  const [creatorFilter, setCreatorFilter] = useState("all");
+  const [contactFilter, setContactFilter] = useState("all");
+  const [opportunityFilter, setOpportunityFilter] = useState("all");
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ["render-pergole-gallery", companyId],
@@ -30,7 +47,7 @@ export default function RenderPergoleGallery() {
         .eq("status", "completed")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as {
+      const rows = (data ?? []) as {
         id: string;
         status: string;
         original_photo_url: string | null;
@@ -41,22 +58,34 @@ export default function RenderPergoleGallery() {
         contact_id: string | null;
         opportunity_id: string | null;
       }[];
+      const metaMaps = await loadRenderGalleryMeta(rows);
+      return rows.map((row) => ({ ...row, meta: resolveRenderGalleryMeta(row, metaMaps) }));
     },
     enabled: !!companyId,
   });
 
   const filtered = sessions.filter((item) => {
-    if (!search) return true;
     const s = search.toLowerCase();
     const cfg = item.config as { struttura?: { tipo?: string; colore_nome?: string }; copertura?: { tipo?: string }; installazione?: { zona?: string } } | null;
-    return (
+    const matchesSearch = !search || (
       (cfg?.struttura?.tipo ?? "").toLowerCase().includes(s) ||
       (cfg?.struttura?.colore_nome ?? "").toLowerCase().includes(s) ||
       (cfg?.copertura?.tipo ?? "").toLowerCase().includes(s) ||
       (cfg?.installazione?.zona ?? "").toLowerCase().includes(s) ||
+      (item.meta.createdByName ?? "").toLowerCase().includes(s) ||
+      (item.meta.contactName ?? "").toLowerCase().includes(s) ||
+      (item.meta.opportunityName ?? "").toLowerCase().includes(s) ||
       format(new Date(item.created_at), "d MMMM yyyy", { locale: it }).toLowerCase().includes(s)
     );
+    return matchesSearch &&
+      (creatorFilter === "all" || item.created_by === creatorFilter) &&
+      (contactFilter === "all" || item.contact_id === contactFilter) &&
+      (opportunityFilter === "all" || item.opportunity_id === opportunityFilter);
   });
+
+  const creatorOptions = [...new Map(sessions.filter((item) => item.created_by && item.meta.createdByName).map((item) => [item.created_by!, item.meta.createdByName!])).entries()];
+  const contactOptions = [...new Map(sessions.filter((item) => item.contact_id && item.meta.contactName).map((item) => [item.contact_id!, item.meta.contactName!])).entries()];
+  const opportunityOptions = [...new Map(sessions.filter((item) => item.opportunity_id && item.meta.opportunityName).map((item) => [item.opportunity_id!, item.meta.opportunityName!])).entries()];
 
   return (
     <div className="space-y-6">
@@ -77,10 +106,35 @@ export default function RenderPergoleGallery() {
         </Button>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Cerca per tipologia, copertura, colore..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-      </div>
+      {sessions.length > 0 && (
+        <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_180px_180px_180px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Cerca tipologia, autore, contatto..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          </div>
+          <Select value={creatorFilter} onValueChange={setCreatorFilter}>
+            <SelectTrigger><SelectValue placeholder="Creato da" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli autori</SelectItem>
+              {creatorOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={contactFilter} onValueChange={setContactFilter}>
+            <SelectTrigger><SelectValue placeholder="Contatto" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i contatti</SelectItem>
+              {contactOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={opportunityFilter} onValueChange={setOpportunityFilter}>
+            <SelectTrigger><SelectValue placeholder="Opportunità" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte opportunità</SelectItem>
+              {opportunityOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -114,9 +168,11 @@ export default function RenderPergoleGallery() {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"><Image className="h-8 w-8 text-muted-foreground/30" /></div>
                 )}
-                <div className="absolute bottom-1 left-1 flex gap-1">
+                <div className="absolute bottom-1 left-1 flex max-w-[78%] flex-wrap gap-1">
                   {cfg?.struttura?.tipo && <Badge variant="secondary" className="text-[10px] capitalize px-1 py-0 bg-black/60 text-white border-0">{cfg.struttura.tipo.replace(/_/g, " ")}</Badge>}
                   {cfg?.copertura?.tipo && <Badge variant="secondary" className="text-[10px] capitalize px-1 py-0 bg-black/40 text-white border-0">{cfg.copertura.tipo.replace(/_/g, " ")}</Badge>}
+                  {item.meta.createdByName && <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-black/50 text-white border-0">{item.meta.createdByName}</Badge>}
+                  {item.meta.contactName && <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-primary/80 text-white border-0">{item.meta.contactName}</Badge>}
                 </div>
                 <div className="absolute bottom-1 right-1">
                   <span className="text-[9px] text-white/80 bg-black/40 px-1 rounded">

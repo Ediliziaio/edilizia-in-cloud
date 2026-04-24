@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -76,6 +75,7 @@ export function QuoteRenderPicker({
   const typeLabel: Record<string, string> = {
     infissi: "Infissi", bagno: "Bagno", facciata: "Facciata",
     pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", stanza: "Stanza",
+    pergole: "Pergole", piscine: "Piscine",
   };
 
   const handleToggle = (render: RenderOption) => {

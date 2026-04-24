@@ -8,16 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Building2, GalleryHorizontalEnd, Image, Plus, Search } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { ensureFacciataRenderConfig } from "@/modules/render-facciata/lib/facciataRenderConfig";
+import { loadRenderGalleryMeta, resolveRenderGalleryMeta } from "@/lib/render/renderGalleryMeta";
 
 export default function RenderFacciataGallery() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [search, setSearch] = useState("");
+  const [creatorFilter, setCreatorFilter] = useState("all");
+  const [contactFilter, setContactFilter] = useState("all");
+  const [opportunityFilter, setOpportunityFilter] = useState("all");
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ["render-facciata-gallery", companyId],
@@ -25,12 +30,25 @@ export default function RenderFacciataGallery() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("render_facciata_sessions")
-        .select("id, status, original_photo_url, result_urls, config, foto_analisi, created_at")
+        .select("id, status, original_photo_url, result_urls, config, foto_analisi, created_at, created_by, contact_id, opportunity_id")
         .eq("company_id", companyId)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Array<Record<string, unknown>>;
+      const rows = (data ?? []) as Array<Record<string, unknown>>;
+      const metaMaps = await loadRenderGalleryMeta(rows.map((row) => ({
+        created_by: typeof row.created_by === "string" ? row.created_by : null,
+        contact_id: typeof row.contact_id === "string" ? row.contact_id : null,
+        opportunity_id: typeof row.opportunity_id === "string" ? row.opportunity_id : null,
+      })));
+      return rows.map((row) => ({
+        ...row,
+        meta: resolveRenderGalleryMeta({
+          created_by: typeof row.created_by === "string" ? row.created_by : null,
+          contact_id: typeof row.contact_id === "string" ? row.contact_id : null,
+          opportunity_id: typeof row.opportunity_id === "string" ? row.opportunity_id : null,
+        }, metaMaps),
+      }));
     },
     enabled: !!companyId,
   });
@@ -44,6 +62,10 @@ export default function RenderFacciataGallery() {
       id: String(item.id),
       createdAt: String(item.created_at),
       resultUrl: Array.isArray(item.result_urls) ? String(item.result_urls[0] ?? "") : "",
+      createdBy: typeof item.created_by === "string" ? item.created_by : null,
+      contactId: typeof item.contact_id === "string" ? item.contact_id : null,
+      opportunityId: typeof item.opportunity_id === "string" ? item.opportunity_id : null,
+      meta: item.meta as ReturnType<typeof resolveRenderGalleryMeta>,
       config,
     };
   }), [sessions]);
@@ -56,12 +78,22 @@ export default function RenderFacciataGallery() {
       ...item.config.replacement_manifest.targetedZones,
       item.config.scene_analysis.buildingType,
       item.config.scene_analysis.buildingStyle,
+      item.meta.createdByName,
+      item.meta.contactName,
+      item.meta.opportunityName,
       format(new Date(item.createdAt), "d MMMM yyyy", { locale: it }),
     ]
       .join(" ")
       .toLowerCase();
-    return haystack.includes(search.toLowerCase());
+    return haystack.includes(search.toLowerCase()) &&
+      (creatorFilter === "all" || item.createdBy === creatorFilter) &&
+      (contactFilter === "all" || item.contactId === contactFilter) &&
+      (opportunityFilter === "all" || item.opportunityId === opportunityFilter);
   });
+
+  const creatorOptions = [...new Map(normalized.filter((item) => item.createdBy && item.meta.createdByName).map((item) => [item.createdBy!, item.meta.createdByName!])).entries()];
+  const contactOptions = [...new Map(normalized.filter((item) => item.contactId && item.meta.contactName).map((item) => [item.contactId!, item.meta.contactName!])).entries()];
+  const opportunityOptions = [...new Map(normalized.filter((item) => item.opportunityId && item.meta.opportunityName).map((item) => [item.opportunityId!, item.meta.opportunityName!])).entries()];
 
   return (
     <div className="space-y-6">
@@ -82,15 +114,40 @@ export default function RenderFacciataGallery() {
         </Button>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cerca per intervento, zona o tipologia edificio..."
-          className="pl-9"
-        />
-      </div>
+      {normalized.length > 0 && (
+        <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_180px_180px_180px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cerca intervento, autore, contatto..."
+              className="pl-9"
+            />
+          </div>
+          <Select value={creatorFilter} onValueChange={setCreatorFilter}>
+            <SelectTrigger><SelectValue placeholder="Creato da" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli autori</SelectItem>
+              {creatorOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={contactFilter} onValueChange={setContactFilter}>
+            <SelectTrigger><SelectValue placeholder="Contatto" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i contatti</SelectItem>
+              {contactOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={opportunityFilter} onValueChange={setOpportunityFilter}>
+            <SelectTrigger><SelectValue placeholder="Opportunità" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte opportunità</SelectItem>
+              {opportunityOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -143,6 +200,8 @@ export default function RenderFacciataGallery() {
                   {item.config.replacement_manifest.targetedZones.slice(0, 2).map((zone) => (
                     <Badge key={zone} variant="outline">{zone}</Badge>
                   ))}
+                  {item.meta.contactName && <Badge variant="outline">{item.meta.contactName}</Badge>}
+                  {item.meta.createdByName && <Badge variant="outline">{item.meta.createdByName}</Badge>}
                 </div>
                 <div>
                   <p className="font-medium">{item.config.scene_analysis.buildingType}</p>

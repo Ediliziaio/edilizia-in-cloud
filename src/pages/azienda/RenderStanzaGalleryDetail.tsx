@@ -275,6 +275,9 @@ export default function RenderStanzaGalleryDetail() {
         createdBy={session.created_by}
         contactId={session.contact_id}
         opportunityId={session.opportunity_id}
+        sessionId={session.id}
+        sessionTable="render_stanza_sessions"
+        editable
       />
 
       {/* Configurazione */}
