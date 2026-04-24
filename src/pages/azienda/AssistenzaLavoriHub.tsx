@@ -191,7 +191,7 @@ export default function AssistenzaLavoriHub() {
       subtitle,
       badge: iv.priority === "urgente" ? "Urgente" : undefined,
       badgeVariant: "destructive",
-      path: `/azienda/interventi/${iv.id}`,
+      path: `/azienda/assistenza/${iv.id}`,
     };
   });
 
@@ -306,7 +306,7 @@ export default function AssistenzaLavoriHub() {
         <Button variant="outline" size="sm" onClick={() => navigate("/azienda/assistenza")} className="gap-1.5">
           <LifeBuoy className="h-3.5 w-3.5" /> Tutti i ticket
         </Button>
-        <Button variant="outline" size="sm" onClick={() => navigate("/azienda/interventi")} className="gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => navigate("/azienda/assistenza?tipo=intervento")} className="gap-1.5">
           <Wrench className="h-3.5 w-3.5" /> Tutti gli interventi
         </Button>
         <Button variant="outline" size="sm" onClick={() => navigate("/azienda/manutenzione")} className="gap-1.5">

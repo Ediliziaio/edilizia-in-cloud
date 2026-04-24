@@ -6,6 +6,12 @@ function InterventoDetailRedirect() {
   const { id } = useParams();
   return <Navigate to={`/azienda/assistenza/${id ?? ""}`} replace />;
 }
+
+/** Redirect /azienda/interventi/:id/chiudi → /azienda/assistenza/:id/chiudi */
+function InterventoChiusuraRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/azienda/assistenza/${id ?? ""}/chiudi`} replace />;
+}
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -287,13 +293,12 @@ export function companyRoutes() {
         <Route path="assistenza" element={<TicketsList />} />
         <Route path="assistenza/nuovo" element={<CreateCompanyTicket />} />
         <Route path="assistenza/:id" element={<TicketDetail />} />
-        {/* Interventi unificati dentro Assistenza:
-            - /interventi → redirect a /assistenza con filtro tipo=intervento
-            - /interventi/:id → redirect a /assistenza/:id (stesso modello DB)
-            - /interventi/:id/chiudi resta (azione specifica, accessibile dal detail) */}
+        <Route path="assistenza/:id/chiudi" element={<FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>} />
+        {/* Interventi unificati dentro Assistenza — redirect retrocompat: */}
         <Route path="interventi" element={<Navigate to="/azienda/assistenza?tipo=intervento" replace />} />
+        <Route path="interventi/nuovo" element={<Navigate to="/azienda/assistenza/nuovo?tipo=intervento" replace />} />
         <Route path="interventi/:id" element={<InterventoDetailRedirect />} />
-        <Route path="interventi/:id/chiudi" element={<FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>} />
+        <Route path="interventi/:id/chiudi" element={<InterventoChiusuraRedirect />} />
         <Route path="manutenzione" element={<FeatureRoute featureKey="cantieri_avanzati"><ManutenzioneList /></FeatureRoute>} />
         <Route path="manutenzione/impianto/:id" element={<FeatureRoute featureKey="cantieri_avanzati"><ImpiantoDetail /></FeatureRoute>} />
         <Route path="impianti/:impiantoId/storico" element={<FeatureRoute featureKey="cantieri_avanzati"><StoricoImpianto /></FeatureRoute>} />

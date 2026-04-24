@@ -186,7 +186,8 @@ export default function CreateCompanyTicket() {
     },
     onSuccess: (ticketId) => {
       toast({ title: isIntervento ? "Intervento creato" : "Ticket creato", description: "Creato con successo." });
-      navigate(isIntervento ? `/azienda/interventi/${ticketId}` : `/azienda/assistenza/${ticketId}`);
+      // Unificato dentro Assistenza (era /interventi/:id per tipo=intervento)
+      navigate(`/azienda/assistenza/${ticketId}`);
     },
     onError: () => {
       toast({ title: "Errore", description: "Impossibile creare il ticket.", variant: "destructive" });
@@ -198,7 +199,7 @@ export default function CreateCompanyTicket() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(isIntervento ? "/azienda/interventi" : "/azienda/assistenza")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(isIntervento ? "/azienda/assistenza?tipo=intervento" : "/azienda/assistenza")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex items-center gap-2">

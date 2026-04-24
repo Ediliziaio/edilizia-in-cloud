@@ -271,7 +271,7 @@ function InterventiTab({ items }: { items: RapportinoRow[] }) {
         <div
           key={item.id}
           className="flex items-center justify-between gap-2 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
-          onClick={() => navigate(`/azienda/interventi/${item.id}`)}
+          onClick={() => navigate(`/azienda/assistenza/${item.id}`)}
         >
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{item.tipo_intervento || "Intervento"}</p>

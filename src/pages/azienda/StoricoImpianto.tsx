@@ -359,11 +359,11 @@ export default function StoricoImpianto() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleFirmaOra = (ticketId: string) => {
-    navigate(`/azienda/interventi/${ticketId}/chiudi`);
+    navigate(`/azienda/assistenza/${ticketId}/chiudi`);
   };
 
   const handleNuovoIntervento = () => {
-    navigate(`/azienda/interventi/nuovo?impiantoId=${impiantoId}`);
+    navigate(`/azienda/assistenza/nuovo?tipo=intervento&impiantoId=${impiantoId}`);
   };
 
   // ── Loading state ─────────────────────────────────────────────────────────

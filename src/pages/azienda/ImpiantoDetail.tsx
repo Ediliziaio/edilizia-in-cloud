@@ -255,7 +255,7 @@ export default function ImpiantoDetail() {
                 <div
                   key={iv.id}
                   className="bg-white rounded-lg border p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => navigate(`/azienda/interventi/${iv.id}`)}
+                  onClick={() => navigate(`/azienda/assistenza/${iv.id}`)}
                 >
                   <div className="flex items-center gap-3">
                     <Wrench className="h-4 w-4 text-orange-500 shrink-0" />

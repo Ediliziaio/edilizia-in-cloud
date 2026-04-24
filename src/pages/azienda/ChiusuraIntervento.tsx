@@ -255,7 +255,7 @@ export default function ChiusuraIntervento() {
     },
     onSuccess: () => {
       toast.success("Intervento firmato con successo");
-      navigate(`/azienda/interventi/${id}`);
+      navigate(`/azienda/assistenza/${id}`);
     },
     onError: (err: Error) => {
       toast.error(err.message || "Errore durante il salvataggio della firma");
@@ -279,7 +279,7 @@ export default function ChiusuraIntervento() {
       <div className="p-6 text-center py-20">
         <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500">Intervento non trovato</p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/interventi")}>
+        <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/assistenza?tipo=intervento")}>
           Torna agli interventi
         </Button>
       </div>
@@ -300,7 +300,7 @@ export default function ChiusuraIntervento() {
   const goBack = () => {
     if (step === "note") setStep("riepilogo");
     else if (step === "firma") setStep("note");
-    else navigate(`/azienda/interventi/${id}`);
+    else navigate(`/azienda/assistenza/${id}`);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────

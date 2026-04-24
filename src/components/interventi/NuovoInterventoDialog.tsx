@@ -157,7 +157,7 @@ export function NuovoInterventoDialog({
       onSuccess?.();
       handleClose();
       if (!noNavigate) {
-        navigate(`/azienda/interventi/${ticketId}`);
+        navigate(`/azienda/assistenza/${ticketId}`);
       }
     },
     onError: (err: Error) => toast.error(err.message || "Errore nella creazione dell'intervento"),
