@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download, Check, X, Minimize2, Maximize2 } from "lucide-react";
@@ -84,7 +85,32 @@ function MarketingOpportunitiesContent() {
   const viewMode = urlFilters.viewMode as "kanban" | "list";
   const setViewMode = useCallback((v: "kanban" | "list") => setURLParam("viewMode", v), [setURLParam]);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<OpportunityFilters>(EMPTY_FILTERS);
+
+  // Sprint 2: seed filters from drill-down URL params (status, assigned_to, source)
+  const [searchParamsRaw, setSearchParamsRaw] = useSearchParams();
+  const initialDrillRef = useRef<OpportunityFilters | null>(null);
+  if (initialDrillRef.current === null) {
+    const seeded: OpportunityFilters = { ...EMPTY_FILTERS };
+    const qpStatus = searchParamsRaw.get("status");
+    const qpAssigned = searchParamsRaw.get("assigned_to");
+    const qpSource = searchParamsRaw.get("source");
+    if (qpStatus) seeded.statuses = [qpStatus];
+    if (qpAssigned) seeded.assignedTo = qpAssigned;
+    if (qpSource) seeded.source = qpSource;
+    initialDrillRef.current = seeded;
+  }
+  const [filters, setFilters] = useState<OpportunityFilters>(initialDrillRef.current);
+
+  // Clean up drill-down URL params once filters are seeded (keep URL tidy)
+  useEffect(() => {
+    const keysToStrip = ["status", "assigned_to", "source", "opportunity_id"];
+    if (keysToStrip.some((k) => searchParamsRaw.has(k))) {
+      const next = new URLSearchParams(searchParamsRaw);
+      keysToStrip.forEach((k) => next.delete(k));
+      setSearchParamsRaw(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { data: staff = [] } = useCompanyStaff();
   const bulkDelete = useBulkDeleteOpportunities();
   const { activeFields, layout, setActiveFields, setLayout } = useCardFieldPreferences();

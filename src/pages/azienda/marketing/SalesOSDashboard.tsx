@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useWeightedPipeline,
@@ -44,6 +44,9 @@ import {
 import { useNavigate } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { DealHealthOverview } from "@/components/opportunities/DealHealthOverview";
+import { getPeriodRange, PERIOD_OPTIONS, type SalesOSPeriod } from "@/lib/salesOSPeriod";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, MousePointerClick } from "lucide-react";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -95,8 +98,8 @@ function WidgetState({
 
 // ─── SalesVelocityCard ────────────────────────────────────────────────────────
 
-function SalesVelocityCard({ companyId }: { companyId: string }) {
-  const { data: velocity, isLoading, isError, error } = useSalesVelocity(companyId);
+function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: string; daysBack: number; periodLabel: string }) {
+  const { data: velocity, isLoading, isError, error } = useSalesVelocity(companyId, daysBack);
 
   if (isLoading || isError || !velocity) {
     return (
@@ -121,7 +124,7 @@ function SalesVelocityCard({ companyId }: { companyId: string }) {
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
           Sales Velocity
-          <span className="text-xs text-muted-foreground font-normal">(ultimi 90gg)</span>
+          <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -156,6 +159,7 @@ function SalesVelocityCard({ companyId }: { companyId: string }) {
 
 function WeightedPipelineChart({ companyId }: { companyId: string }) {
   const { data: stages, isLoading, isError, error } = useWeightedPipeline(companyId);
+  const navigate = useNavigate();
 
   if (isLoading || isError || !stages || stages.length === 0) {
     return (
@@ -179,16 +183,33 @@ function WeightedPipelineChart({ companyId }: { companyId: string }) {
       s.stage_name.length > 12
         ? s.stage_name.slice(0, 12) + "…"
         : s.stage_name,
+    stage_id: s.stage_id,
+    pipeline_id: s.pipeline_id,
     "Valore totale": Math.round(s.total_value),
     "Valore pesato": Math.round(s.weighted_value),
     "N° opp": s.opportunity_count,
     "Prob %": s.avg_probability,
   }));
 
+  const handleBarClick = (data: { pipeline_id?: string; stage_id?: string }) => {
+    if (!data?.pipeline_id) return;
+    const params = new URLSearchParams({
+      pipeline: data.pipeline_id,
+      status: "open",
+    });
+    navigate(`/azienda/marketing/opportunita?${params.toString()}`);
+  };
+
   return (
     <div className="space-y-4">
+      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+        <MousePointerClick className="h-3 w-3" /> Clicca una colonna per filtrare le opportunità
+      </p>
       <ResponsiveContainer width="100%" height={250}>
-        <BarChart data={chartData}>
+        <BarChart data={chartData} onClick={(e: any) => {
+          const payload = e?.activePayload?.[0]?.payload;
+          if (payload) handleBarClick(payload);
+        }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="name" tick={{ fontSize: 11 }} />
           <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} />
@@ -198,8 +219,8 @@ function WeightedPipelineChart({ companyId }: { companyId: string }) {
             }
           />
           <Legend />
-          <Bar dataKey="Valore totale" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[2, 2, 0, 0]} />
-          <Bar dataKey="Valore pesato" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="Valore totale" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[2, 2, 0, 0]} style={{ cursor: "pointer" }} />
+          <Bar dataKey="Valore pesato" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} style={{ cursor: "pointer" }} />
         </BarChart>
       </ResponsiveContainer>
       <div className="grid grid-cols-2 gap-4 text-center">
@@ -311,7 +332,7 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
           <TableRow
             key={s.opportunity_id}
             className="cursor-pointer hover:bg-muted/50"
-            onClick={() => navigate(`/azienda/marketing/opportunita`)}
+            onClick={() => navigate(`/azienda/marketing/opportunita?opportunity_id=${s.opportunity_id}`)}
           >
             <TableCell>
               <p className="font-medium text-sm">{s.opportunity_name}</p>
@@ -347,12 +368,20 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
 
 // ─── SellerComparisonTable ────────────────────────────────────────────────────
 
-function SellerComparisonTable({ companyId }: { companyId: string }) {
-  const now = new Date();
+function SellerComparisonTable({
+  companyId,
+  dateFrom,
+  dateTo,
+}: {
+  companyId: string;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const navigate = useNavigate();
   const { data: sellers, isLoading, isError, error } = useSellerPerformance(
     companyId,
-    now.getFullYear(),
-    now.getMonth() + 1
+    dateFrom,
+    dateTo
   );
 
   if (isLoading || isError) {
@@ -369,7 +398,7 @@ function SellerComparisonTable({ companyId }: { companyId: string }) {
   if (!sellers || sellers.length === 0)
     return (
       <div className="text-center py-8">
-        <p className="text-sm text-muted-foreground">Nessun dato venditori per questo mese.</p>
+        <p className="text-sm text-muted-foreground">Nessun dato venditori per il periodo selezionato.</p>
       </div>
     );
 
@@ -387,7 +416,14 @@ function SellerComparisonTable({ companyId }: { companyId: string }) {
       </TableHeader>
       <TableBody>
         {sellers.map((s) => (
-          <TableRow key={s.assigned_to ?? "unassigned"}>
+          <TableRow
+            key={s.assigned_to ?? "unassigned"}
+            className={s.assigned_to ? "cursor-pointer hover:bg-muted/50" : ""}
+            onClick={() =>
+              s.assigned_to &&
+              navigate(`/azienda/marketing/opportunita?assigned_to=${s.assigned_to}`)
+            }
+          >
             <TableCell className="font-medium">
               {s.display_name}
             </TableCell>
@@ -435,8 +471,9 @@ function SellerComparisonTable({ companyId }: { companyId: string }) {
 
 // ─── ConversionBySourceChart ──────────────────────────────────────────────────
 
-function ConversionBySourceChart({ companyId }: { companyId: string }) {
-  const { data: sources, isLoading, isError, error } = useConversionBySource(companyId);
+function ConversionBySourceChart({ companyId, dateFrom }: { companyId: string; dateFrom: string | null }) {
+  const navigate = useNavigate();
+  const { data: sources, isLoading, isError, error } = useConversionBySource(companyId, dateFrom);
 
   if (isLoading || isError) {
     return (
@@ -464,10 +501,23 @@ function ConversionBySourceChart({ companyId }: { companyId: string }) {
     "Win rate %": parseFloat(s.win_rate.toFixed(1)),
   }));
 
+  const goSource = (src: string) =>
+    navigate(`/azienda/marketing/opportunita?source=${encodeURIComponent(src)}`);
+
   return (
     <div className="space-y-4">
+      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+        <MousePointerClick className="h-3 w-3" /> Clicca una barra o una fonte per filtrare le opportunità
+      </p>
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={chartData}>
+        <BarChart
+          data={chartData}
+          onClick={(e: any) => {
+            const src = e?.activePayload?.[0]?.payload?.fonte;
+            const orig = sources.find((x) => (x.source.length > 15 ? x.source.slice(0, 15) + "…" : x.source) === src);
+            if (orig) goSource(orig.source);
+          }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="fonte" tick={{ fontSize: 11 }} />
           <YAxis tick={{ fontSize: 11 }} />
@@ -479,18 +529,22 @@ function ConversionBySourceChart({ companyId }: { companyId: string }) {
                 : [value, name]
             }
           />
-          <Bar dataKey="Opportunità" fill="hsl(var(--muted-foreground))" opacity={0.5} radius={[2, 2, 0, 0]} />
-          <Bar dataKey="Chiuse vinte" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="Opportunità" fill="hsl(var(--muted-foreground))" opacity={0.5} radius={[2, 2, 0, 0]} style={{ cursor: "pointer" }} />
+          <Bar dataKey="Chiuse vinte" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} style={{ cursor: "pointer" }} />
         </BarChart>
       </ResponsiveContainer>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {sources.slice(0, 4).map((s) => (
-          <div key={s.source} className="text-center">
-            <p className="text-xs text-muted-foreground">{s.source}</p>
+          <button
+            key={s.source}
+            onClick={() => goSource(s.source)}
+            className="text-center rounded-md p-2 hover:bg-muted/60 transition"
+          >
+            <p className="text-xs text-muted-foreground truncate">{s.source}</p>
             <p className="text-sm font-semibold">
               {fmt(s.total_won_value)}
             </p>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -500,6 +554,7 @@ function ConversionBySourceChart({ companyId }: { companyId: string }) {
 // ─── TopLeadsTable ────────────────────────────────────────────────────────────
 
 function TopLeadsTable({ companyId }: { companyId: string }) {
+  const navigate = useNavigate();
   const { data: leads, isLoading, isError, error } = useTopLeads(companyId, 10);
 
   if (isLoading || isError) {
@@ -540,7 +595,11 @@ function TopLeadsTable({ companyId }: { companyId: string }) {
       </TableHeader>
       <TableBody>
         {leads.map((lead) => (
-          <TableRow key={lead.id}>
+          <TableRow
+            key={lead.id}
+            className="cursor-pointer hover:bg-muted/50"
+            onClick={() => navigate(`/azienda/marketing/contatti/${lead.id}`)}
+          >
             <TableCell>
               <p className="font-medium text-sm">{lead.full_name}</p>
               {lead.company_name && (
@@ -589,6 +648,9 @@ export default function SalesOSDashboard() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
   const [activeTab, setActiveTab] = useState("pipeline");
+  const [period, setPeriod] = useState<SalesOSPeriod>("30d");
+
+  const range = useMemo(() => getPeriodRange(period), [period]);
 
   if (!companyId)
     return (
@@ -601,7 +663,7 @@ export default function SalesOSDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -613,10 +675,25 @@ export default function SalesOSDashboard() {
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <Select value={period} onValueChange={(v) => setPeriod(v as SalesOSPeriod)}>
+            <SelectTrigger className="w-[180px] h-9">
+              <SelectValue placeholder="Periodo" />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIOD_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* KPI Bar — sempre visibile */}
-      <SalesVelocityCard companyId={companyId} />
+      <SalesVelocityCard companyId={companyId} daysBack={range.daysBack} periodLabel={range.label} />
 
       {/* Tabs principali */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -695,7 +772,7 @@ export default function SalesOSDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <SellerComparisonTable companyId={companyId} />
+              <SellerComparisonTable companyId={companyId} dateFrom={range.dateFrom} dateTo={range.dateTo} />
             </CardContent>
           </Card>
           <Card>
@@ -720,7 +797,7 @@ export default function SalesOSDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ConversionBySourceChart companyId={companyId} />
+              <ConversionBySourceChart companyId={companyId} dateFrom={range.dateFrom} />
             </CardContent>
           </Card>
         </TabsContent>

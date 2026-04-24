@@ -108,14 +108,14 @@ export const salesOSKeys = {
     [...salesOSKeys.all, 'forecast', companyId, months] as const,
   stalled: (companyId: string) =>
     [...salesOSKeys.all, 'stalled', companyId] as const,
-  velocity: (companyId: string) =>
-    [...salesOSKeys.all, 'velocity', companyId] as const,
+  velocity: (companyId: string, daysBack: number) =>
+    [...salesOSKeys.all, 'velocity', companyId, daysBack] as const,
   targets: (companyId: string, year: number) =>
     [...salesOSKeys.all, 'targets', companyId, year] as const,
-  sellerPerformance: (companyId: string, year: number, month: number) =>
-    [...salesOSKeys.all, 'seller-perf', companyId, year, month] as const,
-  conversionBySource: (companyId: string) =>
-    [...salesOSKeys.all, 'conversion-source', companyId] as const,
+  sellerPerformance: (companyId: string, dateFrom: string, dateTo: string) =>
+    [...salesOSKeys.all, 'seller-perf', companyId, dateFrom, dateTo] as const,
+  conversionBySource: (companyId: string, dateFrom: string | null) =>
+    [...salesOSKeys.all, 'conversion-source', companyId, dateFrom ?? 'all'] as const,
   topLeads: (companyId: string) =>
     [...salesOSKeys.all, 'top-leads', companyId] as const,
 };
@@ -187,7 +187,7 @@ export function useStalledOpportunities(companyId: string | null) {
 
 export function useSalesVelocity(companyId: string | null, daysBack = 90) {
   return useQuery({
-    queryKey: salesOSKeys.velocity(companyId ?? ''),
+    queryKey: salesOSKeys.velocity(companyId ?? '', daysBack),
     enabled: !!companyId,
     queryFn: async (): Promise<SalesVelocity | null> => {
       const { data, error } = await supabase
@@ -229,15 +229,17 @@ export function useSalesTargets(companyId: string | null, year: number) {
 
 export function useSellerPerformance(
   companyId: string | null,
-  year: number,
-  month: number
+  dateFrom: string, // ISO YYYY-MM-DD inclusive
+  dateTo: string    // ISO YYYY-MM-DD exclusive
 ) {
   return useQuery({
-    queryKey: salesOSKeys.sellerPerformance(companyId ?? '', year, month),
+    queryKey: salesOSKeys.sellerPerformance(companyId ?? '', dateFrom, dateTo),
     enabled: !!companyId,
     queryFn: async (): Promise<SellerPerformance[]> => {
-      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-      const monthEnd = new Date(year, month, 1).toISOString().split('T')[0];
+      // Sprint 2: derive year/month from range start to look up matching target
+      const refDate = new Date(dateFrom);
+      const year = refDate.getFullYear();
+      const month = refDate.getMonth() + 1;
 
       // Sprint 1.4: query parallele invece di seriali (-30ms latency)
       const [oppsResult, targetsResult] = await Promise.all([
@@ -245,8 +247,8 @@ export function useSellerPerformance(
           .from('marketing_opportunities')
           .select('assigned_to, status, value, created_at')
           .eq('company_id', companyId!)
-          .gte('updated_at', monthStart)
-          .lt('updated_at', monthEnd),
+          .gte('updated_at', dateFrom)
+          .lt('updated_at', dateTo),
         supabase
           .from('sales_targets')
           .select('assigned_to, target_amount')
@@ -333,16 +335,18 @@ export function useSellerPerformance(
   });
 }
 
-export function useConversionBySource(companyId: string | null) {
+export function useConversionBySource(companyId: string | null, dateFrom: string | null = null) {
   return useQuery({
-    queryKey: salesOSKeys.conversionBySource(companyId ?? ''),
+    queryKey: salesOSKeys.conversionBySource(companyId ?? '', dateFrom),
     enabled: !!companyId,
     queryFn: async (): Promise<ConversionBySource[]> => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('marketing_opportunities')
         .select('source, status, value')
         .eq('company_id', companyId!)
         .not('source', 'is', null);
+      if (dateFrom) q = q.gte('created_at', dateFrom);
+      const { data, error } = await q;
       if (error) throw error;
 
       const sourceMap = new Map<string, ConversionBySource>();
