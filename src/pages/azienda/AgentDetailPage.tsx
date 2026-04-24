@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,17 +54,22 @@ export default function AgentDetailPage() {
   const [editTemp, setEditTemp] = useState(0.7);
   const [hasLoadedEdit, setHasLoadedEdit] = useState(false);
 
-  // Load edit state from agent
-  if (agent && !hasLoadedEdit) {
-    setEditNome(agent.nome);
-    setEditDescrizione(agent.descrizione || "");
-    setEditPrompt(agent.system_prompt || "");
-    setEditPrimoMsg(agent.primo_messaggio || "");
-    setEditLingua(agent.lingua);
-    setEditModel(agent.llm_model);
-    setEditTemp(agent.temperatura);
-    setHasLoadedEdit(true);
-  }
+  // Load edit state from agent — in useEffect per evitare setState durante
+  // render (React anti-pattern che causava "Cannot update state during render"
+  // + re-render multipli). `hasLoadedEdit` garantisce caricamento una sola
+  // volta, così se l'utente modifica un campo non viene sovrascritto.
+  useEffect(() => {
+    if (agent && !hasLoadedEdit) {
+      setEditNome(agent.nome);
+      setEditDescrizione(agent.descrizione || "");
+      setEditPrompt(agent.system_prompt || "");
+      setEditPrimoMsg(agent.primo_messaggio || "");
+      setEditLingua(agent.lingua);
+      setEditModel(agent.llm_model);
+      setEditTemp(agent.temperatura);
+      setHasLoadedEdit(true);
+    }
+  }, [agent, hasLoadedEdit]);
 
   const updateAgent = useMutation({
     mutationFn: async () => {
