@@ -701,8 +701,10 @@ function CategorieTab({ companyId }: { companyId: string }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function SettingsMargini() {
-  const { effectiveCompany } = useAuth() as any;
-  const companyId = effectiveCompany?.id as string | undefined;
+  // Bug fix: rimosso `useAuth() as any` che bypassava i type di AuthContext.
+  // Ora usiamo il tipo corretto — se Company cambia, TypeScript ci avvisa.
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
 
   const { data: categorie = [] } = useQuery({
     queryKey: ["listino-categorie", companyId],

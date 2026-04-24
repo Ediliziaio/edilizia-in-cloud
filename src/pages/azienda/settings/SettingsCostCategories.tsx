@@ -180,11 +180,20 @@ export default function SettingsCostCategories() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Categorie Costi</h1>
-        <p className="text-muted-foreground">
-          Gestisci le categorie utilizzate per classificare i costi aziendali
-        </p>
+      {/* Header pattern h-10 w-10 bg-primary/10 */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FolderOpen className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Categorie Costi</h1>
+            <p className="text-sm text-muted-foreground">
+              Classifica i costi aziendali in categorie (affitto, utenze, marketing…).
+              {" "}{categories.length} {categories.length === 1 ? "categoria" : "categorie"} configurate.
+            </p>
+          </div>
+        </div>
       </div>
 
       <Card>

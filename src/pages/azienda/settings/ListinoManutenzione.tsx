@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/formatters";
 import {
   Plus, Pencil, Trash2, Sparkles, Flame, Zap as ZapIcon,
   Sun, Bath, PaintBucket, Cloud, Construction, Shovel, Waves, CheckCircle2,
-  Search, ShieldAlert,
+  Search, ShieldAlert, ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1075,20 +1075,28 @@ export default function ListinoManutenzione() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Listino Prezzi Manutenzione</h1>
-          <p className="text-muted-foreground text-sm">
-            Configura tipi di impianto, tipi di intervento e le relative tariffe
-          </p>
+      {/* Header pattern h-10 w-10 bg-primary/10 */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <ClipboardList className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Listino Prezzi Manutenzione</h1>
+            <p className="text-sm text-muted-foreground">
+              Tipi di impianto, tipi di intervento e listino prezzi. Usati dal modulo Manutenzione
+              per calcolare automaticamente i preventivi di intervento.
+            </p>
+          </div>
         </div>
         <Button
           variant="outline"
+          size="sm"
           onClick={() => setTemplateDialogOpen(true)}
           disabled={creatingDemo}
           className="shrink-0"
         >
-          <Sparkles className="h-4 w-4 mr-2" />
+          <Sparkles className="h-4 w-4 mr-1.5" />
           {creatingDemo ? "Importazione..." : "Importa da template"}
         </Button>
       </div>
