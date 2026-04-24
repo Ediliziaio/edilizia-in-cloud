@@ -40,6 +40,19 @@ interface ImportRequest {
   company_id: string;
   dry_run?: boolean;
   clients: ImportClient[];
+  /**
+   * IVA % applicata agli ordini importati. Default 22.
+   * IMPORTANTE: se `amount_is_gross=true`, total_amount viene calcolato come
+   * amount / (1 + vat_rate/100) per ottenere l'imponibile corretto.
+   */
+  vat_rate?: number;
+  /**
+   * Se true, i valori in `amount` sono GIÀ IVATI (lordi).
+   * Serve per file Excel che hanno solo il totale al cliente.
+   * Il backend converte automaticamente in imponibile + IVA separata.
+   * Default: false (amount = imponibile).
+   */
+  amount_is_gross?: boolean;
 }
 
 function titleCase(input: string | null | undefined): string | null {
@@ -96,6 +109,8 @@ Deno.serve(async (req) => {
 
     const body: ImportRequest = await req.json();
     const { company_id, dry_run, clients } = body;
+    const vatRate = typeof body.vat_rate === "number" && body.vat_rate >= 0 ? body.vat_rate : 22;
+    const amountIsGross = body.amount_is_gross === true;
 
     if (!company_id || !Array.isArray(clients) || clients.length === 0) {
       return errorResponse("company_id e clients[] richiesti", 400, corsH);
@@ -306,6 +321,12 @@ Deno.serve(async (req) => {
         const displayName = c.is_business ? (businessName || safeLast) : `${safeFirst} ${safeLast}`.trim();
         const description = `Import Excel — ${displayName} (${c.external_id})${c.order.commerciale ? ` · Commerciale: ${titleCase(c.order.commerciale)}` : ""}`;
 
+        // Calcolo imponibile: se amount è LORDO (ivato), converti a imponibile
+        const rawAmount = c.order.amount ?? 0;
+        const imponibile = amountIsGross
+          ? Math.round((rawAmount / (1 + vatRate / 100)) * 100) / 100
+          : rawAmount;
+
         const { data: orderData, error: orderErr } = await supabaseAdmin
           .from("orders")
           .insert({
@@ -313,9 +334,10 @@ Deno.serve(async (req) => {
             customer_id: authUserId,
             current_status_id: targetStatusId,
             description,
-            total_amount: c.order.amount ?? 0,
+            total_amount: imponibile,
+            vat_rate: vatRate,
             deposit_amount: 0,
-            balance_amount: c.order.amount ?? 0,
+            balance_amount: imponibile,
             expected_date: null,
             created_at: c.order.contract_date,
             updated_at: c.order.contract_date,

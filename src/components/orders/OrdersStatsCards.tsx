@@ -76,81 +76,75 @@ export function OrdersStatsCards({
   const iconSize = "h-4 w-4 sm:h-5 sm:w-5";
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-      {/* 1. Totale ordini (no filter, just display) */}
-      <StatCard
-        icon={<ShoppingBag className={iconSize} />}
-        value={stats.totalOrders}
-        label="Ordini Totali"
-        iconBg="bg-primary/10"
-        iconColor="text-primary"
-      />
+    <div className="space-y-3">
+      {/* Riga 1 — Operative: conteggi per fase */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          icon={<ShoppingBag className={iconSize} />}
+          value={stats.totalOrders}
+          label="Ordini Totali"
+          iconBg="bg-primary/10"
+          iconColor="text-primary"
+        />
+        <StatCard
+          icon={<Hammer className={iconSize} />}
+          value={stats.countDaCompletare ?? 0}
+          label="Da Completare"
+          iconBg={activeStatusFilter === SENTINEL_DA_COMPLETARE ? "bg-amber-200 dark:bg-amber-900" : "bg-amber-100 dark:bg-amber-950"}
+          iconColor="text-amber-600 dark:text-amber-400"
+          onClick={onDaCompletareClick}
+          active={activeStatusFilter === SENTINEL_DA_COMPLETARE}
+          activeRing="ring-amber-400"
+        />
+        <StatCard
+          icon={<CheckCircle2 className={iconSize} />}
+          value={stats.countCompletati ?? 0}
+          label="Completati"
+          iconBg={activeStatusFilter === SENTINEL_COMPLETATI ? "bg-emerald-200 dark:bg-emerald-900" : "bg-emerald-100 dark:bg-emerald-950"}
+          iconColor="text-emerald-600 dark:text-emerald-400"
+          onClick={() => onStatusFilterClick?.(SENTINEL_COMPLETATI)}
+          active={activeStatusFilter === SENTINEL_COMPLETATI}
+          activeRing="ring-emerald-400"
+        />
+        <StatCard
+          icon={<LifeBuoy className={iconSize} />}
+          value={stats.countAssistenza ?? 0}
+          label="In Assistenza"
+          iconBg={activeStatusFilter === SENTINEL_ASSISTENZA ? "bg-orange-200 dark:bg-orange-900" : "bg-orange-100 dark:bg-orange-950"}
+          iconColor="text-orange-600 dark:text-orange-500"
+          onClick={() => onStatusFilterClick?.(SENTINEL_ASSISTENZA)}
+          active={activeStatusFilter === SENTINEL_ASSISTENZA}
+          activeRing="ring-orange-400"
+        />
+      </div>
 
-      {/* 2. Da Completare (lavorazioni attive — esclude Assistenza e Completati) */}
-      <StatCard
-        icon={<Hammer className={iconSize} />}
-        value={stats.countDaCompletare ?? 0}
-        label="Da Completare"
-        iconBg={activeStatusFilter === SENTINEL_DA_COMPLETARE ? "bg-amber-200 dark:bg-amber-900" : "bg-amber-100 dark:bg-amber-950"}
-        iconColor="text-amber-600 dark:text-amber-400"
-        onClick={onDaCompletareClick}
-        active={activeStatusFilter === SENTINEL_DA_COMPLETARE}
-        activeRing="ring-amber-400"
-      />
-
-      {/* 3. Completati */}
-      <StatCard
-        icon={<CheckCircle2 className={iconSize} />}
-        value={stats.countCompletati ?? 0}
-        label="Completati"
-        iconBg={activeStatusFilter === SENTINEL_COMPLETATI ? "bg-emerald-200 dark:bg-emerald-900" : "bg-emerald-100 dark:bg-emerald-950"}
-        iconColor="text-emerald-600 dark:text-emerald-400"
-        onClick={() => onStatusFilterClick?.(SENTINEL_COMPLETATI)}
-        active={activeStatusFilter === SENTINEL_COMPLETATI}
-        activeRing="ring-emerald-400"
-      />
-
-      {/* 4. In Assistenza */}
-      <StatCard
-        icon={<LifeBuoy className={iconSize} />}
-        value={stats.countAssistenza ?? 0}
-        label="In Assistenza"
-        iconBg={activeStatusFilter === SENTINEL_ASSISTENZA ? "bg-orange-200 dark:bg-orange-900" : "bg-orange-100 dark:bg-orange-950"}
-        iconColor="text-orange-600 dark:text-orange-500"
-        onClick={() => onStatusFilterClick?.(SENTINEL_ASSISTENZA)}
-        active={activeStatusFilter === SENTINEL_ASSISTENZA}
-        activeRing="ring-orange-400"
-      />
-
-      {/* 5. Totale ivato */}
-      <StatCard
-        icon={<Euro className={iconSize} />}
-        value={formatCurrency(stats.totalGross)}
-        label="Totale Ivato"
-        iconBg="bg-blue-100 dark:bg-blue-950"
-        iconColor="text-blue-600 dark:text-blue-400"
-      />
-
-      {/* 6. Incassato */}
-      <StatCard
-        icon={<TrendingUp className={iconSize} />}
-        value={formatCurrency(stats.collected)}
-        label="Incassato"
-        iconBg="bg-emerald-100 dark:bg-emerald-950"
-        iconColor="text-emerald-600 dark:text-emerald-400"
-      />
-
-      {/* 7. Da Incassare (clickable pending filter) */}
-      <StatCard
-        icon={<AlertCircle className={iconSize} />}
-        value={formatCurrency(stats.pending)}
-        label="Da Incassare"
-        iconBg={activePendingFilter ? "bg-rose-200 dark:bg-rose-900" : "bg-rose-100 dark:bg-rose-950"}
-        iconColor="text-rose-600 dark:text-rose-400"
-        onClick={onPendingClick}
-        active={activePendingFilter}
-        activeRing="ring-rose-400"
-      />
+      {/* Riga 2 — Finanziarie: flussi in € */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard
+          icon={<Euro className={iconSize} />}
+          value={formatCurrency(stats.totalGross)}
+          label="Totale Ivato"
+          iconBg="bg-blue-100 dark:bg-blue-950"
+          iconColor="text-blue-600 dark:text-blue-400"
+        />
+        <StatCard
+          icon={<TrendingUp className={iconSize} />}
+          value={formatCurrency(stats.collected)}
+          label="Incassato"
+          iconBg="bg-emerald-100 dark:bg-emerald-950"
+          iconColor="text-emerald-600 dark:text-emerald-400"
+        />
+        <StatCard
+          icon={<AlertCircle className={iconSize} />}
+          value={formatCurrency(stats.pending)}
+          label="Da Incassare"
+          iconBg={activePendingFilter ? "bg-rose-200 dark:bg-rose-900" : "bg-rose-100 dark:bg-rose-950"}
+          iconColor="text-rose-600 dark:text-rose-400"
+          onClick={onPendingClick}
+          active={activePendingFilter}
+          activeRing="ring-rose-400"
+        />
+      </div>
     </div>
   );
 }
