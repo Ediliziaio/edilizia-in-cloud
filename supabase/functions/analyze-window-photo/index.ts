@@ -5,6 +5,7 @@
 import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { normalizeWindowSceneAnalysis } from "../../../shared/render-window/windowSceneAnalysis.ts";
 
 const SYSTEM_PROMPT = `You are an expert Italian window and door analyzer.
@@ -245,7 +246,7 @@ Deno.serve(async (req: Request) => {
       const contentType = imgResp.headers.get("content-type") ?? "image/jpeg";
       mimeType = contentType.split(";")[0] ?? "image/jpeg";
       const imgBuffer = await imgResp.arrayBuffer();
-      imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
+      imgB64 = bytesToBase64(imgBuffer);
     } catch (err) {
       clearTimeout(imgTimeout);
       return new Response(

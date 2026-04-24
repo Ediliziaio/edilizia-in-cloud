@@ -1,6 +1,7 @@
 // Shared encryption utilities — AES-GCM (enterprise-grade)
 // Legacy XOR fallback has been REMOVED for security.
 // All tokens must use AES-GCM format (prefixed with "aes:").
+import { bytesToBase64 } from "./base64.ts";
 
 const AES_PREFIX = "aes:";
 
@@ -32,7 +33,7 @@ export async function encrypt(text: string, key: string): Promise<string> {
   const combined = new Uint8Array(iv.length + ciphertext.length);
   combined.set(iv);
   combined.set(ciphertext, iv.length);
-  return AES_PREFIX + btoa(String.fromCharCode(...combined));
+  return AES_PREFIX + bytesToBase64(combined);
 }
 
 /** Decrypt text. Only supports AES-GCM format ("aes:..."). Legacy XOR is no longer supported. */

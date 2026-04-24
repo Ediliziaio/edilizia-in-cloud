@@ -196,6 +196,7 @@ export default function RenderPersianeNew() {
               action: "analyze",
               session_id: sid,
               image_url: signed.signedUrl,
+              ...(meta ? { target_width: meta.width, target_height: meta.height } : {}),
             },
             headers,
           },

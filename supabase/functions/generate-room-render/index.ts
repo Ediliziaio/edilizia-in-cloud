@@ -7,6 +7,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
 
@@ -271,7 +272,7 @@ Deno.serve(async (req: Request) => {
       const imgResp = await fetch(imageUrl);
       const imgBlob = await imgResp.blob();
       const imgArrayBuffer = await imgBlob.arrayBuffer();
-      const imgBase64 = btoa(String.fromCharCode(...new Uint8Array(imgArrayBuffer)));
+      const imgBase64 = bytesToBase64(imgArrayBuffer);
 
       const geminiResp = await fetchWithRetry(
         `https://generativelanguage.googleapis.com/v1beta/models/${provider.model || "gemini-2.0-flash-exp"}:generateContent?key=${apiKey}`,

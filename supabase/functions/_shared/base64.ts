@@ -12,6 +12,11 @@
 
 export function utf8ToBase64(input: string): string {
   const bytes = new TextEncoder().encode(input);
+  return bytesToBase64(bytes);
+}
+
+export function bytesToBase64(input: Uint8Array | ArrayBuffer): string {
+  const bytes = input instanceof ArrayBuffer ? new Uint8Array(input) : input;
   // btoa accetta solo stringhe latin1 (0x00-0xFF). Convertiamo i byte
   // UTF-8 in una stringa latin1 a chunk per evitare stack overflow su
   // input molto grossi (String.fromCharCode(...bytes) fallisce > ~65k).
@@ -22,6 +27,10 @@ export function utf8ToBase64(input: string): string {
     binary += String.fromCharCode(...chunk);
   }
   return btoa(binary);
+}
+
+export function arrayBufferToBase64(input: ArrayBuffer): string {
+  return bytesToBase64(input);
 }
 
 export function base64ToUtf8(input: string): string {
