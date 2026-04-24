@@ -2,11 +2,9 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { sanitizeCustomerInput } from "../_shared/customerDataSanitizer.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Regex per telefono italiano + internazionale: cifre, spazi, +, - e parentesi.
-// Min 6 cifre effettive (rimuovendo separatori), max 20 caratteri totali.
-const PHONE_ALLOWED_CHARS = /^[0-9+\-\s()\.]+$/;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -21,49 +19,47 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const {
-      first_name,
-      last_name,
-      email,
-      phone,
-      address,
       company_id,
-      fiscal_code,
-      site_address,
-      notes,
       create_portal_account,       // boolean opt-in, client può forzare OFF
       send_welcome_email,           // boolean, default: true se portal abilitato
     } = body as Record<string, unknown>;
 
-    // --- Input Validation ---
-    if (!first_name || !last_name || !email || !company_id) {
-      return errorResponse("Missing required fields");
+    if (!company_id) {
+      return errorResponse("Missing company_id");
     }
 
-    const trimmedFirstName = String(first_name).trim().slice(0, 100);
-    const trimmedLastName = String(last_name).trim().slice(0, 100);
-    const trimmedEmail = String(email).trim().toLowerCase().slice(0, 255);
+    // --- Sanitizzazione + auto-correzione input ---
+    // Il sanitizer corregge i casi più comuni di import errato:
+    //  - numero di telefono finito in first_name / last_name
+    //  - CF/P.IVA finito in first_name / last_name
+    //  - split automatico "NOME COGNOME" quando uno dei due è vuoto
+    //  - rimozione caratteri invisibili
+    // I fix applicati vengono loggati e ritornati al client (trasparenza).
+    const sanitized = sanitizeCustomerInput(body as Record<string, unknown>);
 
-    if (!trimmedFirstName || !trimmedLastName) {
-      return errorResponse("Nome e cognome non possono essere vuoti");
+    const trimmedFirstName = sanitized.first_name;
+    const trimmedLastName = sanitized.last_name;
+    const trimmedEmail = (sanitized.email || "").slice(0, 255);
+    const trimmedPhone = sanitized.phone;
+
+    // Validation (post-sanitize)
+    if (!trimmedEmail) {
+      return errorResponse("Email è obbligatoria");
     }
-
     if (!EMAIL_REGEX.test(trimmedEmail)) {
       return errorResponse("Indirizzo email non valido");
     }
-
-    // Validazione phone (non obbligatorio, ma se presente deve essere formalmente valido)
-    let trimmedPhone: string | null = null;
-    if (phone !== null && phone !== undefined && String(phone).trim() !== "") {
-      const rawPhone = String(phone).trim().slice(0, 30);
-      if (!PHONE_ALLOWED_CHARS.test(rawPhone)) {
-        return errorResponse("Il numero di telefono contiene caratteri non validi");
-      }
-      const digits = rawPhone.replace(/\D/g, "");
-      if (digits.length < 6 || digits.length > 15) {
-        return errorResponse("Il numero di telefono deve contenere tra 6 e 15 cifre");
-      }
-      trimmedPhone = rawPhone;
+    // Dopo il sanitize, se mancano ancora sia nome che cognome,
+    // rifiutiamo: nessuna identità ricostruibile.
+    if (!trimmedFirstName && !trimmedLastName) {
+      return errorResponse(
+        "Nome o cognome sono obbligatori. Se il documento non contiene un'identità chiara, correggi manualmente prima di importare."
+      );
     }
+    // Se uno dei due è vuoto ma l'altro esiste, forziamo un placeholder
+    // "—" per rispettare il NOT NULL della tabella profiles senza perdere dati.
+    const safeFirstName = trimmedFirstName || "—";
+    const safeLastName = trimmedLastName || "—";
 
     // --- Company Scope Check + lettura setting portal ---
     const { data: companyRow } = await supabaseAdmin
@@ -106,7 +102,7 @@ Deno.serve(async (req) => {
       email: trimmedEmail,
       password,
       email_confirm: true,
-      user_metadata: { first_name: trimmedFirstName, last_name: trimmedLastName },
+      user_metadata: { first_name: safeFirstName, last_name: safeLastName },
     });
 
     if (authError) {
@@ -122,15 +118,15 @@ Deno.serve(async (req) => {
 
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       id: newUserId,
-      first_name: trimmedFirstName,
-      last_name: trimmedLastName,
+      first_name: safeFirstName,
+      last_name: safeLastName,
       email: trimmedEmail,
       phone: trimmedPhone,
-      address: (address as string)?.trim() || null,
+      address: sanitized.address,
       company_id: company_id as string,
-      fiscal_code: (fiscal_code as string)?.trim() || null,
-      site_address: (site_address as string)?.trim() || null,
-      notes: (notes as string)?.trim() || null,
+      fiscal_code: sanitized.fiscal_code,
+      site_address: sanitized.site_address,
+      notes: sanitized.notes,
       // Flag anagrafica-only: cliente creato senza accesso al portale
       portal_disabled: !shouldCreatePortal,
       // Se portal disabilitato, blocchiamo subito l'account auth per chiarezza
@@ -162,7 +158,7 @@ Deno.serve(async (req) => {
           to:           [trimmedEmail],
           subject:      `Benvenuto su ${companyRow.name || "la piattaforma"}`,
           html: `<html><body>
-              <p>Ciao ${trimmedFirstName},</p>
+              <p>Ciao ${safeFirstName},</p>
               <p>Il tuo account è stato creato su <strong>${companyRow.name || "la piattaforma"}</strong>.</p>
               <p>Ecco le tue credenziali di accesso:</p>
               <ul>
@@ -185,11 +181,11 @@ Deno.serve(async (req) => {
       success: true,
       customer: {
         id: newUserId,
-        first_name: trimmedFirstName,
-        last_name: trimmedLastName,
+        first_name: safeFirstName,
+        last_name: safeLastName,
         email: trimmedEmail,
         phone: trimmedPhone,
-        address: (address as string)?.trim() || null,
+        address: sanitized.address,
         portal_disabled: !shouldCreatePortal,
       },
       // Password restituita solo se l'account portale è attivo e richiesto.
@@ -197,6 +193,8 @@ Deno.serve(async (req) => {
       password: shouldCreatePortal ? password : null,
       portal_account_created: shouldCreatePortal,
       welcome_email_sent: shouldSendWelcomeEmail,
+      // Lista dei fix auto-applicati (trasparenza per debugging + UI)
+      fixes_applied: sanitized.fixes_applied,
     });
   } catch (error) {
     // requireAuth/requireRole throw Response objects

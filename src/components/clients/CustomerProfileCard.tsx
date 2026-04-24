@@ -71,9 +71,13 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form state
-  const [firstName, setFirstName] = useState(customer.first_name || "");
-  const [lastName, setLastName] = useState(customer.last_name || "");
+  // Form state — i placeholder "—" non vengono precompilati nel form
+  const stripPlaceholder = (v: string | null) => {
+    const t = (v ?? "").trim();
+    return (t === "—" || t === "-") ? "" : (v ?? "");
+  };
+  const [firstName, setFirstName] = useState(stripPlaceholder(customer.first_name));
+  const [lastName, setLastName] = useState(stripPlaceholder(customer.last_name));
   const [phone, setPhone] = useState(customer.phone || "");
   const [fiscalCode, setFiscalCode] = useState(customer.fiscal_code || "");
   const [address, setAddress] = useState(customer.address || "");
@@ -82,8 +86,8 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
   const [salespersonId, setSalespersonId] = useState(customer.salesperson_id || "");
 
   const resetForm = () => {
-    setFirstName(customer.first_name || "");
-    setLastName(customer.last_name || "");
+    setFirstName(stripPlaceholder(customer.first_name));
+    setLastName(stripPlaceholder(customer.last_name));
     setPhone(customer.phone || "");
     setFiscalCode(customer.fiscal_code || "");
     setAddress(customer.address || "");
@@ -92,8 +96,19 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
     setSalespersonId(customer.salesperson_id || "");
   };
 
-  const initials = getInitials(customer.first_name || "", customer.last_name);
-  const avatarColor = getAvatarColor(`${customer.first_name}${customer.last_name}`);
+  // Display-safe helpers: i valori "—" o "-" sono placeholder salvati da
+  // create-customer quando un nome/cognome era vuoto dopo il sanitize.
+  // Non devono uscire in UI come "— —".
+  const isPlaceholder = (v: string | null) => {
+    const t = (v ?? "").trim();
+    return t === "—" || t === "-" || t === "";
+  };
+  const displayFirst = isPlaceholder(customer.first_name) ? "" : (customer.first_name ?? "");
+  const displayLast = isPlaceholder(customer.last_name) ? "" : (customer.last_name ?? "");
+  const displayFullName = `${displayFirst} ${displayLast}`.trim() || "(senza nome)";
+
+  const initials = getInitials(displayFirst, displayLast) || "?";
+  const avatarColor = getAvatarColor(`${displayFirst}${displayLast}`);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,7 +232,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
               </Avatar>
               <div>
                 <p className="font-bold text-lg leading-tight">
-                  {customer.first_name} {customer.last_name}
+                  {displayFullName}
                 </p>
                 <p className="text-sm text-muted-foreground">{customer.email}</p>
               </div>

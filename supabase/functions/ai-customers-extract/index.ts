@@ -86,13 +86,22 @@ STRUTTURA OUTPUT (JSON valido, nessun altro testo):
 }
 
 REGOLE IMPORTANTI:
+⚠️ REGOLA CRITICA — NO NUMERI IN NOMI/COGNOMI:
+  - first_name e last_name DEVONO contenere SOLO lettere (eventualmente spazi, apostrofi, accenti).
+  - Se vedi una stringa come "3209143982 LANZA": il numero va in "phone" e "LANZA" in "last_name".
+  - Se una cella contiene "Mario Rossi 3331234567": first_name="Mario", last_name="Rossi", phone="3331234567".
+  - Se non riesci a separare una persona da un numero, SALTA la riga o mettila con confidence: 0.2 e warning esplicito.
+  - Mai, MAI, MAI inserire cifre in first_name o last_name. È un errore di estrazione grave.
+
+ALTRE REGOLE:
 - Non inventare dati: se un campo non è leggibile → null (o "" solo per first_name quando è persona giuridica).
 - Email deve contenere "@" e un dominio valido, altrimenti null.
 - Partita IVA = 11 cifre, Codice Fiscale = 16 caratteri alfanumerici; se ambiguo metti in fiscal_code il primo che matcha.
-- Normalizza il telefono: rimuovi punti consecutivi, mantieni spazi e prefisso "+39 ".
+- Normalizza il telefono: rimuovi punti consecutivi, mantieni spazi e prefisso "+39 " se italiano.
 - Se il documento non contiene nessun cliente o non è leggibile → rows: [], confidence: 0.
 - Massimo 300 righe per chiamata (se più lungo, prendi le prime 300 e alza un warning).
-- Ogni riga deve avere almeno 1 tra: email, phone, fiscal_code (altrimenti scarta la riga).`;
+- Ogni riga deve avere almeno 1 tra: email, phone, fiscal_code (altrimenti scarta la riga).
+- Se una riga ha un nome che è CHIARAMENTE un numero di telefono, ricomponi: mettilo in phone e ricostruisci il nome dai dati vicini (righe adiacenti, colonne precedenti). Se non è possibile, lascia first_name="" e metti comunque il numero in phone.`;
 
 // deno-lint-ignore no-explicit-any
 async function callOpenAI(apiKey: string, fileBase64: string, contentType: string): Promise<{

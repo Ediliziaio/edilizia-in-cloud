@@ -26,6 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { logger } from "@/utils/logger";
+import { sanitizeCustomerInput } from "@/lib/customerDataSanitizer";
 
 /* ─── Field schema ──────────────────────────────────────────────── */
 export interface CustomerImportField {
@@ -347,18 +348,37 @@ export function CustomerImportDialog({
 
   const rowValidations = useMemo(() => {
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return mappedRows.map((r) => {
+    return mappedRows.map((raw) => {
+      // Applica sanitize → permette preview dei fix automatici
+      const sanitized = sanitizeCustomerInput(raw);
       const errors: string[] = [];
-      if (!r.first_name?.trim()) errors.push("Nome mancante");
-      if (!r.last_name?.trim()) errors.push("Cognome mancante");
-      if (!r.email?.trim()) {
+      if (!sanitized.first_name?.trim() && !sanitized.last_name?.trim()) {
+        errors.push("Nome e cognome entrambi mancanti");
+      }
+      if (!sanitized.email?.trim()) {
         errors.push("Email mancante");
-      } else if (!EMAIL_RE.test(r.email.trim())) {
+      } else if (!EMAIL_RE.test(sanitized.email.trim())) {
         errors.push("Email non valida");
       }
-      return { row: r, errors };
+      // Converte sanitized di nuovo in Record<string,string> per l'import
+      const rowFixed: Record<string, string> = {
+        first_name: sanitized.first_name,
+        last_name: sanitized.last_name,
+        email: sanitized.email,
+        phone: sanitized.phone ?? "",
+        fiscal_code: sanitized.fiscal_code ?? "",
+        address: sanitized.address ?? "",
+        site_address: sanitized.site_address ?? "",
+        notes: sanitized.notes ?? "",
+      };
+      return { row: rowFixed, originalRow: raw, errors, fixes: sanitized.fixes_applied };
     });
   }, [mappedRows]);
+
+  const totalFixes = useMemo(
+    () => rowValidations.reduce((sum, v) => sum + v.fixes.length, 0),
+    [rowValidations],
+  );
 
   const validRowsCount = rowValidations.filter((v) => v.errors.length === 0).length;
   const invalidRowsCount = rowValidations.length - validRowsCount;
@@ -555,7 +575,7 @@ export function CustomerImportDialog({
           </div>
         )}
 
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-3 text-sm flex-wrap">
           <Badge variant="secondary">{fileName}</Badge>
           <Badge variant="outline">{mappedRows.length} righe rilevate</Badge>
           {validRowsCount > 0 && (
@@ -568,7 +588,24 @@ export function CustomerImportDialog({
               {invalidRowsCount} con errori
             </Badge>
           )}
+          {totalFixes > 0 && (
+            <Badge className="bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300">
+              <Sparkles className="h-3 w-3 mr-1 inline" />
+              {totalFixes} correzioni auto
+            </Badge>
+          )}
         </div>
+
+        {totalFixes > 0 && (
+          <Alert>
+            <Sparkles className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              <strong>Auto-correzioni rilevate:</strong> il sistema ha riconosciuto e sistemato
+              automaticamente valori scambiati (es. numero di telefono finito nel campo Nome).
+              I fix saranno applicati all'import.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <ScrollArea className="h-[280px] rounded-lg border">
           <Table>
