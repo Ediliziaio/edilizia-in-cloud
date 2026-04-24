@@ -1,6 +1,6 @@
 // generate-roof-render — Edge Function EiC
 // Render Tetto AI — Multi-Provider (OpenAI / Gemini)
-// Prompt Engine v1.0 — Roof renovation visualization
+// Prompt Engine v2.0 — surgical roof renovation visualization
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
@@ -38,70 +38,130 @@ const LUCERNARIO_DESC: Record<string, string> = {
   abbaino: "dormer window — small gabled structure projecting vertically from slope, own mini-roof, side cheeks clad in matching material, front vertical window",
 };
 
+const FINITURA_DESC: Record<string, string> = {
+  opaco: "matte finish with no unrealistic specular glare",
+  semi_lucido: "semi-gloss finish with controlled soft highlights",
+  lucido: "glossier finish with visible but physically plausible sky reflections",
+};
+
+const INTERVENTO_DESC: Record<string, string> = {
+  sostituzione_manto: "replace the roof covering system while preserving roof geometry and untouched accessories",
+  solo_colore: "recolor/refinish the existing covering only; preserve module geometry, ridges, gutters, skylights and accessories",
+  lattonerie_accessori: "work only on selected accessories such as gutters, skylights, downpipes or photovoltaic elements; preserve the covering unless local flashing is required",
+  sovracopertura_coibentata: "add an insulated over-roof/secondary package with realistic edge thickness, eaves, flashings and gutter adaptation",
+  rifacimento_completo: "coordinate covering, insulation, gutters, flashings, skylights and photovoltaic elements as one buildable roof renovation",
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function text(value: unknown, fallback = ""): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function bool(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function bullets(lines: Array<string | null | undefined>): string {
+  return lines
+    .filter((line): line is string => Boolean(line && line.trim()))
+    .map((line) => `- ${line}`)
+    .join("\n");
+}
+
+function isMetalOrMembrane(tipoManto: string): boolean {
+  return tipoManto.startsWith("lamiera") || tipoManto.startsWith("guaina");
+}
+
 // ── buildRoofPrompt ──────────────────────────────────────────────────────────
 function buildRoofPrompt(session: Record<string, unknown>): {
   systemPrompt: string;
   userPrompt: string;
   promptVersion: string;
+  promptPayload: Record<string, unknown>;
 } {
-  const config = (session.config || {}) as Record<string, unknown>;
-  const manto = (config.manto || {}) as Record<string, unknown>;
-  const grondaie = (config.grondaie || {}) as Record<string, unknown>;
-  const lucernari = (config.lucernari || {}) as Record<string, unknown>;
-  const pannelli = (config.pannelli_solari || {}) as Record<string, unknown>;
-  const notesRaw = (config.note_libere as string) || "";
+  const config = asRecord(session.config);
+  const manto = asRecord(config.manto);
+  const isolamento = asRecord(config.isolamento);
+  const target = asRecord(config.target);
+  const grondaie = asRecord(config.grondaie);
+  const lucernari = asRecord(config.lucernari);
+  const pannelli = asRecord(config.pannelli_solari);
+  const notesRaw = text(config.note_libere);
 
-  const blocks: string[] = [];
-
-  // [CONTESTO]
-  blocks.push(`[CONTESTO]\nThis is a roof renovation visualization. Replace the roof covering and optionally gutters, skylights, and solar panels while keeping everything else identical.`);
-
-  // [MANTO]
-  const tipoManto = (manto.tipo as string) || "tegole_coppi";
-  const mantoDesc = ROOF_PHYSICS[tipoManto] || tipoManto;
-  const coloreHex = (manto.colore_hex as string) || "#b5651d";
-  const coloreNome = (manto.colore_nome as string) || "";
-  const finituraMap: Record<string, string> = {
-    opaco: "matte finish with no specular highlights",
-    semi_lucido: "semi-gloss finish with soft specular sheen",
-    lucido: "high-gloss finish with visible specular reflections",
+  const tipoIntervento = text(config.tipo_intervento, "sostituzione_manto");
+  const scope = text(target.scope, "tutto_tetto");
+  const targetDescriptionMap: Record<string, string> = {
+    tutto_tetto: "all visible roof planes / the complete roof visible in the photo",
+    falda_principale: "main visible roof slope only",
+    falda_frontale: "front-facing roof slope only",
+    falda_laterale: "side roof slope only",
+    zona_specifica: text(target.descrizione_zona, "specific user-described roof zone"),
   };
-  const finitura = finituraMap[(manto.finitura as string) || "opaco"] || "matte finish";
-  blocks.push(`[MANTO]\nReplace the ENTIRE roof covering with: ${mantoDesc}\nColor: ${coloreNome || coloreHex} (hex ${coloreHex}). Finish: ${finitura}.\nThe new covering must follow the exact same roof geometry, slopes, ridges and hips. Maintain all existing chimneys, antennas and roof-mounted elements unless explicitly changed below.`);
+  const targetDescription = targetDescriptionMap[scope] || targetDescriptionMap.tutto_tetto;
+  const untouchedSlopes = scope === "tutto_tetto" ? "none; entire visible roof is in scope" : "all non-target visible roof planes must remain unchanged";
 
-  // [GRONDE]
-  if (grondaie.attivo) {
-    const grMat = (grondaie.materiale as string) || "alluminio";
-    const grDesc = GRONDAIA_DESC[grMat] || grMat;
-    const grColor = (grondaie.colore_hex as string) || "#8b4513";
-    const pluvColor = grondaie.colore_pluviale_hex ? ` Downpipe color: ${grondaie.colore_pluviale_hex}.` : "";
-    blocks.push(`[GRONDE]\nReplace gutters and downpipes with: ${grDesc}\nGutter color: ${grColor}.${pluvColor}\nAll brackets, end caps, joints and elbows must be rendered consistently.`);
-  } else {
-    blocks.push(`[GRONDE]\nKEEP existing gutters and downpipes exactly as in the original photo.`);
-  }
+  const tipoManto = text(manto.tipo, "tegole_coppi");
+  const mantoDesc = ROOF_PHYSICS[tipoManto] || tipoManto;
+  const coloreHex = text(manto.colore_hex, "#b5651d");
+  const coloreNome = text(manto.colore_nome, coloreHex);
+  const finitura = FINITURA_DESC[text(manto.finitura, "opaco")] || FINITURA_DESC.opaco;
+  const coveringActive = ["sostituzione_manto", "sovracopertura_coibentata", "rifacimento_completo"].includes(tipoIntervento);
 
-  // [LUCERNARI]
-  if (lucernari.attivo) {
-    const azione = (lucernari.azione as string) || "mantieni";
-    if (azione === "rimuovi") {
-      blocks.push(`[LUCERNARI]\nREMOVE all existing skylights/dormers. Fill positions with continuous new roof covering.`);
-    } else if (azione === "aggiungi") {
-      const tipo = (lucernari.tipo as string) || "piatto";
-      const lucDesc = LUCERNARIO_DESC[tipo] || tipo;
-      const qty = (lucernari.quantita as number) || 1;
-      const pos = (lucernari.posizione as string) || "centrale";
-      const frameColor = (lucernari.colore_telaio_hex as string) || "#3c3c3c";
-      blocks.push(`[LUCERNARI]\nADD ${qty} new skylight(s): ${lucDesc}\nPosition: ${pos} on the main visible slope. Frame color: ${frameColor}.\nFlashing kit must integrate seamlessly with the new roof covering.`);
-    } else {
-      blocks.push(`[LUCERNARI]\nKEEP existing skylights. Update flashing to match new roof covering.`);
+  const scene = {
+    buildingType: "same photographed building, infer residential/commercial type from the image",
+    roofType: "existing roof geometry visible in the photo",
+    currentCovering: "current photographed roof covering",
+    visibleSlopes: scope === "tutto_tetto" ? "all visible roof planes" : targetDescription,
+    contextToPreserve: ["facade", "windows", "doors", "sky", "vegetation", "street", "neighboring buildings", "people/vehicles if present"],
+  };
+
+  const replacements: string[] = [];
+  const additions: string[] = [];
+  const removals: string[] = [];
+  const conversionRules: string[] = [
+    "Preserve exact roof pitch, ridge lines, hip/valley geometry, eaves, building proportions, camera angle and image dimensions.",
+  ];
+
+  if (coveringActive) {
+    replacements.push(`Replace roof covering on ${targetDescription} with ${mantoDesc}; color ${coloreNome} (${coloreHex}); finish ${finitura}.`);
+    conversionRules.push("Remove incompatible details from the previous covering and rebuild ridge caps, flashings, valleys, hips, eaves and drip edges coherently for the selected system.");
+    if (isMetalOrMembrane(tipoManto)) {
+      conversionRules.push("If the original roof has coppi/tiles, remove all visible coppi/tiles, tile rows, tile overlaps and old ridge tile logic; introduce coherent metal/membrane panels, seams/laps, cappings, fasteners or heat-welded joints with no hybrid remnants.");
     }
+  } else if (tipoIntervento === "solo_colore") {
+    replacements.push(`Recolor/refinish the existing roof covering on ${targetDescription} to ${coloreNome} (${coloreHex}), ${finitura}; do not change tile/panel geometry, module size, ridges, skylights, gutters, chimneys or accessories.`);
+    conversionRules.push("Color-only operation: only surface color/finish changes; no new thickness, no new modules, no new panels, no new architectural details.");
   } else {
-    blocks.push(`[LUCERNARI]\nNo changes to skylights. Keep exactly as in original photo.`);
+    replacements.push("Keep the existing roof covering unchanged except for small local flashing adjustments required by selected accessories.");
   }
 
-  // [PANNELLI]
-  if (pannelli.attivo) {
-    const tipoP = (pannelli.tipo as string) || "fotovoltaico_nero";
+  if (bool(isolamento.attivo) || tipoIntervento === "sovracopertura_coibentata") {
+    additions.push(`Add realistic insulated over-roof package (${text(isolamento.tipo, "sarking_legno").replace(/_/g, " ")}, about ${Number(isolamento.spessore_cm || 10)} cm): visible only as plausible build-up thickness at eaves/edges, with adapted fascia, drip edges, flashings and gutter relationship; do not deform the building.`);
+  }
+
+  if (bool(grondaie.attivo)) {
+    const grMat = text(grondaie.materiale, "alluminio");
+    replacements.push(`Replace gutters and downpipes only with ${GRONDAIA_DESC[grMat] || grMat}; gutter color ${text(grondaie.colore_hex, "#8b4513")}${text(grondaie.colore_pluviale_hex) ? `; downpipe color ${text(grondaie.colore_pluviale_hex)}` : ""}.`);
+    conversionRules.push("Gutter/downpipe replacement must not change roof covering, facade, eave geometry or downpipe path except for material/color/detail of gutters, brackets, elbows and joints.");
+  }
+
+  if (bool(lucernari.attivo)) {
+    const azione = text(lucernari.azione, "mantieni");
+    if (azione === "rimuovi") {
+      removals.push("Remove existing skylights/dormers completely and rebuild continuous roof covering at their former positions, with no ghost outline, frame, curb, flashing or color scar.");
+    } else if (azione === "aggiungi") {
+      const tipo = text(lucernari.tipo, "piatto");
+      additions.push(`Add ${Number(lucernari.quantita || 1)} ${LUCERNARIO_DESC[tipo] || tipo} at ${text(lucernari.posizione, "centrale").replace(/_/g, " ")} on the target slope, with frame color ${text(lucernari.colore_telaio_hex, "#3c3c3c")}; integrate with correct opening cut, waterproof flashing kit, material returns, shadows and scale.`);
+    } else {
+      conversionRules.push("Keep existing skylights/dormers in place and adapt only their flashing if surrounding covering changes.");
+    }
+  }
+
+  if (bool(pannelli.attivo)) {
+    const tipoP = text(pannelli.tipo, "fotovoltaico_nero");
     const tipoMap: Record<string, string> = {
       fotovoltaico_nero: "black monocrystalline photovoltaic panels with dark anti-reflective coating, slim aluminum frame",
       fotovoltaico_blu: "blue polycrystalline photovoltaic panels with characteristic blue shimmer, aluminum frame",
@@ -112,29 +172,53 @@ function buildRoofPrompt(session: Record<string, unknown>): {
       medi: "a medium array of 8-14 panels (~40-50% of one slope)",
       tanti: "a large array of 16-24 panels (~70-90% of one slope)",
     };
-    const posMap: Record<string, string> = {
-      falda_sud: "on the south-facing/most sun-exposed slope",
-      falda_principale: "on the main visible roof slope",
-      distribuiti: "distributed across multiple visible slopes",
-    };
-    blocks.push(`[PANNELLI]\nADD solar panels: ${tipoMap[tipoP] || tipoP}.\nQuantity: ${qtyMap[(pannelli.quantita as string) || "medi"] || "medium array"}.\nPosition: ${posMap[(pannelli.posizione as string) || "falda_principale"] || "main slope"}.\nRender realistic glass reflections.`);
-  } else {
-    blocks.push(`[PANNELLI]\nNo solar panels. Do not add any.`);
+    const pos = text(pannelli.posizione, "falda_principale").replace(/_/g, " ");
+    const mounting = tipoP === "tegola_solare_integrata"
+      ? "flush integrated into the covering, without raised rails"
+      : "mounted on realistic rails/standoffs aligned to the roof slope";
+    additions.push(`Add photovoltaic on ${pos}: ${tipoMap[tipoP] || tipoP}; ${qtyMap[text(pannelli.quantita, "medi")] || "medium array"}; ${mounting}; modules must align perfectly with roof plane, rows, perspective and shadows.`);
   }
 
-  // [NOTE]
-  if (notesRaw.trim()) {
-    blocks.push(`[NOTE]\nAdditional instructions: ${notesRaw.trim()}`);
-  }
+  const preserve = [
+    "facade walls and facade finish",
+    "windows and doors",
+    "building proportions",
+    "roof planes outside target scope",
+    "chimneys, antennas, life lines and roof devices unless explicitly modified",
+    "sky, vegetation, street, neighboring buildings, vehicles and people",
+    "image dimensions, crop and orientation",
+  ];
 
-  // [VINCOLI]
-  blocks.push(`[VINCOLI]\nCRITICAL RENDERING RULES:\n1. ONLY change roof elements specified above — walls, windows, doors, garden, sky must remain 100% pixel-identical.\n2. Maintain exact camera perspective, focal length, lighting direction, shadow angles.\n3. All ridges, hips, valleys must be properly finished with matching ridge tiles or metal cappings.\n4. Chimney flashings must integrate with new roof covering.\n5. Eave overhang, fascia boards and soffit must remain consistent.\n6. Output image dimensions must match input exactly.\n7. No watermarks, text overlays, artistic filters — photorealistic only.`);
+  const blocks: Record<string, string> = {
+    A: `[BLOCK A - MISSION]\nYou are a SURGICAL PHOTOREALISTIC ROOF RENOVATION IMAGE EDITOR. Apply exactly the selected roof intervention while preserving the same photographed building: same roof geometry, same camera angle, same facade, same context, same lighting and same image dimensions. No artistic reinterpretation and no different-building generation.`,
+    B: `[BLOCK B - EXISTING ROOF INVENTORY]\nBuilding: ${scene.buildingType}\nRoof type: ${scene.roofType}\nVisible slopes: ${scene.visibleSlopes}\nCurrent covering: ${scene.currentCovering}\nContext to preserve: ${scene.contextToPreserve.join(", ")}\nRead all chimneys, skylights, dormers, gutters, ridges, hips, valleys, eaves, flashings, antennas and photovoltaic elements directly from the uploaded photo.`,
+    C: `[BLOCK C - TARGET SLOPES MAP]\nScope: ${scope}\nTarget slopes: ${targetDescription}\nUntouched slopes: ${untouchedSlopes}\nAccessory zone: gutters, downpipes, skylights, dormers, ridges, hips, valleys and flashings only where explicitly active.`,
+    D: `[BLOCK D - REPLACEMENT MANIFEST]\nIntervention: ${INTERVENTO_DESC[tipoIntervento] || INTERVENTO_DESC.sostituzione_manto}\nReplacements / refinishes:\n${bullets(replacements)}\nAdditions:\n${bullets(additions.length ? additions : ["no roof additions unless explicitly selected"])}\nRemovals:\n${bullets(removals.length ? removals : ["remove only construction details made incompatible by selected interventions"])}\nPreserve exactly:\n${bullets(preserve)}`,
+    E: `[BLOCK E - NEW ROOF SPECIFICATION]\nCovering active: ${coveringActive ? "yes" : tipoIntervento === "solo_colore" ? "recolor only" : "no"}\nCovering type: ${tipoManto}\nMaterial / construction: ${mantoDesc}\nColor / finish: ${coloreNome} (${coloreHex}), ${finitura}\nRidge logic: coherent ridge caps, metal cappings or membrane cappings for the selected system.\nEdge logic: eaves, fascia, drip edges and roof borders stay aligned to the original geometry.\nFlashing logic: chimney, skylight, valley and wall flashings must be plausible for the selected covering.\nProfile/module geometry: tiles, seams, ribs, panels or membrane laps must follow the real roof plane with correct scale and perspective.`,
+    F: `[BLOCK F - ACCESSORY RULES]\nGutters/downpipes: ${bool(grondaie.attivo) ? GRONDAIA_DESC[text(grondaie.materiale, "alluminio")] || text(grondaie.materiale, "alluminio") : "keep existing gutters and downpipes unchanged"}\nSkylights/dormers: ${bool(lucernari.attivo) ? text(lucernari.azione, "mantieni") : "unchanged"}\nPhotovoltaic: ${bool(pannelli.attivo) ? "active; see replacement manifest" : "do not add photovoltaic panels"}\nInsulation / over-roof: ${bool(isolamento.attivo) || tipoIntervento === "sovracopertura_coibentata" ? "active; adapt thickness, eaves, flashings and gutters realistically" : "not active"}\nChimneys / antennas / life lines: preserve unless explicitly listed, but update only necessary local flashings around them when covering changes.`,
+    G: `[BLOCK G - REMOVAL / CONVERSION RULES]\n${bullets(conversionRules)}\n${removals.length ? bullets(removals) : "- Do not leave hybrid old/new roof states, ghost outlines, incompatible old rows, wrong flashings or random patches."}`,
+    H: `[BLOCK H - BUILDING INTEGRITY]\n${bullets(["preserve facade, wall color, windows, doors, balconies and architectural proportions", "preserve roof shape, pitch, ridge line, hip/valley geometry and eave overhang unless insulation requires only realistic edge thickness", "preserve sky, vegetation, street, neighboring buildings, vehicles and people", "preserve exact camera perspective, crop, image dimensions and orientation", "do not alter non-target roof planes or non-target roof accessories"])}`,
+    I: `[BLOCK I - PHOTOREALISM RULES]\n${bullets(["material response must be physically plausible: clay, slate, metal, membrane, glass and photovoltaic surfaces must look different", "shadows, contact shadows, roof-plane perspective and overlap depths must match the original lighting", "all added elements must look installed and buildable, with correct mounting, flashing, trim, edge and waterproofing details", "no floating panels, no warped seams, no random tile scales, no fake CGI showroom look"])}`,
+    J: `[BLOCK J - NEGATIVE CONSTRAINTS]\n${bullets(["do not redesign the building", "do not change facade color, windows, doors or wall geometry", "do not change non-target roof planes", "do not invent balconies, dormers, skylights, chimneys, photovoltaic panels or antennas unless selected", "do not leave traces of removed skylights or old covering systems", "do not mix tile rows with metal/membrane systems on the same target slope unless explicitly selected", "do not change sky, vegetation, neighboring buildings, street or context", "do not stylize, illustrate, over-beautify or create a different house"])}`,
+    K: `[BLOCK K - QUALITY BAR]\n${bullets(["professional architectural roof renovation visualization", "same-building realism suitable for sales/preventivi", "precise interpretation of selected roof system, target slopes and accessories"])}`,
+  };
 
-  const systemPrompt = `You are a SURGICAL PHOTOREALISTIC IMAGE EDITOR specializing in ROOF RENOVATION visualization for the Italian construction industry. Your ONLY task: replace EXACTLY the specified roof elements while leaving EVERYTHING ELSE 100% pixel-perfect identical to the original photograph. This is PRECISE SURGICAL REPLACEMENT — not artistic interpretation.`;
+  const notes = notesRaw ? `[ADDITIONAL USER NOTES]\n${notesRaw}` : "";
+  const userPrompt = [blocks.B, blocks.C, blocks.D, blocks.E, blocks.F, blocks.G, blocks.H, blocks.I, blocks.J, blocks.K, notes]
+    .filter(Boolean)
+    .join("\n\n");
 
-  const userPrompt = blocks.join("\n\n");
-
-  return { systemPrompt, userPrompt, promptVersion: "1.0.0" };
+  return {
+    systemPrompt: blocks.A,
+    userPrompt,
+    promptVersion: "roof-v2.0.0",
+    promptPayload: {
+      scene_analysis: scene,
+      target_slopes: { scope, target_description: targetDescription, untouched_slopes: untouchedSlopes },
+      replacement_manifest: { intervention: tipoIntervento, replacements, additions, removals, conversion_rules: conversionRules, preserve },
+      final_prompt_version: "roof-v2.0.0",
+    },
+  };
 }
 
 // ── resolveRenderSize ────────────────────────────────────────────────────────
@@ -278,7 +362,8 @@ Deno.serve(async (req) => {
     const rawConfig = (config || (session.config as Record<string, unknown>) || {}) as Record<string, unknown>;
     const sessionLike = { ...session, config: rawConfig };
 
-    const { systemPrompt, userPrompt, promptVersion } = buildRoofPrompt(sessionLike);
+    const { systemPrompt, userPrompt, promptVersion, promptPayload } = buildRoofPrompt(sessionLike);
+    const finalProviderPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
     // ── Legge provider config e API key ──────────────────────────────────────
     const { data: providerConfig } = await supabase
@@ -321,7 +406,7 @@ Deno.serve(async (req) => {
 
       const form = new FormData();
       form.append("model", providerConfig.model);
-      form.append("prompt", userPrompt);
+      form.append("prompt", finalProviderPrompt);
       form.append("image[]", imgBlob, "photo.jpg");
       form.append("n", "1");
       const renderSize = resolveRenderSize(target_width, target_height);
@@ -360,7 +445,7 @@ Deno.serve(async (req) => {
         }],
         generationConfig: {
           responseModalities: ["IMAGE", "TEXT"],
-          temperature: 1,
+          temperature: 0.65,
         },
       };
 
@@ -431,11 +516,14 @@ Deno.serve(async (req) => {
         result_urls: [resultUrl],
         prompt_used: userPrompt,
         prompt_version: promptVersion,
-        prompt_char_count: (systemPrompt + userPrompt).length,
+        prompt_char_count: finalProviderPrompt.length,
         provider_key: providerConfig.provider_key,
         cost_real: costReal,
         cost_billed: costBilled,
-        config_snapshot: rawConfig,
+        config_snapshot: {
+          ...rawConfig,
+          roof_render_payload: promptPayload,
+        },
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
@@ -451,10 +539,8 @@ Deno.serve(async (req) => {
         success: true,
         session_id,
         result_url: resultUrl,
-        provider: providerConfig.provider_key,
-        cost_billed: costBilled,
         prompt_version: promptVersion,
-        prompt_char_count: (systemPrompt + userPrompt).length,
+        prompt_char_count: finalProviderPrompt.length,
       }),
       { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
     );

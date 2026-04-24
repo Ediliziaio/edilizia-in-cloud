@@ -13,6 +13,8 @@ import type {
   FinituraMantoTetto,
   MaterialeGrondaia,
   TipoLucernario,
+  TipoInterventoTetto,
+  TargetFaldeTetto,
 } from "@/modules/render-tetto/lib/types";
 
 // ── Roof type dictionary ─────────────────────────────────────────────────────
@@ -58,13 +60,48 @@ const TIPI_LUCERNARIO: { value: TipoLucernario; label: string }[] = [
   { value: "abbaino", label: "Abbaino" },
 ];
 
+const INTERVENTI_TETTO: { value: TipoInterventoTetto; label: string; desc: string }[] = [
+  { value: "sostituzione_manto", label: "Sostituzione manto", desc: "Cambia tegole, coppi, lamiera o membrana mantenendo la geometria del tetto" },
+  { value: "solo_colore", label: "Solo colore", desc: "Mantiene moduli, colmi e accessori: cambia solo finitura e colore" },
+  { value: "lattonerie_accessori", label: "Solo accessori", desc: "Interviene su gronde, pluviali, lucernari o fotovoltaico senza rifare il manto" },
+  { value: "sovracopertura_coibentata", label: "Sovracopertura", desc: "Aggiunge pacchetto isolato con spessori, bordi e lattonerie coerenti" },
+  { value: "rifacimento_completo", label: "Rifacimento completo", desc: "Coordina manto, isolamento, lattonerie e accessori come unico intervento" },
+];
+
+const TARGET_FALDE: { value: TargetFaldeTetto; label: string; desc: string }[] = [
+  { value: "tutto_tetto", label: "Tutto il tetto", desc: "Applica l'intervento a tutte le falde visibili" },
+  { value: "falda_principale", label: "Falda principale", desc: "Modifica solo la falda piu evidente nella foto" },
+  { value: "falda_frontale", label: "Falda frontale", desc: "Interviene sulla falda rivolta verso la camera" },
+  { value: "falda_laterale", label: "Falda laterale", desc: "Mantiene intatte le altre falde visibili" },
+  { value: "zona_specifica", label: "Zona specifica", desc: "Usa le note per indicare esattamente la porzione" },
+];
+
+const ISOLAMENTI = [
+  { value: "pannello_sandwich", label: "Pannello sandwich" },
+  { value: "sarking_legno", label: "Sarking legno" },
+  { value: "lana_roccia", label: "Lana di roccia" },
+  { value: "xps", label: "XPS" },
+  { value: "fibra_legno", label: "Fibra di legno" },
+] as const;
+
+const SPESSORI_ISOLAMENTO = [6, 8, 10, 12, 14, 16] as const;
+
 // ── Default config ────────────────────────────────────────────────────────────
 export const DEFAULT_TETTO_CONFIG: ConfigurazioneTetto = {
+  tipo_intervento: "sostituzione_manto",
+  target: {
+    scope: "tutto_tetto",
+  },
   manto: {
     tipo: "tegole_coppi",
     colore_hex: "#b5651d",
     colore_nome: "Terracotta classico",
     finitura: "opaco",
+  },
+  isolamento: {
+    attivo: false,
+    tipo: "sarking_legno",
+    spessore_cm: 10,
   },
   grondaie: {
     attivo: false,
@@ -93,6 +130,32 @@ interface Props {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function TettoConfigForm({ value, onChange, disabled }: Props) {
+  const setIntervento = (tipo_intervento: TipoInterventoTetto) => {
+    onChange({
+      ...value,
+      tipo_intervento,
+      isolamento: {
+        ...(value.isolamento ?? DEFAULT_TETTO_CONFIG.isolamento!),
+        attivo: tipo_intervento === "sovracopertura_coibentata" ? true : (value.isolamento?.attivo ?? false),
+      },
+    });
+  };
+
+  const setTarget = <K extends keyof NonNullable<typeof value.target>>(key: K, val: NonNullable<typeof value.target>[K]) =>
+    onChange({
+      ...value,
+      target: { ...(value.target ?? DEFAULT_TETTO_CONFIG.target!), [key]: val },
+    });
+
+  const setIsolamento = <K extends keyof NonNullable<typeof value.isolamento>>(key: K, val: NonNullable<typeof value.isolamento>[K]) =>
+    onChange({
+      ...value,
+      isolamento: { ...(value.isolamento ?? DEFAULT_TETTO_CONFIG.isolamento!), [key]: val },
+      tipo_intervento: key === "attivo" && val === true && value.tipo_intervento !== "rifacimento_completo"
+        ? "sovracopertura_coibentata"
+        : value.tipo_intervento,
+    });
+
   const setManto = <K extends keyof typeof value.manto>(key: K, val: (typeof value.manto)[K]) =>
     onChange({ ...value, manto: { ...value.manto, [key]: val } });
 
@@ -123,6 +186,73 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* ── Tipo intervento ────────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <div>
+          <Label className="text-sm font-semibold">Tipo intervento *</Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Definisce cosa puo cambiare davvero nel render e cosa deve restare intatto.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+          {INTERVENTI_TETTO.map(item => {
+            const selected = (value.tipo_intervento ?? "sostituzione_manto") === item.value;
+            return (
+              <Card
+                key={item.value}
+                className={`cursor-pointer transition-all ${
+                  selected ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-primary/40"
+                } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+                onClick={() => !disabled && setIntervento(item.value)}
+              >
+                <CardContent className="p-3 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold">{item.label}</span>
+                    {selected && <Badge className="text-[10px] px-1.5 py-0">Attivo</Badge>}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Target falde ───────────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <Label className="text-sm font-semibold">Falde target *</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+          {TARGET_FALDE.map(item => {
+            const selected = (value.target?.scope ?? "tutto_tetto") === item.value;
+            return (
+              <Card
+                key={item.value}
+                className={`cursor-pointer transition-all ${
+                  selected ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:border-primary/40"
+                } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+                onClick={() => !disabled && setTarget("scope", item.value)}
+              >
+                <CardContent className="p-3 space-y-1">
+                  <span className="text-xs font-semibold">{item.label}</span>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        {(value.target?.scope ?? "tutto_tetto") === "zona_specifica" && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Descrizione zona</Label>
+            <Input
+              value={value.target?.descrizione_zona ?? ""}
+              onChange={e => setTarget("descrizione_zona", e.target.value)}
+              placeholder="Es. solo falda bassa a destra, attorno al lucernario"
+              disabled={disabled}
+            />
+          </div>
+        )}
+      </div>
+
       {/* ── Tipo manto (card grid) ──────────────────────────────────────── */}
       <div className="space-y-2">
         <Label className="text-sm font-semibold">Tipo copertura *</Label>
@@ -161,7 +291,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       </div>
 
       {/* ── Colore + finitura ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="space-y-1.5">
           <Label>Colore manto</Label>
           <div className="flex items-center gap-2">
@@ -182,6 +312,15 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           </div>
         </div>
         <div className="space-y-1.5">
+          <Label>Nome colore</Label>
+          <Input
+            value={value.manto.colore_nome ?? ""}
+            onChange={e => setManto("colore_nome", e.target.value)}
+            disabled={disabled}
+            placeholder="Es. Rosso coppo anticato"
+          />
+        </div>
+        <div className="space-y-1.5">
           <Label>Finitura</Label>
           <Select value={value.manto.finitura} onValueChange={v => setManto("finitura", v as FinituraMantoTetto)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -190,6 +329,53 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* ── Isolamento / sovracopertura ────────────────────────────────── */}
+      <div className="space-y-3 border rounded-lg p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label className="text-sm font-semibold">Isolamento / sovracopertura</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Aggiunge spessore reale a bordo falda, gronde e scossaline senza deformare l'edificio.
+            </p>
+          </div>
+          <Switch
+            checked={value.isolamento?.attivo ?? false}
+            onCheckedChange={v => setIsolamento("attivo", v)}
+            disabled={disabled}
+          />
+        </div>
+        {(value.isolamento?.attivo ?? false) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Sistema</Label>
+              <Select
+                value={value.isolamento?.tipo ?? "sarking_legno"}
+                onValueChange={v => setIsolamento("tipo", v as NonNullable<typeof value.isolamento>["tipo"])}
+                disabled={disabled}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ISOLAMENTI.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Spessore indicativo</Label>
+              <Select
+                value={String(value.isolamento?.spessore_cm ?? 10)}
+                onValueChange={v => setIsolamento("spessore_cm", Number(v) as NonNullable<typeof value.isolamento>["spessore_cm"])}
+                disabled={disabled}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SPESSORI_ISOLAMENTO.map(n => <SelectItem key={n} value={String(n)}>{n} cm</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Grondaie ────────────────────────────────────────────────────── */}

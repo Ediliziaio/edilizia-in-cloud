@@ -6,6 +6,20 @@ export type MaterialeGrondaia = "alluminio" | "rame" | "acciaio_zincato" | "pvc"
 
 export type TipoLucernario = "piatto" | "sporgente" | "abbaino";
 
+export type TipoInterventoTetto =
+  | "sostituzione_manto"
+  | "solo_colore"
+  | "lattonerie_accessori"
+  | "sovracopertura_coibentata"
+  | "rifacimento_completo";
+
+export type TargetFaldeTetto =
+  | "tutto_tetto"
+  | "falda_principale"
+  | "falda_frontale"
+  | "falda_laterale"
+  | "zona_specifica";
+
 export interface ConfigManto {
   tipo: TipoManto;
   colore_hex: string;
@@ -36,8 +50,22 @@ export interface ConfigPannelliSolari {
   posizione?: "falda_sud" | "falda_principale" | "distribuiti";
 }
 
+export interface ConfigIsolamentoTetto {
+  attivo: boolean;
+  tipo?: "pannello_sandwich" | "sarking_legno" | "lana_roccia" | "xps" | "fibra_legno";
+  spessore_cm?: 6 | 8 | 10 | 12 | 14 | 16;
+}
+
+export interface ConfigTargetTetto {
+  scope: TargetFaldeTetto;
+  descrizione_zona?: string;
+}
+
 export interface ConfigurazioneTetto {
+  tipo_intervento?: TipoInterventoTetto;
+  target?: ConfigTargetTetto;
   manto: ConfigManto;
+  isolamento?: ConfigIsolamentoTetto;
   grondaie: ConfigGrondaie;
   lucernari: ConfigLucernari;
   pannelli_solari?: ConfigPannelliSolari;
@@ -45,13 +73,89 @@ export interface ConfigurazioneTetto {
 }
 
 export interface AnalisiTetto {
+  tipo_edificio?: string;
+  stile_edificio?: string;
   tipo_tetto: string;
   numero_falde: number;
+  falde_visibili?: string[];
   manto_attuale: string;
   colore_manto_hex: string;
+  colore_manto_nome?: string;
   presenza_lucernari: boolean;
   numero_lucernari: number;
+  presenza_abbaini?: boolean;
   pendenza_stimata: number;
+  inclinazione_apparente?: string;
   presenza_comignoli: boolean;
+  presenza_fotovoltaico?: boolean;
+  presenza_antenne_linee_vita?: boolean;
+  gronde_pluviali?: string;
+  bordi_sporti?: string;
+  colmo_displuvi_converse?: string;
+  prospettiva_foto?: string;
+  luce_ombre?: string;
+  elementi_intoccabili?: string[];
+  contesto_da_preservare?: string[];
   stato_conservazione: string;
+}
+
+export interface RoofSceneAnalysis {
+  buildingType: string;
+  buildingStyle: string;
+  roofType: string;
+  visibleSlopes: string[];
+  slopeCount: number;
+  apparentPitch: string;
+  currentCovering: string;
+  currentColor: string;
+  conservationState: string;
+  skylights: string;
+  dormers: string;
+  chimneys: string;
+  photovoltaic: string;
+  antennasLifeLines: string;
+  guttersDownpipes: string;
+  eavesEdges: string;
+  ridgeValleysFlashings: string;
+  photoPerspective: string;
+  lightAndShadows: string;
+  untouchableElements: string[];
+  contextToPreserve: string[];
+}
+
+export interface RoofTargetSlopesMap {
+  scope: TargetFaldeTetto;
+  targetDescription: string;
+  targetSlopes: string[];
+  untouchedSlopes: string[];
+  photovoltaicZone: string;
+  accessoryZone: string;
+}
+
+export interface RoofReplacementManifest {
+  interventionType: TipoInterventoTetto;
+  replacements: string[];
+  recolors: string[];
+  additions: string[];
+  removals: string[];
+  conversionRules: string[];
+  preserveExactly: string[];
+}
+
+export interface RoofPromptValidationResult {
+  isValid: boolean;
+  missingSections: string[];
+  missingBusinessRules: string[];
+}
+
+export interface TettoPromptBuildResult {
+  systemPrompt: string;
+  userPrompt: string;
+  negativePrompt: string;
+  promptVersion: string;
+  blocks: Record<string, string>;
+  sceneAnalysis: RoofSceneAnalysis;
+  targetSlopesMap: RoofTargetSlopesMap;
+  replacementManifest: RoofReplacementManifest;
+  validation: RoofPromptValidationResult;
 }
