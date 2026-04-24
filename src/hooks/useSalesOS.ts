@@ -611,7 +611,7 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
 
       // Sprint 4: carica config dinamica (fallback default)
       const { data: cfgRow } = await supabase
-        .from('lead_scoring_config' as any)
+        .from('lead_scoring_config')
         .select('*')
         .eq('company_id', companyId)
         .maybeSingle();
@@ -718,7 +718,7 @@ export function useRecalculateLeadScore(companyId: string | null) {
 
       // Sprint 4: config dinamica per-company
       const { data: cfgRow } = await supabase
-        .from('lead_scoring_config' as any)
+        .from('lead_scoring_config')
         .select('*')
         .eq('company_id', companyId)
         .maybeSingle();

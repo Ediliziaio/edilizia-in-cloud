@@ -45,6 +45,13 @@ export interface Webhook {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Sicurezza + resilienza (migration 20261024110000)
+  allowed_ips?: string[] | null;
+  timeout_seconds?: number | null;
+  consecutive_failures?: number | null;
+  max_consecutive_failures?: number | null;
+  paused_at?: string | null;
+  paused_reason?: string | null;
 }
 
 export interface WebhookDelivery {

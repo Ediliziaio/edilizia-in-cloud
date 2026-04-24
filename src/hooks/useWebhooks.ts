@@ -44,14 +44,17 @@ export function useWebhookDeliveries(webhookId: string | null) {
 export function useCreateWebhook(companyId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: Pick<Webhook, "name" | "url" | "secret" | "events">) => {
+    mutationFn: async (
+      input: Pick<Webhook, "name" | "url" | "secret" | "events"> &
+        Partial<Pick<Webhook, "timeout_seconds" | "allowed_ips">>
+    ) => {
       if (!companyId) throw new Error("companyId richiesto");
       const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase.from("webhooks").insert({
         ...input,
         company_id: companyId,
         created_by: user?.id ?? null,
-      } as any);
+      });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", companyId] }),
@@ -64,7 +67,7 @@ export function useUpdateWebhook(companyId: string | undefined) {
     mutationFn: async ({ id, ...data }: Partial<Webhook> & { id: string }) => {
       const { error } = await supabase
         .from("webhooks")
-        .update({ ...data, updated_at: new Date().toISOString() } as any)
+        .update({ ...data, updated_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },
