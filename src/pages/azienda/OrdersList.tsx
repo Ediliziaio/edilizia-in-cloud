@@ -31,6 +31,7 @@ import { OrdersStatsCards } from "@/components/orders/OrdersStatsCards";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
@@ -105,6 +106,7 @@ function OrdersListInner() {
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
+  const [customerSheetsOpen, setCustomerSheetsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarFilters, setSidebarFilters] = useState<OrdersFilterState>(INITIAL_FILTER_STATE);
 
@@ -1024,197 +1026,10 @@ function OrdersListInner() {
   }, [prepareExportData, effectiveCompany?.name, toast]);
 
   // Export PDF: una scheda completa per ogni cliente con i suoi ordini
-  const exportCustomerSheetsPDF = useCallback(async () => {
-    if (!effectiveCompany?.id) return;
-    try {
-      toast({ title: "Generazione in corso", description: "Preparo le schede clienti…" });
-      // Fetch tutti i clienti della company
-      const { data: customersData } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email, phone, is_business, business_name, fiscal_code, address, city, postal_code, province, site_address, site_city, site_postal_code, site_province, notes, created_at")
-        .eq("company_id", effectiveCompany.id);
-      const customers = (customersData ?? []) as Array<{
-        id: string; first_name: string | null; last_name: string | null;
-        email: string; phone: string | null;
-        is_business?: boolean | null; business_name?: string | null;
-        fiscal_code: string | null;
-        address: string | null; city?: string | null; postal_code?: string | null; province?: string | null;
-        site_address: string | null; site_city?: string | null; site_postal_code?: string | null; site_province?: string | null;
-        notes: string | null; created_at: string;
-      }>;
+  // Export schede clienti PDF: apre dialog con quantity selector + progress bar
+  // (vedi CustomerSheetsExportDialog per il fix del bug "1000 schede").
+  const openCustomerSheetsDialog = useCallback(() => setCustomerSheetsOpen(true), []);
 
-      if (customers.length === 0) {
-        toast({ title: "Nessun cliente", description: "Non ci sono clienti da esportare.", variant: "destructive" });
-        return;
-      }
-
-      // Fetch ordini per tutti i clienti in un colpo solo
-      const { data: ordersData } = await supabase
-        .from("orders")
-        .select("id, order_code, description, total_amount, created_at, customer_id, current_status_id, order_statuses:current_status_id(name)")
-        .eq("company_id", effectiveCompany.id);
-      const ordersByCustomer = new Map<string, Array<{ order_code: string | null; description: string | null; total_amount: number | null; created_at: string; status: string | null }>>();
-      (ordersData ?? []).forEach((o) => {
-        const list = ordersByCustomer.get(o.customer_id as string) ?? [];
-        list.push({
-          order_code: o.order_code as string | null,
-          description: o.description as string | null,
-          total_amount: o.total_amount as number | null,
-          created_at: o.created_at as string,
-          status: (o.order_statuses as { name: string } | null)?.name ?? null,
-        });
-        ordersByCustomer.set(o.customer_id as string, list);
-      });
-
-      const jsPDFModule = await import("jspdf");
-      const jsPDF = jsPDFModule.default ?? (jsPDFModule as any).jsPDF;
-      const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-      let first = true;
-
-      const getDisplayName = (c: typeof customers[0]) => {
-        if (c.is_business && c.business_name) return c.business_name;
-        const f = (c.first_name ?? "").trim(); const l = (c.last_name ?? "").trim();
-        const isPh = (s: string) => s === "—" || s === "-" || s === "";
-        return `${isPh(f) ? "" : f} ${isPh(l) ? "" : l}`.trim() || "(senza nome)";
-      };
-
-      customers
-        .sort((a, b) => getDisplayName(a).localeCompare(getDisplayName(b)))
-        .forEach((c) => {
-          if (!first) doc.addPage();
-          first = false;
-
-          const name = getDisplayName(c);
-          const orders = ordersByCustomer.get(c.id) ?? [];
-
-          // Header azienda + titolo
-          doc.setFontSize(9);
-          doc.setTextColor(120);
-          doc.text(effectiveCompany?.name ?? "Scheda Cliente", 40, 40);
-          doc.text(format(new Date(), "dd/MM/yyyy"), 555, 40, { align: "right" });
-          doc.setTextColor(0);
-
-          doc.setFontSize(16);
-          doc.setFont("helvetica", "bold");
-          doc.text(name, 40, 70);
-
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(10);
-          doc.setTextColor(90);
-          if (c.is_business) doc.text("AZIENDA / PERSONA GIURIDICA", 40, 86);
-          doc.setTextColor(0);
-
-          let y = 110;
-          const line = (label: string, value?: string | null) => {
-            if (!value) return;
-            doc.setFont("helvetica", "bold");
-            doc.text(`${label}:`, 40, y);
-            doc.setFont("helvetica", "normal");
-            doc.text(String(value), 150, y);
-            y += 16;
-          };
-
-          line("Email", c.email);
-          line("Telefono", c.phone);
-          line("CF / P.IVA", c.fiscal_code);
-
-          y += 4;
-          doc.setFontSize(11);
-          doc.setFont("helvetica", "bold");
-          doc.text(c.is_business ? "Sede legale" : "Residenza", 40, y);
-          y += 4;
-          doc.setDrawColor(200);
-          doc.line(40, y, 555, y);
-          y += 14;
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          if (c.address) { doc.text(c.address, 40, y); y += 14; }
-          const loc1 = [c.postal_code, c.city, c.province ? `(${c.province})` : null].filter(Boolean).join(" ");
-          if (loc1) { doc.text(loc1, 40, y); y += 14; }
-
-          if (c.site_address || c.site_city) {
-            y += 8;
-            doc.setFontSize(11);
-            doc.setFont("helvetica", "bold");
-            doc.text("Indirizzo cantiere", 40, y);
-            y += 4;
-            doc.line(40, y, 555, y);
-            y += 14;
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            if (c.site_address) { doc.text(c.site_address, 40, y); y += 14; }
-            const loc2 = [c.site_postal_code, c.site_city, c.site_province ? `(${c.site_province})` : null].filter(Boolean).join(" ");
-            if (loc2) { doc.text(loc2, 40, y); y += 14; }
-          }
-
-          if (c.notes) {
-            y += 8;
-            doc.setFontSize(11);
-            doc.setFont("helvetica", "bold");
-            doc.text("Note", 40, y);
-            y += 4;
-            doc.line(40, y, 555, y);
-            y += 14;
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            const lines = doc.splitTextToSize(c.notes, 515);
-            doc.text(lines, 40, y);
-            y += lines.length * 13;
-          }
-
-          // Ordini del cliente
-          y += 16;
-          doc.setFontSize(11);
-          doc.setFont("helvetica", "bold");
-          doc.text(`Ordini (${orders.length})`, 40, y);
-          y += 4;
-          doc.line(40, y, 555, y);
-          y += 14;
-          doc.setFontSize(9);
-          doc.setFont("helvetica", "normal");
-
-          if (orders.length === 0) {
-            doc.setTextColor(120);
-            doc.text("Nessun ordine registrato.", 40, y);
-            doc.setTextColor(0);
-          } else {
-            // Header tabella
-            doc.setFont("helvetica", "bold");
-            doc.text("Codice", 40, y);
-            doc.text("Descrizione", 130, y);
-            doc.text("Stato", 370, y);
-            doc.text("Data", 450, y);
-            doc.text("Totale", 555, y, { align: "right" });
-            y += 12;
-            doc.setFont("helvetica", "normal");
-            orders.forEach((o) => {
-              if (y > 780) { doc.addPage(); y = 40; }
-              doc.text((o.order_code ?? "—").slice(0, 18), 40, y);
-              const desc = (o.description ?? "").slice(0, 48);
-              doc.text(desc, 130, y);
-              doc.text((o.status ?? "").slice(0, 14), 370, y);
-              doc.text(o.created_at ? format(new Date(o.created_at), "dd/MM/yy") : "—", 450, y);
-              doc.text(
-                o.total_amount != null
-                  ? `€ ${Number(o.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
-                  : "—",
-                555, y, { align: "right" },
-              );
-              y += 12;
-            });
-          }
-        });
-
-      doc.save(`schede-clienti-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({ title: `PDF esportato`, description: `${customers.length} schede clienti in un unico PDF.` });
-    } catch (e) {
-      toast({
-        title: "Errore export",
-        description: e instanceof Error ? e.message : "Generazione schede fallita",
-        variant: "destructive",
-      });
-    }
-  }, [effectiveCompany?.id, effectiveCompany?.name, toast]);
 
   // Import handler
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
@@ -1405,7 +1220,7 @@ function OrdersListInner() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-[11px]">Schede clienti</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportCustomerSheetsPDF}>
+              <DropdownMenuItem onClick={openCustomerSheetsDialog}>
                 <UsersIcon className="h-4 w-4 mr-2" /> PDF schede clienti
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1424,7 +1239,7 @@ function OrdersListInner() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={exportCustomerSheetsPDF}>
+              <DropdownMenuItem onClick={openCustomerSheetsDialog}>
                 <UsersIcon className="h-4 w-4 mr-2" /> Scarica schede clienti
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1584,6 +1399,11 @@ function OrdersListInner() {
         title="Importa Ordini"
         fields={ORDER_IMPORT_FIELDS}
         onImport={handleOrdersImport}
+      />
+
+      <CustomerSheetsExportDialog
+        open={customerSheetsOpen}
+        onOpenChange={setCustomerSheetsOpen}
       />
     </div>
   );
