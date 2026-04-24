@@ -120,7 +120,7 @@ function OrdersListInner() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("order_statuses")
-        .select("id, name, color, position")
+        .select("id, name, color, position, is_support_phase")
         .eq("company_id", effectiveCompany.id)
         .order("position");
       if (error) throw error;
@@ -130,12 +130,18 @@ function OrdersListInner() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const lastStatusId = statuses.length > 0
-    ? statuses.reduce((max, s) => s.position > max.position ? s : max, statuses[0]).id
+  // La fase Assistenza è lo stato con is_support_phase=true (max 1 per azienda).
+  const supportStatusId = statuses.find(s => (s as { is_support_phase?: boolean }).is_support_phase)?.id ?? null;
+  // "Completato" = ultimo stato di workflow (massima position) che NON è fase Assistenza.
+  // Questo evita il bug: con Assistenza in coda (position > Posa Completata), il reduce
+  // precedente restituiva Assistenza come "ultimo", invertendo la semantica di "In Corso".
+  const workflowStatuses = statuses.filter(s => !(s as { is_support_phase?: boolean }).is_support_phase);
+  const lastStatusId = workflowStatuses.length > 0
+    ? workflowStatuses.reduce((max, s) => s.position > max.position ? s : max, workflowStatuses[0]).id
     : null;
 
   const { data: ordersResult, isLoading } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, contractDateRange, warehouseDateRange, expectedDateRange],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange],
     queryFn: async () => {
       if (!effectiveCompany?.id) return { orders: [] as OrderWithDetails[], totalCount: 0 };
 
@@ -206,7 +212,16 @@ function OrdersListInner() {
       if (debouncedSearch) {
         query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
       }
-      if (statusFilter !== "all") {
+      if (statusFilter === "__da_completare__") {
+        // Sentinel "Da completare": esclude ordini in Assistenza e Completati
+        const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
+        if (excl.length) query = query.not("current_status_id", "in", `(${excl.join(",")})`);
+      } else if (statusFilter === "__assistenza__") {
+        // Sentinel "Assistenza": solo ordini in fase Assistenza
+        if (supportStatusId) query = query.eq("current_status_id", supportStatusId);
+      } else if (statusFilter === "__completati__") {
+        if (lastStatusId) query = query.eq("current_status_id", lastStatusId);
+      } else if (statusFilter !== "all") {
         query = query.eq("current_status_id", statusFilter);
       }
       if (hideCompleted && lastStatusId) {
@@ -241,15 +256,16 @@ function OrdersListInner() {
   const { data: aggregates } = useQuery({
     queryKey: ["orders-aggregates", effectiveCompany?.id, debouncedSearch, statusFilter, paymentFilter,
       customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter,
-      hideCompleted, lastStatusId, contractDateRange, warehouseDateRange, expectedDateRange],
+      hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange],
     queryFn: async () => {
-      if (!effectiveCompany?.id) return { totalGross: 0, collected: 0, pending: 0 };
+      const EMPTY = { totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0 };
+      if (!effectiveCompany?.id) return EMPTY;
 
       let allowedIds: string[] | null = null;
       if (salespersonFilter !== "all") {
         const { data: r } = await supabase.from("order_salespeople").select("order_id").eq("salesperson_id", salespersonFilter);
         const ids = (r || []).map(x => x.order_id);
-        if (!ids.length) return { totalGross: 0, collected: 0, pending: 0 };
+        if (!ids.length) return EMPTY;
         allowedIds = ids;
       }
       if (laborFilter !== "all") {
@@ -260,27 +276,34 @@ function OrdersListInner() {
           .select("order_id")
           .eq(isTeam ? "external_team_id" : "employee_id", realId);
         const ids = (r || []).map(x => x.order_id);
-        if (!ids.length) return { totalGross: 0, collected: 0, pending: 0 };
+        if (!ids.length) return EMPTY;
         allowedIds = allowedIds ? allowedIds.filter(id => ids.includes(id)) : ids;
       }
       if (supplierFilter !== "all") {
         const { data: r } = await supabase.from("order_items").select("order_id").eq("supplier_id", supplierFilter);
         const ids = [...new Set((r || []).map(x => x.order_id))];
-        if (!ids.length) return { totalGross: 0, collected: 0, pending: 0 };
+        if (!ids.length) return EMPTY;
         allowedIds = allowedIds ? allowedIds.filter(id => ids.includes(id)) : ids;
       }
-      if (allowedIds !== null && allowedIds.length === 0) return { totalGross: 0, collected: 0, pending: 0 };
+      if (allowedIds !== null && allowedIds.length === 0) return EMPTY;
 
       let q = supabase
         .from("orders")
-        .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_paid, payment_type")
+        .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_paid, payment_type, current_status_id")
         .eq("company_id", effectiveCompany.id);
       if (allowedIds !== null) q = q.in("id", allowedIds);
       if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
       if (paymentFilter === "pending") q = q.or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false");
       else if (paymentFilter === "paid") q = q.eq("deposit_paid", true).eq("balance_paid", true);
       if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
-      if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
+      if (statusFilter === "__da_completare__") {
+        const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
+        if (excl.length) q = q.not("current_status_id", "in", `(${excl.join(",")})`);
+      } else if (statusFilter === "__assistenza__") {
+        if (supportStatusId) q = q.eq("current_status_id", supportStatusId);
+      } else if (statusFilter === "__completati__") {
+        if (lastStatusId) q = q.eq("current_status_id", lastStatusId);
+      } else if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
       if (hideCompleted && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
       if (amountMin) q = q.gte("total_amount", parseFloat(amountMin));
       if (amountMax) q = q.lte("total_amount", parseFloat(amountMax));
@@ -293,10 +316,27 @@ function OrdersListInner() {
 
       const { data, error } = await q;
       if (error) throw error;
-      const totalGross = (data || []).reduce((sum, o) => sum + (o.total_amount || 0) * (1 + ((o.vat_rate ?? 22) / 100)), 0);
-      const collected = (data || []).reduce((sum, o) => sum + getAmountCollected(o as any), 0);
-      const pending = (data || []).reduce((sum, o) => sum + getAmountDue(o as any), 0);
-      return { totalGross, collected, pending };
+      const rows = data || [];
+      const totalGross = rows.reduce((sum, o) => sum + (o.total_amount || 0) * (1 + ((o.vat_rate ?? 22) / 100)), 0);
+      const collected = rows.reduce((sum, o) => sum + getAmountCollected(o as any), 0);
+      const pending = rows.reduce((sum, o) => sum + getAmountDue(o as any), 0);
+
+      // Ripartizione per stato:
+      // - Assistenza = is_support_phase
+      // - Completati = stato con position massima fra quelli non-Assistenza
+      // - Da Completare = tutti gli altri (incluso senza stato)
+      let countAssistenza = 0;
+      let countCompletati = 0;
+      for (const o of rows) {
+        if (o.current_status_id && supportStatusId && o.current_status_id === supportStatusId) {
+          countAssistenza++;
+        } else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) {
+          countCompletati++;
+        }
+      }
+      const countDaCompletare = rows.length - countAssistenza - countCompletati;
+
+      return { totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare };
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -304,7 +344,7 @@ function OrdersListInner() {
 
   // B3 — query indipendente per la vista Pipeline (tutti gli ordini, nessuna paginazione)
   const { data: allOrdersForPipeline = [] } = useQuery({
-    queryKey: ["orders-pipeline", effectiveCompany?.id, statusFilter, hideCompleted, lastStatusId, debouncedSearch, customerFilter],
+    queryKey: ["orders-pipeline", effectiveCompany?.id, statusFilter, hideCompleted, lastStatusId, supportStatusId, debouncedSearch, customerFilter],
     queryFn: async () => {
       if (!effectiveCompany?.id || viewMode !== "pipeline") return [] as OrderWithDetails[];
       let q = supabase
@@ -321,7 +361,14 @@ function OrdersListInner() {
         .eq("company_id", effectiveCompany.id)
         .order("created_at", { ascending: false });
       if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
-      if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
+      if (statusFilter === "__da_completare__") {
+        const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
+        if (excl.length) q = q.not("current_status_id", "in", `(${excl.join(",")})`);
+      } else if (statusFilter === "__assistenza__") {
+        if (supportStatusId) q = q.eq("current_status_id", supportStatusId);
+      } else if (statusFilter === "__completati__") {
+        if (lastStatusId) q = q.eq("current_status_id", lastStatusId);
+      } else if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
       if (hideCompleted && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
       if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
       // Cap pipeline to 200 most recent orders to prevent performance issues with large datasets
@@ -832,6 +879,9 @@ function OrdersListInner() {
     totalGross: aggregates?.totalGross ?? 0,
     collected: aggregates?.collected ?? 0,
     pending: aggregates?.pending ?? 0,
+    countAssistenza: aggregates?.countAssistenza ?? 0,
+    countCompletati: aggregates?.countCompletati ?? 0,
+    countDaCompletare: aggregates?.countDaCompletare ?? 0,
   }), [totalCount, aggregates]);
 
   // Export CSV
@@ -883,7 +933,14 @@ function OrdersListInner() {
     if (paymentFilter === "pending") query = query.or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false");
     else if (paymentFilter === "paid") query = query.eq("deposit_paid", true).eq("balance_paid", true);
     if (debouncedSearch) query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
-    if (statusFilter !== "all") query = query.eq("current_status_id", statusFilter);
+    if (statusFilter === "__da_completare__") {
+      const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
+      if (excl.length) query = query.not("current_status_id", "in", `(${excl.join(",")})`);
+    } else if (statusFilter === "__assistenza__") {
+      if (supportStatusId) query = query.eq("current_status_id", supportStatusId);
+    } else if (statusFilter === "__completati__") {
+      if (lastStatusId) query = query.eq("current_status_id", lastStatusId);
+    } else if (statusFilter !== "all") query = query.eq("current_status_id", statusFilter);
     if (hideCompleted && lastStatusId) query = query.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
     if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
     if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
@@ -1267,6 +1324,18 @@ function OrdersListInner() {
         stats={stats}
         onPendingClick={() => setPaymentFilter(paymentFilter === "pending" ? "all" : "pending")}
         activePendingFilter={paymentFilter === "pending"}
+        supportStatusId={supportStatusId}
+        completedStatusId={lastStatusId}
+        activeStatusFilter={statusFilter}
+        onStatusFilterClick={(id) => setStatusFilter(statusFilter === id ? "all" : id)}
+        onDaCompletareClick={() => {
+          // "Da completare" = escludi Assistenza e Completati.
+          // Gestito lato frontend togglando hideCompleted + un secondo filtro non-assistenza.
+          // Implementazione semplice: filtra per "all" e forza hideCompleted + hideAssistenza.
+          // Dato che non c'è un filtro combinato nativo, usiamo statusFilter="da_completare" sentinel
+          // mappato nella query principale.
+          setStatusFilter(statusFilter === "__da_completare__" ? "all" : "__da_completare__");
+        }}
       />
 
       <OrdersFilterSidebar
