@@ -197,21 +197,22 @@ export default function SettingsEmailDomain() {
           testMode: true,
           to: input.to,
           stream: input.stream,
-          subject: `[TEST] Email di verifica dominio · ${data?.domain?.domain ?? ""}`,
+          subject: `[TEST] Email di verifica · ${data?.domain?.domain ?? "EdiliziaInCloud"}`,
           html: `<html><body style="font-family:system-ui,sans-serif;padding:24px;background:#f8fafc;">
             <div style="max-width:540px;margin:0 auto;background:white;padding:24px;border-radius:12px;border:1px solid #e2e8f0;">
               <h2 style="color:#0f172a;margin:0 0 12px 0;">✅ Test email riuscito</h2>
               <p style="color:#334155;line-height:1.6;">
-                Questa è una email di test inviata dal tuo dominio personalizzato
-                <strong>${data?.domain?.domain ?? ""}</strong> sulla pipeline
+                Questa è una email di test inviata ${data?.domain ? `dal tuo dominio personalizzato <strong>${data.domain.domain}</strong>` : `dal dominio piattaforma <strong>notifiche.ediliziaincloud.it</strong>`}
+                sulla pipeline
                 <strong>${input.stream === "transactional" ? "transazionale (Resend)" : "marketing (Elastic Email)"}</strong>.
               </p>
               <p style="color:#334155;line-height:1.6;">
-                Se ricevi questa email significa che il dominio è configurato correttamente
-                e le prossime email aziendali verranno inviate da te.
+                Se ricevi questa email significa che il sistema di invio è configurato
+                correttamente e le prossime email aziendali partiranno regolarmente.
               </p>
+              ${!data?.domain ? `<p style="color:#64748b;font-size:13px;background:#f1f5f9;padding:12px;border-radius:8px;margin-top:16px;">💡 Per un branding completo e maggiore deliverability, puoi configurare il tuo dominio aziendale personalizzato in <strong>Impostazioni → Dominio email</strong>.</p>` : ""}
               <p style="color:#64748b;font-size:12px;margin-top:24px;">
-                Inviato il ${new Date().toLocaleString("it-IT")} · ID piattaforma EdiliziaInCloud
+                Inviato il ${new Date().toLocaleString("it-IT")} · piattaforma EdiliziaInCloud
               </p>
             </div>
           </body></html>`,
@@ -316,15 +317,62 @@ export default function SettingsEmailDomain() {
 
     return (
       <div className="max-w-3xl space-y-6">
+        {/* Banner stato attuale: dominio fallback piattaforma */}
+        <Card className="border-blue-200 bg-blue-50/40">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm text-blue-900">
+                  Le email funzionano già ✅
+                </p>
+                <p className="text-xs text-blue-800 mt-0.5">
+                  Stai usando il dominio di default della piattaforma:{" "}
+                  <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200">
+                    notifiche.ediliziaincloud.it
+                  </code>
+                  . Tutte le email transazionali (OTP firma, password reset, notifiche)
+                  partiranno come{" "}
+                  <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200">
+                    Tua Azienda via EdiliziaInCloud &lt;no-reply@notifiche.ediliziaincloud.it&gt;
+                  </code>
+                  .
+                </p>
+                <p className="text-xs text-blue-800 mt-2">
+                  <strong>Configurando il tuo dominio sotto</strong> otterrai mittente
+                  personalizzato <em>(senza "via EdiliziaInCloud")</em>, migliore deliverability
+                  e branding completo.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-100"
+                onClick={() => {
+                  setTestEmailTo("");
+                  setTestStream("transactional");
+                  setTestDialogOpen(true);
+                }}
+              >
+                <Send className="h-3.5 w-3.5 mr-1.5" />
+                Prova ora
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              <CardTitle>Dominio email personalizzato</CardTitle>
+              <CardTitle>Dominio email personalizzato (opzionale)</CardTitle>
             </div>
             <CardDescription>
-              Invia email marketing e transazionali dal tuo dominio aziendale (es. <code className="text-xs">noreply@tuaazienda.it</code>)
-              invece che dal dominio della piattaforma. Migliora deliverability e branding.
+              Invia email dal tuo dominio aziendale (es. <code className="text-xs">noreply@tuaazienda.it</code>)
+              invece che dal dominio della piattaforma. Consigliato per aziende
+              che vogliono massima deliverability e branding.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -380,8 +428,86 @@ export default function SettingsEmailDomain() {
               {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Registra dominio
             </Button>
+
+            <div className="text-xs text-muted-foreground pt-2 border-t">
+              <strong>Richiesto:</strong> accesso al pannello DNS del dominio (Aruba,
+              Register.it, Cloudflare, GoDaddy…). Dovrai aggiungere alcuni record TXT/CNAME
+              seguendo la procedura guidata che appare dopo la registrazione.
+              La propagazione può richiedere da 10 minuti fino a 48h.
+            </div>
           </CardContent>
         </Card>
+
+        {/* Dialog test email — attivo anche in step 1 (usa fallback platform) */}
+        <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                Invia email di test
+              </DialogTitle>
+              <DialogDescription>
+                Verifica che il sistema stia inviando email. Il test partirà dal
+                dominio piattaforma <code className="text-[11px]">notifiche.ediliziaincloud.it</code>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label>Email destinatario *</Label>
+                <Input
+                  type="email"
+                  value={testEmailTo}
+                  onChange={(e) => setTestEmailTo(e.target.value)}
+                  placeholder="prova@esempio.it"
+                />
+              </div>
+              <div>
+                <Label>Pipeline</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setTestStream("transactional")}
+                    className={`border rounded-md p-2 text-left text-xs transition ${testStream === "transactional" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
+                  >
+                    <div className="font-medium">Transazionale</div>
+                    <div className="text-muted-foreground text-[10px]">Resend · OTP, firme, password reset</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTestStream("marketing")}
+                    className={`border rounded-md p-2 text-left text-xs transition ${testStream === "marketing" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
+                  >
+                    <div className="font-medium">Marketing</div>
+                    <div className="text-muted-foreground text-[10px]">Elastic Email · campagne</div>
+                  </button>
+                </div>
+              </div>
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Il test non consuma crediti. Controlla anche la cartella spam
+                  se non arriva in inbox entro 1 minuto.
+                </AlertDescription>
+              </Alert>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTestDialogOpen(false)}>Annulla</Button>
+              <Button
+                onClick={() => {
+                  if (!testEmailTo || !testEmailTo.includes("@")) {
+                    toast.error("Email non valida");
+                    return;
+                  }
+                  testEmailMutation.mutate({ to: testEmailTo, stream: testStream });
+                }}
+                disabled={testEmailMutation.isPending}
+              >
+                {testEmailMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Invia test
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
