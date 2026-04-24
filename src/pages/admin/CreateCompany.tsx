@@ -141,8 +141,26 @@ export default function CreateCompany() {
 
       const { data: result, error } = await supabase.functions.invoke("create-company", { body });
 
-      if (error) throw error;
-      if (!result.success) throw new Error(result.error);
+      if (error) {
+        // Bug fix: supabase-js wrapper ritorna "Failed to send a request to
+        // the Edge Function" come messaggio generico quando la function
+        // risponde 4xx/5xx. Il vero messaggio è in error.context (Response).
+        // Estraiamo il body JSON per mostrare l'errore reale (es. "Company
+        // error: duplicate key" oppure "Auth error: email already exists").
+        let realMsg = error.message || "Errore sconosciuto";
+        try {
+          const ctx = (error as { context?: unknown }).context;
+          if (ctx instanceof Response) {
+            const body = await ctx.clone().json().catch(() => null);
+            if (body?.error) realMsg = String(body.error);
+            else if (body?.message) realMsg = String(body.message);
+          }
+        } catch {
+          /* non-JSON response, keep original message */
+        }
+        throw new Error(realMsg);
+      }
+      if (!result?.success) throw new Error(result?.error ?? "Risposta non valida dal server");
 
       // If a referrer was selected, create referral_companies record
       const companyId = result.company?.id;
