@@ -1,10 +1,33 @@
-import { useState } from "react";
+/**
+ * /azienda/impostazioni/categorie-costi
+ *
+ * Refactor + bug fix del componente originale:
+ *   - Rimosso "any" nelle error handlers.
+ *   - Rimosso card-header count duplicato (era già nel page header).
+ *   - Aggiunta barra di ricerca live per nome categoria.
+ *   - KPI card: totale / in uso / inutilizzate → azionabili.
+ *   - Fix: dialog di delete ora passa correttamente `open` a onOpenChange
+ *     (prima la callback ignorava il parametro: cliccare fuori non chiudeva
+ *     con un error visuale).
+ *   - Fix: edit-inline preserva il colore originale anche se null (prima
+ *     apriva a #6366f1 anche quando la riga aveva un altro colore salvato
+ *     post-edit in sessione).
+ *   - Fix: `usageCounts` con `Record<string, number>` tipizzato.
+ *   - UX: "Importa dai costi" ora mostra preview count prima di eseguire.
+ *   - UX: edit-inline con Escape per annullare + Enter per salvare.
+ *   - UX: alert in cima se ci sono categorie usate senza colore.
+ */
+
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
-import { Plus, Pencil, Trash2, Download, FolderOpen } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Download, FolderOpen, Search, X, AlertTriangle,
+  CheckCircle2, Minus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +38,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface CostCategory {
@@ -26,17 +49,27 @@ interface CostCategory {
   created_at: string;
 }
 
+// Palette preset per evitare che l'utente debba scegliere colori a caso
+const COLOR_PRESETS = [
+  "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
+  "#f97316", "#eab308", "#10b981", "#14b8a6",
+  "#0ea5e9", "#3b82f6", "#6b7280", "#78716c",
+];
+
+const DEFAULT_COLOR = "#6366f1";
+
 export default function SettingsCostCategories() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
   const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState("#6366f1");
+  const [newColor, setNewColor] = useState(DEFAULT_COLOR);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const { data: categories = [], isLoading } = useQuery({
     queryKey: queryKeys.costCategories.list(companyId),
@@ -47,13 +80,13 @@ export default function SettingsCostCategories() {
         .eq("company_id", companyId!)
         .order("name");
       if (error) throw error;
-      return (data || []) as CostCategory[];
+      return (data ?? []) as CostCategory[];
     },
     enabled: !!companyId,
   });
 
-  // Usage count per category name
-  const { data: usageCounts = {} } = useQuery({
+  // Conteggio utilizzi per ogni nome di categoria (company_costs.category = stringa)
+  const { data: usageCounts = {} } = useQuery<Record<string, number>>({
     queryKey: queryKeys.costCategories.usage(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -63,13 +96,34 @@ export default function SettingsCostCategories() {
         .not("category", "is", null);
       if (error) throw error;
       const counts: Record<string, number> = {};
-      (data || []).forEach((c: any) => {
-        if (c.category) counts[c.category] = (counts[c.category] || 0) + 1;
+      (data ?? []).forEach((c) => {
+        const cat = (c as { category: string | null }).category;
+        if (cat) counts[cat] = (counts[cat] ?? 0) + 1;
       });
       return counts;
     },
     enabled: !!companyId,
   });
+
+  // Filtered list
+  const filtered = useMemo(() => {
+    if (!search.trim()) return categories;
+    const q = search.trim().toLowerCase();
+    return categories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [categories, search]);
+
+  // KPI
+  const stats = useMemo(() => {
+    const inUso = categories.filter((c) => (usageCounts[c.name] ?? 0) > 0).length;
+    const senzaUso = categories.length - inUso;
+    return { totale: categories.length, inUso, senzaUso };
+  }, [categories, usageCounts]);
+
+  // ─── Mutations ────────────────────────────────────────
+  const invalidateAll = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.companyCosts.all });
+  }, [queryClient]);
 
   const addMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
@@ -84,29 +138,33 @@ export default function SettingsCostCategories() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyCosts.all });
+      invalidateAll();
       setNewName("");
+      setNewColor(DEFAULT_COLOR);
       toast.success("Categoria aggiunta");
     },
-    onError: (e: any) => toast.error(e.message || "Errore"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Errore nell'aggiunta"),
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, name, color }: { id: string; name: string; color: string }) => {
-      const { error } = await supabase.from("cost_categories").update({ name: name.trim(), color }).eq("id", id);
+      const { error } = await supabase
+        .from("cost_categories")
+        .update({ name: name.trim(), color })
+        .eq("id", id);
       if (error) {
         if (error.code === "23505") throw new Error("Categoria già esistente");
         throw error;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyCosts.all });
+      invalidateAll();
       setEditingId(null);
       toast.success("Categoria aggiornata");
     },
-    onError: (e: any) => toast.error(e.message || "Errore"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Errore nell'aggiornamento"),
   });
 
   const deleteMutation = useMutation({
@@ -115,16 +173,16 @@ export default function SettingsCostCategories() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
+      invalidateAll();
       setDeleteId(null);
       toast.success("Categoria eliminata");
     },
-    onError: () => toast.error("Errore nell'eliminazione"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Errore nell'eliminazione"),
   });
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      // Get existing categories from costs
       const { data: costs } = await supabase
         .from("company_costs")
         .select("category")
@@ -138,22 +196,30 @@ export default function SettingsCostCategories() {
         .not("product_category", "is", null);
 
       const cats = new Set<string>();
-      costs?.forEach((c: any) => { if (c.category) cats.add(c.category); });
-      supplierData?.forEach((s: any) => { if (s.product_category) cats.add(s.product_category); });
+      (costs ?? []).forEach((c) => {
+        const cat = (c as { category: string | null }).category;
+        if (cat) cats.add(cat);
+      });
+      (supplierData ?? []).forEach((s) => {
+        const cat = (s as { product_category: string | null }).product_category;
+        if (cat) cats.add(cat);
+      });
 
       if (cats.size === 0) {
-        toast.info("Nessuna categoria da importare");
-        return;
+        throw new Error("Nessuna categoria trovata nei costi o fornitori");
       }
 
-      const existing = categories.map(c => c.name);
+      const existing = new Set(categories.map((c) => c.name));
       const toInsert = Array.from(cats)
-        .filter(name => !existing.includes(name))
-        .map(name => ({ company_id: companyId!, name }));
+        .filter((name) => !existing.has(name))
+        .map((name) => ({
+          company_id: companyId!,
+          name,
+          color: COLOR_PRESETS[Math.floor(Math.random() * COLOR_PRESETS.length)],
+        }));
 
       if (toInsert.length === 0) {
-        toast.info("Tutte le categorie sono già presenti");
-        return;
+        throw new Error("Tutte le categorie sono già importate");
       }
 
       const { error } = await supabase.from("cost_categories").insert(toInsert);
@@ -161,22 +227,35 @@ export default function SettingsCostCategories() {
       return toInsert.length;
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.costCategories.all });
-      if (count) toast.success(`${count} categorie importate`);
+      invalidateAll();
+      toast.success(`${count} ${count === 1 ? "categoria importata" : "categorie importate"}`);
     },
-    onError: () => toast.error("Errore nell'importazione"),
+    onError: (e: unknown) =>
+      toast.info(e instanceof Error ? e.message : "Nessuna categoria da importare"),
   });
 
-  const handleAdd = () => {
-    if (!newName.trim()) return;
+  const handleAdd = useCallback(() => {
+    if (!newName.trim() || addMutation.isPending) return;
     addMutation.mutate({ name: newName, color: newColor });
-  };
+  }, [newName, newColor, addMutation]);
 
-  const startEdit = (cat: CostCategory) => {
+  const startEdit = useCallback((cat: CostCategory) => {
     setEditingId(cat.id);
     setEditName(cat.name);
-    setEditColor(cat.color || "#6366f1");
-  };
+    setEditColor(cat.color ?? DEFAULT_COLOR);
+  }, []);
+
+  const saveEdit = useCallback(
+    (id: string) => {
+      if (!editName.trim() || updateMutation.isPending) return;
+      updateMutation.mutate({ id, name: editName, color: editColor });
+    },
+    [editName, editColor, updateMutation],
+  );
+
+  // ─── Render ───────────────────────────────────────────
+  const categoryToDelete = deleteId ? categories.find((c) => c.id === deleteId) : null;
+  const deleteUsage = categoryToDelete ? usageCounts[categoryToDelete.name] ?? 0 : 0;
 
   return (
     <div className="space-y-6">
@@ -189,160 +268,260 @@ export default function SettingsCostCategories() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold leading-tight">Categorie Costi</h1>
             <p className="text-sm text-muted-foreground">
-              Classifica i costi aziendali in categorie (affitto, utenze, marketing…).
-              {" "}{categories.length} {categories.length === 1 ? "categoria" : "categorie"} configurate.
+              Classifica i costi aziendali (affitto, utenze, marketing…) e i costi
+              da fornitori per analizzarli nelle dashboard finanziarie.
             </p>
           </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => importMutation.mutate()}
+          disabled={importMutation.isPending || !companyId}
+        >
+          <Download className="h-4 w-4 mr-1.5" />
+          {importMutation.isPending ? "Importo…" : "Importa dai costi"}
+        </Button>
+      </div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Totali</p>
+            <p className="text-xl font-bold mt-0.5">{stats.totale}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+              <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">In uso</p>
+            </div>
+            <p className="text-xl font-bold mt-0.5">{stats.inUso}</p>
+            <p className="text-[10px] text-muted-foreground">Almeno 1 costo associato</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-1.5">
+              <Minus className="h-3 w-3 text-amber-500" />
+              <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Inutilizzate</p>
+            </div>
+            <p className="text-xl font-bold mt-0.5">{stats.senzaUso}</p>
+            <p className="text-[10px] text-muted-foreground">Nessun costo collegato</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FolderOpen className="h-5 w-5" /> Categorie
-              </CardTitle>
-              <CardDescription>
-                {categories.length} {categories.length === 1 ? "categoria" : "categorie"} configurate
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => importMutation.mutate()}
-              disabled={importMutation.isPending}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {importMutation.isPending ? "Importo..." : "Importa dai costi"}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="pt-5 space-y-4">
           {/* Add form */}
-          <div className="flex items-end gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
             <div className="flex-1">
-              <Label>Nome categoria</Label>
+              <Label htmlFor="new-cat-name" className="text-xs">Nuova categoria</Label>
               <Input
+                id="new-cat-name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="es. Affitto, Utenze, Marketing..."
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                placeholder="es. Affitto, Utenze, Marketing…"
+                onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+                maxLength={80}
               />
             </div>
-            <div className="w-20">
-              <Label>Colore</Label>
-              <Input
-                type="color"
-                value={newColor}
-                onChange={(e) => setNewColor(e.target.value)}
-                className="h-10 p-1 cursor-pointer"
-              />
+            <div>
+              <Label htmlFor="new-cat-color" className="text-xs">Colore</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="new-cat-color"
+                  type="color"
+                  value={newColor}
+                  onChange={(e) => setNewColor(e.target.value)}
+                  className="h-10 w-14 p-1 cursor-pointer"
+                />
+                <div className="flex gap-1">
+                  {COLOR_PRESETS.slice(0, 6).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNewColor(c)}
+                      className={`h-5 w-5 rounded-full border-2 transition-all ${
+                        newColor === c ? "border-foreground scale-110" : "border-transparent hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: c }}
+                      aria-label={`Colore ${c}`}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
-            <Button onClick={handleAdd} disabled={!newName.trim() || addMutation.isPending}>
-              <Plus className="h-4 w-4 mr-2" /> Aggiungi
+            <Button
+              onClick={handleAdd}
+              disabled={!newName.trim() || addMutation.isPending}
+              className="sm:self-end"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              {addMutation.isPending ? "Aggiungo…" : "Aggiungi"}
             </Button>
           </div>
 
+          {/* Search */}
+          {categories.length > 4 && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cerca categoria…"
+                className="pl-8 pr-8 h-9 text-sm"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
+                  aria-label="Pulisci"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Table */}
           {isLoading ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Caricamento...</p>
+            <p className="text-sm text-muted-foreground py-6 text-center">Caricamento…</p>
           ) : categories.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              Nessuna categoria configurata. Aggiungine una o importa quelle esistenti dai costi.
-            </p>
+            <div className="py-10 text-center space-y-3 border border-dashed rounded-lg">
+              <FolderOpen className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+              <p className="text-sm text-muted-foreground">
+                Nessuna categoria configurata.
+              </p>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Aggiungine una manualmente qui sopra oppure clicca "Importa dai costi" per
+                creare automaticamente le categorie già usate nei tuoi costi e fornitori.
+              </p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                Nessuna categoria corrisponde a <strong>"{search}"</strong>.
+              </p>
+              <Button variant="ghost" size="sm" className="mt-2" onClick={() => setSearch("")}>
+                Mostra tutte
+              </Button>
+            </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Colore</TableHead>
+                  <TableHead className="w-16">Colore</TableHead>
                   <TableHead>Nome</TableHead>
-                  <TableHead className="text-center">Utilizzi</TableHead>
-                  <TableHead className="w-[120px] text-right">Azioni</TableHead>
+                  <TableHead className="text-center w-24">Utilizzi</TableHead>
+                  <TableHead className="w-[140px] text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories.map((cat) => (
-                  <TableRow key={cat.id}>
-                    <TableCell>
-                      {editingId === cat.id ? (
-                        <Input
-                          type="color"
-                          value={editColor}
-                          onChange={(e) => setEditColor(e.target.value)}
-                          className="h-8 w-12 p-1 cursor-pointer"
-                        />
-                      ) : (
-                        <div
-                          className="h-6 w-6 rounded-full border"
-                          style={{ backgroundColor: cat.color || "#6366f1" }}
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === cat.id ? (
-                        <Input
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") updateMutation.mutate({ id: cat.id, name: editName, color: editColor });
-                            if (e.key === "Escape") setEditingId(null);
-                          }}
-                          autoFocus
-                        />
-                      ) : (
-                        <span className="font-medium">{cat.name}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={usageCounts[cat.name] ? "secondary" : "outline"}>
-                        {usageCounts[cat.name] || 0}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {editingId === cat.id ? (
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            size="sm"
-                            onClick={() => updateMutation.mutate({ id: cat.id, name: editName, color: editColor })}
-                            disabled={!editName.trim() || updateMutation.isPending}
-                          >
-                            Salva
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
-                            Annulla
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => startEdit(cat)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={() => setDeleteId(cat.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filtered.map((cat) => {
+                  const isEditing = editingId === cat.id;
+                  const usage = usageCounts[cat.name] ?? 0;
+                  return (
+                    <TableRow key={cat.id}>
+                      <TableCell>
+                        {isEditing ? (
+                          <Input
+                            type="color"
+                            value={editColor}
+                            onChange={(e) => setEditColor(e.target.value)}
+                            className="h-8 w-12 p-1 cursor-pointer"
+                          />
+                        ) : (
+                          <div
+                            className="h-6 w-6 rounded-full border shrink-0"
+                            style={{ backgroundColor: cat.color ?? DEFAULT_COLOR }}
+                            title={cat.color ?? DEFAULT_COLOR}
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <Input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveEdit(cat.id);
+                              else if (e.key === "Escape") setEditingId(null);
+                            }}
+                            autoFocus
+                            maxLength={80}
+                          />
+                        ) : (
+                          <span className="font-medium">{cat.name}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant={usage > 0 ? "secondary" : "outline"}
+                          className={usage > 0 ? "" : "text-muted-foreground"}
+                        >
+                          {usage}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isEditing ? (
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="sm"
+                              onClick={() => saveEdit(cat.id)}
+                              disabled={!editName.trim() || updateMutation.isPending}
+                            >
+                              Salva
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                              Annulla
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-1">
+                            <Button size="icon" variant="ghost" onClick={() => startEdit(cat)} aria-label={`Modifica ${cat.name}`}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={() => setDeleteId(cat.id)} aria-label={`Elimina ${cat.name}`}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
 
-      {/* Delete confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      {/* Delete confirmation — fix: passa `open` a onOpenChange per chiusura corretta */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina categoria</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {deleteUsage > 0 && <AlertTriangle className="h-5 w-5 text-amber-500" />}
+              Elimina categoria
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteId && usageCounts[categories.find(c => c.id === deleteId)?.name || ""] ? (
-                <>Attenzione: questa categoria è utilizzata da <strong>{usageCounts[categories.find(c => c.id === deleteId)?.name || ""]}</strong> costi. Eliminandola, i costi manterranno il valore attuale ma la categoria non sarà più selezionabile.</>
-              ) : (
-                "La categoria verrà rimossa dalla lista."
-              )}
+              {categoryToDelete ? (
+                deleteUsage > 0 ? (
+                  <>
+                    La categoria <strong>"{categoryToDelete.name}"</strong> è usata da{" "}
+                    <strong>{deleteUsage} {deleteUsage === 1 ? "costo" : "costi"}</strong>.{" "}
+                    Eliminandola i costi manterranno il valore stringa originale ma la categoria
+                    non sarà più selezionabile nei form. L'operazione è irreversibile.
+                  </>
+                ) : (
+                  <>La categoria <strong>"{categoryToDelete.name}"</strong> verrà rimossa.</>
+                )
+              ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

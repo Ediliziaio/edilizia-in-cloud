@@ -24148,18 +24148,24 @@ export type Database = {
           created_at: string | null
           delivery_terms_text: string | null
           font_family: string | null
+          font_size_base: number
           footer_text: string | null
+          header_alignment: string
           header_text_color: string | null
+          heading_size_scale: number
           id: string
           is_active: boolean | null
           is_default: boolean | null
           layout: string
+          line_height: number
           logo_position: string | null
           logo_size: string | null
           logo_url: string | null
           name: string
+          page_margin_mm: number
           payment_terms_text: string | null
           primary_color: string | null
+          row_density: string
           secondary_color: string | null
           show_client_details: boolean | null
           show_company_details: boolean | null
@@ -24171,6 +24177,8 @@ export type Database = {
           show_quote_number: boolean | null
           show_validity_date: boolean | null
           show_watermark: boolean | null
+          table_borders: string
+          table_zebra: boolean
           text_color: string | null
           updated_at: string | null
           watermark_text: string | null
@@ -24183,18 +24191,24 @@ export type Database = {
           created_at?: string | null
           delivery_terms_text?: string | null
           font_family?: string | null
+          font_size_base?: number
           footer_text?: string | null
+          header_alignment?: string
           header_text_color?: string | null
+          heading_size_scale?: number
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
           layout?: string
+          line_height?: number
           logo_position?: string | null
           logo_size?: string | null
           logo_url?: string | null
           name?: string
+          page_margin_mm?: number
           payment_terms_text?: string | null
           primary_color?: string | null
+          row_density?: string
           secondary_color?: string | null
           show_client_details?: boolean | null
           show_company_details?: boolean | null
@@ -24206,6 +24220,8 @@ export type Database = {
           show_quote_number?: boolean | null
           show_validity_date?: boolean | null
           show_watermark?: boolean | null
+          table_borders?: string
+          table_zebra?: boolean
           text_color?: string | null
           updated_at?: string | null
           watermark_text?: string | null
@@ -24218,18 +24234,24 @@ export type Database = {
           created_at?: string | null
           delivery_terms_text?: string | null
           font_family?: string | null
+          font_size_base?: number
           footer_text?: string | null
+          header_alignment?: string
           header_text_color?: string | null
+          heading_size_scale?: number
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
           layout?: string
+          line_height?: number
           logo_position?: string | null
           logo_size?: string | null
           logo_url?: string | null
           name?: string
+          page_margin_mm?: number
           payment_terms_text?: string | null
           primary_color?: string | null
+          row_density?: string
           secondary_color?: string | null
           show_client_details?: boolean | null
           show_company_details?: boolean | null
@@ -24241,6 +24263,8 @@ export type Database = {
           show_quote_number?: boolean | null
           show_validity_date?: boolean | null
           show_watermark?: boolean | null
+          table_borders?: string
+          table_zebra?: boolean
           text_color?: string | null
           updated_at?: string | null
           watermark_text?: string | null
