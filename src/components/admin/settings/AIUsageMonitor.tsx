@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import {
   useAIUsageMonitor, type AIUsageSummary,
 } from "@/hooks/useAIUsageMonitor";
-import { RenderPricingValidator } from "@/components/admin/settings/RenderPricingValidator";
+import { AIPricingValidator } from "@/components/admin/settings/AIPricingValidator";
 import { cn } from "@/lib/utils";
 
 // ─── Thresholds ──────────────────────────────────────────
@@ -814,8 +814,8 @@ export function AIUsageMonitor() {
         </CardContent>
       </Card>
 
-      {/* Render AI pricing validation & edit */}
-      <RenderPricingValidator />
+      {/* AI pricing & validation hub (render + markup per task + agenti AI) */}
+      <AIPricingValidator />
 
       {/* Threshold Configuration */}
       <AIUsageThresholdsPanel />
