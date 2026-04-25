@@ -1,4 +1,8 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -10,16 +14,21 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
   CreditCard, Clock, Pause, Play, Loader2, RefreshCw, CalendarPlus,
-  ExternalLink, AlertTriangle, Sparkles, TrendingUp,
+  ExternalLink, AlertTriangle, Sparkles, TrendingUp, Gift,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
+import { queryKeys } from "@/lib/queryKeys";
 import type { Company, CompanyStatus } from "@/types/auth";
 import { statusConfig } from "@/lib/companyUtils";
 import { eventTypeLabels, eventTypeIcons } from "@/lib/adminConstants";
@@ -353,6 +362,13 @@ export function CompanySubscriptionTab({
             <Button variant="outline" size="sm" onClick={onChangePlan}>
               <CreditCard className="h-3 w-3 mr-1" />Cambia piano
             </Button>
+            <GiftPlanButton
+              companyId={company.id}
+              companyName={company.name}
+              currentPlanName={currentPlan?.name ?? null}
+              currentPlanId={company.subscription_plan_id ?? null}
+              isCurrentlyComped={effectiveStatus === "comped"}
+            />
             {companyStatus !== "suspended" ? (
               <Button variant="outline" size="sm" disabled={isUpdatingStatus} onClick={onSuspend}>
                 {isUpdatingStatus ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Pause className="h-3 w-3 mr-1" />}Sospendi
@@ -478,6 +494,305 @@ function ExtendTrialButton({ onExtendTrial, isExtendingTrial }: { onExtendTrial:
             <Button disabled={days < 1 || isExtendingTrial} onClick={() => { onExtendTrial(days); setOpen(false); }}>
               {isExtendingTrial && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Estendi di {days} giorni
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─── Regala Piano (assegna piano + comped + log in 1 sola operazione) ──────
+
+interface PlanOption {
+  id: string;
+  name: string;
+  price_monthly: number;
+}
+
+/**
+ * Bottone + dialog per "regalare" un piano a un'azienda:
+ *   - Assegna il piano scelto (companies.subscription_plan_id)
+ *   - Imposta payment_method = "comped" (esclude dal MRR)
+ *   - Salva motivo + scadenza opzionale in payment_notes
+ *   - Riattiva l'azienda se sospesa (status = "active")
+ *   - Logga l'evento in subscription_logs (event_type = "plan_changed", note specifiche)
+ *
+ * NB: andiamo direttamente su DB invece dell'edge function admin-change-plan
+ * perché non vogliamo trigger di sync Stripe (un'azienda comped NON deve
+ * avere subscription Stripe). La transazione è "best effort": se l'insert
+ * di subscription_logs fallisce, l'update principale è già committato e
+ * mostriamo un warning.
+ */
+function GiftPlanButton({
+  companyId, companyName, currentPlanName, currentPlanId, isCurrentlyComped,
+}: {
+  companyId: string;
+  companyName: string;
+  currentPlanName: string | null;
+  currentPlanId: string | null;
+  isCurrentlyComped: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(currentPlanId ?? "");
+  const [reason, setReason] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+
+  // Plans fetch lazy: solo quando il dialog si apre
+  const { data: plans = [], isLoading: plansLoading } = useQuery({
+    queryKey: ["gift-plan-list"],
+    queryFn: async (): Promise<PlanOption[]> => {
+      const { data, error } = await supabase
+        .from("subscription_plans")
+        .select("id, name, price_monthly, is_active")
+        .eq("is_active", true)
+        .order("price_monthly", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as PlanOption[];
+    },
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId);
+
+  const giftMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPlanId) throw new Error("Seleziona un piano");
+      if (!reason.trim()) throw new Error("Motivo obbligatorio");
+
+      // Costruisci la nota strutturata persistita in payment_notes
+      // Formato leggibile + parsable se in futuro vogliamo estrarre i campi.
+      const noteLines = [
+        `Regalato il ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: it })}`,
+        `Piano: ${selectedPlan?.name ?? selectedPlanId}`,
+        `Motivo: ${reason.trim()}`,
+      ];
+      if (expiresAt) {
+        noteLines.push(
+          `Scadenza regalo: ${format(new Date(expiresAt), "dd/MM/yyyy", { locale: it })}`,
+        );
+      }
+      if (user?.email) noteLines.push(`Operatore: ${user.email}`);
+      const paymentNotes = noteLines.join("\n");
+
+      // 1) UPDATE companies (assegna piano + comped + status active)
+      const { error: updateErr } = await supabase
+        .from("companies")
+        .update({
+          subscription_plan_id: selectedPlanId,
+          payment_method: "comped",
+          payment_notes: paymentNotes,
+          status: "active",
+        })
+        .eq("id", companyId);
+      if (updateErr) throw new Error("Errore assegnazione piano: " + updateErr.message);
+
+      // 2) INSERT subscription_logs (best-effort, non blocca il flow)
+      const { error: logErr } = await supabase
+        .from("subscription_logs")
+        .insert({
+          company_id: companyId,
+          event_type: "plan_changed",
+          plan_id: selectedPlanId,
+          new_status: "active",
+          notes: `Piano regalato (comped). Motivo: ${reason.trim()}${
+            expiresAt ? ` · Scadenza: ${expiresAt}` : ""
+          }`,
+        });
+      if (logErr) {
+        // Non rifiutiamo l'operazione principale, ma segnaliamo all'utente.
+        console.warn("subscription_logs insert failed:", logErr);
+        return { warning: "Piano regalato OK, ma log eventi non scritto" };
+      }
+      return { warning: null };
+    },
+    onSuccess: (data) => {
+      toast.success(`Piano "${selectedPlan?.name}" regalato a ${companyName}`, {
+        description: data?.warning ?? "MRR escluso. Configurazione visibile in Panoramica.",
+      });
+      // Invalidazione completa delle cache dipendenti dal piano + payment_method
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.planAll });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyResolved(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.list(companyId) });
+      queryClient.invalidateQueries({ queryKey: ["feature-access"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      setOpen(false);
+      // Reset form per la prossima volta
+      setReason("");
+      setExpiresAt("");
+    },
+    onError: (e: Error) =>
+      toast.error("Impossibile regalare il piano", { description: e.message }),
+  });
+
+  const expiryDate = expiresAt ? new Date(expiresAt) : null;
+  const expiryInvalid = expiryDate ? expiryDate.getTime() <= Date.now() : false;
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="border-violet-300 text-violet-700 hover:bg-violet-50 hover:text-violet-800 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950"
+      >
+        <Gift className="h-3 w-3 mr-1" />
+        Regala piano
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-violet-600" />
+              Regala un piano a {companyName}
+            </DialogTitle>
+            <DialogDescription>
+              Assegna un piano <strong>senza addebito</strong>. L'azienda verrà
+              marcata come "regalata" (esclusa dal MRR piattaforma).
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Banner spiegazione */}
+          <div className="rounded-lg border border-violet-200 dark:border-violet-900 bg-violet-50 dark:bg-violet-950/30 p-3 space-y-1 text-xs">
+            <div className="flex items-center gap-1.5 font-semibold text-violet-900 dark:text-violet-100">
+              <Sparkles className="h-3.5 w-3.5" />
+              Cosa succede:
+            </div>
+            <ul className="text-violet-800/80 dark:text-violet-200/80 space-y-0.5 list-disc pl-5">
+              <li>Il piano scelto viene assegnato all'azienda (accesso completo)</li>
+              <li>Metodo pagamento: <strong>Regalata</strong> (no Stripe)</li>
+              <li>Status: <strong>Attiva</strong> (riattiva se sospesa)</li>
+              <li>MRR piattaforma: <strong>0 €</strong> per questa azienda</li>
+              <li>Evento loggato in cronologia + audit trail</li>
+            </ul>
+          </div>
+
+          {plansLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="gift-plan">
+                  Piano da regalare <span className="text-destructive">*</span>
+                </Label>
+                <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+                  <SelectTrigger id="gift-plan">
+                    <SelectValue placeholder="Seleziona piano..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plans.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{p.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            (listino {formatCurrency(p.price_monthly)}/mese)
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {currentPlanName && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Piano attuale: <strong>{currentPlanName}</strong>
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="gift-reason">
+                  Motivo <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="gift-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Es. Demo per evento Milano · Partner strategico · Early adopter del settore serramenti..."
+                  rows={2}
+                />
+                {/* Reason presets */}
+                <div className="flex gap-1 flex-wrap">
+                  {[
+                    "Demo / Evento",
+                    "Partner strategico",
+                    "Early adopter",
+                    "Referral senior",
+                    "Test interno",
+                  ].map((preset) => (
+                    <Button
+                      key={preset}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => setReason(preset)}
+                    >
+                      {preset}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="gift-expiry">Scadenza regalo (opzionale)</Label>
+                <Input
+                  id="gift-expiry"
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  min={new Date().toISOString().slice(0, 10)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Se compilata, è una nota informativa: dovrai gestire manualmente
+                  la riattivazione del pagamento alla scadenza.
+                </p>
+                {expiryInvalid && (
+                  <p className="text-[11px] text-destructive flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    La scadenza non può essere nel passato
+                  </p>
+                )}
+              </div>
+
+              {isCurrentlyComped && (
+                <Alert>
+                  <Sparkles className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Questa azienda è <strong>già regalata</strong>. Procedendo,
+                    aggiornerai il piano e la nota di regalo.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => giftMutation.mutate()}
+              disabled={
+                !selectedPlanId ||
+                !reason.trim() ||
+                expiryInvalid ||
+                giftMutation.isPending
+              }
+              className="bg-violet-600 hover:bg-violet-700 text-white"
+            >
+              {giftMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Gift className="h-4 w-4 mr-2" />
+              )}
+              Regala piano
             </Button>
           </DialogFooter>
         </DialogContent>
