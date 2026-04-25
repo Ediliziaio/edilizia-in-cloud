@@ -1,10 +1,13 @@
 const LEGACY_IMAGE_EDIT_MODEL = "dall-e-2";
-const DEFAULT_IMAGE_EDIT_MODEL = "gpt-image-1";
+const DEFAULT_IMAGE_EDIT_MODEL = "gpt-image-2";
 
 export function buildOpenAIImageEditModelChain(configuredModel?: string | null): string[] {
   const candidates = [
     typeof configuredModel === "string" ? configuredModel.trim() : "",
     DEFAULT_IMAGE_EDIT_MODEL,
+    "gpt-image-1.5",
+    "gpt-image-1",
+    "gpt-image-1-mini",
     LEGACY_IMAGE_EDIT_MODEL,
   ].filter(Boolean);
 
@@ -138,6 +141,10 @@ export async function runOpenAIImageEditWithFallback(
     const canFallback = index < modelChain.length - 1 && shouldFallbackOpenAIImageEdit(response.status, errorBody);
     if (canFallback) {
       fallbackErrors.push(shortError);
+      if (errorBody.toLowerCase().includes("must be 'dall-e-2'") || errorBody.toLowerCase().includes('must be "dall-e-2"')) {
+        const legacyIndex = modelChain.indexOf(LEGACY_IMAGE_EDIT_MODEL);
+        if (legacyIndex > index) index = legacyIndex - 1;
+      }
       continue;
     }
 
