@@ -59,6 +59,7 @@ export async function resolveEffectiveCompanyId(
 /**
  * Verifica che `targetCompanyId` sia accessibile dall'utente corrente:
  *   - matcha la company effettiva, OPPURE
+ *   - l'utente ha accesso multi-company, OPPURE
  *   - l'utente ha ruolo super_admin (accesso globale).
  *
  * Ritorna true se ok, false se accesso negato.
@@ -81,5 +82,17 @@ export async function canAccessCompany(
 
   // Match con company effettiva (include impersonation)
   const effective = await resolveEffectiveCompanyId(supabaseAdmin, userId);
-  return effective === targetCompanyId;
+  if (effective === targetCompanyId) return true;
+
+  // Multi-company users and platform roles can switch the active tenant in the
+  // frontend without creating an active_impersonations row. Edge functions run
+  // with service role, so we must explicitly mirror that access model here.
+  const { data: multiCompanyAccess } = await supabaseAdmin
+    .from("multi_company_access")
+    .select("company_id")
+    .eq("user_id", userId)
+    .eq("company_id", targetCompanyId)
+    .maybeSingle();
+
+  return !!multiCompanyAccess;
 }

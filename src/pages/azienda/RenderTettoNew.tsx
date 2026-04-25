@@ -134,7 +134,7 @@ export default function RenderTettoNew() {
       setSessionId(sid);
       setStep(2);
     } catch (err) {
-      toast.error(String(err));
+      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
     } finally {
       setUploading(false);
     }

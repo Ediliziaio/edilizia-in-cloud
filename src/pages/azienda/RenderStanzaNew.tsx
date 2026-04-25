@@ -143,7 +143,7 @@ export default function RenderStanzaNew() {
 
       setStep(2);
     } catch (err) {
-      toast.error(String(err));
+      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
     } finally {
       setUploading(false);
     }
@@ -162,6 +162,7 @@ export default function RenderStanzaNew() {
     elapsedRef.current = 0;
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
+    try {
     // Update config on session
     await supabase
       .from("render_stanza_sessions")
@@ -233,6 +234,17 @@ export default function RenderStanzaNew() {
       queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
       setStep(4);
       return;
+    }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
+      setGenerating(false);
+      setStep(2);
+      toast.error(msg || "Render fallito");
     }
   }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 

@@ -12,6 +12,16 @@ function isMissingBucketError(message: string) {
   );
 }
 
+function isRecoverableStoragePolicyError(message: string) {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("row-level security") ||
+    lower.includes("violates row-level security") ||
+    lower.includes("permission denied") ||
+    lower.includes("not authorized")
+  );
+}
+
 export async function uploadRenderOriginal(args: {
   bucket: string;
   path: string;
@@ -25,11 +35,15 @@ export async function uploadRenderOriginal(args: {
     return { storagePath: path, bucket, usedFallback: false };
   }
 
-  if (!isMissingBucketError(primary.error.message)) {
+  const canTryFallback =
+    bucket !== FALLBACK_ORIGINALS_BUCKET &&
+    (isMissingBucketError(primary.error.message) || isRecoverableStoragePolicyError(primary.error.message));
+
+  if (!canTryFallback) {
     throw new Error(`Upload foto fallito: ${primary.error.message}`);
   }
 
-  const fallbackPath = `${bucket}/${path}`;
+  const fallbackPath = path;
   const fallback = await supabase.storage
     .from(FALLBACK_ORIGINALS_BUCKET)
     .upload(fallbackPath, file, uploadOptions);

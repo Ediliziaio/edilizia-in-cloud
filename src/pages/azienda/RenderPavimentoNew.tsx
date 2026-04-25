@@ -170,7 +170,7 @@ export default function RenderPavimentoNew() {
         }
       }
     } catch (err) {
-      toast.error(String(err));
+      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
     } finally {
       setUploading(false);
     }
