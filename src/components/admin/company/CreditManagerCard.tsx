@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -8,15 +8,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   CreditCard, Plus, Minus, Loader2, Mail, Bot, MessageSquare, Palette,
+  AlertTriangle, History,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 /**
  * CreditManagerCard — gestione crediti per singola azienda nel tab Abbonamento
@@ -244,6 +247,54 @@ export function CreditManagerCard({ companyId }: Props) {
     render: render.data ?? 0,
   };
 
+  // Warning aggregato: anche un solo wallet negativo è un problema
+  const negativeWallets = useMemo(
+    () =>
+      (Object.entries(balanceByKey) as Array<[WalletKey, number]>).filter(
+        ([, balance]) => balance < 0,
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [email.data, ai.data, wa.data, render.data],
+  );
+  const lowWallets = useMemo(
+    () =>
+      (Object.entries(balanceByKey) as Array<[WalletKey, number]>).filter(
+        ([key, balance]) => {
+          // Soglia "low": < 5 € per EUR wallets, < 10 crediti per render
+          if (balance < 0) return false; // negativi gestiti a parte
+          if (key === "render") return balance > 0 && balance < 10;
+          return balance > 0 && balance < 5;
+        },
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [email.data, ai.data, wa.data, render.data],
+  );
+
+  // Scroll alla tabella storico (presente nello stesso tab Abbonamento, sotto)
+  const scrollToHistory = (walletKey?: WalletKey) => {
+    // Selettore: il Card "Storico Transazioni Crediti" ha un titolo univoco
+    const cards = document.querySelectorAll('[class*="lg:col-span-2"]');
+    let target: Element | null = null;
+    cards.forEach((c) => {
+      if (c.textContent?.includes("Storico Transazioni Crediti")) target = c;
+    });
+    if (target) {
+      (target as HTMLElement).scrollIntoView({ behavior: "smooth", block: "start" });
+      // Suggerimento: l'utente può poi filtrare per tipo wallet manualmente.
+      // (Una integrazione più stretta richiederebbe di passare un filtro
+      // tramite props/context, per ora teniamo semplice.)
+      if (walletKey) {
+        // Mostra un hint tooltip — non integrazione ma feedback chiaro.
+        toast.info(
+          walletKey === "ai_agents"
+            ? "Filtra per AI Agents nello storico qui sotto"
+            : `Filtra per ${walletKey} nello storico qui sotto`,
+          { duration: 2500 },
+        );
+      }
+    }
+  };
+
   // Mutazione adjust: usa admin-adjust-credits per TUTTI i wallet.
   // - EUR (email/ai_agents/whatsapp) → registra in admin_credit_adjustments
   // - render                          → RPC adjust_render_credits_atomic (FOR UPDATE + ledger audit)
@@ -346,22 +397,83 @@ export function CreditManagerCard({ companyId }: Props) {
           <code className="text-[0.7rem] mx-1">render_credit_ledger</code> (render).
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* Warning aggregato saldi negativi: bug-prone, l'azienda non può usare il servizio */}
+        {negativeWallets.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Saldo negativo</strong> su:{" "}
+              {negativeWallets
+                .map(([k]) => wallets.find((w) => w.key === k)?.label ?? k)
+                .join(", ")}
+              . L'azienda non può usare questi servizi finché non si aggiusta il
+              saldo. Probabile bug di doppio addebito da indagare.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Info "wallet bassi" — non bloccante, solo nudge per ricarica preventiva */}
+        {negativeWallets.length === 0 && lowWallets.length > 0 && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-xs">
+              Saldo basso su:{" "}
+              <strong>
+                {lowWallets
+                  .map(([k]) => wallets.find((w) => w.key === k)?.label ?? k)
+                  .join(", ")}
+              </strong>
+              . Considera una ricarica preventiva.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {wallets.map(({ key, label, icon: Icon, kind }) => {
             const balance = balanceByKey[key];
             const balanceLabel = kind === "integer"
               ? `${balance} crediti`
               : formatCurrency(balance);
+            const isNegative = balance < 0;
+            const isLow =
+              !isNegative && (kind === "integer" ? balance < 10 : balance < 5) && balance > 0;
+            const isZero = balance === 0;
+
             return (
-              <div key={key} className="border rounded-lg p-4 space-y-3">
+              <div
+                key={key}
+                className={cn(
+                  "border rounded-lg p-4 space-y-3",
+                  isNegative && "border-destructive bg-destructive/5",
+                  isLow && "border-amber-300 bg-amber-50/30 dark:bg-amber-950/20",
+                )}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{label}</span>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    title={`Vedi storico ${label}`}
+                    onClick={() => scrollToHistory(key)}
+                  >
+                    <History className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
-                <p className="text-2xl font-bold">{balanceLabel}</p>
+                <p
+                  className={cn(
+                    "text-2xl font-bold",
+                    isNegative && "text-destructive",
+                    isLow && "text-amber-700 dark:text-amber-400",
+                    isZero && "text-muted-foreground",
+                  )}
+                >
+                  {balanceLabel}
+                </p>
                 <div className="flex gap-2">
                   <Button
                     size="sm" variant="outline" className="flex-1"
@@ -375,6 +487,8 @@ export function CreditManagerCard({ companyId }: Props) {
                   </Button>
                   <Button
                     size="sm" variant="outline" className="flex-1"
+                    disabled={balance <= 0}
+                    title={balance <= 0 ? "Saldo già a zero" : "Stuorno crediti"}
                     onClick={() => {
                       setAdjustDialog({ open: true, wallet: key, direction: "deduct" });
                       setAdjustAmount("");
@@ -423,6 +537,34 @@ export function CreditManagerCard({ companyId }: Props) {
                 onChange={(e) => setAdjustAmount(e.target.value)}
                 placeholder={currentWallet?.kind === "integer" ? "10" : "25,00"}
               />
+              {/* Quick presets per importi tipici, separati per kind */}
+              <div className="flex gap-1.5 flex-wrap">
+                {currentWallet?.kind === "integer"
+                  ? [10, 25, 50, 100, 500].map((preset) => (
+                      <Button
+                        key={preset}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => setAdjustAmount(String(preset))}
+                      >
+                        {preset}
+                      </Button>
+                    ))
+                  : [10, 25, 50, 100, 500].map((preset) => (
+                      <Button
+                        key={preset}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => setAdjustAmount(String(preset))}
+                      >
+                        €{preset}
+                      </Button>
+                    ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Motivazione (obbligatoria)</Label>
@@ -431,6 +573,27 @@ export function CreditManagerCard({ companyId }: Props) {
                 onChange={(e) => setAdjustReason(e.target.value)}
                 placeholder="Es: bonus lancio Q2, accordo commerciale, correzione errore"
               />
+              {/* Reason presets — categorie tipiche di operazione */}
+              <div className="flex gap-1.5 flex-wrap">
+                {[
+                  "Bonus onboarding",
+                  "Rimborso disservizio",
+                  "Promo commerciale",
+                  "Correzione errore",
+                  "Test interno",
+                ].map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => setAdjustReason(preset)}
+                  >
+                    {preset}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>

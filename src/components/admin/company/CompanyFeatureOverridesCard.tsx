@@ -25,6 +25,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -42,9 +55,14 @@ import {
   Layers,
   RotateCcw,
   CalendarClock,
+  Search,
+  Filter,
+  AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 /**
  * Editor inline degli override per-azienda per-feature.
@@ -413,6 +431,90 @@ export function CompanyFeatureOverridesCard({
   const activeCount = overrides.length;
   const totalCount = flags.length;
 
+  // ── Filtering / search state ─────────────────────────────────────────
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [showOnlyOverridden, setShowOnlyOverridden] = useState(false);
+  const [showOnlyExpiring, setShowOnlyExpiring] = useState(false);
+  const [resetAllOpen, setResetAllOpen] = useState(false);
+
+  // Counter override scaduti / in scadenza (≤7gg)
+  const overrideStats = useMemo(() => {
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    let expired = 0;
+    let expiringSoon = 0;
+    overrides.forEach((o) => {
+      if (!o.expires_at) return;
+      const ts = new Date(o.expires_at).getTime();
+      if (ts < now) expired++;
+      else if (ts - now < sevenDays) expiringSoon++;
+    });
+    return { expired, expiringSoon };
+  }, [overrides]);
+
+  // Categorie uniche dal catalogo (per il filtro)
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    flags.forEach((f) => {
+      if (f.category) set.add(f.category);
+    });
+    return Array.from(set).sort();
+  }, [flags]);
+
+  // Filtraggio combinato (search + categoria + only-overridden + only-expiring)
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    return rows.filter((r) => {
+      if (showOnlyOverridden && !r.override) return false;
+      if (categoryFilter !== "all" && r.flag.category !== categoryFilter) return false;
+      if (q) {
+        const hay = `${r.flag.name} ${r.flag.key} ${r.flag.description ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (showOnlyExpiring) {
+        if (!r.override?.expires_at) return false;
+        const ts = new Date(r.override.expires_at).getTime();
+        if (ts >= now + sevenDays) return false;
+      }
+      return true;
+    });
+  }, [rows, search, categoryFilter, showOnlyOverridden, showOnlyExpiring]);
+
+  // Reset bulk: elimina TUTTI gli override per questa azienda + log audit aggregato
+  const resetAllMutation = useMutation({
+    mutationFn: async () => {
+      if (overrides.length === 0) return;
+      if (!user?.id) throw new Error("Utente non autenticato");
+      const { error } = await supabase
+        .from("company_feature_overrides")
+        .delete()
+        .eq("company_id", companyId);
+      if (error) throw error;
+      // Audit log aggregato (1 record bulk)
+      await supabase.from("company_flag_audit_log").insert({
+        company_id: companyId,
+        changed_by: user.id,
+        field_name: "feature_overrides",
+        old_value: { bulk: true, count: overrides.length, keys: overrides.map((o) => o.feature_key) } as never,
+        new_value: null,
+        reason: `Reset bulk di ${overrides.length} override → fallback piano/default`,
+      });
+    },
+    onSuccess: () => {
+      invalidateAll();
+      toast.success(`${overrides.length} override rimossi`);
+      setResetAllOpen(false);
+    },
+    onError: (e: Error) =>
+      toast.error("Errore reset bulk", { description: e.message }),
+  });
+
+  const hasActiveFilters =
+    !!search || categoryFilter !== "all" || showOnlyOverridden || showOnlyExpiring;
+
   return (
     <Card className="lg:col-span-2">
       <CardHeader>
@@ -429,15 +531,128 @@ export function CompanyFeatureOverridesCard({
               e sul legacy <code className="text-[0.65rem] bg-muted px-1 rounded">plans_included[]</code>.
             </CardDescription>
           </div>
-          <Badge variant="outline" className="gap-1">
-            <Layers className="h-3 w-3" />
-            {activeCount}/{totalCount} override attivi
-          </Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className="gap-1">
+              <Layers className="h-3 w-3" />
+              {activeCount}/{totalCount} override attivi
+            </Badge>
+            {overrideStats.expired > 0 && (
+              <Badge variant="destructive" className="gap-1 text-[10px]">
+                <AlertTriangle className="h-3 w-3" />
+                {overrideStats.expired} scaduti
+              </Badge>
+            )}
+            {overrideStats.expiringSoon > 0 && (
+              <Badge
+                variant="outline"
+                className="gap-1 text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300"
+              >
+                <CalendarClock className="h-3 w-3" />
+                {overrideStats.expiringSoon} in scadenza ≤7gg
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* Toolbar: search + filtri + bulk reset */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Cerca per nome, key o descrizione..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-xs"
+            />
+          </div>
+
+          {categories.length > 0 && (
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-36 h-8 text-xs">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte categorie</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Button
+            variant={showOnlyOverridden ? "default" : "outline"}
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setShowOnlyOverridden((v) => !v)}
+          >
+            <Filter className="h-3 w-3 mr-1" />
+            Solo override
+            {showOnlyOverridden && activeCount > 0 && (
+              <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[9px]">
+                {activeCount}
+              </Badge>
+            )}
+          </Button>
+
+          {(overrideStats.expiringSoon > 0 || overrideStats.expired > 0) && (
+            <Button
+              variant={showOnlyExpiring ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setShowOnlyExpiring((v) => !v)}
+            >
+              <CalendarClock className="h-3 w-3 mr-1" />
+              In scadenza
+              {showOnlyExpiring && (
+                <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[9px]">
+                  {overrideStats.expired + overrideStats.expiringSoon}
+                </Badge>
+              )}
+            </Button>
+          )}
+
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                setSearch("");
+                setCategoryFilter("all");
+                setShowOnlyOverridden(false);
+                setShowOnlyExpiring(false);
+              }}
+            >
+              Reset filtri
+            </Button>
+          )}
+
+          {activeCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs ml-auto text-destructive hover:text-destructive"
+              onClick={() => setResetAllOpen(true)}
+              disabled={resetAllMutation.isPending}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              Reset tutti ({activeCount})
+            </Button>
+          )}
+        </div>
+
         {isLoading ? (
           <Skeleton className="h-[300px] w-full" />
+        ) : filteredRows.length === 0 ? (
+          <div className="rounded-md border p-8 text-center text-sm text-muted-foreground">
+            {hasActiveFilters
+              ? "Nessuna feature corrisponde ai filtri correnti"
+              : "Nessuna feature configurata"}
+          </div>
         ) : (
           <div className="rounded-md border overflow-x-auto">
             <Table>
@@ -452,7 +667,7 @@ export function CompanyFeatureOverridesCard({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => {
+                {filteredRows.map((row) => {
                   const { flag, override, effectiveEnabled, effectiveLimit, source } = row;
                   const limitLabel =
                     effectiveLimit != null
@@ -466,8 +681,19 @@ export function CompanyFeatureOverridesCard({
                   const isExpired =
                     override?.expires_at && new Date(override.expires_at) < new Date();
 
+                  // Highlight visivo: rosso per scaduti, ambra per in-scadenza
+                  const isExpiringSoon =
+                    override?.expires_at &&
+                    !isExpired &&
+                    new Date(override.expires_at).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000;
                   return (
-                    <TableRow key={flag.key}>
+                    <TableRow
+                      key={flag.key}
+                      className={cn(
+                        isExpired && "bg-destructive/5",
+                        isExpiringSoon && "bg-amber-50/50 dark:bg-amber-950/20",
+                      )}
+                    >
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -485,8 +711,18 @@ export function CompanyFeatureOverridesCard({
                                 {flag.category}
                               </Badge>
                             )}
+                            {isExpired && (
+                              <Badge variant="destructive" className="text-[0.6rem] px-1">
+                                SCADUTO
+                              </Badge>
+                            )}
                           </div>
                           <code className="text-[0.65rem] text-muted-foreground">{flag.key}</code>
+                          {flag.description && (
+                            <span className="text-[0.65rem] text-muted-foreground truncate max-w-[300px]">
+                              {flag.description}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -602,6 +838,32 @@ export function CompanyFeatureOverridesCard({
                 <p className="text-[0.65rem] text-muted-foreground">
                   0 = bloccato, vuoto = eredita dal piano
                 </p>
+                {/* Preset limiti tipici */}
+                <div className="flex gap-1 flex-wrap">
+                  {["10", "50", "100", "1000", "0"].map((preset) => (
+                    <Button
+                      key={preset}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-5 text-[9px] px-1.5"
+                      onClick={() => setEditorForm((f) => ({ ...f, limit_value: preset }))}
+                    >
+                      {preset === "0" ? "🔒 0" : preset}
+                    </Button>
+                  ))}
+                  {editorForm.limit_value && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 text-[9px] px-1.5"
+                      onClick={() => setEditorForm((f) => ({ ...f, limit_value: "" }))}
+                    >
+                      ∞
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Price override (EUR/mese)</Label>
@@ -641,6 +903,73 @@ export function CompanyFeatureOverridesCard({
                 }
                 placeholder="Es: cliente VIP, trial esteso, promo Q2"
               />
+              {/* Preset motivi tipici */}
+              <div className="flex gap-1.5 flex-wrap mt-1">
+                {[
+                  "Cliente VIP",
+                  "Trial esteso",
+                  "Demo evento",
+                  "Partner strategico",
+                  "Referral senior",
+                ].map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() =>
+                      setEditorForm((f) => ({ ...f, override_reason: preset }))
+                    }
+                  >
+                    {preset}
+                  </Button>
+                ))}
+              </div>
+              {/* Preset scadenza rapida */}
+              <div className="flex gap-1.5 flex-wrap mt-2">
+                <span className="text-[10px] text-muted-foreground self-center">
+                  Scadenza rapida:
+                </span>
+                {[
+                  { label: "+7gg", days: 7 },
+                  { label: "+30gg", days: 30 },
+                  { label: "+90gg", days: 90 },
+                  { label: "Fine anno", days: 0, useEndOfYear: true },
+                ].map((preset) => (
+                  <Button
+                    key={preset.label}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => {
+                      const target = preset.useEndOfYear
+                        ? new Date(new Date().getFullYear(), 11, 31, 23, 59)
+                        : new Date(Date.now() + preset.days * 24 * 60 * 60 * 1000);
+                      const localISO = new Date(
+                        target.getTime() - target.getTimezoneOffset() * 60_000,
+                      )
+                        .toISOString()
+                        .slice(0, 16);
+                      setEditorForm((f) => ({ ...f, expires_at: localISO }));
+                    }}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+                {editorForm.expires_at && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => setEditorForm((f) => ({ ...f, expires_at: "" }))}
+                  >
+                    Rimuovi scadenza
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Note (interne)</Label>
@@ -666,6 +995,45 @@ export function CompanyFeatureOverridesCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Conferma reset bulk */}
+      <AlertDialog open={resetAllOpen} onOpenChange={setResetAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Eliminare tutti gli override ({activeCount})?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tutti gli {activeCount} override locali per <strong>{companyName}</strong>{" "}
+              verranno rimossi. Le feature torneranno al comportamento del piano (o al
+              default).
+              <br />
+              <strong className="text-foreground">Operazione irreversibile.</strong>
+              <br />
+              <span className="text-xs text-muted-foreground">
+                Verrà loggato un evento aggregato in audit log con la lista delle keys
+                rimosse.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetAllMutation.isPending}>
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={resetAllMutation.isPending}
+              onClick={() => resetAllMutation.mutate()}
+            >
+              {resetAllMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              <Trash2 className="h-4 w-4 mr-2" />
+              Reset {activeCount} override
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
