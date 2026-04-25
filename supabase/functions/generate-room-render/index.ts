@@ -8,6 +8,7 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { runOpenAIImageEditWithFallback } from "../_shared/openaiImageEdit.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
 
@@ -245,37 +246,28 @@ Deno.serve(async (req: Request) => {
 
     // ── Call provider ────────────────────────────────────────────────────────
     let resultImageUrl: string | null = null;
+    let modelUsed = provider.model || "";
 
     if (provider.provider_key === "openai") {
-      // OpenAI Images Edit / gpt-image-1
-      const openaiResp = await fetchWithRetry("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: await (async () => {
-          // Download original image
-          const imgResp = await fetch(imageUrl);
-          const imgBlob = await imgResp.blob();
-
-          const formData = new FormData();
-          formData.append("image", imgBlob, "room.png");
-          formData.append("prompt", fullPrompt);
-          formData.append("model", provider.model || "gpt-image-1");
-          formData.append("n", "1");
-          formData.append("quality", provider.quality || "high");
-          const size = pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024";
-          formData.append("size", size);
-          return formData;
-        })(),
+      const imgResp = await fetch(imageUrl);
+      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
+      const imgBlob = await imgResp.blob();
+      const size = pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024";
+      const openaiResult = await runOpenAIImageEditWithFallback({
+        apiKey,
+        prompt: fullPrompt,
+        image: imgBlob,
+        filename: "room.png",
+        size,
+        quality: provider.quality || "high",
+        configuredModel: provider.model || "gpt-image-1",
+        fetcher: fetchWithRetry,
       });
-
-      if (!openaiResp.ok) {
-        const errBody = await openaiResp.text();
-        throw new Error(`OpenAI API error: ${openaiResp.status} ${errBody}`);
+      modelUsed = openaiResult.modelUsed;
+      if (openaiResult.fallbackErrors.length > 0) {
+        console.warn("generate-room-render OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
       }
-
-      const openaiData = await openaiResp.json();
+      const openaiData = openaiResult.data as { data?: Array<{ b64_json?: string; url?: string }> };
 
       // Handle both b64_json and url response formats
       if (openaiData.data?.[0]?.b64_json) {
@@ -387,6 +379,10 @@ Deno.serve(async (req: Request) => {
         processing_completed_at: new Date().toISOString(),
         cost_real: provider.cost_real_per_render,
         cost_billed: provider.cost_billed_per_render,
+        config_snapshot: {
+          ...(session.config_snapshot || {}),
+          provider_model_used: modelUsed,
+        },
       })
       .eq("id", session_id);
 

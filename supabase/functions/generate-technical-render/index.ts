@@ -8,6 +8,10 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
+import {
+  openAIImageEditResultToDataUrl,
+  runOpenAIImageEditWithFallback,
+} from "../_shared/openaiImageEdit.ts";
 
 type TechnicalModuleId =
   | "ristrutturazioni"
@@ -437,28 +441,29 @@ Deno.serve(async (req) => {
     if (!apiKey) throw new Error(`API key mancante per provider '${providerConfig.provider_key}'.`);
 
     let imageData: string | null = null;
+    let modelUsed = String(providerConfig.model || "");
 
     if (providerConfig.provider_key === "openai") {
       const imgResp = await fetchWithTimeout(prepared.url, {}, 30_000);
       if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
       const imgBlob = await imgResp.blob();
-      const form = new FormData();
-      form.append("model", providerConfig.model);
-      form.append("prompt", finalPrompt);
-      form.append("image[]", imgBlob, "photo.jpg");
-      form.append("n", "1");
-      form.append("size", pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024");
-      form.append("response_format", "b64_json");
-
-      const resp = await fetchWithRetry("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: form,
+      const openaiResult = await runOpenAIImageEditWithFallback({
+        apiKey,
+        prompt: finalPrompt,
+        image: imgBlob,
+        filename: "photo.jpg",
+        size: pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024",
+        configuredModel: providerConfig.model,
+        fetcher: fetchWithRetry,
       });
-      if (!resp.ok) throw new Error(`OpenAI error ${resp.status}: ${(await resp.text()).substring(0, 300)}`);
-      const oaiData = await resp.json();
-      const b64 = oaiData.data?.[0]?.b64_json;
-      if (b64) imageData = `data:image/png;base64,${b64}`;
+      modelUsed = openaiResult.modelUsed;
+      if (openaiResult.fallbackErrors.length > 0) {
+        console.warn("[generate-technical-render] OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
+      }
+      imageData = await openAIImageEditResultToDataUrl(
+        openaiResult.data,
+        (url, options = {}) => fetchWithTimeout(url, options, 30_000),
+      );
     } else if (providerConfig.provider_key === "gemini") {
       const imgResp = await fetchWithTimeout(prepared.url, {}, 30_000);
       if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
@@ -522,6 +527,7 @@ Deno.serve(async (req) => {
           ...rawConfig,
           technical_render_payload: promptPayload,
           input_image_meta: prepared.meta,
+          provider_model_used: modelUsed,
         },
         processing_completed_at: new Date().toISOString(),
       })

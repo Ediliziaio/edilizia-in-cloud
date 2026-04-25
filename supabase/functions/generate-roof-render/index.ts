@@ -8,6 +8,10 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
+import {
+  openAIImageEditResultToDataUrl,
+  runOpenAIImageEditWithFallback,
+} from "../_shared/openaiImageEdit.ts";
 
 // ── ROOF_PHYSICS ─────────────────────────────────────────────────────────────
 const ROOF_PHYSICS: Record<string, string> = {
@@ -562,37 +566,29 @@ Deno.serve(async (req) => {
 
     // ── Chiama il provider AI ────────────────────────────────────────────────
     let imageData: string | null = null;
+    let modelUsed = String(providerConfig.model || "");
 
     if (providerConfig.provider_key === "openai") {
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
+      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
       const imgBlob = await imgResp.blob();
-
-      const form = new FormData();
-      form.append("model", providerConfig.model);
-      form.append("prompt", finalProviderPrompt);
-      form.append("image[]", imgBlob, "photo.jpg");
-      form.append("n", "1");
-      const renderSize = resolveRenderSize(target_width, target_height);
-      form.append("size", renderSize);
-      form.append("response_format", "b64_json");
-
-      const resp = await fetchWithRetry(
-        "https://api.openai.com/v1/images/edits",
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}` },
-          body: form,
-        },
-      );
-
-      if (!resp.ok) {
-        const err = await resp.text();
-        throw new Error(`OpenAI error ${resp.status}: ${err.substring(0, 300)}`);
+      const openaiResult = await runOpenAIImageEditWithFallback({
+        apiKey,
+        prompt: finalProviderPrompt,
+        image: imgBlob,
+        filename: "photo.jpg",
+        size: resolveRenderSize(target_width, target_height),
+        configuredModel: providerConfig.model,
+        fetcher: fetchWithRetry,
+      });
+      modelUsed = openaiResult.modelUsed;
+      if (openaiResult.fallbackErrors.length > 0) {
+        console.warn("[generate-roof-render] OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
       }
-
-      const oaiData = await resp.json();
-      const b64 = oaiData.data?.[0]?.b64_json;
-      if (b64) imageData = `data:image/png;base64,${b64}`;
+      imageData = await openAIImageEditResultToDataUrl(
+        openaiResult.data,
+        (url, options = {}) => fetchWithTimeout(url, options, 30_000),
+      );
 
     } else if (providerConfig.provider_key === "gemini") {
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
@@ -686,6 +682,7 @@ Deno.serve(async (req) => {
         config_snapshot: {
           ...rawConfig,
           roof_render_payload: promptPayload,
+          provider_model_used: modelUsed,
         },
         processing_completed_at: new Date().toISOString(),
       })

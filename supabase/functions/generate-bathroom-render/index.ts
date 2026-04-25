@@ -7,6 +7,7 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
+import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
 import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
 import { normalizeBathroomSceneAnalysis } from "../../../shared/render-bathroom/bathroomSceneAnalysis.ts";
 import type { BathroomPhotoMeta } from "../../../shared/render-bathroom/types.ts";
@@ -528,8 +529,7 @@ async function requestBathroomRender(params: {
 
       const errText = await resp.text();
       lastErr = `OpenAI error ${resp.status}: ${errText.substring(0, 300)}`;
-      const isModelAccessIssue =
-        errText.includes("invalid_value") && errText.includes("\"model\"");
+      const isModelAccessIssue = shouldFallbackOpenAIImageEdit(resp.status, errText);
       if (!isModelAccessIssue) throw new Error(lastErr);
     }
 
