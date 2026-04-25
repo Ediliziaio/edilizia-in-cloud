@@ -54,6 +54,10 @@ const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/Setti
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
 const ListinoManutenzione = lazy(() => import("@/pages/azienda/settings/ListinoManutenzione"));
+const SettingsFinanziamenti = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamenti"));
+const SettingsFinanziamentiNuova = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiNuova"));
+const SettingsFinanziamentiDetail = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiDetail"));
+const SettingsFinanziamentiCalcolatore = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiCalcolatore"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -503,6 +507,11 @@ export function companyRoutes() {
           <Route path="bundle" element={<SettingsBundle />} />
           <Route path="tariffe" element={<SettingsTariffe />} />
           <Route path="listino-manutenzione" element={<ListinoManutenzione />} />
+          {/* Finanziamenti — tabelle finanziarie + calcolatore (Phase A MVP) */}
+          <Route path="finanziamenti" element={<SettingsFinanziamenti />} />
+          <Route path="finanziamenti/nuova" element={<SettingsFinanziamentiNuova />} />
+          <Route path="finanziamenti/calcolatore" element={<SettingsFinanziamentiCalcolatore />} />
+          <Route path="finanziamenti/:id" element={<SettingsFinanziamentiDetail />} />
           {/* Listini Serramenti Avanzati (feature opt-in) */}
           <Route
             path="listini-serramenti/fornitori"
