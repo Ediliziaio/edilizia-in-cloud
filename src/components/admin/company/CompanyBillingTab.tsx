@@ -20,7 +20,10 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Mail, Bot, MessageSquare, Phone, CreditCard, Plus, Minus, Loader2, Settings2, ShieldAlert } from "lucide-react";
+import {
+  Mail, Bot, MessageSquare, Phone, CreditCard, Plus, Minus, Loader2,
+  Settings2, ShieldAlert, Download, AlertTriangle, Wallet,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
@@ -296,12 +299,106 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     return 0;
   };
 
+  // Saldo totale crediti (email + ai + whatsapp)
+  const totalCreditsBalance =
+    (emailCredits?.balance_eur ?? 0) +
+    (aiCredits?.balance_eur ?? 0) +
+    (waCredits?.balance_eur ?? 0);
+
+  // Allarme: saldo negativo su qualsiasi servizio
+  const hasNegativeBalance = CREDIT_SERVICES.some((s) => getBalance(s) < 0);
+
+  // Export CSV degli aggiustamenti correnti
+  const handleExportAdjustmentsCsv = () => {
+    if (!adjustments || adjustments.length === 0) return;
+    const escape = (v: string | number | null | undefined) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const headers = ["Data", "Servizio", "Importo (EUR)", "Motivazione", "Creato da"];
+    const rows = adjustments.map((a) =>
+      [
+        escape(format(new Date(a.created_at), "yyyy-MM-dd HH:mm")),
+        escape(a.service),
+        escape(a.amount_eur.toFixed(4)),
+        escape(a.reason),
+        escape(a.created_by),
+      ].join(","),
+    );
+    const csv = [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `credit-adjustments-${companyId.slice(0, 8)}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Esportati ${adjustments.length} aggiustamenti`);
+  };
+
   if (overridesLoading) {
     return <Skeleton className="h-[400px]" />;
   }
 
   return (
     <div className="space-y-6">
+      {/* Banner saldo totale + warning */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Wallet className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                  Saldo totale crediti
+                </p>
+                <p
+                  className={`text-2xl font-bold ${
+                    hasNegativeBalance ? "text-destructive" : ""
+                  }`}
+                >
+                  {formatCurrency(totalCreditsBalance)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {CREDIT_SERVICES.map((svc) => {
+                const balance = getBalance(svc);
+                const labels: Record<string, string> = {
+                  email: "Email",
+                  ai_agents: "AI",
+                  whatsapp: "WA",
+                };
+                return (
+                  <Badge
+                    key={svc}
+                    variant="outline"
+                    className={
+                      balance < 0
+                        ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300"
+                        : ""
+                    }
+                  >
+                    {labels[svc]}: {formatCurrency(balance)}
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
+          {hasNegativeBalance && (
+            <div className="flex items-center gap-2 mt-3 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+              <p className="text-xs text-destructive">
+                <strong>Saldo negativo</strong> su uno o più servizi. L'azienda potrebbe
+                non poter più usarli finché non si aggiusta il saldo.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       {/* Service Controls */}
       <Card>
         <CardHeader>
@@ -564,7 +661,20 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       {/* Adjustments History */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Storico Aggiustamenti</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Storico Aggiustamenti</CardTitle>
+            {adjustments && adjustments.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportAdjustmentsCsv}
+                className="h-8 text-xs"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                CSV
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {adjustmentsLoading ? (
@@ -633,6 +743,21 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                 onChange={(e) => setAdjustAmount(e.target.value)}
                 placeholder="0.00"
               />
+              {/* Quick presets — comodo per aggiustamenti tipici (bonus, rimborso) */}
+              <div className="flex gap-1.5 flex-wrap">
+                {[10, 25, 50, 100, 500].map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2"
+                    onClick={() => setAdjustAmount(String(preset))}
+                  >
+                    €{preset}
+                  </Button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Motivazione *</Label>
@@ -642,6 +767,26 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                 placeholder="Es: Bonus onboarding, Rimborso per disservizio..."
                 rows={3}
               />
+              {/* Reason presets */}
+              <div className="flex gap-1.5 flex-wrap">
+                {[
+                  "Bonus onboarding",
+                  "Rimborso disservizio",
+                  "Promo commerciale",
+                  "Compensazione errore fatturazione",
+                ].map((reason) => (
+                  <Button
+                    key={reason}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => setAdjustReason(reason)}
+                  >
+                    {reason}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>

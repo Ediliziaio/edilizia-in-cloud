@@ -1,13 +1,22 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card, CardContent, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Activity, ClipboardList, CreditCard, MessageSquare, Bell, Loader2, ChevronDown } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Activity, ClipboardList, CreditCard, MessageSquare, Bell, Loader2,
+  ChevronDown, Download,
+} from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface CompanyActivityTabProps {
   companyId: string;
@@ -98,22 +107,110 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
     order: "Ordini", ticket: "Ticket", notification: "Notifiche",
   };
 
+  // Conta per tipo (KPI strip)
+  const counts = useMemo(() => {
+    const acc: Record<EventType, number> = {
+      all: events.length, audit: 0, subscription: 0,
+      order: 0, ticket: 0, notification: 0,
+    };
+    events.forEach((e) => {
+      acc[e.type] = (acc[e.type] ?? 0) + 1;
+    });
+    return acc;
+  }, [events]);
+
+  // Export CSV degli eventi filtrati
+  const handleExportCsv = () => {
+    if (filtered.length === 0) return;
+    const escape = (v: string) => /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const headers = ["Data", "Tipo", "Azione", "Dettaglio"];
+    const rows = filtered.map((e) =>
+      [
+        escape(format(new Date(e.date), "yyyy-MM-dd HH:mm")),
+        escape(typeLabels[e.type]),
+        escape(e.action),
+        escape(e.details),
+      ].join(","),
+    );
+    const csv = [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attivita-${companyId.slice(0, 8)}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Esportati ${filtered.length} eventi`);
+  };
+
   return (
+    <div className="space-y-4">
+      {/* KPI strip — count per tipo, cliccabili per filtrare */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+        {(Object.keys(typeLabels) as EventType[]).map((type) => {
+          const count = counts[type] ?? 0;
+          const active = filter === type;
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => {
+                setFilter(type);
+                setLimit(PAGE_SIZE);
+              }}
+              className={cn(
+                "rounded-lg border p-3 text-left transition-colors",
+                active
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                  : "hover:bg-muted/50",
+              )}
+            >
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide truncate">
+                {typeLabels[type]}
+              </p>
+              <p className="text-xl font-bold leading-tight mt-0.5">{count}</p>
+            </button>
+          );
+        })}
+      </div>
+
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary" />
             Attività Recente
           </CardTitle>
-          <Select value={filter} onValueChange={(v) => { setFilter(v as EventType); setLimit(PAGE_SIZE); }}>
-            <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {Object.entries(typeLabels).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select
+              value={filter}
+              onValueChange={(v) => {
+                setFilter(v as EventType);
+                setLimit(PAGE_SIZE);
+              }}
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(typeLabels).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={handleExportCsv}
+              disabled={filtered.length === 0}
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              CSV
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -157,5 +254,6 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

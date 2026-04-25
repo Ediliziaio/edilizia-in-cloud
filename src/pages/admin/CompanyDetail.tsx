@@ -385,6 +385,7 @@ export default function CompanyDetail() {
             includedModules={includedModules} plans={h.plans} companyPlanId={h.company.subscription_plan_id}
             companyId={h.company.id}
             company={h.company}
+            onNavigateToTab={selectTab}
           />
         </TabsContent>
 

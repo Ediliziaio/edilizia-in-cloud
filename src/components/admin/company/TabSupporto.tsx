@@ -1,15 +1,23 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
-import { Ticket, Plus, AlertCircle, Filter } from "lucide-react";
+import {
+  Ticket, Plus, AlertCircle, Filter, AlertTriangle, Clock, CheckCircle2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useTicketAzienda, type TicketRow } from "@/hooks/useTicketAzienda";
+import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  useTicketAzienda, type TicketRow,
+} from "@/hooks/useTicketAzienda";
 import { TicketDetailDrawer } from "./TicketDetailDrawer";
 import { NuovoTicketModal } from "./NuovoTicketModal";
+import { cn } from "@/lib/utils";
 
 interface TabSupportoProps {
   companyId: string;
@@ -69,12 +77,48 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
   const { tickets, isLoading, isError, creaTicket, cambiaStato } = useTicketAzienda(companyId);
   const [selectedTicket, setSelectedTicket] = useState<TicketRow | null>(null);
   const [statoFilter, setStatoFilter] = useState<TicketRow["stato"] | "tutti">("tutti");
+  const [prioritaFilter, setPrioritaFilter] = useState<TicketRow["priorita"] | "tutti">("tutti");
+  const [search, setSearch] = useState("");
   const [nuovoOpen, setNuovoOpen] = useState(false);
 
-  const filtered =
-    statoFilter === "tutti" ? tickets : tickets.filter((t) => t.stato === statoFilter);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tickets.filter((t) => {
+      if (statoFilter !== "tutti" && t.stato !== statoFilter) return false;
+      if (prioritaFilter !== "tutti" && t.priorita !== prioritaFilter) return false;
+      if (q) {
+        const hay = `${t.titolo ?? ""} ${t.categoria ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [tickets, statoFilter, prioritaFilter, search]);
 
   const openCount = tickets.filter((t) => t.stato === "aperto" || t.stato === "in_lavorazione").length;
+
+  // KPI counts: aperti, urgenti, vecchi (>7gg aperti), risolti
+  const kpi = useMemo(() => {
+    const today = new Date();
+    return {
+      open: openCount,
+      urgent: tickets.filter(
+        (t) =>
+          t.priorita === "urgente" &&
+          (t.stato === "aperto" || t.stato === "in_lavorazione"),
+      ).length,
+      stale: tickets.filter(
+        (t) =>
+          (t.stato === "aperto" || t.stato === "in_lavorazione") &&
+          differenceInDays(today, new Date(t.created_at)) > 7,
+      ).length,
+      resolved: tickets.filter(
+        (t) => t.stato === "risolto" || t.stato === "chiuso",
+      ).length,
+    };
+  }, [tickets, openCount]);
+
+  const hasActiveFilters =
+    statoFilter !== "tutti" || prioritaFilter !== "tutti" || !!search;
 
   return (
     <div className="space-y-4">
@@ -96,8 +140,67 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* KPI strip */}
+      {tickets.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {[
+            {
+              label: "Aperti",
+              value: kpi.open,
+              icon: Ticket,
+              accent: kpi.open > 0 ? "text-amber-600" : "text-muted-foreground",
+              bg: kpi.open > 0 ? "bg-amber-500/10" : "bg-muted",
+            },
+            {
+              label: "Urgenti",
+              value: kpi.urgent,
+              icon: AlertTriangle,
+              accent: kpi.urgent > 0 ? "text-destructive" : "text-muted-foreground",
+              bg: kpi.urgent > 0 ? "bg-rose-500/10" : "bg-muted",
+            },
+            {
+              label: "Vecchi (>7gg)",
+              value: kpi.stale,
+              icon: Clock,
+              accent: kpi.stale > 0 ? "text-amber-600" : "text-muted-foreground",
+              bg: kpi.stale > 0 ? "bg-amber-500/10" : "bg-muted",
+            },
+            {
+              label: "Risolti",
+              value: kpi.resolved,
+              icon: CheckCircle2,
+              accent: "text-emerald-600",
+              bg: "bg-emerald-500/10",
+            },
+          ].map((k) => (
+            <Card key={k.label}>
+              <CardContent className="p-3 flex items-center gap-2.5">
+                <div className={cn("rounded-lg p-2", k.bg)}>
+                  <k.icon className={cn("h-3.5 w-3.5", k.accent)} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                    {k.label}
+                  </p>
+                  <p className={cn("text-lg font-bold leading-tight", k.accent)}>
+                    {k.value}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Toolbar filtri */}
+      <div className="flex items-center gap-2 flex-wrap">
         <Filter className="h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Cerca per titolo o categoria..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full sm:w-56 h-8 text-xs"
+        />
         <Select
           value={statoFilter}
           onValueChange={(v) => setStatoFilter(v as TicketRow["stato"] | "tutti")}
@@ -113,8 +216,41 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
             ))}
           </SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground">
-          {filtered.length} ticket{filtered.length !== 1 ? "s" : ""}
+        <Select
+          value={prioritaFilter}
+          onValueChange={(v) =>
+            setPrioritaFilter(v as TicketRow["priorita"] | "tutti")
+          }
+        >
+          <SelectTrigger className="w-36 h-8 text-xs">
+            <SelectValue placeholder="Priorità" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutti" className="text-xs">
+              Tutte priorità
+            </SelectItem>
+            <SelectItem value="urgente" className="text-xs">Urgente</SelectItem>
+            <SelectItem value="alta" className="text-xs">Alta</SelectItem>
+            <SelectItem value="normale" className="text-xs">Normale</SelectItem>
+            <SelectItem value="bassa" className="text-xs">Bassa</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => {
+              setStatoFilter("tutti");
+              setPrioritaFilter("tutti");
+              setSearch("");
+            }}
+          >
+            Reset
+          </Button>
+        )}
+        <span className="text-xs text-muted-foreground ml-auto">
+          {filtered.length} di {tickets.length}
         </span>
       </div>
 

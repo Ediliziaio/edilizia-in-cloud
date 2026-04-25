@@ -1,12 +1,23 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CreditCard, Clock, Pause, Play, Loader2, RefreshCw, CalendarPlus } from "lucide-react";
-import { format } from "date-fns";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  CreditCard, Clock, Pause, Play, Loader2, RefreshCw, CalendarPlus,
+  ExternalLink, AlertTriangle, Sparkles, TrendingUp,
+} from "lucide-react";
+import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import type { Company, CompanyStatus } from "@/types/auth";
@@ -17,6 +28,10 @@ import { CreditTransactionsTable } from "./CreditTransactionsTable";
 import { CreditManagerCard } from "./CreditManagerCard";
 import { CompanyFeatureOverridesCard } from "./CompanyFeatureOverridesCard";
 import { CompanyOverrideAuditLogCard } from "./CompanyOverrideAuditLogCard";
+import {
+  getEffectivePaymentStatus, getEffectiveMRR, PAYMENT_STATUS_META,
+} from "@/lib/paymentStatus";
+import { cn } from "@/lib/utils";
 
 // Forma minima di un piano tariffario — solo i campi letti qui.
 // Evita di importare la riga completa di `subscription_plans` che contiene
@@ -88,12 +103,99 @@ export function CompanySubscriptionTab({
   const companyStatus = (company.status || "trial") as CompanyStatus;
   const statusCfg = statusConfig[companyStatus] || statusConfig.trial;
 
+  // Stato di pagamento effettivo (riusa helper centrale, coerenza con Panoramica)
+  const effectiveStatus = getEffectivePaymentStatus({
+    status: company.status,
+    payment_method: company.payment_method,
+    trial_ends_at: company.trial_ends_at,
+  });
+  const paymentMeta = PAYMENT_STATUS_META[effectiveStatus];
+  const nominalMrr = currentPlan?.price_monthly ?? 0;
+  const effectiveMrr = getEffectiveMRR(
+    {
+      status: company.status,
+      payment_method: company.payment_method,
+      trial_ends_at: company.trial_ends_at,
+    },
+    nominalMrr,
+  );
+  const isPaying = effectiveStatus === "paying";
+
+  // Trial countdown
+  const trialDaysLeft =
+    companyStatus === "trial" && company.trial_ends_at
+      ? differenceInDays(new Date(company.trial_ends_at), new Date())
+      : null;
+  const trialExtensions = company.trial_extensions_count ?? 0;
+
+  // Stripe customer link (URL sicuro: solo se ID presente)
+  const stripeUrl = company.stripe_customer_id
+    ? `https://dashboard.stripe.com/customers/${company.stripe_customer_id}`
+    : null;
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      {/* Banner stato pagamento — visibilità immediata */}
+      {(effectiveStatus === "comped" || effectiveStatus === "unconfigured") && (
+        <Alert
+          className={cn(
+            "lg:col-span-2 border-l-4",
+            effectiveStatus === "comped"
+              ? "border-l-violet-500 bg-violet-50/50 dark:bg-violet-950/20"
+              : "border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20",
+          )}
+        >
+          {effectiveStatus === "comped" ? (
+            <Sparkles className="h-4 w-4 text-violet-600" />
+          ) : (
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+          )}
+          <AlertDescription>
+            <div className="flex items-center gap-2 flex-wrap">
+              <strong>
+                {effectiveStatus === "comped"
+                  ? "Azienda regalata"
+                  : "Metodo di pagamento mancante"}
+              </strong>
+              <Badge
+                variant="outline"
+                className={cn("text-[10px] h-4 px-1.5", paymentMeta.className)}
+              >
+                {paymentMeta.shortLabel}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {effectiveStatus === "comped"
+                  ? `MRR escluso (listino ${formatCurrency(nominalMrr)}/mese)`
+                  : "Configura metodo di pagamento qui sotto"}
+              </span>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Trial scadenza ravvicinata */}
+      {trialDaysLeft !== null && trialDaysLeft <= 7 && trialDaysLeft >= 0 && (
+        <Alert
+          variant={trialDaysLeft <= 3 ? "destructive" : "default"}
+          className="lg:col-span-2"
+        >
+          <Clock className="h-4 w-4" />
+          <AlertDescription>
+            <strong>
+              {trialDaysLeft === 0
+                ? "Trial scade oggi"
+                : `Trial scade tra ${trialDaysLeft} giorn${trialDaysLeft === 1 ? "o" : "i"}`}
+            </strong>
+            {" — "}{format(new Date(company.trial_ends_at!), "EEEE dd MMMM", { locale: it })}.
+            Considera upgrade o estensione.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Stato abbonamento */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
@@ -101,7 +203,27 @@ export function CompanySubscriptionTab({
               </CardTitle>
               <CardDescription>Gestisci lo stato e il piano</CardDescription>
             </div>
-            <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px] cursor-help", paymentMeta.className)}
+                    >
+                      {effectiveStatus === "comped" && (
+                        <Sparkles className="h-2.5 w-2.5 mr-1" />
+                      )}
+                      {paymentMeta.shortLabel}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    {paymentMeta.description}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -117,14 +239,94 @@ export function CompanySubscriptionTab({
           )}
           {currentPlan && (
             <div className="flex justify-between py-2 border-b text-sm">
-              <span className="text-muted-foreground">Prezzo</span>
+              <span className="text-muted-foreground">Prezzo listino</span>
               <span className="font-medium">{formatCurrency(currentPlan.price_monthly)}/mese</span>
             </div>
           )}
-          {company.stripe_customer_id && (
+          {currentPlan && (
             <div className="flex justify-between py-2 border-b text-sm">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" />
+                MRR effettivo
+              </span>
+              <span
+                className={cn(
+                  "font-semibold",
+                  isPaying ? "text-emerald-600" : "text-muted-foreground",
+                )}
+              >
+                {formatCurrency(effectiveMrr)}/mese
+                {!isPaying && nominalMrr > 0 && (
+                  <span className="ml-1 text-[10px] text-muted-foreground italic">
+                    (escluso)
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+          {trialDaysLeft !== null && trialDaysLeft >= 0 && (
+            <div className="flex justify-between py-2 border-b text-sm">
+              <span className="text-muted-foreground">Trial — giorni rimanenti</span>
+              <span
+                className={cn(
+                  "font-medium",
+                  trialDaysLeft <= 3
+                    ? "text-destructive"
+                    : trialDaysLeft <= 7
+                      ? "text-amber-600"
+                      : "",
+                )}
+              >
+                {trialDaysLeft} giorn{trialDaysLeft === 1 ? "o" : "i"}
+              </span>
+            </div>
+          )}
+          {trialExtensions > 0 && (
+            <div className="flex justify-between py-2 border-b text-sm">
+              <span className="text-muted-foreground">Estensioni trial</span>
+              <Badge variant="outline" className="text-xs">
+                {trialExtensions} {trialExtensions === 1 ? "volta" : "volte"}
+              </Badge>
+            </div>
+          )}
+          {company.stripe_customer_id && (
+            <div className="flex justify-between py-2 border-b text-sm items-center gap-2">
               <span className="text-muted-foreground">Stripe ID</span>
-              <span className="font-medium font-mono text-xs">{company.stripe_customer_id}</span>
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="font-medium font-mono text-xs truncate max-w-[140px]">
+                  {company.stripe_customer_id}
+                </span>
+                {stripeUrl && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    asChild
+                    title="Apri in Stripe Dashboard"
+                  >
+                    <a href={stripeUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+          {company.stripe_subscription_status && (
+            <div className="flex justify-between py-2 border-b text-sm">
+              <span className="text-muted-foreground">Stato Stripe</span>
+              <Badge
+                variant={
+                  company.stripe_subscription_status === "active"
+                    ? "default"
+                    : company.stripe_subscription_status === "trialing"
+                      ? "secondary"
+                      : "destructive"
+                }
+                className="text-xs"
+              >
+                {company.stripe_subscription_status}
+              </Badge>
             </div>
           )}
           {company.dunning_status && company.dunning_status !== "none" && (

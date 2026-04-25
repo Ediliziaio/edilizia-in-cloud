@@ -1,8 +1,20 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo, useState } from "react";
+import {
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { Package, ClipboardList, Users, CheckCircle, XCircle, ArrowUpRight, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Package, ClipboardList, Users, CheckCircle, XCircle, ArrowUpRight, Loader2,
+  Search, RotateCcw, ExternalLink,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,10 +31,17 @@ interface CompanySaaSTabProps {
   companyPlanId: string | null | undefined;
   companyId?: string;
   company?: Company | null;
+  /** Callback per navigare ad altro tab (es. "abbonamento") */
+  onNavigateToTab?: (tab: string) => void;
 }
 
-export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId, companyId, company }: CompanySaaSTabProps) {
+export function CompanySaaSTab({
+  currentPlan, stats, includedModules, plans, companyPlanId,
+  companyId, company, onNavigateToTab,
+}: CompanySaaSTabProps) {
   const queryClient = useQueryClient();
+  const [flagSearch, setFlagSearch] = useState("");
+  const [resetAllOpen, setResetAllOpen] = useState(false);
 
   const { data: storageData } = useQuery({
     queryKey: ['company-storage', companyId],
@@ -130,6 +149,41 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
     return { enabled: flag.default_value, source: "Default" };
   };
 
+  // Filtro flags per ricerca
+  const filteredFlags = useMemo(() => {
+    const q = flagSearch.trim().toLowerCase();
+    if (!q) return flags;
+    return flags.filter(
+      (f: any) =>
+        (f.name ?? "").toLowerCase().includes(q) ||
+        (f.key ?? "").toLowerCase().includes(q) ||
+        (f.description ?? "").toLowerCase().includes(q),
+    );
+  }, [flags, flagSearch]);
+
+  // Reset bulk di tutti gli override per questa azienda
+  const resetAllOverridesMutation = useMutation({
+    mutationFn: async () => {
+      if (!companyId || overrides.length === 0) return;
+      const { error } = await supabase
+        .from("company_feature_overrides")
+        .delete()
+        .eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-feature-overrides", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-all-overrides"] });
+      toast.success(`Reset di ${overrides.length} override completato`);
+      setResetAllOpen(false);
+    },
+    onError: (e: Error) =>
+      toast.error("Errore durante il reset", { description: e.message }),
+  });
+
+  // Storage limit dinamico dal piano (fallback 500 MB se non specificato)
+  const storageLimitMb: number = currentPlan?.max_storage_mb ?? 500;
+
   return (
     <div className="space-y-6">
       {/* Addon a Pagamento */}
@@ -143,9 +197,9 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
               <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Package className="h-5 w-5 text-primary" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-sm text-muted-foreground">Piano Attuale</p>
-                <p className="text-xl font-bold">{currentPlan?.name || "Nessuno"}</p>
+                <p className="text-xl font-bold truncate">{currentPlan?.name || "Nessuno"}</p>
               </div>
             </div>
             {currentPlan && (
@@ -159,6 +213,17 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
                   <span className="font-semibold">{formatCurrency(currentPlan.price_yearly)}</span>
                 </div>
               </div>
+            )}
+            {onNavigateToTab && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-3 h-8 text-xs"
+                onClick={() => onNavigateToTab("abbonamento")}
+              >
+                Gestisci abbonamento
+                <ExternalLink className="h-3 w-3 ml-1.5" />
+              </Button>
             )}
           </CardContent>
         </Card>
@@ -236,17 +301,59 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
       {companyId && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Feature Flags</CardTitle>
-            <CardDescription>Override delle funzionalità per questa azienda</CardDescription>
+            <div className="flex items-start justify-between flex-wrap gap-3">
+              <div>
+                <CardTitle className="text-base">Feature Flags</CardTitle>
+                <CardDescription>
+                  Override delle funzionalità per questa azienda
+                  {overrides.length > 0 && (
+                    <>
+                      {" "}— <strong>{overrides.length}</strong> attiv
+                      {overrides.length === 1 ? "o" : "i"}
+                    </>
+                  )}
+                </CardDescription>
+              </div>
+              {overrides.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setResetAllOpen(true)}
+                  className="h-8 text-xs"
+                  disabled={resetAllOverridesMutation.isPending}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                  Reset tutti gli override
+                </Button>
+              )}
+            </div>
+            {/* Search box visibile solo con >5 flags */}
+            {flags.length > 5 && (
+              <div className="relative mt-2">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca feature flag..."
+                  value={flagSearch}
+                  onChange={(e) => setFlagSearch(e.target.value)}
+                  className="pl-8 h-8 text-sm"
+                />
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {flagsLoading || overridesLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
+            ) : filteredFlags.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                {flagSearch
+                  ? `Nessuna flag corrisponde a "${flagSearch}"`
+                  : "Nessuna feature flag configurata"}
+              </div>
             ) : (
               <div className="space-y-3">
-                {flags.map((flag: any) => {
+                {filteredFlags.map((flag: any) => {
                   const { enabled, source } = getFlagSource(flag);
                   const hasOverride = !!getOverrideForFlag(flag.key);
                   const sourceBadgeClass =
@@ -328,9 +435,10 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
             <div>
               <p className="text-muted-foreground">Storage usato</p>
               <p className="text-lg font-bold">{storageData?.storageMb ?? 0} MB</p>
-              {(storageData?.storageMb ?? 0) > 400 && (
+              {/* Threshold dinamico: 80% del limite del piano */}
+              {(storageData?.storageMb ?? 0) > storageLimitMb * 0.8 && (
                 <Badge variant="destructive" className="text-xs mt-1">
-                  Vicino al limite (500 MB)
+                  Vicino al limite ({storageLimitMb} MB)
                 </Badge>
               )}
             </div>
@@ -339,9 +447,17 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
             <div>
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                 <span>Storage</span>
-                <span>{storageData?.storageMb} / 500 MB</span>
+                <span>
+                  {storageData?.storageMb} / {storageLimitMb} MB
+                </span>
               </div>
-              <Progress value={Math.min(((storageData?.storageMb ?? 0) / 500) * 100, 100)} className="h-2" />
+              <Progress
+                value={Math.min(
+                  ((storageData?.storageMb ?? 0) / storageLimitMb) * 100,
+                  100,
+                )}
+                className="h-2"
+              />
             </div>
           )}
         </CardContent>
@@ -380,6 +496,39 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
           </CardContent>
         </Card>
       )}
+
+      {/* Conferma reset bulk override */}
+      <AlertDialog open={resetAllOpen} onOpenChange={setResetAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Reset di {overrides.length} override?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tutti gli override locali per questa azienda verranno rimossi. Le feature
+              flags torneranno al comportamento del piano (o al default).
+              <br />
+              <strong className="text-foreground">Operazione irreversibile.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetAllOverridesMutation.isPending}>
+              Annulla
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={resetAllOverridesMutation.isPending}
+              onClick={() => resetAllOverridesMutation.mutate()}
+            >
+              {resetAllOverridesMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset tutti
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,13 +1,21 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Mail, MessageSquare, Bell, Plus, AlertCircle } from "lucide-react";
+import {
+  Mail, MessageSquare, Bell, Plus, AlertCircle, Filter,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { NuovaComunicazioneModal } from "./NuovaComunicazioneModal";
-import { useComunicazioniAzienda, type ComunicazioneRow, type NuovaComunicazione } from "@/hooks/useComunicazioniAzienda";
+import {
+  useComunicazioniAzienda, type ComunicazioneRow, type NuovaComunicazione,
+} from "@/hooks/useComunicazioniAzienda";
+import { cn } from "@/lib/utils";
 
 interface TabComunicazioniProps {
   companyId: string;
@@ -69,6 +77,8 @@ export function TabComunicazioni({ companyId }: TabComunicazioniProps) {
   const { comunicazioni, isLoading, isError, inviaComuinicazione } =
     useComunicazioniAzienda(companyId);
   const [modalOpen, setModalOpen] = useState(false);
+  const [tipoFilter, setTipoFilter] = useState<"all" | ComunicazioneRow["tipo"]>("all");
+  const [statoFilter, setStatoFilter] = useState<"all" | ComunicazioneRow["stato"]>("all");
 
   const handleInvia = (data: NuovaComunicazione) => {
     inviaComuinicazione.mutate(
@@ -77,9 +87,33 @@ export function TabComunicazioni({ companyId }: TabComunicazioniProps) {
     );
   };
 
+  // KPI counts (always sui dati grezzi, indipendenti dai filtri)
+  const counts = useMemo(() => {
+    const acc = {
+      total: comunicazioni.length,
+      email: 0, sms: 0, notifica_inapp: 0,
+      consegnato: 0, fallito: 0, in_coda: 0,
+    };
+    comunicazioni.forEach((c) => {
+      acc[c.tipo]++;
+      if (c.stato === "consegnato") acc.consegnato++;
+      else if (c.stato === "fallito") acc.fallito++;
+      else if (c.stato === "in_coda") acc.in_coda++;
+    });
+    return acc;
+  }, [comunicazioni]);
+
+  const filtered = useMemo(() => {
+    return comunicazioni.filter(
+      (c) =>
+        (tipoFilter === "all" || c.tipo === tipoFilter) &&
+        (statoFilter === "all" || c.stato === statoFilter),
+    );
+  }, [comunicazioni, tipoFilter, statoFilter]);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h3 className="text-sm font-medium">Comunicazioni</h3>
           <p className="text-xs text-muted-foreground">
@@ -91,6 +125,89 @@ export function TabComunicazioni({ companyId }: TabComunicazioniProps) {
           Nuova Comunicazione
         </Button>
       </div>
+
+      {/* KPI strip */}
+      {counts.total > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {[
+            { label: "Totale", value: counts.total, accent: "text-primary" },
+            { label: "Email", value: counts.email, accent: "text-blue-600" },
+            { label: "SMS", value: counts.sms, accent: "text-emerald-600" },
+            {
+              label: "Falliti",
+              value: counts.fallito,
+              accent: counts.fallito > 0 ? "text-destructive" : "text-muted-foreground",
+            },
+          ].map((k) => (
+            <Card key={k.label}>
+              <CardContent className="p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                  {k.label}
+                </p>
+                <p className={cn("text-lg font-bold leading-tight mt-0.5", k.accent)}>
+                  {k.value}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      {counts.total > 3 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+          <Select
+            value={tipoFilter}
+            onValueChange={(v) =>
+              setTipoFilter(v as "all" | ComunicazioneRow["tipo"])
+            }
+          >
+            <SelectTrigger className="w-32 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti tipi</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+              <SelectItem value="sms">SMS</SelectItem>
+              <SelectItem value="notifica_inapp">In-app</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={statoFilter}
+            onValueChange={(v) =>
+              setStatoFilter(v as "all" | ComunicazioneRow["stato"])
+            }
+          >
+            <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti stati</SelectItem>
+              <SelectItem value="inviato">Inviato</SelectItem>
+              <SelectItem value="consegnato">Consegnato</SelectItem>
+              <SelectItem value="fallito">Fallito</SelectItem>
+              <SelectItem value="in_coda">In coda</SelectItem>
+            </SelectContent>
+          </Select>
+          {(tipoFilter !== "all" || statoFilter !== "all") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                setTipoFilter("all");
+                setStatoFilter("all");
+              }}
+            >
+              Reset
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground ml-auto">
+            {filtered.length} di {counts.total}
+          </span>
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-4">
@@ -127,9 +244,13 @@ export function TabComunicazioni({ companyId }: TabComunicazioniProps) {
                 <Plus className="h-4 w-4 mr-1" /> Invia la prima comunicazione
               </Button>
             </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Nessuna comunicazione corrisponde ai filtri correnti
+            </p>
           ) : (
             <div className="divide-y">
-              {comunicazioni.map((com) => (
+              {filtered.map((com) => (
                 <ComunicazioneItem key={com.id} com={com} />
               ))}
             </div>
