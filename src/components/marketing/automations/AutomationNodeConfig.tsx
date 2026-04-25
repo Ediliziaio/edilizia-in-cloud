@@ -133,8 +133,16 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
     queryKey: ["ai_agents_for_automation", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data } = await supabase.from("ai_agents" as never).select("id, name").eq("company_id", companyId).eq("status", "active").order("name");
-      return (data || []) as { id: string; name: string }[];
+      const { data } = await supabase
+        .from("ai_agents_v2" as never)
+        .select("id, nome")
+        .eq("company_id", companyId)
+        .eq("stato", "attivo")
+        .order("nome");
+      return ((data || []) as unknown as { id: string; nome: string }[]).map((agent) => ({
+        id: agent.id,
+        name: agent.nome,
+      }));
     },
     enabled: !!companyId && isAction && actionType === "call_with_ai_agent",
   });

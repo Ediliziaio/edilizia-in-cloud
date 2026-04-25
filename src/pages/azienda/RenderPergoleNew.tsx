@@ -24,6 +24,7 @@ import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -82,11 +83,12 @@ export default function RenderPergoleNew() {
     try {
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_pergole_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("pergole-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "pergole-originals",
+        path,
+        file: photo,
+      });
+      setPhotoPath(storagePath);
 
       const { data: sess, error: sessErr } = await db
         .from("render_pergole_sessions")
@@ -94,7 +96,7 @@ export default function RenderPergoleNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config,
           contact_id: contactId,
           opportunity_id: opportunityId,

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WorkflowError } from "./panels/WorkflowErrorsPanel";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ReactFlow,
   Background,
@@ -39,6 +39,7 @@ import { toast } from "sonner";
 export function FlowBuilderPage() {
   const { id: routeId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast: uiToast } = useToast();
   const isNewFlowRoute = !routeId || routeId === "nuova";
   const flowId = isNewFlowRoute ? undefined : routeId;
@@ -77,6 +78,11 @@ export function FlowBuilderPage() {
   useEffect(() => { initializedRef.current = false; }, [flowId]);
   // Reset creation guard on route change
   useEffect(() => { if (!isNewFlowRoute) creationAttemptedRef.current = false; }, [isNewFlowRoute]);
+
+  useEffect(() => {
+    const requestedPanel = searchParams.get("panel") || searchParams.get("mode");
+    if (requestedPanel === "ai") setLeftPanel("ai");
+  }, [searchParams]);
 
   // Sync DB → ReactFlow (only on initial load)
   useEffect(() => {
@@ -141,11 +147,12 @@ export function FlowBuilderPage() {
         onSuccess: (data) => {
           // Detect current path prefix for admin vs company
           const prefix = window.location.pathname.startsWith("/admin") ? "/admin" : "/azienda";
-          navigate(`${prefix}/marketing/automazioni/${data.id}`, { replace: true });
+          const panelParam = searchParams.get("panel") || searchParams.get("mode");
+          navigate(`${prefix}/marketing/automazioni/${data.id}${panelParam === "ai" ? "?panel=ai" : ""}`, { replace: true });
         },
       });
     }
-  }, [isNewFlowRoute, effectiveCompany, user]);
+  }, [isNewFlowRoute, effectiveCompany, user, searchParams, createFlowMutation, navigate]);
 
   // Handle connect
   const onConnect: OnConnect = useCallback(

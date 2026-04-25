@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -21,7 +22,7 @@ export function useWAMetaTemplates(waNumberId?: string, onlyApproved = true) {
         .order("template_name");
       if (waNumberId) q = q.eq("wa_number_id", waNumberId);
       if (onlyApproved) q = q.eq("status", "APPROVED");
-      const { data, error } = await q;
+      const { data, error } = await withClientTimeout(q, "Caricamento template WhatsApp");
       if (error) throw error;
       return (data ?? []) as WAMetaTemplate[];
     },

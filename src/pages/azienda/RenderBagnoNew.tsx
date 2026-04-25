@@ -27,6 +27,7 @@ import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
 import { buildBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
+import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -152,10 +153,7 @@ export default function RenderBagnoNew() {
 
         let previewUrl = row.foto_originale_url ?? null;
         if (row.foto_originale_path) {
-          const { data: signed } = await supabase.storage
-            .from("bagno-originals")
-            .createSignedUrl(row.foto_originale_path, 3600);
-          previewUrl = signed?.signedUrl ?? previewUrl;
+          previewUrl = await createRenderOriginalSignedUrl("bagno-originals", row.foto_originale_path, 3600);
         }
 
         if (!cancelled) {
@@ -219,10 +217,11 @@ export default function RenderBagnoNew() {
       // 1. Upload foto
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_bagno_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("bagno-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "bagno-originals",
+        path,
+        file: photo,
+      });
 
       // 2. Crea sessione render_bagno_sessions
       const { data: sess, error: sessErr } = await supabase
@@ -231,7 +230,7 @@ export default function RenderBagnoNew() {
           company_id: companyId,
           user_id: user.id,
           stato: "pending",
-          foto_originale_path: path,
+          foto_originale_path: storagePath,
           configurazione: config,
           tipo_intervento: config.tipo_intervento,
           contact_id: contactId,
@@ -244,13 +243,7 @@ export default function RenderBagnoNew() {
       setSessionId(sid);
 
       // 3. Signed URL per analisi
-      const { data: signed, error: signedErr } = await supabase.storage
-        .from("bagno-originals")
-        .createSignedUrl(path, 300);
-      const imageUrl = signed?.signedUrl ?? "";
-      if (signedErr || !imageUrl) {
-        throw new Error(`Signed URL non disponibile: ${signedErr?.message ?? "URL immagine mancante"}`);
-      }
+      const imageUrl = await createRenderOriginalSignedUrl("bagno-originals", storagePath, 300);
 
       setStep(2);
 

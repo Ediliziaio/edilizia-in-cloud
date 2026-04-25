@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, RefreshCcw, Eye } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCcw, Eye, Search } from "lucide-react";
 import {
   useSyncMetaTemplates,
   useWAMetaTemplates,
@@ -40,9 +41,21 @@ function statusColor(status: string | null): string {
 }
 
 export default function TemplatesPage() {
-  const { data: templates, isLoading } = useWAMetaTemplates(undefined, false);
+  const { data: templates, isLoading, isError, error, refetch, isFetching } = useWAMetaTemplates(undefined, false);
   const sync = useSyncMetaTemplates();
   const [preview, setPreview] = useState<WAMetaTemplate | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredTemplates = (templates ?? []).filter((t) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return [
+      t.template_name,
+      t.template_language,
+      t.category,
+      t.status,
+    ].some((value) => (value ?? "").toLowerCase().includes(q));
+  });
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -68,8 +81,17 @@ export default function TemplatesPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle>Elenco template</CardTitle>
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+              placeholder="Cerca nome, lingua, stato..."
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading && (
@@ -77,12 +99,25 @@ export default function TemplatesPage() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           )}
-          {!isLoading && (templates?.length ?? 0) === 0 && (
+          {!isLoading && isError && (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6 text-center">
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-destructive" />
+              <p className="font-medium">Template non caricati</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {(error as Error)?.message || "Errore nel caricamento dei template Meta."}
+              </p>
+              <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+                <RefreshCcw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                Riprova
+              </Button>
+            </div>
+          )}
+          {!isLoading && !isError && (templates?.length ?? 0) === 0 && (
             <div className="text-center py-8 text-sm text-muted-foreground">
               Nessun template sincronizzato. Clicca "Sincronizza da Meta" per importarli.
             </div>
           )}
-          {!isLoading && templates && templates.length > 0 && (
+          {!isLoading && !isError && templates && templates.length > 0 && (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -96,7 +131,7 @@ export default function TemplatesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {templates.map((t) => (
+                  {filteredTemplates.map((t) => (
                     <TableRow key={t.id}>
                       <TableCell className="font-medium">{t.template_name}</TableCell>
                       <TableCell className="uppercase">{t.template_language}</TableCell>
@@ -121,6 +156,11 @@ export default function TemplatesPage() {
                   ))}
                 </TableBody>
               </Table>
+              {filteredTemplates.length === 0 && (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  Nessun template corrisponde ai filtri.
+                </div>
+              )}
             </div>
           )}
         </CardContent>

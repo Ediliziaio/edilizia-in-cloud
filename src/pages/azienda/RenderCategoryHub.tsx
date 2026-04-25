@@ -23,14 +23,17 @@ import {
   Filter,
   GalleryHorizontalEnd,
   Grid3X3,
+  Hammer,
   Home,
   Image,
   Link2,
   PanelLeftClose,
   Search,
+  ShieldCheck,
   Sofa,
   Sparkles,
   Sun,
+  TreePine,
   UserRound,
   Waves,
 } from "lucide-react";
@@ -39,7 +42,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
-type CategoryGroup = "all" | "interni" | "involucro" | "outdoor" | "aperture";
+type CategoryGroup = "all" | "interni" | "involucro" | "outdoor" | "aperture" | "multi";
 
 interface RenderCategory {
   id: string;
@@ -185,6 +188,71 @@ const categories: RenderCategory[] = [
     groupLabel: "Outdoor",
     tags: ["sfioro", "skimmer", "coping", "giardino"],
   },
+  {
+    id: "ristrutturazioni",
+    title: "Ristrutturazioni",
+    description: "Orchestra più sistemi nello stesso render senza conflitti",
+    icon: Hammer,
+    color: "bg-indigo-50 text-indigo-600",
+    path: "/azienda/render/ristrutturazioni",
+    active: true,
+    badge: "Pronto",
+    group: "multi",
+    groupLabel: "Multi-sistema",
+    tags: ["bagno", "facciata", "pavimento", "coordinato"],
+  },
+  {
+    id: "pavimenti-esterni",
+    title: "Pavimenti esterni",
+    description: "Patio, vialetti, coping piscina, gradini e drenaggio",
+    icon: Grid3X3,
+    color: "bg-lime-50 text-lime-700",
+    path: "/azienda/render/pavimenti-esterni",
+    active: true,
+    badge: "Pronto",
+    group: "outdoor",
+    groupLabel: "Outdoor",
+    tags: ["gres outdoor", "deck", "carrabile", "coping"],
+  },
+  {
+    id: "giardini",
+    title: "Giardini",
+    description: "Prato, aiuole, siepi, alberi, percorsi e luci outdoor",
+    icon: TreePine,
+    color: "bg-green-50 text-green-700",
+    path: "/azienda/render/giardini",
+    active: true,
+    badge: "Pronto",
+    group: "outdoor",
+    groupLabel: "Outdoor",
+    tags: ["prato", "aiuole", "siepi", "camminamenti"],
+  },
+  {
+    id: "porte-blindate",
+    title: "Porte blindate",
+    description: "Nuova porta d'ingresso con telaio, soglia e ferramenta reali",
+    icon: ShieldCheck,
+    color: "bg-slate-100 text-slate-700",
+    path: "/azienda/render/porte-blindate",
+    active: true,
+    badge: "Pronto",
+    group: "aperture",
+    groupLabel: "Aperture",
+    tags: ["blindata", "rasomuro", "fiancoluce", "maniglia"],
+  },
+  {
+    id: "porte-interne",
+    title: "Porte interne",
+    description: "Battente, scorrevole, rasomuro, vetrata e tutta altezza",
+    icon: DoorOpen,
+    color: "bg-violet-50 text-violet-600",
+    path: "/azienda/render/porte-interne",
+    active: true,
+    badge: "Pronto",
+    group: "aperture",
+    groupLabel: "Aperture",
+    tags: ["scorrevole", "rasomuro", "vetrata", "doppia anta"],
+  },
 ];
 
 const groupLabels: Record<CategoryGroup, string> = {
@@ -193,6 +261,7 @@ const groupLabels: Record<CategoryGroup, string> = {
   involucro: "Involucro",
   outdoor: "Outdoor",
   aperture: "Aperture",
+  multi: "Multi-sistema",
 };
 
 const statusLabel: Record<string, string> = {

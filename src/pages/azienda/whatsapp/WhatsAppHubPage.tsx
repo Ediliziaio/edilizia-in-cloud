@@ -6,20 +6,46 @@ import TemplatesPage from "./TemplatesPage";
 import NotificheConfigPage from "./NotificheConfigPage";
 import BroadcastListPage from "./BroadcastListPage";
 import { useSearchParams } from "react-router-dom";
+import { Bell, Megaphone, MessageSquare, RefreshCw } from "lucide-react";
+
+const VALID_TABS = ["numeri", "template", "broadcast", "notifiche"] as const;
+type WhatsAppHubTab = typeof VALID_TABS[number];
+
+function normalizeTab(value: string | null): WhatsAppHubTab {
+  return VALID_TABS.includes(value as WhatsAppHubTab) ? (value as WhatsAppHubTab) : "numeri";
+}
 
 export default function WhatsAppHubPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") ?? "numeri";
+  const tab = normalizeTab(params.get("tab"));
 
   const onChangeTab = (value: string) => {
-    params.set("tab", value);
-    setParams(params, { replace: true });
+    const next = new URLSearchParams(params);
+    next.set("tab", normalizeTab(value));
+    setParams(next, { replace: true });
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b bg-card px-4 py-3 md:px-6">
+      <div className="border-b bg-card px-4 py-4 md:px-6">
         <Tabs value={tab} onValueChange={onChangeTab} className="w-full">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-semibold text-emerald-700">
+                <MessageSquare className="h-3.5 w-3.5" />
+                WhatsApp Business
+              </div>
+              <h1 className="text-2xl font-bold">Centro WhatsApp</h1>
+              <p className="text-sm text-muted-foreground">
+                Numeri, template Meta, broadcast e notifiche automatiche in un unico pannello operativo.
+              </p>
+            </div>
+            <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+              <span className="rounded-lg border bg-background px-3 py-2"><RefreshCw className="mr-1.5 inline h-3.5 w-3.5" />Sync template</span>
+              <span className="rounded-lg border bg-background px-3 py-2"><Megaphone className="mr-1.5 inline h-3.5 w-3.5" />Broadcast</span>
+              <span className="rounded-lg border bg-background px-3 py-2"><Bell className="mr-1.5 inline h-3.5 w-3.5" />Notifiche</span>
+            </div>
+          </div>
           <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="numeri" aria-label="Tab Numeri">Numeri</TabsTrigger>
             <TabsTrigger value="template" aria-label="Tab Template">Template</TabsTrigger>

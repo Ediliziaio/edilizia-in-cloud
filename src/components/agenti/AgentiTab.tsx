@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Bot, Phone, MessageSquare, Users, Megaphone, Loader2 } from "lucide-react";
+import { Plus, Search, Bot, Phone, MessageSquare, Users, Megaphone, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,7 +52,7 @@ export function AgentiTab() {
   // Prefix dinamico: /azienda/agenti-ai OR /admin/marketing/agenti-ai in base
   // al contesto corrente, così le navigate non sbattono fuori dal SuperAdmin.
   const basePath = useAiAgentsBasePath();
-  const { data: agenti = [], isLoading } = useUnifiedAgents({
+  const { data: agenti = [], isLoading, isError, error, refetch, isFetching } = useUnifiedAgents({
     tipo: filtroTipo,
     stato: filtroStato,
     cerca,
@@ -130,6 +130,22 @@ export function AgentiTab() {
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/20 bg-destructive/5 py-16 text-center">
+          <AlertTriangle className="mb-3 h-10 w-10 text-destructive" />
+          <p className="text-lg font-semibold text-foreground">Agenti non caricati</p>
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">
+            {(error as Error)?.message || "Non riesco a leggere gli agenti AI in questo momento."}
+          </p>
+          <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            {isFetching ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Riprova
+          </Button>
         </div>
       ) : agenti.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import { logger } from "@/utils/logger";
+import { withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type {
   UnifiedAgent,
@@ -40,7 +41,7 @@ export function useUnifiedAgents(filters?: {
         q = q.ilike("nome", `%${filters.cerca}%`);
       }
 
-      const { data, error } = await q;
+      const { data, error } = await withClientTimeout(q, "Caricamento agenti AI");
       if (error) throw error;
       return (data ?? []) as unknown as UnifiedAgent[];
     },
@@ -55,11 +56,14 @@ export function useUnifiedAgent(id: string | undefined) {
     queryKey: [QUERY_KEY, "detail", id],
     enabled: !!id,
     queryFn: async (): Promise<UnifiedAgent> => {
-      const { data, error } = await supabase
+      const { data, error } = await withClientTimeout(
+        supabase
         .from("ai_agents_v2" as never)
         .select("*")
         .eq("id", id!)
-        .single();
+        .single(),
+        "Caricamento agente AI",
+      );
       if (error) throw error;
       return data as unknown as UnifiedAgent;
     },
@@ -272,10 +276,13 @@ export function useAICompanyStats() {
     enabled: !!companyId,
     refetchInterval: 60_000,
     queryFn: async (): Promise<AICompanyStats | null> => {
-      const { data, error } = await supabase.rpc("get_ai_company_stats" as never, {
-        p_company_id: companyId!,
-        p_giorni: 30,
-      } as never);
+      const { data, error } = await withClientTimeout(
+        supabase.rpc("get_ai_company_stats" as never, {
+          p_company_id: companyId!,
+          p_giorni: 30,
+        } as never),
+        "Caricamento statistiche agenti AI",
+      );
       if (error) {
         logger.warn("Stats RPC failed:", error);
         return null;

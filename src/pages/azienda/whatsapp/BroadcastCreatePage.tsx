@@ -47,7 +47,7 @@ export default function BroadcastCreatePage() {
   const [waNumberId, setWaNumberId] = useState<string>("");
   const [templateName, setTemplateName] = useState<string>("");
   const [variableMapping, setVariableMapping] = useState<Record<string, string>>({});
-  const [tipoFilter, setTipoFilter] = useState<string>("");
+  const [tipoFilter, setTipoFilter] = useState<string>("all");
   const [statoFilter, setStatoFilter] = useState<string>("");
   const [excludeOptOut, setExcludeOptOut] = useState(true);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
@@ -57,12 +57,12 @@ export default function BroadcastCreatePage() {
   const [windowStart, setWindowStart] = useState("09:00");
   const [windowEnd, setWindowEnd] = useState("18:00");
 
-  const { data: numbers } = useWhatsAppNumbers();
+  const { data: numbers, isError: numbersError } = useWhatsAppNumbers();
   const eligibleNumbers = (numbers ?? []).filter(
-    (n) => ["marketing", "bot_operativo", "notifiche"].includes(n.purpose ?? ""),
+    (n) => ["marketing", "bot_operativo"].includes(n.purpose ?? ""),
   );
 
-  const { data: templates } = useWAMetaTemplates(waNumberId || undefined, true);
+  const { data: templates, isError: templatesError } = useWAMetaTemplates(waNumberId || undefined, true);
   const selectedTemplate = useMemo(
     () => (templates ?? []).find((t) => t.template_name === templateName),
     [templates, templateName],
@@ -83,7 +83,7 @@ export default function BroadcastCreatePage() {
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId!)
         .not("telefono", "is", null);
-      if (tipoFilter) q = q.eq("tipo", tipoFilter);
+      if (tipoFilter && tipoFilter !== "all") q = q.eq("tipo", tipoFilter);
       if (statoFilter) q = q.eq("stato", statoFilter);
       if (excludeOptOut) q = q.eq("opt_out", false);
       const { count, error } = await q;
@@ -100,6 +100,10 @@ export default function BroadcastCreatePage() {
       return !missing;
     }
     if (step === 3) return (previewCount ?? 0) > 0;
+    if (step === 4) {
+      if (scheduleMode === "later" && Number.isNaN(new Date(scheduledDate).getTime())) return false;
+      return windowStart < windowEnd;
+    }
     return true;
   };
 
@@ -116,7 +120,7 @@ export default function BroadcastCreatePage() {
         template_name: templateName,
         template_variables: variableMapping,
         segment_filter: {
-          tipo: tipoFilter || undefined,
+          tipo: tipoFilter === "all" ? undefined : tipoFilter,
           stato: statoFilter || undefined,
           exclude_opt_out: excludeOptOut,
         },
@@ -196,6 +200,11 @@ export default function BroadcastCreatePage() {
                         Nessun numero con scopo marketing/bot_operativo. Collegane uno prima.
                       </div>
                     )}
+                    {numbersError && (
+                      <div className="px-2 py-2 text-sm text-destructive">
+                        Errore nel caricamento dei numeri.
+                      </div>
+                    )}
                     {eligibleNumbers.map((n) => (
                       <SelectItem key={n.id} value={n.id}>
                         {n.display_name ?? n.numero} ({n.purpose})
@@ -232,6 +241,11 @@ export default function BroadcastCreatePage() {
                     {(templates ?? []).length === 0 && (
                       <div className="px-2 py-2 text-sm text-muted-foreground">
                         Nessun template APPROVED disponibile.
+                      </div>
+                    )}
+                    {templatesError && (
+                      <div className="px-2 py-2 text-sm text-destructive">
+                        Errore nel caricamento dei template.
                       </div>
                     )}
                     {(templates ?? []).map((t) => (
@@ -283,6 +297,7 @@ export default function BroadcastCreatePage() {
                       <SelectValue placeholder="Tutti i tipi" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="all">Tutti i tipi</SelectItem>
                       <SelectItem value="lead">Lead</SelectItem>
                       <SelectItem value="cliente_prospect">Cliente prospect</SelectItem>
                       <SelectItem value="cliente">Cliente</SelectItem>

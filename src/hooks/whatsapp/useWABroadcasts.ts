@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -23,7 +24,7 @@ export function useWABroadcasts(filter?: { status?: string }) {
         .order("created_at", { ascending: false })
         .limit(50);
       if (filter?.status) q = q.eq("status", filter.status);
-      const { data, error } = await q;
+      const { data, error } = await withClientTimeout(q, "Caricamento broadcast WhatsApp");
       if (error) throw error;
       return (data ?? []) as WABroadcast[];
     },
@@ -35,11 +36,14 @@ export function useWABroadcast(id: string | undefined) {
     queryKey: ["wa", "broadcasts", "detail", id],
     enabled: !!id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withClientTimeout(
+        supabase
         .from("whatsapp_broadcasts")
         .select("*")
         .eq("id", id!)
-        .maybeSingle();
+        .maybeSingle(),
+        "Caricamento dettaglio broadcast",
+      );
       if (error) throw error;
       return data as WABroadcast | null;
     },
@@ -51,12 +55,15 @@ export function useWABroadcastRecipients(broadcastId: string | undefined) {
     queryKey: ["wa", "broadcasts", "recipients", broadcastId],
     enabled: !!broadcastId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withClientTimeout(
+        supabase
         .from("whatsapp_broadcast_recipients")
         .select("id, phone_number, status, sent_at, read_at, delivered_at, error_message")
         .eq("broadcast_id", broadcastId!)
         .order("created_at", { ascending: true })
-        .limit(500);
+        .limit(500),
+        "Caricamento destinatari broadcast",
+      );
       if (error) throw error;
       return data ?? [];
     },

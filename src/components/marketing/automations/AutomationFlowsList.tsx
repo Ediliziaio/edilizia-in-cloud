@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
+import { withClientTimeout } from "@/lib/query-timeout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,9 +26,9 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen,
   List, Grid3X3, Play, Pause, Clock, AlertTriangle,
   Users, Megaphone, ClipboardList, Coins, Package, HardHat,
-  Headphones, Warehouse, UserCog, CheckSquare, Bell, Settings,
+  Headphones, Warehouse, UserCog, CheckSquare, Bell, Settings, RefreshCw,
 } from "lucide-react";
-import { useState, useMemo, type ReactNode } from "react";
+import { Fragment, useEffect, useState, useMemo, type ReactNode } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 
 // --- Lucide icons instead of emojis ---
@@ -91,14 +92,23 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const activeStatusFilter = externalStatus && externalStatus !== "all" ? externalStatus : (internalStatusFilter === "all" ? "all" : internalStatusFilter);
 
   // Load ALL folders (not just current level — we show flat with accordion)
-  const { data: allFolders } = useQuery({
+  const {
+    data: allFolders,
+    isError: foldersError,
+    error: foldersQueryError,
+    refetch: refetchFolders,
+    isFetching: foldersFetching,
+  } = useQuery({
     queryKey: ["automation-folders-all", effectiveCompany?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withClientTimeout(
+        supabase
         .from("automation_folders")
         .select("id, name, parent_id, created_at")
         .eq("company_id", effectiveCompany!.id)
-        .order("name");
+        .order("name"),
+        "Caricamento cartelle automazioni",
+      );
       if (error) throw error;
       return data;
     },
@@ -106,7 +116,14 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   });
 
   // Load ALL flows (flat, we group client-side)
-  const { data: allFlows, isLoading } = useQuery({
+  const {
+    data: allFlows,
+    isLoading,
+    isError: flowsError,
+    error: flowsQueryError,
+    refetch: refetchFlows,
+    isFetching: flowsFetching,
+  } = useQuery({
     queryKey: ["automation-flows", effectiveCompany?.id, categoryFilter],
     queryFn: async () => {
       let query = supabase
@@ -119,7 +136,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         query = query.eq("category", categoryFilter);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await withClientTimeout(query, "Caricamento flussi automazione");
       if (error) throw error;
       return data as AutomationFlow[];
     },
@@ -130,11 +147,14 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const { data: enrollmentCounts } = useQuery({
     queryKey: ["automation-enrollment-counts", effectiveCompany?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withClientTimeout(
+        supabase
         .from("automation_enrollments")
         .select("flow_id, status")
         .eq("company_id", effectiveCompany!.id)
-        .limit(5000);
+        .limit(5000),
+        "Caricamento iscritti automazioni",
+      );
       if (error) throw error;
       const counts: Record<string, { total: number; active: number }> = {};
       for (const e of data || []) {
@@ -172,11 +192,18 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
   const deleteFolderMutation = useMutation({
     mutationFn: async (id: string) => {
+      const { error: detachError } = await supabase
+        .from("automation_flows")
+        .update({ folder_id: null })
+        .eq("folder_id", id)
+        .eq("company_id", effectiveCompany!.id);
+      if (detachError) throw detachError;
       const { error } = await supabase.from("automation_folders").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automation-folders-all"] });
+      queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
       toast({ title: "Cartella eliminata" });
       setDeleteFolderId(null);
     },
@@ -194,6 +221,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           status: "draft",
           created_by: user!.id,
           folder_id: flow.folder_id,
+          category: flow.category,
+          config_json: flow.config_json ?? null,
         })
         .select()
         .single();
@@ -227,6 +256,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     },
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
   });
+
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+  }, [searchQuery, categoryFilter, activeStatusFilter]);
 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -274,6 +308,13 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
   });
 
+  // Folder lookup map
+  const folderMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    allFolders?.forEach(f => { map[f.id] = f.name; });
+    return map;
+  }, [allFolders]);
+
   // --- Filtering ---
   const filtered = useMemo(() => {
     if (!allFlows) return [];
@@ -287,10 +328,18 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(f => f.name.toLowerCase().includes(q));
+      result = result.filter(f => {
+        const folderName = f.folder_id ? folderMap[f.folder_id] : "";
+        return (
+          f.name.toLowerCase().includes(q) ||
+          (f.description ?? "").toLowerCase().includes(q) ||
+          (f.category ?? "").toLowerCase().includes(q) ||
+          folderName.toLowerCase().includes(q)
+        );
+      });
     }
     return result;
-  }, [allFlows, activeStatusFilter, searchQuery]);
+  }, [allFlows, activeStatusFilter, searchQuery, folderMap]);
 
   // Status counts for chips
   const statusCounts = useMemo(() => {
@@ -303,13 +352,6 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       needs_review: allFlows.filter(f => f.status === "draft").length,
     };
   }, [allFlows]);
-
-  // Folder lookup map
-  const folderMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    allFolders?.forEach(f => { map[f.id] = f.name; });
-    return map;
-  }, [allFolders]);
 
   // Group flows by folder for accordion view
   const { folderedGroups, unfolderedFlows } = useMemo(() => {
@@ -363,6 +405,35 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
   if (isLoading) {
     return <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>;
+  }
+
+  if (flowsError || foldersError) {
+    const message = flowsQueryError?.message || foldersQueryError?.message || "Impossibile caricare le automazioni.";
+    return (
+      <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 text-center">
+        <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
+        <h3 className="font-semibold">Automazioni non caricate</h3>
+        <p className="mx-auto mt-1 max-w-xl text-sm text-muted-foreground">
+          {message}
+        </p>
+        <Button
+          variant="outline"
+          className="mt-4"
+          disabled={flowsFetching || foldersFetching}
+          onClick={() => {
+            void refetchFlows();
+            void refetchFolders();
+          }}
+        >
+          {flowsFetching || foldersFetching ? (
+            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-2 h-4 w-4" />
+          )}
+          Riprova
+        </Button>
+      </div>
+    );
   }
 
   const hasContent = (allFolders && allFolders.length > 0) || (allFlows && allFlows.length > 0);
@@ -564,7 +635,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                   const isExpanded = expandedFolders.has(folder.id);
                   const folderFlows = folderedGroups[folder.id] || [];
                   return (
-                    <>{/* Fragment for folder + children */}
+                    <Fragment key={`folder-group-${folder.id}`}>
                       <TableRow
                         key={`folder-${folder.id}`}
                         className="cursor-pointer hover:bg-muted/40 bg-muted/10"
@@ -601,7 +672,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                         </TableCell>
                       </TableRow>
                       {isExpanded && folderFlows.map(flow => renderFlowRow(flow, true))}
-                    </>
+                    </Fragment>
                   );
                 })}
 
@@ -683,7 +754,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina cartella</AlertDialogTitle>
-            <AlertDialogDescription>La cartella e tutti i contenuti verranno eliminati permanentemente.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Verrà eliminata solo la cartella. I flussi contenuti resteranno salvati e verranno spostati fuori cartella.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>

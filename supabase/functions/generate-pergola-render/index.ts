@@ -7,6 +7,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { prepareInputImage } from "../_shared/renderImage.ts";
 
 const PERGOLA_TYPE: Record<string, string> = {
   addossata: "wall-mounted pergola attached to the facade with a rear beam/ledger and front support posts",
@@ -338,8 +339,14 @@ Deno.serve(async (req) => {
     const originalPath = session.original_photo_url as string;
     let imageUrl = originalPath;
     if (originalPath && !originalPath.startsWith("http")) {
-      const { data: signed } = await supabase.storage.from("pergole-originals").createSignedUrl(originalPath, 600);
-      if (signed?.signedUrl) imageUrl = signed.signedUrl;
+      const prepared = await prepareInputImage({
+        supabase,
+        bucket: "pergole-originals",
+        originalPath,
+        hintWidth: target_width ?? null,
+        hintHeight: target_height ?? null,
+      });
+      imageUrl = prepared.url;
     }
 
     const rawConfig = (config || (session.config as Record<string, unknown>) || {}) as Record<string, unknown>;

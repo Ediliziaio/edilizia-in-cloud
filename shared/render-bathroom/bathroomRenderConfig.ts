@@ -250,7 +250,7 @@ function inferFlushPlateRule(config: ConfigurazioneBagno["sanitari"]): { style: 
   return {
     style,
     color,
-    rule: `${style}, ${color}. The selected flush plate is mandatory and must be visible: mount it on the wall behind/above the wall-hung WC at realistic height, flush with the finished wall, crisp and proportionate. It replaces any old external tank logic and must not be omitted or turned into an exposed cistern.`,
+    rule: `${style}, ${color}. The selected flush plate is mandatory and must be visible: mount it on the same wall plane behind/above the replacement wall-hung WC at realistic height, flush with the finished wall, crisp and proportionate. It replaces any old external tank logic and must not be omitted, detached from the WC, moved to another wall or turned into an exposed cistern.`,
   };
 }
 

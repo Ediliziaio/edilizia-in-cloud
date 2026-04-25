@@ -22,6 +22,7 @@ import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -102,11 +103,12 @@ export default function RenderTettoNew() {
     try {
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_tetto_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("tetto-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "tetto-originals",
+        path,
+        file: photo,
+      });
+      setPhotoPath(storagePath);
 
       const { data: sess, error: sessErr } = await supabase
         .from("render_tetto_sessions")
@@ -114,7 +116,7 @@ export default function RenderTettoNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config: config,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -198,7 +200,7 @@ export default function RenderTettoNew() {
     startPolling(sessionId);
   }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
-  const startPolling = useCallback((sid: string) => {
+  function startPolling(sid: string) {
     if (pollRef.current) clearTimeout(pollRef.current);
     if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
     pollCountRef.current = 0;
@@ -254,7 +256,7 @@ export default function RenderTettoNew() {
     };
 
     poll();
-  }, [companyId, queryClient]);
+  }
 
   // ── Download result ───────────────────────────────────────────────────────
   const downloadResult = useCallback(async () => {

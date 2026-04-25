@@ -94,7 +94,7 @@ export default function AgentiAIPage() {
               Agenti AI
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Gestisci tutti i tuoi agenti AI — vocali, chat, WhatsApp e interni — in un unico posto.
+              Gestisci agenti vocali, chat, campagne e knowledge base. WhatsApp vive nel suo hub dedicato.
             </p>
           </div>
 

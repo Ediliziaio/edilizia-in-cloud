@@ -24,6 +24,7 @@ import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -109,11 +110,12 @@ export default function RenderPavimentoNew() {
       // 1. Upload foto
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("pavimento-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "pavimento-originals",
+        path,
+        file: photo,
+      });
+      setPhotoPath(storagePath);
 
       // 2. Crea sessione render (status: pending)
       const { data: sess, error: sessErr } = await supabase
@@ -122,7 +124,7 @@ export default function RenderPavimentoNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config: config as unknown,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -136,10 +138,7 @@ export default function RenderPavimentoNew() {
       setStep(2);
 
       // 3. Analisi AI in background (facoltativa)
-      const { data: signed } = await supabase.storage
-        .from("pavimento-originals")
-        .createSignedUrl(path, 300);
-      const imageUrl = signed?.signedUrl ?? "";
+      const imageUrl = await createRenderOriginalSignedUrl("pavimento-originals", storagePath, 300);
 
       if (imageUrl) {
         setAnalysisLoading(true);

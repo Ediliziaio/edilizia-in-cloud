@@ -7,6 +7,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { prepareInputImage } from "../_shared/renderImage.ts";
 
 // ── ROOF_PHYSICS ─────────────────────────────────────────────────────────────
 const ROOF_PHYSICS: Record<string, string> = {
@@ -474,10 +475,14 @@ Deno.serve(async (req) => {
     let imageUrl = originalPath;
 
     if (originalPath && !originalPath.startsWith("http")) {
-      const { data: signed } = await supabase.storage
-        .from("tetto-originals")
-        .createSignedUrl(originalPath, 600);
-      if (signed?.signedUrl) imageUrl = signed.signedUrl;
+      const prepared = await prepareInputImage({
+        supabase,
+        bucket: "tetto-originals",
+        originalPath,
+        hintWidth: target_width ?? null,
+        hintHeight: target_height ?? null,
+      });
+      imageUrl = prepared.url;
     }
 
     // ── Build prompt ─────────────────────────────────────────────────────────

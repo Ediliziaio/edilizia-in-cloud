@@ -144,6 +144,7 @@ const RenderStanzaHub = lazy(() => import("@/pages/azienda/RenderStanzaHub"));
 const RenderStanzaNew = lazy(() => import("@/pages/azienda/RenderStanzaNew"));
 const RenderStanzaGallery = lazy(() => import("@/pages/azienda/RenderStanzaGallery"));
 const RenderStanzaGalleryDetail = lazy(() => import("@/pages/azienda/RenderStanzaGalleryDetail"));
+const RenderTechnicalModuleHub = lazy(() => import("@/pages/azienda/RenderTechnicalModuleHub"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
@@ -410,6 +411,11 @@ export function companyRoutes() {
         <Route path="render/stanza/new" element={<FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>} />
         <Route path="render/stanza/gallery" element={<FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>} />
         <Route path="render/stanza/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderStanzaGalleryDetail /></FeatureRoute>} />
+        <Route path="render/ristrutturazioni" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="ristrutturazioni" /></FeatureRoute>} />
+        <Route path="render/pavimenti-esterni" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="pavimenti-esterni" /></FeatureRoute>} />
+        <Route path="render/giardini" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="giardini" /></FeatureRoute>} />
+        <Route path="render/porte-blindate" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="porte-blindate" /></FeatureRoute>} />
+        <Route path="render/porte-interne" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="porte-interne" /></FeatureRoute>} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />

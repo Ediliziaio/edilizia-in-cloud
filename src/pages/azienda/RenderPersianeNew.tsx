@@ -44,6 +44,7 @@ import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -180,13 +181,7 @@ export default function RenderPersianeNew() {
       setStep(2);
 
       try {
-        const { data: signed, error: signedError } = await supabase.storage
-          .from("persiane-originals")
-          .createSignedUrl(originalPath, 600);
-
-        if (signedError || !signed?.signedUrl) {
-          throw new Error("Impossibile ottenere l'URL firmato della foto originale");
-        }
+        const signedUrl = await createRenderOriginalSignedUrl("persiane-originals", originalPath, 600);
 
         const headers = await getEdgeFunctionAuthHeaders();
         const { data: fnData, error: fnErr } = await supabase.functions.invoke(
@@ -195,7 +190,7 @@ export default function RenderPersianeNew() {
             body: {
               action: "analyze",
               session_id: sid,
-              image_url: signed.signedUrl,
+              image_url: signedUrl,
               ...(meta ? { target_width: meta.width, target_height: meta.height } : {}),
             },
             headers,
@@ -234,15 +229,15 @@ export default function RenderPersianeNew() {
     try {
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_persiane_original.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("persiane-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-
-      if (uploadError) throw new Error(`Upload foto fallito: ${uploadError.message}`);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "persiane-originals",
+        path,
+        file: photo,
+      });
 
       const meta = photoMeta ?? (await readPhotoMeta(photo, photoPreview));
       setPhotoMeta(meta);
-      setPhotoPath(path);
+      setPhotoPath(storagePath);
 
       const { data: sess, error: sessErr } = await supabase
         .from("render_persiane_sessions")
@@ -250,7 +245,7 @@ export default function RenderPersianeNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -262,7 +257,7 @@ export default function RenderPersianeNew() {
 
       const sid = (sess as { id: string }).id;
       setSessionId(sid);
-      await runAnalysis(sid, path, meta ?? null);
+      await runAnalysis(sid, storagePath, meta ?? null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Errore durante il caricamento");
     } finally {

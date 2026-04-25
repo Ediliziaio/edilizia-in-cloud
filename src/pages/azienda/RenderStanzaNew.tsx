@@ -24,6 +24,7 @@ import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -109,11 +110,12 @@ export default function RenderStanzaNew() {
       // 1. Upload foto
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("stanza-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "stanza-originals",
+        path,
+        file: photo,
+      });
+      setPhotoPath(storagePath);
 
       // 2. Crea sessione (status: pending)
       const { data: sess, error: sessErr } = await supabase
@@ -122,7 +124,7 @@ export default function RenderStanzaNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config: config,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -213,7 +215,7 @@ export default function RenderStanzaNew() {
     startPolling(sessionId);
   }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
-  const startPolling = useCallback((sid: string) => {
+  function startPolling(sid: string) {
     if (pollRef.current) clearTimeout(pollRef.current);
     if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
     pollCountRef.current = 0;
@@ -270,7 +272,7 @@ export default function RenderStanzaNew() {
     };
 
     poll();
-  }, [companyId, queryClient]);
+  }
 
   // ── Save to gallery ─────────────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
