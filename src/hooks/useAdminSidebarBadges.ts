@@ -12,6 +12,12 @@ export interface SidebarBadges {
   draftAnnouncements: number;
   /** Unresolved failure alerts count */
   unresolvedAlerts: number;
+  /** Total open CS tasks (status != completed) */
+  openTasks: number;
+  /** Overdue tasks (due_date < today, not completed) — segnala urgenza */
+  overdueTasks: number;
+  /** Tasks due today (not completed) */
+  dueTodayTasks: number;
 }
 
 /** Fetches badge counts for the admin sidebar nav items */
@@ -21,6 +27,7 @@ export function useAdminSidebarBadges() {
     queryFn: async (): Promise<SidebarBadges> => {
       const now = new Date();
       const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000).toISOString();
+      const todayIso = now.toISOString().slice(0, 10);
 
       // Fail-soft: se UNA delle query ha RLS broken (es. failure_alerts con
       // policy `auth.jwt()->>role` pre-migration 000003), non vogliamo far
@@ -29,7 +36,7 @@ export function useAdminSidebarBadges() {
         supabase
           .from("support_conversations")
           .select("id", { count: "exact", head: true })
-          .in("status", ["open", "pending", "waiting"] as any),
+          .in("status", ["open", "pending", "waiting"] as never),
         supabase
           .from("companies")
           .select("id", { count: "exact", head: true })
@@ -49,18 +56,37 @@ export function useAdminSidebarBadges() {
           .from("failure_alerts")
           .select("id", { count: "exact", head: true })
           .is("resolved_at", null),
+        // CS tasks: solo aperti (non completati) per il badge "Attività"
+        // Recuperiamo le righe (con due_date) per separare overdue vs dueToday
+        // dal lato client — query leggera (max ~hundreds open tasks).
+        supabase
+          .from("cs_tasks" as never)
+          .select("status, due_date")
+          .neq("status", "completed")
+          .limit(500),
       ]);
 
-      const pick = <T = any>(idx: number): T =>
-        settled[idx].status === "fulfilled"
-          ? ((settled[idx] as PromiseFulfilledResult<any>).value as T)
-          : ({ data: null, error: null, count: 0 } as unknown as T);
+      type SettledResult<T> = { data: T | null; error: unknown; count: number | null };
+      const pick = <T,>(idx: number): SettledResult<T> => {
+        const r = settled[idx];
+        if (r.status === "fulfilled") return r.value as SettledResult<T>;
+        return { data: null, error: r.reason, count: 0 };
+      };
 
-      const ticketsRes = pick<{ count: number | null }>(0);
-      const trialsRes = pick<{ count: number | null }>(1);
-      const maintenanceRes = pick<{ data: { value: string } | null }>(2);
-      const announcementsRes = pick<{ count: number | null }>(3);
-      const alertsRes = pick<{ count: number | null }>(4);
+      const ticketsRes = pick<unknown>(0);
+      const trialsRes = pick<unknown>(1);
+      const maintenanceRes = pick<{ value: string }>(2);
+      const announcementsRes = pick<unknown>(3);
+      const alertsRes = pick<unknown>(4);
+      const tasksRes = pick<Array<{ status: string; due_date: string | null }>>(5);
+
+      const openTasksRows = tasksRes.data ?? [];
+      const overdueTasks = openTasksRows.filter(
+        (t) => t.due_date && t.due_date.slice(0, 10) < todayIso
+      ).length;
+      const dueTodayTasks = openTasksRows.filter(
+        (t) => t.due_date && t.due_date.slice(0, 10) === todayIso
+      ).length;
 
       return {
         openTickets: ticketsRes.count || 0,
@@ -68,6 +94,9 @@ export function useAdminSidebarBadges() {
         maintenanceActive: maintenanceRes.data?.value === "true",
         draftAnnouncements: announcementsRes.count || 0,
         unresolvedAlerts: alertsRes.count || 0,
+        openTasks: openTasksRows.length,
+        overdueTasks,
+        dueTodayTasks,
       };
     },
     staleTime: 60 * 1000,
@@ -84,6 +113,20 @@ export function getBadgeForNavItem(
 
   if (url === "/admin/ticket" && badges.openTickets > 0) {
     return { count: badges.openTickets, variant: badges.openTickets > 10 ? "destructive" : "default" };
+  }
+
+  // Attività: priorità destructive se overdue > 0, warning se dueToday, default altrimenti
+  // (il vecchio /admin/cs-tasks è alias retrocompat — entrambi gli URL ricevono lo stesso badge)
+  if ((url === "/admin/attivita" || url === "/admin/cs-tasks") && badges.openTasks > 0) {
+    return {
+      count: badges.openTasks,
+      variant:
+        badges.overdueTasks > 0
+          ? "destructive"
+          : badges.dueTodayTasks > 0
+          ? "warning"
+          : "default",
+    };
   }
 
   if (url === "/admin/lifecycle" && badges.trialsExpiring > 0) {

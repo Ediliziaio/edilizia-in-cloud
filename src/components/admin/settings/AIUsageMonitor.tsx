@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import {
   useAIUsageMonitor, type AIUsageSummary,
 } from "@/hooks/useAIUsageMonitor";
+import { RenderPricingValidator } from "@/components/admin/settings/RenderPricingValidator";
+import { cn } from "@/lib/utils";
 
 // ─── Thresholds ──────────────────────────────────────────
 
@@ -389,7 +391,9 @@ export function AIUsageMonitor() {
     dateTo: !invalidRange && dateTo ? dateTo : undefined,
   });
 
-  const summaries = data?.summaries ?? [];
+  // Memo `summaries` per evitare nuovo riferimento a ogni render (le useMemo
+  // sotto altrimenti ricomputerebbero ad ogni render anche con stessi dati)
+  const summaries = useMemo(() => data?.summaries ?? [], [data?.summaries]);
   const kpis = data?.kpis;
 
   const filteredSummaries = useMemo(() => {
@@ -457,7 +461,79 @@ export function AIUsageMonitor() {
         </Alert>
       )}
 
-      {/* KPIs */}
+      {/* ── Diagnostic banner: dettaglio fonti dati per debug.
+          Mostrato quando ci sono errori o quando i dati sembrano mancanti
+          (0 righe / molti render senza cost). */}
+      {data?.diagnostic && (
+        (() => {
+          const d = data.diagnostic;
+          const totalRows = d.ai_usage_log_rows + d.render_sessions_rows;
+          const hasErrors = d.ai_usage_log_error || d.render_sessions_error;
+          const renderHasZeroCost = d.render_sessions_completed > 0 && d.render_sessions_with_cost === 0;
+          // Mostra il banner se: errori, oppure 0 dati totali, oppure render senza cost
+          if (!hasErrors && totalRows > 0 && !renderHasZeroCost) return null;
+          return (
+            <Alert variant={hasErrors ? "destructive" : "default"}>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs space-y-2">
+                <p className="font-medium">Diagnostica fonti dati</p>
+                <ul className="list-disc pl-5 space-y-0.5">
+                  <li>
+                    <code className="bg-muted px-1 rounded">ai_usage_log</code>: {d.ai_usage_log_rows} righe
+                    {d.ai_usage_log_error && (
+                      <span className="text-destructive"> · errore: {d.ai_usage_log_error}</span>
+                    )}
+                  </li>
+                  <li>
+                    <code className="bg-muted px-1 rounded">render_sessions</code>: {d.render_sessions_rows} righe totali
+                    {d.render_sessions_rows > 0 && (
+                      <span className="text-muted-foreground">
+                        {" "}({d.render_sessions_completed} completate · {d.render_sessions_with_cost} con costo &gt; 0
+                        {d.render_sessions_zero_cost > 0 && ` · ${d.render_sessions_zero_cost} a costo 0`}
+                        {d.render_sessions_used_legacy_cost > 0 && ` · ${d.render_sessions_used_legacy_cost} via cost_real legacy`})
+                      </span>
+                    )}
+                    {d.render_sessions_error && (
+                      <span className="text-destructive"> · errore: {d.render_sessions_error}</span>
+                    )}
+                  </li>
+                </ul>
+
+                {/* Suggerimenti contestuali in base allo stato */}
+                {d.ai_usage_log_error?.includes("not find the table") && (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    ⚠️ La tabella <code className="bg-muted px-1 rounded">ai_usage_log</code> non esiste.
+                    Esegui la migration <code className="bg-muted px-1 rounded">20260822000003_ai_usage_log.sql</code>{" "}
+                    per attivare il tracking di Chat / Voice / Doc Analysis.
+                  </p>
+                )}
+                {renderHasZeroCost && (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    ⚠️ {d.render_sessions_completed} render completati ma <strong>nessuno ha il costo registrato</strong>.
+                    Cause probabili:
+                    {" "}<strong>(a)</strong> migration economics non applicata (le edge function aggiornano solo legacy fields,
+                    cadendo su <code className="bg-muted px-1 rounded">cost_real</code> = 0);
+                    {" "}<strong>(b)</strong> la edge function generate-render non ha popolato{" "}
+                    <code className="bg-muted px-1 rounded">cost_real_api</code>{" "}
+                    (verifica <code className="bg-muted px-1 rounded">captureRealCost</code>);
+                    {" "}<strong>(c)</strong> i provider rispondono senza usage info.
+                    Apri il network dev tools e cerca la response di <code className="bg-muted px-1 rounded">generate-render</code>.
+                  </p>
+                )}
+                {d.render_sessions_rows === 0 && !d.render_sessions_error && totalRows === 0 && (
+                  <p className="text-muted-foreground">
+                    Nessun dato. Verifica che le RLS policy su{" "}
+                    <code className="bg-muted px-1 rounded">render_sessions</code> permettano SELECT al super_admin
+                    e che il filtro periodo includa le date dei test.
+                  </p>
+                )}
+              </AlertDescription>
+            </Alert>
+          );
+        })()
+      )}
+
+      {/* KPIs — riga 1: costi/aziende/top spender · riga 2: revenue/margine */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -508,6 +584,98 @@ export function AIUsageMonitor() {
           </>
         )}
       </div>
+
+      {/* KPIs riga 2 — Revenue & Margin */}
+      {!isLoading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <KpiCard
+            icon={Euro}
+            label="Ricavi totali (mese)"
+            value={EUR.format(kpis?.total_revenue_month ?? 0)}
+            sub="Quanto le aziende hanno pagato per AI"
+          />
+          <KpiCard
+            icon={TrendingUp}
+            label="Margine netto (mese)"
+            value={EUR.format(kpis?.total_margin_month ?? 0)}
+            sub={`Ricavi − costi API`}
+          />
+          <KpiCard
+            icon={TrendingUp}
+            label="Margine %"
+            value={`${(kpis?.margin_pct_month ?? 0).toFixed(1)}%`}
+            sub={
+              (kpis?.margin_pct_month ?? 0) >= 50
+                ? "Margine sano"
+                : (kpis?.margin_pct_month ?? 0) >= 20
+                  ? "Margine basso"
+                  : (kpis?.margin_pct_month ?? 0) > 0
+                    ? "⚠️ Margine critico"
+                    : "Nessun ricavo"
+            }
+          />
+        </div>
+      )}
+
+      {/* Breakdown per Feature AI */}
+      {!isLoading && data?.featureBreakdown && data.featureBreakdown.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Bot className="h-4 w-4" /> Costi/Ricavi per Feature AI
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Aggregato per categoria — utile per capire quale prodotto AI consuma di più
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {data.featureBreakdown.map((fb) => {
+                const marginPct = fb.revenue_eur > 0
+                  ? Math.round((fb.margin_eur / fb.revenue_eur) * 100)
+                  : 0;
+                const FEATURE_LABELS: Record<typeof fb.feature, string> = {
+                  render: "🖼 Render AI",
+                  chat: "💬 Chat AI",
+                  voice: "🎙 Voice / TTS",
+                  doc_analysis: "🔎 Doc Analysis / RAG",
+                  automation: "⚡ Automation",
+                  other: "❓ Altro",
+                };
+                return (
+                  <div key={fb.feature} className="rounded-lg border p-3 space-y-1.5 hover:bg-muted/20 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">{FEATURE_LABELS[fb.feature]}</p>
+                      <span className="text-[10px] text-muted-foreground">{NUM.format(fb.requests)} req.</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 text-[10px]">
+                      <div>
+                        <p className="text-muted-foreground">Costo</p>
+                        <p className="font-mono font-medium">{EUR.format(fb.cost_eur)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Ricavi</p>
+                        <p className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                          {EUR.format(fb.revenue_eur)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Margine</p>
+                        <p className={cn(
+                          "font-mono font-medium",
+                          fb.margin_eur > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
+                        )}>
+                          {marginPct > 0 ? "+" : ""}{marginPct}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -645,6 +813,9 @@ export function AIUsageMonitor() {
           )}
         </CardContent>
       </Card>
+
+      {/* Render AI pricing validation & edit */}
+      <RenderPricingValidator />
 
       {/* Threshold Configuration */}
       <AIUsageThresholdsPanel />

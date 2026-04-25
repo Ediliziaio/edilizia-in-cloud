@@ -37,18 +37,20 @@ export function AdminPulseBar() {
           .gte("created_at", todayStart),
       ]);
 
-      const pick = <T = any>(idx: number): T =>
-        settled[idx].status === "fulfilled"
-          ? ((settled[idx] as PromiseFulfilledResult<any>).value as T)
-          : ({ data: null, error: null, count: 0 } as unknown as T);
+      type PickResult<T> = { data: T | null; count: number | null; error: unknown };
+      const pick = <T,>(idx: number): PickResult<T> => {
+        const r = settled[idx];
+        if (r.status === "fulfilled") return r.value as PickResult<T>;
+        return { data: null, count: 0, error: r.reason };
+      };
 
-      const signupsRes = pick<{ count: number | null }>(0);
-      const activeUsersRes = pick<{ count: number | null }>(1);
-      const ordersRes = pick<{ data: any[] | null; count: number | null }>(2);
-      const ticketsRes = pick<{ count: number | null }>(3);
+      const signupsRes = pick<unknown>(0);
+      const activeUsersRes = pick<unknown>(1);
+      const ordersRes = pick<{ id: string; total_amount: number | null }[]>(2);
+      const ticketsRes = pick<unknown>(3);
 
-      const todayOrdersValue = (ordersRes.data || []).reduce(
-        (sum, o: any) => sum + (Number(o.total_amount) || 0),
+      const todayOrdersValue = (ordersRes.data ?? []).reduce(
+        (sum, o) => sum + (Number(o.total_amount) || 0),
         0
       );
 
@@ -79,12 +81,14 @@ export function AdminPulseBar() {
       icon: Building2,
       label: "Nuove oggi",
       value: data?.signupsToday || 0,
+      isZero: (data?.signupsToday || 0) === 0,
       highlight: (data?.signupsToday || 0) > 0,
     },
     {
       icon: Users,
       label: "Utenti attivi 24h",
       value: data?.activeUsers24h || 0,
+      isZero: (data?.activeUsers24h || 0) === 0,
       highlight: false,
     },
     {
@@ -92,41 +96,50 @@ export function AdminPulseBar() {
       label: "Ordini oggi",
       value: `${data?.ordersToday || 0}`,
       suffix: data?.ordersValueToday ? ` · ${formatCurrency(data.ordersValueToday)}` : "",
+      isZero: (data?.ordersToday || 0) === 0,
       highlight: (data?.ordersToday || 0) > 0,
     },
     {
       icon: Zap,
       label: "Ticket oggi",
       value: data?.ticketsToday || 0,
+      isZero: (data?.ticketsToday || 0) === 0,
+      // Warning solo se >5 ticket aperti oggi (segnale carico anomalo)
       highlight: (data?.ticketsToday || 0) > 5,
     },
   ];
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-      <div className="flex items-center gap-1.5 mr-1">
+      <div className="flex items-center gap-1.5 mr-1 shrink-0">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
         </span>
         <span className="text-xs font-medium text-muted-foreground">Live</span>
       </div>
-      {metrics.map((m) => (
-        <Badge
-          key={m.label}
-          variant="outline"
-          className={`text-xs font-normal gap-1.5 px-3 py-1.5 bg-background shadow-sm ${
-            m.highlight ? "border-primary/30 bg-primary/5" : "border-border"
-          }`}
-        >
-          <m.icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <span className="text-muted-foreground whitespace-nowrap">{m.label}:</span>
-          <span className="font-semibold text-foreground">
-            {m.value}
-            {"suffix" in m && m.suffix}
-          </span>
-        </Badge>
-      ))}
+      {metrics.map((m) => {
+        // Stati visivi: highlight (>0 e di interesse), zero (muto), normale
+        const tone = m.highlight
+          ? "border-primary/30 bg-primary/5 text-foreground"
+          : m.isZero
+          ? "border-border/60 bg-muted/30 text-muted-foreground"
+          : "border-border bg-background text-foreground";
+        return (
+          <Badge
+            key={m.label}
+            variant="outline"
+            className={`text-xs font-normal gap-1.5 px-3 py-1.5 shadow-sm shrink-0 ${tone}`}
+          >
+            <m.icon className={`h-3.5 w-3.5 shrink-0 ${m.highlight ? "text-primary" : "text-muted-foreground"}`} />
+            <span className="text-muted-foreground whitespace-nowrap">{m.label}:</span>
+            <span className={`font-semibold ${m.isZero ? "text-muted-foreground" : "text-foreground"}`}>
+              {m.value}
+              {"suffix" in m && m.suffix}
+            </span>
+          </Badge>
+        );
+      })}
     </div>
   );
 }

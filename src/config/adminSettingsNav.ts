@@ -1,7 +1,7 @@
 import {
   User, Shield, Users, Server, Mail, Bell,
   ScrollText, Bot, Globe, Zap, Plug, Landmark,
-  Webhook, BarChart3, Activity,
+  Webhook, Activity,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -94,14 +94,8 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         icon: Bot,
         url: "/admin/impostazioni/agenti-ai",
       },
-      {
-        id: "ai-usage",
-        label: "Monitor AI",
-        description: "Costi e richieste AI per azienda",
-        icon: BarChart3,
-        url: "/admin/impostazioni/ai-usage",
-        permission: "can_view_platform_stats",
-      },
+      // NB: "Monitor AI" è stato spostato nella sidebar principale (Revenue)
+      // per maggiore visibilità — non vive più qui sotto Impostazioni.
     ],
   },
   {

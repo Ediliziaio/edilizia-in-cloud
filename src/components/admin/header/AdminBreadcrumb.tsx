@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ChevronRight, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -16,13 +16,16 @@ const ROUTE_MAP: Record<string, string> = {
   "/admin/ticket": "Assistenza",
   "/admin/lifecycle": "Lifecycle",
   "/admin/customer-success": "CS Onboarding",
-  "/admin/cs-tasks": "CS Tasks",
+  "/admin/attivita": "Attività",
+  "/admin/chat": "Chat team",
+  "/admin/cs-tasks": "Attività", // alias retrocompat (redirige a /admin/attivita?tab=tutte)
   "/admin/piani": "Piani",
   "/admin/feature-flags": "Feature Flags",
   "/admin/annunci": "Annunci",
   "/admin/sync-logs": "Sync Logs",
   "/admin/gdpr": "GDPR",
   "/admin/referral": "Referral",
+  "/admin/ai-usage": "Monitor AI",
   "/admin/marketing": "Marketing",
   "/admin/marketing/contatti": "Contatti",
   "/admin/marketing/opportunita": "Opportunità",
@@ -47,7 +50,6 @@ const ROUTE_MAP: Record<string, string> = {
 
 export function AdminBreadcrumb() {
   const location = useLocation();
-  const params = useParams();
   const isMobile = useIsMobile();
 
   const segments = useMemo(() => {

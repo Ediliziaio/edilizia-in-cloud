@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle, CheckCircle, RefreshCw, AlertCircle, Inbox } from "lucide-react";
+import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle, CheckCircle, RefreshCw, AlertCircle, Inbox, ListPlus } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -16,6 +16,7 @@ import { AdminSupportChatSheet } from "./AdminSupportChatSheet";
 import { SupportStats } from "./SupportStats";
 import { SupportFilters } from "./SupportFilters";
 import { TicketFilterPresets } from "./TicketFilterPresets";
+import { NewTaskDialog } from "@/components/admin/tasks/NewTaskDialog";
 
 interface SupportMessage {
   id: string;
@@ -109,6 +110,8 @@ export function AdminSupportChatList() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
+  // Task dialog: aprire pre-compilato dalla conversazione corrente
+  const [taskPrefill, setTaskPrefill] = useState<{ companyId: string; companyName: string; lastMessage: string } | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -488,6 +491,17 @@ export function AdminSupportChatList() {
                     </SelectContent>
                   </Select>
                   <button
+                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+                    title="Crea task da questa conversazione"
+                    onClick={() => setTaskPrefill({
+                      companyId: conv.companyId,
+                      companyName: conv.companyName,
+                      lastMessage: conv.lastMessage,
+                    })}
+                  >
+                    <ListPlus className="h-4 w-4" />
+                  </button>
+                  <button
                     className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-green-600 transition-colors"
                     title="Segna come risolto"
                     onClick={() => handleInlineUpdate(conv.companyId, "status", "resolved")}
@@ -521,6 +535,23 @@ export function AdminSupportChatList() {
           }}
           companyId={selectedCompany.id}
           companyName={selectedCompany.name}
+        />
+      )}
+
+      {/* Task dialog: pre-compilato dalla conversazione assistenza selezionata.
+          Tipo "support" + azienda collegata + titolo basato sull'ultimo messaggio. */}
+      {taskPrefill && (
+        <NewTaskDialog
+          open={!!taskPrefill}
+          onOpenChange={(open) => { if (!open) setTaskPrefill(null); }}
+          prefill={{
+            companyId: taskPrefill.companyId,
+            type: "support",
+            title: `Follow-up assistenza: ${taskPrefill.companyName}`,
+            description: taskPrefill.lastMessage
+              ? `Contesto dalla chat:\n"${taskPrefill.lastMessage.slice(0, 300)}${taskPrefill.lastMessage.length > 300 ? "…" : ""}"`
+              : undefined,
+          }}
         />
       )}
     </div>

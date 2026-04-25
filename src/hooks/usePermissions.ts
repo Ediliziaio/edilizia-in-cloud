@@ -213,10 +213,22 @@ export function usePermissions(): Permissions {
     role, user, isImpersonating, isImpersonationReady,
     impersonatedCompanyId, impersonationToken,
     viewAsRole, viewAsUserId,
+    multiCompanyAccesses, selectedMultiCompanyId,
   } = useAuth();
   const queryClient = useQueryClient();
 
   const isStaffRole = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "");
+  // I `multi_company_user` hanno una single row in `staff_permissions` che fa
+  // da baseline: necessario fetchare anche per loro (insieme allo staff classico).
+  const needsStaffPermsFetch = isStaffRole || role === "multi_company_user";
+
+  // Risolve l'access_role per la company corrente (per multi_company_user).
+  // Usato per discriminare ALL_PERMISSIONS (company_admin) vs staff branch.
+  const currentAccessRole = useMemo(() => {
+    if (role !== "multi_company_user") return null;
+    const a = multiCompanyAccesses.find((x) => x.company_id === selectedMultiCompanyId);
+    return a?.access_role ?? null;
+  }, [role, multiCompanyAccesses, selectedMultiCompanyId]);
 
   const { data: permissions, isLoading } = useQuery({
     queryKey: ["staff-permissions", user?.id],
@@ -233,7 +245,7 @@ export function usePermissions(): Permissions {
       }
       return data;
     },
-    enabled: isStaffRole && !!user?.id,
+    enabled: needsStaffPermsFetch && !!user?.id,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -267,8 +279,9 @@ export function usePermissions(): Permissions {
 
   // Item 10: Realtime invalidation — if an admin updates this user's permissions,
   // invalidate the cache so the new permissions take effect without a page reload.
+  // Esteso a multi_company_user: anche loro hanno una riga staff_permissions.
   useEffect(() => {
-    if (!isStaffRole || !user?.id) return;
+    if (!needsStaffPermsFetch || !user?.id) return;
 
     const channel = supabase
       .channel(`staff-permissions-${user.id}`)
@@ -289,7 +302,7 @@ export function usePermissions(): Permissions {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, isStaffRole, queryClient]);
+  }, [user?.id, needsStaffPermsFetch, queryClient]);
 
   // ─── View-as mode: il super_admin sta simulando un utente specifico ────
   // NB: valutato PRIMA dello shortcut super_admin → ALL_PERMISSIONS, altrimenti
@@ -310,6 +323,35 @@ export function usePermissions(): Permissions {
   // Super admin and company admin have all permissions
   if (role === "super_admin" || role === "company_admin") {
     return ALL_PERMISSIONS;
+  }
+
+  // ─── Multi-company user: il ruolo "effettivo" dipende dall'access_role
+  // della company correntemente selezionata.
+  //  - access_role = "company_admin"   → ALL_PERMISSIONS (admin sull'azienda)
+  //  - access_role = "company_staff" / "salesperson" / "call_center" → leggi
+  //    permessi granulari dalla riga staff_permissions
+  //  - altrimenti (no access selezionato / dati non ancora pronti) → NO_PERMISSIONS
+  if (role === "multi_company_user") {
+    if (!currentAccessRole) {
+      // Multi-company user collegato ma nessuna company selezionata yet
+      // (il fetch in AuthContext popola accesses async). Non blocchiamo l'UI:
+      // mostriamo loading per evitare flicker tra NO_PERMISSIONS → ALL.
+      if (multiCompanyAccesses.length === 0) {
+        return { ...NO_PERMISSIONS, isLoading: true };
+      }
+      // Accessi caricati ma nessuno selezionato: fail-safe
+      return NO_PERMISSIONS;
+    }
+    if (currentAccessRole === "company_admin") {
+      return ALL_PERMISSIONS;
+    }
+    // Staff-like access roles: usa la riga staff_permissions
+    if (["company_staff", "salesperson", "call_center"].includes(currentAccessRole)) {
+      if (isLoading) return { ...NO_PERMISSIONS, isLoading: true };
+      return mapDbRowToPermissions(permissions);
+    }
+    // Ruolo accesso sconosciuto → fail-safe
+    return NO_PERMISSIONS;
   }
 
   // Active impersonation session: grant full permissions ONLY after fetchUserData

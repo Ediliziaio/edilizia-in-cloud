@@ -148,19 +148,15 @@ export function useAdminRevenueData() {
   return useQuery({
     queryKey: queryKeys.admin.revenueIntelligence(),
     queryFn: async () => {
-      const [companiesRes, healthRes, subscriptionLogsRes, plansRes] = await Promise.all([
+      // CLEANUP: rimosse 2 query non utilizzate (subscription_logs e subscription_plans)
+      // riducendo il round-trip Supabase da 4 a 2 query parallele.
+      const [companiesRes, healthRes] = await Promise.all([
         supabase
           .from("companies")
           .select("id, name, sector, status, created_at, trial_ends_at, subscription_plan_id, trial_extensions_count, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plans:subscription_plan_id(name, price_monthly, price_yearly, max_orders, max_users)")
           .eq("is_platform_admin_company", false)
           .limit(5000),
         supabase.rpc("get_company_health_data"),
-        supabase
-          .from("subscription_logs")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(500),
-        supabase.from("subscription_plans").select("id, name, price_monthly, max_orders, max_users"),
       ]);
 
       const now = new Date();
@@ -170,7 +166,6 @@ export function useAdminRevenueData() {
           ? "expired"
           : c.status,
       }));
-      const allPlans = plansRes.data || [];
       const healthDataMap = new Map<string, CompanyHealthData>();
       ((healthRes.data || []) as CompanyHealthData[]).forEach((h) => {
         healthDataMap.set(h.company_id, h);

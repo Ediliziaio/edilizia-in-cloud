@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle2, Code2, Eye, Info, Loader2, Mail, Save, WandSparkles } from "lucide-react";
+import { formatError } from "@/lib/errors";
 import {
   usePlatformEmailSignature,
   useUpsertPlatformEmailSignature,
@@ -116,7 +117,7 @@ export function PlatformEmailSignaturePanel() {
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          Errore caricamento firma: {(query.error as Error).message}
+          Errore caricamento firma: {formatError(query.error)}
         </AlertDescription>
       </Alert>
     );

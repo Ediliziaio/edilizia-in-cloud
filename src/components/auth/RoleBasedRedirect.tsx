@@ -28,7 +28,10 @@ export function RoleBasedRedirect() {
     let cancelled = false;
 
     async function checkPasswordChange() {
-      if (["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "") && user) {
+      // Multi-company user incluso: anche loro hanno una riga staff_permissions
+      // (la baseline usata quando l'access_role corrente è non-admin) e un
+      // possibile flag must_change_password al primo login dopo il reset.
+      if (["company_staff", "salesperson", "call_center", "employee", "subcontractor", "multi_company_user"].includes(role || "") && user) {
         setCheckingPassword(true);
         try {
           const { data, error } = await supabase

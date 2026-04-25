@@ -150,9 +150,15 @@ function profileName(p: Profile | undefined) {
 }
 
 // ─── Data Hook ───────────────────────────────────────────────────────────────
-function useInternalChat() {
+/**
+ * @param companyIdOverride - optional override per riuso dal lato Super Admin.
+ *   I super admin non hanno `effectiveCompany`, ma possono usare il chat
+ *   passando l'id della "platform admin company". Se omesso, fallback al
+ *   normale flusso azienda (effectiveCompany?.id).
+ */
+function useInternalChat(companyIdOverride?: string) {
   const { user, effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
+  const companyId = companyIdOverride ?? effectiveCompany?.id;
   const userId = user?.id;
   const queryClient = useQueryClient();
 
@@ -605,11 +611,17 @@ function getColorHex(userId: string): string {
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-export default function InternalChat() {
+interface InternalChatProps {
+  /** Override del company_id usato per scope di canali/messaggi/profili.
+   *  Permette il riuso lato Super Admin (passando platform_admin_company.id). */
+  companyIdOverride?: string;
+}
+
+export default function InternalChat({ companyIdOverride }: InternalChatProps = {}) {
   const {
     channels, allChannels, members, profiles, companyId, userId,
     queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages,
-  } = useInternalChat();
+  } = useInternalChat(companyIdOverride);
   const permissions = usePermissions();
 
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);

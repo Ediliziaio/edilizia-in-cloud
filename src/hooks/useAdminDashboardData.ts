@@ -91,30 +91,43 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
   ]);
 
   // Estrae il value-body di ogni allSettled (o un oggetto vuoto se rejected)
-  const unwrap = <T = any>(idx: number): T => {
+  type SettledResult<T> = { data: T | null; error: unknown; count: number | null };
+  const unwrap = <T,>(idx: number): SettledResult<T> => {
     const r = settled[idx];
-    if (r.status === "fulfilled") return r.value as T;
+    if (r.status === "fulfilled") return r.value as SettledResult<T>;
     console.warn(`[AdminDashboard] query #${idx} failed:`, r.reason);
-    return { data: null, error: r.reason, count: 0 } as unknown as T;
+    return { data: null, error: r.reason, count: 0 };
   };
 
-  const companiesRes = unwrap<{ data: unknown; error: unknown; count: number | null }>(0);
-  const ordersAggRes = unwrap<{ data: TotalOrdersValue[] | null; error: unknown }>(1);
-  const customersRes = unwrap<{ data: unknown; error: unknown; count: number | null }>(2);
-  const ticketsRes = unwrap<{ data: unknown; error: unknown; count: number | null }>(3);
-  const allCompaniesRes = unwrap<{ data: any[] | null; error: unknown }>(4);
-  const dacRes = unwrap<{ data: { company_id: string }[] | null; error: unknown }>(5);
-  const wacRes = unwrap<{ data: { company_id: string }[] | null; error: unknown }>(6);
+  type CompanyRow = {
+    id: string;
+    status: string;
+    trial_ends_at: string | null;
+    subscription_plan_id: string | null;
+    created_at: string;
+    payment_method: string | null;
+    stripe_customer_id: string | null;
+    stripe_subscription_status: string | null;
+    is_platform_admin_company: boolean | null;
+    subscription_plans?: { price_monthly: number | null; price_yearly: number | null } | null;
+  };
+  const companiesRes = unwrap<unknown>(0);
+  const ordersAggRes = unwrap<TotalOrdersValue[]>(1);
+  const customersRes = unwrap<unknown>(2);
+  const ticketsRes = unwrap<unknown>(3);
+  const allCompaniesRes = unwrap<CompanyRow[]>(4);
+  const dacRes = unwrap<{ company_id: string }[]>(5);
+  const wacRes = unwrap<{ company_id: string }[]>(6);
 
   // Log ma NON throw — mostriamo la dashboard con i dati parziali disponibili
-  if ((companiesRes as any).error) {
+  if (companiesRes.error) {
     console.warn(
       "[AdminDashboard] companies count query failed:",
-      (companiesRes as any).error
+      companiesRes.error
     );
   }
 
-  const aggRow = (ordersAggRes.data as TotalOrdersValue[] | null)?.[0];
+  const aggRow = ordersAggRes.data?.[0];
   const totalOrders = Number(aggRow?.total_count) || 0;
   const totalValue = Number(aggRow?.total_value) || 0;
 
@@ -254,16 +267,38 @@ export function useAdminDashboardData() {
     }
   }, []);
 
-  // Fetch iniziale + polling ogni 60s
+  // Fetch iniziale + polling ogni 60s — sospeso quando il tab è in background
+  // per non bruciare RPC e bandwidth a vuoto. Refetch immediato quando il tab
+  // torna visibile (e i dati sono stale rispetto a CACHE_TTL_MS).
   useEffect(() => {
     doFetch(true);
-    intervalRef.current = setInterval(() => {
-      doFetch(false);
-    }, POLL_INTERVAL_MS);
-    return () => {
+
+    const startInterval = () => {
+      if (intervalRef.current !== null) return;
+      intervalRef.current = setInterval(() => {
+        doFetch(false);
+      }, POLL_INTERVAL_MS);
+    };
+    const stopInterval = () => {
       if (intervalRef.current !== null) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        doFetch(false); // refetch on focus se cache scaduta
+        startInterval();
+      } else {
+        stopInterval();
+      }
+    };
+
+    if (document.visibilityState === "visible") startInterval();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      stopInterval();
     };
   }, [doFetch]);
 

@@ -9,8 +9,27 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Search, Building } from "lucide-react";
+import { Loader2, Search, Building, Eye, EyeOff, Mail, Check } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+
+// Validation regex (RFC 5322 simplified — basta per UX warning)
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (pw.length >= 12) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  if (score <= 1) return { score: 20, label: "Debole", color: "bg-destructive" };
+  if (score <= 2) return { score: 40, label: "Scarsa", color: "bg-orange-500" };
+  if (score <= 3) return { score: 60, label: "Media", color: "bg-yellow-500" };
+  if (score <= 4) return { score: 80, label: "Buona", color: "bg-primary" };
+  return { score: 100, label: "Forte", color: "bg-green-500" };
+}
 
 interface Props {
   open: boolean;
@@ -28,20 +47,33 @@ export default function CreateMultiCompanyUserDialog({ open, onOpenChange }: Pro
   const [step, setStep] = useState(0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  // Password mode: "auto" → edge fn genera, "manual" → admin imposta
+  const [passwordMode, setPasswordMode] = useState<"auto" | "manual">("auto");
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [selectedCompanies, setSelectedCompanies] = useState<CompanyAccess[]>([]);
   const [companySearch, setCompanySearch] = useState("");
+  const [emailError, setEmailError] = useState<string>("");
 
   const resetForm = () => {
     setStep(0);
     setEmail("");
     setPassword("");
+    setShowPw(false);
     setFirstName("");
     setLastName("");
+    setPhone("");
+    setPasswordMode("auto");
+    setSendWelcomeEmail(true);
     setSelectedCompanies([]);
     setCompanySearch("");
+    setEmailError("");
   };
+
+  const passwordStrength = getPasswordStrength(password);
 
   const { data: companies = [] } = useQuery({
     queryKey: ["admin-companies-for-multi", companySearch],
@@ -69,21 +101,38 @@ export default function CreateMultiCompanyUserDialog({ open, onOpenChange }: Pro
         body: {
           action: "create-multi-company",
           email,
-          password,
+          // Manda password solo se modalità manuale (e valida); altrimenti
+          // l'edge fn auto-genera 12 caratteri sicuri
+          password: passwordMode === "manual" && password.length >= 8 ? password : undefined,
           firstName,
           lastName,
+          phone: phone.trim() || null,
+          sendWelcomeEmail,
           companyAccesses: selectedCompanies.map(c => ({ companyId: c.companyId, role: c.role })),
         },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
+      return res.data as { temporaryPassword?: string; passwordWasProvided?: boolean; welcomeEmailSent?: boolean };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
       onOpenChange(false);
       resetForm();
-      toast.success("Utente multi-azienda creato");
+      // Toast intelligente: se auto-generata, ricorda di copiarla; se welcome email inviata, conferma
+      if (data?.temporaryPassword && !data?.passwordWasProvided) {
+        toast.success("Utente creato", {
+          description: `Password generata: ${data.temporaryPassword}${data.welcomeEmailSent ? " · Email inviata" : ""}`,
+          duration: 12000,
+        });
+      } else {
+        toast.success(
+          data?.welcomeEmailSent
+            ? "Utente creato — email di benvenuto inviata"
+            : "Utente multi-azienda creato"
+        );
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -102,8 +151,23 @@ export default function CreateMultiCompanyUserDialog({ open, onOpenChange }: Pro
     );
   };
 
-  const canProceedStep0 = email.trim() !== "" && password.length >= 8 && firstName.trim() !== "" && lastName.trim() !== "";
+  const canProceedStep0 =
+    email.trim() !== "" &&
+    EMAIL_RE.test(email.trim()) &&
+    firstName.trim() !== "" &&
+    lastName.trim() !== "" &&
+    // Password obbligatoria solo in modalità manual (>= 8 char)
+    (passwordMode === "auto" || password.length >= 8);
   const canProceedStep1 = selectedCompanies.length > 0;
+
+  const handleNextFromStep0 = () => {
+    if (!EMAIL_RE.test(email.trim())) {
+      setEmailError("Inserisci un'email valida");
+      return;
+    }
+    setEmailError("");
+    setStep(1);
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
@@ -129,11 +193,111 @@ export default function CreateMultiCompanyUserDialog({ open, onOpenChange }: Pro
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="mario@esempio.it" />
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
+                onBlur={() => {
+                  if (email && !EMAIL_RE.test(email.trim())) setEmailError("Inserisci un'email valida");
+                }}
+                placeholder="mario@esempio.it"
+                className={emailError ? "border-destructive" : ""}
+              />
+              {emailError && <p className="text-xs text-destructive">{emailError}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Password (min 8 caratteri)</Label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+              <Label>Telefono <span className="text-muted-foreground/70 font-normal">(opzionale)</span></Label>
+              <Input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+39 333 123 4567"
+              />
+            </div>
+            {/* Password mode selector */}
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={passwordMode === "auto" ? "default" : "outline"}
+                  onClick={() => setPasswordMode("auto")}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  {passwordMode === "auto" && <Check className="h-3 w-3" />}
+                  Genera automaticamente
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={passwordMode === "manual" ? "default" : "outline"}
+                  onClick={() => setPasswordMode("manual")}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  {passwordMode === "manual" && <Check className="h-3 w-3" />}
+                  Imposta manualmente
+                </Button>
+              </div>
+              {passwordMode === "manual" ? (
+                <>
+                  <div className="relative">
+                    <Input
+                      type={showPw ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Min. 8 caratteri"
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPw(!showPw)}
+                    >
+                      {showPw
+                        ? <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    </Button>
+                  </div>
+                  {password.length > 0 && (
+                    <div className="space-y-1 mt-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Sicurezza</span>
+                        <span>{passwordStrength.label}</span>
+                      </div>
+                      <Progress value={passwordStrength.score} className="h-1.5" />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Genereremo una password sicura. La vedrai nel toast dopo la creazione.
+                </p>
+              )}
+            </div>
+            {/* Welcome email toggle */}
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border">
+              <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <Label
+                  htmlFor="send-welcome-multi"
+                  className="text-sm font-medium cursor-pointer flex items-center justify-between gap-2"
+                >
+                  <span>Invia email di benvenuto</span>
+                  <Switch
+                    id="send-welcome-multi"
+                    checked={sendWelcomeEmail}
+                    onCheckedChange={setSendWelcomeEmail}
+                  />
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {sendWelcomeEmail
+                    ? "L'utente riceverà email con credenziali e link al portale."
+                    : "Nessuna email automatica."}
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -197,7 +361,7 @@ export default function CreateMultiCompanyUserDialog({ open, onOpenChange }: Pro
             <Button variant="outline" onClick={() => setStep(0)}>Indietro</Button>
           )}
           {step === 0 ? (
-            <Button onClick={() => setStep(1)} disabled={!canProceedStep0}>Avanti</Button>
+            <Button onClick={handleNextFromStep0} disabled={!canProceedStep0}>Avanti</Button>
           ) : (
             <Button onClick={() => createMutation.mutate()} disabled={!canProceedStep1 || createMutation.isPending}>
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

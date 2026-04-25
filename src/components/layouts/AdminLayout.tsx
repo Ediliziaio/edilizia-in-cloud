@@ -26,7 +26,6 @@ import {
   Mail,
   Bot,
   ListChecks,
-  ClipboardCheck,
   ShieldCheck as ShieldCheckIcon,
   BarChart3,
   Users,
@@ -44,6 +43,8 @@ import {
   FileUp,
   ShieldAlert,
   AlertTriangle,
+  CheckSquare,
+  MessagesSquare,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
@@ -120,7 +121,8 @@ const allNavItems: AdminNavItem[] = [
   { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
   { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },
   { title: "Lifecycle", url: "/admin/lifecycle", icon: LifeBuoy, permission: "can_manage_companies", subcategory: "sa_customer_success" },
-  { title: "Task CS", url: "/admin/cs-tasks", icon: ClipboardCheck, permission: "can_manage_companies", subcategory: "sa_customer_success" },
+  // ⚠️ "Task CS" rimosso: la gestione task è ora un tab dentro "Attività" (top sidebar)
+  //    per evitare doppione. Il link /admin/cs-tasks redirige al tab.
   { title: "Onboarding", url: "/admin/customer-success", icon: ListChecks, permission: "can_manage_companies", subcategory: "sa_customer_success" },
   { title: "Playbook", url: "/admin/playbooks", icon: BookOpen, permission: "can_manage_companies", subcategory: "sa_customer_success" },
   { title: "Revenue", url: "/admin/revenue", icon: LineChart, permission: "billing_read", subcategory: "sa_revenue" },
@@ -128,6 +130,9 @@ const allNavItems: AdminNavItem[] = [
   { title: "Fatture", url: "/admin/fatture", icon: FileText, permission: "billing_read", subcategory: "sa_revenue" },
   { title: "Promo", url: "/admin/promo-codes", icon: Ticket, permission: "billing_write", subcategory: "sa_revenue" },
   { title: "Dunning", url: "/admin/dunning", icon: Settings2, permission: "billing_write", subcategory: "sa_revenue" },
+  // Monitor AI: spostato da Impostazioni → sezione Revenue nella sidebar
+  // principale per maggiore visibilità (costi AI sono parte della financial view)
+  { title: "Monitor AI", url: "/admin/ai-usage", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
   { title: "Feature Flags", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
   { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats", subcategory: "sa_operazioni" },
@@ -441,6 +446,76 @@ function AdminMainSidebar() {
         )}
       </div>
       <SidebarContent className="flex flex-col">
+        {/* ─── Cruscotto top section ────────────────────────────
+           Replica delle voci "Attività" e "Chat" dalla sidebar Azienda.
+           Sempre visibili in cima per accesso rapido alle 2 azioni quotidiane
+           del super admin: gestire i task CS e rispondere alle conversazioni
+           di supporto. Badge contestuali con tonalità per urgenza:
+           - Attività: rosso se overdue, arancio se due-today, blu altrimenti
+           - Chat:     rosso se >10 ticket aperti, blu altrimenti */}
+        {(permissions.can_manage_companies || permissions.can_manage_tickets) && (
+          <SidebarGroup className="pt-3 pb-1">
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {permissions.can_manage_companies && (() => {
+                  const badge = getBadgeForNavItem("/admin/cs-tasks", sidebarBadges);
+                  return (
+                    <SidebarMenuItem key="top-attivita">
+                      <SidebarMenuButton asChild tooltip="Attività">
+                        <NavLink
+                          to="/admin/attivita"
+                          className={navLinkClass}
+                          activeClassName={activeClass}
+                        >
+                          <CheckSquare className="h-4 w-4" />
+                          <span className="flex-1 font-medium">Attività</span>
+                          {badge && badge.count != null && badge.count > 0 && (
+                            <span
+                              className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
+                                badge.variant === "destructive"
+                                  ? "bg-destructive text-destructive-foreground"
+                                  : badge.variant === "warning"
+                                  ? "bg-orange-500 text-white dark:bg-orange-600"
+                                  : "bg-sidebar-primary/15 text-sidebar-primary"
+                              }`}
+                              title={
+                                sidebarBadges
+                                  ? `${sidebarBadges.openTasks} task aperti${sidebarBadges.overdueTasks ? ` · ${sidebarBadges.overdueTasks} in ritardo` : ""}${sidebarBadges.dueTodayTasks ? ` · ${sidebarBadges.dueTodayTasks} oggi` : ""}`
+                                  : undefined
+                              }
+                            >
+                              {badge.count > 99 ? "99+" : badge.count}
+                            </span>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })()}
+                {permissions.can_manage_companies && (() => {
+                  // Chat = team chat interna del super admin (replica /azienda/chat)
+                  // NB: il badge "ticket aperti" lascialo su /admin/ticket (Assistenza),
+                  // qui non è applicabile.
+                  return (
+                    <SidebarMenuItem key="top-chat">
+                      <SidebarMenuButton asChild tooltip="Chat team">
+                        <NavLink
+                          to="/admin/chat"
+                          className={navLinkClass}
+                          activeClassName={activeClass}
+                        >
+                          <MessagesSquare className="h-4 w-4" />
+                          <span className="flex-1 font-medium">Chat</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })()}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         {/* Navigazione */}
         <Collapsible defaultOpen={true}>
           <SidebarGroup>

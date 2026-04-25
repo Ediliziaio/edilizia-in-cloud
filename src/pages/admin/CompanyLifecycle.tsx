@@ -265,9 +265,9 @@ function CompanyCard({
               variant="outline"
               className="h-8 text-xs"
               asChild
-              title="Apri con filtro azienda in CS Tasks (crea follow-up)"
+              title="Apri con filtro azienda in Attività (crea follow-up)"
             >
-              <Link to={`/admin/cs-tasks?company=${company.companyId}`}>
+              <Link to={`/admin/attivita?tab=tutte&company=${company.companyId}`}>
                 <ListChecks className="h-3.5 w-3.5 mr-1" />
                 Task
               </Link>

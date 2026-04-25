@@ -28,7 +28,10 @@ const SyncLogs = lazy(() => import("@/pages/admin/SyncLogs"));
 const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
-const AdminCSTasks = lazy(() => import("@/pages/admin/AdminCSTasks"));
+// AdminCSTasks non è più importato qui: vive come tab dentro AdminAttivita.
+// La route /admin/cs-tasks redirige al tab per backward-compat.
+const AdminAttivita = lazy(() => import("@/pages/admin/AdminAttivita"));
+const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
 const AdminSettingsIntegrations = lazy(() => import("@/pages/admin/settings/AdminSettingsIntegrations"));
@@ -173,7 +176,10 @@ export function adminRoutes() {
         <Route path="impostazioni/webhooks" element={<RequireSuperAdmin><AdminSettingsWebhooks /></RequireSuperAdmin>} />
         <Route path="impostazioni/webhook-logs" element={<RequireSuperAdmin><AdminSettingsWebhookLogs /></RequireSuperAdmin>} />
         <Route path="impostazioni/banking-overview" element={<RequireSuperAdmin><AdminSettingsBankingOverview /></RequireSuperAdmin>} />
-        <Route path="impostazioni/ai-usage" element={<AdminSettingsAIUsage />} />
+        {/* Monitor AI: nuova route nella sidebar principale.
+            Vecchio path /admin/impostazioni/ai-usage redirige per backward compat. */}
+        <Route path="ai-usage" element={<AdminSettingsAIUsage />} />
+        <Route path="impostazioni/ai-usage" element={<Navigate to="/admin/ai-usage" replace />} />
         <Route path="piani" element={<RequireSuperAdmin><SubscriptionPlans /></RequireSuperAdmin>} />
         <Route path="piani/:id" element={<RequireSuperAdmin><PlanDetail /></RequireSuperAdmin>} />
         <Route path="referral" element={<ReferralDashboard />} />
@@ -183,7 +189,13 @@ export function adminRoutes() {
         <Route path="lifecycle" element={<CompanyLifecycle />} />
         <Route path="annunci" element={<Announcements />} />
         <Route path="customer-success" element={<CustomerSuccess />} />
-        <Route path="cs-tasks" element={<AdminCSTasks />} />
+        {/* Cruscotto top section: Attività & Chat (replicate dalla sidebar Azienda).
+            La gestione completa task vive ora dentro Attività come tab "Tutte le
+            attività"; /admin/cs-tasks redirige al tab per non rompere link
+            esistenti (mobile menu, lifecycle, breadcrumb, deep link salvati). */}
+        <Route path="attivita" element={<AdminAttivita />} />
+        <Route path="cs-tasks" element={<Navigate to="/admin/attivita?tab=tutte" replace />} />
+        <Route path="chat" element={<AdminTeamChat />} />
         <Route path="gdpr" element={<RequireSuperAdmin><AdminGDPR /></RequireSuperAdmin>} />
         <Route path="marketing" element={<AdminMarketingDashboard />} />
         <Route path="marketing/contatti" element={<AdminMarketingContacts />} />

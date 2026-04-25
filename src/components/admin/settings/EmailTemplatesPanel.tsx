@@ -130,6 +130,7 @@ import {
 } from "@/components/settings/CustomFieldsConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { formatError } from "@/lib/errors";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
@@ -800,7 +801,7 @@ function HistoryList({
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          Errore caricamento cronologia: {(historyQuery.error as Error).message}
+          Errore caricamento cronologia: {formatError(historyQuery.error)}
         </AlertDescription>
       </Alert>
     );
@@ -1236,6 +1237,21 @@ export function EmailTemplatesPanel() {
     }
   }, [canPersistTemplate, currentFingerprint, currentSaveInput, finalizeSaveForCurrentDraft, upsert]);
 
+  // ⌨ Ctrl/Cmd + S → save manuale (intercetta il browser save)
+  // Attivo solo quando ci sono modifiche dirty per non triggerarsi a vuoto.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isSaveCombo = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s";
+      if (!isSaveCombo) return;
+      e.preventDefault();
+      if (dirty && canPersistTemplate && !savePending) {
+        handleSave();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [handleSave, dirty, canPersistTemplate, savePending]);
+
   useEffect(() => {
     if (!dirty || !canPersistTemplate || savePending || saveStatus !== "unsaved") return;
     if (debouncedSaveFingerprint !== currentFingerprint) return;
@@ -1284,6 +1300,52 @@ export function EmailTemplatesPanel() {
     del.mutate(selectedRow.id);
   };
 
+  // ── Sidebar search + category grouping ─────────────────────────────────
+  const [sidebarSearch, setSidebarSearch] = useState("");
+
+  /** Templates filtrati dalla ricerca + raggruppati per categoria */
+  const groupedTemplates = useMemo(() => {
+    const q = sidebarSearch.trim().toLowerCase();
+    const groups = new Map<string, Array<{ key: string; meta: TemplateMeta }>>();
+    for (const key of EDITABLE_TEMPLATE_KEYS) {
+      const meta = TEMPLATE_META[key];
+      if (!meta) continue;
+      // Filtro full-text su label + description + key
+      if (q) {
+        const hay = `${meta.label} ${meta.description ?? ""} ${key} ${CATEGORY_LABELS[meta.category] ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      const cat = meta.category;
+      if (!groups.has(cat)) groups.set(cat, []);
+      groups.get(cat)!.push({ key, meta });
+    }
+    // Ordine categorie consistente
+    const orderedCats = ["onboarding", "account", "documenti", "notifiche"];
+    return orderedCats
+      .map((cat) => ({ category: cat, label: CATEGORY_LABELS[cat] ?? cat, items: groups.get(cat) ?? [] }))
+      .filter((g) => g.items.length > 0)
+      // Aggiungi categorie non standard alla fine
+      .concat(
+        Array.from(groups.entries())
+          .filter(([cat]) => !orderedCats.includes(cat))
+          .map(([cat, items]) => ({ category: cat, label: CATEGORY_LABELS[cat] ?? cat, items })),
+      );
+  }, [sidebarSearch]);
+
+  const totalFiltered = useMemo(
+    () => groupedTemplates.reduce((sum, g) => sum + g.items.length, 0),
+    [groupedTemplates],
+  );
+
+  /** Quante template hanno almeno una variante personalizzata in DB */
+  const customizedCount = useMemo(() => {
+    let n = 0;
+    for (const key of EDITABLE_TEMPLATE_KEYS) {
+      if ((variantCountByKey.get(key) ?? 0) > 0) n++;
+    }
+    return n;
+  }, [variantCountByKey]);
+
   const handleRollback = (row: EmailTemplateHistoryRow) => {
     rollback.mutate(row.id);
   };
@@ -1312,7 +1374,7 @@ export function EmailTemplatesPanel() {
   // ── Render ──
   if (templatesQuery.isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-[320px_1fr]">
+      <div className="grid gap-4 md:grid-cols-[320px_minmax(0,1fr)]">
         <Skeleton className="h-[500px]" />
         <Skeleton className="h-[500px]" />
       </div>
@@ -1322,8 +1384,16 @@ export function EmailTemplatesPanel() {
   if (templatesQuery.error) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>
-          Errore nel caricamento dei template: {(templatesQuery.error as Error).message}
+        <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+          <span>Errore nel caricamento dei template: {formatError(templatesQuery.error)}</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => templatesQuery.refetch()}
+            className="h-7 gap-1 text-xs"
+          >
+            <RotateCcw className="h-3 w-3" /> Riprova
+          </Button>
         </AlertDescription>
       </Alert>
     );
@@ -1341,66 +1411,115 @@ export function EmailTemplatesPanel() {
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-4 md:grid-cols-[320px_1fr]">
+      <div className="grid gap-4 md:grid-cols-[320px_minmax(0,1fr)]">
         {/* ── Sidebar lista ── */}
         <Card className="h-fit md:sticky md:top-4">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Template disponibili
-            </CardTitle>
+          <CardHeader className="pb-2 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Template
+              </CardTitle>
+              <span
+                className="text-[10px] text-muted-foreground"
+                title={`${customizedCount} template personalizzati su ${EDITABLE_TEMPLATE_KEYS.length} totali`}
+              >
+                {customizedCount}/{EDITABLE_TEMPLATE_KEYS.length} custom
+              </span>
+            </div>
+            {/* Search bar */}
+            <div className="relative">
+              <FileText className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/60 hidden" />
+              <Input
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                placeholder="Cerca template…"
+                className="h-8 text-xs"
+                aria-label="Cerca template per nome o categoria"
+              />
+              {sidebarSearch && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground"
+                  aria-label="Pulisci ricerca"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-2">
-            <div className="space-y-1 max-h-[70vh] overflow-y-auto">
-              {EDITABLE_TEMPLATE_KEYS.map((key) => {
-                const meta = TEMPLATE_META[key];
-                if (!meta) return null;
-                const isSelected = key === selectedKey;
-                const variantCount = variantCountByKey.get(key) ?? 0;
-                const hasAnyOverride = variantCount > 0;
-                const defaultRow = dbMap.get(`${key}::${DEFAULT_VARIANT}`);
-
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handleSelectKey(key)}
-                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                      isSelected
-                        ? "bg-primary/10 border border-primary/30"
-                        : "hover:bg-muted/50 border border-transparent"
-                    }`}
-                    aria-pressed={isSelected}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{meta.label}</p>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {CATEGORY_LABELS[meta.category] ?? meta.category}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {hasAnyOverride && (
-                          <Badge
-                            variant={
-                              defaultRow && !defaultRow.enabled
-                                ? "secondary"
-                                : "default"
-                            }
-                            className="text-xs h-5 gap-1"
-                          >
-                            <Sparkles className="h-3 w-3" />
-                            {variantCount > 1 ? `${variantCount} var.` : "Custom"}
-                          </Badge>
-                        )}
-                        {!hasAnyOverride && (
-                          <span className="text-xs text-muted-foreground">Default</span>
-                        )}
-                      </div>
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+              {totalFiltered === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4 px-2">
+                  {sidebarSearch
+                    ? `Nessun template per "${sidebarSearch}"`
+                    : "Nessun template disponibile"}
+                </p>
+              ) : (
+                groupedTemplates.map((group) => (
+                  <div key={group.category} className="space-y-1">
+                    {/* Category header */}
+                    <div className="flex items-center justify-between px-2 pt-1">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                        {group.label}
+                      </p>
+                      <span className="text-[10px] text-muted-foreground/70">
+                        {group.items.length}
+                      </span>
                     </div>
-                  </button>
-                );
-              })}
+                    {group.items.map(({ key, meta }) => {
+                      const isSelected = key === selectedKey;
+                      const variantCount = variantCountByKey.get(key) ?? 0;
+                      const hasAnyOverride = variantCount > 0;
+                      const defaultRow = dbMap.get(`${key}::${DEFAULT_VARIANT}`);
+                      const isDisabled = defaultRow && defaultRow.enabled === false;
+
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => handleSelectKey(key)}
+                          className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                            isSelected
+                              ? "bg-primary/10 border border-primary/30 shadow-sm"
+                              : "hover:bg-muted/50 border border-transparent"
+                          }`}
+                          aria-pressed={isSelected}
+                          title={meta.description ?? meta.label}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate text-xs">{meta.label}</p>
+                              {variantCount > 1 && (
+                                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                  {variantCount} varianti per ruolo
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              {isDisabled ? (
+                                <Badge variant="secondary" className="text-[9px] h-4 px-1 gap-0.5">
+                                  off
+                                </Badge>
+                              ) : hasAnyOverride ? (
+                                <Badge variant="default" className="text-[9px] h-4 px-1 gap-0.5">
+                                  <Sparkles className="h-2.5 w-2.5" /> Custom
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground border-dashed">
+                                  Default
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1524,21 +1643,21 @@ export function EmailTemplatesPanel() {
           <CardContent>
             <Tabs value={activeEditorTab} onValueChange={(value) => setActiveEditorTab(value as EditorTab)} className="space-y-4">
               <TabsList>
-                <TabsTrigger value="visual" className="gap-2">
+                <TabsTrigger value="visual" className="gap-2" title="Editor visuale a blocchi (drag &amp; drop)">
                   <Sparkles className="h-4 w-4" />
-                  Design visuale
+                  Visuale
                 </TabsTrigger>
-                <TabsTrigger value="split" className="gap-2">
-                  <Eye className="h-4 w-4" />
-                  HTML + Anteprima
-                </TabsTrigger>
-                <TabsTrigger value="content" className="gap-2">
+                <TabsTrigger value="split" className="gap-2" title="Editor HTML con anteprima live affiancata">
                   <Code2 className="h-4 w-4" />
-                  HTML avanzato
+                  HTML
                 </TabsTrigger>
-                <TabsTrigger value="preview" className="gap-2">
+                <TabsTrigger value="content" className="gap-2" title="Editor HTML a tutta larghezza, senza anteprima">
+                  <Code2 className="h-4 w-4" />
+                  Codice
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="gap-2" title="Solo anteprima a tutta larghezza">
                   <Eye className="h-4 w-4" />
-                  Solo anteprima
+                  Anteprima
                 </TabsTrigger>
               </TabsList>
 
@@ -2035,9 +2154,15 @@ function VisualTemplateBuilder({
     : blocks.find((block) => block.id === selectedBlockId) ?? null;
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
-      <div className="flex flex-col gap-3 border-b bg-muted/20 p-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="min-w-0 flex-1 space-y-1.5">
+    // NB: rimosso `overflow-hidden` dal contenitore esterno — su narrow viewport
+    // il toolbar wrappa e il bottone Salva veniva clippato (visibile come "Salv...")
+    <div className="rounded-lg border bg-background shadow-sm">
+      {/* ── Toolbar superiore — 2 righe distinte:
+          Riga 1: Oggetto (input + variabili)
+          Riga 2: Status sx · Tools dx · Salva sempre visibile a destra (no clip) */}
+      <div className="space-y-3 border-b bg-muted/20 p-4">
+        {/* ── Riga subject ── */}
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="visual-subject">Oggetto *</Label>
             <SubjectVariableButton
@@ -2045,32 +2170,38 @@ function VisualTemplateBuilder({
               onInsert={(tag) => setSubject(subject ? `${subject} ${tag}` : tag)}
             />
           </div>
-          <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
-            <Input
-              id="visual-subject"
-              value={subject}
-              onChange={(event) => setSubject(event.target.value)}
-              placeholder="es. Ciao {{contact.first_name}}, benvenuto"
-              className="max-w-2xl"
-            />
-            <SaveStatusIndicator
-                status={saveStatus}
-                lastSavedAt={lastSavedAt}
-                hasSavedRow={hasSavedRow}
-              />
+          <Input
+            id="visual-subject"
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+            placeholder="es. Ciao {{contact.first_name}}, benvenuto"
+            className="w-full"
+          />
+        </div>
+
+        {/* ── Riga azioni: tutti i bottoni in un singolo flex-wrap.
+            Status a sinistra, Save a destra (ml-auto). Tutti gli item
+            condividono lo stesso wrap-context: niente clipping anche su
+            viewport stretti — gli ultimi item vanno semplicemente a capo. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <SaveStatusIndicator
+            status={saveStatus}
+            lastSavedAt={lastSavedAt}
+            hasSavedRow={hasSavedRow}
+          />
+          <Button variant="outline" size="sm" className="h-8 ml-auto" onClick={handleApplySuggestedLayout} title="Applica layout consigliato (sostituisce blocchi correnti)">
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Layout consigliato</span>
+            <span className="sm:hidden">Layout</span>
+          </Button>
+          <div className="flex items-center rounded-md border">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none rounded-l-md border-r" disabled={undoStack.length === 0} onClick={handleUndo} title="Annulla (Ctrl+Z)">
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none rounded-r-md" disabled={redoStack.length === 0} onClick={handleRedo} title="Ripristina (Ctrl+Shift+Z)">
+              <Redo2 className="h-3.5 w-3.5" />
+            </Button>
           </div>
-	        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8" onClick={handleApplySuggestedLayout}>
-            <Sparkles className="mr-2 h-4 w-4" />
-            Layout consigliato
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={undoStack.length === 0} onClick={handleUndo} title="Annulla">
-            <Undo2 className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={redoStack.length === 0} onClick={handleRedo} title="Ripristina">
-            <Redo2 className="h-4 w-4" />
-          </Button>
           <div className="flex items-center rounded-md border">
             {([
               { mode: "desktop" as const, icon: Monitor, label: "Desktop" },
@@ -2083,18 +2214,21 @@ function VisualTemplateBuilder({
                 size="icon"
                 className="h-8 w-8 rounded-none first:rounded-l-md last:rounded-r-md"
                 onClick={() => setPreviewMode(mode)}
-                title={label}
+                title={`Anteprima ${label}`}
+                aria-label={`Vista ${label}`}
+                aria-pressed={previewMode === mode}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-3.5 w-3.5" />
               </Button>
             ))}
           </div>
-          <Button variant="outline" size="sm" className="h-8" onClick={() => setPreviewOpen(true)}>
-            <Eye className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" className="h-8" onClick={() => setPreviewOpen(true)} title="Apri anteprima a tutto schermo">
+            <Eye className="mr-1.5 h-3.5 w-3.5" />
             Anteprima
           </Button>
-          <Button size="sm" className="h-8" onClick={onSave} disabled={!canSave}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          {/* Save: sempre visibile, mai clippato — shrink-0 + label esplicita */}
+          <Button size="sm" className="h-8 shrink-0" onClick={onSave} disabled={!canSave} title="Salva (⌘S / Ctrl+S)">
+            {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
             Salva
           </Button>
         </div>
@@ -2490,41 +2624,43 @@ function SaveStatusIndicator({
 
   if (status === "saving") {
     return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" />
-        Salvataggio in corso...
+        Salvataggio…
       </span>
     );
   }
 
   if (status === "error") {
     return (
-      <span className="text-xs text-destructive">
-        Errore salvataggio. Riprova o usa Salva ora.
-      </span>
+      <Badge variant="destructive" className="text-[10px] gap-1 h-5 px-2">
+        <Info className="h-2.5 w-2.5" /> Errore salvataggio
+      </Badge>
     );
   }
 
   if (status === "unsaved") {
     return (
-      <span className="text-xs text-muted-foreground">
+      <Badge variant="outline" className="text-[10px] gap-1 h-5 px-2 border-amber-300 text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
         Modifiche non salvate
-      </span>
+      </Badge>
     );
   }
 
   if (status === "saved") {
     return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <CheckCircle2 className="h-3 w-3 text-green-600" />
         {formattedTime ? `Salvato alle ${formattedTime}` : "Salvato"}
       </span>
     );
   }
 
+  // idle (no dirty changes)
   return (
-    <span className="text-xs text-muted-foreground">
-      {hasSavedRow ? "Builder sincronizzato" : "Default di sistema"}
-    </span>
+    <Badge variant="outline" className="text-[10px] gap-1 h-5 px-2 text-muted-foreground border-dashed">
+      {hasSavedRow ? "✓ Sincronizzato" : "Default di sistema"}
+    </Badge>
   );
 }

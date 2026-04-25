@@ -3,6 +3,85 @@ import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { getBrandingForCompany } from "../_shared/getBranding.ts";
+
+/**
+ * Costruisce e invia l'email di benvenuto al nuovo utente piattaforma con
+ * credenziali. Non blocca il flusso se l'email fallisce — l'utente è già
+ * stato creato e la password viene comunque ritornata al chiamante.
+ */
+async function sendWelcomePlatformEmail(
+  supabaseAdmin: any,
+  params: {
+    email: string;
+    firstName: string;
+    temporaryPassword: string;
+    role: string;
+    callerCompanyId?: string | null;
+  }
+): Promise<void> {
+  try {
+    // Branding: usa la platform_admin_company se disponibile (fallback default)
+    const branding = await getBrandingForCompany(supabaseAdmin, params.callerCompanyId ?? null);
+    const platformName = branding.platformName;
+    const logoUrl = branding.logoUrl;
+    const primaryColor = branding.primaryColor;
+    const loginUrl = `${branding.siteUrl}/login`;
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Helvetica Neue',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+<tr><td style="background:#0f172a;padding:24px 32px;text-align:center;">
+  ${logoUrl ? `<img src="${logoUrl}" alt="${platformName}" style="height:40px;max-width:200px;object-fit:contain;" />` : `<span style="color:#ffffff;font-size:20px;font-weight:700;">${platformName}</span>`}
+</td></tr>
+<tr><td style="padding:32px;">
+  <h2 style="color:#0f172a;font-size:22px;margin:0 0 16px;">Benvenuto in ${platformName}, ${params.firstName}!</h2>
+  <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">
+    Il tuo account come <strong>${params.role}</strong> è stato creato. Di seguito le credenziali per accedere alla piattaforma.
+  </p>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;padding:20px;margin-bottom:24px;">
+    <tr><td style="padding:8px 0;">
+      <span style="color:#64748b;font-size:13px;">Email</span><br>
+      <strong style="color:#0f172a;font-size:15px;">${params.email}</strong>
+    </td></tr>
+    <tr><td style="padding:8px 0;border-top:1px solid #e2e8f0;">
+      <span style="color:#64748b;font-size:13px;">Password temporanea</span><br>
+      <strong style="color:#0f172a;font-size:15px;font-family:monospace;">${params.temporaryPassword}</strong>
+    </td></tr>
+  </table>
+  <p style="color:#ef4444;font-size:13px;margin:0 0 24px;">⚠️ Ti verrà chiesto di cambiare la password al primo accesso.</p>
+  <table width="100%"><tr><td style="text-align:center;">
+    <a href="${loginUrl}" style="display:inline-block;background:${primaryColor};color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+      Accedi alla piattaforma
+    </a>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding:16px 32px;border-top:1px solid #f1f5f9;text-align:center;">
+  <p style="color:#94a3b8;font-size:12px;margin:0;">Questo è un messaggio automatico di ${platformName}.</p>
+</td></tr>
+</table></td></tr></table>
+</body></html>`;
+
+    await sendEmailUnified({
+      companyId:    params.callerCompanyId ?? null,
+      stream:       "transactional",
+      to:           [params.email],
+      subject:      `Benvenuto in ${platformName} — Le tue credenziali di accesso`,
+      html,
+      templateName: "platform_user_invite",
+      skipCredits:  true,
+      adminClient:  supabaseAdmin,
+      metadata:     { role: params.role },
+    });
+  } catch (err) {
+    // Non-blocking: l'utente è creato anche se l'email fallisce
+    console.error("[manage-platform-users] welcome email failed:", err);
+  }
+}
 
 async function logAudit(
   supabaseAdmin: any,
@@ -130,7 +209,7 @@ Deno.serve(async (req) => {
       const [profilesRes, permsRes] = await Promise.all([
         supabaseAdmin
           .from("profiles")
-          .select("id, first_name, last_name, email, created_at")
+          .select("id, first_name, last_name, email, created_at, last_login_at")
           .in("id", userIds),
         supabaseAdmin
           .from("super_admin_permissions")
@@ -154,17 +233,22 @@ Deno.serve(async (req) => {
 
     // === CREATE PLATFORM USER ===
     if (action === "create") {
-      const { email, password: providedPassword, firstName, lastName, platformRole, jobTitle, department, companyAccesses, companyPermissions } = body;
-      
+      const {
+        email, password: providedPassword, firstName, lastName, phone,
+        platformRole, jobTitle, department, companyAccesses, companyPermissions,
+        sendWelcomeEmail,
+      } = body;
+
       if (!email) {
         return errorResponse("Email obbligatoria");
       }
-      
-      // Auto-generate password if not provided
-      const password = providedPassword && providedPassword.length >= 8
-        ? providedPassword
+
+      // Password: usa quella fornita (se >= 8 char) o auto-generata
+      const usingProvidedPassword = !!providedPassword && String(providedPassword).length >= 8;
+      const password = usingProvidedPassword
+        ? String(providedPassword)
         : generateSecurePassword(12);
-      
+
       if (!platformRole || !PLATFORM_ROLES.includes(platformRole)) {
         return errorResponse("Ruolo piattaforma non valido");
       }
@@ -177,12 +261,13 @@ Deno.serve(async (req) => {
 
       const userId = authData.user.id;
 
-      // Create profile (no company_id for platform users)
+      // Create profile (no company_id for platform users) + optional phone
       const { error: profileError } = await supabaseAdmin.from("profiles").insert({
         id: userId,
         email,
         first_name: firstName || "Platform",
         last_name: lastName || "User",
+        phone: phone || null,
         company_id: null,
       });
       if (profileError) {
@@ -286,9 +371,34 @@ Deno.serve(async (req) => {
         email,
         platform_role: platformRole,
         company_count: companyIds.length,
+        welcome_email_requested: sendWelcomeEmail !== false,
       });
 
-      return jsonResponse({ success: true, userId, temporaryPassword: password });
+      // Welcome email branded — non-blocking. Default true, ma il chiamante
+      // può passare sendWelcomeEmail=false per saltarla (utile in import bulk).
+      if (sendWelcomeEmail !== false) {
+        // Risolvi caller company per il branding (se super admin)
+        const { data: callerProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("company_id")
+          .eq("id", callerId)
+          .maybeSingle();
+        await sendWelcomePlatformEmail(supabaseAdmin, {
+          email,
+          firstName: firstName || "Utente",
+          temporaryPassword: password,
+          role: platformRole.replace(/^platform_/, "").replace(/_/g, " "),
+          callerCompanyId: callerProfile?.company_id ?? null,
+        });
+      }
+
+      return jsonResponse({
+        success: true,
+        userId,
+        temporaryPassword: password,
+        passwordWasProvided: usingProvidedPassword,
+        welcomeEmailSent: sendWelcomeEmail !== false,
+      });
     }
 
     // === DELETE PLATFORM USER ===
@@ -414,7 +524,7 @@ Deno.serve(async (req) => {
       const [profilesRes, accessRes] = await Promise.all([
         supabaseAdmin
           .from("profiles")
-          .select("id, first_name, last_name, email, created_at")
+          .select("id, first_name, last_name, email, created_at, last_login_at")
           .in("id", userIds),
         supabaseAdmin
           .from("multi_company_access")
@@ -440,13 +550,21 @@ Deno.serve(async (req) => {
 
     // === CREATE MULTI-COMPANY USER ===
     if (action === "create-multi-company") {
-      const { email, password, firstName, lastName, companyAccesses } = body;
+      const {
+        email, password: providedPassword, firstName, lastName, phone, companyAccesses,
+        sendWelcomeEmail,
+      } = body;
 
-      if (!email || !password) return errorResponse("Email e password obbligatori");
-      if (password.length < 8) return errorResponse("La password deve avere almeno 8 caratteri");
+      if (!email) return errorResponse("Email obbligatoria");
       if (!companyAccesses || !Array.isArray(companyAccesses) || companyAccesses.length === 0) {
         return errorResponse("Seleziona almeno un'azienda");
       }
+
+      // Password: usa quella fornita (>= 8 char) o auto-generata
+      const usingProvidedPassword = !!providedPassword && String(providedPassword).length >= 8;
+      const password = usingProvidedPassword
+        ? String(providedPassword)
+        : generateSecurePassword(12);
 
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email, password, email_confirm: true,
@@ -460,6 +578,7 @@ Deno.serve(async (req) => {
         email,
         first_name: firstName || "Multi",
         last_name: lastName || "Company",
+        phone: phone || null,
         company_id: null,
       });
       if (profileError) {
@@ -495,9 +614,32 @@ Deno.serve(async (req) => {
         target_name: `${firstName} ${lastName}`,
         email,
         company_count: companyAccesses.length,
+        welcome_email_requested: sendWelcomeEmail !== false,
       });
 
-      return jsonResponse({ success: true, userId });
+      // Welcome email — same pattern del create platform
+      if (sendWelcomeEmail !== false) {
+        const { data: callerProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("company_id")
+          .eq("id", callerId)
+          .maybeSingle();
+        await sendWelcomePlatformEmail(supabaseAdmin, {
+          email,
+          firstName: firstName || "Utente",
+          temporaryPassword: password,
+          role: `Utente Multi-Azienda (${companyAccesses.length} aziende)`,
+          callerCompanyId: callerProfile?.company_id ?? null,
+        });
+      }
+
+      return jsonResponse({
+        success: true,
+        userId,
+        temporaryPassword: password,
+        passwordWasProvided: usingProvidedPassword,
+        welcomeEmailSent: sendWelcomeEmail !== false,
+      });
     }
 
     // === UPDATE COMPANY ACCESS ===
@@ -541,6 +683,28 @@ Deno.serve(async (req) => {
         await logAudit(supabaseAdmin, callerId, "add_company_access", "user", userId, {
           target_name: targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : userId,
           company_id: companyId,
+        });
+
+        return jsonResponse({ success: true });
+      }
+
+      // Single update-role operation — change access_role of an existing row
+      if (operation === "update-role" && companyId) {
+        const newRole = body.accessRole;
+        if (!newRole) return errorResponse("accessRole obbligatorio per update-role");
+        const { error } = await supabaseAdmin
+          .from("multi_company_access")
+          .update({ access_role: newRole })
+          .eq("user_id", userId)
+          .eq("company_id", companyId);
+
+        if (error) throw new Error(error.message);
+
+        const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name").eq("id", userId).maybeSingle();
+        await logAudit(supabaseAdmin, callerId, "update_company_access_role", "user", userId, {
+          target_name: targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : userId,
+          company_id: companyId,
+          new_role: newRole,
         });
 
         return jsonResponse({ success: true });

@@ -37,7 +37,7 @@ import { CompanyFilterPresets, type FilterPreset } from "@/components/admin/comp
 import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFilters";
 import { CompanySegmentFilters } from "@/components/admin/company/CompanySegmentFilters";
 import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
-import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
+import { getCompanyMonthlyRevenue, isRevenueEligibleCompany, getAdminRevenueState, type AdminRevenueState } from "@/lib/adminRevenue";
 import { toast } from "sonner";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
@@ -90,6 +90,24 @@ const LastAccessBadge = ({ lastAccess }: { lastAccess: string | null }) => {
 type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial" | "users" | "lastAccess";
 type SortDir = "asc" | "desc";
 type HealthFilter = "all" | "healthy" | "at_risk" | "critical";
+/**
+ * Filtro "Tipo Cliente" — segmenta le aziende per stato di revenue:
+ * - all: tutte
+ * - paying: pagano davvero (genera MRR)
+ * - complimentary: regalate (piano a pagamento ma payment_method=comped)
+ * - free_plan: piano gratuito (price_monthly=0)
+ * - stripe_issue: payment_method=stripe ma sub non attiva (problema billing)
+ * - nopay: complimentary + free_plan (alias retrocompat con vecchio noPayment=1)
+ */
+type RevenueFilter = "all" | "paying" | "complimentary" | "free_plan" | "stripe_issue" | "nopay";
+const REVENUE_LABELS_MAP: Record<RevenueFilter, string> = {
+  all: "Tutte",
+  paying: "Paganti",
+  complimentary: "Regalate",
+  free_plan: "Gratuite",
+  stripe_issue: "Stripe non attivo",
+  nopay: "Non paganti",
+};
 type ColKey = "sector" | "plan" | "mrr" | "users" | "orders" | "lastAccess" | "trial" | "health" | "tags";
 type SavedView = { name: string; params: string };
 
@@ -166,6 +184,7 @@ export default function CompaniesList() {
   const sortKey = (searchParams.get("sort") || null) as SortKey | null;
   const sortDir = (searchParams.get("dir") || "asc") as SortDir;
   const noPaymentFilter = searchParams.get("noPayment") === "1";
+  const revenueFilter = (searchParams.get("revenue") || "all") as RevenueFilter;
   const viewMode = (searchParams.get("view") || "list") as "list" | "pipeline";
 
   // Search is local (debounced) then synced to URL
@@ -281,6 +300,68 @@ export default function CompaniesList() {
     }
   }, [sortKey]);
 
+  // ⚠️ Lightweight all-companies summary loaded EARLY (used by KPI strip,
+  // preset counts e revenue state filter). Spostato sopra alla main query così
+  // possiamo precomputare `revenueFilterIds` prima del paged query.
+  const { data: allCompaniesSummary = [] } = useQuery({
+    queryKey: ["admin-companies-summary", permissions.allowed_company_ids],
+    queryFn: async () => {
+      let q = supabase
+        .from("companies")
+        .select("id, status, trial_ends_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly, price_yearly)")
+        .eq("is_platform_admin_company", false);
+      if (permissions.allowed_company_ids?.length) {
+        q = q.in("id", permissions.allowed_company_ids);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  /**
+   * Calcolo degli ID che matchano il filtro revenue corrente, partendo dal
+   * summary already-loaded. Restituisce:
+   *   - null se filtro=all (skip — evita .in() inutile)
+   *   - [] se nessuna company matcha (la query principale ritornerà subito)
+   *   - array di id altrimenti
+   * Memo: rigirato solo quando cambia revenueFilter o il summary.
+   */
+  const revenueFilterIds = useMemo<string[] | null>(() => {
+    if (revenueFilter === "all") return null;
+    return allCompaniesSummary
+      .filter((c) => {
+        const state: AdminRevenueState = getAdminRevenueState({
+          status: c.status,
+          payment_method: c.payment_method,
+          stripe_customer_id: c.stripe_customer_id,
+          stripe_subscription_status: c.stripe_subscription_status,
+          is_platform_admin_company: c.is_platform_admin_company,
+          subscription_plans: c.subscription_plans as { price_monthly: number | null; price_yearly?: number | null } | null,
+        });
+        switch (revenueFilter) {
+          case "paying":
+            return state === "paying";
+          case "complimentary":
+            return state === "complimentary";
+          case "free_plan":
+            return state === "free_plan";
+          case "stripe_issue":
+            // payment_method=stripe ma stripe_subscription_status non attivo
+            return (
+              String(c.payment_method ?? "").toLowerCase() === "stripe" &&
+              String(c.stripe_subscription_status ?? "").toLowerCase() !== "active"
+            );
+          case "nopay":
+            return state === "complimentary" || state === "free_plan";
+          default:
+            return true;
+        }
+      })
+      .map((c) => c.id);
+  }, [revenueFilter, allCompaniesSummary]);
+
   const { data: pagedResult, isLoading, isError, refetch } = useQuery({
     queryKey: [
       ...queryKeys.admin.companiesFull,
@@ -292,6 +373,8 @@ export default function CompaniesList() {
       planFilter,
       healthFilter,
       noPaymentFilter,
+      revenueFilter,
+      revenueFilterIds?.length ?? -1,
       serverSortColumn,
       sortDir,
       permissions.allowed_company_ids,
@@ -326,6 +409,14 @@ export default function CompaniesList() {
         query = query
           .in("status", ["active", "trial"])
           .or("payment_method.is.null,payment_method.eq.,payment_method.eq.none,payment_method.eq.free,payment_method.eq.trial,payment_method.eq.gift,payment_method.eq.gifted,payment_method.eq.gratis,payment_method.eq.omaggio,payment_method.eq.manual_free,payment_method.eq.complimentary,payment_method.eq.comp,and(payment_method.eq.stripe,stripe_subscription_status.is.null),and(payment_method.eq.stripe,stripe_subscription_status.neq.active)");
+      }
+
+      // Revenue-state filter: precomputiamo gli ID dal summary già in cache
+      // (allCompaniesSummary) classificandoli con la fonte di verità
+      // `getAdminRevenueState`. Il filtro lavora server-side via .in("id", …).
+      if (revenueFilter !== "all" && revenueFilterIds !== null) {
+        if (revenueFilterIds.length === 0) return { data: [], totalCount: 0 };
+        query = query.in("id", revenueFilterIds);
       }
 
       if (healthFilter !== "all") {
@@ -548,28 +639,10 @@ export default function CompaniesList() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Lightweight all-companies summary for KPI strip and filter preset counts (only status/trial_ends_at/payment_method)
-  const { data: allCompaniesSummary = [] } = useQuery({
-    queryKey: ["admin-companies-summary", permissions.allowed_company_ids],
-    queryFn: async () => {
-      let q = supabase
-        .from("companies")
-        .select("id, status, trial_ends_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly, price_yearly)")
-        .eq("is_platform_admin_company", false);
-      if (permissions.allowed_company_ids?.length) {
-        q = q.in("id", permissions.allowed_company_ids);
-      }
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
   // Reset to page 1 whenever server-side filter/sort params change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir, segmentFilters]);
+  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
 
   // Health/no-payment filters are pushed into the server query so pagination
   // and counts stay coherent across the whole dataset.
@@ -608,11 +681,11 @@ export default function CompaniesList() {
 
   const totalPages = Math.max(1, Math.ceil(serverTotalCount / SERVER_PAGE_SIZE));
 
-  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter || segmentActiveCount > 0;
+  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter || revenueFilter !== "all" || segmentActiveCount > 0;
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [currentPage, debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, sortKey, sortDir, segmentFilters]);
+  }, [currentPage, debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
 
   // Smart filter presets — use allCompaniesSummary so counts reflect the full dataset, not just the current page
   const filterPresets: FilterPreset[] = useMemo(() => {
@@ -627,6 +700,14 @@ export default function CompaniesList() {
     ).length;
 
     const noPayment = allCompaniesSummary.filter(isNoPaymentAccessCompany).length;
+
+    // Aziende con Stripe configurato ma sub non attiva — segnale di billing failure
+    // (canceled / past_due / unpaid / null su payment_method=stripe).
+    const stripeIssue = allCompaniesSummary.filter((c) => {
+      const method = String(c.payment_method ?? "").toLowerCase();
+      const stripe = String(c.stripe_subscription_status ?? "").toLowerCase();
+      return method === "stripe" && stripe !== "active";
+    }).length;
 
     const inactive = allCompaniesSummary.filter((c) => {
       const la = lastAccessData[c.id];
@@ -669,6 +750,15 @@ export default function CompaniesList() {
         apply: () => applyPreset({ noPayment: "1" }, "no_payment"),
       },
       {
+        key: "stripe_issue",
+        label: "Stripe non attivo",
+        icon: AlertCircle,
+        description: "Aziende con Stripe configurato ma sub non attiva (canceled / past_due / unpaid)",
+        color: "red",
+        count: stripeIssue,
+        apply: () => applyPreset({ revenue: "stripe_issue" }, "stripe_issue"),
+      },
+      {
         key: "inactive",
         label: "Inattive",
         icon: UserX,
@@ -694,8 +784,9 @@ export default function CompaniesList() {
     { key: "plan", label: "Piano", value: planFilter === "all" ? "all" : (uniquePlans.find((p) => p.id === planFilter)?.name || planFilter), onClear: () => setFilter({ plan: null }) },
     { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (HEALTH_LABELS_MAP[healthFilter] || healthFilter), onClear: () => setFilter({ health: null }) },
     { key: "noPayment", label: "Senza pagamento", value: noPaymentFilter ? "attivo" : "all", onClear: () => setFilter({ noPayment: null }) },
+    { key: "revenue", label: "Tipo cliente", value: revenueFilter === "all" ? "all" : REVENUE_LABELS_MAP[revenueFilter], onClear: () => setFilter({ revenue: null }) },
     { key: "segments", label: "Segmenti", value: segmentActiveCount > 0 ? `${segmentActiveCount} attivi` : "all", onClear: () => setSegmentFilters(EMPTY_FILTERS) },
-  ], [inputSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, uniquePlans, setFilter, segmentActiveCount]);
+  ], [inputSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, revenueFilter, uniquePlans, setFilter, segmentActiveCount]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -859,7 +950,7 @@ export default function CompaniesList() {
         </Button>
       </div>
 
-      {/* KPI Strip — use full summary dataset so metrics reflect all companies, not just the current page */}
+      {/* KPI Strip — full dataset, click-to-filter */}
       <CompaniesKPIStrip
         companies={allCompaniesSummary.map((c) => ({
           id: c.id,
@@ -871,6 +962,35 @@ export default function CompaniesList() {
           subscription_plans: c.subscription_plans as { price_monthly: number } | null,
         }))}
         healthData={healthData}
+        activeKpi={
+          revenueFilter === "paying" ? "paying"
+          : revenueFilter === "complimentary" ? "excluded"
+          : healthFilter === "at_risk" || healthFilter === "critical" ? "atRisk"
+          : statusFilter === "active" && revenueFilter === "all" && healthFilter === "all" ? "active"
+          : null
+        }
+        onKpiClick={(kpi) => {
+          setActivePreset(null);
+          if (kpi === "active") {
+            // Toggle: se già attivo, rimuovi
+            const isAlready = statusFilter === "active" && revenueFilter === "all" && healthFilter === "all";
+            setFilter({
+              status: isAlready ? null : "active",
+              revenue: null,
+              health: null,
+              noPayment: null,
+            });
+          } else if (kpi === "paying") {
+            const isAlready = revenueFilter === "paying";
+            setFilter({ revenue: isAlready ? null : "paying", noPayment: null, health: null });
+          } else if (kpi === "excluded") {
+            const isAlready = revenueFilter === "complimentary";
+            setFilter({ revenue: isAlready ? null : "complimentary", noPayment: null, health: null });
+          } else if (kpi === "atRisk") {
+            const isAlready = healthFilter === "at_risk";
+            setFilter({ health: isAlready ? null : "at_risk", revenue: null, noPayment: null });
+          }
+        }}
       />
 
       {/* Bulk Actions Bar */}
@@ -968,6 +1088,25 @@ export default function CompaniesList() {
             <SelectItem value="healthy">Healthy</SelectItem>
             <SelectItem value="at_risk">A rischio</SelectItem>
             <SelectItem value="critical">Critico</SelectItem>
+          </SelectContent>
+        </Select>
+        {/* Revenue State filter — segmenta per tipo di rapporto economico */}
+        <Select
+          value={revenueFilter}
+          onValueChange={(v) => {
+            // Mutuamente esclusivo con noPayment legacy: se attivo, lo resetta
+            setFilter({ revenue: v === "all" ? null : v, noPayment: null });
+            setActivePreset(null);
+          }}
+        >
+          <SelectTrigger className="w-[160px]" title="Filtra per tipo di rapporto economico"><SelectValue placeholder="Tipo cliente" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i tipi</SelectItem>
+            <SelectItem value="paying">💰 Paganti</SelectItem>
+            <SelectItem value="complimentary">🎁 Regalate</SelectItem>
+            <SelectItem value="free_plan">🆓 Piano gratuito</SelectItem>
+            <SelectItem value="nopay">⚪ Non paganti (tutti)</SelectItem>
+            <SelectItem value="stripe_issue">⚠️ Stripe non attivo</SelectItem>
           </SelectContent>
         </Select>
         {/* Feature 6 — Segmentazione avanzata */}

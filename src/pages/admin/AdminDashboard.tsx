@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, AlertTriangle } from "lucide-react";
@@ -68,6 +69,18 @@ export default function AdminDashboard() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  // Memoizzato: ad ogni render ricomputerebbe filter+sort sull'intera lista
+  // di health score (potenzialmente migliaia di companies).
+  // ⚠️ Hooks DEVONO essere chiamati prima di qualsiasi early return.
+  const topAtRisk = useMemo(
+    () =>
+      (revenueData?.healthScores || [])
+        .filter((h) => h.health === "at_risk" || h.health === "critical")
+        .sort((a, b) => a.score - b.score),
+    [revenueData?.healthScores]
+  );
+  const visibleWidgets = useMemo(() => widgets.filter((w) => w.visible), [widgets]);
+
   if (!permissions.can_view_platform_stats) return <AccessDenied />;
 
   const stats = dashboardData?.stats ?? {
@@ -120,12 +133,6 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
-  const topAtRisk = (revenueData?.healthScores || [])
-    .filter((h) => h.health === "at_risk" || h.health === "critical")
-    .sort((a, b) => a.score - b.score);
-
-  const visibleWidgets = widgets.filter((w) => w.visible);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;

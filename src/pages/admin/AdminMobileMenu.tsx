@@ -51,7 +51,7 @@ const allSections: AppSection[] = [
       { icon: TrendingUp, label: "CS Dashboard", url: "/admin/cs-dashboard", color: "text-teal-600 bg-teal-50", permission: "can_impersonate" },
       { icon: MessageSquare, label: "Assistenza", url: "/admin/ticket", color: "text-blue-600 bg-blue-50", permission: "can_manage_tickets" },
       { icon: LifeBuoy, label: "Lifecycle", url: "/admin/lifecycle", color: "text-cyan-600 bg-cyan-50", permission: "can_manage_companies" },
-      { icon: ClipboardCheck, label: "Task CS", url: "/admin/cs-tasks", color: "text-teal-600 bg-teal-50", permission: "can_manage_companies" },
+      { icon: ClipboardCheck, label: "Attività", url: "/admin/attivita?tab=tutte", color: "text-teal-600 bg-teal-50", permission: "can_manage_companies" },
       { icon: ListChecks, label: "Onboarding", url: "/admin/customer-success", color: "text-green-600 bg-green-50", permission: "can_manage_companies" },
       { icon: BookOpen, label: "Playbook", url: "/admin/playbooks", color: "text-violet-600 bg-violet-50", permission: "can_manage_companies" },
     ],

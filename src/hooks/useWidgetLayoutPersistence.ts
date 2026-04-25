@@ -23,6 +23,10 @@ export function useWidgetLayoutPersistence(
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tiene il riferimento al layout pendente per flushare in caso di unmount o
+  // beforeunload prima che il debounce sia scaduto. Senza questo, l'utente
+  // perde la modifica se naviga via entro DEBOUNCE_MS.
+  const pendingLayoutRef = useRef<DashboardWidget[] | null>(null);
 
   // Carica layout al mount
   useEffect(() => {
@@ -131,11 +135,13 @@ export function useWidgetLayoutPersistence(
       } catch {
         // ignore
       }
-      // Debounce salvataggio su DB
+      // Debounce salvataggio su DB; tieni il riferimento pendente per flush
+      pendingLayoutRef.current = newLayout;
       if (debounceRef.current !== null) {
         clearTimeout(debounceRef.current);
       }
       debounceRef.current = setTimeout(() => {
+        pendingLayoutRef.current = null;
         persistToDb(newLayout);
       }, DEBOUNCE_MS);
     },
@@ -149,6 +155,7 @@ export function useWidgetLayoutPersistence(
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
+      pendingLayoutRef.current = null;
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newLayout));
       } catch {
@@ -180,14 +187,29 @@ export function useWidgetLayoutPersistence(
     }
   }, [userId, defaultLayout]);
 
-  // Cleanup debounce al unmount
+  // Cleanup: se c'è un layout in attesa di salvataggio, flusha prima di
+  // sganciare il debounce. Risolve il bug "save perso al unmount" — se l'utente
+  // toggla un widget e naviga via entro DEBOUNCE_MS la modifica era persa.
   useEffect(() => {
-    return () => {
-      if (debounceRef.current !== null) {
+    const flushPending = () => {
+      if (debounceRef.current !== null && pendingLayoutRef.current) {
         clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+        const toFlush = pendingLayoutRef.current;
+        pendingLayoutRef.current = null;
+        // Fire-and-forget: il browser potrebbe terminare la pagina ma la
+        // promise di Supabase parte e localStorage è già aggiornato.
+        persistToDb(toFlush);
       }
     };
-  }, []);
+    window.addEventListener("beforeunload", flushPending);
+    window.addEventListener("pagehide", flushPending);
+    return () => {
+      window.removeEventListener("beforeunload", flushPending);
+      window.removeEventListener("pagehide", flushPending);
+      flushPending();
+    };
+  }, [persistToDb]);
 
   return { layout, isLoading, isSaving, saveLayout, saveNow, resetLayout };
 }

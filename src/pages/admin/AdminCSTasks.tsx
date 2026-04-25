@@ -1,18 +1,14 @@
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, CheckCircle, Clock, AlertCircle, RefreshCw, Search, X, Play, Undo2,
@@ -26,6 +22,7 @@ import { Link } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
+import { NewTaskDialog, getTaskTypeConfig } from "@/components/admin/tasks/NewTaskDialog";
 
 interface CSTask {
   id: string;
@@ -45,7 +42,6 @@ type DateRangePreset = "all" | "overdue" | "today" | "tomorrow" | "week" | "noda
 type GroupBy = "none" | "company" | "priority" | "duedate";
 
 export default function AdminCSTasks() {
-  const { user } = useAuth();
   const { permissions } = useSuperAdminPermissions();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -62,15 +58,6 @@ export default function AdminCSTasks() {
 
   // Bulk selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  // New task form
-  const [newTitle, setNewTitle] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newCompanyId, setNewCompanyId] = useState("");
-  const [newPriority, setNewPriority] = useState("medium");
-  const [newDueDate, setNewDueDate] = useState("");
-
-  const todayIso = new Date().toISOString().slice(0, 10);
 
   // ─── Queries ──────────────────────────────────────────────
 
@@ -108,40 +95,6 @@ export default function AdminCSTasks() {
   });
 
   // ─── Mutations ────────────────────────────────────────────
-
-  const createTask = useMutation({
-    mutationFn: async () => {
-      const title = newTitle.trim();
-      const description = newDesc.trim();
-      if (!user?.id) throw new Error("Sessione admin non disponibile.");
-      if (!newCompanyId) throw new Error("Seleziona un'azienda.");
-      if (!title) throw new Error("Inserisci un titolo.");
-      if (newDueDate && newDueDate < todayIso) {
-        throw new Error("La scadenza non può essere nel passato.");
-      }
-      const { error } = await supabase
-        .from("cs_tasks" as never)
-        .insert({
-          company_id: newCompanyId,
-          title,
-          description: description || null,
-          task_type: "manual",
-          priority: newPriority,
-          due_date: newDueDate || null,
-          created_by: user.id,
-          assigned_to: user.id,
-        } as never);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
-      setNewTitle(""); setNewDesc(""); setNewCompanyId("");
-      setNewPriority("medium"); setNewDueDate("");
-      setShowNew(false);
-      toast.success("Task CS creato");
-    },
-    onError: (error) => toast.error(error.message || "Impossibile creare il task CS"),
-  });
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -319,73 +272,18 @@ export default function AdminCSTasks() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="hidden md:block">
-          <h1 className="text-2xl font-bold">CS Tasks</h1>
-          <p className="text-muted-foreground text-sm">Attività Customer Success per le aziende</p>
+          <h1 className="text-2xl font-bold">Task</h1>
+          <p className="text-muted-foreground text-sm">
+            Tutte le attività del team — follow-up, supporto, vendita, onboarding, billing
+          </p>
         </div>
         <div className="flex gap-2">
-          <Dialog open={showNew} onOpenChange={setShowNew}>
-            <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-2" /> Nuovo Task</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Nuovo Task CS</DialogTitle></DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div>
-                  <Label>Azienda *</Label>
-                  <Select value={newCompanyId} onValueChange={setNewCompanyId}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona azienda" /></SelectTrigger>
-                    <SelectContent>
-                      {companies.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Titolo *</Label>
-                  <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Es: Follow-up onboarding" />
-                </div>
-                <div>
-                  <Label>Descrizione</Label>
-                  <Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Dettagli opzionali" rows={3} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Priorità</Label>
-                    <Select value={newPriority} onValueChange={setNewPriority}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Bassa</SelectItem>
-                        <SelectItem value="medium">Media</SelectItem>
-                        <SelectItem value="high">Alta</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Scadenza</Label>
-                    <Input
-                      type="date"
-                      value={newDueDate}
-                      min={todayIso}
-                      onChange={(e) => setNewDueDate(e.target.value)}
-                    />
-                    {newDueDate && newDueDate < todayIso && (
-                      <p className="text-xs text-red-600 mt-1">Data nel passato</p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  onClick={() => createTask.mutate()}
-                  disabled={!newTitle.trim() || !newCompanyId || createTask.isPending}
-                  className="w-full"
-                >
-                  {createTask.isPending ? "Creazione..." : "Crea Task"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => setShowNew(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Nuovo Task
+          </Button>
         </div>
       </div>
+      <NewTaskDialog open={showNew} onOpenChange={setShowNew} />
 
       {/* KPI — 6 card cliccabili come filtri rapidi */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
@@ -632,6 +530,7 @@ export default function AdminCSTasks() {
                   </TableHead>
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Titolo</TableHead>
+                  <TableHead className="w-24">Tipo</TableHead>
                   <TableHead>Azienda</TableHead>
                   <TableHead>Priorità</TableHead>
                   <TableHead>Scadenza</TableHead>
@@ -669,6 +568,24 @@ export default function AdminCSTasks() {
                             <p className="font-medium">{task.title}</p>
                             {task.description && <p className="text-xs text-muted-foreground truncate max-w-[260px]">{task.description}</p>}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const cfg = getTaskTypeConfig(task.task_type);
+                            const Icon = cfg.icon;
+                            return (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                  cfg.tone
+                                )}
+                                title={cfg.label}
+                              >
+                                <Icon className="h-3 w-3" />
+                                <span className="hidden lg:inline">{cfg.label}</span>
+                              </span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-sm">
                           <Link

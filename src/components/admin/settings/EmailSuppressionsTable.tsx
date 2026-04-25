@@ -53,9 +53,11 @@ import {
   Globe,
   Building2,
   Download,
+  RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { formatError } from "@/lib/errors";
 
 // ── Tipi locali (types.ts legacy, non rigenerato) ───────────────────────────
 type SuppressionReason =
@@ -75,7 +77,7 @@ interface SuppressionRow {
   source_provider: string | null;
   source_event_id: string | null;
   notes: string | null;
-  companies?: { nome: string | null } | null;
+  companies?: { name: string | null } | null;
 }
 
 const REASON_LABEL: Record<SuppressionReason, string> = {
@@ -117,7 +119,7 @@ export function EmailSuppressionsTable() {
         .select(`
           id, email, reason, suppressed_at, company_id,
           source_provider, source_event_id, notes,
-          companies:company_id ( nome )
+          companies:company_id ( name )
         ` as "*")
         .order("suppressed_at", { ascending: false })
         .limit(SAFETY_CAP);
@@ -220,11 +222,15 @@ export function EmailSuppressionsTable() {
   }
 
   if (query.error) {
-    const msg = query.error instanceof Error ? query.error.message : String(query.error);
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>Errore caricamento: {msg}</AlertDescription>
+        <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+          <span>Errore caricamento soppressioni: {formatError(query.error)}</span>
+          <Button size="sm" variant="outline" onClick={() => query.refetch()} className="h-7 gap-1 text-xs">
+            <RefreshCw className="h-3 w-3" /> Riprova
+          </Button>
+        </AlertDescription>
       </Alert>
     );
   }
@@ -471,7 +477,7 @@ function SuppressionRowView({
           <div className="flex items-center gap-1.5 text-xs">
             <Building2 className="h-3 w-3 text-muted-foreground" />
             <span className="truncate max-w-[160px]">
-              {row.companies?.nome ?? row.company_id}
+              {row.companies?.name ?? row.company_id}
             </span>
           </div>
         )}

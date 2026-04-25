@@ -200,10 +200,13 @@ export function SortableWidget({
       style={style}
       className={`relative group ${span === 2 ? "col-span-2" : ""}`}
     >
+      {/* Drag handle: nascosta su mobile (DnD non attivo) e a11y-friendly */}
       <button
         {...attributes}
         {...listeners}
-        className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/80 backdrop-blur-sm rounded-md p-1 border shadow-sm"
+        type="button"
+        aria-label="Sposta widget"
+        className="hidden md:flex absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/80 backdrop-blur-sm rounded-md p-1 border shadow-sm"
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </button>

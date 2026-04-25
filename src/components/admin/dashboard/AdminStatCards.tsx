@@ -128,32 +128,59 @@ export function AdminStatCards({ stats, previousStats }: Props) {
   ];
 
   return (
-    <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-      {statCards.map((stat) => (
-        <Card
-          key={stat.title}
-          className="relative overflow-hidden cursor-pointer group hover:shadow-lg transition-all duration-200 border-border/50"
-          onClick={() => navigate(stat.href)}
-        >
-          {/* Gradient accent top bar */}
-          <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${stat.accent}`} />
-          <CardContent className="pt-4 pb-3 md:pt-5 md:pb-4 px-3 md:px-4">
-            <div className="flex items-start justify-between mb-2 md:mb-3">
-              <div className={`p-2 md:p-2.5 rounded-xl ${stat.iconBg} transition-transform group-hover:scale-110`}>
-                <stat.icon className="h-4 w-4" />
+    // Layout ottimizzato: 2 colonne su mobile, 4 da lg in su (2 righe × 4 cards).
+    // Su xl si espande a 8 colonne ma con padding interno maggiore — niente più
+    // descrizioni troncate aggressivamente.
+    <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-4 2xl:grid-cols-8">
+      {statCards.map((stat) => {
+        const isZero =
+          typeof stat.value === "number" ? stat.value === 0 : stat.value === "0%" || stat.value === "0";
+        return (
+          <Card
+            key={stat.title}
+            className="relative overflow-hidden cursor-pointer group hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border-border/50"
+            onClick={() => navigate(stat.href)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigate(stat.href);
+              }
+            }}
+            aria-label={`${stat.title}: ${stat.value}. ${stat.description}`}
+          >
+            {/* Gradient accent top bar */}
+            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${stat.accent}`} />
+            <CardContent className="pt-4 pb-3 md:pt-5 md:pb-4 px-3 md:px-4">
+              <div className="flex items-start justify-between mb-2 md:mb-3">
+                <div
+                  className={`p-2 md:p-2.5 rounded-xl ${stat.iconBg} transition-transform group-hover:scale-110`}
+                >
+                  <stat.icon className="h-4 w-4" />
+                </div>
+                <DeltaBadge delta={stat.delta} />
               </div>
-              <DeltaBadge delta={stat.delta} />
-            </div>
-            <div className="space-y-0.5 md:space-y-1">
-              <p className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-                {typeof stat.value === "string" ? stat.value : stat.value.toLocaleString("it-IT")}
-              </p>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">{stat.title}</p>
-              <p className="text-[10px] md:text-xs text-muted-foreground/70 truncate">{stat.description}</p>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+              <div className="space-y-0.5 md:space-y-1">
+                <p
+                  className={`text-2xl md:text-3xl font-bold tracking-tight ${
+                    isZero ? "text-muted-foreground/60" : "text-foreground"
+                  }`}
+                >
+                  {typeof stat.value === "string" ? stat.value : stat.value.toLocaleString("it-IT")}
+                </p>
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">{stat.title}</p>
+                <p
+                  className="text-[10px] md:text-xs text-muted-foreground/70 truncate"
+                  title={stat.description}
+                >
+                  {stat.description}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

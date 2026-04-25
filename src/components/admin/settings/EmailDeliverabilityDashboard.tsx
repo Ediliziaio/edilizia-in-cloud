@@ -19,7 +19,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, TrendingUp, TrendingDown, AlertTriangle, RefreshCw } from "lucide-react";
+import { formatError } from "@/lib/errors";
 import {
   aggregateDeliveryRows,
   bounceRatePct,
@@ -65,11 +67,15 @@ export function EmailDeliverabilityDashboard() {
     );
   }
   if (query.error) {
-    const msg = query.error instanceof Error ? query.error.message : String(query.error);
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>Errore caricamento: {msg}</AlertDescription>
+        <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+          <span>Errore caricamento deliverability: {formatError(query.error)}</span>
+          <Button size="sm" variant="outline" onClick={() => query.refetch()} className="h-7 gap-1 text-xs">
+            <RefreshCw className="h-3 w-3" /> Riprova
+          </Button>
+        </AlertDescription>
       </Alert>
     );
   }

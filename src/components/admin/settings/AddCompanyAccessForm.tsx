@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X, Search } from "lucide-react";
 import { toast } from "sonner";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const ROLE_OPTIONS = [
   { value: "company_admin", label: "Amministratore" },
@@ -22,25 +24,36 @@ interface AddCompanyAccessFormProps {
 export default function AddCompanyAccessForm({ userId, existingCompanyIds }: AddCompanyAccessFormProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const debouncedSearch = useDebounce(companySearch, 250);
   const [selectedCompany, setSelectedCompany] = useState("");
-  const [selectedRole, setSelectedRole] = useState("");
+  // Default sensato: "Operatore" è il ruolo più comune per partner/consulenti
+  const [selectedRole, setSelectedRole] = useState<string>("company_staff");
 
   const { data: companies = [], isLoading: loadingCompanies } = useQuery({
-    queryKey: ["companies-for-access", userId],
+    queryKey: ["companies-for-access", userId, debouncedSearch],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("companies")
         .select("id, name")
         .eq("is_platform_admin_company", false)
         .order("name")
-        .limit(200);
+        .limit(50);
+      if (debouncedSearch.trim()) {
+        q = q.ilike("name", `%${debouncedSearch.trim()}%`);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
     enabled: open,
+    staleTime: 30 * 1000,
   });
 
-  const availableCompanies = companies.filter((c) => !existingCompanyIds.includes(c.id));
+  const availableCompanies = useMemo(
+    () => companies.filter((c) => !existingCompanyIds.includes(c.id)),
+    [companies, existingCompanyIds]
+  );
 
   const addMutation = useMutation({
     mutationFn: async () => {
@@ -60,10 +73,18 @@ export default function AddCompanyAccessForm({ userId, existingCompanyIds }: Add
       toast.success("Accesso aggiunto");
       setOpen(false);
       setSelectedCompany("");
-      setSelectedRole("");
+      setSelectedRole("company_staff");
+      setCompanySearch("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const handleCancel = () => {
+    setOpen(false);
+    setSelectedCompany("");
+    setSelectedRole("company_staff");
+    setCompanySearch("");
+  };
 
   if (!open) {
     return (
@@ -77,21 +98,39 @@ export default function AddCompanyAccessForm({ userId, existingCompanyIds }: Add
     <div className="border rounded-lg p-3 mt-2 space-y-3 bg-muted/30">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">Aggiungi accesso</p>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setOpen(false); setSelectedCompany(""); setSelectedRole(""); }}>
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCancel}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
 
+      {/* Server-side search per scaling oltre 50 aziende */}
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={companySearch}
+          onChange={(e) => setCompanySearch(e.target.value)}
+          placeholder="Cerca azienda…"
+          className="pl-8 h-9 text-sm"
+        />
+      </div>
+
       <Select value={selectedCompany} onValueChange={setSelectedCompany}>
         <SelectTrigger className="h-9 text-sm">
-          <SelectValue placeholder={loadingCompanies ? "Caricamento..." : "Seleziona azienda"} />
+          <SelectValue placeholder={loadingCompanies ? "Caricamento…" : "Seleziona azienda"} />
         </SelectTrigger>
         <SelectContent>
-          {availableCompanies.map((c) => (
-            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-          ))}
-          {availableCompanies.length === 0 && !loadingCompanies && (
-            <div className="px-2 py-1.5 text-sm text-muted-foreground">Nessuna azienda disponibile</div>
+          {loadingCompanies ? (
+            <div className="px-2 py-1.5 text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3 w-3 animate-spin" /> Caricamento…
+            </div>
+          ) : availableCompanies.length === 0 ? (
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+              {debouncedSearch ? `Nessun risultato per "${debouncedSearch}"` : "Nessuna azienda disponibile"}
+            </div>
+          ) : (
+            availableCompanies.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))
           )}
         </SelectContent>
       </Select>
@@ -114,7 +153,7 @@ export default function AddCompanyAccessForm({ userId, existingCompanyIds }: Add
         onClick={() => addMutation.mutate()}
       >
         {addMutation.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-        Aggiungi
+        Aggiungi accesso
       </Button>
     </div>
   );
