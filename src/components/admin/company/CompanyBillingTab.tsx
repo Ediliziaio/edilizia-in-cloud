@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card, CardContent, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,19 +16,27 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Mail, Bot, MessageSquare, Phone, CreditCard, Plus, Minus, Loader2,
-  Settings2, ShieldAlert, Download, AlertTriangle, Wallet,
+  Settings2, ShieldAlert, Download, AlertTriangle, Wallet, RotateCcw,
+  Search, Filter, Info, X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { cn } from "@/lib/utils";
 
 const SERVICES = [
   { key: "email", label: "Email Marketing", icon: Mail },
@@ -37,6 +47,7 @@ const SERVICES = [
 ] as const;
 
 const CREDIT_SERVICES = ["email", "ai_agents", "whatsapp"] as const;
+type CreditService = (typeof CREDIT_SERVICES)[number];
 
 interface BillingOverride {
   id: string;
@@ -54,7 +65,7 @@ interface BillingOverride {
 
 interface AdjustDialog {
   open: boolean;
-  service: string;
+  service: CreditService | "";
   direction: "add" | "deduct";
 }
 
@@ -79,6 +90,242 @@ async function getFunctionErrorMessage(error: unknown): Promise<string> {
   return fallback;
 }
 
+/**
+ * Form locale per un singolo Service Control.
+ *
+ * FIX critici applicati:
+ * - INPUT CONTROLLATI: prima usava `defaultValue` (uncontrolled) → quando
+ *   l'override cambiava per refetch, l'input non si aggiornava (mostrava
+ *   sempre il valore al primo mount). Ora `value` con sync via useEffect.
+ * - DEBOUNCE: prima ogni onBlur scatenava upsert separato, e cambiare
+ *   4 campi in sequenza generava 4 mutation in race. Ora 1 useState locale
+ *   con bottone "Salva" + indicatore "modificato" — esplicito, niente race.
+ * - DEFAULT VISIBILE: prima placeholder "Default" non diceva quale.
+ *   Ora se override null, l'input mostra il default come hint inline.
+ * - RESET: bottone per cancellare l'override per quel servizio (DELETE row).
+ */
+function ServiceControlRow({
+  service, label, icon: Icon,
+  override, planDefaults,
+  onSave, onReset,
+  isSaving, isResetting,
+}: {
+  service: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  override: BillingOverride | null;
+  planDefaults: { price_per_unit_eur: number | null; markup_multiplier: number | null; monthly_fee_eur: number | null };
+  onSave: (payload: Partial<BillingOverride> & { service: string }) => void;
+  onReset: () => void;
+  isSaving: boolean;
+  isResetting: boolean;
+}) {
+  const [isEnabled, setIsEnabled] = useState(override?.is_enabled ?? true);
+  const [isFree, setIsFree] = useState(override?.is_free ?? false);
+  const [price, setPrice] = useState(override?.price_per_unit_eur?.toString() ?? "");
+  const [markup, setMarkup] = useState(override?.markup_multiplier?.toString() ?? "");
+  const [fee, setFee] = useState(override?.monthly_fee_eur?.toString() ?? "");
+  const [notes, setNotes] = useState(override?.custom_notes ?? "");
+
+  // Sync con override quando cambia (es. dopo refetch successivo a save)
+  // FIX: prima `defaultValue` era one-shot al mount → input restava stale.
+  useEffect(() => {
+    setIsEnabled(override?.is_enabled ?? true);
+    setIsFree(override?.is_free ?? false);
+    setPrice(override?.price_per_unit_eur?.toString() ?? "");
+    setMarkup(override?.markup_multiplier?.toString() ?? "");
+    setFee(override?.monthly_fee_eur?.toString() ?? "");
+    setNotes(override?.custom_notes ?? "");
+  }, [override]);
+
+  // Detect "dirty" (l'utente ha modificato qualcosa)
+  const isDirty =
+    isEnabled !== (override?.is_enabled ?? true) ||
+    isFree !== (override?.is_free ?? false) ||
+    price !== (override?.price_per_unit_eur?.toString() ?? "") ||
+    markup !== (override?.markup_multiplier?.toString() ?? "") ||
+    fee !== (override?.monthly_fee_eur?.toString() ?? "") ||
+    notes !== (override?.custom_notes ?? "");
+
+  const parseNumber = (s: string): number | null => {
+    if (!s.trim()) return null;
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const handleSave = () => {
+    onSave({
+      service,
+      is_enabled: isEnabled,
+      is_free: isFree,
+      price_per_unit_eur: parseNumber(price),
+      markup_multiplier: parseNumber(markup),
+      monthly_fee_eur: parseNumber(fee),
+      custom_notes: notes.trim() || null,
+    });
+  };
+
+  // Toggle rapido: applica immediatamente solo per is_enabled / is_free
+  // (operazioni "binary" senza ambiguità — meritano scrittura immediata)
+  const toggleEnabled = (checked: boolean) => {
+    setIsEnabled(checked);
+    onSave({ service, is_enabled: checked });
+  };
+  const toggleFree = (checked: boolean) => {
+    setIsFree(checked);
+    onSave({ service, is_free: checked });
+  };
+
+  return (
+    <div
+      className={cn(
+        "border rounded-lg p-4 space-y-3 transition-colors",
+        isDirty && "border-primary/40 bg-primary/5",
+        !isEnabled && "border-rose-300 bg-rose-50/30 dark:bg-rose-950/10",
+      )}
+    >
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{label}</span>
+          {!isEnabled && (
+            <Badge variant="destructive" className="text-xs">
+              Disabilitato
+            </Badge>
+          )}
+          {isFree && (
+            <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+              Gratuito
+            </Badge>
+          )}
+          {override && (
+            <Badge variant="outline" className="text-[10px] gap-1 border-amber-300 text-amber-700">
+              <ShieldAlert className="h-2.5 w-2.5" />
+              Override attivo
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Abilitato</Label>
+            <Switch
+              checked={isEnabled}
+              onCheckedChange={toggleEnabled}
+              disabled={isSaving}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Gratuito</Label>
+            <Switch
+              checked={isFree}
+              onCheckedChange={toggleFree}
+              disabled={isSaving}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Prezzo unitario (€)</Label>
+          <Input
+            type="number"
+            step="0.0001"
+            min="0"
+            placeholder={
+              planDefaults.price_per_unit_eur != null
+                ? `Default ${planDefaults.price_per_unit_eur}`
+                : "Default"
+            }
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            className="h-8 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Markup (×)</Label>
+          <Input
+            type="number"
+            step="0.1"
+            min="1"
+            placeholder={
+              planDefaults.markup_multiplier != null
+                ? `Default ${planDefaults.markup_multiplier}`
+                : "Default"
+            }
+            value={markup}
+            onChange={(e) => setMarkup(e.target.value)}
+            className="h-8 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Fee mensile (€)</Label>
+          <Input
+            type="number"
+            step="1"
+            min="0"
+            placeholder={
+              planDefaults.monthly_fee_eur != null
+                ? `Default ${planDefaults.monthly_fee_eur}`
+                : "Default"
+            }
+            value={fee}
+            onChange={(e) => setFee(e.target.value)}
+            className="h-8 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Note interne</Label>
+          <Input
+            placeholder="—"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="h-8 text-xs"
+          />
+        </div>
+      </div>
+
+      {/* Action bar: visibile solo se ci sono modifiche oppure se override esiste */}
+      {(isDirty || override) && (
+        <div className="flex items-center gap-2 pt-2 border-t">
+          {isDirty && (
+            <>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-8 text-xs"
+              >
+                {isSaving && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                Salva modifiche
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Modifiche non salvate
+              </span>
+            </>
+          )}
+          {override && !isDirty && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onReset}
+              disabled={isResetting}
+              className="h-8 text-xs text-destructive hover:text-destructive"
+            >
+              {isResetting ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3 w-3 mr-1" />
+              )}
+              Rimuovi override
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -88,6 +335,10 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustmentsPage, setAdjustmentsPage] = useState(0);
   const [customMaxOrders, setCustomMaxOrders] = useState<string>("");
+
+  // Filtri storico aggiustamenti (nuovi)
+  const [adjustmentsServiceFilter, setAdjustmentsServiceFilter] = useState<string>("all");
+  const [adjustmentsSearch, setAdjustmentsSearch] = useState("");
 
   // Plan pricing override
   const { data: planOverride, refetch: refetchOverride } = useQuery({
@@ -113,16 +364,44 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const [overrideNotes, setOverrideNotes] = useState('');
   const [overrideExpiry, setOverrideExpiry] = useState('');
 
+  // Sync planOverride → form locale (FIX: prima il form era sempre vuoto al primo render)
+  const planOverrideSyncRef = useRef(false);
+  useEffect(() => {
+    if (planOverrideSyncRef.current) return;
+    if (planOverride !== undefined) {
+      setOverridePrice(planOverride?.custom_plan_price_eur?.toString() ?? "");
+      setOverrideNotes(planOverride?.override_notes ?? "");
+      // FIX TIMEZONE: il DB ha timestamptz, ma <input type="date"> vuole YYYY-MM-DD.
+      // Estrai solo la parte data senza conversione timezone (assumiamo data salvata
+      // come UTC midnight e mostrata come tale).
+      setOverrideExpiry(
+        planOverride?.override_expires_at
+          ? planOverride.override_expires_at.slice(0, 10)
+          : "",
+      );
+      planOverrideSyncRef.current = true;
+    }
+  }, [planOverride]);
+
   const saveOverrideMutation = useMutation({
     mutationFn: async () => {
+      // FIX TIMEZONE: se la data è "YYYY-MM-DD" senza ora, la trasformiamo in
+      // ISO timestamp esplicito a midnight UTC per evitare ambiguità.
+      const expiryIso = overrideExpiry
+        ? new Date(`${overrideExpiry}T23:59:59.999Z`).toISOString()
+        : null;
+      const priceNum = overridePrice ? Number(overridePrice) : null;
+      if (priceNum != null && (!Number.isFinite(priceNum) || priceNum < 0)) {
+        throw new Error("Prezzo non valido");
+      }
       const { error } = await supabase
         .from('company_billing_overrides' as never)
         .upsert({
           company_id: companyId,
           service: 'plan',
-          custom_plan_price_eur: overridePrice ? Number(overridePrice) : null,
+          custom_plan_price_eur: priceNum,
           override_notes: overrideNotes || null,
-          override_expires_at: overrideExpiry || null,
+          override_expires_at: expiryIso,
           is_enabled: true,
           updated_at: new Date().toISOString(),
         } as never, { onConflict: 'company_id,service' } as never);
@@ -130,7 +409,34 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     },
     onSuccess: () => {
       toast.success('Override prezzo salvato');
+      // FIX: invalidation completa (prima solo refetchOverride)
       void refetchOverride();
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      planOverrideSyncRef.current = false; // permette re-sync con nuovi dati
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Mutation per RIMUOVERE l'override prezzo piano (delete row 'plan')
+  const removeOverrideMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('company_billing_overrides' as never)
+        .delete()
+        .eq('company_id', companyId)
+        .eq('service' as never, 'plan' as never);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Override prezzo rimosso");
+      setOverridePrice("");
+      setOverrideNotes("");
+      setOverrideExpiry("");
+      void refetchOverride();
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      planOverrideSyncRef.current = false;
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -162,10 +468,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     },
   });
 
-  // FIX: sync solo al PRIMO load effettivo, non ad ogni refetch.
-  // Prima ogni refetch sovrascriveva `customMaxOrders` — se l'utente aveva
-  // digitato un valore diverso e il background refetch scattava (es. tab
-  // torna in focus), il suo input veniva resettato al valore server.
+  // Sync solo al PRIMO load effettivo, non ad ogni refetch
   const limitsSyncedRef = useRef(false);
   useEffect(() => {
     if (limitsSyncedRef.current) return;
@@ -173,14 +476,20 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       setCustomMaxOrders(String(limitsOverride.custom_max_orders));
       limitsSyncedRef.current = true;
     } else if (limitsOverride === null) {
-      // Query completa (maybeSingle ritorna null → nessuna row) — sync done
       limitsSyncedRef.current = true;
     }
   }, [limitsOverride]);
 
   // Save custom_max_orders limit override
+  // FIX: validazione parseInt — accetta anche "-1" (illimitato) ma non NaN
   const saveLimitsOverride = useMutation({
     mutationFn: async (maxOrders: number | null) => {
+      if (maxOrders !== null && (!Number.isFinite(maxOrders) || !Number.isInteger(maxOrders))) {
+        throw new Error("Limite ordini deve essere intero (-1 = illimitato)");
+      }
+      if (maxOrders !== null && maxOrders < -1) {
+        throw new Error("Limite ordini non può essere < -1");
+      }
       const { error } = await supabase
         .from("company_billing_overrides" as never)
         .upsert(
@@ -193,7 +502,24 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.billingOverrides.byCompany(companyId), "_limits"] });
       toast.success("Limite ordini personalizzato salvato");
     },
-    onError: (e) => toast.error("Errore: " + e.message),
+    onError: (e: Error) => toast.error("Errore: " + e.message),
+  });
+
+  // Reset override per servizio (DELETE riga billing_overrides)
+  const removeServiceOverrideMutation = useMutation({
+    mutationFn: async (service: string) => {
+      const { error } = await supabase
+        .from("company_billing_overrides" as never)
+        .delete()
+        .eq("company_id", companyId)
+        .eq("service" as never, service as never);
+      if (error) throw error;
+    },
+    onSuccess: (_data, service) => {
+      toast.success(`Override ${service} rimosso`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.billingOverrides.byCompany(companyId) });
+    },
+    onError: (e: Error) => toast.error("Errore reset: " + e.message),
   });
 
   // Fetch credit balances
@@ -223,20 +549,42 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   // Fetch adjustments history with pagination
   const { data: adjustments, isLoading: adjustmentsLoading } = useQuery({
-    queryKey: [...queryKeys.admin.creditAdjustments(companyId), adjustmentsPage],
+    queryKey: [...queryKeys.admin.creditAdjustments(companyId), adjustmentsPage, adjustmentsServiceFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("admin_credit_adjustments" as never)
-        .select("*")
+        .select("*", { count: adjustmentsPage === 0 ? "exact" : "planned" })
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .range(adjustmentsPage * PAGE_SIZE, (adjustmentsPage + 1) * PAGE_SIZE - 1);
+      if (adjustmentsServiceFilter !== "all") {
+        q = q.eq("service" as never, adjustmentsServiceFilter as never);
+      }
+      const { data, error, count } = await q;
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{
-        id: string; service: string; amount_eur: number; reason: string; created_by: string; created_at: string;
-      }>;
+      return {
+        rows: (data ?? []) as unknown as Array<{
+          id: string; service: string; amount_eur: number; reason: string; created_by: string; created_at: string;
+        }>,
+        total: count ?? 0,
+      };
     },
   });
+
+  // FIX: search client-side dentro la pagina corrente
+  const filteredAdjustments = useMemo(() => {
+    const q = adjustmentsSearch.trim().toLowerCase();
+    if (!q) return adjustments?.rows ?? [];
+    return (adjustments?.rows ?? []).filter(
+      (a) =>
+        (a.reason ?? "").toLowerCase().includes(q) ||
+        (a.service ?? "").toLowerCase().includes(q),
+    );
+  }, [adjustments?.rows, adjustmentsSearch]);
+
+  // FIX: pagination corretta usando count (non length === PAGE_SIZE che dà falso positivo)
+  const adjustmentsTotal = adjustments?.total ?? 0;
+  const adjustmentsTotalPages = Math.max(1, Math.ceil(adjustmentsTotal / PAGE_SIZE));
 
   // Upsert override
   const upsertOverride = useMutation({
@@ -253,7 +601,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       queryClient.invalidateQueries({ queryKey: queryKeys.billingOverrides.byCompany(companyId) });
       toast.success("Override salvato");
     },
-    onError: (e) => toast.error("Errore: " + e.message),
+    onError: (e: Error) => toast.error("Errore: " + e.message),
   });
 
   // Adjust credits via edge function
@@ -262,6 +610,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       const amount = parseFloat(adjustAmount);
       if (!amount || amount <= 0) throw new Error("Importo non valido");
       if (!adjustReason.trim()) throw new Error("Motivazione obbligatoria");
+      if (!adjustDialog.service) throw new Error("Servizio non selezionato");
 
       const finalAmount = adjustDialog.direction === "deduct" ? -amount : amount;
 
@@ -282,15 +631,25 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       setAdjustDialog({ open: false, service: "", direction: "add" });
       setAdjustAmount("");
       setAdjustReason("");
+      // FIX: reset alla prima pagina per vedere il nuovo record + invalidate complete
+      setAdjustmentsPage(0);
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.emailCredits(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.aiCreditsAdmin(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.waCredits(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.creditAdjustments(companyId) });
+      // Anche storico transazioni unificato (se montato)
+      queryClient.invalidateQueries({ queryKey: ["admin-credit-transactions-unified", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-credit-transactions-kpi", companyId] });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
-  const getOverride = (service: string) => overrides?.find((o) => o.service === service);
+  // FIX: getOverride memoizzato (Map by service) per evitare Array.find ad ogni render
+  const overrideByService = useMemo(() => {
+    const map = new Map<string, BillingOverride>();
+    (overrides ?? []).forEach((o) => map.set(o.service, o));
+    return map;
+  }, [overrides]);
 
   const getBalance = (service: string) => {
     if (service === "email") return emailCredits?.balance_eur ?? 0;
@@ -308,16 +667,16 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   // Allarme: saldo negativo su qualsiasi servizio
   const hasNegativeBalance = CREDIT_SERVICES.some((s) => getBalance(s) < 0);
 
-  // Export CSV degli aggiustamenti correnti
+  // Export CSV degli aggiustamenti correnti (filtrati)
   const handleExportAdjustmentsCsv = () => {
-    if (!adjustments || adjustments.length === 0) return;
+    if (filteredAdjustments.length === 0) return;
     const escape = (v: string | number | null | undefined) => {
       if (v === null || v === undefined) return "";
       const s = String(v);
       return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const headers = ["Data", "Servizio", "Importo (EUR)", "Motivazione", "Creato da"];
-    const rows = adjustments.map((a) =>
+    const rows = filteredAdjustments.map((a) =>
       [
         escape(format(new Date(a.created_at), "yyyy-MM-dd HH:mm")),
         escape(a.service),
@@ -334,7 +693,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     a.download = `credit-adjustments-${companyId.slice(0, 8)}-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`Esportati ${adjustments.length} aggiustamenti`);
+    toast.success(`Esportati ${filteredAdjustments.length} aggiustamenti`);
   };
 
   if (overridesLoading) {
@@ -399,102 +758,50 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
           )}
         </CardContent>
       </Card>
+
       {/* Service Controls */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Settings2 className="h-4 w-4" /> Controllo Servizi
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs">
+                  Per ogni servizio puoi: abilitare/disabilitare (lock immediato),
+                  marcare come gratuito (no fatturazione), customizzare prezzo
+                  unitario, markup e fee mensile. Le modifiche numeriche richiedono
+                  click "Salva" per evitare race condition.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {SERVICES.map(({ key, label, icon: Icon }) => {
-            const override = getOverride(key);
-            const isEnabled = override?.is_enabled ?? true;
-            const isFree = override?.is_free ?? false;
-
+          {SERVICES.map(({ key, label, icon }) => {
+            const override = overrideByService.get(key) ?? null;
             return (
-              <div key={key} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium text-sm">{label}</span>
-                    {!isEnabled && <Badge variant="destructive" className="text-xs">Disabilitato</Badge>}
-                    {isFree && <Badge className="text-xs bg-emerald-100 text-emerald-700">Gratuito</Badge>}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground">Abilitato</Label>
-                      <Switch
-                        checked={isEnabled}
-                        onCheckedChange={(checked) => upsertOverride.mutate({ service: key, is_enabled: checked })}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground">Gratuito</Label>
-                      <Switch
-                        checked={isFree}
-                        onCheckedChange={(checked) => upsertOverride.mutate({ service: key, is_free: checked })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Prezzo unitario (€)</Label>
-                    <Input
-                      type="number"
-                      step="0.0001"
-                      placeholder="Default"
-                      defaultValue={override?.price_per_unit_eur ?? ""}
-                      onBlur={(e) => {
-                        const val = e.target.value ? parseFloat(e.target.value) : null;
-                        upsertOverride.mutate({ service: key, price_per_unit_eur: val });
-                      }}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Markup (×)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      placeholder="Default"
-                      defaultValue={override?.markup_multiplier ?? ""}
-                      onBlur={(e) => {
-                        const val = e.target.value ? parseFloat(e.target.value) : null;
-                        upsertOverride.mutate({ service: key, markup_multiplier: val });
-                      }}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Fee mensile (€)</Label>
-                    <Input
-                      type="number"
-                      step="1"
-                      placeholder="Default"
-                      defaultValue={override?.monthly_fee_eur ?? ""}
-                      onBlur={(e) => {
-                        const val = e.target.value ? parseFloat(e.target.value) : null;
-                        upsertOverride.mutate({ service: key, monthly_fee_eur: val });
-                      }}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Note interne</Label>
-                    <Input
-                      placeholder="—"
-                      defaultValue={override?.custom_notes ?? ""}
-                      onBlur={(e) => {
-                        upsertOverride.mutate({ service: key, custom_notes: e.target.value || null });
-                      }}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-              </div>
+              <ServiceControlRow
+                key={key}
+                service={key}
+                label={label}
+                icon={icon}
+                override={override}
+                planDefaults={{
+                  price_per_unit_eur: null, // TODO: caricare default dal piano se serve
+                  markup_multiplier: null,
+                  monthly_fee_eur: null,
+                }}
+                onSave={(payload) => upsertOverride.mutate(payload)}
+                onReset={() => removeServiceOverrideMutation.mutate(key)}
+                isSaving={upsertOverride.isPending}
+                isResetting={
+                  removeServiceOverrideMutation.isPending &&
+                  removeServiceOverrideMutation.variables === key
+                }
+              />
             );
           })}
         </CardContent>
@@ -508,17 +815,17 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-3 max-w-sm">
-            <div className="flex-1 space-y-1.5">
+          <div className="flex items-end gap-3 max-w-sm flex-wrap">
+            <div className="flex-1 space-y-1.5 min-w-[180px]">
               <Label className="text-xs text-muted-foreground">
                 Limite ordini personalizzato
-                <span className="ml-1 text-xs text-muted-foreground/60">(vuoto = usa il limite del piano)</span>
+                <span className="ml-1 text-xs text-muted-foreground/60">(vuoto = piano)</span>
               </Label>
               <Input
                 type="number"
-                min="0"
+                min="-1"
                 step="1"
-                placeholder="Es: 500"
+                placeholder="Es: 500 (-1 = ∞)"
                 value={customMaxOrders}
                 onChange={(e) => setCustomMaxOrders(e.target.value)}
                 className="h-9 text-sm"
@@ -528,7 +835,17 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
               size="sm"
               disabled={saveLimitsOverride.isPending}
               onClick={() => {
-                const val = customMaxOrders.trim() ? parseInt(customMaxOrders) : null;
+                // FIX: parseInt safe — rifiuta valori non numerici e NaN
+                const trimmed = customMaxOrders.trim();
+                if (!trimmed) {
+                  saveLimitsOverride.mutate(null);
+                  return;
+                }
+                const val = parseInt(trimmed, 10);
+                if (!Number.isFinite(val) || isNaN(val)) {
+                  toast.error("Inserisci un numero intero valido");
+                  return;
+                }
                 saveLimitsOverride.mutate(val);
               }}
               className="h-9"
@@ -542,32 +859,54 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                 variant="outline"
                 className="h-9"
                 disabled={saveLimitsOverride.isPending}
-                onClick={() => { setCustomMaxOrders(""); saveLimitsOverride.mutate(null); }}
+                onClick={() => {
+                  setCustomMaxOrders("");
+                  saveLimitsOverride.mutate(null);
+                }}
               >
+                <X className="h-3 w-3 mr-1" />
                 Rimuovi
               </Button>
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Sovrascrive il limite ordini del piano per questa azienda. Impostare a -1 per illimitato.
+            Sovrascrive il limite ordini del piano. Imposta a <code>-1</code> per illimitato.
           </p>
         </CardContent>
       </Card>
 
       {/* Plan Pricing Override */}
       {permissions.pricing_override && (
-        <Card className="border-amber-200 bg-amber-50/30">
+        <Card className="border-amber-200 bg-amber-50/30 dark:border-amber-900 dark:bg-amber-950/20">
           <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-amber-600" />
-              Override Prezzo Piano
-            </CardTitle>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-amber-600" />
+                Override Prezzo Piano
+              </CardTitle>
+              {planOverride?.custom_plan_price_eur != null && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-destructive hover:text-destructive"
+                  disabled={removeOverrideMutation.isPending}
+                  onClick={() => removeOverrideMutation.mutate()}
+                >
+                  {removeOverrideMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <X className="h-3 w-3 mr-1" />
+                  )}
+                  Rimuovi override
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {planOverride?.custom_plan_price_eur != null && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-amber-700 border-amber-400">
-                  Override attivo: €{planOverride.custom_plan_price_eur}/mese
+                  Override attivo: {formatCurrency(planOverride.custom_plan_price_eur)}/mese
                 </Badge>
                 {planOverride.override_expires_at && (
                   <span className="text-xs text-muted-foreground">
@@ -581,9 +920,11 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                 <Label className="text-xs">Prezzo mensile personalizzato (€)</Label>
                 <Input
                   type="number"
+                  min="0"
+                  step="0.01"
                   value={overridePrice}
                   onChange={(e) => setOverridePrice(e.target.value)}
-                  placeholder={String(planOverride?.custom_plan_price_eur ?? '')}
+                  placeholder={planOverride?.custom_plan_price_eur?.toString() ?? "Es. 49.00"}
                 />
               </div>
               <div>
@@ -592,6 +933,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                   type="date"
                   value={overrideExpiry}
                   onChange={(e) => setOverrideExpiry(e.target.value)}
+                  min={new Date().toISOString().slice(0, 10)}
                 />
               </div>
             </div>
@@ -607,13 +949,12 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             <Button
               size="sm"
               onClick={() => saveOverrideMutation.mutate()}
-              disabled={saveOverrideMutation.isPending}
+              disabled={saveOverrideMutation.isPending || !overridePrice.trim()}
             >
-              {saveOverrideMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                'Salva Override'
+              {saveOverrideMutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
               )}
+              Salva Override
             </Button>
           </CardContent>
         </Card>
@@ -631,22 +972,46 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             {CREDIT_SERVICES.map((svc) => {
               const labels: Record<string, string> = { email: "Email", ai_agents: "AI", whatsapp: "WhatsApp" };
               const balance = getBalance(svc);
+              const isNegative = balance < 0;
               return (
-                <div key={svc} className="border rounded-lg p-4 space-y-3">
+                <div
+                  key={svc}
+                  className={cn(
+                    "border rounded-lg p-4 space-y-3",
+                    isNegative && "border-destructive bg-destructive/5",
+                  )}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">{labels[svc]}</span>
-                    <span className="text-lg font-bold">{formatCurrency(balance)}</span>
+                    <span
+                      className={cn(
+                        "text-lg font-bold",
+                        isNegative && "text-destructive",
+                      )}
+                    >
+                      {formatCurrency(balance)}
+                    </span>
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      size="sm" variant="outline" className="flex-1"
-                      onClick={() => setAdjustDialog({ open: true, service: svc, direction: "add" })}
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() =>
+                        setAdjustDialog({ open: true, service: svc, direction: "add" })
+                      }
                     >
                       <Plus className="h-3 w-3 mr-1" /> Aggiungi
                     </Button>
                     <Button
-                      size="sm" variant="outline" className="flex-1"
-                      onClick={() => setAdjustDialog({ open: true, service: svc, direction: "deduct" })}
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={balance <= 0}
+                      title={balance <= 0 ? "Saldo a zero, nulla da dedurre" : undefined}
+                      onClick={() =>
+                        setAdjustDialog({ open: true, service: svc, direction: "deduct" })
+                      }
                     >
                       <Minus className="h-3 w-3 mr-1" /> Deduci
                     </Button>
@@ -658,20 +1023,67 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         </CardContent>
       </Card>
 
-      {/* Adjustments History */}
+      {/* Adjustments History — search + filter + export */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-base">Storico Aggiustamenti</CardTitle>
-            {adjustments && adjustments.length > 0 && (
+            <div className="flex items-center gap-2">
+              {filteredAdjustments.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportAdjustmentsCsv}
+                  className="h-8 text-xs"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  CSV
+                </Button>
+              )}
+            </div>
+          </div>
+          {/* Toolbar filtri */}
+          <div className="flex items-center gap-2 flex-wrap pt-2">
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Cerca motivo o servizio..."
+                value={adjustmentsSearch}
+                onChange={(e) => setAdjustmentsSearch(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+            <Select
+              value={adjustmentsServiceFilter}
+              onValueChange={(v) => {
+                setAdjustmentsServiceFilter(v);
+                setAdjustmentsPage(0);
+              }}
+            >
+              <SelectTrigger className="w-36 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i servizi</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="ai_agents">AI Agents</SelectItem>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                <SelectItem value="render">Render</SelectItem>
+              </SelectContent>
+            </Select>
+            {(adjustmentsSearch || adjustmentsServiceFilter !== "all") && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                onClick={handleExportAdjustmentsCsv}
                 className="h-8 text-xs"
+                onClick={() => {
+                  setAdjustmentsSearch("");
+                  setAdjustmentsServiceFilter("all");
+                  setAdjustmentsPage(0);
+                }}
               >
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                CSV
+                <Filter className="h-3 w-3 mr-1" />
+                Reset
               </Button>
             )}
           </div>
@@ -679,50 +1091,98 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         <CardContent>
           {adjustmentsLoading ? (
             <Skeleton className="h-32" />
-          ) : !adjustments || adjustments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">Nessun aggiustamento registrato.</p>
+          ) : !adjustments || adjustmentsTotal === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Nessun aggiustamento registrato.
+            </p>
+          ) : filteredAdjustments.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Nessun aggiustamento corrisponde a "{adjustmentsSearch}".
+            </p>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Servizio</TableHead>
-                    <TableHead>Importo</TableHead>
-                    <TableHead>Motivazione</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {adjustments.map((adj) => (
-                    <TableRow key={adj.id}>
-                      <TableCell className="font-mono text-xs">
-                        {format(new Date(adj.created_at), "dd/MM/yy HH:mm", { locale: it })}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-xs">{adj.service}</Badge>
-                      </TableCell>
-                      <TableCell className={`font-mono font-semibold ${adj.amount_eur >= 0 ? "text-emerald-600" : "text-destructive"}`}>
-                        {adj.amount_eur >= 0 ? "+" : ""}{formatCurrency(adj.amount_eur)}
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[200px] truncate">{adj.reason}</TableCell>
+            <>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Servizio</TableHead>
+                      <TableHead>Importo</TableHead>
+                      <TableHead>Motivazione</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          {adjustments?.length === PAGE_SIZE && (
-            <div className="flex justify-center pt-3">
-              <Button variant="outline" size="sm" onClick={() => setAdjustmentsPage((p) => p + 1)}>
-                Carica altri
-              </Button>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAdjustments.map((adj) => (
+                      <TableRow key={adj.id}>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">
+                          {format(new Date(adj.created_at), "dd/MM/yy HH:mm", { locale: it })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs">{adj.service}</Badge>
+                        </TableCell>
+                        <TableCell
+                          className={`font-mono font-semibold ${
+                            adj.amount_eur >= 0 ? "text-emerald-600" : "text-destructive"
+                          }`}
+                        >
+                          {adj.amount_eur >= 0 ? "+" : ""}
+                          {formatCurrency(adj.amount_eur)}
+                        </TableCell>
+                        <TableCell
+                          className="text-xs max-w-[260px] truncate"
+                          title={adj.reason}
+                        >
+                          {adj.reason}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {/* FIX: pagination basata su `total` (non length === PAGE_SIZE che dà falso positivo) */}
+              {adjustmentsTotalPages > 1 && (
+                <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
+                  <span>
+                    {adjustmentsSearch
+                      ? `${filteredAdjustments.length} di ${adjustments.rows.length} (filtrate)`
+                      : `${adjustmentsTotal} aggiustamenti`}{" "}
+                    · Pagina {adjustmentsPage + 1} di {adjustmentsTotalPages}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      disabled={adjustmentsPage === 0}
+                      onClick={() => setAdjustmentsPage((p) => Math.max(0, p - 1))}
+                    >
+                      Precedente
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      disabled={adjustmentsPage >= adjustmentsTotalPages - 1}
+                      onClick={() => setAdjustmentsPage((p) => p + 1)}
+                    >
+                      Successiva
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
 
       {/* Adjust Dialog */}
-      <Dialog open={adjustDialog.open} onOpenChange={(open) => !open && setAdjustDialog({ open: false, service: "", direction: "add" })}>
+      <Dialog
+        open={adjustDialog.open}
+        onOpenChange={(open) => {
+          if (!open && adjustCredits.isPending) return; // blocca chiusura durante mutation
+          if (!open) setAdjustDialog({ open: false, service: "", direction: "add" });
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -730,6 +1190,11 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             </DialogTitle>
             <DialogDescription>
               Inserisci l'importo e una motivazione obbligatoria.
+              {adjustDialog.direction === "deduct" && (
+                <span className="block mt-1 text-xs text-amber-600">
+                  ⚠️ Il saldo non potrà scendere sotto 0 €.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -743,7 +1208,6 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                 onChange={(e) => setAdjustAmount(e.target.value)}
                 placeholder="0.00"
               />
-              {/* Quick presets — comodo per aggiustamenti tipici (bonus, rimborso) */}
               <div className="flex gap-1.5 flex-wrap">
                 {[10, 25, 50, 100, 500].map((preset) => (
                   <Button
@@ -767,7 +1231,6 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                 placeholder="Es: Bonus onboarding, Rimborso per disservizio..."
                 rows={3}
               />
-              {/* Reason presets */}
               <div className="flex gap-1.5 flex-wrap">
                 {[
                   "Bonus onboarding",
@@ -790,7 +1253,13 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAdjustDialog({ open: false, service: "", direction: "add" })}>Annulla</Button>
+            <Button
+              variant="outline"
+              disabled={adjustCredits.isPending}
+              onClick={() => setAdjustDialog({ open: false, service: "", direction: "add" })}
+            >
+              Annulla
+            </Button>
             <Button
               onClick={() => adjustCredits.mutate()}
               disabled={adjustCredits.isPending || !adjustAmount || !adjustReason.trim()}
