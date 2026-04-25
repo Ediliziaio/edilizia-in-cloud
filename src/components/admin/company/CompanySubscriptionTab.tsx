@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -540,6 +540,17 @@ function GiftPlanButton({
   const [reason, setReason] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
 
+  // Sync su apertura dialog: prefilla con piano corrente (utile se l'utente
+  // regala più volte di seguito — senza questo lo state restava al valore
+  // della prima apertura). Reason e expiresAt invece partono sempre vuoti.
+  useEffect(() => {
+    if (open) {
+      setSelectedPlanId(currentPlanId ?? "");
+      setReason("");
+      setExpiresAt("");
+    }
+  }, [open, currentPlanId]);
+
   // Plans fetch lazy: solo quando il dialog si apre
   const { data: plans = [], isLoading: plansLoading } = useQuery({
     queryKey: ["gift-plan-list"],
@@ -591,13 +602,16 @@ function GiftPlanButton({
       if (updateErr) throw new Error("Errore assegnazione piano: " + updateErr.message);
 
       // 2) INSERT subscription_logs (best-effort, non blocca il flow)
+      // Includiamo performed_by e previous_plan_id per audit trail completo
       const { error: logErr } = await supabase
         .from("subscription_logs")
         .insert({
           company_id: companyId,
           event_type: "plan_changed",
           plan_id: selectedPlanId,
+          previous_plan_id: currentPlanId ?? null,
           new_status: "active",
+          performed_by: user?.id ?? null,
           notes: `Piano regalato (comped). Motivo: ${reason.trim()}${
             expiresAt ? ` · Scadenza: ${expiresAt}` : ""
           }`,
@@ -676,6 +690,15 @@ function GiftPlanButton({
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
+          ) : plans.length === 0 ? (
+            // Edge case: nessun piano attivo configurato sulla piattaforma
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Nessun piano attivo configurato. Crea almeno un piano in{" "}
+                <strong>/admin/piani</strong> prima di regalare.
+              </AlertDescription>
+            </Alert>
           ) : (
             <div className="space-y-3">
               <div className="space-y-1.5">
