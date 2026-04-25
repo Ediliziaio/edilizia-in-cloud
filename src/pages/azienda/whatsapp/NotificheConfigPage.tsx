@@ -4,6 +4,7 @@
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import {
   TRIGGER_LABELS,
   useToggleWATrigger,
@@ -60,8 +61,22 @@ const TRIGGER_DESCRIPTIONS: Record<NotificaKind, string> = {
 };
 
 export default function NotificheConfigPage() {
-  const { data: triggers, isLoading } = useWANotificheTriggers();
-  const { data: numbers } = useWhatsAppNumbers();
+  const {
+    data: triggers,
+    isLoading,
+    isError: triggersError,
+    error: triggersQueryError,
+    refetch: refetchTriggers,
+    isFetching: triggersFetching,
+  } = useWANotificheTriggers();
+  const {
+    data: numbers,
+    isLoading: numbersLoading,
+    isError: numbersError,
+    error: numbersQueryError,
+    refetch: refetchNumbers,
+    isFetching: numbersFetching,
+  } = useWhatsAppNumbers();
   const toggle = useToggleWATrigger();
   const patch = usePatchWATrigger();
   const upsert = useUpsertWATrigger();
@@ -78,10 +93,37 @@ export default function NotificheConfigPage() {
     return map;
   }, [triggers]);
 
-  if (isLoading) {
+  if (isLoading || numbersLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (triggersError || numbersError) {
+    const message = triggersQueryError?.message || numbersQueryError?.message || "Errore nel caricamento delle notifiche WhatsApp.";
+    return (
+      <div className="p-6">
+        <Card className="p-6 border-destructive/20 bg-destructive/5">
+          <div className="flex flex-col items-center text-center">
+            <AlertTriangle className="h-10 w-10 text-destructive" />
+            <h3 className="mt-3 font-semibold">Notifiche non caricate</h3>
+            <p className="mt-1 max-w-lg text-sm text-muted-foreground">{message}</p>
+            <Button
+              className="mt-4"
+              variant="outline"
+              onClick={() => {
+                void refetchTriggers();
+                void refetchNumbers();
+              }}
+              disabled={triggersFetching || numbersFetching}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${triggersFetching || numbersFetching ? "animate-spin" : ""}`} />
+              Riprova
+            </Button>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -259,7 +301,7 @@ export default function NotificheConfigPage() {
           <p>• Un cron gira ogni 15 minuti e valuta le condizioni di ogni trigger attivo.</p>
           <p>• Anti-spam: la stessa notifica per lo stesso soggetto è inviata al massimo 1 volta ogni 24h.</p>
           <p>• <b>Cron-based</b> (fattura_scaduta, ddt_pendente, margine_basso, approvazione_pendente): valutati a intervalli.</p>
-          <p>• <b>Event-driven</b> (preventivo_inviato, sal_raggiunto, fattura_emessa): firati dai DB trigger su INSERT/UPDATE.</p>
+          <p>• <b>Event-driven</b> (preventivo_inviato, sal_raggiunto, fattura_emessa): attivati dai DB trigger su INSERT/UPDATE.</p>
           <p>• Per iniziare serve: (1) numero con purpose=notifiche, (2) template UTILITY approvato su Meta, (3) trigger abilitato qui sopra.</p>
         </CardContent>
       </Card>

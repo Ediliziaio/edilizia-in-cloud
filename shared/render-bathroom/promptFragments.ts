@@ -256,6 +256,8 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not render a freestanding bathtub as a tiny bowl, mini tub or undersized decorative object",
   "do not render a floor-standing WC, monobloc WC or exposed cistern when a wall-hung WC is selected",
   "do not omit the selected wall flush plate when a concealed-cistern WC is selected",
+  "do not duplicate the WC or add a second toilet when the user requested a replacement",
+  "do not place the selected flush plate on a different wall or away from the replacement WC",
 ];
 
 export const DEFAULT_QUALITY_DIRECTIVES = [

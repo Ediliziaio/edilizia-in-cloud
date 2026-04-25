@@ -19,7 +19,8 @@ type RenderSessionTable =
   | "render_tetto_sessions"
   | "render_stanza_sessions"
   | "render_pergole_sessions"
-  | "render_piscine_sessions";
+  | "render_piscine_sessions"
+  | "render_technical_sessions";
 
 type RenderLinkUpdateClient = {
   from: (table: RenderSessionTable) => {

@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw, XCircle } from "lucide-react";
 import {
   useCancelBroadcast,
   useWABroadcast,
@@ -48,14 +48,32 @@ function statusColor(status: string | null): string {
 
 export default function BroadcastDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: bc, isLoading } = useWABroadcast(id);
-  const { data: recipients } = useWABroadcastRecipients(id);
+  const { data: bc, isLoading, isError, error, refetch, isFetching } = useWABroadcast(id);
+  const { data: recipients, isError: recipientsError } = useWABroadcastRecipients(id);
   const cancel = useCancelBroadcast();
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-6">
+        <Card className="p-8 text-center border-destructive/20 bg-destructive/5">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
+          <h1 className="font-semibold">Campagna non caricata</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {(error as Error)?.message || "Non riesco a caricare questa campagna."}
+          </p>
+          <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Riprova
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -138,7 +156,9 @@ export default function BroadcastDetailPage() {
         </CardHeader>
         <CardContent>
           {(recipients?.length ?? 0) === 0 ? (
-            <p className="text-sm text-muted-foreground">Nessun destinatario.</p>
+            <p className="text-sm text-muted-foreground">
+              {recipientsError ? "Destinatari non caricati. Riprova aggiornando la pagina." : "Nessun destinatario."}
+            </p>
           ) : (
             <div className="overflow-x-auto max-h-96">
               <Table>

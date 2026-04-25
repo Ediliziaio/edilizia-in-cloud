@@ -3,7 +3,7 @@
 // Step 2: inserisci dati Meta (numero, phone_id, waba, token, display_name)
 // Step 3: riepilogo + conferma
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +50,12 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
 
   const connect = useConnectWANumber();
 
+  useEffect(() => {
+    if (!open) return;
+    setPurpose(initialPurpose ?? null);
+    setStep(initialPurpose ? 2 : 1);
+  }, [open, initialPurpose]);
+
   const reset = () => {
     setStep(1);
     setPurpose(null);
@@ -61,13 +67,13 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
   };
 
   const canNext = (): boolean => {
-    if (step === 1) return purpose !== null;
-    if (step === 2) return !!(phoneNumber && phoneNumberId && wabaId && accessToken);
+    if (step === 1) return purpose !== null && !disabledPurposes.includes(purpose);
+    if (step === 2) return !!(purpose && !disabledPurposes.includes(purpose) && phoneNumber && phoneNumberId && wabaId && accessToken);
     return true;
   };
 
   const submit = () => {
-    if (!purpose) return;
+    if (!purpose || disabledPurposes.includes(purpose)) return;
     connect.mutate(
       {
         purpose,

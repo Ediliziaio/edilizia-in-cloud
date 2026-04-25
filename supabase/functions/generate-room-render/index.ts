@@ -8,6 +8,7 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { runOpenAIImageEditWithFallback } from "../_shared/openaiImageEdit.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
 
@@ -62,6 +63,35 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function acceptedRenderResponse(sessionId: string) {
+  return jsonResponse({
+    success: true,
+    accepted: true,
+    session_id: sessionId,
+    status: "processing",
+  }, 202);
+}
+
+function runInBackground(promise: Promise<unknown>) {
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+    EdgeRuntime.waitUntil(promise);
+    return;
+  }
+
+  promise.catch((err) => {
+    console.error("[generate-room-render] background fallback error:", err);
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -97,6 +127,20 @@ Deno.serve(async (req: Request) => {
     );
     if (!allowed) {
       throw new Error("forbidden: accesso negato alla sessione render stanza");
+    }
+
+    const existingResults = Array.isArray(session.result_urls) ? session.result_urls : [];
+    if (session.status === "completed" && existingResults.length) {
+      return jsonResponse({
+        success: true,
+        session_id,
+        result_url: existingResults[0],
+        result_urls: existingResults,
+        already_completed: true,
+      });
+    }
+    if (session.status === "processing") {
+      return acceptedRenderResponse(session_id);
     }
 
     // FIX P2.1 + P3.1: credito deduct atomico PRE-flight con audit ledger.
@@ -148,6 +192,7 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", session_id);
 
+    const renderJob = (async () => {
     const prepared = await prepareInputImage({
       supabase,
       bucket: "stanza-originals",
@@ -201,37 +246,28 @@ Deno.serve(async (req: Request) => {
 
     // ── Call provider ────────────────────────────────────────────────────────
     let resultImageUrl: string | null = null;
+    let modelUsed = provider.model || "";
 
     if (provider.provider_key === "openai") {
-      // OpenAI Images Edit / gpt-image-1
-      const openaiResp = await fetchWithRetry("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: await (async () => {
-          // Download original image
-          const imgResp = await fetch(imageUrl);
-          const imgBlob = await imgResp.blob();
-
-          const formData = new FormData();
-          formData.append("image", imgBlob, "room.png");
-          formData.append("prompt", fullPrompt);
-          formData.append("model", provider.model || "gpt-image-1");
-          formData.append("n", "1");
-          formData.append("quality", provider.quality || "high");
-          const size = pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024";
-          formData.append("size", size);
-          return formData;
-        })(),
+      const imgResp = await fetch(imageUrl);
+      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
+      const imgBlob = await imgResp.blob();
+      const size = pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024";
+      const openaiResult = await runOpenAIImageEditWithFallback({
+        apiKey,
+        prompt: fullPrompt,
+        image: imgBlob,
+        filename: "room.png",
+        size,
+        quality: provider.quality || "high",
+        configuredModel: provider.model || "gpt-image-1",
+        fetcher: fetchWithRetry,
       });
-
-      if (!openaiResp.ok) {
-        const errBody = await openaiResp.text();
-        throw new Error(`OpenAI API error: ${openaiResp.status} ${errBody}`);
+      modelUsed = openaiResult.modelUsed;
+      if (openaiResult.fallbackErrors.length > 0) {
+        console.warn("generate-room-render OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
       }
-
-      const openaiData = await openaiResp.json();
+      const openaiData = openaiResult.data as { data?: Array<{ b64_json?: string; url?: string }> };
 
       // Handle both b64_json and url response formats
       if (openaiData.data?.[0]?.b64_json) {
@@ -343,6 +379,10 @@ Deno.serve(async (req: Request) => {
         processing_completed_at: new Date().toISOString(),
         cost_real: provider.cost_real_per_render,
         cost_billed: provider.cost_billed_per_render,
+        config_snapshot: {
+          ...(session.config_snapshot || {}),
+          provider_model_used: modelUsed,
+        },
       })
       .eq("id", session_id);
 
@@ -364,6 +404,21 @@ Deno.serve(async (req: Request) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+    })().catch(async (jobErr: unknown) => {
+      const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
+      console.error("generate-room-render background error:", message);
+      await supabase
+        .from("render_stanza_sessions")
+        .update({
+          status: "failed",
+          error_message: message,
+          processing_completed_at: new Date().toISOString(),
+        })
+        .eq("id", session_id);
+    });
+
+    runInBackground(renderJob);
+    return acceptedRenderResponse(session_id);
   } catch (err: unknown) {
     if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : String(err);

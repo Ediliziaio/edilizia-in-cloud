@@ -200,10 +200,14 @@ describe("bathroom render pipeline", () => {
     expect(prompt.userPrompt.toLowerCase()).toContain("concealed in-wall cistern");
     expect(prompt.userPrompt.toLowerCase()).toContain("selected wall flush plate is mandatory");
     expect(prompt.userPrompt.toLowerCase()).toContain("matte black flush plate");
+    expect(prompt.userPrompt.toLowerCase()).toContain("do not add a second toilet");
+    expect(prompt.userPrompt.toLowerCase()).toContain("same wall plane above/behind that wc");
+    expect(prompt.userPrompt.toLowerCase()).toContain("one-for-one replacement in the existing sanitary zone");
     expect(prompt.userPrompt.toLowerCase()).toContain("no floor contact pedestal");
     expect(prompt.userPrompt.toLowerCase()).toContain("never an exposed old-style bulky tank");
     expect(prompt.negativePrompt.toLowerCase()).toContain("missing wall flush plate");
     expect(prompt.negativePrompt.toLowerCase()).toContain("floor-standing wc when wall-hung wc is selected");
+    expect(prompt.negativePrompt.toLowerCase()).toContain("duplicated wc");
     expect(prompt.validation.isValid).toBe(true);
   });
 

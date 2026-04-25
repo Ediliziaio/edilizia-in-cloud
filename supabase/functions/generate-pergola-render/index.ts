@@ -7,6 +7,11 @@ import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { prepareInputImage } from "../_shared/renderImage.ts";
+import {
+  openAIImageEditResultToDataUrl,
+  runOpenAIImageEditWithFallback,
+} from "../_shared/openaiImageEdit.ts";
 
 const PERGOLA_TYPE: Record<string, string> = {
   addossata: "wall-mounted pergola attached to the facade with a rear beam/ledger and front support posts",
@@ -268,6 +273,27 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+}
+
+function acceptedRenderResponse(sessionId: string) {
+  return jsonResponse({ success: true, accepted: true, session_id: sessionId, status: "processing" }, 202);
+}
+
+function runInBackground(promise: Promise<unknown>) {
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+    EdgeRuntime.waitUntil(promise);
+    return;
+  }
+  promise.catch((err) => console.error("[generate-pergola-render] background fallback error:", err));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
@@ -315,6 +341,20 @@ Deno.serve(async (req) => {
       });
     }
 
+    const existingResults = Array.isArray(session.result_urls) ? session.result_urls : [];
+    if (session.status === "completed" && existingResults.length) {
+      return jsonResponse({
+        success: true,
+        session_id,
+        result_url: existingResults[0],
+        result_urls: existingResults,
+        already_completed: true,
+      });
+    }
+    if (session.status === "processing") {
+      return acceptedRenderResponse(session_id);
+    }
+
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: session.company_id as string,
       sessionId: session_id,
@@ -335,11 +375,18 @@ Deno.serve(async (req) => {
       .update({ status: "processing", processing_started_at: new Date().toISOString() })
       .eq("id", session_id);
 
+    const renderJob = (async () => {
     const originalPath = session.original_photo_url as string;
     let imageUrl = originalPath;
     if (originalPath && !originalPath.startsWith("http")) {
-      const { data: signed } = await supabase.storage.from("pergole-originals").createSignedUrl(originalPath, 600);
-      if (signed?.signedUrl) imageUrl = signed.signedUrl;
+      const prepared = await prepareInputImage({
+        supabase,
+        bucket: "pergole-originals",
+        originalPath,
+        hintWidth: target_width ?? null,
+        hintHeight: target_height ?? null,
+      });
+      imageUrl = prepared.url;
     }
 
     const rawConfig = (config || (session.config as Record<string, unknown>) || {}) as Record<string, unknown>;
@@ -362,27 +409,29 @@ Deno.serve(async (req) => {
     if (!apiKey) throw new Error(`API key mancante per provider '${providerConfig.provider_key}'.`);
 
     let imageData: string | null = null;
+    let modelUsed = String(providerConfig.model || "");
 
     if (providerConfig.provider_key === "openai") {
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
+      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
       const imgBlob = await imgResp.blob();
-      const form = new FormData();
-      form.append("model", providerConfig.model);
-      form.append("prompt", finalProviderPrompt);
-      form.append("image[]", imgBlob, "photo.jpg");
-      form.append("n", "1");
-      form.append("size", resolveRenderSize(target_width, target_height));
-      form.append("response_format", "b64_json");
-
-      const resp = await fetchWithRetry("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: form,
+      const openaiResult = await runOpenAIImageEditWithFallback({
+        apiKey,
+        prompt: finalProviderPrompt,
+        image: imgBlob,
+        filename: "photo.jpg",
+        size: resolveRenderSize(target_width, target_height),
+        configuredModel: providerConfig.model,
+        fetcher: fetchWithRetry,
       });
-      if (!resp.ok) throw new Error(`OpenAI error ${resp.status}: ${(await resp.text()).substring(0, 300)}`);
-      const oaiData = await resp.json();
-      const b64 = oaiData.data?.[0]?.b64_json;
-      if (b64) imageData = `data:image/png;base64,${b64}`;
+      modelUsed = openaiResult.modelUsed;
+      if (openaiResult.fallbackErrors.length > 0) {
+        console.warn("[generate-pergola-render] OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
+      }
+      imageData = await openAIImageEditResultToDataUrl(
+        openaiResult.data,
+        (url, options = {}) => fetchWithTimeout(url, options, 30_000),
+      );
     } else if (providerConfig.provider_key === "gemini") {
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
       const imgBuffer = await imgResp.arrayBuffer();
@@ -440,6 +489,7 @@ Deno.serve(async (req) => {
         config_snapshot: {
           ...rawConfig,
           pergole_render_payload: promptPayload,
+          provider_model_used: modelUsed,
         },
         processing_completed_at: new Date().toISOString(),
       })
@@ -454,6 +504,17 @@ Deno.serve(async (req) => {
       status: 200,
       headers: { ...CORS, "Content-Type": "application/json" },
     });
+    })().catch(async (jobErr: unknown) => {
+      const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
+      console.error("[generate-pergola-render] background error:", msg);
+      await supabase
+        .from("render_pergole_sessions")
+        .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })
+        .eq("id", session_id);
+    });
+
+    runInBackground(renderJob);
+    return acceptedRenderResponse(session_id);
   } catch (err: unknown) {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);

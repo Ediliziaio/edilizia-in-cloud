@@ -144,6 +144,10 @@ const RenderStanzaHub = lazy(() => import("@/pages/azienda/RenderStanzaHub"));
 const RenderStanzaNew = lazy(() => import("@/pages/azienda/RenderStanzaNew"));
 const RenderStanzaGallery = lazy(() => import("@/pages/azienda/RenderStanzaGallery"));
 const RenderStanzaGalleryDetail = lazy(() => import("@/pages/azienda/RenderStanzaGalleryDetail"));
+const RenderTechnicalModuleHub = lazy(() => import("@/pages/azienda/RenderTechnicalModuleHub"));
+const RenderTechnicalModuleNew = lazy(() => import("@/pages/azienda/RenderTechnicalModuleNew"));
+const RenderTechnicalModuleGallery = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGallery"));
+const RenderTechnicalModuleGalleryDetail = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGalleryDetail"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
@@ -410,6 +414,26 @@ export function companyRoutes() {
         <Route path="render/stanza/new" element={<FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>} />
         <Route path="render/stanza/gallery" element={<FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>} />
         <Route path="render/stanza/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderStanzaGalleryDetail /></FeatureRoute>} />
+        <Route path="render/ristrutturazioni" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="ristrutturazioni" /></FeatureRoute>} />
+        <Route path="render/ristrutturazioni/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="ristrutturazioni" /></FeatureRoute>} />
+        <Route path="render/ristrutturazioni/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="ristrutturazioni" /></FeatureRoute>} />
+        <Route path="render/ristrutturazioni/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="ristrutturazioni" /></FeatureRoute>} />
+        <Route path="render/pavimenti-esterni" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="pavimenti-esterni" /></FeatureRoute>} />
+        <Route path="render/pavimenti-esterni/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="pavimenti-esterni" /></FeatureRoute>} />
+        <Route path="render/pavimenti-esterni/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="pavimenti-esterni" /></FeatureRoute>} />
+        <Route path="render/pavimenti-esterni/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="pavimenti-esterni" /></FeatureRoute>} />
+        <Route path="render/giardini" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="giardini" /></FeatureRoute>} />
+        <Route path="render/giardini/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="giardini" /></FeatureRoute>} />
+        <Route path="render/giardini/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="giardini" /></FeatureRoute>} />
+        <Route path="render/giardini/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="giardini" /></FeatureRoute>} />
+        <Route path="render/porte-blindate" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="porte-blindate" /></FeatureRoute>} />
+        <Route path="render/porte-blindate/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="porte-blindate" /></FeatureRoute>} />
+        <Route path="render/porte-blindate/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="porte-blindate" /></FeatureRoute>} />
+        <Route path="render/porte-blindate/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="porte-blindate" /></FeatureRoute>} />
+        <Route path="render/porte-interne" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="porte-interne" /></FeatureRoute>} />
+        <Route path="render/porte-interne/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="porte-interne" /></FeatureRoute>} />
+        <Route path="render/porte-interne/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="porte-interne" /></FeatureRoute>} />
+        <Route path="render/porte-interne/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="porte-interne" /></FeatureRoute>} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={<MarketingDashboard />} />

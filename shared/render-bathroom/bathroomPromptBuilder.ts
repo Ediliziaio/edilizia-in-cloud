@@ -181,10 +181,12 @@ ${describeVanitySpec(normalizedConfig)}`;
 ${describeSanitarySpec(normalizedConfig)}
 
 Wall-hung WC lock, when selected:
+- replace the photographed existing WC in its original sanitary zone; do not add a second toilet anywhere else in the room
 - the WC bowl must visibly float off the floor with a clean shadow gap underneath
 - no floor-standing pedestal, no monobloc base, no exposed ceramic tank, no old rectangular cistern behind the WC
 - the in-wall cistern must be hidden behind the finished wall
-- the selected wall flush plate is mandatory and must be visible on the wall above/behind the WC at realistic height, in the selected style and color
+- the selected wall flush plate is mandatory and must be visible on the same wall plane above/behind that WC at realistic height, in the selected style and color
+- the final image must contain exactly one WC unless the source already has multiple WCs and the user explicitly requested keeping them
 - align the WC and bidet as a coherent suspended sanitary set when bidet replacement is selected`;
 
   blocks.H = `[BLOCK H – WALL TILES SPECIFICATION]
@@ -269,7 +271,8 @@ Image lock:
 - 120x240 means a real 120 cm by 240 cm slab: do not downscale it into 60x60, 30x60, medium square modules, or a decorative grid; one 240 cm side should visually approach floor-to-ceiling height on bathroom walls where feasible
 - bathtub replacements must keep full adult product scale: never render a tiny freestanding tub, basin-like tub, miniature bowl, or undersized prop
 - if a wall-hung WC is selected, render a concealed in-wall cistern with the selected visible compact wall flush plate and never an exposed old-style bulky tank
-- if a flush plate style/color is selected, it must be visible as a real wall-mounted plate, not omitted and not replaced by a cistern volume`;
+- if a flush plate style/color is selected, it must be visible as a real wall-mounted plate directly tied to the replacement WC, not omitted, not detached on another wall and not replaced by a cistern volume
+- sanitary replacement is a one-for-one replacement in the photographed sanitary position; never duplicate the toilet or place a new WC in a random back-wall position`;
 
   blocks.N = `[BLOCK N – NEGATIVE CONSTRAINTS]
 ${bullets(DEFAULT_NEGATIVE_CONSTRAINTS)}`;
@@ -307,7 +310,7 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "generic luxury bathroom, fantasy redesign, wrong room geometry, changed perspective, changed crop, different lighting, floating vanity, bathtub still visible after shower-only request, shower still visible after bathtub-only request, generic closed shower box instead of walk-in, non-target surfaces replaced, distorted tiles, dense small-tile grid despite selected large slabs, wrong tile scale, exposed bulky toilet tank when wall-hung WC is selected, external toilet cistern when wall-hung WC is selected, missing wall flush plate, omitted flush plate, floor-standing WC when wall-hung WC is selected, monobloc toilet, toilet pedestal under wall-hung WC, tiny bathtub, miniature freestanding tub, basin-like bathtub, bathtub scaled smaller than a real adult product, 60x60 grid when 120x240 slabs are selected, too many grout joints on slab surfaces, CGI look, illustration, stylized render",
+      "generic luxury bathroom, fantasy redesign, wrong room geometry, changed perspective, changed crop, different lighting, floating vanity, bathtub still visible after shower-only request, shower still visible after bathtub-only request, generic closed shower box instead of walk-in, non-target surfaces replaced, distorted tiles, dense small-tile grid despite selected large slabs, wrong tile scale, exposed bulky toilet tank when wall-hung WC is selected, external toilet cistern when wall-hung WC is selected, missing wall flush plate, omitted flush plate, detached flush plate away from WC, duplicated WC, second toilet, extra toilet, floor-standing WC when wall-hung WC is selected, monobloc toilet, toilet pedestal under wall-hung WC, tiny bathtub, miniature freestanding tub, basin-like bathtub, bathtub scaled smaller than a real adult product, 60x60 grid when 120x240 slabs are selected, too many grout joints on slab surfaces, CGI look, illustration, stylized render",
     promptVersion: "2.0.0",
     blocks,
     validation,

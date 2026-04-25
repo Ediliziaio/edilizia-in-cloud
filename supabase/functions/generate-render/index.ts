@@ -9,6 +9,7 @@ import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage, pickProviderSize } from "../_shared/renderImage.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
 import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder.ts";
 import type { WindowRenderConfig } from "../../../shared/render-window/types.ts";
 
@@ -423,14 +424,14 @@ Deno.serve(async (req) => {
           }
           form.append("n", "1");
           form.append("size", modelName === "dall-e-2" ? "1024x1024" : renderSize);
-          if (modelName !== "gpt-image-1") {
+          if (modelName === "dall-e-2") {
             form.append("response_format", "b64_json");
           }
           return form;
         };
 
-        const modelChain = [providerConfig.model];
-        if (providerConfig.model !== "dall-e-2") modelChain.push("dall-e-2");
+        const modelChain = [providerConfig.model || "gpt-image-1"];
+        if (modelChain[0] !== "dall-e-2") modelChain.push("dall-e-2");
 
         let resp: Response | null = null;
         let lastErr = "";
@@ -451,8 +452,7 @@ Deno.serve(async (req) => {
           }
           const txt = await r.text();
           lastErr = `OpenAI error ${r.status}: ${txt.substring(0, 300)}`;
-          const isModelAccessIssue =
-            txt.includes("invalid_value") && txt.includes("\"model\"");
+          const isModelAccessIssue = shouldFallbackOpenAIImageEdit(r.status, txt);
           if (!isModelAccessIssue) throw new Error(lastErr);
         }
         if (!resp) throw new Error(lastErr || "OpenAI: tutti i model tentati sono falliti");

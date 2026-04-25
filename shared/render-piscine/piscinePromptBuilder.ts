@@ -147,6 +147,8 @@ ${bullets(normalizedConfig.water_realism_rules)}`;
 ${bullets([
     envelope.groundPlaneRelation,
     envelope.houseAndPathRelation,
+    "insert exactly one coherent pool basin in the target footprint; do not duplicate pools, spas, water planes or extra basins unless explicitly selected",
+    "keep the selected pool footprint readable from a single perspective, with one continuous water level and one consistent coping perimeter",
     "no floating shell, no impossible excavation lines, no pool crossing non-target structures",
     "preserve trees and non-target landscape; adapt only pool footprint and immediate junctions",
     "poolside shadows, contact occlusion and water reflections must match original sun direction",

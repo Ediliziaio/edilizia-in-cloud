@@ -19,11 +19,13 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -36,7 +38,12 @@ interface PollState {
 
 // ── Polling intervals (exponential backoff) ───────────────────────────────────
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+const MAX_POLL_SEC = 420;
+
+function isIdleTimeoutMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderStanzaNew() {
@@ -109,11 +116,12 @@ export default function RenderStanzaNew() {
       // 1. Upload foto
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("stanza-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "stanza-originals",
+        path,
+        file: photo,
+      });
+      setPhotoPath(storagePath);
 
       // 2. Crea sessione (status: pending)
       const { data: sess, error: sessErr } = await supabase
@@ -122,7 +130,7 @@ export default function RenderStanzaNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config: config,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -135,7 +143,7 @@ export default function RenderStanzaNew() {
 
       setStep(2);
     } catch (err) {
-      toast.error(String(err));
+      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
     } finally {
       setUploading(false);
     }
@@ -147,15 +155,23 @@ export default function RenderStanzaNew() {
     if (generating) return;
 
     setGenerating(true);
+    setResultUrls([]);
+    setSavedToGallery(false);
     setStep(3);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
+    try {
     // Update config on session
     await supabase
       .from("render_stanza_sessions")
-      .update({ config: config })
+      .update({
+        config: config,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
+      })
       .eq("id", sessionId);
 
     // Get image dimensions
@@ -170,6 +186,11 @@ export default function RenderStanzaNew() {
         targetHeight = img.naturalHeight || undefined;
       } catch { /* ignore */ }
     }
+
+    // Start visible timer/polling before invoking the edge function. The edge
+    // now accepts the job quickly, but this also protects the UI if the network
+    // request itself becomes slow.
+    startPolling(sessionId);
 
     // Invoke edge function
     const headers = await getEdgeFunctionAuthHeaders();
@@ -188,6 +209,11 @@ export default function RenderStanzaNew() {
         data: fnData,
         fallback: "Generazione fallita",
       });
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -201,6 +227,7 @@ export default function RenderStanzaNew() {
     // Sync response
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
+      stopPolling();
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-stanza-sessions", companyId] });
@@ -208,15 +235,34 @@ export default function RenderStanzaNew() {
       setStep(4);
       return;
     }
-
-    // Poll
-    startPolling(sessionId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
+      setGenerating(false);
+      setStep(2);
+      toast.error(msg || "Render fallito");
+    }
   }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
-  const startPolling = useCallback((sid: string) => {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+  function stopPolling() {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+    if (dotsIntervalRef.current) {
+      clearInterval(dotsIntervalRef.current);
+      dotsIntervalRef.current = null;
+    }
+  }
+
+  function startPolling(sid: string) {
+    stopPolling();
     pollCountRef.current = 0;
+    elapsedRef.current = 0;
 
     dotsIntervalRef.current = setInterval(() => {
       elapsedRef.current += 1;
@@ -238,14 +284,14 @@ export default function RenderStanzaNew() {
 
       const { data: sess } = await supabase
         .from("render_stanza_sessions")
-        .select("status, result_urls")
+        .select("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
-      const s = sess as { status: string; result_urls: string[] | null } | null;
+      const s = sess as { status: string; result_urls: string[] | null; error_message?: string | null } | null;
 
       if (s?.status === "completed" && s.result_urls?.length) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setResultUrls(s.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-stanza-sessions", companyId] });
@@ -255,9 +301,9 @@ export default function RenderStanzaNew() {
       }
 
       if (s?.status === "failed") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
-        toast.error("Render fallito. Riprova.");
+        toast.error(s.error_message || "Render fallito. Riprova.");
         setStep(2);
         return;
       }
@@ -270,7 +316,7 @@ export default function RenderStanzaNew() {
     };
 
     poll();
-  }, [companyId, queryClient]);
+  }
 
   // ── Save to gallery ─────────────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
@@ -530,10 +576,10 @@ export default function RenderStanzaNew() {
                   L&apos;AI sta trasformando la stanza con il nuovo design
                 </p>
                 <p className="text-xs text-muted-foreground mt-3">
-                  Tempo trascorso: {pollState.elapsedSec}s &middot; Puo richiedere 30-90 secondi
+                  Tempo trascorso: {pollState.elapsedSec}s &middot; Puo richiedere 1-4 minuti
                 </p>
               </div>
-              <Progress value={Math.min((pollState.elapsedSec / 90) * 100, 95)} className="w-full h-2" />
+              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="w-full h-2" />
             </CardContent>
           </Card>
 
@@ -642,23 +688,15 @@ export default function RenderStanzaNew() {
 
           <Separator />
 
-          {/* Config summary */}
-          <Card className="bg-muted/30">
-            <CardContent className="py-3 space-y-1">
-              <p className="text-xs font-semibold text-muted-foreground">Configurazione applicata</p>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                <Badge variant="outline" className="text-xs capitalize">
-                  {config.tipo_stanza.replace(/_/g, " ")}
-                </Badge>
-                <Badge variant="outline" className="text-xs capitalize">
-                  Stile: {config.stile_target.replace(/_/g, " ")}
-                </Badge>
-                <Badge variant="outline" className="text-xs capitalize">
-                  {config.intensita}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante stanza"
+          />
 
           <div className="flex gap-3">
             <Button

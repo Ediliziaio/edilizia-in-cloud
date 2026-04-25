@@ -4,6 +4,7 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
+import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
 import { buildFacciataPrompt } from "../../../shared/render-facciata/facciataPromptBuilder.ts";
 import { buildFacciataRenderConfig } from "../../../shared/render-facciata/facciataRenderConfig.ts";
 import { normalizeFacciataSceneAnalysis } from "../../../shared/render-facciata/facciataSceneAnalysis.ts";
@@ -474,7 +475,7 @@ async function renderWithProvider(params: {
 
       const errorText = await candidate.text();
       lastError = `OpenAI error ${candidate.status}: ${errorText.substring(0, 300)}`;
-      const isModelAccessIssue = errorText.includes("invalid_value") && errorText.includes("\"model\"");
+      const isModelAccessIssue = shouldFallbackOpenAIImageEdit(candidate.status, errorText);
       if (!isModelAccessIssue) throw new Error(lastError);
     }
 

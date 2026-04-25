@@ -48,6 +48,48 @@ export const MAX_OUTPUT_LONG_SIDE = 1600;
 /** OpenAI gpt-image-1 supporta solo queste size. */
 const OPENAI_SIZES = ["1024x1024", "1536x1024", "1024x1536"] as const;
 
+/** Bucket generico usato come fallback quando il bucket verticale non esiste ancora. */
+const FALLBACK_ORIGINALS_BUCKET = "render-originals";
+
+function fallbackOriginalPaths(bucket: string, originalPath: string): string[] {
+  return originalPath.startsWith(`${bucket}/`)
+    ? [originalPath]
+    : [`${bucket}/${originalPath}`, originalPath];
+}
+
+// deno-lint-ignore no-explicit-any
+async function createSignedUrlWithBucketFallback(args: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  bucket: string;
+  originalPath: string;
+  expiresIn: number;
+  options?: Record<string, unknown>;
+}): Promise<{ signedUrl: string; errorMessage: string | null }> {
+  const { supabase, bucket, originalPath, expiresIn, options } = args;
+
+  const primary = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(originalPath, expiresIn, options);
+
+  if (!primary.error && primary.data?.signedUrl) {
+    return { signedUrl: primary.data.signedUrl, errorMessage: null };
+  }
+
+  let lastError = primary.error?.message ?? "signed url empty";
+  for (const fallbackPath of fallbackOriginalPaths(bucket, originalPath)) {
+    const fallback = await supabase.storage
+      .from(FALLBACK_ORIGINALS_BUCKET)
+      .createSignedUrl(fallbackPath, expiresIn, options);
+    if (!fallback.error && fallback.data?.signedUrl) {
+      return { signedUrl: fallback.data.signedUrl, errorMessage: primary.error?.message ?? null };
+    }
+    lastError = fallback.error?.message ?? lastError;
+  }
+
+  return { signedUrl: "", errorMessage: lastError };
+}
+
 // ── Compute resize dims ────────────────────────────────────────────────────
 
 /**
@@ -116,21 +158,25 @@ export async function prepareInputImage(args: {
   // Caso 1: resize necessario — usa Supabase transform API
   if (resized) {
     try {
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(originalPath, 600, {
+      const { signedUrl, errorMessage } = await createSignedUrlWithBucketFallback({
+        supabase,
+        bucket,
+        originalPath,
+        expiresIn: 600,
+        options: {
           transform: {
             width: resized.w,
             height: resized.h,
             resize: "contain",
             quality: 85,
           },
-        });
-      if (error || !data?.signedUrl) {
-        throw new Error(error?.message || "signed url empty");
+        },
+      });
+      if (!signedUrl) {
+        throw new Error(errorMessage || "signed url empty");
       }
       return {
-        url: data.signedUrl,
+        url: signedUrl,
         meta: {
           input_original_px: `${origW}x${origH}`,
           input_resized_px: `${resized.w}x${resized.h}`,
@@ -146,11 +192,14 @@ export async function prepareInputImage(args: {
       // Fallback trasparente: signed URL normale senza resize
       const msg = err instanceof Error ? err.message : String(err);
       console.warn("[renderImage] transform failed, fallback to raw:", msg);
-      const { data: fallback } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(originalPath, 600);
+      const fallback = await createSignedUrlWithBucketFallback({
+        supabase,
+        bucket,
+        originalPath,
+        expiresIn: 600,
+      });
       return {
-        url: fallback?.signedUrl || originalPath,
+        url: fallback.signedUrl || originalPath,
         meta: {
           input_original_px: `${origW}x${origH}`,
           input_resized_px: null,
@@ -166,11 +215,14 @@ export async function prepareInputImage(args: {
   }
 
   // Caso 2: input già piccolo o dims sconosciute — signed URL plain
-  const { data } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(originalPath, 600);
+  const { signedUrl } = await createSignedUrlWithBucketFallback({
+    supabase,
+    bucket,
+    originalPath,
+    expiresIn: 600,
+  });
   return {
-    url: data?.signedUrl || originalPath,
+    url: signedUrl || originalPath,
     meta: {
       input_original_px: origW > 0 && origH > 0 ? `${origW}x${origH}` : null,
       input_resized_px: null,

@@ -17,11 +17,13 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type { ConfigurazioneTetto } from "@/modules/render-tetto/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -34,7 +36,12 @@ interface PollState {
 
 // ── Polling config ───────────────────────────────────────────────────────────
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+const MAX_POLL_SEC = 420;
+
+function isIdleTimeoutMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderTettoNew() {
@@ -102,11 +109,12 @@ export default function RenderTettoNew() {
     try {
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_tetto_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("tetto-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "tetto-originals",
+        path,
+        file: photo,
+      });
+      setPhotoPath(storagePath);
 
       const { data: sess, error: sessErr } = await supabase
         .from("render_tetto_sessions")
@@ -114,7 +122,7 @@ export default function RenderTettoNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config: config,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -126,7 +134,7 @@ export default function RenderTettoNew() {
       setSessionId(sid);
       setStep(2);
     } catch (err) {
-      toast.error(String(err));
+      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
     } finally {
       setUploading(false);
     }
@@ -137,14 +145,21 @@ export default function RenderTettoNew() {
     if (!sessionId || !companyId) return;
     if (generating) return;
     setGenerating(true);
+    setResultUrls([]);
     setStep(3);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
+    try {
     await supabase
       .from("render_tetto_sessions")
-      .update({ config: config })
+      .update({
+        config: config,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
+      })
       .eq("id", sessionId);
 
     let targetWidth: number | undefined;
@@ -158,6 +173,8 @@ export default function RenderTettoNew() {
         targetHeight = img.naturalHeight || undefined;
       } catch { /* ignore */ }
     }
+
+    startPolling(sessionId);
 
     const headers = await getEdgeFunctionAuthHeaders();
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-roof-render", {
@@ -175,6 +192,11 @@ export default function RenderTettoNew() {
         data: fnData,
         fallback: "Generazione fallita",
       });
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -187,6 +209,7 @@ export default function RenderTettoNew() {
 
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
+      stopPolling();
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-tetto-sessions", companyId] });
@@ -194,14 +217,29 @@ export default function RenderTettoNew() {
       setStep(4);
       return;
     }
-
-    startPolling(sessionId);
+    } catch (err) {
+      stopPolling();
+      setGenerating(false);
+      setStep(2);
+      toast.error(err instanceof Error ? err.message : "Render fallito");
+    }
   }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
-  const startPolling = useCallback((sid: string) => {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+  function stopPolling() {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+    if (dotsIntervalRef.current) {
+      clearInterval(dotsIntervalRef.current);
+      dotsIntervalRef.current = null;
+    }
+  }
+
+  function startPolling(sid: string) {
+    stopPolling();
     pollCountRef.current = 0;
+    elapsedRef.current = 0;
 
     dotsIntervalRef.current = setInterval(() => {
       elapsedRef.current += 1;
@@ -223,14 +261,14 @@ export default function RenderTettoNew() {
 
       const { data: sess } = await supabase
         .from("render_tetto_sessions")
-        .select("status, result_urls")
+        .select("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
-      const s = sess as { status: string; result_urls: string[] | null } | null;
+      const s = sess as { status: string; result_urls: string[] | null; error_message?: string | null } | null;
 
       if (s?.status === "completed" && s.result_urls?.length) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setResultUrls(s.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-tetto-sessions", companyId] });
@@ -240,9 +278,9 @@ export default function RenderTettoNew() {
       }
 
       if (s?.status === "failed") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
-        toast.error("Render fallito. Riprova.");
+        toast.error(s.error_message || "Render fallito. Riprova.");
         setStep(2);
         return;
       }
@@ -254,7 +292,7 @@ export default function RenderTettoNew() {
     };
 
     poll();
-  }, [companyId, queryClient]);
+  }
 
   // ── Download result ───────────────────────────────────────────────────────
   const downloadResult = useCallback(async () => {
@@ -469,8 +507,8 @@ export default function RenderTettoNew() {
               </p>
             </div>
             <div className="w-full max-w-xs">
-              <Progress value={Math.min((pollState.elapsedSec / 60) * 100, 95)} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">{pollState.elapsedSec}s trascorsi</p>
+              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">{pollState.elapsedSec}s trascorsi · può richiedere 1-4 minuti</p>
             </div>
           </CardContent>
         </Card>
@@ -517,6 +555,16 @@ export default function RenderTettoNew() {
               WhatsApp
             </Button>
           </div>
+
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante tetto"
+          />
 
           <Button
             className="w-full bg-red-600 hover:bg-red-700"

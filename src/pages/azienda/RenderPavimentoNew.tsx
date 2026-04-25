@@ -19,11 +19,13 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type { ConfigurazionePavimento, AnalisiPavimento } from "@/modules/render-pavimento/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -109,11 +111,12 @@ export default function RenderPavimentoNew() {
       // 1. Upload foto
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("pavimento-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "pavimento-originals",
+        path,
+        file: photo,
+      });
+      setPhotoPath(storagePath);
 
       // 2. Crea sessione render (status: pending)
       const { data: sess, error: sessErr } = await supabase
@@ -122,7 +125,7 @@ export default function RenderPavimentoNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config: config as unknown,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -136,10 +139,7 @@ export default function RenderPavimentoNew() {
       setStep(2);
 
       // 3. Analisi AI in background (facoltativa)
-      const { data: signed } = await supabase.storage
-        .from("pavimento-originals")
-        .createSignedUrl(path, 300);
-      const imageUrl = signed?.signedUrl ?? "";
+      const imageUrl = await createRenderOriginalSignedUrl("pavimento-originals", storagePath, 300);
 
       if (imageUrl) {
         setAnalysisLoading(true);
@@ -170,7 +170,7 @@ export default function RenderPavimentoNew() {
         }
       }
     } catch (err) {
-      toast.error(String(err));
+      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
     } finally {
       setUploading(false);
     }
@@ -241,6 +241,7 @@ export default function RenderPavimentoNew() {
     if (generating) return;
 
     setGenerating(true);
+    setResultUrls([]);
     setStep(3);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
@@ -270,6 +271,9 @@ export default function RenderPavimentoNew() {
       .from("render_pavimento_sessions")
       .update({
         config: config as unknown,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
         ...(analisi ? { analisi_pavimento: analisi as unknown } : {}),
       })
       .eq("id", sessionId);
@@ -659,6 +663,16 @@ export default function RenderPavimentoNew() {
               Scarica render
             </Button>
           </div>
+
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante pavimento"
+          />
 
           <Button
             variant="outline"

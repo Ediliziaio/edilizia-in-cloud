@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, MessageSquare, HeadphonesIcon, Target, Megaphone, Bell } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, MessageSquare, HeadphonesIcon, Target, Megaphone, Bell, RefreshCw } from "lucide-react";
 import {
   PURPOSE_LABELS,
   useWhatsAppNumbersByPurpose,
@@ -32,7 +32,7 @@ const PURPOSE_ICONS: Record<WAPurpose, typeof MessageSquare> = {
 
 export function WhatsAppMultiNumeroTab() {
   const navigate = useNavigate();
-  const { byPurpose, isLoading } = useWhatsAppNumbersByPurpose();
+  const { byPurpose, isLoading, isError, error, refetch, isFetching } = useWhatsAppNumbersByPurpose();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardPurpose, setWizardPurpose] = useState<WAPurpose | null>(null);
 
@@ -49,7 +49,30 @@ export function WhatsAppMultiNumeroTab() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-8 text-center">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
+          <h3 className="font-semibold">Numeri WhatsApp non caricati</h3>
+          <p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">
+            {(error as Error)?.message || "Non riesco a leggere la configurazione WhatsApp in questo momento."}
+          </p>
+          <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            {isFetching ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Riprova
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const hasNumbers = configuredPurposes.length > 0;
+  const hasAvailablePurposes = configuredPurposes.length < PURPOSE_ORDER.length;
 
   const openWizard = (purpose: WAPurpose | null) => {
     setWizardPurpose(purpose);
@@ -69,10 +92,11 @@ export function WhatsAppMultiNumeroTab() {
         </div>
         <Button
           onClick={() => openWizard(null)}
+          disabled={!hasAvailablePurposes}
           aria-label="Collega nuovo numero WhatsApp"
         >
           <Plus className="mr-2 h-4 w-4" />
-          Collega nuovo numero
+          {hasAvailablePurposes ? "Collega nuovo numero" : "Limite 5/5 raggiunto"}
         </Button>
       </div>
 
@@ -83,7 +107,7 @@ export function WhatsAppMultiNumeroTab() {
           <p className="mt-2 text-sm text-muted-foreground">
             Collega il primo numero WhatsApp per iniziare. Potrai poi aggiungerne altri con scopi diversi.
           </p>
-          <Button className="mt-6" onClick={() => openWizard(null)}>
+          <Button className="mt-6" onClick={() => openWizard(null)} disabled={!hasAvailablePurposes}>
             <Plus className="mr-2 h-4 w-4" />
             Collega primo numero
           </Button>

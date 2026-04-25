@@ -92,9 +92,9 @@ function buildWallHungWcConversionRule(config: BathroomRenderConfig): BathroomRe
     code: "convert_existing_wc_to_wall_hung",
     summary: "Convert the existing toilet zone to a true wall-hung WC installation with concealed cistern and the selected visible wall flush plate.",
     repairInstruction:
-      `Remove any old visible toilet tank, monobloc mass, exposed cistern volume, outdated backbox, floor-standing pedestal or incompatible floor-standing WC geometry. Rebuild the wall behind the toilet cleanly so only the compact wall-hung WC and the selected flush plate remain visible. Mandatory flush plate: ${spec.sanitaryWare.flushPlateStyle ?? "selected wall flush plate"}${spec.sanitaryWare.flushPlateColor ? ` in ${spec.sanitaryWare.flushPlateColor}` : ""}.`,
+      `Replace the photographed existing WC in the same sanitary zone; do not create any second toilet elsewhere. Remove any old visible toilet tank, monobloc mass, exposed cistern volume, outdated backbox, floor-standing pedestal or incompatible floor-standing WC geometry. Rebuild the wall behind that WC cleanly so only the compact wall-hung WC and the selected flush plate remain visible. Mandatory flush plate: ${spec.sanitaryWare.flushPlateStyle ?? "selected wall flush plate"}${spec.sanitaryWare.flushPlateColor ? ` in ${spec.sanitaryWare.flushPlateColor}` : ""}, mounted on the same wall plane above/behind the replacement WC.`,
     preserveInstruction:
-      "Keep the photographed toilet position, bathroom geometry and all non-target adjacent elements coherent while modernizing only the sanitary installation logic; the WC must float off the floor with a believable shadow gap.",
+      "Keep the photographed toilet position, sanitary alignment, bathroom geometry and all non-target adjacent elements coherent while modernizing only the sanitary installation logic; the WC must float off the floor with a believable shadow gap and no duplicate WC may remain.",
   };
 }
 
@@ -119,7 +119,7 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
     spec.shower.replace ? `Replace shower zone with ${spec.shower.showerTypeLabel}.` : "Keep existing shower state unless incompatible with another requested replacement.",
     spec.bathtub.replace ? `Replace bathtub zone with ${spec.bathtub.bathtubTypeLabel}.` : "Keep existing bathtub state unless incompatible with another requested replacement.",
     spec.vanity.replace ? `Replace vanity with a ${spec.vanity.styleLabel}.` : "Keep vanity unchanged.",
-    spec.sanitaryWare.replace ? "Update sanitary ware according to the selected WC/bidet actions." : "Keep sanitary ware unchanged.",
+    spec.sanitaryWare.replace ? "Replace/update sanitary ware only in the existing photographed sanitary positions; do not add duplicate WCs or detached flush plates." : "Keep sanitary ware unchanged.",
     spec.faucets.replace ? `Update visible faucet finishes to ${spec.faucets.finish}.` : "Keep faucet finishes unchanged unless they are part of a replaced fixture.",
     spec.wallPaint.replace ? `Update non-tiled wall surfaces with ${spec.wallPaint.action}.` : "Keep non-tiled wall surfaces unchanged.",
     spec.lighting.replace ? `Update lighting with ${spec.lighting.target}.` : "Keep lighting unchanged.",
@@ -136,7 +136,7 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
       ? `Install ${spec.vanity.styleLabel} in ${spec.vanity.colorLabel} with ${spec.vanity.topDescription}, ${spec.vanity.basinCount === 2 ? "double basin" : "single basin"} and ${spec.vanity.mirrorType}.`
       : "",
     spec.sanitaryWare.replace
-      ? `Render sanitary ware with ${spec.sanitaryWare.installationRule}, ${spec.sanitaryWare.cisternRule} ${spec.sanitaryWare.flushPlateRule ?? ""} ${spec.sanitaryWare.scaleRule} Finish: ${spec.sanitaryWare.ceramicFinish}.`
+      ? `Render sanitary ware as a one-for-one replacement in the existing sanitary zone with ${spec.sanitaryWare.installationRule}, ${spec.sanitaryWare.cisternRule} ${spec.sanitaryWare.flushPlateRule ?? ""} ${spec.sanitaryWare.scaleRule} Finish: ${spec.sanitaryWare.ceramicFinish}. There must be no second WC, no old WC left beside the new one, and no flush plate detached from the replacement WC.`
       : "",
     spec.wallTiles.replace
       ? `Wall tiles must show ${spec.wallTiles.coverage} coverage with consistent grout color ${spec.wallTiles.groutColor}. ${spec.wallTiles.cutLayoutRule} ${spec.wallTiles.veinContinuityRule ?? ""}`

@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -35,11 +36,14 @@ export function useWANotificheTriggers() {
     queryKey: ["wa", "notifiche", "triggers", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withClientTimeout(
+        supabase
         .from("wa_notifiche_triggers")
         .select("*")
         .eq("company_id", companyId!)
-        .order("trigger_kind");
+        .order("trigger_kind"),
+        "Caricamento notifiche WhatsApp",
+      );
       if (error) throw error;
       return (data ?? []) as WANotificaTrigger[];
     },

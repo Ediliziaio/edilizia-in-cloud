@@ -1,9 +1,12 @@
 // MP-FINAL — Lista campagne broadcast.
 
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -13,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, Plus, Eye } from "lucide-react";
+import { AlertTriangle, RefreshCw, Search } from "lucide-react";
 import { useWABroadcasts } from "@/hooks/whatsapp/useWABroadcasts";
 
 function statusColor(status: string | null): string {
@@ -33,7 +37,19 @@ function statusColor(status: string | null): string {
 }
 
 export default function BroadcastListPage() {
-  const { data: broadcasts, isLoading } = useWABroadcasts();
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const { data: broadcasts, isLoading, isError, error, refetch, isFetching } = useWABroadcasts(
+    statusFilter === "all" ? undefined : { status: statusFilter },
+  );
+
+  const filteredBroadcasts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return broadcasts ?? [];
+    return (broadcasts ?? []).filter((b) =>
+      [b.nome, b.template_name, b.status].some((value) => (value ?? "").toLowerCase().includes(q)),
+    );
+  }, [broadcasts, search]);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -53,8 +69,27 @@ export default function BroadcastListPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle>Campagne</CardTitle>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" placeholder="Cerca campagna..." />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Stato" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli stati</SelectItem>
+                <SelectItem value="scheduled">Schedulate</SelectItem>
+                <SelectItem value="sending">In invio</SelectItem>
+                <SelectItem value="completed">Completate</SelectItem>
+                <SelectItem value="failed">Fallite</SelectItem>
+                <SelectItem value="cancelled">Annullate</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading && (
@@ -63,12 +98,25 @@ export default function BroadcastListPage() {
               <span className="sr-only">Caricamento campagne</span>
             </div>
           )}
-          {!isLoading && (broadcasts?.length ?? 0) === 0 && (
+          {!isLoading && isError && (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6 text-center">
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-destructive" />
+              <p className="font-medium">Campagne non caricate</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {(error as Error)?.message || "Errore nel caricamento dei broadcast WhatsApp."}
+              </p>
+              <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                Riprova
+              </Button>
+            </div>
+          )}
+          {!isLoading && !isError && (broadcasts?.length ?? 0) === 0 && (
             <div className="text-center py-12 text-sm text-muted-foreground">
               Nessuna campagna. Crea la prima con "Nuova campagna".
             </div>
           )}
-          {!isLoading && broadcasts && broadcasts.length > 0 && (
+          {!isLoading && !isError && broadcasts && broadcasts.length > 0 && (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -82,7 +130,7 @@ export default function BroadcastListPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {broadcasts.map((b) => (
+                  {filteredBroadcasts.map((b) => (
                     <TableRow key={b.id}>
                       <TableCell className="font-medium">{b.nome ?? "—"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -122,6 +170,11 @@ export default function BroadcastListPage() {
                   ))}
                 </TableBody>
               </Table>
+              {filteredBroadcasts.length === 0 && (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  Nessuna campagna corrisponde ai filtri.
+                </div>
+              )}
             </div>
           )}
         </CardContent>

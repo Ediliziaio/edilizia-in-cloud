@@ -8,6 +8,7 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
+import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
 import { buildFloorPrompt } from "../../../shared/render-floor/floorPromptBuilder.ts";
 import type { FloorPhotoMeta } from "../../../shared/render-floor/types.ts";
 
@@ -513,8 +514,7 @@ Use short values. Do not describe a renovation.`;
 
         const errText = await resp.text();
         lastErr = `OpenAI error ${resp.status}: ${errText.substring(0, 300)}`;
-        const isModelAccessIssue =
-          errText.includes("invalid_value") && errText.includes("\"model\"");
+        const isModelAccessIssue = shouldFallbackOpenAIImageEdit(resp.status, errText);
         if (!isModelAccessIssue) throw new Error(lastErr);
       }
 

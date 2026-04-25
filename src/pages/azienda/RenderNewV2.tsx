@@ -30,6 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import {
   PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
   WIZARD_CASS_MATERIALI,
@@ -367,7 +368,15 @@ export default function RenderNewV2() {
     elapsedRef.current = 0;
     setElapsedSec(0);
 
-    await supabase.from("render_sessions").update({ config }).eq("id", sessionId);
+    await supabase
+      .from("render_sessions")
+      .update({
+        config,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
+      })
+      .eq("id", sessionId);
 
     tickRef.current = setInterval(() => {
       elapsedRef.current += 1;
@@ -645,8 +654,10 @@ export default function RenderNewV2() {
             error={generateError}
             contactId={contactId}
             opportunityId={opportunityId}
+            notes={notes}
             onContactChange={setContactId}
             onOpportunityChange={setOpportunityId}
+            onNotesChange={setNotes}
             onGenerate={startRender}
             onRetry={startRender}
             onReset={reset}
@@ -1395,8 +1406,10 @@ function StepRender({
   error,
   contactId,
   opportunityId,
+  notes,
   onContactChange,
   onOpportunityChange,
+  onNotesChange,
   onGenerate,
   onRetry,
   onReset,
@@ -1413,8 +1426,10 @@ function StepRender({
   error: string | null;
   contactId: string | null;
   opportunityId: string | null;
+  notes: string;
   onContactChange: (id: string | null) => void;
   onOpportunityChange: (id: string | null) => void;
+  onNotesChange: (value: string) => void;
   onGenerate: () => void;
   onRetry: () => void;
   onReset: () => void;
@@ -1616,6 +1631,16 @@ function StepRender({
               Nuovo render
             </Button>
           </div>
+
+          <RenderResultRefinementPanel
+            config={preview}
+            noteValue={notes}
+            onNoteChange={onNotesChange}
+            onEditChoices={onBack}
+            onRegenerate={onGenerate}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante infissi"
+          />
 
           <Button
             onClick={onCreateQuote}

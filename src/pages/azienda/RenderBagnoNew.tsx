@@ -24,9 +24,11 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
 import { buildBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
+import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -45,7 +47,12 @@ interface PhotoMeta {
 
 // ── Polling intervals (exponential backoff) ──────────────────────────
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+const MAX_POLL_SEC = 420;
+
+function isIdleTimeoutMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
+}
 
 // ═════════════════════════════════════════════════════════════════════
 export default function RenderBagnoNew() {
@@ -152,10 +159,7 @@ export default function RenderBagnoNew() {
 
         let previewUrl = row.foto_originale_url ?? null;
         if (row.foto_originale_path) {
-          const { data: signed } = await supabase.storage
-            .from("bagno-originals")
-            .createSignedUrl(row.foto_originale_path, 3600);
-          previewUrl = signed?.signedUrl ?? previewUrl;
+          previewUrl = await createRenderOriginalSignedUrl("bagno-originals", row.foto_originale_path, 3600);
         }
 
         if (!cancelled) {
@@ -219,10 +223,11 @@ export default function RenderBagnoNew() {
       // 1. Upload foto
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_bagno_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("bagno-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "bagno-originals",
+        path,
+        file: photo,
+      });
 
       // 2. Crea sessione render_bagno_sessions
       const { data: sess, error: sessErr } = await supabase
@@ -231,7 +236,7 @@ export default function RenderBagnoNew() {
           company_id: companyId,
           user_id: user.id,
           stato: "pending",
-          foto_originale_path: path,
+          foto_originale_path: storagePath,
           configurazione: config,
           tipo_intervento: config.tipo_intervento,
           contact_id: contactId,
@@ -244,13 +249,7 @@ export default function RenderBagnoNew() {
       setSessionId(sid);
 
       // 3. Signed URL per analisi
-      const { data: signed, error: signedErr } = await supabase.storage
-        .from("bagno-originals")
-        .createSignedUrl(path, 300);
-      const imageUrl = signed?.signedUrl ?? "";
-      if (signedErr || !imageUrl) {
-        throw new Error(`Signed URL non disponibile: ${signedErr?.message ?? "URL immagine mancante"}`);
-      }
+      const imageUrl = await createRenderOriginalSignedUrl("bagno-originals", storagePath, 300);
 
       setStep(2);
 
@@ -307,16 +306,23 @@ export default function RenderBagnoNew() {
         }
       }
     } catch (err) {
-      toast.error(String(err));
+      toast.error(err instanceof Error ? err.message : "Upload foto fallito");
     } finally {
       setUploading(false);
     }
   }, [photo, companyId, user, config, contactId, opportunityId]);
 
-  const startPolling = useCallback((sid: string) => {
+  const stopPolling = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
     if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    pollRef.current = null;
+    dotsIntervalRef.current = null;
+  }, []);
+
+  const startPolling = useCallback((sid: string) => {
+    stopPolling();
     pollCountRef.current = 0;
+    elapsedRef.current = 0;
 
     dotsIntervalRef.current = setInterval(() => {
       elapsedRef.current += 1;
@@ -329,7 +335,7 @@ export default function RenderBagnoNew() {
 
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
         toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
         setStep(3);
@@ -345,7 +351,7 @@ export default function RenderBagnoNew() {
       const s = sess as { stato: string; render_result_url: string | null } | null;
 
       if (s?.stato === "completato" && s.render_result_url) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setResultUrl(s.render_result_url);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-bagno-sessions", companyId] });
@@ -355,7 +361,7 @@ export default function RenderBagnoNew() {
       }
 
       if (s?.stato === "errore") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
         toast.error("Render fallito. Riprova.");
         setStep(3);
@@ -370,7 +376,7 @@ export default function RenderBagnoNew() {
     };
 
     poll();
-  }, [companyId, queryClient]);
+  }, [companyId, queryClient, stopPolling]);
 
   // ── Step 3 -> Step 4: start render ─────────────────────────────────
   const startRender = useCallback(async () => {
@@ -381,11 +387,14 @@ export default function RenderBagnoNew() {
     if (generating) return;
 
     setGenerating(true);
+    setResultUrl(null);
+    setSavedToGallery(false);
     setStep(4);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
+    try {
     const renderPayload = buildBathroomRenderConfig(config, {
       sceneAnalysis: analisi ?? undefined,
       photoMeta,
@@ -432,9 +441,12 @@ export default function RenderBagnoNew() {
     await supabase
       .from("render_bagno_sessions")
       .update({
+        stato: "analysis_done",
         configurazione: renderPayload,
         analisi_bagno: renderPayload.scene_analysis,
         tipo_intervento: config.tipo_intervento,
+        render_result_url: null,
+        render_result_path: null,
       })
       .eq("id", activeSessionId);
 
@@ -442,6 +454,7 @@ export default function RenderBagnoNew() {
     const targetHeight = photoMeta?.height;
     const { data: { session: authSession } } = await supabase.auth.getSession();
     const token = authSession?.access_token;
+    startPolling(activeSessionId);
 
     // Invoke generate-bathroom-render
     const { data: fnData, error: fnErr } = await supabase.functions.invoke(
@@ -470,6 +483,11 @@ export default function RenderBagnoNew() {
         fnData?.message ??
         fnData?.error ??
         "Generazione fallita";
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -482,6 +500,7 @@ export default function RenderBagnoNew() {
 
     // Synchronous result
     if (fnData?.result_url) {
+      stopPolling();
       setResultUrl(fnData.result_url);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-bagno-sessions", companyId] });
@@ -489,10 +508,13 @@ export default function RenderBagnoNew() {
       queryClient.invalidateQueries({ queryKey: ["render-bagno-gallery", companyId] });
       return;
     }
-
-    // Otherwise poll
-    startPolling(activeSessionId);
-  }, [sessionId, companyId, user, sourceOriginalPath, config, queryClient, generating, startPolling, photoMeta, analisi, contactId, opportunityId]);
+    } catch (err) {
+      stopPolling();
+      setGenerating(false);
+      setStep(3);
+      toast.error(err instanceof Error ? err.message : "Render fallito");
+    }
+  }, [sessionId, companyId, user, sourceOriginalPath, config, queryClient, generating, startPolling, stopPolling, photoMeta, analisi, contactId, opportunityId]);
 
   // ── Save to gallery ────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
@@ -940,10 +962,10 @@ export default function RenderBagnoNew() {
                   L&apos;AI sta trasformando il bagno con la nuova configurazione
                 </p>
                 <p className="text-xs text-muted-foreground mt-3">
-                  Tempo trascorso: {pollState.elapsedSec}s - Puo richiedere 30-90 secondi
+                  Tempo trascorso: {pollState.elapsedSec}s - Puo richiedere 1-4 minuti
                 </p>
               </div>
-              <Progress value={Math.min((pollState.elapsedSec / 90) * 100, 95)} className="w-full h-2" />
+              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="w-full h-2" />
             </CardContent>
           </Card>
 
@@ -1040,32 +1062,20 @@ export default function RenderBagnoNew() {
 
           <Separator />
 
-          {/* Config summary */}
-          <Card className="bg-muted/30">
-            <CardContent className="py-3 space-y-1">
-              <p className="text-xs font-semibold text-muted-foreground">Configurazione applicata</p>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                <Badge variant="outline" className="text-xs capitalize">
-                  {config.tipo_intervento.replace(/_/g, " ")}
-                </Badge>
-                {config.sostituzione.piastrelle_parete && (
-                  <Badge variant="outline" className="text-xs capitalize">
-                    Parete: {config.piastrelle_parete.effetto.replace(/_/g, " ")}
-                  </Badge>
-                )}
-                {config.sostituzione.pavimento && (
-                  <Badge variant="outline" className="text-xs capitalize">
-                    Pavimento: {config.pavimento.effetto.replace(/_/g, " ")}
-                  </Badge>
-                )}
-                {config.sostituzione.doccia && (
-                  <Badge variant="outline" className="text-xs capitalize">
-                    Doccia: {config.doccia.tipo.replace(/_/g, " ")}
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => {
+              setResultUrl(null);
+              setSavedToGallery(false);
+              setGenerating(false);
+              setStep(3);
+            }}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante bagno"
+          />
 
           <div className="flex gap-3">
             <Button

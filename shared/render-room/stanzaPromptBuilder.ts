@@ -166,6 +166,9 @@ Kitchen behavior:
 ${bullets([
     "If kitchen restyling is inactive, preserve all kitchen elements exactly.",
     "If active, preserve cabinet layout, module rhythm, sink, hob, hood, appliance positions and technical clearances unless explicitly changed.",
+    "Preserve exactly one refrigerator when one refrigerator is visible; do not duplicate fridges, ovens, sinks, hobs or columns.",
+    "Keep appliance count realistic for a normal residential kitchen: no second fridge or extra appliance tower unless explicitly requested and visible space supports it.",
+    "Do not move the refrigerator, sink, hob, oven, hood or tall cabinet anchors unless the user explicitly asks for a layout change.",
     "Update only the selected fronts, countertop, handles and finish systems.",
   ])}`;
 

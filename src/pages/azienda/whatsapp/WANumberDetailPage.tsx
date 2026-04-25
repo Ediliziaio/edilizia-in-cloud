@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Save } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
 import {
   PURPOSE_LABELS,
   useUpdateWANumberSettings,
@@ -19,7 +19,7 @@ import {
 export default function WANumberDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: number, isLoading } = useWhatsAppNumber(id);
+  const { data: number, isLoading, isError, error, refetch, isFetching } = useWhatsAppNumber(id);
   const update = useUpdateWANumberSettings();
 
   const [displayName, setDisplayName] = useState("");
@@ -40,6 +40,28 @@ export default function WANumberDetailPage() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6 p-4 md:p-6 max-w-3xl mx-auto">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/whatsapp?tab=numeri")}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Torna ai numeri
+        </Button>
+        <Card className="p-8 text-center border-destructive/20 bg-destructive/5">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
+          <h1 className="font-semibold">Numero non caricato</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {(error as Error)?.message || "Non riesco a caricare il dettaglio del numero."}
+          </p>
+          <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Riprova
+          </Button>
+        </Card>
       </div>
     );
   }

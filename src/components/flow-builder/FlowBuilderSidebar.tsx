@@ -92,10 +92,29 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
             </div>
           )}
           {activePanel === "ai" && (
-            <div className="flex-1 flex items-center justify-center p-4">
-              <p className="text-xs text-muted-foreground text-center">
-                L'assistente AI per la creazione automatica di workflow sarà disponibile a breve.
-              </p>
+            <div className="flex-1 space-y-3 p-4 text-sm">
+              <div className="rounded-lg border bg-primary/5 p-3">
+                <div className="mb-1 flex items-center gap-2 font-semibold text-primary">
+                  <Sparkles className="h-4 w-4" />
+                  Assistente workflow
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Usa questo pannello come checklist mentre costruisci il flusso: trigger, condizioni, azioni e controlli finali.
+                </p>
+              </div>
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Sequenza consigliata</p>
+                <ol className="list-decimal space-y-1 pl-4">
+                  <li>Scegli un solo trigger chiaro.</li>
+                  <li>Aggiungi condizioni prima delle azioni critiche.</li>
+                  <li>Configura mittenti, template e variabili.</li>
+                  <li>Controlla il pannello Errori prima di pubblicare.</li>
+                  <li>Esegui un test su un contatto reale di prova.</li>
+                </ol>
+              </div>
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                La generazione automatica completa via AI non è ancora collegata a un endpoint dedicato. Il pulsante “Crea tramite AI” apre questo pannello guidato senza promettere una funzione inesistente.
+              </div>
             </div>
           )}
           {/* Fallback for panels without flowId */}

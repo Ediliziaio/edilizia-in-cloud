@@ -18,6 +18,7 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { buildPiscineRenderConfig } from "@/modules/render-piscine/lib/piscineRenderConfig";
 import type { ConfigurazionePiscine } from "@/modules/render-piscine/lib/types";
 import { getPiscineDb } from "@/modules/render-piscine/lib/dynamicSupabase";
@@ -25,11 +26,17 @@ import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
 } from "@/modules/render/lib/edgeFunctionClient";
+import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 type Step = 1 | 2 | 3 | 4;
 
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+const MAX_POLL_SEC = 420;
+
+function isIdleTimeoutMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
+}
 
 export default function RenderPiscineNew() {
   const navigate = useNavigate();
@@ -83,11 +90,12 @@ export default function RenderPiscineNew() {
     try {
       const ext = photo.name.split(".").pop() ?? "jpg";
       const path = `${companyId}/${Date.now()}_piscine_original.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("piscine-originals")
-        .upload(path, photo, { contentType: photo.type, upsert: true });
-      if (upErr) throw new Error(`Upload foto fallito: ${upErr.message}`);
-      setPhotoPath(path);
+      const { storagePath } = await uploadRenderOriginal({
+        bucket: "piscine-originals",
+        path,
+        file: photo,
+      });
+      setPhotoPath(storagePath);
 
       const { data: sess, error: sessErr } = await db
         .from("render_piscine_sessions")
@@ -95,7 +103,7 @@ export default function RenderPiscineNew() {
           company_id: companyId,
           created_by: user.id,
           status: "pending",
-          original_photo_url: path,
+          original_photo_url: storagePath,
           config,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -112,9 +120,15 @@ export default function RenderPiscineNew() {
     }
   }, [photo, companyId, user, db, config, contactId, opportunityId]);
 
-  const startPolling = useCallback((sid: string) => {
+  const stopPolling = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
     if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    pollRef.current = null;
+    dotsIntervalRef.current = null;
+  }, []);
+
+  const startPolling = useCallback((sid: string) => {
+    stopPolling();
     pollCountRef.current = 0;
     elapsedRef.current = 0;
 
@@ -126,7 +140,7 @@ export default function RenderPiscineNew() {
 
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
         toast.error("Timeout: il render sta impiegando troppo tempo. Riprova più tardi.");
         setStep(2);
@@ -135,12 +149,12 @@ export default function RenderPiscineNew() {
 
       const { data: sess } = await db
         .from("render_piscine_sessions")
-        .select("status, result_urls")
+        .select("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
       if (sess?.status === "completed" && sess.result_urls?.length) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setResultUrls(sess.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-piscine-sessions", companyId] });
@@ -150,9 +164,9 @@ export default function RenderPiscineNew() {
       }
 
       if (sess?.status === "failed") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
-        toast.error("Render fallito. Riprova.");
+        toast.error(sess.error_message || "Render fallito. Riprova.");
         setStep(2);
         return;
       }
@@ -163,16 +177,26 @@ export default function RenderPiscineNew() {
     };
 
     poll();
-  }, [companyId, db, queryClient]);
+  }, [companyId, db, queryClient, stopPolling]);
 
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
     setGenerating(true);
+    setResultUrls([]);
     setStep(3);
     setElapsedSec(0);
     setDots(0);
 
-    await db.from("render_piscine_sessions").update({ config }).eq("id", sessionId);
+    try {
+    await db
+      .from("render_piscine_sessions")
+      .update({
+        config,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
+      })
+      .eq("id", sessionId);
 
     let targetWidth: number | undefined;
     let targetHeight: number | undefined;
@@ -185,6 +209,7 @@ export default function RenderPiscineNew() {
     }
 
     const headers = await getEdgeFunctionAuthHeaders();
+    startPolling(sessionId);
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-pool-render", {
       body: {
         session_id: sessionId,
@@ -200,6 +225,11 @@ export default function RenderPiscineNew() {
         data: fnData,
         fallback: "Generazione fallita",
       });
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
       setGenerating(false);
       toast.error(msg.includes("insufficient_credits") ? "Crediti render insufficienti. Acquista nuovi crediti." : msg);
       setStep(2);
@@ -208,6 +238,7 @@ export default function RenderPiscineNew() {
 
     const urls: string[] = fnData?.result_urls ?? (fnData?.result_url ? [fnData.result_url] : []);
     if (urls.length) {
+      stopPolling();
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-piscine-sessions", companyId] });
@@ -215,9 +246,13 @@ export default function RenderPiscineNew() {
       setStep(4);
       return;
     }
-
-    startPolling(sessionId);
-  }, [sessionId, companyId, generating, db, config, photo, photoPreview, queryClient, startPolling]);
+    } catch (err) {
+      stopPolling();
+      setGenerating(false);
+      setStep(2);
+      toast.error(err instanceof Error ? err.message : "Render fallito");
+    }
+  }, [sessionId, companyId, generating, db, config, photo, photoPreview, queryClient, startPolling, stopPolling]);
 
   const downloadResult = useCallback(async () => {
     const url = resultUrls[0];
@@ -384,8 +419,8 @@ export default function RenderPiscineNew() {
               <p className="text-sm text-muted-foreground mt-1">L'AI sta installando la piscina sulla stessa foto, preservando edificio e prospettiva.</p>
             </div>
             <div className="w-full max-w-xs">
-              <Progress value={Math.min((elapsedSec / 60) * 100, 95)} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">{elapsedSec}s trascorsi</p>
+              <Progress value={Math.min((elapsedSec / 240) * 100, 95)} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">{elapsedSec}s trascorsi · può richiedere 1-4 minuti</p>
             </div>
           </CardContent>
         </Card>
@@ -410,6 +445,15 @@ export default function RenderPiscineNew() {
             <Button variant="outline" className="flex-1 gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Download</Button>
             <Button variant="outline" className="flex-1 gap-2" onClick={shareWhatsApp}><Share2 className="h-4 w-4" />WhatsApp</Button>
           </div>
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante piscina"
+          />
           <Button
             className="w-full bg-emerald-600 hover:bg-emerald-700"
             onClick={() => {

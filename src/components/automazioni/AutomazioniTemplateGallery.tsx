@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import {
   FLOW_TEMPLATES,
   TEMPLATE_CATEGORIES,
@@ -22,6 +23,7 @@ interface Props {
 
 export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
 
@@ -120,7 +122,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
       }
 
       toast.success(`Template "${template.nome}" creato! Apro il builder...`);
-      navigate(`/azienda/marketing/automazioni/${flowId}`);
+      navigate(`${routePrefix}/automazioni/${flowId}`);
     } catch (err: any) {
       console.error("Errore attivazione template:", err);
       toast.error("Errore nella creazione dell'automazione");

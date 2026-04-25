@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -39,14 +40,17 @@ export function useWhatsAppNumbers() {
     queryKey: [...WA_NUMBERS_KEY, companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withClientTimeout(
+        supabase
         .from("ai_whatsapp_numbers")
         .select(
           "id, company_id, purpose, display_name, nome_account, numero, phone_number_id, waba_id, agent_id, stato, webhook_verified, messaggio_benvenuto, messaggio_fuori_orario, orario_attivo, daily_budget_eur, current_day_spend_eur, creato_il, updated_at",
         )
         .eq("company_id", companyId!)
         .is("deleted_at", null)
-        .order("creato_il", { ascending: true });
+        .order("creato_il", { ascending: true }),
+        "Caricamento numeri WhatsApp",
+      );
       if (error) throw error;
       return data as WANumber[];
     },
@@ -58,11 +62,14 @@ export function useWhatsAppNumber(id: string | undefined) {
     queryKey: [...WA_NUMBERS_KEY, "detail", id],
     enabled: !!id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withClientTimeout(
+        supabase
         .from("ai_whatsapp_numbers")
         .select("*")
         .eq("id", id!)
-        .single();
+        .single(),
+        "Caricamento numero WhatsApp",
+      );
       if (error) throw error;
       return data;
     },

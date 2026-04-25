@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { withClientTimeout } from "@/lib/query-timeout";
 
 /**
  * Hook unificato per il gating delle feature.
@@ -33,6 +34,10 @@ export interface FeatureAccess {
   priceOverride: number | null;
   expiresAt: string | null;
   isLoading: boolean;
+  isError: boolean;
+  isFetching: boolean;
+  errorMessage: string | null;
+  refetch: () => void;
 }
 
 export function useFeatureAccess(
@@ -46,6 +51,7 @@ export function useFeatureAccess(
     isImpersonationReady,
     impersonatedCompanyId,
     impersonationToken,
+    isLoading: authLoading,
   } = useAuth();
   const companyId = companyIdOverride || effectiveCompany?.id;
 
@@ -75,18 +81,21 @@ export function useFeatureAccess(
     expires_at: string | null;
   }
 
-  const { data, isLoading } = useQuery<ResolveRow | null>({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery<ResolveRow | null, Error>({
     queryKey: ["feature-access", companyId, featureKey],
     queryFn: async () => {
       if (!companyId) return null;
       // Cast sui parametri RPC: il tipo generato di supabase-js è unione discriminata
       // di tutte le RPC — qui specializziamo al nostro payload senza `any`.
-      const { data, error } = await supabase.rpc(
-        "resolve_company_feature" as never,
-        {
-          p_company_id: companyId,
-          p_feature_key: featureKey,
-        } as never,
+      const { data, error } = await withClientTimeout(
+        supabase.rpc(
+          "resolve_company_feature" as never,
+          {
+            p_company_id: companyId,
+            p_feature_key: featureKey,
+          } as never,
+        ),
+        `Verifica accesso ${featureKey}`,
       );
       if (error) throw error;
       // La RPC ritorna SETOF RECORD → client normalizza ad array o singolo.
@@ -107,6 +116,10 @@ export function useFeatureAccess(
       priceOverride: null,
       expiresAt: null,
       isLoading: false,
+      isError: false,
+      isFetching: false,
+      errorMessage: null,
+      refetch: () => undefined,
     };
   }
 
@@ -116,6 +129,10 @@ export function useFeatureAccess(
     limit: data?.limit_value ?? null,
     priceOverride: data?.price_override ?? null,
     expiresAt: data?.expires_at ?? null,
-    isLoading,
+    isLoading: authLoading || isLoading,
+    isError,
+    isFetching,
+    errorMessage: error?.message ?? null,
+    refetch: () => { void refetch(); },
   };
 }
