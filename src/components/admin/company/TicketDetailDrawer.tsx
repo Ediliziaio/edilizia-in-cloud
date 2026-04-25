@@ -1,15 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Send, Lock } from "lucide-react";
-import { useTicketRisposte, type TicketRow } from "@/hooks/useTicketAzienda";
+import { Send, Lock, User, Loader2 } from "lucide-react";
+import {
+  useTicketRisposte, type TicketRow,
+} from "@/hooks/useTicketAzienda";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 const prioritaConfig: Record<
   TicketRow["priorita"],
@@ -36,32 +44,73 @@ interface TicketDetailDrawerProps {
   isChangingState: boolean;
 }
 
+const RISPOSTA_MAX = 5000;
+
 export function TicketDetailDrawer({
-  ticket,
-  onClose,
-  onCambiaStato,
-  isChangingState,
+  ticket, onClose, onCambiaStato, isChangingState,
 }: TicketDetailDrawerProps) {
+  const { user, profile } = useAuth();
   const [risposta, setRisposta] = useState("");
   const [isInterno, setIsInterno] = useState(false);
 
   const { risposte, isLoading, aggiungiRisposta } = useTicketRisposte(ticket?.id);
 
+  // FIX critico: reset state quando il ticket cambia o si chiude.
+  // Prima `risposta` e `isInterno` persistevano tra ticket diversi:
+  //  - User apre ticket A, scrive metà risposta, chiude
+  //  - Riapre ticket B → vede ancora il testo per A
+  //  - Peggio: imposta "Nota interna" su A, invia, NON resetta isInterno,
+  //    apre B → ancora in modalità interno → leak risposta interna al cliente.
+  useEffect(() => {
+    setRisposta("");
+    setIsInterno(false);
+  }, [ticket?.id]);
+
+  // FIX: nome autore reale invece di "SuperAdmin" hardcoded → audit trail corretto
+  const autoreNome = (() => {
+    if (profile?.first_name || profile?.last_name) {
+      return `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
+    }
+    return user?.email ?? "SuperAdmin";
+  })();
+
   const handleSendRisposta = () => {
-    if (!risposta.trim()) return;
+    const t = risposta.trim();
+    if (!t) return;
+    if (t.length > RISPOSTA_MAX) return;
+
     aggiungiRisposta.mutate(
-      { testo: risposta.trim(), autore_nome: "SuperAdmin", is_interno: isInterno },
-      { onSuccess: () => setRisposta("") }
+      { testo: t, autore_nome: autoreNome, is_interno: isInterno },
+      {
+        onSuccess: () => {
+          setRisposta("");
+          // FIX: reset isInterno DOPO l'invio. Senza, la prossima risposta
+          // sarebbe ancora "interna" senza che l'admin se ne accorga →
+          // potenziale leak di nota destinata al team al cliente.
+          setIsInterno(false);
+        },
+      },
     );
   };
 
+  const rispostaLen = risposta.length;
+  const rispostaOver = rispostaLen > RISPOSTA_MAX;
+
   return (
-    <Sheet open={!!ticket} onOpenChange={(open) => !open && onClose()}>
+    <Sheet
+      open={!!ticket}
+      onOpenChange={(open) => {
+        if (!open && aggiungiRisposta.isPending) return; // blocca chiusura durante invio
+        if (!open) onClose();
+      }}
+    >
       <SheetContent className="w-full sm:max-w-lg flex flex-col overflow-hidden">
         {ticket ? (
           <>
             <SheetHeader className="flex-shrink-0">
-              <SheetTitle className="text-base leading-tight pr-4">{ticket.titolo}</SheetTitle>
+              <SheetTitle className="text-base leading-tight pr-4">
+                {ticket.titolo}
+              </SheetTitle>
               <div className="flex items-center gap-2 flex-wrap mt-1">
                 <Badge
                   variant="outline"
@@ -70,11 +119,34 @@ export function TicketDetailDrawer({
                   {prioritaConfig[ticket.priorita].label}
                 </Badge>
                 {ticket.categoria && (
-                  <Badge variant="secondary" className="text-xs">{ticket.categoria}</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    {ticket.categoria}
+                  </Badge>
                 )}
                 <span className="text-xs text-muted-foreground">
                   {format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
                 </span>
+              </div>
+              {/* FIX: assignee + aperto_da visibili (prima erano nascosti) */}
+              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                {ticket.aperto_da_nome && (
+                  <span className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    Aperto da {ticket.aperto_da_nome}
+                  </span>
+                )}
+                {ticket.assegnato_a_nome && (
+                  <span className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    Assegnato a {ticket.assegnato_a_nome}
+                  </span>
+                )}
+                {ticket.risolto_at && (
+                  <span className="text-emerald-600">
+                    Risolto il{" "}
+                    {format(new Date(ticket.risolto_at), "dd/MM/yyyy", { locale: it })}
+                  </span>
+                )}
               </div>
             </SheetHeader>
 
@@ -96,11 +168,22 @@ export function TicketDetailDrawer({
                   ))}
                 </SelectContent>
               </Select>
+              {isChangingState && (
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+              )}
             </div>
 
-            {ticket.descrizione && (
+            {ticket.descrizione ? (
               <div className="mt-3 flex-shrink-0">
-                <p className="text-sm text-muted-foreground">{ticket.descrizione}</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {ticket.descrizione}
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 flex-shrink-0">
+                <p className="text-sm text-muted-foreground italic">
+                  Nessuna descrizione fornita
+                </p>
               </div>
             )}
 
@@ -123,11 +206,20 @@ export function TicketDetailDrawer({
                 </p>
               ) : (
                 risposte.map((r) => (
-                  <div key={r.id} className={`rounded-lg p-3 text-sm ${r.is_interno ? "bg-yellow-50 border border-yellow-200" : "bg-muted"}`}>
+                  <div
+                    key={r.id}
+                    className={`rounded-lg p-3 text-sm ${
+                      r.is_interno
+                        ? "bg-yellow-50 border border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-900"
+                        : "bg-muted"
+                    }`}
+                  >
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-xs">{r.autore_nome ?? "SuperAdmin"}</span>
+                      <span className="font-medium text-xs">
+                        {r.autore_nome ?? "SuperAdmin"}
+                      </span>
                       {r.is_interno && (
-                        <div className="flex items-center gap-0.5 text-yellow-700 text-xs">
+                        <div className="flex items-center gap-0.5 text-yellow-700 dark:text-yellow-400 text-xs">
                           <Lock className="h-3 w-3" /> Interno
                         </div>
                       )}
@@ -135,7 +227,9 @@ export function TicketDetailDrawer({
                         {format(new Date(r.created_at), "dd/MM HH:mm", { locale: it })}
                       </span>
                     </div>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{r.testo}</p>
+                    <p className="text-muted-foreground whitespace-pre-wrap">
+                      {r.testo}
+                    </p>
                   </div>
                 ))
               )}
@@ -145,39 +239,86 @@ export function TicketDetailDrawer({
             <div className="mt-3 space-y-2 flex-shrink-0 border-t pt-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <button
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded ${!isInterno ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded transition-colors",
+                    !isInterno
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted",
+                  )}
                   onClick={() => setIsInterno(false)}
                   type="button"
+                  disabled={aggiungiRisposta.isPending}
                 >
                   Risposta
                 </button>
                 <button
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded ${isInterno ? "bg-yellow-500 text-white" : "hover:bg-muted"}`}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded transition-colors",
+                    isInterno
+                      ? "bg-yellow-500 text-white"
+                      : "hover:bg-muted",
+                  )}
                   onClick={() => setIsInterno(true)}
                   type="button"
+                  disabled={aggiungiRisposta.isPending}
                 >
                   <Lock className="h-3 w-3" /> Nota interna
                 </button>
+                <span className="ml-auto">
+                  Firmato come <strong>{autoreNome}</strong>
+                </span>
               </div>
               <div className="flex gap-2">
                 <Textarea
                   value={risposta}
                   onChange={(e) => setRisposta(e.target.value)}
-                  placeholder={isInterno ? "Nota interna (non visibile all'azienda)..." : "Scrivi una risposta..."}
+                  placeholder={
+                    isInterno
+                      ? "Nota interna (non visibile all'azienda)..."
+                      : "Scrivi una risposta..."
+                  }
                   rows={3}
-                  className="resize-none text-sm"
+                  className={cn(
+                    "resize-none text-sm",
+                    rispostaOver && "border-destructive",
+                  )}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSendRisposta();
+                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                      handleSendRisposta();
+                    }
                   }}
                 />
                 <Button
                   size="sm"
                   className="self-end"
                   onClick={handleSendRisposta}
-                  disabled={!risposta.trim() || aggiungiRisposta.isPending}
+                  disabled={
+                    !risposta.trim() ||
+                    rispostaOver ||
+                    aggiungiRisposta.isPending
+                  }
                 >
-                  <Send className="h-4 w-4" />
+                  {aggiungiRisposta.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </Button>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>
+                  <kbd className="px-1 py-0.5 rounded border bg-muted text-[9px]">
+                    ⌘/Ctrl + Enter
+                  </kbd>{" "}
+                  per inviare
+                </span>
+                <span
+                  className={
+                    rispostaOver ? "text-destructive font-bold" : ""
+                  }
+                >
+                  {rispostaLen}/{RISPOSTA_MAX}
+                </span>
               </div>
             </div>
           </>

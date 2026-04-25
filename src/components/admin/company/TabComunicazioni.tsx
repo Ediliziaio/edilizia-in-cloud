@@ -15,6 +15,7 @@ import { NuovaComunicazioneModal } from "./NuovaComunicazioneModal";
 import {
   useComunicazioniAzienda, type ComunicazioneRow, type NuovaComunicazione,
 } from "@/hooks/useComunicazioniAzienda";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 interface TabComunicazioniProps {
@@ -74,16 +75,35 @@ function ComunicazioneItem({ com }: { com: ComunicazioneRow }) {
 }
 
 export function TabComunicazioni({ companyId }: TabComunicazioniProps) {
-  const { comunicazioni, isLoading, isError, inviaComuinicazione } =
+  const { user, profile } = useAuth();
+  // FIX: usa il nome non-typo. Vecchio alias `inviaComuinicazione` ancora
+  // disponibile per retrocompat ma il code-path corrente è quello pulito.
+  const { comunicazioni, isLoading, isError, inviaComunicazione } =
     useComunicazioniAzienda(companyId);
   const [modalOpen, setModalOpen] = useState(false);
   const [tipoFilter, setTipoFilter] = useState<"all" | ComunicazioneRow["tipo"]>("all");
   const [statoFilter, setStatoFilter] = useState<"all" | ComunicazioneRow["stato"]>("all");
 
-  const handleInvia = (data: NuovaComunicazione) => {
-    inviaComuinicazione.mutate(
-      { ...data, company_id: companyId },
-      { onSuccess: () => setModalOpen(false) }
+  // Nome operatore reale per audit (prima sempre null in DB)
+  const operatorName = (() => {
+    if (profile?.first_name || profile?.last_name) {
+      return `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
+    }
+    return user?.email ?? null;
+  })();
+
+  // FIX: nuovo signature onSubmit con callbacks separati → reset solo on success
+  const handleInvia = (
+    data: NuovaComunicazione,
+    callbacks: { onSuccess: () => void },
+  ) => {
+    inviaComunicazione.mutate(
+      {
+        ...data,
+        company_id: companyId,
+        inviato_da_nome: data.inviato_da_nome ?? operatorName ?? undefined,
+      },
+      { onSuccess: callbacks.onSuccess },
     );
   };
 
@@ -262,7 +282,7 @@ export function TabComunicazioni({ companyId }: TabComunicazioniProps) {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSubmit={handleInvia}
-        isLoading={inviaComuinicazione.isPending}
+        isLoading={inviaComunicazione.isPending}
       />
     </div>
   );

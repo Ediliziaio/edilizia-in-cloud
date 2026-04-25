@@ -8,6 +8,13 @@ export interface ComunicazioneRow {
   oggetto: string | null;
   corpo: string;
   inviato_da_nome: string | null;
+  /**
+   * NB: `stato` rappresenta lo stato di delivery del provider esterno
+   * (Resend/Twilio/etc). In questo flow di logging manuale, il record
+   * viene salvato come "inviato" placeholder — l'invio REALE va integrato
+   * separatamente via edge function e callback webhook che aggiornano
+   * lo stato a "consegnato"/"fallito".
+   */
   stato: "inviato" | "consegnato" | "fallito" | "in_coda";
   is_automatica: boolean;
   created_at: string;
@@ -42,7 +49,8 @@ export function useComunicazioniAzienda(companyId: string | undefined) {
     enabled: !!companyId,
   });
 
-  const inviaComuinicazione = useMutation({
+  // FIX: typo nel nome export. Mantengo il vecchio come alias per retrocompat.
+  const inviaComunicazione = useMutation({
     mutationFn: async (payload: NuovaComunicazione & { company_id: string }) => {
       const { error } = await supabase
         .from("superadmin_comunicazioni")
@@ -52,14 +60,22 @@ export function useComunicazioniAzienda(companyId: string | undefined) {
           oggetto: payload.oggetto ?? null,
           corpo: payload.corpo,
           inviato_da_nome: payload.inviato_da_nome ?? null,
+          // FIX semantico: il record è solo un LOG, non un invio reale.
+          // Stato "inviato" è placeholder finché non si integra il provider.
+          // Mantengo "inviato" perché è quello che l'utente si aspetta vedere
+          // nello storico, ma è chiarito nel modal con un disclaimer.
           stato: "inviato",
           is_automatica: false,
         });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Comunicazione inviata con successo");
+      toast.success("Comunicazione registrata", {
+        description: "Salvata nello storico azienda. Per invio reale serve integrazione provider.",
+      });
       queryClient.invalidateQueries({ queryKey: ["comunicazioni-azienda", companyId] });
+      // Cross-tab: panoramica azienda potrebbe mostrare comunicazioni recenti
+      queryClient.invalidateQueries({ queryKey: ["company-detail", companyId] });
     },
     onError: (err: Error) => {
       toast.error("Errore nell'invio della comunicazione", { description: err.message });
@@ -70,6 +86,9 @@ export function useComunicazioniAzienda(companyId: string | undefined) {
     comunicazioni: data ?? [],
     isLoading,
     isError,
-    inviaComuinicazione,
+    // Nome corretto + alias retrocompat (typo precedente). Entrambi puntano
+    // alla stessa mutation — i call site esistenti continuano a funzionare.
+    inviaComunicazione,
+    inviaComuinicazione: inviaComunicazione,
   };
 }

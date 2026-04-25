@@ -74,14 +74,28 @@ export function useTicketAzienda(companyId: string | undefined) {
     onSuccess: () => {
       toast.success("Ticket creato con successo");
       queryClient.invalidateQueries({ queryKey: ["ticket-azienda", companyId] });
+      // Cross-tab: panoramica azienda mostra "ticket aperti" → refetch
+      queryClient.invalidateQueries({ queryKey: ["company-detail", companyId] });
     },
-    onError: (err: Error) => toast.error("Errore nella creazione del ticket", { description: err.message }),
+    onError: (err: Error) =>
+      toast.error("Errore nella creazione del ticket", { description: err.message }),
   });
 
   const cambiaStato = useMutation({
-    mutationFn: async ({ ticketId, stato }: { ticketId: string; stato: TicketRow["stato"] }) => {
+    mutationFn: async ({
+      ticketId, stato,
+    }: { ticketId: string; stato: TicketRow["stato"] }) => {
+      // FIX: gestione corretta di risolto_at.
+      // Prima il campo veniva valorizzato solo passando a "risolto" ma NON
+      // veniva azzerato tornando indietro (es. risolto → in_lavorazione).
+      // Risultato: ticket riaperto continuava a mostrare risolto_at vecchio.
       const update: Partial<TicketRow> = { stato };
-      if (stato === "risolto") update.risolto_at = new Date().toISOString();
+      if (stato === "risolto") {
+        update.risolto_at = new Date().toISOString();
+      } else {
+        // Esplicito: se NON è risolto, azzera la data di risoluzione
+        update.risolto_at = null;
+      }
       const { error } = await supabase
         .from("supporto_ticket")
         .update(update)
@@ -91,8 +105,10 @@ export function useTicketAzienda(companyId: string | undefined) {
     onSuccess: () => {
       toast.success("Stato ticket aggiornato");
       queryClient.invalidateQueries({ queryKey: ["ticket-azienda", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["company-detail", companyId] });
     },
-    onError: (err: Error) => toast.error("Errore aggiornamento stato", { description: err.message }),
+    onError: (err: Error) =>
+      toast.error("Errore aggiornamento stato", { description: err.message }),
   });
 
   return { tickets: tickets ?? [], isLoading, isError, creaTicket, cambiaStato };
@@ -117,7 +133,11 @@ export function useTicketRisposte(ticketId: string | undefined) {
   });
 
   const aggiungiRisposta = useMutation({
-    mutationFn: async (payload: { testo: string; autore_nome?: string; is_interno?: boolean }) => {
+    mutationFn: async (payload: {
+      testo: string;
+      autore_nome?: string;
+      is_interno?: boolean;
+    }) => {
       if (!ticketId) throw new Error("ticketId mancante");
       const { error } = await supabase.from("supporto_risposte").insert({
         ticket_id: ticketId,
@@ -127,10 +147,21 @@ export function useTicketRisposte(ticketId: string | undefined) {
       });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // FIX: prima nessun toast → l'utente non sapeva se era andata.
+      // Distinguo nota interna vs risposta visibile per chiarezza.
+      toast.success(
+        variables.is_interno
+          ? "Nota interna aggiunta"
+          : "Risposta inviata",
+      );
       queryClient.invalidateQueries({ queryKey: ["ticket-risposte", ticketId] });
+      // Cross-invalidate: la lista ticket potrebbe mostrare "ultimo aggiornamento"
+      // o un counter di risposte → refresh.
+      queryClient.invalidateQueries({ queryKey: ["ticket-azienda"] });
     },
-    onError: (err: Error) => toast.error("Errore nell'aggiunta della risposta", { description: err.message }),
+    onError: (err: Error) =>
+      toast.error("Errore nell'aggiunta della risposta", { description: err.message }),
   });
 
   return { risposte: risposte ?? [], isLoading, aggiungiRisposta };

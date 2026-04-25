@@ -15,6 +15,7 @@ import {
 import {
   useTicketAzienda, type TicketRow,
 } from "@/hooks/useTicketAzienda";
+import { useAuth } from "@/contexts/AuthContext";
 import { TicketDetailDrawer } from "./TicketDetailDrawer";
 import { NuovoTicketModal } from "./NuovoTicketModal";
 import { cn } from "@/lib/utils";
@@ -42,13 +43,29 @@ const statoLabels: Record<TicketRow["stato"] | "tutti", string> = {
   chiuso: "Chiusi",
 };
 
-function TicketRow({ ticket, onClick }: { ticket: TicketRow; onClick: () => void }) {
+/**
+ * Item della lista ticket. Rinominato da `TicketRow` a `TicketListItem`
+ * per evitare collision col TYPE `TicketRow` importato dal hook (TS le
+ * separa nei namespace value/type ma il name shadowing crea confusione).
+ */
+function TicketListItem({
+  ticket, onClick,
+}: {
+  ticket: TicketRow;
+  onClick: () => void;
+}) {
   const giorni = differenceInDays(new Date(), new Date(ticket.created_at));
   const priorita = prioritaConfig[ticket.priorita];
+  const isStale =
+    (ticket.stato === "aperto" || ticket.stato === "in_lavorazione") &&
+    giorni > 7;
 
   return (
     <button
-      className="w-full text-left flex items-start gap-3 py-3 px-1 hover:bg-muted/50 rounded-md transition-colors"
+      type="button"
+      className={cn(
+        "w-full text-left flex items-start gap-3 py-3 px-1 hover:bg-muted/50 rounded-md transition-colors",
+      )}
       onClick={onClick}
     >
       <div className="flex-1 min-w-0">
@@ -59,10 +76,21 @@ function TicketRow({ ticket, onClick }: { ticket: TicketRow; onClick: () => void
           {ticket.categoria && ticket.categoria !== "generale" && (
             <Badge variant="secondary" className="text-xs">{ticket.categoria}</Badge>
           )}
+          {isStale && (
+            <Badge
+              variant="outline"
+              className="text-[10px] h-4 px-1 bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300"
+            >
+              <Clock className="h-2.5 w-2.5 mr-0.5" />
+              {giorni}gg
+            </Badge>
+          )}
         </div>
         <p className="text-sm font-medium mt-1 truncate">{ticket.titolo}</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {giorni === 0 ? "Aperto oggi" : `Aperto ${giorni} giorn${giorni === 1 ? "o" : "i"} fa`}
+          {giorni === 0
+            ? "Aperto oggi"
+            : `Aperto ${giorni} giorn${giorni === 1 ? "o" : "i"} fa`}
           {ticket.assegnato_a_nome && ` · Assegnato a ${ticket.assegnato_a_nome}`}
         </p>
       </div>
@@ -74,12 +102,21 @@ function TicketRow({ ticket, onClick }: { ticket: TicketRow; onClick: () => void
 }
 
 export function TabSupporto({ companyId }: TabSupportoProps) {
+  const { user, profile } = useAuth();
   const { tickets, isLoading, isError, creaTicket, cambiaStato } = useTicketAzienda(companyId);
   const [selectedTicket, setSelectedTicket] = useState<TicketRow | null>(null);
   const [statoFilter, setStatoFilter] = useState<TicketRow["stato"] | "tutti">("tutti");
   const [prioritaFilter, setPrioritaFilter] = useState<TicketRow["priorita"] | "tutti">("tutti");
   const [search, setSearch] = useState("");
   const [nuovoOpen, setNuovoOpen] = useState(false);
+
+  // Nome operatore reale per audit trail (prima passato come undefined → null in DB)
+  const operatorName = (() => {
+    if (profile?.first_name || profile?.last_name) {
+      return `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
+    }
+    return user?.email ?? null;
+  })();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -275,11 +312,14 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
             <div className="py-8 text-center">
               <Ticket className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
-                {statoFilter === "tutti"
+                {/* FIX: empty state contestuale: distingue "nessun ticket totale"
+                    da "filtri attivi → 0 risultati". Prima diceva sempre "Nessun
+                    ticket con stato X" anche se era la priorità o la search. */}
+                {tickets.length === 0
                   ? "Nessun ticket per questa azienda"
-                  : `Nessun ticket con stato "${statoLabels[statoFilter]}"`}
+                  : "Nessun ticket corrisponde ai filtri correnti"}
               </p>
-              {statoFilter === "tutti" && (
+              {tickets.length === 0 ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -288,12 +328,29 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
                 >
                   <Plus className="h-4 w-4 mr-1" /> Crea il primo ticket
                 </Button>
+              ) : (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="mt-1 text-xs"
+                  onClick={() => {
+                    setStatoFilter("tutti");
+                    setPrioritaFilter("tutti");
+                    setSearch("");
+                  }}
+                >
+                  Reset filtri
+                </Button>
               )}
             </div>
           ) : (
             <div className="divide-y">
               {filtered.map((t) => (
-                <TicketRow key={t.id} ticket={t} onClick={() => setSelectedTicket(t)} />
+                <TicketListItem
+                  key={t.id}
+                  ticket={t}
+                  onClick={() => setSelectedTicket(t)}
+                />
               ))}
             </div>
           )}
@@ -318,8 +375,18 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
       <NuovoTicketModal
         open={nuovoOpen}
         onOpenChange={setNuovoOpen}
-        onSubmit={(data) =>
-          creaTicket.mutate({ ...data, company_id: companyId }, { onSuccess: () => setNuovoOpen(false) })
+        // FIX: nuovo signature passa callbacks separati così il modale può
+        // resettare lo state SOLO su success (prima reset pre-success → data
+        // loss su failure). Inoltre passa aperto_da_nome per audit reale.
+        onSubmit={(data, callbacks) =>
+          creaTicket.mutate(
+            {
+              ...data,
+              company_id: companyId,
+              aperto_da_nome: operatorName ?? undefined,
+            },
+            { onSuccess: callbacks.onSuccess },
+          )
         }
         isLoading={creaTicket.isPending}
       />
