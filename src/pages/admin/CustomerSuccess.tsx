@@ -36,8 +36,6 @@ import {
   useSortable, verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 
 // ============================================================================
 // Types

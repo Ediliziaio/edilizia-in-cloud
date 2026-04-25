@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  MessageSquare, Inbox, AlarmClock, CheckCircle2, Clock4, TrendingUp, AlertCircle,
+  MessageSquare, Inbox, AlarmClock, Clock4, TrendingUp, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

@@ -12,9 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Palette, Globe, Crown, Eye, Shield, Clock } from "lucide-react";
+import { Loader2, Palette, Globe, Crown, Shield, Clock } from "lucide-react";
 
 interface Props {
   companyId: string;

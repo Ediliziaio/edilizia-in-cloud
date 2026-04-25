@@ -189,9 +189,13 @@ export function CreditTransactionsTable({ companyId }: Props) {
 
   const kpis = useKPIs(companyId, type, dateRange, customFrom, customTo);
 
-  const allRows = data?.rows ?? [];
-  // Search client-side (filter su descrizione + type del movimento)
+  // FIX react-hooks/exhaustive-deps: il warning era causato da `allRows` definito
+  // fuori dal useMemo come fallback `?? []`. Ogni render creava un nuovo array
+  // vuoto → useMemo invalidato. Ora il fallback è dentro useMemo, dependency
+  // diretta su `data?.rows` (riferimento stabile finché TanStack Query non
+  // aggiorna i dati).
   const rows = useMemo(() => {
+    const allRows = data?.rows ?? [];
     const q = search.trim().toLowerCase();
     if (!q) return allRows;
     return allRows.filter(
@@ -199,7 +203,7 @@ export function CreditTransactionsTable({ companyId }: Props) {
         (r.description ?? "").toLowerCase().includes(q) ||
         (r.type ?? "").toLowerCase().includes(q),
     );
-  }, [allRows, search]);
+  }, [data?.rows, search]);
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
