@@ -1,10 +1,20 @@
 import type { CompanySector } from "@/types/auth";
 
+/**
+ * Template degli stati ordine per settore.
+ *
+ * IMPORTANTE: questo file deve restare in sync 1:1 con
+ * `supabase/functions/create-company/index.ts > getOrderStatusTemplate`.
+ * Il backend è la fonte di verità che effettivamente popola la tabella
+ * `order_statuses`; il frontend usa questi dati solo per l'anteprima
+ * mostrata in /admin/aziende/nuova.
+ */
 export interface OrderStatusTemplate {
   name: string;
   icon: string;
   color: string;
   position: number;
+  is_support_phase?: boolean;
 }
 
 const serramentiInfissiTemplate: OrderStatusTemplate[] = [
@@ -16,6 +26,7 @@ const serramentiInfissiTemplate: OrderStatusTemplate[] = [
   { name: "Merce in Magazzino", icon: "Package", color: "#EA580C", position: 5 },
   { name: "Posa Programmata", icon: "Calendar", color: "#DB2777", position: 6 },
   { name: "Posa Completata", icon: "Home", color: "#16A34A", position: 7 },
+  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 8, is_support_phase: true },
 ];
 
 const fotovoltaicoTemplate: OrderStatusTemplate[] = [
@@ -29,6 +40,7 @@ const fotovoltaicoTemplate: OrderStatusTemplate[] = [
   { name: "Installazione Completata", icon: "Wrench", color: "#2563EB", position: 7 },
   { name: "Collaudo", icon: "Shield", color: "#CA8A04", position: 8 },
   { name: "Allaccio Rete", icon: "Zap", color: "#16A34A", position: 9 },
+  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 10, is_support_phase: true },
 ];
 
 const bagniRistrutturazioniTemplate: OrderStatusTemplate[] = [
@@ -42,12 +54,14 @@ const bagniRistrutturazioniTemplate: OrderStatusTemplate[] = [
   { name: "Posa", icon: "Factory", color: "#DB2777", position: 7 },
   { name: "Finiture", icon: "PaintBucket", color: "#7C3AED", position: 8 },
   { name: "Consegna", icon: "Home", color: "#16A34A", position: 9 },
+  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 10, is_support_phase: true },
 ];
 
 const defaultTemplate: OrderStatusTemplate[] = [
   { name: "Contratto Firmato", icon: "FileText", color: "#2563EB", position: 0 },
   { name: "In Lavorazione", icon: "Settings", color: "#CA8A04", position: 1 },
   { name: "Completato", icon: "CheckCircle", color: "#16A34A", position: 2 },
+  { name: "Assistenza", icon: "LifeBuoy", color: "#F59E0B", position: 3, is_support_phase: true },
 ];
 
 export function getOrderStatusTemplate(sector: CompanySector): OrderStatusTemplate[] {
@@ -89,6 +103,7 @@ export const availableIcons = [
   "Star",
   "Award",
   "Flag",
+  "LifeBuoy",
 ] as const;
 
 export const availableColors = [

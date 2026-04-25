@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -163,6 +163,7 @@ function passwordStrength(pw: string): { score: number; label: string; tone: str
 export default function CreateCompany() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { permissions: saPermissions } = useSuperAdminPermissions();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -376,6 +377,17 @@ export default function CreateCompany() {
           }
         }
       }
+
+      // Invalida le query della lista aziende per garantire che la nuova
+      // azienda sia visibile immediatamente al ritorno alla lista.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull }),
+        queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesOrderStats }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesUserCounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesHealth }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesLastAccess }),
+      ]);
 
       toast({
         title: "Azienda creata con successo",
@@ -1091,7 +1103,10 @@ export default function CreateCompany() {
                   {statusTemplate.map((status, index) => (
                     <div
                       key={status.name}
-                      className="flex items-center gap-3 p-2.5 rounded-lg border bg-card"
+                      className={cn(
+                        "flex items-center gap-3 p-2.5 rounded-lg border bg-card",
+                        status.is_support_phase && "border-dashed",
+                      )}
                     >
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium shrink-0"
@@ -1099,7 +1114,12 @@ export default function CreateCompany() {
                       >
                         {index + 1}
                       </div>
-                      <span className="font-medium text-sm truncate">{status.name}</span>
+                      <span className="font-medium text-sm truncate flex-1">{status.name}</span>
+                      {status.is_support_phase && (
+                        <Badge variant="outline" className="text-[10px] font-normal h-5 shrink-0">
+                          supporto
+                        </Badge>
+                      )}
                     </div>
                   ))}
                 </div>
