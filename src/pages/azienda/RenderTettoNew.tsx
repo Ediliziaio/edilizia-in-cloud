@@ -35,7 +35,12 @@ interface PollState {
 
 // ── Polling config ───────────────────────────────────────────────────────────
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+const MAX_POLL_SEC = 420;
+
+function isIdleTimeoutMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderTettoNew() {
@@ -144,6 +149,7 @@ export default function RenderTettoNew() {
     elapsedRef.current = 0;
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
+    try {
     await supabase
       .from("render_tetto_sessions")
       .update({ config: config })
@@ -161,6 +167,8 @@ export default function RenderTettoNew() {
       } catch { /* ignore */ }
     }
 
+    startPolling(sessionId);
+
     const headers = await getEdgeFunctionAuthHeaders();
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-roof-render", {
       body: {
@@ -177,6 +185,11 @@ export default function RenderTettoNew() {
         data: fnData,
         fallback: "Generazione fallita",
       });
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -189,6 +202,7 @@ export default function RenderTettoNew() {
 
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
+      stopPolling();
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-tetto-sessions", companyId] });
@@ -196,14 +210,29 @@ export default function RenderTettoNew() {
       setStep(4);
       return;
     }
-
-    startPolling(sessionId);
+    } catch (err) {
+      stopPolling();
+      setGenerating(false);
+      setStep(2);
+      toast.error(err instanceof Error ? err.message : "Render fallito");
+    }
   }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
+  function stopPolling() {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+    if (dotsIntervalRef.current) {
+      clearInterval(dotsIntervalRef.current);
+      dotsIntervalRef.current = null;
+    }
+  }
+
   function startPolling(sid: string) {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    stopPolling();
     pollCountRef.current = 0;
+    elapsedRef.current = 0;
 
     dotsIntervalRef.current = setInterval(() => {
       elapsedRef.current += 1;
@@ -225,14 +254,14 @@ export default function RenderTettoNew() {
 
       const { data: sess } = await supabase
         .from("render_tetto_sessions")
-        .select("status, result_urls")
+        .select("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
-      const s = sess as { status: string; result_urls: string[] | null } | null;
+      const s = sess as { status: string; result_urls: string[] | null; error_message?: string | null } | null;
 
       if (s?.status === "completed" && s.result_urls?.length) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setResultUrls(s.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-tetto-sessions", companyId] });
@@ -242,9 +271,9 @@ export default function RenderTettoNew() {
       }
 
       if (s?.status === "failed") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
-        toast.error("Render fallito. Riprova.");
+        toast.error(s.error_message || "Render fallito. Riprova.");
         setStep(2);
         return;
       }
@@ -471,8 +500,8 @@ export default function RenderTettoNew() {
               </p>
             </div>
             <div className="w-full max-w-xs">
-              <Progress value={Math.min((pollState.elapsedSec / 60) * 100, 95)} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">{pollState.elapsedSec}s trascorsi</p>
+              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">{pollState.elapsedSec}s trascorsi · può richiedere 1-4 minuti</p>
             </div>
           </CardContent>
         </Card>

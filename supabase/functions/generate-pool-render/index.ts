@@ -97,6 +97,27 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+}
+
+function acceptedRenderResponse(sessionId: string) {
+  return jsonResponse({ success: true, accepted: true, session_id: sessionId, status: "processing" }, 202);
+}
+
+function runInBackground(promise: Promise<unknown>) {
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+    EdgeRuntime.waitUntil(promise);
+    return;
+  }
+  promise.catch((err) => console.error("[generate-pool-render] background fallback error:", err));
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -428,6 +449,20 @@ Deno.serve(async (req) => {
       });
     }
 
+    const existingResults = Array.isArray(session.result_urls) ? session.result_urls : [];
+    if (session.status === "completed" && existingResults.length) {
+      return jsonResponse({
+        success: true,
+        session_id,
+        result_url: existingResults[0],
+        result_urls: existingResults,
+        already_completed: true,
+      });
+    }
+    if (session.status === "processing") {
+      return acceptedRenderResponse(session_id);
+    }
+
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: session.company_id as string,
       sessionId: session_id,
@@ -448,6 +483,7 @@ Deno.serve(async (req) => {
       .update({ status: "processing", processing_started_at: new Date().toISOString() })
       .eq("id", session_id);
 
+    const renderJob = (async () => {
     const originalPath = session.original_photo_url as string;
     let imageUrl = originalPath;
     if (originalPath && !originalPath.startsWith("http")) {
@@ -577,6 +613,17 @@ Deno.serve(async (req) => {
       status: 200,
       headers: { ...CORS, "Content-Type": "application/json" },
     });
+    })().catch(async (jobErr: unknown) => {
+      const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
+      console.error("[generate-pool-render] background error:", msg);
+      await supabase
+        .from("render_piscine_sessions")
+        .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })
+        .eq("id", session_id);
+    });
+
+    runInBackground(renderJob);
+    return acceptedRenderResponse(session_id);
   } catch (err: unknown) {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);

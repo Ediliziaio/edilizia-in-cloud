@@ -82,6 +82,23 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+
+function acceptedRenderResponse(sessionId: string): Response {
+  return jsonResponse({ success: true, accepted: true, session_id: sessionId, status: "processing" }, 202);
+}
+
+function runInBackground(promise: Promise<unknown>) {
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+    EdgeRuntime.waitUntil(promise);
+    return;
+  }
+
+  promise.catch((err) => {
+    console.error("[generate-bathroom-render] background fallback error:", err);
+  });
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   const chunkSize = 0x8000;
@@ -884,6 +901,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (session.stato === "completato" && session.render_result_url) {
+      return jsonResponse({
+        success: true,
+        session_id,
+        result_url: session.render_result_url,
+        provider: session.provider_key,
+        prompt_version: session.prompt_version,
+        already_completed: true,
+      });
+    }
+    if (session.stato === "processing") {
+      return acceptedRenderResponse(session_id);
+    }
+
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: session.company_id,
       sessionId: session_id,
@@ -910,6 +941,7 @@ Deno.serve(async (req) => {
       })
       .eq("id", session_id);
 
+    const renderJob = (async () => {
     const originalPath = session.foto_originale_path;
     if (!originalPath) {
       throw new Error("Foto originale della sessione mancante");
@@ -1036,6 +1068,20 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
       provider: providerConfig.provider_key,
       prompt_version: promptVersion,
     });
+    })().catch(async (jobErr: unknown) => {
+      const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
+      console.error("[generate-bathroom-render] background error:", message);
+      await supabase
+        .from("render_bagno_sessions")
+        .update({
+          stato: "errore",
+          processing_completed_at: new Date().toISOString(),
+        })
+        .eq("id", session_id);
+    });
+
+    runInBackground(renderJob);
+    return acceptedRenderResponse(session_id);
   } catch (err) {
     if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : String(err);

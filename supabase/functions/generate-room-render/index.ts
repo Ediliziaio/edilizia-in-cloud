@@ -62,6 +62,35 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function acceptedRenderResponse(sessionId: string) {
+  return jsonResponse({
+    success: true,
+    accepted: true,
+    session_id: sessionId,
+    status: "processing",
+  }, 202);
+}
+
+function runInBackground(promise: Promise<unknown>) {
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+    EdgeRuntime.waitUntil(promise);
+    return;
+  }
+
+  promise.catch((err) => {
+    console.error("[generate-room-render] background fallback error:", err);
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -97,6 +126,20 @@ Deno.serve(async (req: Request) => {
     );
     if (!allowed) {
       throw new Error("forbidden: accesso negato alla sessione render stanza");
+    }
+
+    const existingResults = Array.isArray(session.result_urls) ? session.result_urls : [];
+    if (session.status === "completed" && existingResults.length) {
+      return jsonResponse({
+        success: true,
+        session_id,
+        result_url: existingResults[0],
+        result_urls: existingResults,
+        already_completed: true,
+      });
+    }
+    if (session.status === "processing") {
+      return acceptedRenderResponse(session_id);
     }
 
     // FIX P2.1 + P3.1: credito deduct atomico PRE-flight con audit ledger.
@@ -148,6 +191,7 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", session_id);
 
+    const renderJob = (async () => {
     const prepared = await prepareInputImage({
       supabase,
       bucket: "stanza-originals",
@@ -364,6 +408,21 @@ Deno.serve(async (req: Request) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+    })().catch(async (jobErr: unknown) => {
+      const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
+      console.error("generate-room-render background error:", message);
+      await supabase
+        .from("render_stanza_sessions")
+        .update({
+          status: "failed",
+          error_message: message,
+          processing_completed_at: new Date().toISOString(),
+        })
+        .eq("id", session_id);
+    });
+
+    runInBackground(renderJob);
+    return acceptedRenderResponse(session_id);
   } catch (err: unknown) {
     if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : String(err);

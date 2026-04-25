@@ -42,7 +42,12 @@ import {
 type Step = 1 | 2 | 3 | 4;
 
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+const MAX_POLL_SEC = 420;
+
+function isIdleTimeoutMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
+}
 
 function normalizeFileExt(name: string) {
   const ext = name.split(".").pop()?.toLowerCase() || "jpg";
@@ -159,9 +164,15 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
     }
   }, [companyId, config, contactId, db, moduleId, opportunityId, photo, user]);
 
-  const startPolling = useCallback((sid: string) => {
+  const stopPolling = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
     if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    pollRef.current = null;
+    dotsIntervalRef.current = null;
+  }, []);
+
+  const startPolling = useCallback((sid: string) => {
+    stopPolling();
     pollCountRef.current = 0;
     elapsedRef.current = 0;
 
@@ -173,7 +184,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
         setStep(2);
         toast.error("Timeout: il render sta impiegando troppo tempo. Riprova più tardi.");
@@ -187,7 +198,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         .single();
 
       if (session?.status === "completed" && session.result_urls?.length) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setResultUrls(session.result_urls);
         setGenerating(false);
         await queryClient.invalidateQueries({ queryKey: ["render-module-hub", companyId, moduleId] });
@@ -198,7 +209,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
       }
 
       if (session?.status === "failed") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
         setStep(2);
         toast.error(session.error_message || "Render fallito. Riprova.");
@@ -211,7 +222,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
     };
 
     poll();
-  }, [companyId, db, moduleId, queryClient]);
+  }, [companyId, db, moduleId, queryClient, stopPolling]);
 
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
@@ -225,6 +236,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
       const dims = photoPreview ? await getImageDimensions(photoPreview) : {};
       const headers = await getEdgeFunctionAuthHeaders();
+      startPolling(sessionId);
       const { data, error } = await supabase.functions.invoke("generate-technical-render", {
         body: {
           session_id: sessionId,
@@ -240,11 +252,17 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           data,
           fallback: "Generazione fallita",
         });
+        if (isIdleTimeoutMessage(message)) {
+          toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+          return;
+        }
+        stopPolling();
         throw new Error(message.includes("insufficient_credits") ? "Crediti render insufficienti. Acquista nuovi crediti." : message);
       }
 
       const urls: string[] = data?.result_urls ?? (data?.result_url ? [data.result_url] : []);
       if (urls.length) {
+        stopPolling();
         setResultUrls(urls);
         setGenerating(false);
         await queryClient.invalidateQueries({ queryKey: ["render-module-hub", companyId, moduleId] });
@@ -253,14 +271,13 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         setStep(4);
         return;
       }
-
-      startPolling(sessionId);
     } catch (error) {
+      stopPolling();
       setGenerating(false);
       setStep(2);
       toast.error(error instanceof Error ? error.message : "Render fallito");
     }
-  }, [companyId, config, db, generating, moduleId, photoPreview, queryClient, sessionId, startPolling]);
+  }, [companyId, config, db, generating, moduleId, photoPreview, queryClient, sessionId, startPolling, stopPolling]);
 
   const downloadResult = async () => {
     const url = resultUrls[0];
@@ -477,8 +494,8 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
               </p>
             </div>
             <div className="w-full max-w-xs">
-              <Progress value={Math.min((elapsedSec / 60) * 100, 95)} className="h-2" />
-              <p className="mt-1 text-xs text-muted-foreground">{elapsedSec}s trascorsi</p>
+              <Progress value={Math.min((elapsedSec / 240) * 100, 95)} className="h-2" />
+              <p className="mt-1 text-xs text-muted-foreground">{elapsedSec}s trascorsi · può richiedere 1-4 minuti</p>
             </div>
           </CardContent>
         </Card>

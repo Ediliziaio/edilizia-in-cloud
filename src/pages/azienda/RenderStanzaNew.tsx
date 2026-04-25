@@ -37,7 +37,12 @@ interface PollState {
 
 // ── Polling intervals (exponential backoff) ───────────────────────────────────
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+const MAX_POLL_SEC = 420;
+
+function isIdleTimeoutMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderStanzaNew() {
@@ -173,6 +178,11 @@ export default function RenderStanzaNew() {
       } catch { /* ignore */ }
     }
 
+    // Start visible timer/polling before invoking the edge function. The edge
+    // now accepts the job quickly, but this also protects the UI if the network
+    // request itself becomes slow.
+    startPolling(sessionId);
+
     // Invoke edge function
     const headers = await getEdgeFunctionAuthHeaders();
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-room-render", {
@@ -190,6 +200,11 @@ export default function RenderStanzaNew() {
         data: fnData,
         fallback: "Generazione fallita",
       });
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -203,6 +218,7 @@ export default function RenderStanzaNew() {
     // Sync response
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
+      stopPolling();
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-stanza-sessions", companyId] });
@@ -210,15 +226,23 @@ export default function RenderStanzaNew() {
       setStep(4);
       return;
     }
-
-    // Poll
-    startPolling(sessionId);
   }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
 
+  function stopPolling() {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+    if (dotsIntervalRef.current) {
+      clearInterval(dotsIntervalRef.current);
+      dotsIntervalRef.current = null;
+    }
+  }
+
   function startPolling(sid: string) {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    stopPolling();
     pollCountRef.current = 0;
+    elapsedRef.current = 0;
 
     dotsIntervalRef.current = setInterval(() => {
       elapsedRef.current += 1;
@@ -240,14 +264,14 @@ export default function RenderStanzaNew() {
 
       const { data: sess } = await supabase
         .from("render_stanza_sessions")
-        .select("status, result_urls")
+        .select("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
-      const s = sess as { status: string; result_urls: string[] | null } | null;
+      const s = sess as { status: string; result_urls: string[] | null; error_message?: string | null } | null;
 
       if (s?.status === "completed" && s.result_urls?.length) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setResultUrls(s.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-stanza-sessions", companyId] });
@@ -257,9 +281,9 @@ export default function RenderStanzaNew() {
       }
 
       if (s?.status === "failed") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
-        toast.error("Render fallito. Riprova.");
+        toast.error(s.error_message || "Render fallito. Riprova.");
         setStep(2);
         return;
       }
@@ -532,10 +556,10 @@ export default function RenderStanzaNew() {
                   L&apos;AI sta trasformando la stanza con il nuovo design
                 </p>
                 <p className="text-xs text-muted-foreground mt-3">
-                  Tempo trascorso: {pollState.elapsedSec}s &middot; Puo richiedere 30-90 secondi
+                  Tempo trascorso: {pollState.elapsedSec}s &middot; Puo richiedere 1-4 minuti
                 </p>
               </div>
-              <Progress value={Math.min((pollState.elapsedSec / 90) * 100, 95)} className="w-full h-2" />
+              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="w-full h-2" />
             </CardContent>
           </Card>
 

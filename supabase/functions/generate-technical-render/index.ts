@@ -29,6 +29,28 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+
+function runInBackground(promise: Promise<unknown>) {
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+    EdgeRuntime.waitUntil(promise);
+    return;
+  }
+
+  promise.catch((err) => {
+    console.error("[generate-technical-render] background fallback error:", err);
+  });
+}
+
+function acceptedRenderResponse(sessionId: string) {
+  return jsonResponse({
+    success: true,
+    accepted: true,
+    session_id: sessionId,
+    status: "processing",
+  }, 202);
+}
+
 const MODULE_RULES: Record<TechnicalModuleId, {
   label: string;
   mission: string;
@@ -349,6 +371,20 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "forbidden", message: "Accesso negato alla sessione render" }, 403);
     }
 
+    const existingResults = Array.isArray(session.result_urls) ? session.result_urls : [];
+    if (session.status === "completed" && existingResults.length) {
+      return jsonResponse({
+        success: true,
+        session_id,
+        result_url: existingResults[0],
+        result_urls: existingResults,
+        already_completed: true,
+      });
+    }
+    if (session.status === "processing") {
+      return acceptedRenderResponse(session_id);
+    }
+
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: session.company_id as string,
       sessionId: session_id,
@@ -366,6 +402,7 @@ Deno.serve(async (req) => {
       .update({ status: "processing", processing_started_at: new Date().toISOString(), error_message: null })
       .eq("id", session_id);
 
+    const renderJob = (async () => {
     const originalPath = session.original_photo_url as string;
     if (!originalPath) throw new Error("Foto originale mancante");
 
@@ -503,6 +540,17 @@ Deno.serve(async (req) => {
       prompt_version: promptVersion,
       prompt_char_count: finalPrompt.length,
     });
+    })().catch(async (jobErr: unknown) => {
+      const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
+      console.error("[generate-technical-render] background error:", msg);
+      await supabase
+        .from("render_technical_sessions")
+        .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })
+        .eq("id", session_id);
+    });
+
+    runInBackground(renderJob);
+    return acceptedRenderResponse(session_id);
   } catch (err: unknown) {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);

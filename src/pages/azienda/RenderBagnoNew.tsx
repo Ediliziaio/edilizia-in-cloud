@@ -46,7 +46,12 @@ interface PhotoMeta {
 
 // ── Polling intervals (exponential backoff) ──────────────────────────
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+const MAX_POLL_SEC = 420;
+
+function isIdleTimeoutMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
+}
 
 // ═════════════════════════════════════════════════════════════════════
 export default function RenderBagnoNew() {
@@ -306,10 +311,17 @@ export default function RenderBagnoNew() {
     }
   }, [photo, companyId, user, config, contactId, opportunityId]);
 
-  const startPolling = useCallback((sid: string) => {
+  const stopPolling = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
     if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    pollRef.current = null;
+    dotsIntervalRef.current = null;
+  }, []);
+
+  const startPolling = useCallback((sid: string) => {
+    stopPolling();
     pollCountRef.current = 0;
+    elapsedRef.current = 0;
 
     dotsIntervalRef.current = setInterval(() => {
       elapsedRef.current += 1;
@@ -322,7 +334,7 @@ export default function RenderBagnoNew() {
 
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
         toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
         setStep(3);
@@ -338,7 +350,7 @@ export default function RenderBagnoNew() {
       const s = sess as { stato: string; render_result_url: string | null } | null;
 
       if (s?.stato === "completato" && s.render_result_url) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setResultUrl(s.render_result_url);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-bagno-sessions", companyId] });
@@ -348,7 +360,7 @@ export default function RenderBagnoNew() {
       }
 
       if (s?.stato === "errore") {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        stopPolling();
         setGenerating(false);
         toast.error("Render fallito. Riprova.");
         setStep(3);
@@ -363,7 +375,7 @@ export default function RenderBagnoNew() {
     };
 
     poll();
-  }, [companyId, queryClient]);
+  }, [companyId, queryClient, stopPolling]);
 
   // ── Step 3 -> Step 4: start render ─────────────────────────────────
   const startRender = useCallback(async () => {
@@ -379,6 +391,7 @@ export default function RenderBagnoNew() {
     elapsedRef.current = 0;
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
+    try {
     const renderPayload = buildBathroomRenderConfig(config, {
       sceneAnalysis: analisi ?? undefined,
       photoMeta,
@@ -435,6 +448,7 @@ export default function RenderBagnoNew() {
     const targetHeight = photoMeta?.height;
     const { data: { session: authSession } } = await supabase.auth.getSession();
     const token = authSession?.access_token;
+    startPolling(activeSessionId);
 
     // Invoke generate-bathroom-render
     const { data: fnData, error: fnErr } = await supabase.functions.invoke(
@@ -463,6 +477,11 @@ export default function RenderBagnoNew() {
         fnData?.message ??
         fnData?.error ??
         "Generazione fallita";
+      if (isIdleTimeoutMessage(msg)) {
+        toast.info("Render avviato: continuo a controllare lo stato in automatico.");
+        return;
+      }
+      stopPolling();
       setGenerating(false);
       if (msg.includes("insufficient_credits")) {
         toast.error("Crediti render insufficienti. Acquista nuovi crediti.");
@@ -475,6 +494,7 @@ export default function RenderBagnoNew() {
 
     // Synchronous result
     if (fnData?.result_url) {
+      stopPolling();
       setResultUrl(fnData.result_url);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-bagno-sessions", companyId] });
@@ -482,10 +502,13 @@ export default function RenderBagnoNew() {
       queryClient.invalidateQueries({ queryKey: ["render-bagno-gallery", companyId] });
       return;
     }
-
-    // Otherwise poll
-    startPolling(activeSessionId);
-  }, [sessionId, companyId, user, sourceOriginalPath, config, queryClient, generating, startPolling, photoMeta, analisi, contactId, opportunityId]);
+    } catch (err) {
+      stopPolling();
+      setGenerating(false);
+      setStep(3);
+      toast.error(err instanceof Error ? err.message : "Render fallito");
+    }
+  }, [sessionId, companyId, user, sourceOriginalPath, config, queryClient, generating, startPolling, stopPolling, photoMeta, analisi, contactId, opportunityId]);
 
   // ── Save to gallery ────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
@@ -933,10 +956,10 @@ export default function RenderBagnoNew() {
                   L&apos;AI sta trasformando il bagno con la nuova configurazione
                 </p>
                 <p className="text-xs text-muted-foreground mt-3">
-                  Tempo trascorso: {pollState.elapsedSec}s - Puo richiedere 30-90 secondi
+                  Tempo trascorso: {pollState.elapsedSec}s - Puo richiedere 1-4 minuti
                 </p>
               </div>
-              <Progress value={Math.min((pollState.elapsedSec / 90) * 100, 95)} className="w-full h-2" />
+              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="w-full h-2" />
             </CardContent>
           </Card>
 
