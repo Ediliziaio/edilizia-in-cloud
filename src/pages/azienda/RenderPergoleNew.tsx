@@ -18,6 +18,7 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { buildPergoleRenderConfig } from "@/modules/render-pergole/lib/pergoleRenderConfig";
 import type { ConfigurazionePergole } from "@/modules/render-pergole/lib/types";
 import {
@@ -27,6 +28,18 @@ import {
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 type Step = 1 | 2 | 3 | 4;
+
+type DynamicRenderDbQuery<T = unknown> = PromiseLike<{ data: T | null; error: { message?: string } | null }> & {
+  select: <R = T>(columns?: string) => DynamicRenderDbQuery<R>;
+  insert: <R = T>(values: unknown) => DynamicRenderDbQuery<R>;
+  update: <R = T>(values: unknown) => DynamicRenderDbQuery<R>;
+  eq: (column: string, value: unknown) => DynamicRenderDbQuery<T>;
+  single: () => Promise<{ data: T | null; error: { message?: string } | null }>;
+};
+
+type DynamicRenderDb = {
+  from: <T = unknown>(table: string) => DynamicRenderDbQuery<T>;
+};
 
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
 const MAX_POLL_SEC = 420;
@@ -41,7 +54,7 @@ export default function RenderPergoleNew() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const db = supabase as any;
+  const db = supabase as unknown as DynamicRenderDb;
 
   const [step, setStep] = useState<Step>(1);
   const [photo, setPhoto] = useState<File | null>(null);
@@ -180,12 +193,21 @@ export default function RenderPergoleNew() {
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
     setGenerating(true);
+    setResultUrls([]);
     setStep(3);
     setElapsedSec(0);
     setDots(0);
 
     try {
-    await db.from("render_pergole_sessions").update({ config }).eq("id", sessionId);
+    await db
+      .from("render_pergole_sessions")
+      .update({
+        config,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
+      })
+      .eq("id", sessionId);
 
     let targetWidth: number | undefined;
     let targetHeight: number | undefined;
@@ -434,6 +456,15 @@ export default function RenderPergoleNew() {
             <Button variant="outline" className="flex-1 gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Download</Button>
             <Button variant="outline" className="flex-1 gap-2" onClick={shareWhatsApp}><Share2 className="h-4 w-4" />WhatsApp</Button>
           </div>
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante pergola"
+          />
           <Button
             className="w-full bg-emerald-600 hover:bg-emerald-700"
             onClick={() => {

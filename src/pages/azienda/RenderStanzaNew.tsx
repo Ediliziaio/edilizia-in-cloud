@@ -19,6 +19,7 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
@@ -154,6 +155,8 @@ export default function RenderStanzaNew() {
     if (generating) return;
 
     setGenerating(true);
+    setResultUrls([]);
+    setSavedToGallery(false);
     setStep(3);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
@@ -162,7 +165,12 @@ export default function RenderStanzaNew() {
     // Update config on session
     await supabase
       .from("render_stanza_sessions")
-      .update({ config: config })
+      .update({
+        config: config,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
+      })
       .eq("id", sessionId);
 
     // Get image dimensions
@@ -668,23 +676,15 @@ export default function RenderStanzaNew() {
 
           <Separator />
 
-          {/* Config summary */}
-          <Card className="bg-muted/30">
-            <CardContent className="py-3 space-y-1">
-              <p className="text-xs font-semibold text-muted-foreground">Configurazione applicata</p>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                <Badge variant="outline" className="text-xs capitalize">
-                  {config.tipo_stanza.replace(/_/g, " ")}
-                </Badge>
-                <Badge variant="outline" className="text-xs capitalize">
-                  Stile: {config.stile_target.replace(/_/g, " ")}
-                </Badge>
-                <Badge variant="outline" className="text-xs capitalize">
-                  {config.intensita}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante stanza"
+          />
 
           <div className="flex gap-3">
             <Button

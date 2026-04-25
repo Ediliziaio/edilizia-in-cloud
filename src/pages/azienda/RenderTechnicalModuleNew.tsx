@@ -27,6 +27,7 @@ import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 import { renderModuleHubConfigs } from "@/lib/render/renderModuleHubConfigs";
 import {
@@ -40,6 +41,18 @@ import {
 } from "@/modules/render/lib/edgeFunctionClient";
 
 type Step = 1 | 2 | 3 | 4;
+
+type DynamicRenderDbQuery<T = unknown> = PromiseLike<{ data: T | null; error: { message?: string } | null }> & {
+  select: <R = T>(columns?: string) => DynamicRenderDbQuery<R>;
+  insert: <R = T>(values: unknown) => DynamicRenderDbQuery<R>;
+  update: <R = T>(values: unknown) => DynamicRenderDbQuery<R>;
+  eq: (column: string, value: unknown) => DynamicRenderDbQuery<T>;
+  single: () => Promise<{ data: T | null; error: { message?: string } | null }>;
+};
+
+type DynamicRenderDb = {
+  from: <T = unknown>(table: string) => DynamicRenderDbQuery<T>;
+};
 
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
 const MAX_POLL_SEC = 420;
@@ -72,7 +85,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const queryClient = useQueryClient();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
-  const db = supabase as any;
+  const db = supabase as unknown as DynamicRenderDb;
   const spec = getTechnicalRenderModuleSpec(moduleId);
   const hubConfig = renderModuleHubConfigs[moduleId];
   const ModuleIcon = hubConfig.icon;
@@ -227,12 +240,21 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
     setGenerating(true);
+    setResultUrls([]);
     setElapsedSec(0);
     setDots(0);
     setStep(3);
 
     try {
-      await db.from("render_technical_sessions").update({ config }).eq("id", sessionId);
+      await db
+        .from("render_technical_sessions")
+        .update({
+          config,
+          status: "pending",
+          result_urls: null,
+          error_message: null,
+        })
+        .eq("id", sessionId);
 
       const dims = photoPreview ? await getImageDimensions(photoPreview) : {};
       const headers = await getEdgeFunctionAuthHeaders();
@@ -522,6 +544,17 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
             <Button variant="outline" className="gap-2" onClick={shareWhatsApp}><Share2 className="h-4 w-4" />WhatsApp</Button>
             <Button className="gap-2" onClick={() => navigate(`/azienda/render/${moduleId}/gallery`)}>Apri galleria</Button>
           </div>
+
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.technicalDetails}
+            notePlaceholder="Scrivi una variante precisa. Esempio: mantieni identici porta e pavimento, cambia solo la finitura del pannello, evita arredi nuovi."
+            onNoteChange={(technicalDetails) => setConfig((current) => ({ ...current, technicalDetails }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel={`Genera nuova variante ${spec.singularLabel}`}
+          />
 
           <Button
             variant="outline"

@@ -29,6 +29,7 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type {
   AnalisiFacciata,
   ConfigurazioneFacciata,
@@ -326,6 +327,7 @@ export default function RenderFacciataNew() {
     if (!sessionId || !companyId || !renderPlan || generating) return;
 
     setGenerating(true);
+    setResultUrls([]);
     setStep(4);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
@@ -333,7 +335,12 @@ export default function RenderFacciataNew() {
 
     await supabase
       .from("render_facciata_sessions")
-      .update({ config: renderPlan })
+      .update({
+        config: renderPlan,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
+      })
       .eq("id", sessionId);
 
     const headers = await getEdgeFunctionAuthHeaders();
@@ -755,6 +762,16 @@ export default function RenderFacciataNew() {
               Scarica
             </Button>
           </div>
+
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(3)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante facciata"
+          />
 
           <Button
             variant="outline"

@@ -17,6 +17,7 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type { ConfigurazioneTetto } from "@/modules/render-tetto/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
@@ -144,6 +145,7 @@ export default function RenderTettoNew() {
     if (!sessionId || !companyId) return;
     if (generating) return;
     setGenerating(true);
+    setResultUrls([]);
     setStep(3);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
@@ -152,7 +154,12 @@ export default function RenderTettoNew() {
     try {
     await supabase
       .from("render_tetto_sessions")
-      .update({ config: config })
+      .update({
+        config: config,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
+      })
       .eq("id", sessionId);
 
     let targetWidth: number | undefined;
@@ -548,6 +555,16 @@ export default function RenderTettoNew() {
               WhatsApp
             </Button>
           </div>
+
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante tetto"
+          />
 
           <Button
             className="w-full bg-red-600 hover:bg-red-700"

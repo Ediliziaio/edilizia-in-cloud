@@ -130,6 +130,8 @@ ${bullets([
 ${bullets([
     envelope.anchoringLogic,
     envelope.openingClearance,
+    "install exactly one coherent pergola system in the target footprint; do not duplicate pergolas, posts, rails or roof frames",
+    "post count and position must match the selected configuration and visible support logic, never a random forest of columns",
     "wall attachments, post foot plates, profile transitions and contact shadows must be credible",
     "no blocked door/window operation unless explicitly accepted by the user",
     "no collision with shutters, windows, eaves, gutters, parapets, pool edge or furniture",

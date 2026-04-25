@@ -24,6 +24,7 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
 import { buildBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
@@ -386,6 +387,8 @@ export default function RenderBagnoNew() {
     if (generating) return;
 
     setGenerating(true);
+    setResultUrl(null);
+    setSavedToGallery(false);
     setStep(4);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
@@ -438,9 +441,12 @@ export default function RenderBagnoNew() {
     await supabase
       .from("render_bagno_sessions")
       .update({
+        stato: "analysis_done",
         configurazione: renderPayload,
         analisi_bagno: renderPayload.scene_analysis,
         tipo_intervento: config.tipo_intervento,
+        render_result_url: null,
+        render_result_path: null,
       })
       .eq("id", activeSessionId);
 
@@ -1056,32 +1062,20 @@ export default function RenderBagnoNew() {
 
           <Separator />
 
-          {/* Config summary */}
-          <Card className="bg-muted/30">
-            <CardContent className="py-3 space-y-1">
-              <p className="text-xs font-semibold text-muted-foreground">Configurazione applicata</p>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                <Badge variant="outline" className="text-xs capitalize">
-                  {config.tipo_intervento.replace(/_/g, " ")}
-                </Badge>
-                {config.sostituzione.piastrelle_parete && (
-                  <Badge variant="outline" className="text-xs capitalize">
-                    Parete: {config.piastrelle_parete.effetto.replace(/_/g, " ")}
-                  </Badge>
-                )}
-                {config.sostituzione.pavimento && (
-                  <Badge variant="outline" className="text-xs capitalize">
-                    Pavimento: {config.pavimento.effetto.replace(/_/g, " ")}
-                  </Badge>
-                )}
-                {config.sostituzione.doccia && (
-                  <Badge variant="outline" className="text-xs capitalize">
-                    Doccia: {config.doccia.tipo.replace(/_/g, " ")}
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => {
+              setResultUrl(null);
+              setSavedToGallery(false);
+              setGenerating(false);
+              setStep(3);
+            }}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante bagno"
+          />
 
           <div className="flex gap-3">
             <Button

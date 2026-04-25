@@ -19,6 +19,7 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import type { ConfigurazionePavimento, AnalisiPavimento } from "@/modules/render-pavimento/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
@@ -240,6 +241,7 @@ export default function RenderPavimentoNew() {
     if (generating) return;
 
     setGenerating(true);
+    setResultUrls([]);
     setStep(3);
     pollCountRef.current = 0;
     elapsedRef.current = 0;
@@ -269,6 +271,9 @@ export default function RenderPavimentoNew() {
       .from("render_pavimento_sessions")
       .update({
         config: config as unknown,
+        status: "pending",
+        result_urls: null,
+        error_message: null,
         ...(analisi ? { analisi_pavimento: analisi as unknown } : {}),
       })
       .eq("id", sessionId);
@@ -658,6 +663,16 @@ export default function RenderPavimentoNew() {
               Scarica render
             </Button>
           </div>
+
+          <RenderResultRefinementPanel
+            config={config}
+            noteValue={config.note_libere ?? ""}
+            onNoteChange={(note) => setConfig((current) => ({ ...current, note_libere: note }))}
+            onEditChoices={() => setStep(2)}
+            onRegenerate={startRender}
+            disabled={generating}
+            regenerateLabel="Genera nuova variante pavimento"
+          />
 
           <Button
             variant="outline"
