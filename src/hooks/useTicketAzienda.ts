@@ -2,13 +2,36 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+/**
+ * FIX SCHEMA — switch dalla tabella inesistente `supporto_ticket` alla
+ * tabella reale `tickets` (con types.ts esistenti).
+ *
+ * Mapping camp:
+ *   - DB `subject` (legacy `titolo` nullable) → `titolo` esposto al component
+ *   - DB `status` enum 3-valori (aperto/in_lavorazione/risolto) → `stato`
+ *   - DB `priority` enum 4-valori (bassa/normale/alta/urgente) → `priorita`
+ *   - DB `descrizione` → `descrizione`
+ *   - DB `category` (legacy `tipo`) → `categoria`
+ *   - DB `created_by` UUID + `assigned_to` UUID → manual join `profiles`
+ *     per esporre `aperto_da_nome` / `assegnato_a_nome` al component.
+ *
+ * Lo schema `tickets.status` ha solo 3 valori — gli stati "in_attesa" e
+ * "chiuso" del vecchio mapping non esistono. Rimossi dalle UI consumer.
+ *
+ * Per le RISPOSTE: tabella `ticket_messages`:
+ *   - `message` (non `testo`)
+ *   - `sender_id` UUID + manual join profiles
+ *   - `is_interno` NON ESISTE → rimossa dalla UI (le note interne possono
+ *     essere salvate in `tickets.internal_notes` ma non come messaggi).
+ */
+
 export interface TicketRow {
   id: string;
   company_id: string;
   titolo: string;
   descrizione: string | null;
   priorita: "bassa" | "normale" | "alta" | "urgente";
-  stato: "aperto" | "in_lavorazione" | "in_attesa" | "risolto" | "chiuso";
+  stato: "aperto" | "in_lavorazione" | "risolto";
   categoria: string | null;
   assegnato_a_nome: string | null;
   aperto_da_nome: string | null;
@@ -31,7 +54,65 @@ export interface NuovoTicket {
   descrizione?: string;
   priorita: TicketRow["priorita"];
   categoria?: string;
-  aperto_da_nome?: string;
+  aperto_da_nome?: string; // mantenuto per compat firma — usato solo per audit lookup
+}
+
+interface RawTicket {
+  id: string;
+  company_id: string;
+  subject: string;
+  titolo: string | null;
+  descrizione: string | null;
+  priority: TicketRow["priorita"];
+  priorita: string | null;
+  status: TicketRow["stato"];
+  category: string | null;
+  assigned_to: string | null;
+  created_by: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+/** Manual join: arricchisce ticket grezzi con nomi profili per assigned_to/created_by */
+async function enrichTickets(rows: RawTicket[]): Promise<TicketRow[]> {
+  const ids = Array.from(
+    new Set(
+      rows.flatMap((r) => [r.assigned_to, r.created_by].filter(Boolean) as string[]),
+    ),
+  );
+  let nameMap = new Map<string, string>();
+  if (ids.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name, email")
+      .in("id", ids);
+    if (profiles) {
+      nameMap = new Map(
+        profiles.map((p) => [
+          p.id,
+          [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || p.id,
+        ]),
+      );
+    }
+  }
+
+  // risolto_at: l'enum `status` esistente ha solo 3 valori, quindi non c'è
+  // un campo `resolved_at`. Approssimiamo con `updated_at` quando status="risolto".
+  return rows.map((r) => ({
+    id: r.id,
+    company_id: r.company_id,
+    // FALLBACK: se `titolo` legacy è null, usa `subject` (NOT NULL nel DB)
+    titolo: r.titolo ?? r.subject,
+    descrizione: r.descrizione,
+    priorita: r.priority,
+    stato: r.status,
+    categoria: r.category,
+    assegnato_a_nome: r.assigned_to ? nameMap.get(r.assigned_to) ?? null : null,
+    aperto_da_nome: r.created_by ? nameMap.get(r.created_by) ?? null : null,
+    risolto_at: r.status === "risolto" ? r.updated_at : null,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  }));
 }
 
 export function useTicketAzienda(companyId: string | undefined) {
@@ -42,9 +123,9 @@ export function useTicketAzienda(companyId: string | undefined) {
     queryFn: async (): Promise<TicketRow[]> => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("supporto_ticket")
+        .from("tickets")
         .select(
-          "id, company_id, titolo, descrizione, priorita, stato, categoria, assegnato_a_nome, aperto_da_nome, risolto_at, created_at, updated_at"
+          "id, company_id, subject, titolo, descrizione, priority, priorita, status, category, assigned_to, created_by, created_at, updated_at",
         )
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
@@ -52,29 +133,33 @@ export function useTicketAzienda(companyId: string | undefined) {
         console.error("[useTicketAzienda]", error);
         throw new Error("Impossibile caricare i ticket: " + error.message);
       }
-      return (data ?? []) as TicketRow[];
+      return enrichTickets((data ?? []) as RawTicket[]);
     },
     enabled: !!companyId,
   });
 
   const creaTicket = useMutation({
-    mutationFn: async (payload: NuovoTicket & { company_id: string }) => {
-      const { error } = await supabase
-        .from("supporto_ticket")
-        .insert({
-          company_id: payload.company_id,
-          titolo: payload.titolo,
-          descrizione: payload.descrizione ?? null,
-          priorita: payload.priorita,
-          categoria: payload.categoria ?? "generale",
-          aperto_da_nome: payload.aperto_da_nome ?? null,
-        });
+    mutationFn: async (
+      payload: NuovoTicket & { company_id: string; created_by_id?: string | null },
+    ) => {
+      const { error } = await supabase.from("tickets").insert({
+        company_id: payload.company_id,
+        // NOT NULL constraint: subject è obbligatorio.
+        // Salviamo in entrambi: subject (canonico) + titolo (legacy)
+        subject: payload.titolo,
+        titolo: payload.titolo,
+        descrizione: payload.descrizione ?? null,
+        priority: payload.priorita,
+        priorita: payload.priorita, // legacy duplicato per compat
+        status: "aperto",
+        category: payload.categoria ?? "generale",
+        created_by: payload.created_by_id ?? null,
+      });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       toast.success("Ticket creato con successo");
       queryClient.invalidateQueries({ queryKey: ["ticket-azienda", companyId] });
-      // Cross-tab: panoramica azienda mostra "ticket aperti" → refetch
       queryClient.invalidateQueries({ queryKey: ["company-detail", companyId] });
     },
     onError: (err: Error) =>
@@ -83,22 +168,15 @@ export function useTicketAzienda(companyId: string | undefined) {
 
   const cambiaStato = useMutation({
     mutationFn: async ({
-      ticketId, stato,
-    }: { ticketId: string; stato: TicketRow["stato"] }) => {
-      // FIX: gestione corretta di risolto_at.
-      // Prima il campo veniva valorizzato solo passando a "risolto" ma NON
-      // veniva azzerato tornando indietro (es. risolto → in_lavorazione).
-      // Risultato: ticket riaperto continuava a mostrare risolto_at vecchio.
-      const update: Partial<TicketRow> = { stato };
-      if (stato === "risolto") {
-        update.risolto_at = new Date().toISOString();
-      } else {
-        // Esplicito: se NON è risolto, azzera la data di risoluzione
-        update.risolto_at = null;
-      }
+      ticketId,
+      stato,
+    }: {
+      ticketId: string;
+      stato: TicketRow["stato"];
+    }) => {
       const { error } = await supabase
-        .from("supporto_ticket")
-        .update(update)
+        .from("tickets")
+        .update({ status: stato })
         .eq("id", ticketId);
       if (error) throw new Error(error.message);
     },
@@ -114,6 +192,14 @@ export function useTicketAzienda(companyId: string | undefined) {
   return { tickets: tickets ?? [], isLoading, isError, creaTicket, cambiaStato };
 }
 
+interface RawMessage {
+  id: string;
+  ticket_id: string;
+  message: string;
+  sender_id: string;
+  created_at: string;
+}
+
 export function useTicketRisposte(ticketId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -122,12 +208,41 @@ export function useTicketRisposte(ticketId: string | undefined) {
     queryFn: async (): Promise<RispostaRow[]> => {
       if (!ticketId) return [];
       const { data, error } = await supabase
-        .from("supporto_risposte")
-        .select("id, ticket_id, testo, autore_nome, is_interno, created_at")
+        .from("ticket_messages")
+        .select("id, ticket_id, message, sender_id, created_at")
         .eq("ticket_id", ticketId)
         .order("created_at", { ascending: true });
       if (error) throw new Error(error.message);
-      return (data ?? []) as RispostaRow[];
+      const rows = (data ?? []) as RawMessage[];
+
+      // Manual join nomi mittenti
+      const ids = Array.from(new Set(rows.map((r) => r.sender_id).filter(Boolean)));
+      let nameMap = new Map<string, string>();
+      if (ids.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email")
+          .in("id", ids);
+        if (profiles) {
+          nameMap = new Map(
+            profiles.map((p) => [
+              p.id,
+              [p.first_name, p.last_name].filter(Boolean).join(" ") ||
+                p.email ||
+                p.id,
+            ]),
+          );
+        }
+      }
+      return rows.map((r) => ({
+        id: r.id,
+        ticket_id: r.ticket_id,
+        testo: r.message,
+        autore_nome: nameMap.get(r.sender_id) ?? null,
+        // is_interno NON esiste in ticket_messages — sempre false (visibile)
+        is_interno: false,
+        created_at: r.created_at,
+      }));
     },
     enabled: !!ticketId,
   });
@@ -135,29 +250,24 @@ export function useTicketRisposte(ticketId: string | undefined) {
   const aggiungiRisposta = useMutation({
     mutationFn: async (payload: {
       testo: string;
+      sender_id?: string;
       autore_nome?: string;
       is_interno?: boolean;
     }) => {
       if (!ticketId) throw new Error("ticketId mancante");
-      const { error } = await supabase.from("supporto_risposte").insert({
+      if (!payload.sender_id) {
+        throw new Error("sender_id mancante (utente non autenticato)");
+      }
+      const { error } = await supabase.from("ticket_messages").insert({
         ticket_id: ticketId,
-        testo: payload.testo,
-        autore_nome: payload.autore_nome ?? null,
-        is_interno: payload.is_interno ?? false,
+        message: payload.testo,
+        sender_id: payload.sender_id,
       });
       if (error) throw new Error(error.message);
     },
-    onSuccess: (_data, variables) => {
-      // FIX: prima nessun toast → l'utente non sapeva se era andata.
-      // Distinguo nota interna vs risposta visibile per chiarezza.
-      toast.success(
-        variables.is_interno
-          ? "Nota interna aggiunta"
-          : "Risposta inviata",
-      );
+    onSuccess: () => {
+      toast.success("Risposta inviata");
       queryClient.invalidateQueries({ queryKey: ["ticket-risposte", ticketId] });
-      // Cross-invalidate: la lista ticket potrebbe mostrare "ultimo aggiornamento"
-      // o un counter di risposte → refresh.
       queryClient.invalidateQueries({ queryKey: ["ticket-azienda"] });
     },
     onError: (err: Error) =>

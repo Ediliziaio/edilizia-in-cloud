@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Send, Lock, User, Loader2 } from "lucide-react";
+import { Send, User, Loader2 } from "lucide-react";
 import {
   useTicketRisposte, type TicketRow,
 } from "@/hooks/useTicketAzienda";
@@ -29,12 +29,11 @@ const prioritaConfig: Record<
   bassa: { label: "Bassa", className: "bg-green-100 text-green-700 border-green-200" },
 };
 
+// FIX schema: enum DB ticket_status ha solo 3 valori
 const statoLabels: Record<TicketRow["stato"], string> = {
   aperto: "Aperto",
   in_lavorazione: "In lavorazione",
-  in_attesa: "In attesa",
   risolto: "Risolto",
-  chiuso: "Chiuso",
 };
 
 interface TicketDetailDrawerProps {
@@ -51,22 +50,15 @@ export function TicketDetailDrawer({
 }: TicketDetailDrawerProps) {
   const { user, profile } = useAuth();
   const [risposta, setRisposta] = useState("");
-  const [isInterno, setIsInterno] = useState(false);
 
   const { risposte, isLoading, aggiungiRisposta } = useTicketRisposte(ticket?.id);
 
-  // FIX critico: reset state quando il ticket cambia o si chiude.
-  // Prima `risposta` e `isInterno` persistevano tra ticket diversi:
-  //  - User apre ticket A, scrive metà risposta, chiude
-  //  - Riapre ticket B → vede ancora il testo per A
-  //  - Peggio: imposta "Nota interna" su A, invia, NON resetta isInterno,
-  //    apre B → ancora in modalità interno → leak risposta interna al cliente.
+  // Reset state quando il ticket cambia o si chiude.
   useEffect(() => {
     setRisposta("");
-    setIsInterno(false);
   }, [ticket?.id]);
 
-  // FIX: nome autore reale invece di "SuperAdmin" hardcoded → audit trail corretto
+  // Nome autore visualizzato (display only — il sender_id reale viene salvato in DB)
   const autoreNome = (() => {
     if (profile?.first_name || profile?.last_name) {
       return `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
@@ -78,16 +70,21 @@ export function TicketDetailDrawer({
     const t = risposta.trim();
     if (!t) return;
     if (t.length > RISPOSTA_MAX) return;
+    if (!user?.id) {
+      // Difensivo: la mutation richiede sender_id; senza utente loggato
+      // non possiamo procedere.
+      return;
+    }
 
     aggiungiRisposta.mutate(
-      { testo: t, autore_nome: autoreNome, is_interno: isInterno },
+      {
+        testo: t,
+        sender_id: user.id, // FIX schema: ticket_messages.sender_id è UUID NOT NULL
+        autore_nome: autoreNome,
+      },
       {
         onSuccess: () => {
           setRisposta("");
-          // FIX: reset isInterno DOPO l'invio. Senza, la prossima risposta
-          // sarebbe ancora "interna" senza che l'admin se ne accorga →
-          // potenziale leak di nota destinata al team al cliente.
-          setIsInterno(false);
         },
       },
     );
@@ -206,23 +203,11 @@ export function TicketDetailDrawer({
                 </p>
               ) : (
                 risposte.map((r) => (
-                  <div
-                    key={r.id}
-                    className={`rounded-lg p-3 text-sm ${
-                      r.is_interno
-                        ? "bg-yellow-50 border border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-900"
-                        : "bg-muted"
-                    }`}
-                  >
+                  <div key={r.id} className="rounded-lg p-3 text-sm bg-muted">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-xs">
                         {r.autore_nome ?? "SuperAdmin"}
                       </span>
-                      {r.is_interno && (
-                        <div className="flex items-center gap-0.5 text-yellow-700 dark:text-yellow-400 text-xs">
-                          <Lock className="h-3 w-3" /> Interno
-                        </div>
-                      )}
                       <span className="text-xs text-muted-foreground ml-auto">
                         {format(new Date(r.created_at), "dd/MM HH:mm", { locale: it })}
                       </span>
@@ -235,36 +220,13 @@ export function TicketDetailDrawer({
               )}
             </div>
 
-            {/* Input risposta */}
+            {/* Input risposta — toggle "Nota interna" rimosso: il DB
+                ticket_messages non supporta is_interno. Per note interne usare
+                il campo `tickets.internal_notes` (out of scope qui). */}
             <div className="mt-3 space-y-2 flex-shrink-0 border-t pt-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <button
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-0.5 rounded transition-colors",
-                    !isInterno
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted",
-                  )}
-                  onClick={() => setIsInterno(false)}
-                  type="button"
-                  disabled={aggiungiRisposta.isPending}
-                >
-                  Risposta
-                </button>
-                <button
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-0.5 rounded transition-colors",
-                    isInterno
-                      ? "bg-yellow-500 text-white"
-                      : "hover:bg-muted",
-                  )}
-                  onClick={() => setIsInterno(true)}
-                  type="button"
-                  disabled={aggiungiRisposta.isPending}
-                >
-                  <Lock className="h-3 w-3" /> Nota interna
-                </button>
-                <span className="ml-auto">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Risposta visibile all'azienda</span>
+                <span>
                   Firmato come <strong>{autoreNome}</strong>
                 </span>
               </div>
@@ -272,11 +234,7 @@ export function TicketDetailDrawer({
                 <Textarea
                   value={risposta}
                   onChange={(e) => setRisposta(e.target.value)}
-                  placeholder={
-                    isInterno
-                      ? "Nota interna (non visibile all'azienda)..."
-                      : "Scrivi una risposta..."
-                  }
+                  placeholder="Scrivi una risposta..."
                   rows={3}
                   className={cn(
                     "resize-none text-sm",

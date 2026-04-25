@@ -34,13 +34,14 @@ const prioritaConfig: Record<
   bassa: { label: "Bassa", className: "bg-green-100 text-green-700 border-green-200" },
 };
 
+// FIX: enum DB ticket_status ha solo 3 valori (aperto/in_lavorazione/risolto).
+// Rimossi "in_attesa" e "chiuso" che non esistono nel DB e producevano
+// errori al filtro Select.
 const statoLabels: Record<TicketRow["stato"] | "tutti", string> = {
   tutti: "Tutti",
   aperto: "Aperti",
   in_lavorazione: "In lavorazione",
-  in_attesa: "In attesa",
   risolto: "Risolti",
-  chiuso: "Chiusi",
 };
 
 /**
@@ -375,14 +376,14 @@ export function TabSupporto({ companyId }: TabSupportoProps) {
       <NuovoTicketModal
         open={nuovoOpen}
         onOpenChange={setNuovoOpen}
-        // FIX: nuovo signature passa callbacks separati così il modale può
-        // resettare lo state SOLO su success (prima reset pre-success → data
-        // loss su failure). Inoltre passa aperto_da_nome per audit reale.
+        // FIX schema: passiamo created_by_id (UUID) invece di aperto_da_nome.
+        // Il hook fa manual join per mostrare il nome nella UI.
         onSubmit={(data, callbacks) =>
           creaTicket.mutate(
             {
               ...data,
               company_id: companyId,
+              created_by_id: user?.id ?? null,
               aperto_da_nome: operatorName ?? undefined,
             },
             { onSuccess: callbacks.onSuccess },
