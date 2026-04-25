@@ -14,6 +14,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   listino:                { title: "Listino prodotti",         description: "Gestisci il catalogo prodotti e servizi" },
   tariffe:                { title: "Tariffe aziendali",        description: "Configura le tariffe di lavoro e manodopera" },
   "listino-manutenzione": { title: "Listino Manutenzione",      description: "Gestisci i prezzi per tipo impianto e tipo intervento" },
+  finanziamenti:          { title: "Finanziamenti",             description: "Tabelle delle finanziarie convenzionate e calcolatore rate" },
   "bundle-serramentista": { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per preventivi serramentista" },
   bundle:                 { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per i preventivi" },
   margini:                { title: "Preventivi & margini",     description: "Imposta margini e configurazioni dei preventivi" },
