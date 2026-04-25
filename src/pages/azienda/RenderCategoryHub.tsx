@@ -196,7 +196,7 @@ const categories: RenderCategory[] = [
     color: "bg-indigo-50 text-indigo-600",
     path: "/azienda/render/ristrutturazioni",
     active: true,
-    badge: "Pronto",
+    badge: "Motore",
     group: "multi",
     groupLabel: "Multi-sistema",
     tags: ["bagno", "facciata", "pavimento", "coordinato"],
@@ -209,7 +209,7 @@ const categories: RenderCategory[] = [
     color: "bg-lime-50 text-lime-700",
     path: "/azienda/render/pavimenti-esterni",
     active: true,
-    badge: "Pronto",
+    badge: "Motore",
     group: "outdoor",
     groupLabel: "Outdoor",
     tags: ["gres outdoor", "deck", "carrabile", "coping"],
@@ -222,7 +222,7 @@ const categories: RenderCategory[] = [
     color: "bg-green-50 text-green-700",
     path: "/azienda/render/giardini",
     active: true,
-    badge: "Pronto",
+    badge: "Motore",
     group: "outdoor",
     groupLabel: "Outdoor",
     tags: ["prato", "aiuole", "siepi", "camminamenti"],
@@ -235,7 +235,7 @@ const categories: RenderCategory[] = [
     color: "bg-slate-100 text-slate-700",
     path: "/azienda/render/porte-blindate",
     active: true,
-    badge: "Pronto",
+    badge: "Motore",
     group: "aperture",
     groupLabel: "Aperture",
     tags: ["blindata", "rasomuro", "fiancoluce", "maniglia"],
@@ -248,7 +248,7 @@ const categories: RenderCategory[] = [
     color: "bg-violet-50 text-violet-600",
     path: "/azienda/render/porte-interne",
     active: true,
-    badge: "Pronto",
+    badge: "Motore",
     group: "aperture",
     groupLabel: "Aperture",
     tags: ["scorrevole", "rasomuro", "vetrata", "doppia anta"],
@@ -480,7 +480,10 @@ export default function RenderCategoryHub() {
                       <Icon className="h-6 w-6" />
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                      <Badge className={cat.badge === "Attivo"
+                        ? "bg-green-100 text-green-700 hover:bg-green-100"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                      }>
                         {cat.badge}
                       </Badge>
                       <span className="text-[11px] text-muted-foreground">{count} recenti</span>
