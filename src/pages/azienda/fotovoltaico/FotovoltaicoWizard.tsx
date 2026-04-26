@@ -48,7 +48,11 @@ import {
   useUpsertServizi,
   useTariffeFv,
   useManodoperaProgetto,
+  useTabelleFinanziamentoFv,
+  useTopFinanziamentiFv,
   type FvTariffaAziendale,
+  type FvTabellaFinanziamento,
+  type FvRigaFinanziamento,
 } from "@/lib/fotovoltaico/queries";
 import type {
   FvArchetipo,
@@ -133,6 +137,13 @@ interface WizardData {
   accumulo_id: string | null;
   /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
   tariffa_installazione_id: string | null;
+  // Step 6: Finanziamento (Sprint 4)
+  /** Modalità di pagamento scelta dal cliente */
+  finanziamento_modalita: "cash" | "rate" | "zero";
+  /** FK a eic_tabelle_finanziamento (null se cash/zero) */
+  tabella_finanziamento_id: string | null;
+  /** Durata in mesi del finanziamento scelto (es. 84) */
+  durata_mesi_scelta: number | null;
 }
 
 // ─── Costanti validazione ──────────────────────────────────────────────────
@@ -282,6 +293,9 @@ const INITIAL: WizardData = {
   inverter_id: null,
   accumulo_id: null,
   tariffa_installazione_id: null,
+  finanziamento_modalita: "rate",
+  tabella_finanziamento_id: null,
+  durata_mesi_scelta: 84,
 };
 
 const formatEur = (n: number) =>
@@ -370,6 +384,16 @@ export default function FotovoltaicoWizard() {
   const { data: tariffeFv = [] } = useTariffeFv();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
   const { data: manodoperaEsistente } = useManodoperaProgetto(progettoId ?? undefined);
+
+  // Sprint 4: tabelle finanziamento per importo target del progetto
+  const investimentoCorrente = progettoEsistente?.prezzo_vendita_iva_inclusa ?? null;
+  const { data: tabelleFinanziamento = [] } = useTabelleFinanziamentoFv(
+    investimentoCorrente ? Number(investimentoCorrente) : undefined,
+  );
+  const { data: topFinanziamenti = [] } = useTopFinanziamentiFv(
+    investimentoCorrente ? Number(investimentoCorrente) : null,
+    data.durata_mesi_scelta,
+  );
 
   const aggiornaProgetto = useAggiornaProgetto();
   const upsertComponenti = useUpsertComponenti();
@@ -1007,6 +1031,66 @@ export default function FotovoltaicoWizard() {
     }
   }, [step, progettoId, scenarioFin, scenarioErr, calcolandoFinanziario, handleCalcolaFinanziario]);
 
+  // ─── Step 6 → salva finanziamento scelto su fv_progetti (Sprint 4) ───────
+  // Persiste tabella + durata + rata + TAEG/TAN reali per l'edge function PDF.
+  // Best-effort: se non c'è tabella scelta (cash o no top match), salva solo
+  // i campi base e null per le FK.
+  const handleSalvaStep6 = async () => {
+    if (!progettoId) return;
+    setSalvando(true);
+    setAutoSaveState("saving");
+    try {
+      const tabId = data.tabella_finanziamento_id ?? topFinanziamenti[0]?.id ?? null;
+      const tabRata = tabId
+        ? topFinanziamenti.find((t) => t.id === tabId)?.rata ?? null
+        : null;
+      let rataEur: number | null = null;
+      let taegPct: number | null = null;
+      let tanPct: number | null = null;
+      let totaleDovuto: number | null = null;
+      if (data.finanziamento_modalita === "rate" && tabRata) {
+        rataEur = tabRata.importo_rata;
+        taegPct = tabRata.taeg;
+        tanPct = tabRata.tan;
+        totaleDovuto = tabRata.importo_totale_dovuto;
+      } else if (data.finanziamento_modalita === "zero" && data.durata_mesi_scelta) {
+        const inv = (progettoEsistente?.prezzo_vendita_iva_inclusa ?? 0) as number;
+        rataEur = Math.round(inv / data.durata_mesi_scelta);
+        taegPct = 0;
+        tanPct = 0;
+        totaleDovuto = inv;
+      }
+      // Validazione antiusura ARERA: TAEG > 25% blocca (soglia conservativa)
+      if (taegPct != null && taegPct > 25) {
+        throw new Error(
+          `TAEG ${taegPct.toFixed(2)}% supera la soglia ARERA antiusura (~25%). Verifica la tabella finanziamento.`,
+        );
+      }
+      await aggiornaProgetto.mutateAsync({
+        id: progettoId,
+        patch: {
+          scenario_finanziamento: data.finanziamento_modalita,
+          finanziamento_tabella_id: data.finanziamento_modalita === "rate" ? tabId : null,
+          finanziamento_durata_mesi:
+            data.finanziamento_modalita === "cash" ? null : data.durata_mesi_scelta,
+          finanziamento_rata_eur: rataEur,
+          finanziamento_taeg: taegPct,
+          finanziamento_tan: tanPct,
+          finanziamento_totale_dovuto_eur: totaleDovuto,
+        } as never,
+      });
+      if (!mountedRef.current) return;
+      markSaved();
+      goTo(7, { markCompleted: true });
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setAutoSaveState("error");
+      toast.error(`Salvataggio finanziamento: ${describeError(e)}`);
+    } finally {
+      if (mountedRef.current) setSalvando(false);
+    }
+  };
+
   // ─── Step 8 → genera preventivo + emetti ─────────────────────────────────
   // Fix #13 (Sprint 3 cleanup): in v2 il template HTML è UNICO per tutti e 3
   // i tipi (vendita/tecnico/mobile) — generare 3 versioni in parallelo
@@ -1103,7 +1187,7 @@ export default function FotovoltaicoWizard() {
         return;
       }
       if (step === 6) {
-        goTo(7, { markCompleted: true });
+        await handleSalvaStep6();
         return;
       }
       if (step === 7) {
@@ -1333,9 +1417,13 @@ export default function FotovoltaicoWizard() {
           )}
           {step === 6 && (
             <Step6Finanziario
+              data={data}
+              update={update}
               scenario={scenarioFin}
               calcolando={calcolandoFinanziario}
               error={scenarioErr}
+              tabelleFinanziamento={tabelleFinanziamento}
+              topFinanziamenti={topFinanziamenti}
               onRicalcola={() => {
                 autoCalcRequested.current = null; // permette retry
                 void handleCalcolaFinanziario();
@@ -2357,15 +2445,83 @@ function FvCalcoloProgress() {
   );
 }
 
+/**
+ * Sprint 4: Payment toggle (3 modalità). Replica del mockup HTML p.6 — invece
+ * di mostrare solo "Cofidis 84m" hardcoded ora il cliente vede 3 opzioni
+ * cliccabili (cash/rate/zero) e i KPI sotto si aggiornano live.
+ */
+function FvPaymentToggle({
+  modalita,
+  durata,
+  topConsigliata,
+  onChange,
+}: {
+  modalita: "cash" | "rate" | "zero";
+  durata: number;
+  topConsigliata: (FvTabellaFinanziamento & { rata: FvRigaFinanziamento }) | null;
+  onChange: (m: "cash" | "rate" | "zero") => void;
+}) {
+  const opts: Array<{
+    key: "cash" | "rate" | "zero";
+    icon: string;
+    label: string;
+    sub: string;
+  }> = [
+    { key: "cash", icon: "⚡", label: "Pagamento immediato", sub: "Cash · IVA 10%" },
+    {
+      key: "rate",
+      icon: "€",
+      label: "Rateale finanziato",
+      sub: topConsigliata
+        ? `${topConsigliata.finanziaria_nome ?? "Top"} · ${durata} mesi · TAEG ${topConsigliata.rata.taeg.toFixed(2)}%`
+        : `${durata} mesi · finanziaria consigliata`,
+    },
+    { key: "zero", icon: "0", label: "Tasso zero", sub: `${durata} rate · 0% interessi` },
+  ];
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 mb-4">
+      {opts.map((o) => {
+        const active = o.key === modalita;
+        return (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => onChange(o.key)}
+            className={`p-3 rounded-lg flex flex-col items-center gap-1 text-center transition-all ${
+              active
+                ? "bg-white shadow-md text-slate-900 border-2 border-orange-500"
+                : "bg-transparent text-slate-500 hover:bg-white/50 border-2 border-transparent"
+            }`}
+          >
+            <span className="text-xl">{o.icon}</span>
+            <span className="text-sm font-semibold">{o.label}</span>
+            <span className={`text-[11px] ${active ? "text-orange-700" : "text-slate-400"}`}>
+              {o.sub}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Step6Finanziario({
+  data,
+  update,
   scenario,
   calcolando,
   error,
+  tabelleFinanziamento,
+  topFinanziamenti,
   onRicalcola,
 }: {
+  data: WizardData;
+  update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   scenario: Record<string, unknown> | null;
   calcolando: boolean;
   error: string | null;
+  tabelleFinanziamento: FvTabellaFinanziamento[];
+  topFinanziamenti: Array<FvTabellaFinanziamento & { rata: FvRigaFinanziamento }>;
   onRicalcola: () => void;
 }) {
   if (calcolando) {
@@ -2428,8 +2584,54 @@ function Step6Finanziario({
     (scenario.cassa_anno_per_anno as Array<{ anno: number; cumulato: number }>) ?? [];
   const detrazione10anni = ((scenario.detrazione_anno_eur as number) ?? 0) * 10;
   const costoNettoReale = investimento - detrazione10anni;
-  const rataMensilePrestito = Math.round((investimento * 1.2) / 84);
   const risparmioMensile = Math.round(risparmioAnno1 / 12);
+
+  // Sprint 4: calcolo rata REALE basato sul finanziamento scelto dall'utente.
+  // - cash: nessuna rata (pagamento immediato)
+  // - rate: lookup tabella finanziamento scelta (o suggerita top 1)
+  // - zero: investimento diviso durata (TAEG 0)
+  const tabellaScelta = data.tabella_finanziamento_id
+    ? tabelleFinanziamento.find((t) => t.id === data.tabella_finanziamento_id) ?? null
+    : null;
+  const topAuto = topFinanziamenti[0] ?? null;
+  let rataMensilePrestito = 0;
+  let rataInfoLabel = "";
+  // taegInfoPct riservato per uso futuro (validazione antiusura UI)
+  let _taegInfoPct: number | null = null;
+  let durataInfoMesi = 0;
+  if (data.finanziamento_modalita === "cash") {
+    rataMensilePrestito = 0;
+    rataInfoLabel = "Pagamento immediato";
+  } else if (data.finanziamento_modalita === "zero") {
+    const dur = data.durata_mesi_scelta ?? 60;
+    rataMensilePrestito = Math.round(investimento / dur);
+    durataInfoMesi = dur;
+    _taegInfoPct = 0;
+    rataInfoLabel = `Tasso 0% · ${dur} mesi`;
+  } else {
+    // rate
+    const dur = data.durata_mesi_scelta ?? 84;
+    durataInfoMesi = dur;
+    if (tabellaScelta) {
+      // Cerco la rata della tabella selezionata via topFinanziamenti (best-fit)
+      const tabRata = topFinanziamenti.find((t) => t.id === tabellaScelta.id)?.rata;
+      if (tabRata) {
+        rataMensilePrestito = tabRata.importo_rata;
+        _taegInfoPct = tabRata.taeg;
+        rataInfoLabel = `${tabellaScelta.finanziaria_nome ?? ""} · ${dur} mesi · TAEG ${tabRata.taeg.toFixed(2)}%`;
+      } else {
+        rataMensilePrestito = Math.round((investimento * 1.2) / dur);
+        rataInfoLabel = `${tabellaScelta.finanziaria_nome ?? ""} · ${dur} mesi (stima)`;
+      }
+    } else if (topAuto) {
+      rataMensilePrestito = topAuto.rata.importo_rata;
+      _taegInfoPct = topAuto.rata.taeg;
+      rataInfoLabel = `${topAuto.finanziaria_nome ?? ""} · ${dur} mesi · TAEG ${topAuto.rata.taeg.toFixed(2)}% (top consigliata)`;
+    } else {
+      rataMensilePrestito = Math.round((investimento * 1.2) / dur);
+      rataInfoLabel = `${dur} mesi · stima generica`;
+    }
+  }
   const costoNettoMensile = Math.max(0, rataMensilePrestito - risparmioMensile);
 
   return (
@@ -2443,6 +2645,14 @@ function Step6Finanziario({
             Quello che vedrà il cliente nel preventivo PDF. Cambia modalità di pagamento per simulare gli scenari finanziari.
           </>
         }
+      />
+
+      {/* Sprint 4: Payment toggle modalità pagamento (cash / rate / zero) */}
+      <FvPaymentToggle
+        modalita={data.finanziamento_modalita}
+        durata={data.durata_mesi_scelta ?? 84}
+        topConsigliata={topAuto}
+        onChange={(modalita) => update("finanziamento_modalita", modalita)}
       />
 
       {/* HERO */}
@@ -2511,16 +2721,22 @@ function Step6Finanziario({
         <FvKpi label="Risparmio 25 anni" value={formatEur(risparmio25Anni)} variant="green" />
       </div>
 
-      {/* 3 NUM CARDS — Rata vs Risparmio vs Costo netto reale */}
+      {/* 3 NUM CARDS — Rata vs Risparmio vs Costo netto reale (Sprint 4: rata REALE) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-5 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <div className="text-xs uppercase tracking-wider font-semibold text-blue-900 mb-1.5">
-            Rata mensile (Cofidis 84m)
+            {data.finanziamento_modalita === "cash"
+              ? "Pagamento cash"
+              : data.finanziamento_modalita === "zero"
+                ? "Rata mensile (tasso 0%)"
+                : "Rata mensile finanziata"}
           </div>
           <div className="text-3xl font-extrabold text-blue-900 tabular-nums">
             {formatEur(rataMensilePrestito)}
           </div>
-          <div className="text-xs text-blue-700 mt-1">×84 mesi · TAEG ~5,4%</div>
+          <div className="text-xs text-blue-700 mt-1 truncate" title={rataInfoLabel}>
+            {rataInfoLabel || `×${durataInfoMesi || 84} mesi`}
+          </div>
         </div>
         <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-5 text-center transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <div className="text-xs uppercase tracking-wider font-semibold text-emerald-900 mb-1.5">
@@ -2632,6 +2848,184 @@ function Step6Finanziario({
               </div>
             ))}
           </div>
+        </FvCard>
+      )}
+
+      {/* Sprint 4: Modalità rateale dettagli + confronto top 3 finanziarie */}
+      {data.finanziamento_modalita === "rate" && (
+        <FvCard
+          title="Modalità rateale — dettagli e confronto"
+          action={
+            tabelleFinanziamento.length > 0 ? (
+              <FvChip variant="green">✓ Configurato in Impostazioni Azienda</FvChip>
+            ) : (
+              <FvChip variant="yellow">⚠ Nessuna tabella attiva</FvChip>
+            )
+          }
+          className="mt-4"
+        >
+          {tabelleFinanziamento.length === 0 ? (
+            <FvCallout variant="warn">
+              <strong>Nessuna tabella finanziamento attiva</strong> per l'importo{" "}
+              {formatEur(investimento)}. L'amministratore può caricare nuove tabelle in{" "}
+              <em>Impostazioni → Finanziamenti</em>.
+            </FvCallout>
+          ) : (
+            <>
+              {/* Dropdown durata + finanziaria scelta */}
+              <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                <div>
+                  <Label>Durata finanziamento</Label>
+                  <Select
+                    value={String(data.durata_mesi_scelta ?? 84)}
+                    onValueChange={(v) => update("durata_mesi_scelta", Number(v))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {/* Durate disponibili da unione di tutte le tabelle */}
+                      {Array.from(
+                        new Set(
+                          tabelleFinanziamento.flatMap((t) => t.durate_disponibili),
+                        ),
+                      )
+                        .sort((a, b) => a - b)
+                        .map((d) => (
+                          <SelectItem key={d} value={String(d)}>
+                            {d} mesi ({(d / 12).toFixed(0)} anni)
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Finanziaria scelta</Label>
+                  <Select
+                    value={data.tabella_finanziamento_id ?? "__top__"}
+                    onValueChange={(v) =>
+                      update("tabella_finanziamento_id", v === "__top__" ? null : v)
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__top__">
+                        ★ Top consigliata (best TAEG)
+                      </SelectItem>
+                      {tabelleFinanziamento.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.finanziaria_nome ?? "—"} · {t.nome_prodotto}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Confronto top 3 con badge "consigliata" */}
+              {topFinanziamenti.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Confronto top {topFinanziamenti.length} per importo {formatEur(investimento)} ×{" "}
+                    {data.durata_mesi_scelta ?? 84} mesi
+                  </div>
+                  {topFinanziamenti.map((t, i) => {
+                    const isSelected =
+                      (!data.tabella_finanziamento_id && i === 0) ||
+                      data.tabella_finanziamento_id === t.id;
+                    return (
+                      <div
+                        key={t.id}
+                        className={`rounded-xl p-3 border-2 transition-all relative ${
+                          isSelected
+                            ? "border-orange-500 bg-orange-50"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
+                      >
+                        {i === 0 && (
+                          <span className="absolute -top-2 right-3 bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            ★ Consigliata
+                          </span>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-900 text-sm">
+                              {t.finanziaria_nome ?? "—"} · {t.nome_prodotto}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {t.rata.durata_mesi} mesi · TAEG{" "}
+                              <strong>{t.rata.taeg.toFixed(2)}%</strong> · TAN{" "}
+                              {t.rata.tan.toFixed(2)}%
+                              {t.rata.spese_istruttoria
+                                ? ` · spese istruttoria ${formatEur(t.rata.spese_istruttoria)}`
+                                : ""}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 ml-3">
+                            <div className="text-2xl font-extrabold text-orange-600 tabular-nums">
+                              {formatEur(t.rata.importo_rata)}
+                            </div>
+                            <div className="text-[11px] text-slate-500">/mese</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Riepilogo costo del credito */}
+              {(() => {
+                const ratiData = topFinanziamenti.find(
+                  (t) => t.id === (data.tabella_finanziamento_id ?? topFinanziamenti[0]?.id),
+                );
+                if (!ratiData) return null;
+                const r = ratiData.rata;
+                return (
+                  <div className="border-t border-slate-200 pt-3 mt-2">
+                    <table className="w-full text-sm">
+                      <tbody>
+                        <tr>
+                          <td className="text-slate-600 py-1">Importo finanziato</td>
+                          <td className="text-right font-semibold tabular-nums">
+                            {formatEur(r.importo_erogato)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-slate-600 py-1">Numero rate</td>
+                          <td className="text-right font-semibold tabular-nums">
+                            {r.numero_rate} mensili
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-slate-600 py-1">Importo rata</td>
+                          <td className="text-right font-bold text-orange-600 tabular-nums">
+                            {formatEur(r.importo_rata)}/mese
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-slate-600 py-1">Totale dovuto</td>
+                          <td className="text-right font-semibold tabular-nums">
+                            {formatEur(r.importo_totale_dovuto)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-slate-600 py-1">Costo del credito</td>
+                          <td className="text-right font-semibold tabular-nums text-slate-700">
+                            {formatEur(r.interessi_cliente ?? r.importo_totale_dovuto - r.importo_erogato)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              <FvCallout variant="info" >
+                Calcolato dal <strong>modulo Finanziamenti EiC</strong> con tabelle reali. Il
+                TAEG include spese istruttoria. Validato server-side contro le soglie ARERA
+                antiusura.
+              </FvCallout>
+            </>
+          )}
         </FvCard>
       )}
 

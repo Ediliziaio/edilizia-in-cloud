@@ -60,10 +60,11 @@ Deno.serve(async (req: Request) => {
 
     // ── Caricamento dati ──────────────────────────────────────────────────
     // Step 1: progetto (per ottenere company_id)
+    // Sprint 4: include finanziamento_* columns per PDF rata reale
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, ore_sole_annue, superficie_tetto_disponibile_mq, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, ore_sole_annue, superficie_tetto_disponibile_mq, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -184,7 +185,10 @@ Deno.serve(async (req: Request) => {
     const risparmioAnno1 = Number(prog.risparmio_anno1) || 0;
     const risparmioMensile = Math.round(risparmioAnno1 / 12);
 
-    // Estrazione finanziamento dallo scenario_completo (se presente)
+    // Sprint 4: estrazione finanziamento autoritativo dai campi salvati
+    // su fv_progetti (lookup tabelle reali). Fallback su scenario_completo
+    // legacy se i nuovi campi non sono popolati (back-compat con progetti
+    // creati prima di Sprint 4).
     interface FinanziamentoLite {
       finanziaria?: string;
       durata_mesi?: number;
@@ -193,18 +197,64 @@ Deno.serve(async (req: Request) => {
       taeg_perc?: number;
       importo_finanziato?: number;
     }
-    const scenarioFin = (calc?.scenario_completo as { finanziamento?: FinanziamentoLite } | undefined)?.finanziamento;
-    const finanziamento = scenarioFin
-      ? {
+    let finanziamento: {
+      finanziaria: string;
+      durata_mesi: number;
+      rata_mensile: number;
+      tan_perc: number;
+      taeg_perc: number;
+      importo_finanziato: number;
+    } | null = null;
+    const scenarioFinMode = (prog.scenario_finanziamento as string | null) ?? "rate";
+    if (scenarioFinMode !== "cash" && Number(prog.finanziamento_rata_eur) > 0) {
+      // Path Sprint 4: dati reali dal lookup eic_tabelle_finanziamento_righe
+      // Recupero nome finanziaria via join (best-effort, fallback "Finanziaria")
+      let nomeFinanziaria = "Finanziaria";
+      if (prog.finanziamento_tabella_id) {
+        const { data: tab } = await supabaseAdmin
+          .from("eic_tabelle_finanziamento")
+          .select("nome_prodotto, eic_finanziarie!inner(nome)")
+          .eq("id", prog.finanziamento_tabella_id)
+          .maybeSingle();
+        if (tab) {
+          const fNome = (tab as { eic_finanziarie?: { nome?: string } }).eic_finanziarie?.nome;
+          const prodotto = (tab as { nome_prodotto?: string }).nome_prodotto;
+          nomeFinanziaria = [fNome, prodotto].filter(Boolean).join(" ") || "Finanziaria";
+        }
+      } else if (scenarioFinMode === "zero") {
+        nomeFinanziaria = "Tasso zero";
+      }
+      finanziamento = {
+        finanziaria: nomeFinanziaria,
+        durata_mesi: Number(prog.finanziamento_durata_mesi) || 84,
+        rata_mensile: Number(prog.finanziamento_rata_eur),
+        tan_perc: Number(prog.finanziamento_tan ?? 0),
+        taeg_perc: Number(prog.finanziamento_taeg ?? 0),
+        importo_finanziato:
+          Number(prog.finanziamento_totale_dovuto_eur) ||
+          Number(prog.prezzo_vendita_iva_inclusa) ||
+          0,
+      };
+    } else if (scenarioFinMode !== "cash") {
+      // Fallback legacy: scenario_completo (Sprint 1/2)
+      const scenarioFin = (
+        calc?.scenario_completo as { finanziamento?: FinanziamentoLite } | undefined
+      )?.finanziamento;
+      if (scenarioFin) {
+        finanziamento = {
           finanziaria: scenarioFin.finanziaria ?? "Finanziaria",
           durata_mesi: scenarioFin.durata_mesi ?? 84,
-          rata_mensile: scenarioFin.rata_mensile ?? Math.round(((Number(prog.prezzo_vendita_iva_inclusa) || 0) * 1.2) / 84),
+          rata_mensile:
+            scenarioFin.rata_mensile ??
+            Math.round(((Number(prog.prezzo_vendita_iva_inclusa) || 0) * 1.2) / 84),
           tan_perc: scenarioFin.tan_perc ?? 4.75,
           taeg_perc: scenarioFin.taeg_perc ?? 5.4,
           importo_finanziato:
             scenarioFin.importo_finanziato ?? (Number(prog.prezzo_vendita_iva_inclusa) || 0),
-        }
-      : null;
+        };
+      }
+    }
+    // Se cash o niente dati, finanziamento resta null (template gestisce)
 
     // ── Estrazione cliente da titolo (in W1 cliente_id non sempre popolato) ─
     const titoloParts = (prog.titolo ?? "").trim().split(/\s+/);

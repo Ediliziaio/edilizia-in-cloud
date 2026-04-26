@@ -156,6 +156,9 @@ function TabIncentivi() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-fv-incentivi"] });
+      // Sprint 3 #5: invalida anche la cache del modulo cliente per
+      // riflettere immediatamente il nuovo stato in wizard.
+      qc.invalidateQueries({ queryKey: ["fv", "incentivi-catalogo"] });
       toast.success("Incentivo aggiornato");
       setEditing(null);
     },
@@ -420,6 +423,8 @@ function TabParametri() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-fv-parametri"] });
+      // Sprint 3 #5: invalida anche la cache lato wizard
+      qc.invalidateQueries({ queryKey: ["fv", "parametri-calcolo"] });
       toast.success("Parametro aggiornato");
     },
   });
