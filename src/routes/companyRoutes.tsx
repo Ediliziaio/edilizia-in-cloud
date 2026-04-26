@@ -36,6 +36,7 @@ const SettingsBundle = lazy(() => import("@/pages/azienda/settings/SettingsBundl
 const SettingsOrderStatus = lazy(() => import("@/pages/azienda/settings/SettingsOrderStatus"));
 const SettingsPipelines = lazy(() => import("@/pages/azienda/settings/SettingsPipelines"));
 const SettingsSuppliers = lazy(() => import("@/pages/azienda/settings/SettingsSuppliers"));
+const SettingsQrCodici = lazy(() => import("@/pages/azienda/settings/SettingsQrCodici"));
 // SettingsUsers, SettingsSalespeople, SettingsStaff, SettingsTeams → rimpiazzati da SettingsPeople
 // SettingsSecurity, SettingsSecurityDashboard, SettingsActivityLog, SettingsPrivacy → rimpiazzati da SettingsSecurityHub
 const SettingsUserDetail = lazy(() => import("@/pages/azienda/settings/SettingsUserDetail"));
@@ -562,6 +563,7 @@ export function companyRoutes() {
           <Route path="scontistica" element={<SettingsScontistica />} />
           <Route path="stati-ordine" element={<SettingsOrderStatus />} />
           <Route path="fornitori" element={<SettingsSuppliers />} />
+          <Route path="qr-codici" element={<SettingsQrCodici />} />
           <Route path="categorie-costi" element={<SettingsCostCategories />} />
           <Route path="automazioni-finanza" element={<SettingsFinanceAutomation />} />
           <Route path="tag" element={<SettingsTags />} />
