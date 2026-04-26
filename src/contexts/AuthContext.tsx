@@ -777,8 +777,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // corso..." per sempre. Con il race, dopo 15s ritorniamo un errore generico
     // così il LoginForm può sbloccare l'UI e l'utente può riprovare.
     try {
+      const signInPromise = supabase.auth.signInWithPassword({ email, password });
+      // Swallow rejection dopo timeout race: evita unhandled promise rejection
+      // su WebKit (PAGEERROR) se la promise originale rejecta DOPO che il
+      // timeout ha già vinto. Senza questo, su Safari mobile l'errore tardivo
+      // veniva catturato come unhandled e finiva dentro Sentry/ErrorBoundary.
+      (signInPromise as unknown as Promise<unknown>).catch(() => {});
       const { error } = await Promise.race([
-        supabase.auth.signInWithPassword({ email, password }),
+        signInPromise,
         new Promise<{ error: Error }>((_, reject) =>
           setTimeout(() => reject(new Error("Login timeout — riprova")), 15_000),
         ),

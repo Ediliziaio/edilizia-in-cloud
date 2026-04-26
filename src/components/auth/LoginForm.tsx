@@ -122,6 +122,11 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           .select("is_blocked")
           .eq("email", email)
           .maybeSingle();
+        // Swallow eventuali rejection dopo il timeout race: senza questo, su
+        // WebKit Safari mobile l'errore CORS arriva DOPO il redirect e diventa
+        // un unhandled promise rejection → PAGEERROR catturato da ErrorBoundary
+        // → "Errore nel pannello di amministrazione" sul dashboard.
+        (blockedCheck as unknown as Promise<unknown>).catch(() => {});
         const { data: profile } = await Promise.race([
           blockedCheck,
           new Promise<{ data: null }>((resolve) =>
@@ -151,6 +156,15 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         const totpInvoke = supabase.functions.invoke("manage-totp", {
           body: { action: "status" },
         });
+        // Su WebKit/Safari, il fetch a /functions/v1/* può fallire con errore
+        // CORS (preflight non gestito dalla edge). Se il timeout race ha già
+        // vinto e questa promise rejecta DOPO, senza un .catch diventa una
+        // unhandled rejection — su Safari quella si propaga come PAGEERROR
+        // visibile al window e fa scattare l'ErrorBoundary del componente
+        // padre (es. AdminLayout dopo il redirect post-login). Risultato:
+        // l'utente vedeva "Errore nel pannello di amministrazione" subito
+        // dopo aver loggato, anche se il login era andato a buon fine.
+        (totpInvoke as Promise<unknown>).catch(() => {});
         const result = await Promise.race([
           totpInvoke,
           new Promise<{ data: null }>((resolve) =>
