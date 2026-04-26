@@ -138,8 +138,12 @@ export function calcolaCassaCumulata(input: InputCassaCumulata): FlussoAnno[] {
 /**
  * Anno (frazionario) in cui il cumulato passa da negativo a positivo.
  * Se l'investimento non rientra mai, ritorna null.
+ * EDGE #1 Sprint 3: guard su array vuoto/troppo corto + check primo positivo.
  */
 export function calcolaPayback(cassa: FlussoAnno[]): number | null {
+  if (cassa.length < 2) return null;
+  // Caso edge: già positivo all'anno 0 (incentivo > investimento)
+  if (cassa[0].cumulato >= 0) return cassa[0].anno;
   for (let i = 1; i < cassa.length; i++) {
     if (cassa[i].cumulato >= 0) {
       const prev = cassa[i - 1].cumulato;

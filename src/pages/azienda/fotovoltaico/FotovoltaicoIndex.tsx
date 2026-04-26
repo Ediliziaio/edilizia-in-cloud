@@ -117,26 +117,44 @@ export default function FotovoltaicoIndex() {
     );
   }
 
-  // Setup non completato
+  // Setup non completato — mostriamo onboarding inline (no dead link a /setup
+  // che non esiste). L'utente vede una checklist quickstart e può iniziare
+  // direttamente il primo progetto: il wizard guiderà nella configurazione.
   if (!moduloStato.setup_completato) {
     return (
       <div className="max-w-3xl mx-auto py-12 px-4">
         <FvCard>
-          <div className="py-12 text-center space-y-4">
+          <div className="py-10 text-center space-y-4">
             <Sun className="h-16 w-16 mx-auto text-amber-500" />
             <h2 className="text-2xl font-bold text-slate-900">
               Benvenuto nel modulo Fotovoltaico!
             </h2>
-            <p className="text-slate-500 max-w-md mx-auto">
-              Prima di iniziare il primo preventivo, ti guidiamo in 5 minuti nel setup del modulo:
-              dati impresa, listino base, manodopera, template PDF.
+            <p className="text-slate-500 max-w-lg mx-auto">
+              Tutto è pronto per iniziare. Crea il tuo primo progetto: il wizard ti guiderà
+              passo-passo dall'anagrafica cliente al PDF preventivo finale (16 pagine).
             </p>
-            <Button asChild size="lg">
-              <Link to="/azienda/marketing/fotovoltaico/setup">
-                <Sun className="h-4 w-4 mr-2" />
-                Avvia setup modulo
-              </Link>
-            </Button>
+          </div>
+          <div className="border-t border-slate-200 pt-5 mt-2">
+            <h3 className="text-sm font-bold text-slate-900 mb-3 text-center">Per ottenere il massimo dal modulo</h3>
+            <ul className="text-sm text-slate-600 space-y-2 max-w-lg mx-auto">
+              <li className="flex gap-2"><span className="text-emerald-500 font-bold">1.</span> Configura il listino prodotti (pannelli, inverter, accumuli) in <Link to="/azienda/listino" className="text-orange-600 underline">Listino prodotti</Link> con categoria FV.</li>
+              <li className="flex gap-2"><span className="text-emerald-500 font-bold">2.</span> Aggiungi le tue tariffe di manodopera in <Link to="/azienda/impostazioni" className="text-orange-600 underline">Impostazioni</Link> (vertical "fotovoltaico" o "generico").</li>
+              <li className="flex gap-2"><span className="text-emerald-500 font-bold">3.</span> Crea il primo progetto qui sotto. Tutto il resto si configura strada facendo.</li>
+            </ul>
+          </div>
+          <div className="text-center mt-6">
+            {isAdmin && (
+              <Button
+                asChild
+                size="lg"
+                className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-lg"
+              >
+                <Link to="/azienda/marketing/fotovoltaico/nuovo">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crea il primo progetto
+                </Link>
+              </Button>
+            )}
           </div>
         </FvCard>
       </div>
