@@ -18,6 +18,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
 import { VAT_RATES } from "@/lib/vatUtils";
 import type { StockItem } from "@/types/warehouse";
@@ -38,12 +44,23 @@ interface StockItemDialogProps {
     supplier_id?: string;
     section_id?: string;
     min_stock_level: number;
+    // ── QR system (MP1 P0) ──────────────────────────────
+    barcode?: string | null;
+    internal_code?: string | null;
+    tracking_mode?: "fungible" | "serialized";
+    requires_warranty?: boolean;
+    default_warranty_months?: number | null;
+    // ── Cost registration ────────────────────────────────
     registerCost?: boolean;
     costPaidDate?: string;
     costCategory?: string;
   }) => void;
   editingItem?: StockItem | null;
   isPending?: boolean;
+  /** Pre-compila il barcode (es. quando si crea articolo da una scansione no-match). */
+  prefillBarcode?: string;
+  /** Pre-compila il fornitore (utile dal flow scan). */
+  prefillSupplierId?: string;
 }
 
 export function StockItemDialog({
@@ -52,6 +69,8 @@ export function StockItemDialog({
   onSave,
   editingItem,
   isPending,
+  prefillBarcode,
+  prefillSupplierId,
 }: StockItemDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -64,6 +83,13 @@ export function StockItemDialog({
   const [registerCost, setRegisterCost] = useState(false);
   const [costPaidDate, setCostPaidDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [costCategory, setCostCategory] = useState("Magazzino");
+
+  // ── QR system (MP1 P0) ──────────────────────────────
+  const [barcode, setBarcode] = useState("");
+  const [internalCode, setInternalCode] = useState("");
+  const [trackingMode, setTrackingMode] = useState<"fungible" | "serialized">("fungible");
+  const [requiresWarranty, setRequiresWarranty] = useState(false);
+  const [defaultWarrantyMonths, setDefaultWarrantyMonths] = useState("");
 
   const { sections } = useWarehouseSections();
 
@@ -78,23 +104,48 @@ export function StockItemDialog({
       setSectionId(editingItem.section_id || undefined);
       setMinStockLevel(editingItem.min_stock_level.toString());
       setRegisterCost(false);
+      setBarcode(editingItem.barcode ?? "");
+      setInternalCode(editingItem.internal_code ?? "");
+      setTrackingMode(editingItem.tracking_mode ?? "fungible");
+      setRequiresWarranty(!!editingItem.requires_warranty);
+      setDefaultWarrantyMonths(
+        editingItem.default_warranty_months != null
+          ? String(editingItem.default_warranty_months)
+          : "",
+      );
     } else {
       setName("");
       setDescription("");
       setQuantity("0");
       setUnitCost("0");
       setVatRate(22);
-      setSupplierId(undefined);
+      setSupplierId(prefillSupplierId);
       setSectionId(undefined);
       setMinStockLevel("0");
       setRegisterCost(false);
       setCostPaidDate(format(new Date(), "yyyy-MM-dd"));
       setCostCategory("Magazzino");
+      setBarcode(prefillBarcode ?? "");
+      setInternalCode("");
+      setTrackingMode("fungible");
+      setRequiresWarranty(false);
+      setDefaultWarrantyMonths("");
     }
-  }, [editingItem, open]);
+  }, [editingItem, open, prefillBarcode, prefillSupplierId]);
+
+  // Coerenza: garanzia obbligatoria → forza serialized (un singolo pezzo
+  // deve poter essere tracciato per associare la garanzia al seriale).
+  useEffect(() => {
+    if (requiresWarranty && trackingMode === "fungible") {
+      setTrackingMode("serialized");
+    }
+  }, [requiresWarranty, trackingMode]);
 
   const handleSave = () => {
     if (!name.trim()) return;
+    const warrantyMonthsNum = defaultWarrantyMonths.trim()
+      ? parseInt(defaultWarrantyMonths, 10)
+      : null;
     onSave({
       name: name.trim(),
       description: description.trim() || undefined,
@@ -104,6 +155,11 @@ export function StockItemDialog({
       supplier_id: supplierId,
       section_id: sectionId,
       min_stock_level: parseInt(minStockLevel) || 0,
+      barcode: barcode.trim() || null,
+      internal_code: internalCode.trim() || null,
+      tracking_mode: trackingMode,
+      requires_warranty: requiresWarranty,
+      default_warranty_months: Number.isFinite(warrantyMonthsNum as number) ? warrantyMonthsNum : null,
       ...(registerCost && !editingItem
         ? { registerCost: true, costPaidDate, costCategory }
         : {}),
@@ -114,7 +170,7 @@ export function StockItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {editingItem ? "Modifica Articolo" : "Nuovo Articolo in Giacenza"}
@@ -236,6 +292,99 @@ export function StockItemDialog({
               </Select>
             </div>
           )}
+
+          {/* ── QR & Tracking (MP1 P0) ───────────────────────── */}
+          <Accordion type="single" collapsible className="border rounded-lg">
+            <AccordionItem value="qr-tracking" className="border-0">
+              <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                <div className="flex flex-col items-start text-left">
+                  <span className="text-sm font-medium">QR & Tracking</span>
+                  <span className="text-xs text-muted-foreground">
+                    {trackingMode === "serialized" ? "Seriali per pezzo" : "Articolo identico"}
+                    {barcode ? ` · barcode: ${barcode.slice(0, 16)}${barcode.length > 16 ? "…" : ""}` : ""}
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-3 pb-3 space-y-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">Barcode / QR fornitore</Label>
+                  <Input
+                    value={barcode}
+                    onChange={(e) => setBarcode(e.target.value)}
+                    placeholder="Es. 8001234567890 o GTIN"
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Codice stampato dal fornitore. Lasciato vuoto = nessun match QR su questo articolo.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Codice interno</Label>
+                  <Input
+                    value={internalCode}
+                    onChange={(e) => setInternalCode(e.target.value)}
+                    placeholder="Es. EIC-MOTOR-A12"
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Codice interno su etichette stampate da te (alternativo al QR fornitore).
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Modalità tracking</Label>
+                  <Select
+                    value={trackingMode}
+                    onValueChange={(v) => setTrackingMode(v as "fungible" | "serialized")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fungible">
+                        <span className="font-medium">Fungibile</span>{" "}
+                        <span className="text-muted-foreground">— articoli identici (viti, tubi)</span>
+                      </SelectItem>
+                      <SelectItem value="serialized">
+                        <span className="font-medium">Serializzato</span>{" "}
+                        <span className="text-muted-foreground">— ogni pezzo ha seriale univoco</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-start gap-2 pt-1">
+                  <Checkbox
+                    id="requires-warranty"
+                    checked={requiresWarranty}
+                    onCheckedChange={(checked) => setRequiresWarranty(checked === true)}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="requires-warranty" className="text-sm font-medium cursor-pointer">
+                      Garanzia obbligatoria
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Forza tracking serializzato per associare ogni garanzia al seriale.
+                    </p>
+                  </div>
+                </div>
+
+                {(requiresWarranty || trackingMode === "serialized") && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Mesi garanzia di default</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={defaultWarrantyMonths}
+                      onChange={(e) => setDefaultWarrantyMonths(e.target.value)}
+                      placeholder="Es. 24"
+                    />
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
           {/* Cost registration toggle - only for new items */}
           {isCreating && (

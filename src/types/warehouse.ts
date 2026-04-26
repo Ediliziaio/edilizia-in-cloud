@@ -136,6 +136,19 @@ export interface StockItem {
   supplier_id: string | null;
   section_id: string | null;
   min_stock_level: number;
+  // ── QR system (MP1 P0) ──────────────────────────────
+  /** Codice barcode/QR del fornitore (EAN-13, GTIN, codice produttore). */
+  barcode?: string | null;
+  /** Codice interno auto-generato dal gestionale (EIC-…). */
+  internal_code?: string | null;
+  /** fungible = articolo identico, serialized = ogni pezzo ha seriale univoco. */
+  tracking_mode?: "fungible" | "serialized";
+  /** Articolo che ha garanzia obbligatoria (impone serializzazione). */
+  requires_warranty?: boolean;
+  /** Mesi garanzia di default da applicare alle stock_units di questo articolo. */
+  default_warranty_months?: number | null;
+  /** Timestamp ultima generazione QR/etichetta. */
+  qr_generated_at?: string | null;
   created_at: string;
   updated_at: string;
 }

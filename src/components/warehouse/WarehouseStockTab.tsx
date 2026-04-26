@@ -133,10 +133,28 @@ export default function WarehouseStockTab() {
       supplier_id?: string;
       section_id?: string;
       min_stock_level: number;
+      // ── QR system (MP1 P0) ──────────────────────────────
+      barcode?: string | null;
+      internal_code?: string | null;
+      tracking_mode?: "fungible" | "serialized";
+      requires_warranty?: boolean;
+      default_warranty_months?: number | null;
+      // ── Cost registration ────────────────────────────────
       registerCost?: boolean;
       costPaidDate?: string;
       costCategory?: string;
     }) => {
+      // Campi QR sono opzionali nello payload UPDATE: se undefined → non li tocca.
+      // Se sono ESPLICITAMENTE presenti (anche null) → vanno scritti.
+      const qrUpdate: Record<string, unknown> = {};
+      if ("barcode" in data) qrUpdate.barcode = data.barcode ?? null;
+      if ("internal_code" in data) qrUpdate.internal_code = data.internal_code ?? null;
+      if ("tracking_mode" in data && data.tracking_mode) qrUpdate.tracking_mode = data.tracking_mode;
+      if ("requires_warranty" in data) qrUpdate.requires_warranty = !!data.requires_warranty;
+      if ("default_warranty_months" in data) {
+        qrUpdate.default_warranty_months = data.default_warranty_months ?? null;
+      }
+
       if (data.id) {
         const { error } = await supabase
           .from("warehouse_stock")
@@ -149,6 +167,7 @@ export default function WarehouseStockTab() {
             supplier_id: data.supplier_id || null,
             section_id: data.section_id || null,
             min_stock_level: data.min_stock_level,
+            ...qrUpdate,
           })
           .eq("id", data.id)
           .eq("company_id", companyId!);
@@ -164,6 +183,7 @@ export default function WarehouseStockTab() {
           supplier_id: data.supplier_id || null,
           section_id: data.section_id || null,
           min_stock_level: data.min_stock_level,
+          ...qrUpdate,
         });
         if (error) throw error;
 
