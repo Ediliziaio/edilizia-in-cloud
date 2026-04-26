@@ -107,6 +107,26 @@ Deno.serve(async (req: Request) => {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[fv-genera-pdf] ERROR:", msg);
+    // Log della generazione fallita (audit trail B2). Best-effort, ignora errori.
+    try {
+      if (supabaseAdmin) {
+        const body = await req.clone().json().catch(() => ({} as Record<string, unknown>));
+        await supabaseAdmin.from("fv_pdf_generation_log").insert({
+          progetto_id: (body as { progetto_id?: string })?.progetto_id ?? null,
+          tipo: (body as { tipo?: string })?.tipo ?? null,
+          versione_template: 1,
+          storage_url: null,
+          size_bytes: 0,
+          pages_count: 0,
+          duration_ms: Date.now() - t0,
+          status: "error",
+          error_message: msg.substring(0, 500),
+          created_by: userId,
+        });
+      }
+    } catch {
+      /* noop: non bloccare la response per un fail di logging */
+    }
     return errorResponse(msg, 500, corsHeaders);
   }
 });

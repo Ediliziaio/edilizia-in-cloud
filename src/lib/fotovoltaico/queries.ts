@@ -213,10 +213,14 @@ export function usePannelliProgetto(progettoId: string | undefined) {
 }
 
 // ─── Cataloghi globali ──────────────────────────────────────────────────────
+// Tutti i cataloghi statici hanno staleTime 24h: cambiano raramente (incentivi
+// 2026, parametri economici), evita refetch ad ogni mount/navigazione.
+const STATIC_STALE_TIME = 24 * 60 * 60 * 1000; // 24h
 
 export function useIncentiviCatalogo(soloAttivi = true) {
   return useQuery({
     queryKey: [...QK.incentiviCatalogo, soloAttivi],
+    staleTime: STATIC_STALE_TIME,
     queryFn: async (): Promise<FvIncentivoCatalogo[]> => {
       let q = supabase
         .from("fv_incentivi_catalogo" as never)
@@ -233,6 +237,7 @@ export function useIncentiviCatalogo(soloAttivi = true) {
 export function useParametriCalcolo() {
   return useQuery({
     queryKey: QK.parametriCalcolo,
+    staleTime: STATIC_STALE_TIME,
     queryFn: async (): Promise<FvParametroCalcolo[]> => {
       const { data, error } = await supabase
         .from("fv_parametri_calcolo" as never)
@@ -246,6 +251,7 @@ export function useParametriCalcolo() {
 export function useProfiliAutoconsumo() {
   return useQuery({
     queryKey: QK.profiliAutoconsumo,
+    staleTime: STATIC_STALE_TIME,
     queryFn: async (): Promise<FvProfiloAutoconsumo[]> => {
       const { data, error } = await supabase
         .from("fv_profili_autoconsumo" as never)
@@ -274,9 +280,11 @@ export function useStatsAzienda() {
 }
 
 // ─── Articoli listino con categoria_fv ──────────────────────────────────────
+// Cache 1h: il listino può cambiare ma non spesso, evita refetch inutili.
 export function useArticoliFv(categoria?: string) {
   return useQuery({
     queryKey: ["fv", "articoli", categoria ?? "all"],
+    staleTime: 60 * 60 * 1000, // 1h
     queryFn: async () => {
       let q = supabase
         .from("articoli_native" as never)
@@ -288,6 +296,40 @@ export function useArticoliFv(categoria?: string) {
       const { data, error } = await q;
       if (error) throw error;
       return (data as Array<Record<string, unknown>>) ?? [];
+    },
+  });
+}
+
+// ─── Tariffe aziendali compatibili con FV ──────────────────────────────────
+// Filtra per vertical_associato in ('fotovoltaico', 'generico') + attive.
+// Sostituisce gli hardcoded 30€/40€ del wizard step 5.
+export interface FvTariffaAziendale {
+  id: string;
+  tipo: string;
+  nome: string;
+  descrizione: string | null;
+  unita: string;
+  prezzo_costo: number;
+  prezzo_vendita: number;
+  vertical_associato: string | null;
+}
+
+export function useTariffeFv() {
+  return useQuery({
+    queryKey: ["fv", "tariffe-aziendali"],
+    staleTime: 60 * 60 * 1000, // 1h
+    queryFn: async (): Promise<FvTariffaAziendale[]> => {
+      const { data, error } = await supabase
+        .from("tariffe_aziendali" as never)
+        .select(
+          "id, tipo, nome, descrizione, unita, prezzo_costo, prezzo_vendita, vertical_associato",
+        )
+        .eq("attivo", true)
+        .or("vertical_associato.eq.fotovoltaico,vertical_associato.eq.generico,vertical_associato.is.null")
+        .order("tipo", { ascending: true })
+        .order("nome", { ascending: true });
+      if (error) throw error;
+      return ((data as never) ?? []) as FvTariffaAziendale[];
     },
   });
 }
@@ -414,9 +456,11 @@ export function useUpsertTemplatePdf() {
 }
 
 // ─── Servizi catalogo per azienda ───────────────────────────────────────────
+// Cache 1h: il catalogo servizi è company-scoped ma cambia raramente.
 export function useServiziCatalogo() {
   return useQuery({
     queryKey: QK.servizioCatalogo,
+    staleTime: 60 * 60 * 1000, // 1h
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fv_servizi_catalogo" as never)

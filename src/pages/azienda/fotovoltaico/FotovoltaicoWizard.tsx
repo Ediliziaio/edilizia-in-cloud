@@ -46,6 +46,9 @@ import {
   useUpsertComponenti,
   useUpsertManodopera,
   useUpsertServizi,
+  useTariffeFv,
+  useManodoperaProgetto,
+  type FvTariffaAziendale,
 } from "@/lib/fotovoltaico/queries";
 import type {
   FvArchetipo,
@@ -126,6 +129,112 @@ interface WizardData {
   pannello_id: string | null;
   inverter_id: string | null;
   accumulo_id: string | null;
+  /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
+  tariffa_installazione_id: string | null;
+}
+
+// ─── Costanti validazione ──────────────────────────────────────────────────
+// Range coordinate Italia continentale + isole (incluso Pantelleria/Lampedusa
+// estremo sud 35.5° e Tarvisio estremo nord-est 46.6°). Padding margine.
+const ITALIA_LAT_MIN = 35.0;
+const ITALIA_LAT_MAX = 47.5;
+const ITALIA_LNG_MIN = 6.0;
+const ITALIA_LNG_MAX = 19.0;
+
+function isCoordinataItalia(lat: number | null, lng: number | null): boolean {
+  if (lat == null || lng == null) return false;
+  return (
+    lat >= ITALIA_LAT_MIN &&
+    lat <= ITALIA_LAT_MAX &&
+    lng >= ITALIA_LNG_MIN &&
+    lng <= ITALIA_LNG_MAX
+  );
+}
+
+/**
+ * Valida che ISEE sia coerente con il reddito annuo dichiarato.
+ * Una ISEE molto più alta del reddito è statisticamente impossibile (ISEE
+ * include patrimonio e composizione famiglia, ma raramente è > 3× reddito).
+ */
+function validaIseeReddito(
+  isee: number | null,
+  reddito: number | null,
+): string | null {
+  if (isee == null || reddito == null) return null;
+  if (reddito > 0 && isee > reddito * 3) {
+    return "ISEE incoerente: dichiarato > 3× del reddito annuo. Verifica i dati prima di proseguire.";
+  }
+  return null;
+}
+
+/**
+ * Verifica che il reddito sia compatibile con la richiesta di detrazione 50%.
+ * Sotto 8.500 € (No Tax Area) la detrazione non è recuperabile in IRPEF.
+ */
+function calcolaCapienzaWarning(
+  archetipo: FvArchetipo,
+  reddito: number | null,
+): string | null {
+  if (archetipo !== "privato_prima" && archetipo !== "privato_seconda") return null;
+  if (reddito != null && reddito < 8500) {
+    return "Reddito sotto la No Tax Area (8.500 €). La detrazione 50% IRPEF non sarà recuperabile in 10 anni — valuta cessione del credito o sconto in fattura con il commercialista.";
+  }
+  return null;
+}
+
+// ─── Persistenza locale (anti data-loss) ───────────────────────────────────
+const LS_KEY_PREFIX = "fv_wizard_draft_v1_";
+const LS_KEY_NEW = `${LS_KEY_PREFIX}new`;
+
+interface PersistedDraft {
+  step: number;
+  data: WizardData;
+  completedSteps: number[];
+  savedAt: number;
+}
+
+function loadPersistedDraft(progettoId: string | null): PersistedDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const key = progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedDraft;
+    // Scarta draft più vecchi di 7 giorni
+    if (Date.now() - parsed.savedAt > 7 * 24 * 60 * 60 * 1000) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedDraft(
+  progettoId: string | null,
+  draft: Omit<PersistedDraft, "savedAt">,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({ ...draft, savedAt: Date.now() }),
+    );
+  } catch {
+    /* localStorage piena/disabilitata: degrade silently */
+  }
+}
+
+function clearPersistedDraft(progettoId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
+    window.localStorage.removeItem(key);
+  } catch {
+    /* noop */
+  }
 }
 
 const INITIAL: WizardData = {
@@ -169,6 +278,7 @@ const INITIAL: WizardData = {
   pannello_id: null,
   inverter_id: null,
   accumulo_id: null,
+  tariffa_installazione_id: null,
 };
 
 const formatEur = (n: number) =>
@@ -187,17 +297,50 @@ export default function FotovoltaicoWizard() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState(1);
-  const [data, setData] = useState<WizardData>(INITIAL);
+  // Restore draft da localStorage al primo render (solo per progetti nuovi
+  // o quando il browser è stato chiuso a metà). Se il progetto è già firmato,
+  // il draft viene scartato dal merge con progettoEsistente.
+  const initialDraft = useMemo(() => loadPersistedDraft(id ?? null), [id]);
+
+  const [step, setStep] = useState(initialDraft?.step ?? 1);
+  const [data, setData] = useState<WizardData>(initialDraft?.data ?? INITIAL);
   const [progettoId, setProgettoId] = useState<string | null>(id ?? null);
   const [salvando, setSalvando] = useState(false);
   const [analizzandoTetto, setAnalizzandoTetto] = useState(false);
   const [calcolandoFinanziario, setCalcolandoFinanziario] = useState(false);
   const [scenarioFin, setScenarioFin] = useState<Record<string, unknown> | null>(null);
   const [scenarioErr, setScenarioErr] = useState<string | null>(null);
-  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
-  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [lastSaveAt, setLastSaveAt] = useState<Date | null>(null);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(
+    new Set(initialDraft?.completedSteps ?? []),
+  );
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved" | "error">(
+    initialDraft ? "saved" : "idle",
+  );
+  const [lastSaveAt, setLastSaveAt] = useState<Date | null>(
+    initialDraft ? new Date(initialDraft.savedAt) : null,
+  );
+
+  // Lock atomico anti double-click su goNext (B1). Usa useRef per evitare
+  // re-render e leggere il valore sincronicamente dentro l'handler.
+  const navigationLock = useRef<boolean>(false);
+
+  // Notifica draft restored
+  useEffect(() => {
+    if (initialDraft && !id) {
+      toast.info("Bozza ripristinata dal salvataggio locale", {
+        description: "Hai dati non salvati dall'ultima sessione.",
+        action: {
+          label: "Ricomincia",
+          onClick: () => {
+            clearPersistedDraft(null);
+            window.location.reload();
+          },
+        },
+        duration: 8000,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Anti-race / unmount guard ────────────────────────────────────────────
   const mountedRef = useRef(true);
@@ -213,14 +356,39 @@ export default function FotovoltaicoWizard() {
   const { data: pannelli = [] } = useArticoliFv("pannello");
   const { data: inverter = [] } = useArticoliFv("inverter");
   const { data: accumuli = [] } = useArticoliFv("accumulo");
+  const { data: tariffeFv = [] } = useTariffeFv();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
+  const { data: manodoperaEsistente } = useManodoperaProgetto(progettoId ?? undefined);
 
   const aggiornaProgetto = useAggiornaProgetto();
   const upsertComponenti = useUpsertComponenti();
   const upsertManodopera = useUpsertManodopera();
   const upsertServizi = useUpsertServizi();
 
-  // Carica progetto esistente nello state se presente
+  // ─── Read-only mode ──────────────────────────────────────────────────────
+  // Stati 'firmato' e 'annullato' sono immutabili: si può solo consultare.
+  // Stato 'emesso' permette consultazione + rigenerazione PDF, no edit dati.
+  const readOnlyMode = useMemo(() => {
+    if (!progettoEsistente) return false;
+    const stato = (progettoEsistente as { stato?: string }).stato;
+    return stato === "firmato" || stato === "annullato" || stato === "emesso";
+  }, [progettoEsistente]);
+
+  const readOnlyReason = useMemo(() => {
+    if (!progettoEsistente) return null;
+    const stato = (progettoEsistente as { stato?: string }).stato;
+    if (stato === "firmato")
+      return "Progetto firmato dal cliente. I dati non sono più modificabili. Puoi clonarlo per creare una nuova versione.";
+    if (stato === "annullato")
+      return "Progetto annullato. Sola consultazione.";
+    if (stato === "emesso")
+      return "Preventivo emesso. Per modificare clona il progetto e crea una nuova versione.";
+    return null;
+  }, [progettoEsistente]);
+
+  // Carica progetto esistente nello state. Se esiste, sovrascrive sempre il
+  // draft locale (la verità è il DB). Se è un nuovo progetto, lasciamo il
+  // draft (gestito al primo render via initialDraft).
   useEffect(() => {
     if (progettoEsistente && progettoId) {
       setData((d) => ({
@@ -256,48 +424,122 @@ export default function FotovoltaicoWizard() {
         con_wallbox: progettoEsistente.con_wallbox ?? false,
         con_ottimizzatori: progettoEsistente.con_ottimizzatori ?? false,
       }));
+      // Marca tutti gli step "passati" del progetto come completati.
+      // Un progetto già emesso ha tutti gli 8 step completati.
+      const stato = (progettoEsistente as { stato?: string }).stato;
+      if (stato && stato !== "bozza") {
+        setCompletedSteps(new Set([1, 2, 3, 4, 5, 6, 7, 8]));
+      } else if (progettoEsistente.consumo_annuo_kwh != null) {
+        setCompletedSteps(new Set([1, 2, 3]));
+      }
     }
   }, [progettoEsistente, progettoId]);
 
-  const update = <K extends keyof WizardData>(k: K, v: WizardData[K]) =>
+  // Pre-popola tariffa_installazione_id leggendo dalla manodopera esistente
+  // (il dato non è in fv_progetti ma in fv_manodopera_progetto.tariffa_id).
+  useEffect(() => {
+    if (manodoperaEsistente && manodoperaEsistente.length > 0) {
+      const primaRiga = manodoperaEsistente[0] as { tariffa_id?: string | null };
+      if (primaRiga.tariffa_id) {
+        setData((d) =>
+          d.tariffa_installazione_id ? d : { ...d, tariffa_installazione_id: primaRiga.tariffa_id! },
+        );
+      }
+    }
+  }, [manodoperaEsistente]);
+
+  // Persistenza locale: salva draft ad ogni cambio di state, ma non quando
+  // siamo in read-only (il DB è già la verità).
+  useEffect(() => {
+    if (readOnlyMode) return;
+    savePersistedDraft(progettoId, {
+      step,
+      data,
+      completedSteps: Array.from(completedSteps),
+    });
+  }, [step, data, completedSteps, progettoId, readOnlyMode]);
+
+  // beforeunload guard: avvisa se l'utente refresha/chiude con dati non salvati
+  useEffect(() => {
+    if (readOnlyMode) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      // Mostra il warning solo se stiamo davvero modificando qualcosa
+      if (autoSaveState === "saving" || step > 1) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [readOnlyMode, autoSaveState, step]);
+
+  const update = <K extends keyof WizardData>(k: K, v: WizardData[K]) => {
+    if (readOnlyMode) {
+      toast.error("Progetto in sola lettura. Clona per creare una nuova versione.");
+      return;
+    }
     setData((d) => ({ ...d, [k]: v }));
+  };
 
   // ─── Validazione step (con bound checks) ─────────────────────────────────
-  const stepValido = useMemo(() => {
+  // Restituisce { valido: boolean, motivo?: string } per dare feedback puntuale.
+  const stepValidation = useMemo((): { valido: boolean; motivo?: string } => {
     switch (step) {
-      case 1:
-        return Boolean(
-          data.cliente_nome.trim() &&
-          data.cliente_cognome.trim() &&
-          (data.cliente_telefono.trim() || data.cliente_email.trim())
-        );
-      case 2:
-        return Boolean(
-          data.indirizzo.trim() &&
-          data.latitudine != null &&
-          data.longitudine != null
-        );
-      case 3:
-        return data.consumo_annuo_kwh != null && data.consumo_annuo_kwh >= 500;
-      case 4:
-        return (
-          data.ore_sole_annue != null &&
-          data.ore_sole_annue > 0 &&
-          data.numero_pannelli_max != null &&
-          data.numero_pannelli_max > 0
-        );
-      case 5:
-        return data.potenza_kwp > 0 && data.numero_pannelli_scelti > 0;
+      case 1: {
+        if (!data.cliente_nome.trim()) return { valido: false, motivo: "Nome obbligatorio" };
+        if (!data.cliente_cognome.trim()) return { valido: false, motivo: "Cognome obbligatorio" };
+        if (!data.cliente_telefono.trim() && !data.cliente_email.trim())
+          return { valido: false, motivo: "Inserisci almeno cellulare o email" };
+        return { valido: true };
+      }
+      case 2: {
+        if (!data.indirizzo.trim()) return { valido: false, motivo: "Indirizzo obbligatorio" };
+        if (data.latitudine == null || data.longitudine == null)
+          return { valido: false, motivo: "Inserisci latitudine e longitudine" };
+        if (!isCoordinataItalia(data.latitudine, data.longitudine))
+          return {
+            valido: false,
+            motivo: `Coordinate fuori Italia (range valido: lat ${ITALIA_LAT_MIN}-${ITALIA_LAT_MAX}, lng ${ITALIA_LNG_MIN}-${ITALIA_LNG_MAX})`,
+          };
+        return { valido: true };
+      }
+      case 3: {
+        if (data.consumo_annuo_kwh == null || data.consumo_annuo_kwh < 500)
+          return { valido: false, motivo: "Consumo annuo minimo 500 kWh" };
+        const isee_err = validaIseeReddito(data.isee, data.reddito_annuo_dichiarato);
+        if (isee_err) return { valido: false, motivo: isee_err };
+        return { valido: true };
+      }
+      case 4: {
+        if (!data.ore_sole_annue || data.ore_sole_annue <= 0)
+          return { valido: false, motivo: "Esegui l'analisi tetto o inserisci dati manualmente" };
+        if (!data.numero_pannelli_max || data.numero_pannelli_max <= 0)
+          return { valido: false, motivo: "Numero pannelli max deve essere > 0" };
+        return { valido: true };
+      }
+      case 5: {
+        if (data.potenza_kwp <= 0 || data.numero_pannelli_scelti <= 0)
+          return { valido: false, motivo: "Configura almeno un pannello" };
+        return { valido: true };
+      }
       case 6:
-        return scenarioFin != null;
+        return scenarioFin != null
+          ? { valido: true }
+          : { valido: false, motivo: "Esegui il calcolo finanziario per proseguire" };
       case 7:
-        return Boolean(progettoId);
+        return progettoId
+          ? { valido: true }
+          : { valido: false, motivo: "Progetto non ancora creato" };
       case 8:
-        return Boolean(progettoId);
+        return progettoId
+          ? { valido: true }
+          : { valido: false, motivo: "Progetto non disponibile" };
       default:
-        return false;
+        return { valido: false, motivo: "Step sconosciuto" };
     }
   }, [step, data, scenarioFin, progettoId]);
+
+  const stepValido = stepValidation.valido;
 
   // ─── Helpers di stato auto-save ────────────────────────────────────────────
   const markSaved = useCallback(() => {
@@ -608,18 +850,30 @@ export default function FotovoltaicoWizard() {
         replace: true,
       });
 
+      // Manodopera: usa la tariffa scelta dall'utente (se presente in
+      // tariffe_aziendali) altrimenti fallback su 30€/40€ standard.
+      // Bug I1 fix: prima era SEMPRE hardcoded → margine reale falsato.
       const ore_installazione = Math.ceil(data.numero_pannelli_scelti * 0.5 + 8);
+      const tariffaScelta = data.tariffa_installazione_id
+        ? tariffeFv.find((t) => t.id === data.tariffa_installazione_id)
+        : null;
+      const tariffaCosto = tariffaScelta ? Number(tariffaScelta.prezzo_costo) : 30;
+      const tariffaVendita = tariffaScelta ? Number(tariffaScelta.prezzo_vendita) : 40;
+      const margineCalcolato =
+        tariffaVendita > 0 ? (tariffaVendita - tariffaCosto) / tariffaVendita : 0.25;
       await upsertManodopera.mutateAsync({
         progetto_id: progettoId,
         replace: true,
         righe: [
           {
-            tariffa_id: null,
-            descrizione: `Installazione impianto ${data.potenza_kwp} kWp`,
+            tariffa_id: data.tariffa_installazione_id,
+            descrizione: tariffaScelta
+              ? `${tariffaScelta.nome} — impianto ${data.potenza_kwp} kWp`
+              : `Installazione impianto ${data.potenza_kwp} kWp (tariffa standard)`,
             ore: ore_installazione,
-            tariffa_oraria_netta: 30,
-            tariffa_oraria_vendita: 40,
-            margine_pct: 0.25,
+            tariffa_oraria_netta: tariffaCosto,
+            tariffa_oraria_vendita: tariffaVendita,
+            margine_pct: margineCalcolato,
             ordinamento: 1,
           },
         ],
@@ -712,12 +966,16 @@ export default function FotovoltaicoWizard() {
   }, [step, progettoId, scenarioFin, scenarioErr, calcolandoFinanziario, handleCalcolaFinanziario]);
 
   // ─── Step 8 → genera PDF + emetti ─────────────────────────────────────────
+  // Bug B2 fix: i 3 PDF vengono richiesti TUTTI prima di marcare il progetto
+  // come 'emesso'. Se uno fallisce, lo stato resta a 'configurato' (no rollback
+  // necessario perché non l'abbiamo cambiato). L'utente vede esattamente
+  // quale PDF è fallito e può ritentare.
   const handleGeneraEdEmetti = async () => {
     if (!progettoId) return;
     setSalvando(true);
     try {
       const tipi = ["vendita", "tecnico", "mobile"] as const;
-      await Promise.all(
+      const results = await Promise.allSettled(
         tipi.map((t) =>
           supabase.functions.invoke("fv-genera-pdf", {
             body: { progetto_id: progettoId, tipo: t },
@@ -725,6 +983,18 @@ export default function FotovoltaicoWizard() {
         ),
       );
 
+      const failed = results
+        .map((r, i) => ({ tipo: tipi[i], r }))
+        .filter((x) => x.r.status === "rejected" || (x.r.status === "fulfilled" && x.r.value.error));
+
+      if (failed.length > 0) {
+        const elenco = failed.map((f) => f.tipo).join(", ");
+        throw new Error(
+          `${failed.length} PDF su ${tipi.length} non generati (${elenco}). Riprova: il progetto NON è stato emesso, è ancora editabile.`,
+        );
+      }
+
+      // Tutti i 3 PDF OK → marca emesso e crea opportunità CRM (futuro I3)
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
@@ -734,11 +1004,14 @@ export default function FotovoltaicoWizard() {
       });
 
       if (!mountedRef.current) return;
-      toast.success("Preventivo emesso! PDF generati con successo");
+      // Pulisci draft locale: progetto è emesso, niente più bozze locali
+      clearPersistedDraft(progettoId);
+      clearPersistedDraft(null);
+      toast.success("Preventivo emesso! Tutti i 3 PDF generati con successo");
       navigate(`/azienda/marketing/fotovoltaico/${progettoId}`);
     } catch (e) {
       if (!mountedRef.current) return;
-      toast.error(`Generazione PDF fallita: ${describeError(e)}`);
+      toast.error(`Generazione PDF: ${describeError(e)}`);
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
@@ -766,36 +1039,53 @@ export default function FotovoltaicoWizard() {
   // goNext non è memoizzato: dipende dagli handler salva* che catturano data
   // freschi a ogni render — un useCallback con deps complete forzerebbe ricreazione
   // a ogni keystroke nei form, peggiorando le performance.
+  //
+  // Bug B1 fix: navigationLock (useRef) è atomico e sincrono. Un secondo click
+  // arrivato mentre il primo è in volo viene scartato silenziosamente. Il lock
+  // si rilascia in finally, garantito anche su errore.
   const goNext = async () => {
-    if (step === 1) {
-      goTo(2, { markCompleted: true });
+    if (navigationLock.current) {
+      // Click duplicato: ignora silenziosamente
       return;
     }
-    if (step === 2) {
-      await handleSalvaStep2();
-      return;
+    navigationLock.current = true;
+    try {
+      if (step === 1) {
+        goTo(2, { markCompleted: true });
+        return;
+      }
+      if (step === 2) {
+        await handleSalvaStep2();
+        return;
+      }
+      if (step === 3) {
+        await handleSalvaStep3();
+        return;
+      }
+      if (step === 4) {
+        goTo(5, { markCompleted: true });
+        return;
+      }
+      if (step === 5) {
+        await handleSalvaStep5();
+        return;
+      }
+      if (step === 6) {
+        goTo(7, { markCompleted: true });
+        return;
+      }
+      if (step === 7) {
+        goTo(8, { markCompleted: true });
+        return;
+      }
+      // Step 8 — non c'è next, c'è solo "Emetti"
+    } finally {
+      // Rilascia il lock dopo un breve delay per evitare race su transizioni
+      // di step (l'UI potrebbe non aver ancora rimosso il disabled).
+      setTimeout(() => {
+        navigationLock.current = false;
+      }, 200);
     }
-    if (step === 3) {
-      await handleSalvaStep3();
-      return;
-    }
-    if (step === 4) {
-      goTo(5, { markCompleted: true });
-      return;
-    }
-    if (step === 5) {
-      await handleSalvaStep5();
-      return;
-    }
-    if (step === 6) {
-      goTo(7, { markCompleted: true });
-      return;
-    }
-    if (step === 7) {
-      goTo(8, { markCompleted: true });
-      return;
-    }
-    // Step 8 — non c'è next, c'è solo "Emetti"
   };
 
   const handleSaveDraft = useCallback(async () => {
@@ -842,11 +1132,22 @@ export default function FotovoltaicoWizard() {
     ? `Ultima modifica ${lastSaveAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
     : undefined;
 
+  // Stato display nell'header
+  const statoHeader = readOnlyMode
+    ? (progettoEsistente as { stato?: string } | undefined)?.stato === "firmato"
+      ? "Firmato"
+      : (progettoEsistente as { stato?: string } | undefined)?.stato === "annullato"
+        ? "Annullato"
+        : "Emesso"
+    : progettoId
+      ? "In compilazione"
+      : "Bozza";
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <FvPageHeader
         numero={numero ?? null}
-        stato={progettoId ? "In compilazione" : "Bozza"}
+        stato={statoHeader}
         title={titoloHeader}
         subtitle={subtitleHeader}
         lastModified={lastSaveText}
@@ -857,7 +1158,7 @@ export default function FotovoltaicoWizard() {
               onClick={() => navigate("/azienda/marketing/fotovoltaico")}
               className="px-3 py-1.5 text-sm font-semibold text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5"
             >
-              <X className="h-4 w-4" /> Salva e chiudi
+              <X className="h-4 w-4" /> {readOnlyMode ? "Chiudi" : "Salva e chiudi"}
             </button>
             {progettoId && (
               <button
@@ -872,13 +1173,35 @@ export default function FotovoltaicoWizard() {
         }
         chips={
           <>
-            <FvChip variant="green">
-              <Sun className="h-3 w-3" />
-              Fotovoltaico
+            <FvChip variant={readOnlyMode ? "yellow" : "green"}>
+              {readOnlyMode ? "🔒" : <Sun className="h-3 w-3" />}
+              {readOnlyMode ? "Sola lettura" : "Fotovoltaico"}
             </FvChip>
           </>
         }
       />
+
+      {/* Banner read-only (B5/F4) */}
+      {readOnlyMode && readOnlyReason && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-8 py-3 text-sm text-amber-900 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <strong>Modalità sola lettura · </strong>
+            {readOnlyReason}
+          </div>
+          {progettoId && (
+            <button
+              type="button"
+              onClick={() =>
+                navigate(`/azienda/marketing/fotovoltaico/${progettoId}`)
+              }
+              className="text-xs font-semibold text-amber-900 underline hover:no-underline whitespace-nowrap"
+            >
+              Vai al dettaglio →
+            </button>
+          )}
+        </div>
+      )}
 
       <FvTabBar
         tabs={TABS}
@@ -909,6 +1232,7 @@ export default function FotovoltaicoWizard() {
               pannelli={pannelli as never}
               inverter={inverter as never}
               accumuli={accumuli as never}
+              tariffeFv={tariffeFv}
             />
           )}
           {step === 6 && (
@@ -931,17 +1255,27 @@ export default function FotovoltaicoWizard() {
         </FvTabPane>
       </div>
 
+      {/* Mostra il motivo del blocco se Avanti è disabilitato */}
+      {!stepValido && stepValidation.motivo && step < TOTAL_STEPS && !readOnlyMode && (
+        <div className="bg-blue-50 border-t border-blue-200 px-4 sm:px-8 py-2 text-xs text-blue-900 flex items-center gap-2">
+          <span aria-hidden>ℹ</span>
+          <span>
+            <strong>Per proseguire:</strong> {stepValidation.motivo}
+          </span>
+        </div>
+      )}
+
       <FvFooter
         autoSaveState={autoSaveState}
         numero={numero ?? null}
         lastSaveText={lastSaveText}
         onPrev={goPrev}
-        onSaveDraft={progettoId ? handleSaveDraft : undefined}
-        onNext={step < TOTAL_STEPS ? goNext : undefined}
+        onSaveDraft={progettoId && !readOnlyMode ? handleSaveDraft : undefined}
+        onNext={step < TOTAL_STEPS && !readOnlyMode ? goNext : undefined}
         prevDisabled={step === 1}
         nextDisabled={!stepValido || analizzandoTetto || calcolandoFinanziario}
         nextLabel={step === 7 ? "Vai a generazione →" : "Avanti"}
-        showNext={step < TOTAL_STEPS}
+        showNext={step < TOTAL_STEPS && !readOnlyMode}
         saving={salvando}
       />
     </div>
@@ -1114,6 +1448,10 @@ function Step2Immobile({
                   update("latitudine", e.target.value ? Number(e.target.value) : null)
                 }
                 placeholder="45.4642"
+                aria-invalid={
+                  data.latitudine != null &&
+                  (data.latitudine < ITALIA_LAT_MIN || data.latitudine > ITALIA_LAT_MAX)
+                }
               />
             </div>
             <div>
@@ -1126,9 +1464,22 @@ function Step2Immobile({
                   update("longitudine", e.target.value ? Number(e.target.value) : null)
                 }
                 placeholder="9.1900"
+                aria-invalid={
+                  data.longitudine != null &&
+                  (data.longitudine < ITALIA_LNG_MIN || data.longitudine > ITALIA_LNG_MAX)
+                }
               />
             </div>
           </div>
+          {data.latitudine != null &&
+            data.longitudine != null &&
+            !isCoordinataItalia(data.latitudine, data.longitudine) && (
+              <FvCallout variant="error" title="Coordinate fuori Italia">
+                Range valido: lat <strong>{ITALIA_LAT_MIN}–{ITALIA_LAT_MAX}</strong>, lng{" "}
+                <strong>{ITALIA_LNG_MIN}–{ITALIA_LNG_MAX}</strong>. Solar API e PVGIS sono
+                ottimizzati per il territorio italiano.
+              </FvCallout>
+            )}
         </FvCard>
 
         <FvCard title="Caratteristiche edificio">
@@ -1320,6 +1671,9 @@ function Step3Consumi({
                     update("isee", e.target.value ? Number(e.target.value) : null)
                   }
                   placeholder="solo Reddito Energetico"
+                  aria-invalid={
+                    !!validaIseeReddito(data.isee, data.reddito_annuo_dichiarato)
+                  }
                 />
               </div>
               <div>
@@ -1346,6 +1700,18 @@ function Step3Consumi({
                 />
               </div>
             </div>
+            {/* Validation warning live (B6) */}
+            {validaIseeReddito(data.isee, data.reddito_annuo_dichiarato) && (
+              <FvCallout variant="warn" title="Dati incoerenti">
+                {validaIseeReddito(data.isee, data.reddito_annuo_dichiarato)}
+              </FvCallout>
+            )}
+            {/* Capienza fiscale insufficiente (B6/GAP10) */}
+            {calcolaCapienzaWarning(data.archetipo, data.reddito_annuo_dichiarato) && (
+              <FvCallout variant="warn" title="Capienza IRPEF insufficiente">
+                {calcolaCapienzaWarning(data.archetipo, data.reddito_annuo_dichiarato)}
+              </FvCallout>
+            )}
             <FvCallout variant="info">
               ISEE ≤ 15.000 € sblocca il bando Reddito Energetico (contributo a fondo perduto).
               Reddito serve per stimare la capienza fiscale per la detrazione 50%.
@@ -1564,12 +1930,14 @@ function Step5Configurazione({
   pannelli,
   inverter,
   accumuli,
+  tariffeFv,
 }: {
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   pannelli: Array<Record<string, unknown>>;
   inverter: Array<Record<string, unknown>>;
   accumuli: Array<Record<string, unknown>>;
+  tariffeFv: FvTariffaAziendale[];
 }) {
   // Auto-calcolo potenza_kwp da numero pannelli
   useEffect(() => {
@@ -1774,6 +2142,57 @@ function Step5Configurazione({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label>
+                Tariffa manodopera installazione
+                {!data.tariffa_installazione_id && (
+                  <span className="ml-2 text-xs text-amber-600 font-normal">
+                    ⚠ Standard 30€/40€ — configura tariffe in Impostazioni per dato reale
+                  </span>
+                )}
+              </Label>
+              <Select
+                value={data.tariffa_installazione_id ?? "__default__"}
+                onValueChange={(v) =>
+                  update("tariffa_installazione_id", v === "__default__" ? null : v)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">
+                    Tariffa standard (30€ costo / 40€ vendita)
+                  </SelectItem>
+                  {tariffeFv.length === 0 && (
+                    <SelectItem value="__empty__" disabled>
+                      Nessuna tariffa configurata in Impostazioni Azienda
+                    </SelectItem>
+                  )}
+                  {tariffeFv.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nome} — costo {Number(t.prezzo_costo).toFixed(0)}€ / vendita{" "}
+                      {Number(t.prezzo_vendita).toFixed(0)}€/{t.unita}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {data.tariffa_installazione_id &&
+                (() => {
+                  const t = tariffeFv.find((x) => x.id === data.tariffa_installazione_id);
+                  if (!t) return null;
+                  const margine =
+                    t.prezzo_vendita > 0
+                      ? ((t.prezzo_vendita - t.prezzo_costo) / t.prezzo_vendita) * 100
+                      : 0;
+                  return (
+                    <p className="text-[11px] text-emerald-700 mt-1.5 font-semibold">
+                      ✓ Margine reale {margine.toFixed(0)}% — collegato a tariffe_aziendali
+                    </p>
+                  );
+                })()}
             </div>
 
             <div className="border-t border-slate-200 pt-3 flex flex-wrap gap-4">
