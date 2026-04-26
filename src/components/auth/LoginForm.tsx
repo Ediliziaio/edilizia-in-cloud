@@ -94,6 +94,12 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     e.preventDefault();
     setFormError(null);
     setIsLoading(true);
+    // Hard-stop: anche se TUTTE le promise sotto pendono indefinitamente
+    // (es. iOS Safari + ITP + SW intercept che congela un fetch), questo
+    // garantisce che il pulsante esca dallo stato "Accesso in corso..." entro
+    // 20 s e l'utente possa riprovare. Senza questo, in produzione mobile il
+    // login restava bloccato per sempre dopo un sign-in con credenziali valide.
+    const hardStopId = setTimeout(() => setIsLoading(false), 20_000);
     try {
       const { error } = await signIn(email, password);
       if (error) {
@@ -103,17 +109,25 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           title: "Errore di accesso",
           description: "Email o password non validi. Riprova.",
         });
-        setIsLoading(false);
         return;
       }
 
-      // Check if account is blocked by admin
+      // Check if account is blocked by admin — best-effort, with timeout.
+      // Se la query pende (storage lock contention su Safari mobile), procediamo
+      // comunque al login: il check `is_blocked` è una sanity-check, non l'unico
+      // gate (la sessione Supabase è già attiva e RLS protegge l'accesso ai dati).
       try {
-        const { data: profile } = await supabase
+        const blockedCheck = supabase
           .from("profiles")
           .select("is_blocked")
           .eq("email", email)
           .maybeSingle();
+        const { data: profile } = await Promise.race([
+          blockedCheck,
+          new Promise<{ data: null }>((resolve) =>
+            setTimeout(() => resolve({ data: null }), 5_000),
+          ),
+        ]);
         if (profile?.is_blocked) {
           await supabase.auth.signOut();
           setFormError("Il tuo account è stato bloccato dall'amministratore. Contatta il supporto.");
@@ -122,30 +136,39 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             title: "Accesso bloccato",
             description: "Il tuo account è stato bloccato. Contatta l'amministratore.",
           });
-          setIsLoading(false);
           return;
         }
       } catch {
         // If blocked check fails, proceed normally
       }
 
+      // 2FA status — anche questa è una edge function (può andare in cold-start
+      // 10-30s su free tier). Timeout: se non risponde in 6s, assumiamo nessun
+      // 2FA configurato e procediamo al redirect normale. Se l'utente ha 2FA
+      // attivo ma il check è andato in timeout, il route guard lo riporterà
+      // alla pagina 2FA al primo accesso protetto.
       try {
-        const { data: totpStatus } = await supabase.functions.invoke("manage-totp", {
+        const totpInvoke = supabase.functions.invoke("manage-totp", {
           body: { action: "status" },
         });
+        const result = await Promise.race([
+          totpInvoke,
+          new Promise<{ data: null }>((resolve) =>
+            setTimeout(() => resolve({ data: null }), 6_000),
+          ),
+        ]);
+        const totpStatus = (result as { data: { enabled?: boolean; require_2fa?: boolean } | null }).data;
         if (totpStatus?.enabled) {
           setView("2fa");
-          setIsLoading(false);
           return;
         }
-        // BUG 1: enforce mandatory 2FA setup if required by company admin
+        // Mandatory 2FA setup if required by company admin
         if (totpStatus?.require_2fa && !totpStatus?.enabled) {
           toast({
             title: "Autenticazione a due fattori obbligatoria",
             description: "Il tuo account richiede la configurazione del 2FA per accedere.",
           });
           window.location.href = "/azienda/impostazioni/sicurezza";
-          setIsLoading(false);
           return;
         }
       } catch {
@@ -161,6 +184,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         description: "Si è verificato un errore. Riprova più tardi.",
       });
     } finally {
+      clearTimeout(hardStopId);
       setIsLoading(false);
     }
   };

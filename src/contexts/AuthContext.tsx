@@ -770,11 +770,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchUserData, refreshAuth]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error: error as Error | null };
+    // Velocity — race su 15s. signInWithPassword fa un POST a /auth/v1/token,
+    // ma su iOS Safari è stato osservato che — quando un Service Worker registrato
+    // intercetta la richiesta o quando ITP blocca temporaneamente lo storage — la
+    // promise non si risolve mai. Senza questo timeout l'utente vede "Accesso in
+    // corso..." per sempre. Con il race, dopo 15s ritorniamo un errore generico
+    // così il LoginForm può sbloccare l'UI e l'utente può riprovare.
+    try {
+      const { error } = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        new Promise<{ error: Error }>((_, reject) =>
+          setTimeout(() => reject(new Error("Login timeout — riprova")), 15_000),
+        ),
+      ]);
+      return { error: error as Error | null };
+    } catch (err) {
+      return { error: err as Error };
+    }
   }, []);
 
   const signOut = useCallback(async () => {

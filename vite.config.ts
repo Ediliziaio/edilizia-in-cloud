@@ -72,11 +72,21 @@ export default defineConfig(() => ({
             },
           },
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            // Catch-all per /rest/v1/* e /storage/v1/* (data + file API).
+            // ⚠️  CRITICO: NON intercettiamo /auth/v1/* (login/signup/refresh/logout)
+            // né /functions/v1/* (edge functions). Su iOS Safari un NetworkFirst
+            // senza networkTimeoutSeconds applicato a /auth/v1/token POST può
+            // pendere indefinitamente, lasciando l'UI bloccata su "Accesso in
+            // corso..." dopo un login con credenziali valide. Lasciamo che le
+            // richieste auth e functions passino direttamente alla rete del
+            // browser, così il client Supabase può applicare i suoi timeouts.
+            // networkTimeoutSeconds=10 forza fallback al cache se la rete pende.
+            urlPattern: /^https:\/\/.*\.supabase\.co\/(rest\/v1|storage\/v1)\//i,
             handler: "NetworkFirst",
             options: {
               cacheName: "supabase-api",
               expiration: { maxEntries: 100, maxAgeSeconds: 300 },
+              networkTimeoutSeconds: 10,
             },
           },
         ],
