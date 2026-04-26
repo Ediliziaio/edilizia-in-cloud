@@ -296,3 +296,28 @@ html.capacitor [role="button"] {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* ── Fotovoltaico Wizard (mockup v2 EiC) ──────────────────────────────────── */
+@keyframes fv-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fv-fade-in { animation: fv-fade-in 0.4s ease both; }
+
+@keyframes fv-pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.03); }
+}
+.animate-fv-pulse-scale { animation: fv-pulse-scale 2.5s ease-in-out infinite; }
+
+@keyframes fv-pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249,115,22,0.6); }
+  50%      { box-shadow: 0 0 0 8px rgba(249,115,22,0); }
+}
+.animate-fv-pulse-dot { animation: fv-pulse-dot 2s infinite; }
+
+/* Tab bar scroller (sottile, non invasivo) */
+.fv-tab-scroll { scrollbar-width: thin; scrollbar-color: #CBD5E1 transparent; }
+.fv-tab-scroll::-webkit-scrollbar { height: 4px; }
+.fv-tab-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+

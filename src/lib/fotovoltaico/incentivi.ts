@@ -238,7 +238,7 @@ export function calcolaRedditoEnergetico(
 
 function applicaRegoleCumulabilita(
   candidati: FvIncentivoApplicato[],
-  catalogo: FvIncentivoCatalogo[]
+  _catalogo: FvIncentivoCatalogo[]
 ): FvIncentivoApplicato[] {
   // Reddito Energetico esclude detrazione 50/36 — scegli il più conveniente
   const idxRE = candidati.findIndex((c) => c.codice === "REDDITO_ENERGETICO");
