@@ -30,6 +30,38 @@ export default defineConfig(() => ({
       // injection avoids an extra /manifest.webmanifest reference that was not
       // emitted under Rolldown.
       manifest: false,
+      // ─────────────────────────────────────────────────────────────
+      // 🚨 SELF-DESTROYING SW (2026-04-26)
+      //
+      // I deploy precedenti hanno installato sui device degli utenti un SW
+      // Workbox con `precacheAndRoute` + `NavigationRoute(createHandlerBound
+      // ToURL("index.html"))` e un `runtimeCaching` catch-all che intercettava
+      // anche `/auth/v1/token`. Su iOS Safari questo combinato:
+      //   1. Serviva index.html stale dalla precache dopo un nuovo deploy →
+      //      gli utenti restavano per sempre sul vecchio HTML, NON ricevevano
+      //      mai i fix in commit successivi (incluso il fix `sw_reset_v9`).
+      //   2. Intercettava il POST di login con NetworkFirst senza
+      //      networkTimeoutSeconds → "Accesso in corso..." infinito.
+      //
+      // `selfDestroying: true` fa generare a vite-plugin-pwa un sw.js minimale
+      // che, all'`activate`, esegue `self.registration.unregister()` + svuota
+      // tutte le `caches` + ricarica tutti i client. Quando il browser fa il
+      // periodic update-check del vecchio SW e scarica il nuovo sw.js (che è
+      // SEMPRE servito dal network, mai dalla cache, per spec), il nuovo SW
+      // si installa, si auto-distrugge, e libera definitivamente il device.
+      //
+      // Da qui in poi:
+      //   • niente più SW = niente più intercettazione di auth/functions
+      //   • niente più precache di index.html = utenti ricevono SEMPRE il
+      //     nuovo HTML al primo refresh post-deploy
+      //   • Cloudflare CDN gestisce il caching degli asset (immutable hashed)
+      //
+      // Questa è una soluzione duratura, non una toppa: il PWA potrà essere
+      // reintrodotto in futuro con una config minimale (solo precache icone)
+      // se mai servirà di nuovo. Ad oggi non porta valore commisurato al
+      // rischio di ricreare lo stesso bug.
+      // ─────────────────────────────────────────────────────────────
+      selfDestroying: true,
       workbox: {
         // sw-push-handler.js: gestione eventi push Web Push API (MP5)
         // Incluso via importScripts nel SW generato da Vite PWA.
