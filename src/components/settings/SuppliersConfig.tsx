@@ -1,7 +1,14 @@
 import { useState, useMemo } from "react";
 import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown } from "lucide-react";
+import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown, QrCode } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { VAT_RATES, getVatRateLabel } from "@/lib/vatUtils";
@@ -45,6 +52,8 @@ interface Supplier {
   company_id: string;
 }
 
+type QrFormat = "" | "ean13" | "gtin14" | "gs1_128" | "gs1_qr" | "custom";
+
 interface SupplierFormData {
   name: string;
   vat_rate: number;
@@ -62,6 +71,10 @@ interface SupplierFormData {
   product_category: string;
   notes: string;
   payment_method: string;
+  // ── QR system (MP1 P0) ──────────────────────────────
+  barcode_prefix: string;
+  uses_gs1: boolean;
+  default_qr_format: QrFormat;
 }
 
 const emptyForm: SupplierFormData = {
@@ -81,9 +94,19 @@ const emptyForm: SupplierFormData = {
   product_category: "",
   notes: "",
   payment_method: "",
+  barcode_prefix: "",
+  uses_gs1: false,
+  default_qr_format: "",
 };
 
 function supplierToForm(s: Supplier): SupplierFormData {
+  // Cast difensivo: i campi QR sono opzionali nel type Supplier
+  // (esistono in DB dopo migration MP1, ma il type può non essere stato rigenerato).
+  const qr = s as Partial<{
+    barcode_prefix: string | null;
+    uses_gs1: boolean | null;
+    default_qr_format: QrFormat | null;
+  }>;
   return {
     name: s.name,
     vat_rate: s.vat_rate || 22,
@@ -101,6 +124,9 @@ function supplierToForm(s: Supplier): SupplierFormData {
     product_category: s.product_category || "",
     notes: s.notes || "",
     payment_method: s.payment_method || "",
+    barcode_prefix: qr.barcode_prefix ?? "",
+    uses_gs1: !!qr.uses_gs1,
+    default_qr_format: (qr.default_qr_format ?? "") as QrFormat,
   };
 }
 
@@ -244,6 +270,10 @@ export function SuppliersConfig() {
         notes: data.notes || null,
         payment_method: data.payment_method || null,
         company_id: companyId,
+        // ── QR system (MP1 P0) ──────────────────────────────
+        barcode_prefix: data.barcode_prefix.trim() || null,
+        uses_gs1: data.uses_gs1,
+        default_qr_format: data.default_qr_format || null,
       });
       if (error) throw error;
     },
@@ -279,6 +309,10 @@ export function SuppliersConfig() {
           product_category: data.product_category || null,
           notes: data.notes || null,
           payment_method: data.payment_method || null,
+          // ── QR system (MP1 P0) ──────────────────────────────
+          barcode_prefix: data.barcode_prefix.trim() || null,
+          uses_gs1: data.uses_gs1,
+          default_qr_format: data.default_qr_format || null,
         })
         .eq("id", id)
         .eq("company_id", companyId!);
@@ -618,6 +652,81 @@ export function SuppliersConfig() {
               <Label htmlFor="notes">Note</Label>
               <Textarea id="notes" value={formData.notes} onChange={(e) => updateField("notes", e.target.value)} placeholder="Note aggiuntive sul fornitore..." rows={3} maxLength={500} />
             </div>
+
+            {/* ── QR & Barcode (MP1 P0) ────────────────────────── */}
+            <Accordion type="single" collapsible className="border rounded-lg">
+              <AccordionItem value="qr-barcode" className="border-0">
+                <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                  <div className="flex items-center gap-2 text-left">
+                    <QrCode className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-medium">QR & Barcode fornitore</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formData.uses_gs1 ? "GS1 attivo" : "GS1 non attivo"}
+                        {formData.barcode_prefix ? ` · prefisso ${formData.barcode_prefix}` : ""}
+                        {formData.default_qr_format ? ` · formato ${formData.default_qr_format}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-3 space-y-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Prefisso barcode tipico</Label>
+                    <Input
+                      value={formData.barcode_prefix}
+                      onChange={(e) => updateField("barcode_prefix", e.target.value)}
+                      placeholder="Es. 800012 (EAN italiano)"
+                      maxLength={20}
+                      autoComplete="off"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Usato per matching probabilistico quando il barcode scansionato non è ancora in anagrafica.
+                    </p>
+                  </div>
+
+                  <div className="flex items-start gap-2 pt-1">
+                    <Checkbox
+                      id="uses-gs1"
+                      checked={formData.uses_gs1}
+                      onCheckedChange={(checked) => updateField("uses_gs1", checked === true)}
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="uses-gs1" className="text-sm font-medium cursor-pointer">
+                        Questo fornitore usa GS1 (FNC1)
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Forza il parser GS1 a estrarre GTIN, lotto, seriale e scadenza dai QR scansionati.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Formato QR di default</Label>
+                    <Select
+                      value={formData.default_qr_format || "none"}
+                      onValueChange={(v) =>
+                        updateField("default_qr_format", v === "none" ? "" : (v as QrFormat))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Nessuno" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nessuno</SelectItem>
+                        <SelectItem value="ean13">EAN-13 (13 cifre)</SelectItem>
+                        <SelectItem value="gtin14">GTIN-14 (14 cifre)</SelectItem>
+                        <SelectItem value="gs1_128">GS1-128 (codice a barre)</SelectItem>
+                        <SelectItem value="gs1_qr">GS1-QR (matrice 2D)</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Determina come il sistema stamperà le etichette per gli articoli di questo fornitore.
+                    </p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog}>
