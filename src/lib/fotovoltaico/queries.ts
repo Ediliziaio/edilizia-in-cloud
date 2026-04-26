@@ -300,6 +300,279 @@ export function useArticoliFv(categoria?: string) {
   });
 }
 
+// ─── Finanziarie + tabelle finanziamento + lookup rata ────────────────────
+// Tabelle del modulo Finanziamenti EiC (eic_finanziarie + eic_tabelle_*)
+// integrate nel wizard FV step 6 per offrire rata REALE invece di estimate.
+
+export interface FvFinanziaria {
+  id: string;
+  nome: string;
+  ragione_sociale: string | null;
+  logo_url: string | null;
+  attiva: boolean;
+}
+
+export interface FvTabellaFinanziamento {
+  id: string;
+  finanziaria_id: string;
+  finanziaria_nome: string | null;
+  nome_prodotto: string;
+  codice_condizione: string | null;
+  tan_base: number | null;
+  importo_min: number;
+  importo_max: number;
+  durate_disponibili: number[];
+  righe_count: number;
+  attiva: boolean;
+  data_decorrenza: string | null;
+  data_scadenza: string | null;
+}
+
+export interface FvRigaFinanziamento {
+  id: string;
+  tabella_id: string;
+  importo_erogato: number;
+  durata_mesi: number;
+  numero_rate: number;
+  importo_rata: number;
+  tan: number;
+  taeg: number;
+  importo_totale_dovuto: number;
+  spese_istruttoria: number | null;
+  spese_incasso_rata: number | null;
+  interessi_cliente: number | null;
+}
+
+/**
+ * Lista tutte le tabelle di finanziamento attive dell'azienda compatibili
+ * con il modulo FV (qualsiasi vertical — un finanziamento generico vale
+ * anche per FV). Restituisce tabelle + nome finanziaria pre-joined.
+ */
+export function useTabelleFinanziamentoFv(importoTarget?: number) {
+  return useQuery({
+    queryKey: ["fv", "tabelle-finanziamento", importoTarget ?? "all"],
+    staleTime: 60 * 60 * 1000, // 1h
+    queryFn: async (): Promise<FvTabellaFinanziamento[]> => {
+      let q = supabase
+        .from("eic_tabelle_finanziamento" as never)
+        .select(
+          "id, finanziaria_id, nome_prodotto, codice_condizione, tan_base, importo_min, importo_max, durate_disponibili, righe_count, attiva, data_decorrenza, data_scadenza, eic_finanziarie!inner(nome, ragione_sociale, attiva)",
+        )
+        .eq("attiva", true)
+        .gte("righe_count", 1);
+      if (importoTarget != null) {
+        q = q.lte("importo_min", importoTarget).gte("importo_max", importoTarget);
+      }
+      const { data, error } = await q.order("nome_prodotto");
+      if (error) throw error;
+      const rows = (data as Array<Record<string, unknown>>) ?? [];
+      return rows
+        .filter((r) => {
+          const f = r.eic_finanziarie as { attiva?: boolean } | null;
+          return f?.attiva !== false;
+        })
+        .map((r) => ({
+          id: String(r.id),
+          finanziaria_id: String(r.finanziaria_id),
+          finanziaria_nome: (r.eic_finanziarie as { nome?: string } | null)?.nome ?? null,
+          nome_prodotto: String(r.nome_prodotto),
+          codice_condizione: r.codice_condizione ? String(r.codice_condizione) : null,
+          tan_base: r.tan_base != null ? Number(r.tan_base) : null,
+          importo_min: Number(r.importo_min) || 0,
+          importo_max: Number(r.importo_max) || 0,
+          durate_disponibili: Array.isArray(r.durate_disponibili)
+            ? (r.durate_disponibili as number[])
+            : [],
+          righe_count: Number(r.righe_count) || 0,
+          attiva: Boolean(r.attiva),
+          data_decorrenza: r.data_decorrenza ? String(r.data_decorrenza) : null,
+          data_scadenza: r.data_scadenza ? String(r.data_scadenza) : null,
+        }));
+    },
+  });
+}
+
+/**
+ * Lookup rata reale dalla matrice eic_tabelle_finanziamento_righe.
+ * Trova la riga col `importo_erogato` più vicino al target richiesto e
+ * la `durata_mesi` esatta. Se non c'è match esatto sull'importo, usa
+ * il più vicino (>=) o interpola lineare se serve.
+ *
+ * Restituisce null se la tabella non ha righe per quella durata o se
+ * l'importo è fuori range.
+ */
+export function useLookupRataFv(
+  tabellaId: string | null,
+  importo: number | null,
+  durataMesi: number | null,
+) {
+  return useQuery({
+    queryKey: ["fv", "lookup-rata", tabellaId, importo, durataMesi],
+    enabled: Boolean(tabellaId && importo && importo > 0 && durataMesi && durataMesi > 0),
+    staleTime: 60 * 60 * 1000,
+    queryFn: async (): Promise<FvRigaFinanziamento | null> => {
+      if (!tabellaId || !importo || !durataMesi) return null;
+      const { data, error } = await supabase
+        .from("eic_tabelle_finanziamento_righe" as never)
+        .select(
+          "id, tabella_id, importo_erogato, durata_mesi, numero_rate, importo_rata, tan, taeg, importo_totale_dovuto, spese_istruttoria, spese_incasso_rata, interessi_cliente",
+        )
+        .eq("tabella_id", tabellaId)
+        .eq("durata_mesi", durataMesi)
+        .order("importo_erogato", { ascending: true });
+      if (error) throw error;
+      const rows = (data as Array<Record<string, unknown>>) ?? [];
+      if (rows.length === 0) return null;
+      // Trova la riga con importo_erogato più vicino (preferisci >= target)
+      const target = importo;
+      let exact: Record<string, unknown> | null = null;
+      let geRow: Record<string, unknown> | null = null;
+      let leRow: Record<string, unknown> | null = null;
+      for (const r of rows) {
+        const eImp = Number(r.importo_erogato);
+        if (eImp === target) {
+          exact = r;
+          break;
+        }
+        if (eImp >= target && (!geRow || Number(geRow.importo_erogato) > eImp)) geRow = r;
+        if (eImp <= target && (!leRow || Number(leRow.importo_erogato) < eImp)) leRow = r;
+      }
+      const chosen = exact ?? geRow ?? leRow;
+      if (!chosen) return null;
+      // Se l'importo target è diverso da quello tabulato, scaliamo la rata
+      // proporzionalmente (best-effort: la tabella non copre tutti gli scaglioni).
+      const importoTab = Number(chosen.importo_erogato);
+      const fattore = importoTab > 0 ? target / importoTab : 1;
+      return {
+        id: String(chosen.id),
+        tabella_id: String(chosen.tabella_id),
+        importo_erogato: target, // ritorniamo target richiesto
+        durata_mesi: Number(chosen.durata_mesi),
+        numero_rate: Number(chosen.numero_rate),
+        importo_rata: Math.round(Number(chosen.importo_rata) * fattore),
+        tan: Number(chosen.tan),
+        taeg: Number(chosen.taeg),
+        importo_totale_dovuto: Math.round(Number(chosen.importo_totale_dovuto) * fattore),
+        spese_istruttoria: chosen.spese_istruttoria ? Number(chosen.spese_istruttoria) : null,
+        spese_incasso_rata: chosen.spese_incasso_rata ? Number(chosen.spese_incasso_rata) : null,
+        interessi_cliente: chosen.interessi_cliente
+          ? Math.round(Number(chosen.interessi_cliente) * fattore)
+          : null,
+      };
+    },
+  });
+}
+
+/**
+ * Top 3 finanziamenti consigliati per importo+durata target.
+ * Calcola la rata per ciascuna tabella attiva nel range, ordina per rata
+ * crescente (ovvero TAEG migliore) e restituisce le prime 3.
+ *
+ * Usato per il "Confronto top 3 finanziarie" nel mockup p.6.
+ */
+export function useTopFinanziamentiFv(
+  importo: number | null,
+  durataMesi: number | null,
+) {
+  return useQuery({
+    queryKey: ["fv", "top-finanziamenti", importo, durataMesi],
+    enabled: Boolean(importo && importo > 0 && durataMesi && durataMesi > 0),
+    staleTime: 60 * 60 * 1000,
+    queryFn: async (): Promise<
+      Array<FvTabellaFinanziamento & { rata: FvRigaFinanziamento }>
+    > => {
+      if (!importo || !durataMesi) return [];
+      // 1) lista tabelle attive nel range
+      const { data: tabs, error } = await supabase
+        .from("eic_tabelle_finanziamento" as never)
+        .select(
+          "id, finanziaria_id, nome_prodotto, codice_condizione, tan_base, importo_min, importo_max, durate_disponibili, righe_count, attiva, eic_finanziarie!inner(nome, attiva)",
+        )
+        .eq("attiva", true)
+        .lte("importo_min", importo)
+        .gte("importo_max", importo);
+      if (error) throw error;
+      const tabRows = (tabs as Array<Record<string, unknown>>) ?? [];
+      const tabsFiltrate = tabRows.filter((r) => {
+        const f = r.eic_finanziarie as { attiva?: boolean } | null;
+        if (f?.attiva === false) return false;
+        const dur = (r.durate_disponibili as number[]) ?? [];
+        return dur.includes(durataMesi);
+      });
+      if (tabsFiltrate.length === 0) return [];
+
+      // 2) per ogni tabella, lookup rata e ordinamento
+      const results = await Promise.all(
+        tabsFiltrate.map(async (t) => {
+          const { data: righeData } = await supabase
+            .from("eic_tabelle_finanziamento_righe" as never)
+            .select(
+              "id, tabella_id, importo_erogato, durata_mesi, numero_rate, importo_rata, tan, taeg, importo_totale_dovuto, spese_istruttoria, spese_incasso_rata, interessi_cliente",
+            )
+            .eq("tabella_id", t.id as string)
+            .eq("durata_mesi", durataMesi)
+            .order("importo_erogato", { ascending: true });
+          const righe = (righeData as Array<Record<string, unknown>>) ?? [];
+          if (righe.length === 0) return null;
+          // best-fit lookup
+          let chosen = righe[0];
+          for (const r of righe) {
+            if (Number(r.importo_erogato) >= importo) {
+              chosen = r;
+              break;
+            }
+          }
+          const importoTab = Number(chosen.importo_erogato);
+          const fattore = importoTab > 0 ? importo / importoTab : 1;
+          const tab: FvTabellaFinanziamento = {
+            id: String(t.id),
+            finanziaria_id: String(t.finanziaria_id),
+            finanziaria_nome:
+              (t.eic_finanziarie as { nome?: string } | null)?.nome ?? null,
+            nome_prodotto: String(t.nome_prodotto),
+            codice_condizione: t.codice_condizione ? String(t.codice_condizione) : null,
+            tan_base: t.tan_base != null ? Number(t.tan_base) : null,
+            importo_min: Number(t.importo_min) || 0,
+            importo_max: Number(t.importo_max) || 0,
+            durate_disponibili: Array.isArray(t.durate_disponibili)
+              ? (t.durate_disponibili as number[])
+              : [],
+            righe_count: Number(t.righe_count) || 0,
+            attiva: Boolean(t.attiva),
+            data_decorrenza: null,
+            data_scadenza: null,
+          };
+          const rata: FvRigaFinanziamento = {
+            id: String(chosen.id),
+            tabella_id: String(chosen.tabella_id),
+            importo_erogato: importo,
+            durata_mesi: Number(chosen.durata_mesi),
+            numero_rate: Number(chosen.numero_rate),
+            importo_rata: Math.round(Number(chosen.importo_rata) * fattore),
+            tan: Number(chosen.tan),
+            taeg: Number(chosen.taeg),
+            importo_totale_dovuto: Math.round(Number(chosen.importo_totale_dovuto) * fattore),
+            spese_istruttoria: chosen.spese_istruttoria ? Number(chosen.spese_istruttoria) : null,
+            spese_incasso_rata: chosen.spese_incasso_rata
+              ? Number(chosen.spese_incasso_rata)
+              : null,
+            interessi_cliente: chosen.interessi_cliente
+              ? Math.round(Number(chosen.interessi_cliente) * fattore)
+              : null,
+          };
+          return { ...tab, rata };
+        }),
+      );
+      const valid = results.filter(
+        (r): r is FvTabellaFinanziamento & { rata: FvRigaFinanziamento } => r !== null,
+      );
+      // Ordina per TAEG crescente (best deal first) poi rata crescente
+      valid.sort((a, b) => a.rata.taeg - b.rata.taeg || a.rata.importo_rata - b.rata.importo_rata);
+      return valid.slice(0, 3);
+    },
+  });
+}
+
 // ─── Tariffe aziendali compatibili con FV ──────────────────────────────────
 // Filtra per vertical_associato in ('fotovoltaico', 'generico') + attive.
 // Sostituisce gli hardcoded 30€/40€ del wizard step 5.

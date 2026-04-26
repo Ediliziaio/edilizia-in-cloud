@@ -246,10 +246,11 @@ export function FvKpi({ label, value, unit, variant = "default", hint, trend }: 
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
-      <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mb-1.5">
+      {/* Sprint 3 #20: su mobile (sm:) toglie uppercase aggressivo per leggibilità */}
+      <div className="text-[11px] text-slate-500 font-semibold tracking-wider mb-1.5 sm:uppercase">
         {label}
       </div>
-      <div className={cn("text-2xl font-bold leading-tight tabular-nums", valueColor)}>
+      <div className={cn("text-xl sm:text-2xl font-bold leading-tight tabular-nums", valueColor)}>
         {value}
         {unit && <span className="text-sm text-slate-500 font-medium ml-1">{unit}</span>}
       </div>
