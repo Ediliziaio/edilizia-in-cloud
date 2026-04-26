@@ -990,7 +990,7 @@ export default function FotovoltaicoWizard() {
       if (failed.length > 0) {
         const elenco = failed.map((f) => f.tipo).join(", ");
         throw new Error(
-          `${failed.length} PDF su ${tipi.length} non generati (${elenco}). Riprova: il progetto NON è stato emesso, è ancora editabile.`,
+          `${failed.length} versione/i su ${tipi.length} non generata/e (${elenco}). Riprova: il progetto NON è stato emesso, è ancora editabile.`,
         );
       }
 
@@ -1007,7 +1007,7 @@ export default function FotovoltaicoWizard() {
       // Pulisci draft locale: progetto è emesso, niente più bozze locali
       clearPersistedDraft(progettoId);
       clearPersistedDraft(null);
-      toast.success("Preventivo emesso! Tutti i 3 PDF generati con successo");
+      toast.success("Preventivo emesso! Apri la scheda 'Preventivo' per visualizzarlo.");
       navigate(`/azienda/marketing/fotovoltaico/${progettoId}`);
     } catch (e) {
       if (!mountedRef.current) return;
@@ -2875,10 +2875,13 @@ function Step8Genera({
       <FvPanelTitle
         step={8}
         totalSteps={TOTAL_STEPS}
-        title="Genera preventivo PDF e invia"
+        title="Genera preventivo professionale"
         subtitle={
           <>
-            Riepilogo finale, generazione automatica di <strong>3 PDF</strong> (Vendita 12 pagine, Tecnico 6 pagine, Mobile 3 pagine WhatsApp).
+            Riepilogo finale e generazione del <strong>preventivo HTML 16 pagine</strong> (cover,
+            viste tetto, componenti, produzione, flussi energetici, risparmio, costi futuri,
+            piano economico, cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).
+            Apribile nel browser e stampabile come PDF con un click.
           </>
         }
       />
@@ -2890,9 +2893,9 @@ function Step8Genera({
             Pronto a generare il preventivo
           </h3>
           <p className="text-sm text-slate-500 max-w-md mx-auto">
-            Genereremo automaticamente i 3 PDF: <strong>Vendita</strong> (12 pagine persuasive con
-            grafici e narrativa), <strong>Tecnico</strong> (6 pagine BOM/margini, solo per te),
-            <strong> Mobile</strong> (3 pagine ottimizzate per WhatsApp). Tempo stimato: 10 secondi.
+            Genereremo un documento <strong>print-ready A4</strong> con tutti i dati reali del
+            progetto, grafici inline, viste satellitari del tetto, calcoli finanziari completi
+            e pagina firma cliente. Tempo stimato: 5 secondi.
           </p>
           <button
             type="button"
@@ -2916,8 +2919,9 @@ function Step8Genera({
       </FvCard>
 
       <FvCallout variant="success" title="Tutto pronto per la generazione finale">
-        Il PDF Vendita di 12 pagine sarà generato in 3-4 secondi e salvato nello storage del progetto.
-        Potrai inviarlo via email/WhatsApp dalla pagina di dettaglio del progetto.
+        Il preventivo verrà salvato nello storage e diventa scaricabile dalla scheda <strong>Preventivo</strong>
+        del dettaglio progetto. Potrai aprirlo nel browser ("Apri preventivo") oppure stamparlo
+        direttamente in PDF ("Apri e stampa subito").
       </FvCallout>
     </>
   );

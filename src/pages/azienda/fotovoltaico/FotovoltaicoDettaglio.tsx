@@ -96,21 +96,37 @@ export default function FotovoltaicoDettaglio() {
   const formatPct = (n: number | null | undefined, frac = 1) =>
     n == null ? "—" : `${(Number(n) * 100).toFixed(frac)}%`;
 
-  const handleScarica = async (path: string | null, tipo: string) => {
+  const handleScarica = async (
+    path: string | null,
+    tipo: string,
+    options?: { autoPrint?: boolean },
+  ) => {
     if (!path) {
-      toast.error("PDF non ancora generato");
+      toast.error("Anteprima non ancora generata. Completa il wizard fino allo Step 8.");
       return;
     }
     setScaricando(tipo);
     try {
       const { data, error } = await supabase.storage
         .from("fv-progetti")
-        .createSignedUrl(path, 60);
+        .createSignedUrl(path, 300);
       if (error) throw error;
+      // Se è HTML (template v2), append `?print=1` per auto-trigger Ctrl+P
+      const isHtml = path.toLowerCase().endsWith(".html");
+      const url = isHtml && options?.autoPrint
+        ? `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}print=1`
+        : data.signedUrl;
       const a = document.createElement("a");
-      a.href = data.signedUrl;
+      a.href = url;
       a.target = "_blank";
+      a.rel = "noopener noreferrer";
       a.click();
+      if (isHtml && !options?.autoPrint) {
+        toast.success(
+          "Preventivo aperto in nuova scheda. Usa Ctrl+P (Cmd+P su Mac) → 'Salva come PDF'.",
+          { duration: 6000 },
+        );
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
@@ -251,7 +267,7 @@ export default function FotovoltaicoDettaglio() {
             <TabsTrigger value="riepilogo">Riepilogo</TabsTrigger>
             <TabsTrigger value="componenti">Componenti ({componenti.length})</TabsTrigger>
             <TabsTrigger value="calcolo">Calcolo finanziario</TabsTrigger>
-            <TabsTrigger value="allegati">PDF</TabsTrigger>
+            <TabsTrigger value="allegati">Preventivo</TabsTrigger>
           </TabsList>
 
           {/* TAB Riepilogo */}
@@ -517,68 +533,97 @@ export default function FotovoltaicoDettaglio() {
             </FvCard>
           </TabsContent>
 
-          {/* TAB Allegati */}
+          {/* TAB Allegati / Preventivo */}
           <TabsContent value="allegati" className="mt-4">
-            <FvCard title="PDF generati">
-              {!progetto.pdf_vendita_url &&
-                !progetto.pdf_tecnico_url &&
-                !progetto.pdf_mobile_url && (
-                  <FvCallout
-                    variant="info"
-                    title="Nessun PDF generato"
-                    icon={<FileText className="h-4 w-4" />}
-                  >
-                    Completa il wizard fino allo Step 8 per generare i PDF (Vendita 12 pag.,
-                    Tecnico 6 pag., Mobile 3 pag.).
+            <FvCard title="Preventivo cliente — 16 pagine professionali">
+              {!progetto.pdf_vendita_url && (
+                <FvCallout
+                  variant="info"
+                  title="Anteprima non ancora generata"
+                  icon={<FileText className="h-4 w-4" />}
+                >
+                  Completa il wizard fino allo Step 8 e premi "Genera ed emetti preventivo".
+                  Verrà creato un documento HTML 16 pagine (cover, viste tetto, componenti,
+                  produzione, flussi energetici, risparmio, costi futuri, piano economico,
+                  cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).
+                </FvCallout>
+              )}
+              {progetto.pdf_vendita_url && (
+                <>
+                  <FvCallout variant="success" title="Preventivo pronto">
+                    Apri l'anteprima nel browser, poi <strong>Ctrl+P</strong> (Cmd+P su Mac) →
+                    "Salva come PDF" per ottenere il file da inviare al cliente. Il design è
+                    print-ready A4 con tutti i grafici inline.
                   </FvCallout>
-                )}
-              <div className="space-y-2">
-                {progetto.pdf_vendita_url && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleScarica(progetto.pdf_vendita_url, "vendita")}
-                    className="w-full justify-start"
-                    disabled={scaricando === "vendita"}
-                  >
-                    {scaricando === "vendita" ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4 mr-2" />
+                  <div className="grid sm:grid-cols-2 gap-3 mt-4">
+                    <Button
+                      onClick={() => handleScarica(progetto.pdf_vendita_url, "vendita")}
+                      disabled={scaricando === "vendita"}
+                      className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white border-0"
+                    >
+                      {scaricando === "vendita" ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileText className="h-4 w-4 mr-2" />
+                      )}
+                      Apri preventivo (anteprima)
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        handleScarica(progetto.pdf_vendita_url, "vendita-print", { autoPrint: true })
+                      }
+                      disabled={scaricando === "vendita-print"}
+                    >
+                      {scaricando === "vendita-print" ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4 mr-2" />
+                      )}
+                      Apri e stampa subito (PDF)
+                    </Button>
+                  </div>
+                </>
+              )}
+              {isAdmin && (progetto.pdf_tecnico_url || progetto.pdf_mobile_url) && (
+                <div className="mt-6 pt-4 border-t border-slate-200">
+                  <h4 className="text-sm font-semibold text-slate-900 mb-2">Versioni alternative</h4>
+                  <div className="space-y-2">
+                    {isAdmin && progetto.pdf_tecnico_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleScarica(progetto.pdf_tecnico_url, "tecnico")}
+                        className="w-full justify-start"
+                        disabled={scaricando === "tecnico"}
+                      >
+                        {scaricando === "tecnico" ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-2" />
+                        )}
+                        Versione tecnica interna (BOM + margini)
+                      </Button>
                     )}
-                    PDF Vendita (12 pagine, persuasivo per cliente)
-                  </Button>
-                )}
-                {isAdmin && progetto.pdf_tecnico_url && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleScarica(progetto.pdf_tecnico_url, "tecnico")}
-                    className="w-full justify-start"
-                    disabled={scaricando === "tecnico"}
-                  >
-                    {scaricando === "tecnico" ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4 mr-2" />
+                    {progetto.pdf_mobile_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleScarica(progetto.pdf_mobile_url, "mobile")}
+                        className="w-full justify-start"
+                        disabled={scaricando === "mobile"}
+                      >
+                        {scaricando === "mobile" ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-2" />
+                        )}
+                        Versione mobile / WhatsApp
+                      </Button>
                     )}
-                    PDF Tecnico interno (6 pagine, BOM + margini — solo titolare)
-                  </Button>
-                )}
-                {progetto.pdf_mobile_url && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleScarica(progetto.pdf_mobile_url, "mobile")}
-                    className="w-full justify-start"
-                    disabled={scaricando === "mobile"}
-                  >
-                    {scaricando === "mobile" ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4 mr-2" />
-                    )}
-                    PDF Mobile/WhatsApp (3 pagine)
-                  </Button>
-                )}
-              </div>
+                  </div>
+                </div>
+              )}
             </FvCard>
           </TabsContent>
         </Tabs>
