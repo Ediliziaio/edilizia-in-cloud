@@ -230,6 +230,18 @@ export const queryKeys = {
     sections: (companyId: string | undefined) =>
       ["warehouse", "sections", companyId] as const,
     sectionsAll: ["warehouse", "sections"] as const,
+    // ── QR system (MP1 P0) ──────────────────────────────
+    units: (companyId: string | undefined, ...filters: any[]) =>
+      ["warehouse", "units", companyId, ...filters] as const,
+    unitsAll: ["warehouse", "units"] as const,
+    unitsByItem: (itemId: string | undefined) =>
+      ["warehouse", "units", "by-item", itemId] as const,
+    scanEvents: (companyId: string | undefined, ...filters: any[]) =>
+      ["warehouse", "scan-events", companyId, ...filters] as const,
+    qrStats: (companyId: string | undefined) =>
+      ["warehouse", "qr-stats", companyId] as const,
+    qrBySupplier: (companyId: string | undefined) =>
+      ["warehouse", "qr-by-supplier", companyId] as const,
   },
 
   // ── Tasks ──────────────────────────────────────────────
@@ -268,6 +280,9 @@ export const queryKeys = {
     oda: (supplierId: string | undefined) => ["suppliers", "oda", supplierId] as const,
     scadenze: (supplierId: string | undefined) => ["suppliers", "scadenze", supplierId] as const,
     primaNota: (supplierId: string | undefined) => ["suppliers", "prima-nota", supplierId] as const,
+    // ── QR system (MP1 P0) ──────────────────────────────
+    barcodeConfig: (supplierId: string | undefined) =>
+      ["suppliers", "barcode-config", supplierId] as const,
   },
 
   // ── Tickets ────────────────────────────────────────────
