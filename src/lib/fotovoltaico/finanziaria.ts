@@ -321,7 +321,11 @@ export function scenarioAutoElettrica(input: {
   npv: number;
   autoconsumo: number;
 } {
-  const extra = input.consumo_extra_kwh ?? 3000;
+  // _extra è il consumo aggiuntivo previsto (auto elettrica): per ora il modello
+  // W1 lo modella alzando solo l'autoconsumo (delta), riservato a W2 il calcolo
+  // pieno con flussi separati.
+  const _extra = input.consumo_extra_kwh ?? 3000;
+  void _extra;
   const delta = input.delta_autoconsumo_pct ?? 0.20;
   // Ricalcolo: produzione resta uguale, ma autoconsumo aumenta (capped a 1.0)
   const newAutoconsumo = Math.min(1, input.base.autoconsumo_pct + delta);
@@ -354,7 +358,9 @@ export function scenarioPompaCalore(input: {
   npv: number;
   autoconsumo: number;
 } {
-  const extra = input.consumo_extra_kwh ?? 4000;
+  // _extra → consumo extra elettrico (PdC). Modello W1 lo riassorbe via delta autoconsumo.
+  const _extra = input.consumo_extra_kwh ?? 4000;
+  void _extra;
   const risparmio_gas = input.risparmio_gas_anno_eur ?? 800;
   const delta = input.delta_autoconsumo_pct ?? 0.30;
   const newAutoconsumo = Math.min(1, input.base.autoconsumo_pct + delta);
