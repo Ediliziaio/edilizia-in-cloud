@@ -111,13 +111,22 @@ export default function FotovoltaicoDettaglio() {
         .from("fv-progetti")
         .createSignedUrl(path, 300);
       if (error) throw error;
-      // Se è HTML (template v2), append `?print=1` per auto-trigger Ctrl+P
+      // Fix #2: usa URL API per costruire query string in modo safe
+      // (gestisce automaticamente fragment #, query esistenti, encoding)
       const isHtml = path.toLowerCase().endsWith(".html");
-      const url = isHtml && options?.autoPrint
-        ? `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}print=1`
-        : data.signedUrl;
+      let finalUrl = data.signedUrl;
+      if (isHtml && options?.autoPrint) {
+        try {
+          const u = new URL(data.signedUrl);
+          u.searchParams.set("print", "1");
+          finalUrl = u.toString();
+        } catch {
+          // Fallback se URL non parsabile (improbabile)
+          finalUrl = `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}print=1`;
+        }
+      }
       const a = document.createElement("a");
-      a.href = url;
+      a.href = finalUrl;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.click();

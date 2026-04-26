@@ -11,6 +11,15 @@
  *   perdite   = somma componenti (temperatura, mismatch, sporcamento, cavi, inverter)
  *
  * Perdite totali tipiche residenziale Italia: 12-18% (PR netto 0.82-0.88).
+ *
+ * NOTA Sprint 3: solo `produzioneAnnoN` è attualmente usato (da finanziaria.ts
+ * per il calcolo della cassa cumulata 25 anni con degrado pannelli). Le altre
+ * funzioni esportate sono PURE e DOCUMENTATE — riservate a:
+ *   - SuperAdmin "what-if" laboratory (W2)
+ *   - Edge function fv-calcolo-finanziario (override calcoli a runtime)
+ *   - Test/notebook scientifici per validare il modello vs PVGIS reale
+ * Non rimuoverle senza confrontarsi: rappresentano la base scientifica del
+ * motore e sono linkate al masterprompt §14.
  */
 
 import {

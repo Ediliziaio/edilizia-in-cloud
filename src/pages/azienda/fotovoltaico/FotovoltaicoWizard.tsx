@@ -119,6 +119,8 @@ interface WizardData {
   potenza_max_kwp: number | null;
   qualita_dati_tetto: string | null;
   imagery_date: string | null;
+  /** True se i dati tetto provengono dal mock dev (no GOOGLE_SOLAR_API_KEY). */
+  tetto_mock: boolean;
   // Step 5: Configurazione
   numero_pannelli_scelti: number;
   potenza_kwp: number;
@@ -269,6 +271,7 @@ const INITIAL: WizardData = {
   potenza_max_kwp: null,
   qualita_dati_tetto: null,
   imagery_date: null,
+  tetto_mock: false,
   numero_pannelli_scelti: 16,
   potenza_kwp: 8.64,
   con_accumulo: false,
@@ -324,15 +327,23 @@ export default function FotovoltaicoWizard() {
   // re-render e leggere il valore sincronicamente dentro l'handler.
   const navigationLock = useRef<boolean>(false);
 
-  // Notifica draft restored
+  // Notifica draft restored.
+  // Fix #1 Sprint 3: salviamo l'ID del toast in modo da poterlo dismissare
+  // esplicitamente al click "Ricomincia" (evita il loop di rispawn dopo
+  // che il reload re-trigga il useEffect con draft ancora presente per
+  // un breve istante).
+  const restoredToastShown = useRef(false);
   useEffect(() => {
-    if (initialDraft && !id) {
-      toast.info("Bozza ripristinata dal salvataggio locale", {
+    if (initialDraft && !id && !restoredToastShown.current) {
+      restoredToastShown.current = true;
+      const toastId = toast.info("Bozza ripristinata dal salvataggio locale", {
         description: "Hai dati non salvati dall'ultima sessione.",
         action: {
           label: "Ricomincia",
           onClick: () => {
+            // Cancella draft + dismiss toast + reload
             clearPersistedDraft(null);
+            toast.dismiss(toastId);
             window.location.reload();
           },
         },
@@ -450,13 +461,19 @@ export default function FotovoltaicoWizard() {
 
   // Persistenza locale: salva draft ad ogni cambio di state, ma non quando
   // siamo in read-only (il DB è già la verità).
+  // Fix #9 Sprint 3: debounce 800ms per evitare localStorage thrashing
+  // ad ogni keystroke (su slow devices il json.stringify del draft completo
+  // può diventare un collo di bottiglia con form lunghi).
   useEffect(() => {
     if (readOnlyMode) return;
-    savePersistedDraft(progettoId, {
-      step,
-      data,
-      completedSteps: Array.from(completedSteps),
-    });
+    const timer = setTimeout(() => {
+      savePersistedDraft(progettoId, {
+        step,
+        data,
+        completedSteps: Array.from(completedSteps),
+      });
+    }, 800);
+    return () => clearTimeout(timer);
   }, [step, data, completedSteps, progettoId, readOnlyMode]);
 
   // beforeunload guard: avvisa se l'utente refresha/chiude con dati non salvati
@@ -520,6 +537,15 @@ export default function FotovoltaicoWizard() {
       case 5: {
         if (data.potenza_kwp <= 0 || data.numero_pannelli_scelti <= 0)
           return { valido: false, motivo: "Configura almeno un pannello" };
+        // Fix #17 Sprint 3: pannello e inverter sono obbligatori per il calcolo
+        // finanziario corretto. Senza articoli dal listino i prezzi non quadrano
+        // e il preventivo PDF mostra "—" sui componenti.
+        if (!data.pannello_id)
+          return { valido: false, motivo: "Seleziona un modello di pannello dal listino" };
+        if (!data.inverter_id)
+          return { valido: false, motivo: "Seleziona un inverter dal listino" };
+        if (data.con_accumulo && !data.accumulo_id)
+          return { valido: false, motivo: "Hai attivato l'accumulo: seleziona un modello dal listino o disattivalo" };
         return { valido: true };
       }
       case 6:
@@ -709,8 +735,10 @@ export default function FotovoltaicoWizard() {
       if (!mountedRef.current) return;
       markSaved();
       const isMock = result._mock === true;
+      // Fix #16 Sprint 3: traccia se i dati sono mock per warning persistente
+      update("tetto_mock", isMock);
       toast.success(
-        `Tetto analizzato: ${ore?.toFixed(0)} h sole/anno · max ${numMax} pannelli${isMock ? " (mock dev)" : ""}`,
+        `Tetto analizzato: ${ore?.toFixed(0)} h sole/anno · max ${numMax} pannelli${isMock ? " (dati stimati)" : ""}`,
       );
     } catch (e) {
       if (!mountedRef.current) return;
@@ -914,6 +942,11 @@ export default function FotovoltaicoWizard() {
 
       if (!mountedRef.current) return;
       markSaved();
+      // Fix #4 Sprint 3: invalida scenarioFin precedente — la configurazione è
+      // cambiata (tariffa/componenti/accumulo), il calcolo finanziario va rifatto.
+      setScenarioFin(null);
+      setScenarioErr(null);
+      autoCalcRequested.current = null;
       goTo(6, { markCompleted: true });
     } catch (e) {
       if (!mountedRef.current) return;
@@ -951,6 +984,15 @@ export default function FotovoltaicoWizard() {
 
   // Auto-calcolo entrando nello step 6
   const autoCalcRequested = useRef<string | null>(null);
+
+  // Fix #7 Sprint 3: reset auto-calc + scenario quando progettoId cambia
+  // (es. utente apre URL diretto di un progetto diverso senza unmount).
+  useEffect(() => {
+    autoCalcRequested.current = null;
+    setScenarioFin(null);
+    setScenarioErr(null);
+  }, [progettoId]);
+
   useEffect(() => {
     if (
       step === 6 &&
@@ -965,36 +1007,26 @@ export default function FotovoltaicoWizard() {
     }
   }, [step, progettoId, scenarioFin, scenarioErr, calcolandoFinanziario, handleCalcolaFinanziario]);
 
-  // ─── Step 8 → genera PDF + emetti ─────────────────────────────────────────
-  // Bug B2 fix: i 3 PDF vengono richiesti TUTTI prima di marcare il progetto
-  // come 'emesso'. Se uno fallisce, lo stato resta a 'configurato' (no rollback
-  // necessario perché non l'abbiamo cambiato). L'utente vede esattamente
-  // quale PDF è fallito e può ritentare.
+  // ─── Step 8 → genera preventivo + emetti ─────────────────────────────────
+  // Fix #13 (Sprint 3 cleanup): in v2 il template HTML è UNICO per tutti e 3
+  // i tipi (vendita/tecnico/mobile) — generare 3 versioni in parallelo
+  // significava 3 invocazioni edge function che si overwrite stesso path
+  // nello storage. Ora generiamo SOLO la versione "vendita" (16 pagine
+  // complete). Tecnico/Mobile saranno template differenziati in W2.
   const handleGeneraEdEmetti = async () => {
     if (!progettoId) return;
     setSalvando(true);
     try {
-      const tipi = ["vendita", "tecnico", "mobile"] as const;
-      const results = await Promise.allSettled(
-        tipi.map((t) =>
-          supabase.functions.invoke("fv-genera-pdf", {
-            body: { progetto_id: progettoId, tipo: t },
-          }),
-        ),
+      const { data: result, error } = await supabase.functions.invoke(
+        "fv-genera-pdf",
+        { body: { progetto_id: progettoId, tipo: "vendita" } },
       );
-
-      const failed = results
-        .map((r, i) => ({ tipo: tipi[i], r }))
-        .filter((x) => x.r.status === "rejected" || (x.r.status === "fulfilled" && x.r.value.error));
-
-      if (failed.length > 0) {
-        const elenco = failed.map((f) => f.tipo).join(", ");
-        throw new Error(
-          `${failed.length} versione/i su ${tipi.length} non generata/e (${elenco}). Riprova: il progetto NON è stato emesso, è ancora editabile.`,
-        );
+      if (error) throw error;
+      if (!result || (result as { url?: string }).url === undefined) {
+        throw new Error("Il server non ha restituito un URL valido per il preventivo.");
       }
 
-      // Tutti i 3 PDF OK → marca emesso e crea opportunità CRM (futuro I3)
+      // Marca progetto emesso solo dopo successo conferma
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
@@ -1011,7 +1043,7 @@ export default function FotovoltaicoWizard() {
       navigate(`/azienda/marketing/fotovoltaico/${progettoId}`);
     } catch (e) {
       if (!mountedRef.current) return;
-      toast.error(`Generazione PDF: ${describeError(e)}`);
+      toast.error(`Generazione preventivo: ${describeError(e)}`);
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
@@ -1096,6 +1128,7 @@ export default function FotovoltaicoWizard() {
     setSalvando(true);
     setAutoSaveState("saving");
     try {
+      // Salva campi base del progetto
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
@@ -1107,6 +1140,40 @@ export default function FotovoltaicoWizard() {
           capacita_accumulo_kwh: data.capacita_accumulo_kwh,
         } as never,
       });
+
+      // Fix #3 Sprint 3: sincronizza ANCHE la tariffa di manodopera scelta
+      // (era persistita solo in localStorage, persa al refresh dopo "Salva bozza")
+      const manodoperaCorrente = (manodoperaEsistente?.[0] as { tariffa_id?: string | null } | undefined);
+      if (
+        data.tariffa_installazione_id &&
+        manodoperaCorrente?.tariffa_id !== data.tariffa_installazione_id
+      ) {
+        const tariffaScelta = tariffeFv.find((t) => t.id === data.tariffa_installazione_id);
+        if (tariffaScelta) {
+          const ore = Math.ceil(data.numero_pannelli_scelti * 0.5 + 8);
+          const margine =
+            tariffaScelta.prezzo_vendita > 0
+              ? (tariffaScelta.prezzo_vendita - tariffaScelta.prezzo_costo) /
+                tariffaScelta.prezzo_vendita
+              : 0.25;
+          await upsertManodopera.mutateAsync({
+            progetto_id: progettoId,
+            replace: true,
+            righe: [
+              {
+                tariffa_id: data.tariffa_installazione_id,
+                descrizione: `${tariffaScelta.nome} — impianto ${data.potenza_kwp} kWp`,
+                ore,
+                tariffa_oraria_netta: Number(tariffaScelta.prezzo_costo),
+                tariffa_oraria_vendita: Number(tariffaScelta.prezzo_vendita),
+                margine_pct: margine,
+                ordinamento: 1,
+              },
+            ],
+          });
+        }
+      }
+
       if (!mountedRef.current) return;
       markSaved();
       toast.success("Bozza salvata");
@@ -1117,7 +1184,7 @@ export default function FotovoltaicoWizard() {
     } finally {
       if (mountedRef.current) setSalvando(false);
     }
-  }, [progettoId, data, aggiornaProgetto, markSaved]);
+  }, [progettoId, data, aggiornaProgetto, markSaved, manodoperaEsistente, tariffeFv, upsertManodopera]);
 
   // ─── Header info ──────────────────────────────────────────────────────────
   const numero = (progettoEsistente as { numero_progetto?: string } | undefined)?.numero_progetto;
@@ -1181,24 +1248,41 @@ export default function FotovoltaicoWizard() {
         }
       />
 
-      {/* Banner read-only (B5/F4) */}
+      {/* Banner read-only (B5/F4 + Sprint3 #21: CTA azioni disponibili) */}
       {readOnlyMode && readOnlyReason && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-8 py-3 text-sm text-amber-900 flex items-start gap-2">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-8 py-3 text-sm text-amber-900 flex items-start gap-3 flex-wrap">
           <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
+          <div className="flex-1 min-w-[260px]">
             <strong>Modalità sola lettura · </strong>
             {readOnlyReason}
+            <span className="block text-xs text-amber-800/80 mt-0.5">
+              Cosa puoi fare: scaricare il preventivo PDF, consultare i dettagli, oppure
+              clonare il progetto per crearne una nuova versione modificabile.
+            </span>
           </div>
           {progettoId && (
-            <button
-              type="button"
-              onClick={() =>
-                navigate(`/azienda/marketing/fotovoltaico/${progettoId}`)
-              }
-              className="text-xs font-semibold text-amber-900 underline hover:no-underline whitespace-nowrap"
-            >
-              Vai al dettaglio →
-            </button>
+            <div className="flex gap-3 items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  toast.info(
+                    "Duplicazione progetto disponibile dalla pagina dettaglio (in arrivo).",
+                  );
+                }}
+                className="text-xs font-semibold text-amber-900 underline hover:no-underline whitespace-nowrap"
+              >
+                ⎘ Clona
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(`/azienda/marketing/fotovoltaico/${progettoId}`)
+                }
+                className="text-xs font-semibold text-amber-900 underline hover:no-underline whitespace-nowrap"
+              >
+                Vai al dettaglio →
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -1207,7 +1291,19 @@ export default function FotovoltaicoWizard() {
         tabs={TABS}
         current={step}
         completed={completedSteps}
-        onSelect={(n) => goTo(n)}
+        onSelect={(n) => {
+          // Fix #15 Sprint 3: feedback su click tab futuro non raggiungibile
+          const isClickable =
+            completedSteps.has(n) || n === step || n === step + 1;
+          if (!isClickable) {
+            toast.info(
+              `Completa la fase ${step} prima di passare alla fase ${n}.`,
+              { duration: 3000 },
+            );
+            return;
+          }
+          goTo(n);
+        }}
       />
 
       <div className="flex-1 px-4 sm:px-8 pt-7 pb-28 max-w-[1400px] w-full mx-auto">
@@ -1871,12 +1967,24 @@ function Step4Tetto({
       )}
 
       {data.ore_sole_annue && data.ore_sole_annue > 0 && (
-        <FvCallout variant="success" title="Tetto idoneo all'installazione" >
-          Dati acquisiti dalla sorgente <strong>{data.fonte_dati_tetto === "solar_api" ? "Google Solar API" : data.fonte_dati_tetto === "pvgis" ? "PVGIS" : "manuale"}</strong>.
-          {data.qualita_dati_tetto && <> Qualità dati: <strong>{data.qualita_dati_tetto}</strong>.</>}
-          {data.imagery_date && <> Immagine satellitare del <strong>{data.imagery_date}</strong>.</>}
-          {" "}Procedi alla configurazione impianto per dimensionare l'investimento.
-        </FvCallout>
+        <>
+          <FvCallout variant="success" title="Tetto idoneo all'installazione" >
+            Dati acquisiti dalla sorgente <strong>{data.fonte_dati_tetto === "solar_api" ? "Google Solar API" : data.fonte_dati_tetto === "pvgis" ? "PVGIS" : "manuale"}</strong>.
+            {data.qualita_dati_tetto && <> Qualità dati: <strong>{data.qualita_dati_tetto}</strong>.</>}
+            {data.imagery_date && <> Immagine satellitare del <strong>{data.imagery_date}</strong>.</>}
+            {" "}Procedi alla configurazione impianto per dimensionare l'investimento.
+          </FvCallout>
+          {/* Fix #16 Sprint 3: warning persistente se dati sono mock dev */}
+          {data.tetto_mock && (
+            <FvCallout variant="warn" title="Dati stimati (modalità sviluppo)">
+              Stima generata da modello statistico Italia perché la chiave Google Solar
+              API non è configurata. I numeri sono ragionevoli per Milano/Roma/Napoli ma{" "}
+              <strong>non rappresentano una misura reale</strong> del tetto specifico del
+              cliente. L'amministratore può configurare la chiave reale in <em>Admin → FV
+              Modulo → API & Secrets</em>.
+            </FvCallout>
+          )}
+        </>
       )}
     </>
   );
@@ -2225,6 +2333,30 @@ function Step5Configurazione({
 // ============================================================================
 // STEP 6 — ANTEPRIMA FINANZIARIA
 // ============================================================================
+/**
+ * Indicator step-by-step durante calcolo finanziario.
+ * Cicla 4 fasi ogni ~700ms per dare percezione di progresso (anche se il
+ * calcolo è server-side e dura sempre lo stesso tempo).
+ */
+function FvCalcoloProgress() {
+  const fasi = [
+    "Energy flows: produzione, autoconsumo, ceduto rete…",
+    "NPV 25 anni + IRR + payback…",
+    "Sensitivity ±15% prezzo energia…",
+    "What-if: auto elettrica + pompa di calore…",
+  ];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % fasi.length), 700);
+    return () => clearInterval(t);
+  }, [fasi.length]);
+  return (
+    <p className="text-sm text-slate-500 max-w-md mx-auto min-h-[1.5em] transition-opacity">
+      {fasi[idx]}
+    </p>
+  );
+}
+
 function Step6Finanziario({
   scenario,
   calcolando,
@@ -2242,8 +2374,10 @@ function Step6Finanziario({
         <div className="py-12 text-center space-y-3">
           <Loader2 className="h-12 w-12 mx-auto animate-spin text-orange-500" />
           <p className="font-semibold text-slate-900">Sto calcolando il tuo scenario finanziario…</p>
-          <p className="text-sm text-slate-500 max-w-md mx-auto">
-            25 anni di flussi cassa, NPV, IRR, sensitivity ±15%, what-if EV/pompa di calore
+          {/* Fix #18 Sprint 3: progress indicator step-by-step (cycling) */}
+          <FvCalcoloProgress />
+          <p className="text-xs text-slate-400 max-w-md mx-auto mt-3">
+            Tipicamente 2-5 secondi. Se richiede più di 30 secondi prova "Ricalcola".
           </p>
         </div>
       </FvCard>

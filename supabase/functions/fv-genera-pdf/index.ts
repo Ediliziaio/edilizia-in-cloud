@@ -70,6 +70,37 @@ Deno.serve(async (req: Request) => {
     if (progErr) throw new Error(`Errore caricamento progetto: ${progErr.message}`);
     if (!prog) return errorResponse("Progetto non trovato", 404, corsHeaders);
 
+    // EDGE Sprint 3 fix: verifica autorizzazione esplicita oltre RLS.
+    // Recupero la company effettiva dell'utente via RPC e controllo che
+    // corrisponda a quella del progetto. Difesa in profondità: anche se
+    // service-role bypassa RLS, qui filtriamo a livello applicativo.
+    const { data: userCompanyId } = await supabaseAdmin.rpc(
+      "get_effective_company_id",
+      { p_user_id: userId },
+    );
+    // Se la RPC non accetta argomenti (versione senza p_user_id), retry without
+    let resolvedCompanyId = userCompanyId as string | null;
+    if (!resolvedCompanyId) {
+      // Fallback: cerca direttamente in profiles
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle();
+      resolvedCompanyId = (profile as { company_id?: string } | null)?.company_id ?? null;
+    }
+    if (resolvedCompanyId && prog.company_id !== resolvedCompanyId) {
+      // Eccezione: super_admin può accedere a tutti i progetti
+      const { data: superRoles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "super_admin");
+      if (!superRoles || superRoles.length === 0) {
+        return errorResponse("Forbidden: progetto di altra azienda", 403, corsHeaders);
+      }
+    }
+
     // Step 2: dati correlati in parallelo (filtrati per company_id corretto)
     const [calcRes, compRes, manodRes, servRes, companyRes] = await Promise.all([
       supabaseAdmin
