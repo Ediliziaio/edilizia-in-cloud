@@ -23,6 +23,7 @@ const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const PlanDetail = lazy(() => import("@/pages/admin/PlanDetail"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
 const FeatureFlags = lazy(() => import("@/pages/admin/FeatureFlags"));
+const AdminFvModulo = lazy(() => import("@/pages/admin/AdminFvModulo"));
 const AdminSettingsSecurity = lazy(() => import("@/pages/admin/settings/AdminSettingsSecurity"));
 const SyncLogs = lazy(() => import("@/pages/admin/SyncLogs"));
 const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
@@ -185,6 +186,7 @@ export function adminRoutes() {
         <Route path="referral" element={<ReferralDashboard />} />
         <Route path="feature-flags" element={<RequireSuperAdmin><FeatureFlags /></RequireSuperAdmin>} />
         <Route path="implementazioni" element={<Navigate to="/admin/feature-flags" replace />} />
+        <Route path="fv-modulo" element={<RequireSuperAdmin><AdminFvModulo /></RequireSuperAdmin>} />
         <Route path="sync-logs" element={<SyncLogs />} />
         <Route path="lifecycle" element={<CompanyLifecycle />} />
         <Route path="annunci" element={<Announcements />} />
