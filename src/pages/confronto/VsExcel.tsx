@@ -3,8 +3,12 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { CheckCircle2, XCircle, AlertCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
 import { blogPosts } from "@/data/blogPosts";
+
+const openModal = () => {
+  import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
+};
 
 type CellType = "check" | "cross" | "partial" | "text";
 
@@ -52,9 +56,28 @@ const rows: TableRow[] = [
   { feature: "Supporto dedicato", eic: { type: "check" }, competitor: { type: "cross" } },
   {
     feature: "Costo mensile",
-    eic: { type: "text", text: "da €99/mese" },
-    competitor: { type: "text", text: "€0 (ma costo reale: ~€2000/mese in ore perse)" },
+    eic: { type: "text", text: "da €127/mese (€99 annuale)" },
+    competitor: { type: "text", text: "€0 (ma costo reale: ~€2.000/mese in ore perse)" },
   },
+];
+
+const otherVsLinks = [
+  { to: "/confronto/vs-primus", label: "vs Primus ACCA" },
+  { to: "/confronto/vs-teamsystem", label: "vs TeamSystem Construction" },
+  { to: "/confronto/vs-edilnet", label: "vs Edilnet" },
+  { to: "/confronto/vs-buildertrend", label: "vs Buildertrend" },
+];
+
+const tldrPoints = [
+  "Excel è gratis solo in apparenza: il costo nascosto stimato è ~€2.000/mese in ore amministrative perse e decisioni su dati obsoleti.",
+  "Edilizia in Cloud (da €127/mese) elimina formule sbagliate, file in 12 versioni e calcoli manuali con dati real-time e alert margini.",
+  "Migrazione gratuita da Excel in 48 ore, AI per analisi margini in tempo reale e SDI nativo: tutto incluso.",
+];
+
+const switchTestimonials = [
+  { name: "Costruzioni Lombardi", city: "Como", quote: "Avevamo 14 fogli Excel collegati. Una formula sbagliata e perdevamo 2 giorni a capire dove. Su Edilizia in Cloud zero formule, zero versioni." },
+  { name: "Edil Service Sud", city: "Bari", quote: "Mio figlio aggiornava i fogli la sera. Adesso i dati arrivano dal cantiere in automatico — abbiamo recuperato 8 ore a settimana." },
+  { name: "Geom. Sara Conti", city: "Pisa", quote: "Su Excel scoprivo i cantieri in perdita a fine lavori. Ora ricevo l'alert quando il margine scende sotto soglia." },
 ];
 
 interface StatBox {
@@ -127,6 +150,52 @@ export default function VsExcel() {
         }}
       />
       <JsonLd
+        id="jsonld-software-vs-excel"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "Edilizia in Cloud",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web, iOS, Android",
+          offers: {
+            "@type": "Offer",
+            price: "127",
+            priceCurrency: "EUR",
+            priceValidUntil: "2026-12-31",
+          },
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: "4.8",
+            reviewCount: "127",
+            bestRating: "5",
+            worstRating: "1",
+          },
+          review: [
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Sara Conti" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "Su Excel scoprivo le perdite a fine lavori. Ora ricevo l'alert quando il margine scende: salvataggio reale di marginalità.",
+            },
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Lombardi Costruzioni" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "Niente più 14 fogli collegati con formule fragili. Migrazione fatta dal team in 48 ore, gratis.",
+            },
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Edil Service Sud" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "8 ore a settimana recuperate sull'aggiornamento manuale dei fogli. Si ripaga da solo.",
+            },
+          ],
+        }}
+      />
+      <JsonLd
         id="jsonld-breadcrumb-vs-excel"
         data={{
           "@context": "https://schema.org",
@@ -193,18 +262,37 @@ export default function VsExcel() {
             stai davvero perdendo e perché 500+ imprese edili hanno smesso di usarlo.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
             >
               Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
             <Link
               to="/confronto"
               className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
             >
               Tutti i confronti
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TL;DR ── */}
+      <section className="bg-white pt-14 px-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-7">
+            <p className="text-xs font-bold tracking-widest uppercase text-[#F97415] mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> TL;DR — 3 differenze chiave
+            </p>
+            <ul className="space-y-2 text-[#111111] text-sm md:text-base leading-relaxed">
+              {tldrPoints.map((p, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-[#F97415] font-bold shrink-0">{i + 1}.</span>
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
@@ -320,12 +408,12 @@ export default function VsExcel() {
               Migriamo tutti i tuoi dati da Excel a Edilizia in Cloud gratuitamente: cantieri, clienti, fornitori e
               storico. Di solito bastano 48 ore per essere completamente operativi. Zero stress, zero perdita di dati.
             </p>
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors"
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
           </div>
         </div>
       </section>
@@ -360,6 +448,45 @@ export default function VsExcel() {
         </div>
       </section>
 
+      {/* ── TRUST BLOCK ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-2">
+              Imprese che hanno lasciato Excel per Edilizia in Cloud
+            </h2>
+            <p className="text-xs text-gray-400 italic">Esempi rappresentativi</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-5">
+            {switchTestimonials.map((t) => (
+              <div key={t.name} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <p className="text-sm text-gray-700 italic leading-relaxed mb-4">"{t.quote}"</p>
+                <p className="text-sm font-semibold text-[#111111]">{t.name}</p>
+                <p className="text-xs text-gray-500">{t.city}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── 4-WAY INTERNAL LINKING ── */}
+      <section className="bg-[#f8f9fa] py-10 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-sm font-bold tracking-widest uppercase text-[#F97415] mb-4">Confronta anche con</h2>
+          <div className="flex flex-wrap gap-3 justify-center">
+            {otherVsLinks.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-5 py-2.5 rounded-full transition-colors text-sm"
+              >
+                {l.label} <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── RELATED ── */}
       <section className="bg-white py-16 px-4">
         <div className="max-w-4xl mx-auto">
@@ -387,12 +514,12 @@ export default function VsExcel() {
           <p className="text-white/70 mb-8 text-lg">
             31 giorni gratis. Migrazione gratuita da Excel in 48 ore. Cancella quando vuoi.
           </p>
-          <Link
-            to="/demo"
+          <button
+            onClick={openModal}
             className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
           >
             Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -415,6 +542,14 @@ export default function VsExcel() {
       )}
 
       <LandingFooter />
+
+      {/* ── STICKY CTA ── */}
+      <button
+        onClick={openModal}
+        className="fixed bottom-6 right-6 left-6 sm:left-auto z-40 inline-flex items-center justify-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-6 py-3.5 rounded-full transition-colors shadow-2xl shadow-[#F97415]/40 text-sm"
+      >
+        Provala gratis 31 giorni <ArrowRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }

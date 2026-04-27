@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -8,11 +9,16 @@ import { CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, ArrowRight 
 
 
 type CellType = "check" | "cross" | "partial" | "text";
+type RowCategory = "fiscale" | "cantieri" | "ai" | "mobile" | "prezzo" | "altro";
 
 interface TableCell {
   type: CellType;
   text?: string;
 }
+
+const openModal = () => {
+  import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
+};
 
 function Cell({ cell, highlight = false }: { cell: TableCell; highlight?: boolean }) {
   if (cell.type === "check") {
@@ -51,6 +57,34 @@ const TABS = [
   { label: "vs Concorrenti", id: "concorrenti" },
 ];
 
+const VENDOR_CARDS = [
+  {
+    to: "/confronto/vs-primus",
+    name: "Edilizia in Cloud vs Primus ACCA",
+    tagline: "Da computi e preventivi al ciclo completo della commessa.",
+  },
+  {
+    to: "/confronto/vs-teamsystem",
+    name: "Edilizia in Cloud vs TeamSystem Construction",
+    tagline: "ERP generalista vs gestionale nativo per l'edilizia.",
+  },
+  {
+    to: "/confronto/vs-edilnet",
+    name: "Edilizia in Cloud vs Edilnet",
+    tagline: "On-premise tradizionale vs cloud operativo in 48h.",
+  },
+  {
+    to: "/confronto/vs-excel",
+    name: "Edilizia in Cloud vs Excel",
+    tagline: "Il vero costo nascosto dei fogli di calcolo in cantiere.",
+  },
+  {
+    to: "/confronto/vs-buildertrend",
+    name: "Edilizia in Cloud vs Buildertrend",
+    tagline: "Software USA senza SDI vs gestionale italiano completo.",
+  },
+];
+
 const excelRows: { feature: string; excel: TableCell; eic: TableCell }[] = [
   { feature: "Margine reale per cantiere", excel: { type: "cross" }, eic: { type: "text", text: "Automatico, aggiornato al secondo" } },
   { feature: "Previsionale di cassa", excel: { type: "cross" }, eic: { type: "text", text: "Dashboard pronta, 90 giorni" } },
@@ -65,10 +99,10 @@ const excelRows: { feature: string; excel: TableCell; eic: TableCell }[] = [
 ];
 
 const erpRows: { feature: string; erp: TableCell; eic: TableCell }[] = [
-  { feature: "Costo setup", erp: { type: "text", text: "€5.000 – €50.000" }, eic: { type: "text", text: "Incluso nel piano" } },
-  { feature: "Tempo implementazione", erp: { type: "text", text: "3-12 mesi" }, eic: { type: "text", text: "48 ore" } },
+  { feature: "Costo setup", erp: { type: "text", text: "€2.000 – €5.000" }, eic: { type: "text", text: "Incluso nel piano" } },
+  { feature: "Tempo implementazione", erp: { type: "text", text: "4-12 settimane" }, eic: { type: "text", text: "48 ore" } },
   { feature: "Formazione richiesta", erp: { type: "text", text: "2-8 settimane" }, eic: { type: "text", text: "1-2 giorni" } },
-  { feature: "Canone mensile", erp: { type: "text", text: "€500 – €5.000+" }, eic: { type: "text", text: "€127 – €547" } },
+  { feature: "Canone mensile", erp: { type: "text", text: "€250 – €400 (TeamSystem)" }, eic: { type: "text", text: "€127 – €547" } },
   { feature: "Moduli edilizia nativi", erp: { type: "partial" }, eic: { type: "text", text: "100% pensati per edilizia" } },
   { feature: "Supporto in italiano", erp: { type: "text", text: "Ticket, settimane di risposta" }, eic: { type: "text", text: "Telefono/WhatsApp, risposta 2h" } },
   { feature: "Aggiornamenti prodotto", erp: { type: "text", text: "1-2/anno con costi aggiuntivi" }, eic: { type: "text", text: "Mensili, inclusi nel piano" } },
@@ -86,52 +120,90 @@ const commercialistaRows: { feature: string; solo: TableCell; combined: TableCel
   { feature: "Costo totale", solo: { type: "text", text: "€12.000-36.000/anno" }, combined: { type: "text", text: "Da €1.188/anno (+commercialista per sola contabilità)" } },
 ];
 
-const concorrentiRows: { feature: string; softA: TableCell; softB: TableCell; eic: TableCell }[] = [
-  { feature: "Previsionale di cassa", softA: { type: "partial" }, softB: { type: "cross" }, eic: { type: "text", text: "Completo, 90 giorni" } },
-  { feature: "CRM + Marketing integrato", softA: { type: "cross" }, softB: { type: "cross" }, eic: { type: "check" } },
-  { feature: "Email + WhatsApp marketing", softA: { type: "cross" }, softB: { type: "cross" }, eic: { type: "check" } },
-  { feature: "Agenti AI", softA: { type: "cross" }, softB: { type: "cross" }, eic: { type: "check" } },
-  { feature: "Portale clienti", softA: { type: "cross" }, softB: { type: "partial" }, eic: { type: "check" } },
-  { feature: "Fatturazione elettronica SDI", softA: { type: "text", text: "A pagamento extra" }, softB: { type: "cross" }, eic: { type: "check" } },
-  { feature: "App mobile offline", softA: { type: "cross" }, softB: { type: "check" }, eic: { type: "check" } },
-  { feature: "Setup in 48h", softA: { type: "cross" }, softB: { type: "check" }, eic: { type: "check" } },
-  { feature: "Supporto italiano WhatsApp", softA: { type: "cross" }, softB: { type: "cross" }, eic: { type: "check" } },
-  { feature: "Garanzia rimborso", softA: { type: "cross" }, softB: { type: "cross" }, eic: { type: "check" } },
-  { feature: "Prezzo", softA: { type: "text", text: "Da €150/mese" }, softB: { type: "text", text: "Da €200/mese" }, eic: { type: "text", text: "Da €127/mese (o €99/mese annuale)" } },
+interface ConcorrentiRow {
+  feature: string;
+  primus: TableCell;
+  teamsystem: TableCell;
+  eic: TableCell;
+  category: RowCategory;
+}
+
+const concorrentiRows: ConcorrentiRow[] = [
+  { feature: "Previsionale di cassa", primus: { type: "partial" }, teamsystem: { type: "cross" }, eic: { type: "text", text: "Completo, 90 giorni" }, category: "cantieri" },
+  { feature: "CRM + Marketing integrato", primus: { type: "cross" }, teamsystem: { type: "cross" }, eic: { type: "check" }, category: "altro" },
+  { feature: "Email + WhatsApp marketing", primus: { type: "cross" }, teamsystem: { type: "cross" }, eic: { type: "check" }, category: "altro" },
+  { feature: "Agenti AI", primus: { type: "cross" }, teamsystem: { type: "cross" }, eic: { type: "check" }, category: "ai" },
+  { feature: "Analisi margini AI in tempo reale", primus: { type: "cross" }, teamsystem: { type: "partial" }, eic: { type: "check" }, category: "ai" },
+  { feature: "Portale clienti", primus: { type: "cross" }, teamsystem: { type: "partial" }, eic: { type: "check" }, category: "altro" },
+  { feature: "Fatturazione elettronica SDI", primus: { type: "text", text: "Modulo extra" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "F24 e gestione tributi", primus: { type: "check" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "DURC e scadenze documentali", primus: { type: "partial" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "Cassa Edile MUT", primus: { type: "cross" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "CIG / CUP appalti pubblici", primus: { type: "check" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "Reverse charge edilizia", primus: { type: "partial" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "Bonus 110 / PNRR tracking", primus: { type: "partial" }, teamsystem: { type: "partial" }, eic: { type: "check" }, category: "fiscale" },
+  { feature: "Prezzari DEI integrati", primus: { type: "check" }, teamsystem: { type: "partial" }, eic: { type: "check" }, category: "cantieri" },
+  { feature: "App mobile offline", primus: { type: "cross" }, teamsystem: { type: "check" }, eic: { type: "check" }, category: "mobile" },
+  { feature: "Setup in 48h", primus: { type: "cross" }, teamsystem: { type: "cross" }, eic: { type: "check" }, category: "cantieri" },
+  { feature: "Supporto italiano WhatsApp", primus: { type: "cross" }, teamsystem: { type: "cross" }, eic: { type: "check" }, category: "altro" },
+  { feature: "Garanzia rimborso", primus: { type: "cross" }, teamsystem: { type: "cross" }, eic: { type: "check" }, category: "altro" },
+  { feature: "Prezzo", primus: { type: "text", text: "Da €85/mese (modulare)" }, teamsystem: { type: "text", text: "Da €250/mese" }, eic: { type: "text", text: "Da €127/mese" }, category: "prezzo" },
+];
+
+const FILTERS: { label: string; value: RowCategory | "all" }[] = [
+  { label: "Tutto", value: "all" },
+  { label: "Fiscale", value: "fiscale" },
+  { label: "Cantieri", value: "cantieri" },
+  { label: "AI", value: "ai" },
+  { label: "Mobile", value: "mobile" },
+  { label: "Prezzo", value: "prezzo" },
 ];
 
 const faqItems = [
   {
-    q: "Posso importare i dati che ho su Excel?",
-    a: "Sì. Il nostro team di onboarding si occupa dell'importazione gratuitamente. Non dovrai fare nulla: ti consegniamo il sistema già popolato con i tuoi dati entro 48 ore dall'attivazione.",
+    q: "Qual è il miglior gestionale per imprese edili 2026?",
+    a: "Per le PMI edili italiane (200K-5M di fatturato) Edilizia in Cloud è la scelta più completa nel 2026: nativo per il settore, AI per i margini, SDI/Cassa Edile/DURC integrati e prezzo da €127/mese. Primus ACCA resta forte sul computo metrico, TeamSystem Construction su grandi imprese strutturate.",
+  },
+  {
+    q: "Edilizia in Cloud è meglio di Primus?",
+    a: "Sono due strumenti diversi. Primus ACCA è eccellente per computi metrici e preventivi tecnici (~85-95€/mese modulare). Edilizia in Cloud copre l'intero ciclo della commessa: cantieri, margini real-time, fatturazione SDI, HR, CRM, AI. Se gestisci cantieri attivi e personale, Edilizia in Cloud è più completo.",
+  },
+  {
+    q: "Posso migrare da Excel a Edilizia in Cloud?",
+    a: "Sì. Il team di onboarding importa gratuitamente cantieri, clienti, fornitori e storico da qualsiasi file Excel. La migrazione standard si chiude in 48 ore senza interrompere l'operatività dell'impresa.",
+  },
+  {
+    q: "Quanto costa un gestionale edilizia nel 2026?",
+    a: "I prezzi medi di mercato: Excel 0€ ma con costo nascosto di ~2.000€/mese in ore amministrative; Primus ACCA da ~85€/mese (modulare); Edilnet ~150-200€/mese più 2.000-5.000€ di setup; TeamSystem Construction 250-400€/mese; Buildertrend ~370€/mese (in inglese). Edilizia in Cloud parte da 127€/mese all-inclusive (99€/mese su base annuale).",
+  },
+  {
+    q: "Esiste un'alternativa cloud a TeamSystem Construction?",
+    a: "Sì: Edilizia in Cloud è l'alternativa cloud-nativa a TeamSystem Construction per le PMI edili. Stesso copertura su SDI/CCNL/Cassa Edile, più funzionalità native per il cantiere, AI inclusa, setup in 48h invece che 4-12 settimane e canone da 127€/mese contro i 250-400€/mese di TeamSystem.",
+  },
+  {
+    q: "Edilizia in Cloud gestisce il DURC e la Cassa Edile?",
+    a: "Sì. Edilizia in Cloud integra nativamente DURC, Cassa Edile (MUT), CCNL edilizia, contributi INPS settore costruzioni, F24, reverse charge edilizia e tracking dei bonus 110/PNRR. Tutto incluso nel canone, senza moduli aggiuntivi.",
   },
   {
     q: "Posso integrare Edilizia in Cloud con il mio ERP attuale?",
-    a: "Dipende dall'ERP. Offriamo API aperte e connettori nativi per i principali sistemi contabili italiani. Il nostro team tecnico valuta gratuitamente la fattibilità prima che tu firmi qualsiasi contratto.",
-  },
-  {
-    q: "Quanto tempo ci vuole per passare da un altro software?",
-    a: "La migrazione standard richiede 48-72 ore. Gestiamo noi l'export dal vecchio sistema, l'import, la configurazione e il test. Il tuo team può continuare a lavorare durante la transizione.",
-  },
-  {
-    q: "Cosa succede se voglio tornare indietro?",
-    a: "I tuoi dati sono sempre tuoi. In qualsiasi momento puoi esportare tutto in formato Excel/CSV/PDF con un solo click. Nessun costo di uscita, nessun dato trattenuto.",
+    a: "Dipende dall'ERP. Offriamo API aperte e connettori nativi per i principali sistemi contabili italiani. Il team tecnico valuta gratuitamente la fattibilità prima della firma di qualsiasi contratto.",
   },
   {
     q: "Avete un periodo di prova gratuito?",
-    a: "Sì. Offriamo una demo personalizzata gratuita (30 minuti con un consulente del controllo) + 31 giorni di accesso completo. Inizia e vedi i risultati prima di decidere.",
+    a: "Sì. Demo personalizzata gratuita (30 minuti con un consulente del controllo) e 31 giorni di accesso completo. Nessuna carta richiesta, cancelli quando vuoi.",
   },
 ];
 
 export default function Confronto() {
   const [activeSection, setActiveSection] = useState("excel");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [filter, setFilter] = useState<RowCategory | "all">("all");
 
   useSEO({
-    title: "Confronto Software Gestionale Edilizia — Edilizia in Cloud vs Excel, ERP, Commercialista",
-    description: "Confronta Edilizia in Cloud con Excel, software ERP, commercialista e concorrenti. Scopri perché è la scelta migliore per le PMI edili italiane nel 2026.",
+    title: "Confronto Software Gestionale Edilizia — Edilizia in Cloud vs Primus, TeamSystem, Edilnet, Excel",
+    description: "Confronta Edilizia in Cloud con Primus ACCA, TeamSystem Construction, Edilnet, Buildertrend ed Excel. Funzionalità, prezzi, fiscale italiano: scopri quale gestionale fa per la tua impresa edile nel 2026.",
     canonical: "/confronto",
-    keywords: "confronto software gestionale edilizia, edilizia in cloud vs excel, alternativa ERP edilizia, software cantieri vs commercialista, miglior gestionale imprese edili",
+    keywords: "confronto software gestionale edilizia, edilizia in cloud vs primus, edilizia in cloud vs teamsystem, alternativa ERP edilizia, miglior gestionale imprese edili 2026",
   });
 
   useEffect(() => {
@@ -158,8 +230,20 @@ export default function Confronto() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const filteredConcorrentiRows =
+    filter === "all" ? concorrentiRows : concorrentiRows.filter((r) => r.category === filter);
+
   return (
     <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
+      <HubSeoSchema
+        pageName="Confronto Software"
+        pagePath="/confronto"
+        pageDescription="Confronta Edilizia in Cloud con Primus, Edilnet, TeamSystem, Buildertrend ed Excel: funzionalità, prezzo, supporto."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Confronto Software", url: "/confronto" },
+        ]}
+      />
       <JsonLd id="jsonld-breadcrumb-confronto" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
@@ -168,23 +252,32 @@ export default function Confronto() {
           { "@type": "ListItem", "position": 2, "name": "Confronto Software Edilizia", "item": "https://www.ediliziaincloud.com/confronto" }
         ]
       }} />
+      <JsonLd id="jsonld-faq-confronto" data={{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": faqItems.map((item) => ({
+          "@type": "Question",
+          "name": item.q,
+          "acceptedAnswer": { "@type": "Answer", "text": item.a },
+        })),
+      }} />
       <JsonLd id="jsonld-itemlist-confronto" data={{
         "@context": "https://schema.org",
         "@type": "ItemList",
         "name": "Confronto Edilizia in Cloud con le Alternative",
-        "description": "Confronto dettagliato tra Edilizia in Cloud e i principali software gestionali per imprese edili: Primus, Edilnet, TeamSystem, Excel.",
+        "description": "Confronto dettagliato tra Edilizia in Cloud e i principali software gestionali per imprese edili: Primus, Edilnet, TeamSystem, Buildertrend, Excel.",
         "url": "https://www.ediliziaincloud.com/confronto",
-        "numberOfItems": 4,
+        "numberOfItems": 5,
         "itemListElement": [
           {
             "@type": "ListItem",
             "position": 1,
-            "name": "Edilizia in Cloud vs Primus",
+            "name": "Edilizia in Cloud vs Primus ACCA",
             "url": "https://www.ediliziaincloud.com/confronto/vs-primus",
             "item": {
               "@type": "Article",
-              "name": "Edilizia in Cloud vs Primus: Confronto Completo 2026",
-              "description": "Confronto dettagliato tra Edilizia in Cloud e Primus: funzionalità, prezzi, facilità d'uso e supporto.",
+              "name": "Edilizia in Cloud vs Primus ACCA: Confronto Completo 2026",
+              "description": "Confronto dettagliato tra Edilizia in Cloud e Primus ACCA: funzionalità, prezzi, facilità d'uso e supporto.",
               "url": "https://www.ediliziaincloud.com/confronto/vs-primus"
             }
           },
@@ -203,12 +296,12 @@ export default function Confronto() {
           {
             "@type": "ListItem",
             "position": 3,
-            "name": "Edilizia in Cloud vs TeamSystem",
+            "name": "Edilizia in Cloud vs TeamSystem Construction",
             "url": "https://www.ediliziaincloud.com/confronto/vs-teamsystem",
             "item": {
               "@type": "Article",
-              "name": "Edilizia in Cloud vs TeamSystem: Confronto Completo 2026",
-              "description": "Confronto tra Edilizia in Cloud e TeamSystem per la gestione delle imprese edili.",
+              "name": "Edilizia in Cloud vs TeamSystem Construction: Confronto Completo 2026",
+              "description": "Confronto tra Edilizia in Cloud e TeamSystem Construction per la gestione delle imprese edili.",
               "url": "https://www.ediliziaincloud.com/confronto/vs-teamsystem"
             }
           },
@@ -222,6 +315,18 @@ export default function Confronto() {
               "name": "Edilizia in Cloud vs Excel: Perché il Foglio di Calcolo Non Basta",
               "description": "Perché Excel non è sufficiente per gestire un'impresa edile moderna e come passare a un gestionale specifico.",
               "url": "https://www.ediliziaincloud.com/confronto/vs-excel"
+            }
+          },
+          {
+            "@type": "ListItem",
+            "position": 5,
+            "name": "Edilizia in Cloud vs Buildertrend",
+            "url": "https://www.ediliziaincloud.com/confronto/vs-buildertrend",
+            "item": {
+              "@type": "Article",
+              "name": "Edilizia in Cloud vs Buildertrend: Alternativa Italiana 2026",
+              "description": "Buildertrend è americano: niente SDI, niente Cassa Edile, niente italiano. Ecco il confronto con Edilizia in Cloud.",
+              "url": "https://www.ediliziaincloud.com/confronto/vs-buildertrend"
             }
           }
         ]
@@ -264,6 +369,46 @@ export default function Confronto() {
         </div>
       </section>
 
+      {/* ── VENDOR NAV BLOCK ── */}
+      <section className="bg-white py-10 px-4 border-b border-gray-100">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-center text-xs font-bold tracking-widest uppercase text-[#F97415] mb-6">
+            Vai al confronto diretto con un competitor
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {VENDOR_CARDS.map((v) => (
+              <Link
+                key={v.to}
+                to={v.to}
+                className="group flex flex-col gap-2 rounded-xl border border-gray-200 bg-white hover:border-[#F97415] hover:shadow-md p-4 transition-all"
+              >
+                <span className="text-sm font-bold text-[#111111] group-hover:text-[#F97415] leading-snug">
+                  {v.name}
+                </span>
+                <span className="text-xs text-[#111111]/60 leading-relaxed flex-1">{v.tagline}</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#F97415] mt-1">
+                  Apri confronto <ArrowRight className="w-3 h-3" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TL;DR BOX ── */}
+      <section className="bg-white pt-10 pb-4 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-7">
+            <p className="text-xs font-bold tracking-widest uppercase text-[#F97415] mb-3">TL;DR — 3 differenze chiave</p>
+            <p className="text-[#111111] text-sm md:text-base leading-relaxed">
+              <strong>(1)</strong> Edilizia in Cloud include AI per analisi margini in tempo reale, mentre Primus, TeamSystem ed Edilnet richiedono moduli aggiuntivi.{" "}
+              <strong>(2)</strong> Setup in 48 ore garantito vs 4-12 settimane dei concorrenti.{" "}
+              <strong>(3)</strong> Prezzo a partire da 127€/mese all-inclusive, contro 250-400€/mese di TeamSystem Construction e configurazione iniziale 2.000-5.000€ dei competitor on-premise.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* ── SEZIONE vs EXCEL ── */}
       <section id="excel" className="py-20 bg-white px-4">
         <div className="max-w-5xl mx-auto">
@@ -291,10 +436,10 @@ export default function Confronto() {
           {/* Comparison table */}
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm mb-10">
             <table className="w-full min-w-[640px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-gray-200">
-                  <th className="text-left p-4 text-sm font-semibold text-gray-500 w-2/5">Funzionalità</th>
-                  <th className="text-center p-4 text-sm font-semibold text-gray-700 w-[30%]">Excel</th>
+                  <th className="text-left p-4 text-sm font-semibold text-gray-500 w-2/5 bg-white">Funzionalità</th>
+                  <th className="text-center p-4 text-sm font-semibold text-gray-700 w-[30%] bg-white">Excel</th>
                   <th className="text-center p-4 text-sm font-bold text-[#F97415] w-[30%] bg-[#F97415]/5 border-l-2 border-[#F97415]">
                     Edilizia in Cloud
                   </th>
@@ -339,13 +484,13 @@ export default function Confronto() {
           </div>
 
           <div className="text-center">
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-xl transition-colors shadow-lg shadow-[#F97415]/20 text-base"
             >
               Smetti di usare Excel. Inizia gratis.
               <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
           </div>
         </div>
       </section>
@@ -365,10 +510,10 @@ export default function Confronto() {
 
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm mb-10 bg-white">
             <table className="w-full min-w-[580px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-gray-200">
-                  <th className="text-left p-4 text-sm font-semibold text-gray-500 w-2/5">Funzionalità</th>
-                  <th className="text-center p-4 text-sm font-semibold text-gray-700 w-[30%]">ERP Generici</th>
+                  <th className="text-left p-4 text-sm font-semibold text-gray-500 w-2/5 bg-white">Funzionalità</th>
+                  <th className="text-center p-4 text-sm font-semibold text-gray-700 w-[30%] bg-white">ERP Generici</th>
                   <th className="text-center p-4 text-sm font-bold text-[#F97415] w-[30%] bg-[#F97415]/5 border-l-2 border-[#F97415]">
                     Edilizia in Cloud
                   </th>
@@ -398,7 +543,7 @@ export default function Confronto() {
               </div>
               <div>
                 <p className="text-gray-700 italic text-sm md:text-base leading-relaxed mb-4">
-                  "Usavamo TeamSystem da 3 anni. Pagavamo €800/mese e avevamo bisogno di un consulente per ogni modifica. Con Edilizia in Cloud pago meno, faccio tutto da solo e i margini li vedo in tempo reale."
+                  "Usavamo TeamSystem da 3 anni. Pagavamo €350/mese e avevamo bisogno di un consulente per ogni modifica. Con Edilizia in Cloud pago meno, faccio tutto da solo e i margini li vedo in tempo reale."
                 </p>
                 <p className="text-sm font-semibold text-[#111111]">
                   — Fratelli Conti Costruzioni, Napoli
@@ -412,7 +557,7 @@ export default function Confronto() {
           <div className="rounded-2xl bg-[#111111] text-white p-6 md:p-8 text-center">
             <p className="text-sm text-blue-200 mb-2 uppercase tracking-widest font-semibold">Risparmio medio</p>
             <p className="text-2xl md:text-3xl font-extrabold">
-              €6.000 – €18.000<span className="text-[#F97415]">/anno</span>
+              €2.500 – €6.000<span className="text-[#F97415]">/anno</span>
             </p>
             <p className="text-blue-200 text-sm mt-2">passando da un ERP generico a Edilizia in Cloud</p>
           </div>
@@ -487,8 +632,8 @@ export default function Confronto() {
           {/* Table */}
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm mb-10">
             <table className="w-full min-w-[640px]">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50/80">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur">
                   <th className="text-left p-4 text-sm font-semibold text-gray-500 w-2/5">Voce</th>
                   <th className="text-center p-4 text-sm font-semibold text-gray-700 w-[28%]">Solo Commercialista</th>
                   <th className="text-center p-4 text-sm font-bold text-[#F97415] w-[32%] bg-[#F97415]/5 border-l-2 border-[#F97415]">
@@ -528,25 +673,42 @@ export default function Confronto() {
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111] mb-3">
               Edilizia in Cloud vs.{" "}
-              <span className="text-[#F97415]">Altri Software per l'Edilizia</span>
+              <span className="text-[#F97415]">Primus ACCA & TeamSystem Construction</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Esistono altri software per l'edilizia. Ecco perché i nostri clienti scelgono noi.
             </p>
           </div>
 
+          {/* Filter chips */}
+          <div className="flex flex-wrap gap-2 justify-center mb-6">
+            {FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  filter === f.value
+                    ? "bg-[#F97415] text-white border-[#F97415] shadow shadow-[#F97415]/20"
+                    : "bg-white text-[#111111] border-gray-200 hover:border-[#F97415]/40"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm mb-10 bg-white">
             <table className="w-full min-w-[700px]">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50/80">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur">
                   <th className="text-left p-4 text-sm font-semibold text-gray-500" style={{ minWidth: "180px" }}>Funzionalità</th>
                   <th className="text-center p-4 text-sm font-semibold text-gray-700" style={{ minWidth: "140px" }}>
-                    Software A
-                    <span className="block text-xs font-normal text-gray-400">da €150/mese</span>
+                    Primus ACCA
+                    <span className="block text-xs font-normal text-gray-400">da €85/mese</span>
                   </th>
                   <th className="text-center p-4 text-sm font-semibold text-gray-700" style={{ minWidth: "140px" }}>
-                    Software B
-                    <span className="block text-xs font-normal text-gray-400">da €200/mese</span>
+                    TeamSystem Construction
+                    <span className="block text-xs font-normal text-gray-400">da €250/mese</span>
                   </th>
                   <th className="text-center p-4 text-sm font-bold text-[#F97415] bg-[#F97415]/5 border-l-2 border-[#F97415]" style={{ minWidth: "160px" }}>
                     Edilizia in Cloud
@@ -555,20 +717,31 @@ export default function Confronto() {
                 </tr>
               </thead>
               <tbody>
-                {concorrentiRows.map((row, i) => (
-                  <tr key={i} className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                {filteredConcorrentiRows.map((row, i) => (
+                  <tr
+                    key={row.feature}
+                    data-category={row.category}
+                    className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
+                  >
                     <td className="p-4 text-sm font-medium text-[#111111]">{row.feature}</td>
                     <td className="p-4 text-center">
-                      <Cell cell={row.softA} />
+                      <Cell cell={row.primus} />
                     </td>
                     <td className="p-4 text-center">
-                      <Cell cell={row.softB} />
+                      <Cell cell={row.teamsystem} />
                     </td>
                     <td className="p-4 text-center bg-[#F97415]/5 border-l-2 border-[#F97415]">
                       <Cell cell={row.eic} highlight />
                     </td>
                   </tr>
                 ))}
+                {filteredConcorrentiRows.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-6 text-center text-sm text-gray-500">
+                      Nessuna riga in questa categoria.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -577,7 +750,7 @@ export default function Confronto() {
           <div className="rounded-2xl border-2 border-[#F97415] bg-white p-6 md:p-8">
             <p className="text-sm font-bold text-[#F97415] uppercase tracking-widest mb-3">La differenza vera</p>
             <p className="text-[#111111] font-medium text-sm md:text-base leading-relaxed">
-              Edilizia in Cloud ha più funzionalità a un prezzo inferiore. Ma la differenza vera è questa:{" "}
+              Edilizia in Cloud ha più funzionalità a un prezzo inferiore di TeamSystem Construction (€250-400/mese) e copertura più ampia di Primus ACCA. Ma la differenza vera è questa:{" "}
               <strong>siamo gli unici ad avere un Consulente del Controllo dedicato incluso nel piano.</strong>
             </p>
           </div>
@@ -639,7 +812,7 @@ export default function Confronto() {
               className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
               <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
-                Edilizia in Cloud vs Primus
+                Edilizia in Cloud vs Primus ACCA
               </h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 Confronto completo su gestione cantieri, preventivi, fatturazione e assistenza clienti.
@@ -653,7 +826,7 @@ export default function Confronto() {
               className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
               <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
-                Edilizia in Cloud vs EdilNet
+                Edilizia in Cloud vs Edilnet
               </h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 Differenze su prezzo, funzionalità cloud, app mobile e qualità del supporto.
@@ -667,7 +840,7 @@ export default function Confronto() {
               className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
               <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
-                Edilizia in Cloud vs TeamSystem
+                Edilizia in Cloud vs TeamSystem Construction
               </h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 ERP generalista vs gestionale nativo edilizia: funzionalità, prezzo e semplicità d'uso a confronto.
@@ -722,13 +895,13 @@ export default function Confronto() {
           <p className="text-blue-200/80 text-base mb-8 max-w-md mx-auto">
             Demo gratuita e personalizzata. Nessun obbligo. Il nostro consulente del controllo ti mostra esattamente cosa cambierebbe nella tua impresa.
           </p>
-          <Link
-            to="/demo"
+          <button
+            onClick={openModal}
             className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-4 rounded-xl transition-colors shadow-xl shadow-[#F97415]/30 text-base"
           >
             Prenota la tua demo gratuita
             <ArrowRight className="w-5 h-5" />
-          </Link>
+          </button>
           <p className="text-blue-300/50 text-xs mt-5">Cancella quando vuoi · Risposta entro 2 ore · 31 giorni di prova completa</p>
         </div>
       </section>

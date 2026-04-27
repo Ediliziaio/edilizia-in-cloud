@@ -60,10 +60,13 @@ export default function LandingFooter() {
           <p className="text-[#111111]/65 text-sm">
             © 2026 Domus Group S.r.l. — Tutti i diritti riservati.
           </p>
-          <div className="flex gap-6 text-sm text-[#111111]/65">
-            <Link to="/privacy" className="hover:text-[#F97415] transition-colors">Privacy Policy</Link>
-            <Link to="/termini" className="hover:text-[#F97415] transition-colors">Termini di Servizio</Link>
-            <Link to="/cookie" className="hover:text-[#F97415] transition-colors">Cookie Policy</Link>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#111111]/65 justify-center md:justify-end">
+            <Link to="/privacy-policy" className="hover:text-[#F97415] transition-colors">Privacy Policy</Link>
+            <Link to="/termini-e-condizioni" className="hover:text-[#F97415] transition-colors">Termini e Condizioni</Link>
+            <Link to="/avviso-legale" className="hover:text-[#F97415] transition-colors">Avviso Legale</Link>
+            <Link to="/condizioni-utilizzo" className="hover:text-[#F97415] transition-colors">Condizioni di Utilizzo</Link>
+            <Link to="/cookie-policy" className="hover:text-[#F97415] transition-colors">Cookie Policy</Link>
+            <Link to="/dpa" className="hover:text-[#F97415] transition-colors">DPA</Link>
           </div>
         </div>
       </div>

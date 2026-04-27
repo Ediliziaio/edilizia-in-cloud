@@ -330,13 +330,13 @@ export default function HeroSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <a
-            href="#cta-finale"
-            onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
+          <button
+            type="button"
+            onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
             className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-[#C94F06] text-white font-bold text-base md:text-lg hover:bg-[#A84305] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#C94F06]/30"
           >
-            Inizia Gratis — 30 Giorni
-          </a>
+            Inizia Gratis — 31 Giorni
+          </button>
           <a
             href="#moduli"
             onClick={(e) => { e.preventDefault(); document.querySelector("#moduli")?.scrollIntoView({ behavior: "smooth" }); }}

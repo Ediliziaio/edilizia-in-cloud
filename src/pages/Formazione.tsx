@@ -1,6 +1,7 @@
 import React from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -188,6 +189,15 @@ export default function Formazione() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111] pb-24 overflow-x-hidden">
+      <HubSeoSchema
+        pageName="Formazione"
+        pagePath="/formazione"
+        pageDescription="Webinar, corsi e tutorial gratuiti per imprese edili: come gestire cantieri, fatturazione elettronica e HR cassa edile."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Formazione", url: "/formazione" },
+        ]}
+      />
       <JsonLd id="jsonld-breadcrumb-formazione" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",

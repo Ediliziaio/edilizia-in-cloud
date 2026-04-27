@@ -4,7 +4,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 const config: PerTipoConfig = {
   // SEO
   seoTitle: "Software per Serramentisti | Preventivi Infissi in 20 Minuti | Edilizia in Cloud",
-  seoDescription: "Il gestionale pensato per produttori e installatori di infissi, porte, finestre e serramenti. Preventivi su misura in 20 minuti, ordini fornitori integrati, calendario installazioni. Prova gratis 30 giorni.",
+  seoDescription: "Il gestionale pensato per produttori e installatori di infissi, porte, finestre e serramenti. Preventivi su misura in 20 minuti, ordini fornitori integrati, calendario installazioni. Prova gratis 31 giorni.",
   seoKeywords: "software serramentisti, gestionale infissi, preventivo finestre, software installatori infissi, gestione ordini serramenti, listino fornitori serramenti, configuratore preventivi infissi, posa in opera, software porte finestre",
   seoCanonical: "/per/serramentisti",
 

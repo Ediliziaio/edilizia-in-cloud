@@ -1,383 +1,488 @@
-import { useSEO } from "@/hooks/useSEO";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { Link } from "react-router-dom";
-import LandingNavbar from "@/components/landing/LandingNavbar";
-import LandingFooter from "@/components/landing/LandingFooter";
-import { blogPosts } from "@/data/blogPosts";
+import {
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  CheckCircle2,
+  ClipboardList,
+  Coins,
+  Database,
+  FileText,
+  HardHat,
+  LineChart,
+  PieChart,
+  Receipt,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Timer,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  Wallet,
+  Wrench,
+  Zap,
+} from "lucide-react";
+import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
+import type { FunzionalitaPageConfig } from "./_template/types";
 
-const RELATED_SLUGS = [
-  "analisi-margini-imprese-edili",
-  "ridurre-costi-cantieri-edili",
-  "computo-metrico-estimativo-guida",
-  "appalti-pubblici-edilizia-guida",
-];
-const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
-import { ArrowRight } from "lucide-react";
+const config: FunzionalitaPageConfig = {
+  slug: "margini-cantiere",
+  vertical: "Margini Cantiere",
+  productName: "Modulo Margini Cantiere Edilizia in Cloud",
+  audience: "Imprese edili, general contractor, controller di cantiere, titolari, geometri d'impresa, CFO PMI edili",
+  audienceShort: "imprese edili strutturate",
 
-const painPoints = [
-  {
-    emoji: "📉",
-    title: "I margini li scopri solo a consuntivo",
-    desc: "Finito il cantiere, fai i conti e scopri che hai guadagnato meno del previsto. A quel punto non puoi più fare nulla per recuperare.",
+  seo: {
+    title:
+      "Margini di Cantiere — Software Controllo Costi Commessa Edile in Tempo Reale | Edilizia in Cloud",
+    description:
+      "Margine reale per commessa in tempo reale, scostamento preventivo/consuntivo automatico, alert sui cantieri a rischio. Smetti di scoprire i buchi a fine cantiere quando non puoi più correggerli. Setup in 48h.",
+    keywords:
+      "margini cantiere software, controllo costi commessa edile, margine reale commessa, scostamento preventivo consuntivo, software controllo cantieri, dashboard margini edilizia, KPI cantiere, controllo gestione impresa edile, software ROI commessa edile",
+    ogImage: "https://www.ediliziaincloud.com/og/margini-cantiere-og.jpg",
   },
-  {
-    emoji: "🔀",
-    title: "Costi non imputati alla commessa giusta",
-    desc: "Un materiale comprato per il cantiere A finisce in contabilità generale. Il margine del cantiere A appare migliore di quello reale.",
-  },
-  {
-    emoji: "🗂️",
-    title: "Nessuna vista consolidata su tutti i cantieri",
-    desc: "Hai 8 cantieri aperti. Quale sta andando bene? Quale sta bruciando margine? Senza una dashboard, non lo sai.",
-  },
-  {
-    emoji: "🎲",
-    title: "Previsione finale inaffidabile",
-    desc: "A metà cantiere, non riesci a stimare quanto guadagnerai a fine lavori. Ogni decisione diventa un'intuizione.",
-  },
-];
 
-const features = [
-  {
-    emoji: "📊",
-    title: "Dashboard margini real-time",
-    desc: "Tutti i tuoi cantieri aperti con margine attuale, trend e stato di salute. Un colpo d'occhio e sai dove guardare.",
-  },
-  {
-    emoji: "⚖️",
-    title: "Scostamento budget vs consuntivo",
-    desc: "Confronto automatico tra preventivato e costi reali per ogni voce di spesa. Vedi dove stai sforando e di quanto.",
-  },
-  {
-    emoji: "🏗️",
-    title: "Costi per categoria",
-    desc: "Margine scomposto per manodopera, materiali e subappalti. Sai esattamente quale categoria sta erodendo il profitto.",
-  },
-  {
-    emoji: "🚨",
-    title: "Alert margine sotto soglia",
-    desc: "Se il margine di una commessa scende sotto la soglia che hai impostato, ricevi un alert immediato. Puoi intervenire in tempo.",
-  },
-  {
-    emoji: "🔮",
-    title: "Previsione finale automatica",
-    desc: "Proiezione del margine a fine cantiere basata sull'andamento reale. Sai oggi quanto guadagnerai fra tre mesi.",
-  },
-  {
-    emoji: "📑",
-    title: "Report per commessa PDF/Excel",
-    desc: "Report completo per ogni cantiere, pronto per il commercialista o per la riunione con i soci. In un click.",
-  },
-];
+  heroBadge: "Funzionalità · Margini Cantiere",
+  heroH1Lead: "Vedi il margine reale di ogni commessa",
+  heroH1Highlight: "in tempo reale",
+  heroH1Tail: "non a fine cantiere",
+  heroSubheadline:
+    "Costi di manodopera dalle timbrature, materiali dai DDT, subappalti dai SAL: tutto imputato automaticamente alla commessa giusta. Lo scostamento preventivo/consuntivo lo vedi giorno per giorno, gli alert ti arrivano quando il cantiere rischia di andare in perdita — non a chiusura, quando è troppo tardi.",
+  heroPrimaryCta: "Prova gratis 31 giorni",
+  heroSecondaryCta: "Tutte le funzionalità",
+  heroSecondaryCtaTo: "/funzionalita",
 
-const stats = [
-  { value: "78%", label: "imprese scopre perdite solo a cantiere chiuso (senza EIC)" },
-  { value: "+22%", label: "margine medio nel 1° anno" },
-  { value: "-68%", label: "sorprese negative su commesse" },
-  { value: "4.9/5", label: "soddisfazione dei titolari" },
-];
+  reassurancePoints: ["Setup in 48 ore", "Alert push automatici", "Conformità CCNL inclusa"],
+  proofPoints: [
+    "Margine reale aggiornato ogni notte",
+    "Scostamento preventivo / consuntivo",
+    "Alert configurabili per soglia",
+  ],
 
-const relatedLinks = [
-  { to: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
-  { to: "/funzionalita/fatturazione-elettronica", label: "Fatturazione Elettronica" },
-  { to: "/funzionalita/preventivi-edilizia", label: "Preventivi Edilizia" },
-];
+  objectiveRow: [
+    ["Obiettivo", "Difendere il margine prima che il cantiere chiuda in perdita"],
+    ["Momento chiave", "Ogni volta che entra un costo (DDT, busta paga, SAL subappalto)"],
+    ["Risultato", "+18% margine medio recuperato sui cantieri controllati"],
+  ],
+
+  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per controllare i margini dei cantieri ogni giorno.",
+  betaBody:
+    "Il modulo Margini Cantiere è il pannello di controllo finanziario della commessa: lo attiviamo in 48 ore, importiamo i tuoi cantieri aperti e i tuoi preventivi originali, configuriamo soglie di alert personalizzate sul tuo modello operativo e ti accompagniamo in 4 sessioni 1-a-1 fino a quando vedi il margine reale aggiornato di ogni cantiere senza dover chiedere a nessuno.",
+
+  speedH2: "Il margine reale visto giorno per giorno cambia il modo in cui guidi l'azienda.",
+  speedSubheadline:
+    "Il problema del margine in edilizia non è la marginalità teorica: è la marginalità reale, scoperta tre mesi dopo la chiusura. Edilizia in Cloud accorcia quel gap a un clic, così puoi correggere mentre il cantiere è ancora aperto, non quando il danno è già fatto.",
+  speedStats: [
+    { value: 18, prefix: "+", suffix: "%", label: "margine medio recuperato sui cantieri controllati" },
+    { value: 80, prefix: "-", suffix: "%", label: "tempo dedicato al controllo costi manuale" },
+    { value: 24, suffix: " h", label: "ritardo massimo tra costo registrato e margine aggiornato" },
+  ],
+
+  familyH2: "Tutta la piattaforma Edilizia in Cloud collegata al margine.",
+  familySubheadline:
+    "Il margine reale non si calcola in Excel: si compone automaticamente quando timbrature, DDT materiali, SAL subappalto e busta paga parlano la stessa lingua. Edilizia in Cloud unisce tutto, così il margine è già il risultato del lavoro che fai ogni giorno.",
+  familyItems: [
+    {
+      icon: Wallet,
+      title: "Margini Cantiere",
+      text: "Margine reale per commessa, scostamento preventivo/consuntivo, alert sui cantieri a rischio in tempo reale.",
+      to: "/funzionalita/margini-cantiere",
+    },
+    {
+      icon: HardHat,
+      title: "Gestione Cantieri",
+      text: "Avanzamento lavori, timbrature GPS, giornale lavori, chat squadra. Fonte dati primaria per il margine reale.",
+      to: "/funzionalita/gestione-cantieri",
+    },
+    {
+      icon: ClipboardList,
+      title: "Preventivi Edilizia",
+      text: "Computo metrico, prezzari regionali, listini personalizzati. Definisce la base di confronto del margine.",
+      to: "/funzionalita/preventivi-edilizia",
+    },
+    {
+      icon: Receipt,
+      title: "Fatturazione Elettronica SDI",
+      text: "Dalla fattura attiva alla fattura passiva, tutto imputato alla commessa. Cassa reale collegata al margine.",
+      to: "/funzionalita/fatturazione-elettronica",
+    },
+    {
+      icon: Users,
+      title: "HR e Personale",
+      text: "Operai, ferie, malattie, presenze e costo orario reale. Dati primari della voce manodopera.",
+      to: "/funzionalita/hr-personale",
+    },
+    {
+      icon: Wrench,
+      title: "Gestione Subappalti",
+      text: "Contratti, SAL, ritenute, DURC, fatture passive subappaltatori. Voce critica del margine.",
+      to: "/funzionalita/gestione-subappalti",
+    },
+  ],
+  familyBonusTitle: "Una sola piattaforma. Un solo abbonamento. Sei moduli che alimentano il margine.",
+  familyBonusText:
+    "Il margine reale di ogni commessa è la somma vera di costi che già esistono nel tuo gestionale: ore via timbratura, materiali via DDT, subappalti via SAL, busta paga via cedolino. Edilizia in Cloud li mette in conversazione tra loro automaticamente, senza file Excel intermedi e senza data entry manuale.",
+
+  painKicker: "Il problema vero",
+  painH2: "Scoprire il buco a chiusura cantiere è scoprirlo troppo tardi.",
+  painSubheadline:
+    "Il vero problema dei margini in edilizia non è la marginalità teorica del preventivo: è la differenza tra preventivo e consuntivo che si rivela solo a chiusura, quando non puoi più correggere nulla. Quando il cantiere è chiuso, hai già perso. L'unica leva possibile è la visibilità in tempo reale.",
+  painPoints: [
+    {
+      icon: TrendingDown,
+      title: "Margine reale scoperto solo a fine cantiere",
+      text: "Tre mesi dopo la chiusura il commercialista ti dice che la commessa ha perso 12.000€. Tu non sai dove. Materiali fuori budget? Ore non imputate? Subappalti gonfiati? Senza dato in tempo reale, l'analisi è archeologica.",
+    },
+    {
+      icon: AlertTriangle,
+      title: "Ore extra non imputate alla commessa giusta",
+      text: "Il capocantiere fa 2 ore extra il sabato per recuperare un ritardo, ma le registra a forfait sulla commessa sbagliata o non le registra affatto. Il margine reale scende, tu non lo sai, e la causa diventa irrintracciabile.",
+    },
+    {
+      icon: FileText,
+      title: "Materiali in fattura un mese dopo la consegna",
+      text: "Il fornitore consegna il 5 marzo, fattura il 20 aprile. Il margine reale del cantiere risulta 'positivo' fino al 20 aprile, poi crolla quando arriva la fattura. Nessuna anticipazione, nessun alert, nessuna possibilità di correggere.",
+    },
+    {
+      icon: Search,
+      title: "Excel multipli che non concordano mai",
+      text: "Excel preventivo, Excel consuntivo, Excel ore operai, Excel subappalti. Quattro fogli con formule fragili, mantenuti da persone diverse, mai allineati. Quando li confronti, il margine cambia a seconda del file che apri.",
+    },
+  ],
+
+  baKicker: "Prima e dopo Edilizia in Cloud",
+  baH2: "Stessi cantieri, stessi costi, stessa squadra. Cambia solo quando li vedi.",
+  baSubheadline:
+    "Il margine in edilizia non si crea con un software: si difende. Edilizia in Cloud non promette di farti guadagnare di più: ti promette di farti vedere prima quello che già stai perdendo, così puoi correggere mentre sei ancora in tempo.",
+  baAreas: [
+    {
+      title: "Costi della manodopera",
+      before:
+        "Ore imputate a fine settimana, magari su un foglio di carta, magari a forfait. Il costo orario reale per cantiere è una stima a posteriori. Le ore straordinarie spariscono nel margine.",
+      after:
+        "Timbratura GPS al check-in, costo orario reale (con CCNL applicato) imputato in automatico alla commessa. Manodopera registrata mentre accade, scostamento sul preventivo aggiornato giorno per giorno.",
+    },
+    {
+      title: "Costi dei materiali",
+      before:
+        "Costo materiali noto solo quando arriva la fattura, settimane dopo la consegna. Margine reale 'falsato' positivamente fino all'arrivo del passivo. Reazione possibile solo a fatto compiuto.",
+      after:
+        "Importazione automatica dei DDT (anche da PDF/email): costo materiali imputato alla commessa il giorno della consegna, non il giorno della fattura. Il margine si aggiorna in tempo reale.",
+    },
+    {
+      title: "Costi dei subappalti",
+      before:
+        "SAL subappaltatore conteggiato a chiusura, ritenute calcolate manualmente, DURC scaduti che bloccano il pagamento. Il vero costo subappalto entra nel margine con due mesi di ritardo.",
+      after:
+        "Ogni SAL subappalto entra nel margine il giorno della firma, con ritenute (4% INPS) e DURC tracciati. Alert automatico su DURC in scadenza. Il costo subappalto è già il costo reale.",
+    },
+    {
+      title: "Visione d'insieme del titolare",
+      before:
+        "Riunione settimanale con tre Excel diversi, ognuno con un margine diverso. Riconciliazione in due ore. Decisione operativa a 5 giorni di distanza dal problema. Cantiere già perso.",
+      after:
+        "Una dashboard unica con margine reale e atteso per tutti i cantieri attivi. Filtri per cliente, capocantiere, tipologia. Alert push quando un cantiere supera la soglia. Decisione in 5 minuti.",
+    },
+  ],
+
+  mechanismKicker: "Come funziona",
+  mechanismH2: "Tre passaggi, niente formula Excel da scrivere, niente Excel multipli da riconciliare.",
+  mechanismSubheadline:
+    "Il margine reale non è il risultato di un calcolo aggiuntivo: è il sottoprodotto naturale di timbrature, DDT e SAL già registrati. Edilizia in Cloud li aggrega automaticamente. Tu fai esattamente quello che facevi prima — è solo il dato che si organizza da solo.",
+  mechanismSteps: [
+    {
+      icon: Database,
+      title: "I costi entrano nella commessa giusta automaticamente",
+      text: "Ore via timbratura GPS, materiali via DDT importato (anche email/PDF), subappalti via SAL firmato, costi indiretti via causale di contabilità. Niente data entry manuale, niente Excel intermedio.",
+    },
+    {
+      icon: PieChart,
+      title: "Il margine reale si compone in tempo reale",
+      text: "Il sistema confronta automaticamente costi reali e preventivo iniziale, calcola scostamenti per voce di lavorazione, evidenzia le categorie sotto pressione (manodopera, materiali, subappalti, indiretti).",
+    },
+    {
+      icon: Bell,
+      title: "Alert automatici sui cantieri a rischio",
+      text: "Soglie configurabili per cantiere o per categoria di lavoro. Quando un cantiere supera l'80% del budget, ricevi notifica push e email. Tu intervieni mentre il margine è ancora difendibile.",
+    },
+  ],
+  mechanismCta: "Prova il margine reale sul tuo primo cantiere",
+
+  commercialKicker: "Perché conviene davvero",
+  commercialH2: "Il margine recuperato vale 10x l'abbonamento. Sempre.",
+  commercialBody:
+    "Le imprese edili italiane perdono in media 3-5 punti di margine per cantiere a causa di costi non controllati in tempo reale. Su un cantiere da 200.000€, sono 6.000-10.000€ di margine evaporato. Recuperarne anche solo metà vale 30 anni di abbonamento Edilizia in Cloud.",
+  commercialLevers: [
+    {
+      icon: Target,
+      title: "Difendi il margine prima del danno",
+      text: "Non recuperi il margine 'a posteriori': lo difendi mentre il cantiere è aperto. La giornata di squadra recuperata, il fornitore richiamato sul prezzo, il subappalto rinegoziato valgono molto di più dell'abbonamento di un anno.",
+    },
+    {
+      icon: Bell,
+      title: "Alert push prima del superamento budget",
+      text: "Soglie automatiche configurabili (50%, 80%, 100% del budget per voce). Notifica push e email quando un cantiere si avvicina al rischio. Tu agisci subito, non a fine cantiere.",
+    },
+    {
+      icon: BarChart3,
+      title: "Decisioni su numeri, non su sensazioni",
+      text: "Smetti di scegliere il prossimo cantiere a sentimento. La dashboard ti mostra quali tipologie di lavoro hanno marginato di più negli ultimi 12 mesi. Prezzi e selezioni clienti meglio.",
+    },
+    {
+      icon: TrendingUp,
+      title: "Storico margini per prezzare meglio",
+      text: "Lo storico per tipologia di intervento ti permette di prezzare il prossimo preventivo sui dati reali, non sulla teoria. Margine atteso e margine reale si avvicinano cantiere dopo cantiere.",
+    },
+  ],
+
+  resultsKicker: "Risultati con Edilizia in Cloud",
+  resultsH2: "Il margine reale non è un report mensile. È un cruscotto sempre vivo.",
+  resultsBody:
+    "Quando il margine vive nello stesso strumento di cantieri, fatture e busta paga, smetti di gestire l'impresa per silos. Apri una dashboard, vedi tutto, decidi in fretta, comunichi meglio al commercialista, alla banca e ai soci.",
+  integrationPillars: [
+    {
+      icon: LineChart,
+      title: "Dashboard margini multi-cantiere",
+      text: "Margine atteso, margine reale, scostamento %, voci sotto pressione. Filtri per cliente, capocantiere, area, tipologia. Vista titolare sempre aggiornata, vista capocantiere limitata al proprio cantiere.",
+    },
+    {
+      icon: Bell,
+      title: "Alert configurabili per soglia",
+      text: "Soglie su scostamento globale, scostamento per voce (manodopera, materiali, subappalti), DURC subappaltatori, ritardi. Notifica push, email e Slack se configurato.",
+    },
+    {
+      icon: Coins,
+      title: "Fatturato vs incassato vs costi",
+      text: "Tre dimensioni separate: fatturato emesso, incassato reale, costi imputati. Il margine reale tiene conto della cassa, non solo della contabilità.",
+    },
+    {
+      icon: ShieldCheck,
+      title: "Conformità CCNL e fiscale tracciata",
+      text: "Costo orario CCNL applicato per qualifica e contratto, ritenute subappaltatori calcolate, DURC tracciati. Il margine reale riflette i costi pieni, non quelli ottimistici.",
+    },
+  ],
+  resultStats: [
+    { value: 18, prefix: "+", suffix: "%", label: "margine medio recuperato sui cantieri controllati" },
+    { value: 92, prefix: "+", suffix: "%", label: "soddisfazione titolari dopo 90 giorni" },
+    { value: 5, prefix: "-", suffix: " gg", label: "ritardo medio nell'identificare cantieri a rischio" },
+  ],
+  resultsCta: "Apri la tua dashboard margini",
+
+  roiKicker: "Calcola il tuo ROI",
+  roiH2: "Quanto margine puoi recuperare se vedi i costi mentre accadono?",
+  roiSubheadline:
+    "Sposta i cursori sulla tua realtà: numero di cantieri attivi e fatturato medio annuo per cantiere. La stima parte da 4 punti percentuali di margine recuperato, base media osservata nei nostri clienti dopo 90 giorni.",
+  roi: {
+    input1Label: "Cantieri attivi in media",
+    input1Default: 6,
+    input1Min: 1,
+    input1Max: 50,
+    input1Step: 1,
+    input2Label: "Fatturato medio annuo per cantiere",
+    input2Default: 150000,
+    input2Min: 20000,
+    input2Max: 1500000,
+    input2Step: 10000,
+    input2Suffix: " €",
+    outputLabel: "Margine recuperato stimato/anno",
+    computeOutput: (a, b) => Math.round(a * b * 0.04),
+    computeSecondary: (a, b) => [
+      { label: "Fatturato totale gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * b) },
+      { label: "Cantieri salvati da rosso (stima)", value: `${Math.max(1, Math.round(a * 0.15))}` },
+      { label: "Ore controller risparmiate/anno", value: `${Math.round(a * 60)} h` },
+    ],
+    closingPitch:
+      "Stima prudenziale basata su 4% di margine recuperato. Le imprese più strutturate registrano tra il 5% e l'8% nei primi 12 mesi grazie agli alert preventivi.",
+  },
+
+  salesKicker: "Impatto operativo",
+  salesH2: "Non un dashboard in più. Un sistema di controllo costi sempre acceso.",
+  salesBody:
+    "Il margine reale non è un KPI da consultare ogni tanto: è un sistema operativo che cambia il modo in cui guidi l'impresa. Quando il dato è sempre lì, vivo, decidi in modo diverso. Ecco le 4 dimensioni che cambiano subito.",
+  salesImpact: [
+    {
+      title: "Riunioni di controllo costi più brevi",
+      text: "Le riunioni 'come stiamo a margini?' diventano 'cosa facciamo sul cantiere X?'. Si parte già dal dato condiviso, si discute solo di azioni.",
+    },
+    {
+      title: "Trattative col cliente più solide",
+      text: "Quando hai dati reali sul margine, sai quanto puoi sconto fare e dove no. Le trattative finali si chiudono con margini protetti, non con sconti spannometrici.",
+    },
+    {
+      title: "Conversazioni col commercialista più semplici",
+      text: "Esporti il consuntivo per cantiere a un click, mostri costi imputati e margine reale, il commercialista prepara il bilancio sulla base di numeri già strutturati.",
+    },
+    {
+      title: "Banche e finanziatori più rassicurati",
+      text: "Quando chiedi un fido o presenti un business plan, mostri storico marginalità per tipologia di intervento. La banca vede un'impresa in controllo, non un artigiano spannometrico.",
+    },
+  ],
+
+  featureKicker: "Cosa ottieni davvero",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureRows: [
+    {
+      label: "Margine reale per commessa",
+      value:
+        "Aggregazione automatica di manodopera (timbrature), materiali (DDT), subappalti (SAL), costi indiretti (causali). Margine atteso vs margine reale aggiornato giorno per giorno.",
+    },
+    {
+      label: "Scostamento preventivo / consuntivo",
+      value:
+        "Confronto automatico con il preventivo originale per voce di lavorazione. Evidenza delle voci sotto pressione (es. manodopera +18%, materiali -5%, subappalti +12%).",
+    },
+    {
+      label: "Alert configurabili per soglia",
+      value:
+        "Soglie globali e per voce. Notifiche push, email e Slack quando un cantiere supera la soglia. Configurabili per ruolo (titolare, controller, geometra d'impresa).",
+    },
+    {
+      label: "Importazione automatica DDT e fatture",
+      value:
+        "Lettura automatica di DDT e fatture passive (anche da PDF/email) con riconciliazione sulla commessa giusta. Riduce il ritardo del costo materiali da settimane a giorni.",
+    },
+    {
+      label: "Costo orario CCNL per qualifica",
+      value:
+        "Costo orario reale per qualifica e contratto applicato in automatico. La manodopera entra nel margine con il costo pieno, non con stime ottimistiche.",
+    },
+    {
+      label: "Storico margini per tipologia",
+      value:
+        "Dashboard che mostra marginalità media per tipologia di lavoro (ristrutturazione, costruzione nuova, infissi, copertura). Base di prezzaggio per i prossimi preventivi.",
+    },
+    {
+      label: "Export consuntivo per commercialista",
+      value:
+        "Esporta consuntivo per commessa in formato Excel, CSV o tracciato per TeamSystem, Zucchetti, Datev. Il commercialista parte da dati già imputati, non da bolle Excel.",
+    },
+  ],
+
+  scenarioKicker: "Tre casi reali sul campo",
+  scenarioH2: "Tre situazioni in cui Edilizia in Cloud salva il margine prima che sia troppo tardi.",
+  scenarios: [
+    {
+      title: "Cantiere che sfora il budget materiali al 60%",
+      text:
+        "Il cantiere è al 60% di avanzamento ma ha già consumato l'85% del budget materiali. Ricevi notifica push. Apri il dettaglio: una variante in corso d'opera non era stata formalizzata. Richiami il cliente, formalizzi la variante con addendum firmato online, recuperi 8.500€ di margine.",
+    },
+    {
+      title: "Subappaltatore con DURC scaduto",
+      text:
+        "Stai per pagare un SAL al subappaltatore. Il sistema blocca il pagamento perché il DURC è scaduto. Eviti il rischio di responsabilità solidale (art. 29 D.Lgs 276/2003), richiedi DURC aggiornato, paghi solo dopo verifica.",
+    },
+    {
+      title: "Nuovo preventivo per intervento già fatto",
+      text:
+        "Il geometra ti chiede un preventivo per una ristrutturazione 'simile a quella di Via Roma'. Apri lo storico margini di Via Roma: vedi che il margine reale è stato 11% (atteso 18%). Capisci dove hai sbagliato a prezzare e correggi il nuovo preventivo: parti già con +7 punti di margine atteso.",
+    },
+  ],
+
+  testimonialQuote:
+    "Il primo mese ho scoperto che due cantieri stavano marginando metà di quello che pensavo. Ho corretto in corsa: variante firmata su uno, fornitore rinegoziato sull'altro. A fine anno mi sono trovato 24.000€ di margine in più.",
+  testimonialAuthor: "Andrea M.",
+  testimonialRole: "Edil Costruzioni Marchetti, Bologna",
+
+  faqKicker: "Domande frequenti",
+  faqH2: "Quello che un titolare di impresa edile vuole sapere prima di decidere.",
+  faqs: [
+    {
+      q: "Il margine si aggiorna davvero in tempo reale?",
+      a: "Sì. Ogni timbratura GPS, ogni DDT importato, ogni SAL firmato aggiorna immediatamente il consuntivo del cantiere. Il margine reale è ricalcolato a ogni nuovo costo, con un ritardo massimo di pochi minuti tra l'evento e l'aggiornamento dashboard.",
+    },
+    {
+      q: "Come si imputano i costi indiretti (sede, ammortamenti, assicurazioni)?",
+      a: "Definisci un coefficiente di costi indiretti (es. 8%) applicato in automatico alla manodopera diretta di ogni cantiere. Oppure imputi causali specifiche (assicurazione cantiere, sicurezza, fideiussioni) direttamente sulla commessa interessata.",
+    },
+    {
+      q: "Posso confrontare il margine reale con il preventivo originale?",
+      a: "Sì. Ogni commessa nasce dal preventivo accettato (o importato) e mantiene il confronto preventivo/consuntivo per tutta la vita. Vedi scostamento globale e per voce (manodopera, materiali, subappalti, indiretti).",
+    },
+    {
+      q: "Posso configurare alert personalizzati?",
+      a: "Sì. Soglie globali (es. 80% del budget consumato) e per voce (es. materiali +10%). Notifiche push, email e Slack se configurato. Configurabili per ruolo: il titolare riceve tutto, il geometra d'impresa solo i suoi cantieri.",
+    },
+    {
+      q: "I dati sono compatibili con il mio commercialista?",
+      a: "Sì. Edilizia in Cloud esporta consuntivi per commessa in Excel, CSV o tracciati specifici per TeamSystem, Zucchetti, Datev. Il commercialista riceve dati già imputati per centro di costo, non bolle Excel.",
+    },
+    {
+      q: "Quanto costa? Ci sono vincoli contrattuali?",
+      a: "Il modulo Margini Cantiere è incluso nei piani Professional e Business di Edilizia in Cloud. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione soglie e supporto italiano sempre inclusi.",
+    },
+  ],
+
+  internalLinksKicker: "Esplora la piattaforma",
+  internalLinksH2: "Il margine vive collegato a tutto il resto. Ecco come.",
+  internalLinksBody:
+    "Margini Cantiere è il pannello di controllo, ma vive grazie ai dati che entrano da preventivi, gestione cantieri, fatturazione, HR e subappalti. Ecco i moduli e le pagine collegate.",
+  internalLinks: [
+    {
+      to: "/funzionalita/gestione-cantieri",
+      title: "Gestione Cantieri",
+      text: "Avanzamento lavori, timbrature GPS, giornale lavori. Fonte primaria dei dati operativi che alimentano il margine.",
+    },
+    {
+      to: "/funzionalita/preventivi-edilizia",
+      title: "Preventivi Edilizia",
+      text: "Computo metrico, prezzari regionali, listini personalizzati. Definisce la base di confronto del margine atteso.",
+    },
+    {
+      to: "/funzionalita/fatturazione-elettronica",
+      title: "Fatturazione Elettronica SDI",
+      text: "Dalla fattura attiva alla fattura passiva, tutto collegato alla commessa. Cassa reale che entra nel margine.",
+    },
+    {
+      to: "/funzionalita/hr-personale",
+      title: "HR e Personale",
+      text: "Operai, ferie, malattie, presenze, costo orario reale CCNL. Voce manodopera del margine.",
+    },
+    {
+      to: "/funzionalita/gestione-subappalti",
+      title: "Gestione Subappalti",
+      text: "Contratti, SAL, ritenute, DURC. Voce critica del margine che spesso esplode senza controllo.",
+    },
+    {
+      to: "/funzionalita/render-infissi",
+      title: "Render Infissi AI",
+      text: "Per serramentisti: prima/dopo realistico per chiudere preventivi più velocemente con margini più solidi.",
+    },
+    {
+      to: "/funzionalita/render-ristrutturazioni",
+      title: "Render Ristrutturazioni AI",
+      text: "Per imprese di ristrutturazione: prima/dopo sulla foto reale del cliente per migliorare il pricing.",
+    },
+    {
+      to: "/per/imprese-costruzione",
+      title: "Software per Imprese di Costruzione",
+      text: "Tutta la piattaforma orientata alle imprese edili italiane: gestione, controllo, vendita, fatturazione.",
+    },
+    {
+      to: "/prezzi",
+      title: "Prezzi e Piani",
+      text: "Piani trasparenti da 49€/mese. Margini Cantiere è incluso in Professional e Business.",
+    },
+  ],
+
+  finalCtaH2: "Smetti di scoprire i buchi a fine cantiere. Inizia a vederli mentre puoi correggerli.",
+  finalCtaBody:
+    "31 giorni gratuiti per portare Edilizia in Cloud nel controllo dei tuoi cantieri. Setup in 48 ore, alert push automatici sui cantieri a rischio, dashboard margini multi-cantiere e integrazione completa con preventivi, HR e subappalti. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+  finalCtaButton: "Prova gratis 31 giorni",
+  finalCtaMicrocopy: "Setup in 48 ore · Alert push · Dashboard sempre aggiornata",
+
+  stickyCtaLabel: "Prova gratis Margini Cantiere",
+  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+
+  applicationSubCategory: "Construction Cost Control Software",
+
+  relatedBlogSlugs: [
+    "controllo-costi-cantiere-guida",
+    "alternativa-excel-cantieri",
+    "sal-cantiere-come-funziona",
+  ],
+};
 
 export default function MarginiCantiere() {
-  useSEO({
-    title: "Controllo Margini Cantiere in Tempo Reale — Redditività per Commessa | Edilizia in Cloud",
-    description:
-      "Vedi il margine reale di ogni cantiere in tempo reale: costi effettivi vs budget, scostamenti, ore imputate e previsione finale. Non scoprire le perdite solo a lavori finiti.",
-    canonical: "/funzionalita/margini-cantiere",
-    keywords:
-      "margini cantiere controllo, redditività commessa edilizia, controllo costi cantiere real time, margine di commessa software, analisi margini impresa edile, dashboard margini edilizia",
-  });
-
-  return (
-    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
-      <JsonLd
-        id="jsonld-breadcrumb-margini"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
-            {
-              "@type": "ListItem",
-              position: 3,
-              name: "Margini Cantiere",
-              item: "https://www.ediliziaincloud.com/funzionalita/margini-cantiere",
-            },
-          ],
-        }}
-      />
-      <JsonLd
-        id="jsonld-webpage-margini"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "WebPage",
-          name: "Controllo Margini Cantiere in Tempo Reale — Redditività per Commessa",
-          description:
-            "Vedi il margine reale di ogni cantiere in tempo reale: costi effettivi vs budget, scostamenti, ore imputate e previsione finale.",
-          url: "https://www.ediliziaincloud.com/funzionalita/margini-cantiere",
-          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
-          about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
-        }}
-      />
-
-      <LandingNavbar />
-
-      {/* ── HERO ── */}
-      <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto">
-          <span className="inline-block bg-[#F97415]/20 text-[#F97415] text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-[#F97415]/30">
-            FUNZIONALITÀ — MARGINI CANTIERE
-          </span>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-6">
-            Sai davvero quanto stai guadagnando{" "}
-            <span className="text-[#F97415]">su ogni cantiere aperto?</span>
-          </h1>
-          <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Costi effettivi vs budget, scostamenti per categoria, alert automatici e previsione finale — aggiornati in
-            tempo reale. Non aspettare la fine del cantiere per scoprire se sei in perdita.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/demo"
-              className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
-            >
-              Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/funzionalita"
-              className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
-            >
-              Tutte le funzionalità
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PAIN SECTION ── */}
-      <section className="bg-[#f8f9fa] py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
-            Perché tanti titolari scoprono le perdite troppo tardi
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Non è colpa tua — è colpa degli strumenti sbagliati.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {painPoints.map((p) => (
-              <div key={p.title} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                <div className="text-3xl mb-3">{p.emoji}</div>
-                <h3 className="font-bold text-lg text-[#111111] mb-2">{p.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{p.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURES ── */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
-            Il controllo di gestione che ogni impresa edile merita
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Strumenti da controller finanziario, accessibili dal telefono da qualsiasi cantiere.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {features.map((f) => (
-              <div
-                key={f.title}
-                className="flex gap-4 items-start bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100"
-              >
-                <div className="text-3xl flex-shrink-0">{f.emoji}</div>
-                <div>
-                  <h3 className="font-bold text-[#111111] mb-1">{f.title}</h3>
-                  <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── STATS ── */}
-      <section className="bg-[#111111] py-20 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-white mb-12">
-            I numeri parlano chiaro
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((s) => (
-              <div key={s.label} className="text-center">
-                <div className="text-4xl font-extrabold text-[#F97415] mb-2">{s.value}</div>
-                <div className="text-white/70 text-sm">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── TESTIMONIAL ── */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="bg-[#f8f9fa] rounded-2xl p-8 border border-gray-100">
-            <p className="text-lg text-[#111111] italic leading-relaxed mb-6">
-              "Prima controllavo i margini a fine cantiere quando non si poteva fare nulla. Ora li vedo ogni settimana e
-              posso agire subito quando qualcosa non va."
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#F97415]/20 flex items-center justify-center font-bold text-[#F97415]">
-                L
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-[#111111] text-sm">Luca M.</div>
-                <div className="text-gray-400 text-xs">Costruzioni Martinelli, Roma</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── RELATED FEATURES ── */}
-      <section className="bg-[#f8f9fa] py-16 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-xl font-extrabold text-center text-[#111111] mb-8">Esplora altre funzionalità</h2>
-          <div className="flex flex-wrap gap-4 justify-center">
-            {relatedLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-6 py-3 rounded-2xl transition-colors text-sm"
-              >
-                {link.label} <ArrowRight className="w-4 h-4" />
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ── */}
-      <section className="bg-[#111111] py-20 px-4 text-center">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
-            Inizia a controllare i tuoi margini oggi
-          </h2>
-          <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis. Operativo in 48 ore. Cancella quando vuoi.
-          </p>
-          <Link
-            to="/demo"
-            className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
-          >
-            Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </Link>
-        </div>
-      </section>
-
-      {/* ── LEGGI ANCHE ── */}
-      {relatedPosts.length > 0 && (
-        <section className="py-14 px-6 bg-white border-t border-gray-100">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-lg font-bold text-[#111111] mb-6">Leggi anche</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
-              {relatedPosts.map((p) => (
-                <Link key={p.slug} to={`/blog/${p.slug}`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-[#F97415]/40 p-4 transition-all hover:shadow-sm">
-                  <img src={p.coverImage} alt={p.title} className="w-full h-28 object-cover rounded-lg" loading="lazy" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">{p.category}</span>
-                  <span className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2">{p.title}</span>
-                  <span className="text-xs text-[#111111]/50">{p.readTime} min di lettura</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── FAQ ── */}
-      <JsonLd
-        id="jsonld-faq-margini"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Come viene calcolato il margine di un cantiere?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Il margine viene calcolato sottraendo al valore del contratto tutti i costi imputati alla commessa: manodopera (con costo orario per operaio), materiali acquistati, subappalti e costi generali ripartiti. Il sistema aggiorna il margine in tempo reale ad ogni nuova spesa registrata.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso vedere il confronto preventivo vs consuntivo durante i lavori?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Il modulo Margini mostra affiancati il budget preventivato e i costi consuntivati, per ogni voce di costo e per il totale. Vedi subito dove stai scostando dal preventivo e puoi intervenire prima che il problema peggiori.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Ricevo un alert se un cantiere va in perdita?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Edilizia in Cloud invia notifiche automatiche quando il margine di un cantiere scende sotto la soglia che hai impostato (es. margine < 15%). L'alert arriva via app mobile e via email.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso analizzare i margini per tipo di lavoro o per cliente?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. La dashboard margini permette di raggruppare le commesse per categoria di lavoro, per cliente, per zona geografica o per periodo. Puoi identificare quali tipi di cantiere sono più profittevoli per la tua impresa.",
-              },
-            },
-          ],
-        }}
-      />
-      <section className="py-16 px-6 bg-gray-50">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
-            Domande frequenti sul Controllo Margini
-          </h2>
-          <div className="divide-y divide-gray-200">
-            {[
-              {
-                q: "Come viene calcolato il margine di un cantiere?",
-                a: "Il margine viene calcolato sottraendo al valore del contratto tutti i costi imputati: manodopera, materiali, subappalti e costi generali. Il sistema aggiorna il margine in tempo reale ad ogni nuova spesa registrata.",
-              },
-              {
-                q: "Posso vedere il confronto preventivo vs consuntivo durante i lavori?",
-                a: "Sì. Il modulo Margini mostra affiancati budget preventivato e costi consuntivati per ogni voce. Vedi subito dove stai scostando dal preventivo e puoi intervenire prima che il problema peggiori.",
-              },
-              {
-                q: "Ricevo un alert se un cantiere va in perdita?",
-                a: "Sì. Il sistema invia notifiche automatiche quando il margine scende sotto la soglia impostata (es. < 15%). L'alert arriva via app mobile e via email.",
-              },
-              {
-                q: "Posso analizzare i margini per tipo di lavoro o per cliente?",
-                a: "Sì. La dashboard raggruppa le commesse per categoria di lavoro, cliente, zona geografica o periodo. Identifica quali tipi di cantiere sono più profittevoli per la tua impresa.",
-              },
-            ].map((item, i) => (
-              <details key={i} className="py-5 group">
-                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
-                  {item.q}
-                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
-                </summary>
-                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <LandingFooter />
-    </div>
-  );
+  return <FunzionalitaPageTemplate config={config} />;
 }

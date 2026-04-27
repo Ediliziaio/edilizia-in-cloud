@@ -80,6 +80,33 @@ export default function TargetSection() {
             </ul>
           </div>
         </div>
+
+        {/* Anti-personas / disqualifier */}
+        <div
+          className={`mt-10 p-6 md:p-8 rounded-2xl border border-red-200 bg-red-50/40 transition-all duration-700 delay-300 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+          }`}
+        >
+          <h3 className="text-lg md:text-xl font-bold text-red-700 mb-4 flex items-center gap-2">
+            <X className="w-5 h-5" /> Non fa per te se…
+          </h3>
+          <ul className="grid md:grid-cols-2 gap-x-6 gap-y-3">
+            {[
+              "Sei un'agenzia che non lavora con cantieri",
+              "Non ti interessa controllare i margini cantiere per cantiere",
+              "Cerchi solo un foglio Excel più carino",
+              "Vuoi un software gratis: il nostro vale ma costa",
+            ].map((item, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700">
+                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 text-xs text-gray-500 italic">
+            Preferiamo dirtelo subito: meglio un "no" oggi che un cliente insoddisfatto domani.
+          </p>
+        </div>
       </div>
     </section>
   );

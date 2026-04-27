@@ -1,9 +1,37 @@
 import { useState } from "react";
-import { useSEO } from "@/hooks/useSEO";
+import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+
+const DEMO_FAQS = [
+  {
+    q: "Quanto dura la demo?",
+    a: "30 minuti. Ti chiamiamo entro 24 ore lavorative dalla richiesta per fissare la data. La demo è 1-on-1, su Google Meet o Zoom, con un consulente che conosce davvero il cantiere.",
+  },
+  {
+    q: "Devo preparare qualcosa prima?",
+    a: "No. Bastano 5 minuti per dirci come lavori oggi (Excel, Primus, Edilnet, carta) e quanti cantieri segui. Adattiamo la demo alla tua impresa: niente slide pre-confezionate.",
+  },
+  {
+    q: "La demo è davvero gratuita?",
+    a: "Sì. Zero costi, zero impegno. Decidi tu se procedere dopo. Se vuoi provare l'ambiente in autonomia, ti diamo un account di prova senza dover inserire la carta di credito.",
+  },
+  {
+    q: "Cosa vediamo nei 30 minuti?",
+    a: "1) Un cantiere reale con costi, ricavi e margine in tempo reale. 2) La fatturazione SDI con un click. 3) L'app cantiere su smartphone con timbratura GPS. 4) Il cruscotto AI con KPI e alert. 5) Domande tue specifiche sulla tua impresa.",
+  },
+  {
+    q: "Posso portare un collega o il commercialista?",
+    a: "Certo. Puoi invitare fino a 4 persone alla demo (titolare, responsabile cantiere, amministrativa, commercialista). Più persone vedono il software, più velocemente decidi.",
+  },
+  {
+    q: "Cosa succede se decido di partire?",
+    a: "Setup completo in 48 ore lavorative garantite. Ti configuriamo cantieri, anagrafiche, fatture, listini sui tuoi dati. Affiancamento di 30 giorni con Customer Success dedicato in italiano.",
+  },
+];
 
 
 interface FormData {
@@ -14,6 +42,8 @@ interface FormData {
   email: string;
   fatturato: string;
   messaggio: string;
+  privacyConsent: boolean;
+  marketingConsent: boolean;
 }
 
 interface FormErrors {
@@ -23,6 +53,7 @@ interface FormErrors {
   telefono?: string;
   email?: string;
   fatturato?: string;
+  privacyConsent?: string;
 }
 
 export default function Demo() {
@@ -34,6 +65,8 @@ export default function Demo() {
     email: "",
     fatturato: "",
     messaggio: "",
+    privacyConsent: false,
+    marketingConsent: false,
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState(false);
@@ -57,6 +90,7 @@ export default function Demo() {
       newErrors.email = "Email non valida";
     }
     if (!formData.fatturato) newErrors.fatturato = "Campo obbligatorio";
+    if (!formData.privacyConsent) newErrors.privacyConsent = "Devi accettare la Privacy Policy per inviare la richiesta";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -64,7 +98,9 @@ export default function Demo() {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
-    const { name, value } = e.target;
+    const target = e.target as HTMLInputElement;
+    const { name, type } = target;
+    const value = type === "checkbox" ? target.checked : target.value;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
@@ -87,14 +123,65 @@ export default function Demo() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
-      <JsonLd id="jsonld-breadcrumb-demo" data={{
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Demo", "item": "https://www.ediliziaincloud.com/demo" }
-        ]
-      }} />
+      <HubSeoSchema
+        pageName="Demo Gratuita"
+        pagePath="/demo"
+        pageDescription="Richiedi una demo personalizzata di 30 minuti con un esperto edilizia. Setup gratuito, zero impegno."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Demo Gratuita", url: "/demo" },
+        ]}
+      />
+      <JsonLd
+        id="jsonld-contactpage-demo"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "ContactPage",
+          "@id": `${SITE_URL}/demo#contactpage`,
+          url: `${SITE_URL}/demo`,
+          name: "Richiedi una Demo Gratuita — Edilizia in Cloud",
+          description:
+            "Modulo di contatto per richiedere una demo personalizzata di 30 minuti del gestionale edilizia con AI. Risposta entro 24 ore lavorative.",
+          inLanguage: "it-IT",
+          isPartOf: { "@id": `${SITE_URL}/#website` },
+          about: { "@id": `${SITE_URL}/#organization` },
+          mainEntity: { "@id": `${SITE_URL}/#organization` },
+        }}
+      />
+      <JsonLd
+        id="jsonld-service-demo"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "@id": `${SITE_URL}/demo#service`,
+          name: "Demo personalizzata gestionale edilizia",
+          provider: { "@id": `${SITE_URL}/#organization` },
+          areaServed: { "@type": "Country", name: "Italia" },
+          serviceType: "Consulenza pre-vendita software",
+          description:
+            "Demo live 1-on-1 di 30 minuti con consulente specializzato in edilizia. Vediamo insieme cantieri, fatturazione SDI, app mobile e cruscotto AI sulla tua tipologia di impresa.",
+          offers: {
+            "@type": "Offer",
+            price: "0",
+            priceCurrency: "EUR",
+            availability: "https://schema.org/InStock",
+            url: `${SITE_URL}/demo`,
+          },
+        }}
+      />
+      <JsonLd
+        id="jsonld-faq-demo"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "@id": `${SITE_URL}/demo#faq`,
+          mainEntity: DEMO_FAQS.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        }}
+      />
       <LandingNavbar />
 
       {/* Hero */}
@@ -305,6 +392,53 @@ export default function Demo() {
                     />
                   </div>
 
+                  {/* Consensi GDPR */}
+                  <div className="pt-2 border-t border-gray-100 space-y-3">
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-[#111111]/40">
+                      Consensi privacy <span className="text-[#F97415]">(art. 13 GDPR)</span>
+                    </p>
+
+                    {/* Privacy obbligatorio */}
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        name="privacyConsent"
+                        checked={formData.privacyConsent}
+                        onChange={handleChange}
+                        className={`mt-0.5 w-4 h-4 rounded border-2 cursor-pointer accent-[#F97415] flex-shrink-0 ${
+                          errors.privacyConsent ? "border-red-400" : "border-gray-300"
+                        }`}
+                      />
+                      <span className="text-xs text-[#111111]/75 leading-relaxed">
+                        <strong className="text-[#F97415]">*</strong> Ho letto e accetto la{" "}
+                        <Link to="/privacy-policy" target="_blank" rel="noopener" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+                          Privacy Policy
+                        </Link>{" "}
+                        e acconsento al trattamento dei miei dati personali per finalità connesse alla gestione della richiesta di demo (art. 6.1.b GDPR — misura precontrattuale).{" "}
+                        <span className="text-red-500 font-semibold">Obbligatorio</span>
+                      </span>
+                    </label>
+                    {errors.privacyConsent && (
+                      <p className="text-red-500 text-xs ml-7 -mt-1">{errors.privacyConsent}</p>
+                    )}
+
+                    {/* Marketing opzionale */}
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        name="marketingConsent"
+                        checked={formData.marketingConsent}
+                        onChange={handleChange}
+                        className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-[#F97415] flex-shrink-0"
+                      />
+                      <span className="text-xs text-[#111111]/75 leading-relaxed">
+                        Acconsento a ricevere comunicazioni commerciali e promozionali via email/telefono su prodotti, novità ed eventi di Edilizia in Cloud (art. 6.1.a GDPR).{" "}
+                        <span className="text-[#111111]/50">Facoltativo — revocabile in qualsiasi momento.</span>
+                      </span>
+                    </label>
+
+                  </div>
+
                   {/* Submit */}
                   <button
                     type="submit"
@@ -314,8 +448,10 @@ export default function Demo() {
                     Richiedi la Demo Gratuita →
                   </button>
 
-                  <p className="text-center text-[#111111]/40 text-xs pt-1">
-                    I tuoi dati sono al sicuro. Nessuno spam, promesso.
+                  <p className="text-center text-[#111111]/45 text-xs pt-1 leading-relaxed">
+                    Titolare del trattamento: <strong>Domus Group S.r.l.</strong> — Via Aurelio Saffi 29, 20123 Milano.{" "}
+                    Per esercitare i tuoi diritti (accesso, rettifica, cancellazione) scrivi a{" "}
+                    <a href="mailto:privacy@ediliziaincloud.com" className="text-[#F97415] hover:text-[#C94F06] underline">privacy@ediliziaincloud.com</a>.
                   </p>
                 </form>
               </>
@@ -366,13 +502,73 @@ export default function Demo() {
         </div>
       </section>
 
+      {/* Cosa vedi nei 30 minuti */}
+      <section className="py-16 px-6" style={{ background: "#fafafa" }}>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <span
+              className="inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4"
+              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
+            >
+              Agenda della demo
+            </span>
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-3">
+              Cosa vedi davvero nei 30 minuti
+            </h2>
+            <p className="text-[#111111]/55 text-sm md:text-base max-w-2xl mx-auto">
+              Niente slide preconfezionate. Apriamo il software dal vivo sulla tua tipologia di impresa.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              { time: "0–5 min", title: "Capiamo come lavori oggi", desc: "Ci racconti: quanti cantieri segui, che software usi, dove perdi tempo. Personalizziamo la demo sulla tua realtà." },
+              { time: "5–15 min", title: "Cantieri & margini in tempo reale", desc: "Apriamo un cantiere campione: budget, costi, ricavi, margine live. SAL, fasi, foto, giornale lavori. App mobile con timbratura GPS." },
+              { time: "15–22 min", title: "Fatturazione SDI & cassa", desc: "Emetti una fattura elettronica con un click. Vedi il flusso di cassa, lo scadenzario, il forecast a 90 giorni." },
+              { time: "22–28 min", title: "AI & cruscotto direzionale", desc: "Dashboard live con KPI aziendali, alert su cantieri in perdita, suggerimenti AI per ottimizzare margini e tempi." },
+              { time: "28–30 min", title: "Domande tue + numeri reali", desc: "Tempi di implementazione sul tuo caso, costo esatto, condizioni contrattuali. Nessun obbligo: decidi con calma." },
+            ].map((s, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-all">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#F97415] mb-2">{s.time}</div>
+                <h3 className="font-bold text-[#111111] text-base mb-1.5">{s.title}</h3>
+                <p className="text-[#111111]/60 text-sm leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Demo */}
+      <section className="py-16 px-6 bg-white">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-3">
+              Domande frequenti sulla demo
+            </h2>
+            <p className="text-[#111111]/55 text-sm">Risposte rapide alle domande più ricorrenti.</p>
+          </div>
+          <div className="space-y-3">
+            {DEMO_FAQS.map((f, i) => (
+              <details key={i} className="group bg-[#fafafa] rounded-xl border border-gray-100 overflow-hidden">
+                <summary className="cursor-pointer px-5 py-4 font-bold text-[#111111] text-sm md:text-base list-none flex items-center justify-between gap-4">
+                  <span>{f.q}</span>
+                  <span className="text-[#F97415] text-xl flex-shrink-0 group-open:rotate-45 transition-transform">+</span>
+                </summary>
+                <div className="px-5 pb-5 text-[#111111]/65 text-sm leading-relaxed">
+                  {f.a}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Social Proof Bar */}
       <section
         style={{ background: "linear-gradient(90deg, #111111 0%, #111111 100%)" }}
         className="py-6 px-6"
       >
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-center gap-4 md:gap-10 text-white/80 text-sm font-medium text-center">
-          <span>150+ imprese gia ci hanno scelto</span>
+          <span>150+ imprese edili italiane ci hanno scelto</span>
           <span className="hidden md:block text-white/30">|</span>
           <span>4.9/5 soddisfazione media</span>
           <span className="hidden md:block text-white/30">|</span>

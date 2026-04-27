@@ -5,6 +5,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 
 // ── Dati del glossario ────────────────────────────────────────────────────────
 interface GlossaryTerm {
@@ -104,6 +105,15 @@ export default function Glossario() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111]">
+      <HubSeoSchema
+        pageName="Glossario Edilizia"
+        pagePath="/glossario-edilizia"
+        pageDescription="Glossario di termini tecnici dell'edilizia: SAL, DURC, cassa edile, F24, sicurezza cantieri, contabilità di commessa."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Glossario Edilizia", url: "/glossario-edilizia" },
+        ]}
+      />
 
       {/* Structured Data */}
       <JsonLd id="jsonld-breadcrumb-glossario" data={{

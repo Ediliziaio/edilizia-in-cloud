@@ -1,395 +1,495 @@
-import { useSEO } from "@/hooks/useSEO";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { Link } from "react-router-dom";
-import LandingNavbar from "@/components/landing/LandingNavbar";
-import LandingFooter from "@/components/landing/LandingFooter";
-import { blogPosts } from "@/data/blogPosts";
-import { ArrowRight } from "lucide-react";
+import {
+  AlertTriangle,
+  BadgeCheck,
+  Bell,
+  CheckCircle2,
+  ClipboardCheck,
+  ClipboardList,
+  Database,
+  FileSignature,
+  FileText,
+  HardHat,
+  HandCoins,
+  LineChart,
+  Lock,
+  Mail,
+  PieChart,
+  Receipt,
+  Scale,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Timer,
+  TrendingUp,
+  UserCheck,
+  Users,
+  Wallet,
+  Wrench,
+  Zap,
+} from "lucide-react";
+import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
+import type { FunzionalitaPageConfig } from "./_template/types";
 
-const RELATED_SLUGS = [
-  "gestione-subappaltatori-impresa-edile",
-  "subappalto-edilizia-guida",
-  "durc-edilizia-guida-completa",
-  "appalti-pubblici-edilizia-guida",
-];
-const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
+const config: FunzionalitaPageConfig = {
+  slug: "gestione-subappalti",
+  vertical: "Gestione Subappalti",
+  productName: "Modulo Gestione Subappalti Edilizia in Cloud",
+  audience: "General contractor, imprese edili, ristrutturatori, capi cantiere, controller di cantiere, geometri d'impresa",
+  audienceShort: "general contractor e imprese edili",
 
-const painPoints = [
-  {
-    emoji: "📂",
-    title: "Il DURC del subappaltatore scade e non te ne accorgi",
-    desc: "La stazione appaltante blocca il pagamento del SAL perché un tuo subappaltatore ha il DURC scaduto. Succede più spesso di quanto pensi.",
+  seo: {
+    title:
+      "Gestione Subappalti Edilizia — Software Contratti, SAL, Ritenute, DURC | Edilizia in Cloud",
+    description:
+      "Gestisci subappaltatori, contratti, SAL, ritenute (4% INPS), DURC e fatture passive in un unico modulo. Alert automatico su DURC scaduti, blocco pagamenti non conformi, conformità responsabilità solidale art. 29 D.Lgs 276/2003.",
+    keywords:
+      "gestione subappalti software, software subappalti edilizia, ritenuta 4% INPS subappalto, DURC subappaltatore, SAL subappalto edilizia, responsabilità solidale subappalto, fatture passive cantiere, contratto subappalto edile, controllo subappaltatori",
+    ogImage: "https://www.ediliziaincloud.com/og/gestione-subappalti-og.jpg",
   },
-  {
-    emoji: "⚖️",
-    title: "Rischi la responsabilità solidale senza saperlo",
-    desc: "Se il tuo subappaltatore non paga i contributi dei suoi operai, l'INPS può rivalersi su di te. La tutela è verificare il DURC prima di ogni pagamento.",
-  },
-  {
-    emoji: "📋",
-    title: "I contratti di subappalto sono in ordine sparso",
-    desc: "Contratti, POS, polizze e autorizzazioni dei subappaltatori conservate in cartelle diverse, PC diversi, email diverse. Quando servono, non si trovano.",
-  },
-  {
-    emoji: "💰",
-    title: "Non sai quanto stai pagando in totale a ogni subappaltatore",
-    desc: "Con più cantieri aperti e più subappaltatori, perdere il filo dei pagamenti è facile. Rischi di pagare due volte o di perdere scadenze contrattuali.",
-  },
-];
 
-const features = [
-  {
-    emoji: "🗂️",
-    title: "Registro digitale subappaltatori",
-    desc: "Anagrafica completa di ogni subappaltatore: PIVA, DURC, SOA, polizza RC, referente, cantieri assegnati. Tutto in un unico posto sempre aggiornato.",
-  },
-  {
-    emoji: "🔔",
-    title: "Alert automatici scadenze DURC e polizze",
-    desc: "Ricevi notifiche 60, 30 e 15 giorni prima della scadenza di DURC, polizze assicurative e attestazioni SOA. Zero sorprese, zero blocchi.",
-  },
-  {
-    emoji: "📄",
-    title: "Contratti digitali e documentazione cantiere",
-    desc: "Carica e archivia contratti di subappalto, POS, autorizzazioni e verbali direttamente nel profilo del subappaltatore, collegato al cantiere.",
-  },
-  {
-    emoji: "💳",
-    title: "Tracciamento pagamenti con verifica DURC",
-    desc: "Ogni pagamento al subappaltatore viene registrato con verifica automatica della regolarità DURC al momento del pagamento. Sei protetto dalla responsabilità solidale.",
-  },
-  {
-    emoji: "🏛️",
-    title: "Documentazione per appalti pubblici",
-    desc: "Genera automaticamente la documentazione per l'autorizzazione dei subappaltatori negli appalti PNRR e pubblici: dichiarazioni, DURC, iscrizione CCIAA.",
-  },
-  {
-    emoji: "📊",
-    title: "Report costi subappalto per cantiere",
-    desc: "Riepilogo di tutti i costi subappalto per commessa, con confronto rispetto al preventivo. I costi di subappalto entrano nel calcolo del margine reale.",
-  },
-];
+  heroBadge: "Funzionalità · Gestione Subappalti",
+  heroH1Lead: "Gestisci subappaltatori, SAL, DURC e ritenute",
+  heroH1Highlight: "senza Excel paralleli",
+  heroH1Tail: "e senza rischi di responsabilità solidale",
+  heroSubheadline:
+    "Contratti subappalto, SAL firmati online, ritenuta 4% INPS calcolata in automatico, DURC tracciati con alert prima della scadenza, fatture passive collegate alla commessa giusta. Smetti di rischiare la responsabilità solidale e di pagare subappaltatori non conformi.",
+  heroPrimaryCta: "Prova gratis 31 giorni",
+  heroSecondaryCta: "Tutte le funzionalità",
+  heroSecondaryCtaTo: "/funzionalita",
 
-const stats = [
-  { value: "0", label: "blocchi SAL per DURC subappaltatori scaduti" },
-  { value: "-100%", label: "rischio responsabilità solidale non gestita" },
-  { value: "45gg", label: "di anticipo sulle scadenze documentali" },
-  { value: "4.9/5", label: "soddisfazione imprese con 5+ subappaltatori" },
-];
+  reassurancePoints: ["Setup in 48 ore", "DURC tracciato automaticamente", "Conformità responsabilità solidale"],
+  proofPoints: [
+    "Ritenuta 4% INPS automatica",
+    "Alert DURC in scadenza",
+    "Blocca pagamenti non conformi",
+  ],
 
-const relatedLinks = [
-  { to: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
-  { to: "/funzionalita/hr-personale", label: "HR & Personale" },
-  { to: "/funzionalita/margini-cantiere", label: "Margini Cantiere" },
-];
+  objectiveRow: [
+    ["Obiettivo", "Pagare i subappaltatori giusti, al momento giusto, con i documenti giusti"],
+    ["Momento chiave", "Firma contratto, approvazione SAL, fattura passiva, DURC"],
+    ["Risultato", "Zero rischio di responsabilità solidale, margine subappalti difeso"],
+  ],
+
+  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per gestire subappaltatori senza rischi.",
+  betaBody:
+    "Il modulo Gestione Subappalti è il presidio di compliance del cantiere: lo attiviamo in 48 ore, importiamo l'anagrafica subappaltatori e i contratti aperti, configuriamo il flusso DURC con i tuoi enti (Cassa Edile, INPS, INAIL) e ti accompagniamo in 4 sessioni 1-a-1 fino a quando ogni SAL passa con DURC verificato e ritenuta calcolata in automatico.",
+
+  speedH2: "Il subappalto non è solo un costo: è un rischio legale che vivi ogni giorno.",
+  speedSubheadline:
+    "L'art. 29 del D.Lgs 276/2003 rende il committente solidalmente responsabile per i debiti retributivi e contributivi del subappaltatore. Significa che se il tuo subappaltatore non paga gli operai o i contributi, lo paghi tu. Edilizia in Cloud ti protegge bloccando i pagamenti quando manca un DURC o quando una ritenuta non è stata applicata.",
+  speedStats: [
+    { value: 100, suffix: "%", label: "DURC verificati prima del pagamento SAL" },
+    { value: 80, prefix: "-", suffix: "%", label: "tempo amministrativo dedicato ai subappalti" },
+    { value: 0, suffix: "", label: "rischio di responsabilità solidale per DURC scaduti" },
+  ],
+
+  familyH2: "Tutta la piattaforma Edilizia in Cloud collegata ai subappalti.",
+  familySubheadline:
+    "Il subappalto non è un foglio Excel a parte: è una parte centrale del cantiere, del margine, della fatturazione passiva e della compliance fiscale. Edilizia in Cloud lo collega a tutto il resto, così ogni SAL approvato è già il costo della commessa, già la fattura passiva, già il margine aggiornato.",
+  familyItems: [
+    {
+      icon: Wrench,
+      title: "Gestione Subappalti",
+      text: "Contratti, SAL, ritenute, DURC e fatture passive subappaltatori in un unico modulo conforme.",
+      to: "/funzionalita/gestione-subappalti",
+    },
+    {
+      icon: HardHat,
+      title: "Gestione Cantieri",
+      text: "Avanzamento lavori, timbrature GPS, giornale lavori. I SAL subappalto si firmano sul cantiere giusto.",
+      to: "/funzionalita/gestione-cantieri",
+    },
+    {
+      icon: Wallet,
+      title: "Margini Cantiere",
+      text: "Margine reale per commessa. La voce subappalti entra nel margine il giorno del SAL, non della fattura.",
+      to: "/funzionalita/margini-cantiere",
+    },
+    {
+      icon: ClipboardList,
+      title: "Preventivi Edilizia",
+      text: "Computo metrico con voci di subappalto e margine atteso. Base di confronto per il SAL reale.",
+      to: "/funzionalita/preventivi-edilizia",
+    },
+    {
+      icon: Receipt,
+      title: "Fatturazione Elettronica SDI",
+      text: "Fatture passive subappalto importate e collegate alla commessa, ritenuta 4% applicata in automatico.",
+      to: "/funzionalita/fatturazione-elettronica",
+    },
+    {
+      icon: Users,
+      title: "HR e Personale",
+      text: "Operai diretti gestiti fianco a fianco con manodopera in subappalto. Costo orario reale per cantiere.",
+      to: "/funzionalita/hr-personale",
+    },
+  ],
+  familyBonusTitle: "Una sola piattaforma. Un solo abbonamento. Sei moduli che ti proteggono.",
+  familyBonusText:
+    "Quando contratto subappalto, SAL, ritenuta, DURC, fattura passiva e margine vivono nello stesso strumento, smetti di rischiare omissioni. Il sistema blocca i pagamenti se manca un documento, applica la ritenuta in automatico e tiene tutto pronto per un'eventuale ispezione. Senza file Excel paralleli, senza dimenticanze.",
+
+  painKicker: "Il problema vero",
+  painH2: "Pagare un subappaltatore senza DURC ti rende solidalmente responsabile dei suoi debiti.",
+  painSubheadline:
+    "I subappalti sono la voce di spesa più rischiosa di un'impresa edile: tra responsabilità solidale (art. 29 D.Lgs 276/2003), ritenuta 4% INPS, DURC obbligatorio, asseverazione congruità manodopera (D.L. 76/2020), il margine di errore amministrativo è zero. Una fattura pagata senza DURC verificato vale potenzialmente decine di migliaia di euro di contestazioni.",
+  painPoints: [
+    {
+      icon: ShieldAlert,
+      title: "Responsabilità solidale per debiti retributivi e contributivi",
+      text: "Se paghi un subappaltatore che non versa contributi INPS o stipendi agli operai, ne rispondi tu come committente (art. 29 D.Lgs 276/2003). Significa potenzialmente decine di migliaia di euro di passività su un subappalto da 30.000€.",
+    },
+    {
+      icon: AlertTriangle,
+      title: "DURC scaduti e non rinnovati",
+      text: "Il DURC ha validità 4 mesi, dopo va richiesto di nuovo. Se il tuo subappaltatore ti consegna un DURC scaduto e tu paghi, non hai protezione. Senza tracciamento sistematico, il rischio è settimanale.",
+    },
+    {
+      icon: HandCoins,
+      title: "Ritenuta 4% INPS calcolata male o dimenticata",
+      text: "Il committente deve trattenere il 4% del netto fattura subappaltatore e versarlo all'INPS (art. 35 D.L. 223/2006). Calcolata male o non versata? Sanzioni amministrative e penali fino al 30% dell'importo.",
+    },
+    {
+      icon: FileText,
+      title: "Excel paralleli per contratti, SAL e fatture",
+      text: "Excel contratti, Excel SAL, Excel ritenute, archivio DURC su Dropbox, fatture passive nella cartella del commercialista. 5 fonti diverse mai allineate, riconciliate manualmente quando arriva un'ispezione.",
+    },
+  ],
+
+  baKicker: "Prima e dopo Edilizia in Cloud",
+  baH2: "Stessi subappaltatori, stessi contratti, stesso CCNL. Cambia il presidio di compliance.",
+  baSubheadline:
+    "I subappalti non si gestiscono per affetto né per fiducia: si gestiscono per documenti. Quando contratti, SAL, DURC e ritenute vivono in un solo strumento, smetti di rischiare e cominci a pagare con tranquillità.",
+  baAreas: [
+    {
+      title: "Contratti subappalto",
+      before:
+        "Word generico copiato da un vecchio contratto, modificato a mano, firmato in cartaceo, archiviato sulla cartella di rete. Quando il cliente o l'ispettore lo chiede, lo cerchi mezza giornata.",
+      after:
+        "Template contratto subappalto conforme (con clausole su responsabilità solidale, ritenuta 4%, DURC obbligatorio), firmato elettronicamente dal subappaltatore, archiviato in cloud con marca temporale.",
+    },
+    {
+      title: "Approvazione SAL subappalto",
+      before:
+        "Subappaltatore presenta un Word con il SAL, capocantiere lo approva a voce, l'amministrazione lo digita su Excel, ci si accorge dopo che le quantità sono diverse dal contratto.",
+      after:
+        "SAL strutturato sulle voci del contratto, approvazione digitale del DL e capocantiere, confronto automatico con stato avanzamento del cantiere e con le quantità contrattuali. Niente più sorprese.",
+    },
+    {
+      title: "DURC e ritenuta 4%",
+      before:
+        "DURC richiesto manualmente quando ti ricordi, archiviato come PDF, ritenuta 4% calcolata a mano dal commercialista. Il rischio di pagare senza DURC valido è una bomba a orologeria settimanale.",
+      after:
+        "DURC tracciato in automatico, alert push prima della scadenza, blocco pagamento se DURC non è valido. Ritenuta 4% calcolata automaticamente in fattura passiva, tracciata per F24 mensile.",
+    },
+    {
+      title: "Fatture passive e margine",
+      before:
+        "Fattura subappaltatore arriva all'amministrazione, viene caricata su un Excel, riconciliata col SAL settimane dopo, imputata al cantiere giusto se il commercialista se lo ricorda.",
+      after:
+        "Fattura passiva ricevuta via SDI, riconciliata automaticamente con il SAL, imputata alla commessa giusta, ritenuta 4% applicata in automatico, costo subappalto già nel margine reale del cantiere.",
+    },
+  ],
+
+  mechanismKicker: "Come funziona",
+  mechanismH2: "Tre passaggi, niente Excel paralleli, niente call di ricordo al commercialista.",
+  mechanismSubheadline:
+    "Il modulo Subappalti è progettato per chi gestisce 5, 10, 30 subappaltatori in parallelo su più cantieri. La logica è: contratto → SAL → DURC → fattura → ritenuta. Tutto in un solo flusso, tutto tracciato, tutto conforme.",
+  mechanismSteps: [
+    {
+      icon: FileSignature,
+      title: "Contratto subappalto firmato online dal subappaltatore",
+      text: "Generi il contratto subappalto con template conforme (clausole su responsabilità solidale, ritenuta 4%, DURC obbligatorio, asseverazione congruità manodopera). Il subappaltatore firma online dal telefono, archivio cloud con marca temporale.",
+    },
+    {
+      icon: ClipboardCheck,
+      title: "Il SAL è approvato solo se DURC è valido",
+      text: "Il subappaltatore presenta SAL dall'app, capocantiere e DL approvano digitalmente. Il sistema verifica automaticamente la validità del DURC: se manca o è scaduto, il SAL non passa allo step successivo.",
+    },
+    {
+      icon: HandCoins,
+      title: "Fattura passiva con ritenuta 4% in automatico",
+      text: "La fattura passiva arriva via SDI, viene riconciliata col SAL approvato, imputata alla commessa, applica ritenuta 4% INPS in automatico. Il pagamento parte solo dopo verifica DURC e calcolo ritenuta.",
+    },
+  ],
+  mechanismCta: "Prova Subappalti sul tuo prossimo cantiere",
+
+  commercialKicker: "Perché conviene davvero",
+  commercialH2: "Non un software amministrativo. Una scudo legale e finanziario per la tua impresa.",
+  commercialBody:
+    "I subappalti generano in media il 25-50% del costo di una commessa edile. Tra rischio responsabilità solidale, ritenute non versate e DURC scaduti, una sola omissione può costarti decine di migliaia di euro di sanzioni e contestazioni. Edilizia in Cloud trasforma il presidio di compliance in un automatismo, non in una preoccupazione.",
+  commercialLevers: [
+    {
+      icon: ShieldCheck,
+      title: "Conformità responsabilità solidale",
+      text: "Sistema progettato per art. 29 D.Lgs 276/2003 e successive modifiche. Verifica DURC prima di ogni pagamento, traccia ritenuta 4% INPS, conserva contratti firmati e SAL approvati a valore probatorio.",
+    },
+    {
+      icon: Lock,
+      title: "Blocco pagamenti non conformi",
+      text: "Se manca un DURC valido, se la ritenuta non è applicata, se il SAL non è firmato dal DL, il sistema blocca il pagamento. Tu non rischi di pagare una fattura non conforme nemmeno per distrazione.",
+    },
+    {
+      icon: Bell,
+      title: "Alert DURC e congruità manodopera",
+      text: "Notifica push 30 giorni prima della scadenza DURC, alert automatico sull'asseverazione congruità manodopera (D.L. 76/2020) e sulla verifica ANAC dei subappaltatori per appalti pubblici.",
+    },
+    {
+      icon: Target,
+      title: "Margine subappalti difeso",
+      text: "Il SAL approvato entra nel margine reale della commessa il giorno della firma, non il giorno della fattura. Lo scostamento sul preventivo subappalto si vede in tempo reale, non a fine cantiere.",
+    },
+  ],
+
+  resultsKicker: "Risultati con Edilizia in Cloud",
+  resultsH2: "I subappalti smettono di essere un rischio. Diventano un sistema gestito.",
+  resultsBody:
+    "Quando i subappalti vivono nello stesso strumento di cantieri, margini, fatturazione e HR, smetti di gestire l'amministrazione 'a sentimento'. Vedi tutto da una dashboard, paghi senza ansia, comunichi al commercialista dati strutturati, dormi tranquillo davanti a un'ispezione.",
+  integrationPillars: [
+    {
+      icon: FileSignature,
+      title: "Anagrafica subappaltatori e contratti",
+      text: "Anagrafica completa: P.IVA, sede legale, REA, CCNL applicato, codice univoco fatturazione. Contratti subappalto firmati elettronicamente, archivio con marca temporale.",
+    },
+    {
+      icon: ClipboardCheck,
+      title: "SAL strutturato e firmato online",
+      text: "SAL costruito sulle voci del contratto, percentuale di avanzamento, foto a corredo, firma digitale del DL. Confronto automatico con avanzamento cantiere e con le quantità contrattuali.",
+    },
+    {
+      icon: BadgeCheck,
+      title: "DURC e congruità manodopera tracciati",
+      text: "Validità DURC monitorata, alert push 30 giorni prima della scadenza, blocco pagamento se scaduto. Asseverazione congruità manodopera (D.L. 76/2020) tracciata per appalti pubblici sopra soglia.",
+    },
+    {
+      icon: HandCoins,
+      title: "Ritenuta 4% INPS automatica",
+      text: "Calcolata sul netto fattura subappaltatore, tracciata per versamento F24 mensile, esportabile per il commercialista. Mai più sanzioni per ritenute dimenticate o calcolate male.",
+    },
+  ],
+  resultStats: [
+    { value: 100, suffix: "%", label: "DURC verificati prima di ogni pagamento SAL" },
+    { value: 0, suffix: " €", label: "ritenute 4% dimenticate dopo l'attivazione" },
+    { value: 80, prefix: "-", suffix: "%", label: "tempo amministrativo subappalti" },
+  ],
+  resultsCta: "Apri la dashboard Subappalti",
+
+  roiKicker: "Calcola il tuo ROI",
+  roiH2: "Quanto vale evitare un'unica contestazione di responsabilità solidale?",
+  roiSubheadline:
+    "Sposta i cursori sulla tua realtà: numero di subappaltatori attivi e volume medio annuo per subappaltatore. La stima parte dal recupero del 2% di margine medio (DURC scaduti pagati, ritenute dimenticate, contestazioni evitate) osservato nei nostri clienti.",
+  roi: {
+    input1Label: "Subappaltatori attivi",
+    input1Default: 8,
+    input1Min: 1,
+    input1Max: 100,
+    input1Step: 1,
+    input2Label: "Volume medio annuo per subappaltatore",
+    input2Default: 60000,
+    input2Min: 5000,
+    input2Max: 500000,
+    input2Step: 5000,
+    input2Suffix: " €",
+    outputLabel: "Rischio evitato + margine recuperato/anno",
+    computeOutput: (a, b) => Math.round(a * b * 0.02),
+    computeSecondary: (a, b) => [
+      { label: "Volume subappalti gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * b) },
+      { label: "Ritenuta 4% gestita/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * b * 0.04) },
+      { label: "DURC verificati/anno", value: `${a * 4}` },
+      { label: "Ore amministrative risparmiate", value: `${Math.round(a * 24)} h` },
+    ],
+    closingPitch:
+      "Stima prudenziale basata su 2% di rischio/margine recuperato. Una sola contestazione di responsabilità solidale evitata vale potenzialmente 10-50x l'abbonamento di un anno.",
+  },
+
+  salesKicker: "Impatto operativo",
+  salesH2: "Non un modulo amministrativo. Un sistema di protezione e di controllo del subappalto.",
+  salesBody:
+    "I subappalti sono il punto di rottura più frequente delle PMI edili: rischio legale, costo opaco, amministrazione frammentata. Quando il sistema gestisce in automatico DURC, ritenute, SAL e fatture passive, smetti di temere ispezioni e cominci a vedere il subappalto come una leva di margine, non come una bomba.",
+  salesImpact: [
+    {
+      title: "Compliance senza ansia",
+      text: "DURC verificato a ogni pagamento, ritenuta 4% applicata in automatico, congruità manodopera tracciata. Quando arriva un'ispezione INPS o ITL, esporti tutto in 5 minuti.",
+    },
+    {
+      title: "Trattative con subappaltatori più solide",
+      text: "Hai dati storici per tipologia di lavoro: chi marginava bene, chi sforava, chi consegnava in tempo. Le prossime trattative si fanno sui numeri, non sulla buona fede.",
+    },
+    {
+      title: "Cassa più prevedibile",
+      text: "I pagamenti subappalto sono pianificati su SAL approvati, fatture ricevute, DURC validi. Niente più sorprese di cassa per fatture dimenticate o accelerate dal subappaltatore.",
+    },
+    {
+      title: "Margine subappalti monitorato",
+      text: "Lo scostamento tra subappalto preventivato e SAL reali si vede in tempo reale. Quando un subappaltatore sfora del 20%, lo intercetti subito, non a chiusura cantiere.",
+    },
+  ],
+
+  featureKicker: "Cosa ottieni davvero",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureRows: [
+    {
+      label: "Anagrafica subappaltatori completa",
+      value:
+        "P.IVA, sede legale, REA, CCNL applicato, codice univoco SDI, IBAN. Storico contratti, SAL, fatture e DURC consultabili in un click.",
+    },
+    {
+      label: "Contratti subappalto firmabili online",
+      value:
+        "Template conformi (responsabilità solidale, ritenuta 4%, DURC, asseverazione congruità manodopera). Firma elettronica del subappaltatore, archivio cloud con marca temporale.",
+    },
+    {
+      label: "SAL strutturato e approvazione digitale",
+      value:
+        "SAL costruito sulle voci del contratto, foto a corredo, percentuali di avanzamento, firma digitale del DL e del capocantiere. Confronto automatico con stato cantiere.",
+    },
+    {
+      label: "Tracciamento DURC e alert scadenze",
+      value:
+        "Validità DURC monitorata in automatico, alert push 30 giorni prima della scadenza, blocco pagamenti se DURC è scaduto o non valido.",
+    },
+    {
+      label: "Ritenuta 4% INPS automatica",
+      value:
+        "Calcolata sul netto fattura, tracciata per versamento F24 mensile, esportabile per il commercialista. Conformità art. 35 D.L. 223/2006.",
+    },
+    {
+      label: "Fatture passive collegate alla commessa",
+      value:
+        "Fatture ricevute via SDI riconciliate automaticamente col SAL, imputate alla commessa giusta, integrate nel margine reale del cantiere senza data entry manuale.",
+    },
+    {
+      label: "Asseverazione congruità manodopera",
+      value:
+        "Tracciamento dell'asseverazione congruità manodopera (D.L. 76/2020) per appalti pubblici sopra soglia. Alert sui subappalti che richiedono asseverazione CNCE-EdilConnect.",
+    },
+  ],
+
+  scenarioKicker: "Tre casi reali sul campo",
+  scenarioH2: "Tre situazioni in cui Edilizia in Cloud ti protegge da un rischio reale.",
+  scenarios: [
+    {
+      title: "Stai per pagare un SAL e il DURC è scaduto",
+      text:
+        "Apri il pagamento SAL del subappaltatore Rossi Edilizia. Il sistema blocca: il DURC è scaduto da 6 giorni. Notifica push, email automatica al subappaltatore per richiedere DURC aggiornato. Niente pagamento finché DURC non è valido. Eviti la responsabilità solidale.",
+    },
+    {
+      title: "Ispezione INPS sui subappalti degli ultimi 12 mesi",
+      text:
+        "L'ispettore chiede contratti, SAL, DURC e ritenute degli ultimi 12 mesi per 6 subappaltatori. Apri il modulo, esporti il dossier in PDF firmato in 3 minuti: contratti firmati, SAL approvati, DURC al momento del pagamento, ritenute versate. L'ispezione si chiude senza rilievi.",
+    },
+    {
+      title: "Subappaltatore presenta SAL gonfiato",
+      text:
+        "Il subappaltatore Bianchi presenta un SAL del 40% di avanzamento. Il sistema confronta con lo stato del cantiere registrato dal capocantiere: in realtà il lavoro è al 28%. Il DL approva solo per la quota reale. Eviti di pagare 4.500€ in più per lavori non fatti.",
+    },
+  ],
+
+  testimonialQuote:
+    "Tre anni fa ho pagato un SAL a un subappaltatore che poi non ha versato i contributi. L'INPS è venuta da me. Ora con Edilizia in Cloud ogni pagamento parte solo se il DURC è valido. Non rischio più nulla, e il commercialista riceve dati già pronti per il F24.",
+  testimonialAuthor: "Roberto F.",
+  testimonialRole: "Costruzioni Ferrari & C., Milano",
+
+  faqKicker: "Domande frequenti",
+  faqH2: "Quello che un titolare di impresa edile vuole sapere prima di decidere.",
+  faqs: [
+    {
+      q: "Il sistema verifica davvero il DURC prima di ogni pagamento?",
+      a: "Sì. La validità DURC è una condizione bloccante per autorizzare il pagamento del SAL e della fattura passiva. Se il DURC è scaduto o non valido, il sistema blocca il pagamento e invia notifica al subappaltatore per richiedere il documento aggiornato. Tu sei automaticamente protetto rispetto all'art. 29 D.Lgs 276/2003.",
+    },
+    {
+      q: "La ritenuta 4% INPS è calcolata in automatico?",
+      a: "Sì. La ritenuta 4% (art. 35 D.L. 223/2006) viene calcolata automaticamente sul netto fattura del subappaltatore, tracciata per il versamento F24 mensile e resa esportabile per il commercialista. Mai più sanzioni per ritenute dimenticate o calcolate male.",
+    },
+    {
+      q: "Posso firmare i contratti subappalto online?",
+      a: "Sì. Edilizia in Cloud genera contratti subappalto su template conforme (con clausole su responsabilità solidale, ritenuta 4%, DURC obbligatorio, asseverazione congruità manodopera) firmabili elettronicamente dal subappaltatore. Archivio cloud con marca temporale a valore legale.",
+    },
+    {
+      q: "Gestisce l'asseverazione congruità manodopera (D.L. 76/2020)?",
+      a: "Sì. Per appalti pubblici sopra soglia, il sistema traccia l'asseverazione congruità manodopera CNCE-EdilConnect e blocca il pagamento se l'asseverazione non è presente. Compatibile con i flussi di Cassa Edile e CNCE.",
+    },
+    {
+      q: "I dati sono compatibili con il mio commercialista?",
+      a: "Sì. Edilizia in Cloud esporta dossier subappalto (contratto, SAL, DURC, fatture passive, ritenute) in PDF firmato e tracciati per TeamSystem, Zucchetti, Datev. Il commercialista riceve dati già strutturati per il versamento F24 della ritenuta 4%.",
+    },
+    {
+      q: "Quanto costa? Ci sono vincoli contrattuali?",
+      a: "Il modulo Gestione Subappalti è incluso nei piani Professional e Business di Edilizia in Cloud. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione DURC e supporto italiano sempre inclusi.",
+    },
+  ],
+
+  internalLinksKicker: "Esplora la piattaforma",
+  internalLinksH2: "I subappalti vivono collegati a tutto il resto. Ecco come.",
+  internalLinksBody:
+    "Gestione Subappalti è il presidio di compliance, ma vive grazie ai dati che entrano da preventivi, cantieri, margini, HR e fatturazione. Ecco i moduli e le pagine collegate.",
+  internalLinks: [
+    {
+      to: "/funzionalita/gestione-cantieri",
+      title: "Gestione Cantieri",
+      text: "Avanzamento lavori, timbrature GPS, giornale lavori. I SAL subappalto si firmano sul cantiere giusto.",
+    },
+    {
+      to: "/funzionalita/margini-cantiere",
+      title: "Margini Cantiere",
+      text: "Margine reale per commessa. La voce subappalti entra nel margine il giorno del SAL approvato.",
+    },
+    {
+      to: "/funzionalita/preventivi-edilizia",
+      title: "Preventivi Edilizia",
+      text: "Computo metrico con voci di subappalto e margine atteso. Base di confronto per il SAL reale.",
+    },
+    {
+      to: "/funzionalita/fatturazione-elettronica",
+      title: "Fatturazione Elettronica SDI",
+      text: "Fatture passive subappalto importate via SDI, ritenuta 4% applicata in automatico.",
+    },
+    {
+      to: "/funzionalita/hr-personale",
+      title: "HR e Personale",
+      text: "Operai diretti gestiti fianco a fianco con manodopera in subappalto. Costo orario reale per cantiere.",
+    },
+    {
+      to: "/funzionalita/render-infissi",
+      title: "Render Infissi AI",
+      text: "Per serramentisti: prima/dopo realistico per chiudere preventivi più velocemente.",
+    },
+    {
+      to: "/funzionalita/render-ristrutturazioni",
+      title: "Render Ristrutturazioni AI",
+      text: "Per imprese di ristrutturazione: prima/dopo sulla foto reale del cliente.",
+    },
+    {
+      to: "/per/imprese-costruzione",
+      title: "Software per Imprese di Costruzione",
+      text: "Tutta la piattaforma orientata alle imprese edili italiane: gestione, controllo, vendita, fatturazione.",
+    },
+    {
+      to: "/prezzi",
+      title: "Prezzi e Piani",
+      text: "Piani trasparenti da 49€/mese. Modulo Subappalti incluso nei piani Professional e Business.",
+    },
+  ],
+
+  finalCtaH2: "Smetti di rischiare la responsabilità solidale. Inizia a pagare con tranquillità.",
+  finalCtaBody:
+    "31 giorni gratuiti per portare Edilizia in Cloud nella gestione dei tuoi subappalti. Setup in 48 ore, importazione anagrafica subappaltatori, configurazione DURC e ritenuta 4% inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+  finalCtaButton: "Prova gratis 31 giorni",
+  finalCtaMicrocopy: "Setup in 48 ore · DURC tracciati · Ritenuta 4% automatica",
+
+  stickyCtaLabel: "Prova gratis Subappalti",
+  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+
+  applicationSubCategory: "Construction Subcontractor Management Software",
+
+  relatedBlogSlugs: [
+    "sal-cantiere-come-funziona",
+    "ccnl-edilizia-guida",
+    "controllo-costi-cantiere-guida",
+  ],
+};
 
 export default function GestioneSubappalti() {
-  useSEO({
-    title: "Gestione Subappalti Edilizia — Software per Subappaltatori | Edilizia in Cloud",
-    description:
-      "Registro subappaltatori digitale, DURC con alert automatici, contratti di subappalto, tracciamento pagamenti e responsabilità solidale. Tutto sotto controllo con Edilizia in Cloud.",
-    canonical: "/funzionalita/gestione-subappalti",
-    keywords:
-      "gestione subappaltatori edilizia, DURC subappaltatori alert, contratto subappalto digitale, responsabilità solidale subappalto, software subappalti cantiere, registro subappaltatori",
-  });
-
-  return (
-    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
-      <JsonLd
-        id="jsonld-breadcrumb-subappalti"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
-            {
-              "@type": "ListItem",
-              position: 3,
-              name: "Gestione Subappalti",
-              item: "https://www.ediliziaincloud.com/funzionalita/gestione-subappalti",
-            },
-          ],
-        }}
-      />
-      <JsonLd
-        id="jsonld-webpage-subappalti"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "WebPage",
-          name: "Gestione Subappalti Edilizia — Software per Subappaltatori",
-          description:
-            "Registro subappaltatori digitale, DURC con alert automatici, contratti e tracciamento pagamenti per imprese edili.",
-          url: "https://www.ediliziaincloud.com/funzionalita/gestione-subappalti",
-          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
-          about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
-        }}
-      />
-      <JsonLd
-        id="jsonld-article-subappalti"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "Article",
-          headline: "Gestione Subappalti Edilizia — Software per Subappaltatori",
-          description:
-            "Registro subappaltatori, DURC alert automatici, contratti digitali, pagamenti e responsabilità solidale.",
-          author: { "@type": "Organization", name: "Edilizia in Cloud" },
-          publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com" },
-          datePublished: "2026-04-08",
-          url: "https://www.ediliziaincloud.com/funzionalita/gestione-subappalti",
-        }}
-      />
-
-      <LandingNavbar />
-
-      {/* ── HERO ── */}
-      <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto">
-          <span className="inline-block bg-[#F97415]/20 text-[#F97415] text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-[#F97415]/30">
-            FUNZIONALITÀ — GESTIONE SUBAPPALTI
-          </span>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-6">
-            Subappaltatori sotto controllo:{" "}
-            <span className="text-[#F97415]">DURC, contratti e pagamenti in un unico posto.</span>
-          </h1>
-          <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Registro digitale, alert automatici prima delle scadenze, verifica DURC ad ogni pagamento. Proteggi la tua impresa dalla responsabilità solidale e dai blocchi SAL.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/demo"
-              className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
-            >
-              Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/funzionalita"
-              className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
-            >
-              Tutte le funzionalità
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PAIN SECTION ── */}
-      <section className="bg-[#f8f9fa] py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
-            I rischi nascosti nella gestione dei subappaltatori
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Ogni subappaltatore è una responsabilità che puoi gestire bene o ignorare. Ignorarla costa caro.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {painPoints.map((p) => (
-              <div key={p.title} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                <div className="text-3xl mb-3">{p.emoji}</div>
-                <h3 className="font-bold text-lg text-[#111111] mb-2">{p.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{p.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURES ── */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
-            Gestione subappaltatori professionale e senza rischi
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Tutto ciò che serve per lavorare con subappaltatori in modo sicuro, organizzato e conforme.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {features.map((f) => (
-              <div
-                key={f.title}
-                className="flex gap-4 items-start bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100"
-              >
-                <div className="text-3xl flex-shrink-0">{f.emoji}</div>
-                <div>
-                  <h3 className="font-bold text-[#111111] mb-1">{f.title}</h3>
-                  <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── STATS ── */}
-      <section className="bg-[#111111] py-20 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-white mb-12">
-            I numeri parlano chiaro
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((s) => (
-              <div key={s.label} className="text-center">
-                <div className="text-4xl font-extrabold text-[#F97415] mb-2">{s.value}</div>
-                <div className="text-white/70 text-sm">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── TESTIMONIAL ── */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="bg-[#f8f9fa] rounded-2xl p-8 border border-gray-100">
-            <p className="text-lg text-[#111111] italic leading-relaxed mb-6">
-              "Con 12 subappaltatori attivi su 5 cantieri, non riuscivo più a tenere traccia di chi aveva il DURC scaduto o la polizza da rinnovare. Ora Edilizia in Cloud mi manda un alert 45 giorni prima di ogni scadenza. Non ho mai più avuto problemi con le stazioni appaltanti."
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#F97415]/20 flex items-center justify-center font-bold text-[#F97415]">
-                D
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-[#111111] text-sm">Davide S.</div>
-                <div className="text-gray-400 text-xs">Impresa edile, Milano</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── RELATED FEATURES ── */}
-      <section className="bg-[#f8f9fa] py-16 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-xl font-extrabold text-center text-[#111111] mb-8">Esplora altre funzionalità</h2>
-          <div className="flex flex-wrap gap-4 justify-center">
-            {relatedLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-6 py-3 rounded-2xl transition-colors text-sm"
-              >
-                {link.label} <ArrowRight className="w-4 h-4" />
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ── */}
-      <section className="bg-[#111111] py-20 px-4 text-center">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
-            Gestisci i tuoi subappaltatori senza rischi
-          </h2>
-          <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis. Operativo in 48 ore. Cancella quando vuoi.
-          </p>
-          <Link
-            to="/demo"
-            className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
-          >
-            Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </Link>
-        </div>
-      </section>
-
-      {/* ── LEGGI ANCHE ── */}
-      {relatedPosts.length > 0 && (
-        <section className="py-14 px-6 bg-white border-t border-gray-100">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-lg font-bold text-[#111111] mb-6">Leggi anche</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
-              {relatedPosts.map((p) => (
-                <Link key={p.slug} to={`/blog/${p.slug}`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-[#F97415]/40 p-4 transition-all hover:shadow-sm">
-                  <img src={p.coverImage} alt={p.title} className="w-full h-28 object-cover rounded-lg" loading="lazy" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">{p.category}</span>
-                  <span className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2">{p.title}</span>
-                  <span className="text-xs text-[#111111]/50">{p.readTime} min di lettura</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── FAQ ── */}
-      <JsonLd
-        id="jsonld-faq-subappalti"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Come funziona il monitoraggio del DURC dei subappaltatori?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Edilizia in Cloud monitora la scadenza del DURC di ogni subappaltatore registrato e invia alert automatici 60, 30 e 15 giorni prima della scadenza. Prima di ogni pagamento registrato, il sistema verifica e segnala eventuali irregolarità contributive.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Cosa si intende per responsabilità solidale nel subappalto?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "La responsabilità solidale significa che se il tuo subappaltatore non paga stipendi o contributi ai suoi operai, tu come appaltatore principale puoi essere chiamato a rispondere di questi debiti. La principale tutela è verificare la regolarità DURC del subappaltatore prima di ogni pagamento.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Il software gestisce i subappalti negli appalti pubblici PNRR?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Edilizia in Cloud supporta la gestione documentale richiesta per l'autorizzazione dei subappaltatori negli appalti pubblici e PNRR: dichiarazioni, DURC, iscrizione CCIAA, SOA e polizze. Tutta la documentazione è archiviata e consultabile per ogni controllo.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso tracciare i pagamenti effettuati a ogni subappaltatore?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Ogni pagamento viene registrato con data, importo, cantiere di riferimento e verifica DURC al momento del pagamento. Hai sempre il riepilogo aggiornato di quanto hai pagato a ogni subappaltatore e per quale commessa.",
-              },
-            },
-          ],
-        }}
-      />
-      <section className="py-16 px-6 bg-gray-50">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
-            Domande frequenti sulla Gestione Subappalti
-          </h2>
-          <div className="divide-y divide-gray-200">
-            {[
-              {
-                q: "Come funziona il monitoraggio del DURC dei subappaltatori?",
-                a: "Edilizia in Cloud monitora la scadenza del DURC di ogni subappaltatore e invia alert 60, 30 e 15 giorni prima. Prima di ogni pagamento registrato, il sistema verifica e segnala eventuali irregolarità.",
-              },
-              {
-                q: "Cosa si intende per responsabilità solidale nel subappalto?",
-                a: "Se il tuo subappaltatore non paga contributi o stipendi ai suoi operai, tu come appaltatore principale puoi essere chiamato a rispondere. La tutela è verificare la regolarità DURC prima di ogni pagamento.",
-              },
-              {
-                q: "Il software gestisce i subappalti negli appalti pubblici e PNRR?",
-                a: "Sì. Edilizia in Cloud supporta la documentazione per l'autorizzazione dei subappaltatori negli appalti pubblici e PNRR: DURC, CCIAA, SOA, polizze e dichiarazioni. Tutto archiviato e consultabile.",
-              },
-              {
-                q: "Posso tracciare i pagamenti a ogni subappaltatore?",
-                a: "Sì. Ogni pagamento viene registrato con data, importo, cantiere e verifica DURC al momento del pagamento. Hai sempre il riepilogo aggiornato per ogni subappaltatore e commessa.",
-              },
-            ].map((item, i) => (
-              <details key={i} className="py-5 group">
-                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
-                  {item.q}
-                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
-                </summary>
-                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <LandingFooter />
-    </div>
-  );
+  return <FunzionalitaPageTemplate config={config} />;
 }

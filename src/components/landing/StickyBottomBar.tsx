@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 import { getTimeLeft } from "@/lib/urgencyUtils";
+import { openContactModal } from "@/components/landing/QuickContactModal";
 
 export default function StickyBottomBar() {
   const [timeLeft, setTimeLeft] = useState(getTimeLeft);
@@ -20,7 +21,7 @@ export default function StickyBottomBar() {
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" });
+    openContactModal();
   };
 
   const units = [
@@ -66,23 +67,20 @@ export default function StickyBottomBar() {
           ))}
         </div>
 
-        {/* Text */}
+        {/* Text — short, sticky */}
         <p className="flex items-center gap-2 text-center text-xs font-medium leading-snug md:text-sm">
           <ShieldCheck size={18} className="shrink-0 text-[#F97415]" />
-          <span className="md:hidden">
-            <strong>PROVA GRATUITA 31 GIORNI</strong> + <strong>3 GARANZIE SCRITTE</strong>
-          </span>
-          <span className="hidden md:inline">
-            <strong>PROVA GRATUITA DI 31 GIORNI</strong> + <strong>3 GARANZIE SCRITTE</strong>
+          <span>
+            🚀 <strong>Inizia gratis 31 giorni</strong>
           </span>
         </p>
 
-        {/* CTA */}
+        {/* CTA — compact */}
         <button
           onClick={handleClick}
-          className="group flex items-center gap-2 whitespace-nowrap rounded-lg bg-[#F97415] px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow-[0_0_20px_rgba(249,116,21,0.4)] transition-all hover:scale-105 hover:bg-[#e8650e] hover:shadow-[0_0_30px_rgba(249,116,21,0.6)] animate-pulse-glow"
+          className="group flex items-center gap-2 whitespace-nowrap rounded-lg bg-[#F97415] px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow-[0_0_20px_rgba(249,116,21,0.4)] transition-all hover:scale-105 hover:bg-[#C94F06] hover:shadow-[0_0_30px_rgba(249,116,21,0.6)] animate-pulse-glow"
         >
-          Richiedi la Demo Gratuita
+          Inizia Ora
           <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
         </button>
       </div>

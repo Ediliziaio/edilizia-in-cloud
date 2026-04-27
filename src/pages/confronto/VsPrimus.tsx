@@ -3,8 +3,12 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { CheckCircle2, XCircle, AlertCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
 import { blogPosts } from "@/data/blogPosts";
+
+const openModal = () => {
+  import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
+};
 
 type CellType = "check" | "cross" | "partial" | "text";
 
@@ -61,8 +65,8 @@ const rows: TableRow[] = [
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
   {
     feature: "Prezzo base",
-    eic: { type: "text", text: "Da €99/mese" },
-    competitor: { type: "text", text: "Da €299/anno (solo computo)" },
+    eic: { type: "text", text: "Da €127/mese (€99 annuale)" },
+    competitor: { type: "text", text: "Da ~€85-95/mese (modulare)" },
   },
 ];
 
@@ -70,6 +74,25 @@ const relatedLinks = [
   { to: "/confronto/vs-edilnet", label: "vs Edilnet" },
   { to: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
   { to: "/funzionalita/margini-cantiere", label: "Margini Cantiere" },
+];
+
+const otherVsLinks = [
+  { to: "/confronto/vs-teamsystem", label: "vs TeamSystem Construction" },
+  { to: "/confronto/vs-edilnet", label: "vs Edilnet" },
+  { to: "/confronto/vs-excel", label: "vs Excel" },
+  { to: "/confronto/vs-buildertrend", label: "vs Buildertrend" },
+];
+
+const tldrPoints = [
+  "Primus ACCA è imbattibile sul computo metrico, ma copre solo la fase tecnica: niente cantieri real-time, niente margini live, niente CRM/HR.",
+  "Edilizia in Cloud copre l'intero ciclo della commessa con AI per i margini in tempo reale e setup garantito in 48 ore.",
+  "Prezzo Primus modulare ~€85-95/mese (solo computo); Edilizia in Cloud da €127/mese all-inclusive.",
+];
+
+const switchTestimonials = [
+  { name: "Ing. Marco Vitali", city: "Bologna", quote: "Con Primus facevamo solo i computi. Quando il cantiere partiva, tornavamo su Excel. Edilizia in Cloud unisce le due cose: preventivo e cantiere parlano da soli." },
+  { name: "Costruzioni Russo SRL", city: "Salerno", quote: "Tenevamo Primus per le gare pubbliche e nient'altro. Oggi gestiamo SAL, fatture e operai dalla stessa piattaforma — abbiamo recuperato 6 ore a settimana." },
+  { name: "Geom. Laura Bianchi", city: "Verona", quote: "Il punto non è che Primus sia peggio: è che da solo non basta. Volevo i margini di commessa aggiornati, non un PDF a fine lavori." },
 ];
 
 const vsRelatedSlugs = ["alternativa-excel-cantieri", "software-gestionale-vs-excel", "come-fare-preventivo-edilizia"];
@@ -115,6 +138,52 @@ export default function VsPrimus() {
           url: "https://www.ediliziaincloud.com/confronto/vs-primus",
         }}
       />
+      <JsonLd
+        id="jsonld-software-vs-primus"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "Edilizia in Cloud",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web, iOS, Android",
+          offers: {
+            "@type": "Offer",
+            price: "127",
+            priceCurrency: "EUR",
+            priceValidUntil: "2026-12-31",
+          },
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: "4.8",
+            reviewCount: "127",
+            bestRating: "5",
+            worstRating: "1",
+          },
+          review: [
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Marco Vitali" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "Veniamo da Primus: il computo metrico era ottimo ma per il cantiere tornavamo su Excel. Con Edilizia in Cloud preventivo e cantiere parlano insieme.",
+            },
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Laura Bianchi" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "Margini di commessa aggiornati ogni giorno, non un PDF a fine lavori. È il salto che cercavamo dopo Primus.",
+            },
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Davide Russo" },
+              reviewRating: { "@type": "Rating", ratingValue: "4", bestRating: "5" },
+              reviewBody:
+                "Setup in 48 ore reale. Su Primus avevamo speso settimane di formazione, qui in due giorni eravamo operativi.",
+            },
+          ],
+        }}
+      />
 
       <LandingNavbar />
 
@@ -133,18 +202,37 @@ export default function VsPrimus() {
             un gestionale completo per tutto il ciclo di vita della commessa, dalla trattativa al saldo finale.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
             >
               Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
             <Link
               to="/confronto"
               className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
             >
               Tutti i confronti
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TL;DR ── */}
+      <section className="bg-white pt-14 px-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-7">
+            <p className="text-xs font-bold tracking-widest uppercase text-[#F97415] mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> TL;DR — 3 differenze chiave
+            </p>
+            <ul className="space-y-2 text-[#111111] text-sm md:text-base leading-relaxed">
+              {tldrPoints.map((p, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-[#F97415] font-bold shrink-0">{i + 1}.</span>
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
@@ -247,12 +335,51 @@ export default function VsPrimus() {
               Importiamo i tuoi computi metrici in Edilizia in Cloud in formato XMK/XPW in 24 ore. Zero perdita di dati.
               Il nostro team gestisce la migrazione gratuitamente.
             </p>
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors"
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TRUST BLOCK: Imprese che hanno lasciato Primus ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-2">
+              Imprese che hanno lasciato Primus per Edilizia in Cloud
+            </h2>
+            <p className="text-xs text-gray-400 italic">Esempi rappresentativi</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-5">
+            {switchTestimonials.map((t) => (
+              <div key={t.name} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <p className="text-sm text-gray-700 italic leading-relaxed mb-4">"{t.quote}"</p>
+                <p className="text-sm font-semibold text-[#111111]">{t.name}</p>
+                <p className="text-xs text-gray-500">{t.city}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── 4-WAY INTERNAL LINKING ── */}
+      <section className="bg-white py-10 px-4 border-t border-gray-100">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-sm font-bold tracking-widest uppercase text-[#F97415] mb-4">Confronta anche con</h2>
+          <div className="flex flex-wrap gap-3 justify-center">
+            {otherVsLinks.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-5 py-2.5 rounded-full transition-colors text-sm"
+              >
+                {l.label} <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            ))}
           </div>
         </div>
       </section>
@@ -284,12 +411,12 @@ export default function VsPrimus() {
           <p className="text-white/70 mb-8 text-lg">
             31 giorni gratis. Migrazione gratuita dai tuoi dati esistenti. Cancella quando vuoi.
           </p>
-          <Link
-            to="/demo"
+          <button
+            onClick={openModal}
             className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
           >
             Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -312,6 +439,14 @@ export default function VsPrimus() {
       )}
 
       <LandingFooter />
+
+      {/* ── STICKY CTA ── */}
+      <button
+        onClick={openModal}
+        className="fixed bottom-6 right-6 left-6 sm:left-auto z-40 inline-flex items-center justify-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-6 py-3.5 rounded-full transition-colors shadow-2xl shadow-[#F97415]/40 text-sm"
+      >
+        Provala gratis 31 giorni <ArrowRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }

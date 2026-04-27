@@ -37,11 +37,14 @@ export default function ComparisonSection() {
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <table className="w-full min-w-[600px]">
+            <caption className="sr-only">
+              Edilizia in Cloud vs Excel vs Software generici
+            </caption>
             <thead>
               <tr className="bg-[#111111]">
-                <th className="text-left text-white/80 text-sm font-medium px-6 py-4">Aspetto</th>
-                <th className="text-center text-white/60 text-sm font-medium px-4 py-4">Gli Altri</th>
-                <th className="text-center text-sm font-medium px-4 py-4 text-[#F97415] bg-[#F97415]/10">Edilizia in Cloud</th>
+                <th scope="col" className="text-left text-white/80 text-sm font-medium px-6 py-4">Aspetto</th>
+                <th scope="col" className="text-center text-white/60 text-sm font-medium px-4 py-4">Excel / Software generici</th>
+                <th scope="col" className="text-center text-sm font-medium px-4 py-4 text-[#F97415] bg-[#F97415]/10">Edilizia in Cloud</th>
               </tr>
             </thead>
             <tbody>
@@ -53,7 +56,7 @@ export default function ComparisonSection() {
                   }`}
                   style={{ transitionDelay: isVisible ? `${400 + i * 60}ms` : "0ms" }}
                 >
-                  <td className="px-3 md:px-6 py-3 md:py-4 text-[#111111] font-medium text-xs md:text-sm">{r.aspect}</td>
+                  <th scope="row" className="px-3 md:px-6 py-3 md:py-4 text-left text-[#111111] font-medium text-xs md:text-sm">{r.aspect}</th>
                   <td className="px-3 md:px-4 py-3 md:py-4 text-center text-gray-400 text-xs md:text-sm">{r.others}</td>
                   <td className="px-3 md:px-4 py-3 md:py-4 text-center text-[#F97415] font-medium text-xs md:text-sm bg-[#F97415]/[0.03]">{r.us}</td>
                 </tr>

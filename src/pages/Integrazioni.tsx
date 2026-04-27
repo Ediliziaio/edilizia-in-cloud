@@ -4,6 +4,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 
 // ── Dati integrazioni ────────────────────────────────────────────────────────
 interface Integration {
@@ -73,6 +74,15 @@ export default function Integrazioni() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111]">
+      <HubSeoSchema
+        pageName="Integrazioni"
+        pagePath="/integrazioni"
+        pageDescription="Integrazioni native con SDI Agenzia Entrate, banche PSD2, Cassa Edile, INPS, INAIL, CRM e tool di marketing."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Integrazioni", url: "/integrazioni" },
+        ]}
+      />
 
       {/* Structured Data */}
       <JsonLd id="jsonld-breadcrumb-integrazioni" data={{

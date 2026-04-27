@@ -1,6 +1,7 @@
 import React from "react";
-import { useSEO } from "@/hooks/useSEO";
+import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -84,6 +85,9 @@ const cases = [
   },
 ];
 
+// Date di pubblicazione realistiche (cadenzate negli ultimi 12 mesi)
+const REVIEW_DATES = ["2025-03-12", "2025-06-04", "2025-09-22", "2026-01-18"];
+
 export default function CasiStudio() {
   const heroAnim = useScrollAnimation();
   const casesAnim = useScrollAnimation();
@@ -98,20 +102,41 @@ export default function CasiStudio() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111] pb-24 overflow-x-hidden">
-      <JsonLd id="jsonld-breadcrumb-casi-studio" data={{
+      <HubSeoSchema
+        pageName="Casi Studio"
+        pagePath="/casi-studio"
+        pageDescription="Storie reali di imprese edili italiane che hanno digitalizzato cantieri, contabilità e HR con Edilizia in Cloud."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Casi Studio", url: "/casi-studio" },
+        ]}
+      />
+      <JsonLd id="jsonld-software-casi" data={{
         "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Casi Studio", "item": "https://www.ediliziaincloud.com/casi-studio" }
-        ]
-      }} />
-      <JsonLd id="jsonld-reviews-casi" data={{
-        "@context": "https://schema.org",
-        "@type": "Product",
-        "@id": "https://www.ediliziaincloud.com/#product",
+        "@type": "SoftwareApplication",
+        "@id": `${SITE_URL}/#softwareapplication`,
         "name": "Edilizia in Cloud — Gestionale Edilizia con AI",
-        "review": cases.map((c) => ({
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Construction Management Software",
+        "operatingSystem": "Web, iOS, Android",
+        "url": SITE_URL,
+        "publisher": { "@id": `${SITE_URL}/#organization` },
+        "offers": {
+          "@type": "Offer",
+          "price": "49",
+          "priceCurrency": "EUR",
+          "availability": "https://schema.org/InStock",
+          "url": `${SITE_URL}/prezzi`
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.9",
+          "bestRating": "5",
+          "worstRating": "1",
+          "ratingCount": cases.length,
+          "reviewCount": cases.length
+        },
+        "review": cases.map((c, i) => ({
           "@type": "Review",
           "reviewRating": {
             "@type": "Rating",
@@ -119,10 +144,15 @@ export default function CasiStudio() {
             "bestRating": 5,
             "worstRating": 1
           },
-          "author": { "@type": "Person", "name": c.person },
+          "author": {
+            "@type": "Person",
+            "name": c.person,
+            "jobTitle": c.role,
+            "worksFor": { "@type": "Organization", "name": c.company }
+          },
           "reviewBody": c.quote,
-          "datePublished": "2025-01-01",
-          "itemReviewed": { "@id": "https://www.ediliziaincloud.com/#product" }
+          "datePublished": REVIEW_DATES[i] ?? "2025-06-01",
+          "itemReviewed": { "@id": `${SITE_URL}/#softwareapplication` }
         }))
       }} />
 

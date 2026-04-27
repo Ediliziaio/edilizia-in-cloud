@@ -1,395 +1,493 @@
-import { useSEO } from "@/hooks/useSEO";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { Link } from "react-router-dom";
-import LandingNavbar from "@/components/landing/LandingNavbar";
-import LandingFooter from "@/components/landing/LandingFooter";
-import { blogPosts } from "@/data/blogPosts";
-import { ArrowRight } from "lucide-react";
+import {
+  AlertTriangle,
+  BadgeCheck,
+  Bell,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
+  Cloud,
+  FileSignature,
+  FileText,
+  HardHat,
+  HeartPulse,
+  LineChart,
+  MapPin,
+  Phone,
+  Receipt,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Target,
+  Timer,
+  TrendingUp,
+  UserCheck,
+  Users,
+  Wallet,
+  Wrench,
+  Zap,
+} from "lucide-react";
+import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
+import type { FunzionalitaPageConfig } from "./_template/types";
 
-const RELATED_SLUGS = [
-  "gestione-operai-cantiere-presenze-ore",
-  "ccnl-edilizia-guida",
-  "cassa-edile-come-funziona",
-  "sicurezza-cantieri-dlgs-81",
-];
-const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
+const config: FunzionalitaPageConfig = {
+  slug: "hr-personale",
+  vertical: "HR e Personale",
+  productName: "Modulo HR e Personale Edilizia in Cloud",
+  audience: "Imprese edili, costruttori, ristrutturatori, responsabili HR di PMI edili, consulenti del lavoro, capi cantiere",
+  audienceShort: "imprese edili e ristrutturatori",
 
-const painPoints = [
-  {
-    emoji: "📋",
-    title: "Le presenze le gestisci ancora su carta",
-    desc: "Foglio presenze cartaceo in cantiere, poi trascrizione manuale in ufficio. Ore perse ogni giorno e rischio di errori sul cedolino.",
+  seo: {
+    title:
+      "Software HR Edilizia — Presenze, Ferie, Malattie, Costo Orario CCNL | Edilizia in Cloud",
+    description:
+      "Gestisci operai e impiegati con timbrature GPS, ferie, malattie, presenze e costo orario CCNL applicato in automatico. Esporta tracciati per il consulente del lavoro. Conformità CCNL Edilizia inclusa.",
+    keywords:
+      "software HR edilizia, gestione personale impresa edile, timbrature GPS cantiere, costo orario CCNL edilizia, ferie malattie presenze edilizia, busta paga edilizia, software paghe imprese edili, gestione operai cantiere, presenze cantiere edile",
+    ogImage: "https://www.ediliziaincloud.com/og/hr-personale-og.jpg",
   },
-  {
-    emoji: "🏗️",
-    title: "Non sai quante ore ha lavorato ogni operaio su quale cantiere",
-    desc: "A fine mese non riesci a imputare il costo della manodopera alla commessa giusta. Il margine del cantiere è distorto da subito.",
-  },
-  {
-    emoji: "📅",
-    title: "Le scadenze Cassa Edile le perdi di vista",
-    desc: "La contribuzione Cassa Edile ha scadenze mensili. Un ritardo o un errore nei dati dichiarati costa sanzioni e blocca il DURC.",
-  },
-  {
-    emoji: "🔄",
-    title: "Nessuna integrazione con l'ufficio paghe",
-    desc: "I dati delle presenze li riscrivi due volte: una volta per il gestionale e una per il commercialista. Doppio lavoro, doppio rischio di errore.",
-  },
-];
 
-const features = [
-  {
-    emoji: "📱",
-    title: "Timbratura GPS da cantiere",
-    desc: "L'operaio timbra entrata e uscita dall'app mobile, con geolocalizzazione automatica. Addio ai cartellini cartacei e alle presenze inventate.",
-  },
-  {
-    emoji: "📊",
-    title: "Presenze per cantiere in tempo reale",
-    desc: "Il titolare vede in ogni momento chi è in cantiere, quante ore ha fatto ogni operaio e su quale commessa. Dati aggiornati in tempo reale.",
-  },
-  {
-    emoji: "🏦",
-    title: "Cassa Edile integrata",
-    desc: "Calcolo automatico delle contribuzioni Cassa Edile per ogni operaio, con export nel formato richiesto dall'ente territoriale. Zero errori, nessun ritardo.",
-  },
-  {
-    emoji: "📤",
-    title: "Export buste paga per il commercialista",
-    desc: "Riepilogo mensile ore per operaio, per cantiere e per categoria di livello CCNL, pronto per l'ufficio paghe. Un click, nessun doppio inserimento.",
-  },
-  {
-    emoji: "⚠️",
-    title: "Alert scadenze contratti e formazione",
-    desc: "Notifiche automatiche prima della scadenza dei contratti a termine, dei certificati di idoneità alla mansione e dei corsi di sicurezza obbligatori.",
-  },
-  {
-    emoji: "📋",
-    title: "Gestione livelli CCNL edilizia",
-    desc: "Configurazione del costo orario per ogni livello CCNL (operaio comune, qualificato, specializzato, capocantiere). Calcolo automatico del costo reale.",
-  },
-];
+  heroBadge: "Funzionalità · HR e Personale",
+  heroH1Lead: "Gestisci operai, ferie, presenze e busta paga",
+  heroH1Highlight: "in un'unica app",
+  heroH1Tail: "collegata al cantiere",
+  heroSubheadline:
+    "Timbrature GPS conformi al CCNL, ferie e malattie gestite dall'app, costo orario reale per qualifica e contratto, esportazione tracciati per il consulente del lavoro. Tutto collegato direttamente alla commessa, così sai il costo reale di ogni cantiere giorno per giorno.",
+  heroPrimaryCta: "Prova gratis 31 giorni",
+  heroSecondaryCta: "Tutte le funzionalità",
+  heroSecondaryCtaTo: "/funzionalita",
 
-const stats = [
-  { value: "2h/gg", label: "risparmiate dall'ufficio per gestione presenze" },
-  { value: "-94%", label: "errori su cedolini e Cassa Edile" },
-  { value: "100%", label: "presenze imputate alla commessa corretta" },
-  { value: "4.9/5", label: "soddisfazione imprese edili utenti HR" },
-];
+  reassurancePoints: ["Setup in 48 ore", "Conformità CCNL inclusa", "Esporta a TeamSystem/Zucchetti"],
+  proofPoints: [
+    "Timbrature GPS conformi al CCNL",
+    "Ferie e malattie da app mobile",
+    "Costo orario per commessa in tempo reale",
+  ],
 
-const relatedLinks = [
-  { to: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
-  { to: "/funzionalita/margini-cantiere", label: "Margini Cantiere" },
-  { to: "/funzionalita/gestione-subappalti", label: "Gestione Subappalti" },
-];
+  objectiveRow: [
+    ["Obiettivo", "Sapere quanto costa davvero ogni operaio su ogni cantiere"],
+    ["Momento chiave", "Check-in mattina, fine turno, comunicazione assenze"],
+    ["Risultato", "Costo manodopera reale per commessa, niente più stime"],
+  ],
+
+  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per gestire personale e presenze ogni giorno.",
+  betaBody:
+    "Il modulo HR e Personale è il nervo centrale della tua impresa edile: lo attiviamo in 48 ore, importiamo l'anagrafica operai e impiegati, configuriamo i contratti CCNL applicati e ti accompagniamo in 4 sessioni 1-a-1 fino a quando l'operaio medio timbra dal telefono e tu vedi il costo orario reale per commessa.",
+
+  speedH2: "L'operaio timbra dal telefono. Tu vedi il costo orario reale di ogni cantiere giorno per giorno.",
+  speedSubheadline:
+    "Gestire il personale di un'impresa edile non è gestire un ufficio: è gestire persone che lavorano in 5 cantieri diversi, con turni variabili, straordinari, malattie e ferie da monitorare. Edilizia in Cloud trasforma tutto questo in un flusso semplice, fatto dal telefono dell'operaio e visibile dalla dashboard del titolare.",
+  speedStats: [
+    { value: 80, prefix: "-", suffix: "%", label: "tempo dedicato a fogli presenze e Excel HR" },
+    { value: 95, prefix: "+", suffix: "%", label: "operai che timbrano in autonomia entro 14 giorni" },
+    { value: 24, suffix: " h", label: "ritardo massimo tra evento HR e dato in busta paga" },
+  ],
+
+  familyH2: "Tutta la piattaforma Edilizia in Cloud collegata al personale.",
+  familySubheadline:
+    "Il personale non è un'isola amministrativa: ogni ora dell'operaio è un costo della commessa, ogni assenza è un'ora che manca al cantiere, ogni straordinario è un margine che cambia. Edilizia in Cloud collega HR a cantieri, margini e fatturazione, così l'amministrazione e l'operazione parlano finalmente la stessa lingua.",
+  familyItems: [
+    {
+      icon: Users,
+      title: "HR e Personale",
+      text: "Operai, ferie, malattie, presenze, busta paga e costo orario reale CCNL collegato alla commessa.",
+      to: "/funzionalita/hr-personale",
+    },
+    {
+      icon: HardHat,
+      title: "Gestione Cantieri",
+      text: "Avanzamento lavori, timbrature GPS, giornale lavori, chat squadra. Dove le ore HR diventano produttività.",
+      to: "/funzionalita/gestione-cantieri",
+    },
+    {
+      icon: Wallet,
+      title: "Margini Cantiere",
+      text: "Margine reale per commessa, scostamento preventivo/consuntivo. La voce manodopera arriva dal modulo HR.",
+      to: "/funzionalita/margini-cantiere",
+    },
+    {
+      icon: ClipboardList,
+      title: "Preventivi Edilizia",
+      text: "Computo metrico con manodopera prezzata sui costi orari reali della tua impresa, non su standard astratti.",
+      to: "/funzionalita/preventivi-edilizia",
+    },
+    {
+      icon: Receipt,
+      title: "Fatturazione Elettronica SDI",
+      text: "Dalla commessa al SAL, dalla fattura attiva alla fattura passiva. Cassa collegata al costo del personale.",
+      to: "/funzionalita/fatturazione-elettronica",
+    },
+    {
+      icon: Wrench,
+      title: "Gestione Subappalti",
+      text: "Subappaltatori, manodopera in subappalto, ritenute e DURC. Fianco a fianco con la manodopera diretta.",
+      to: "/funzionalita/gestione-subappalti",
+    },
+  ],
+  familyBonusTitle: "Una sola piattaforma. Un solo abbonamento. Sei moduli che si parlano.",
+  familyBonusText:
+    "Il costo del personale entra automaticamente nel margine della commessa, alimenta i SAL, popola la busta paga e finisce in fatturazione passiva senza copia-incolla. La timbratura GPS dell'operaio è già il costo del cantiere e già la voce della busta paga.",
+
+  painKicker: "Il problema vero",
+  painH2: "Gestire 20 operai su 5 cantieri con Excel e WhatsApp è una bomba a orologeria.",
+  painSubheadline:
+    "Il personale di un'impresa edile non è un foglio Excel: è un sistema vivo fatto di turni, malattie comunicate alle 6 del mattino, ferie chieste in WhatsApp, straordinari del sabato, infortuni da gestire. Senza uno strumento dedicato, il rischio non è solo amministrativo: è di compliance CCNL, di contestazioni INPS e di costi nascosti che mangiano il margine.",
+  painPoints: [
+    {
+      icon: Phone,
+      title: "Comunicazioni operai sparse tra WhatsApp, telefono e SMS",
+      text: "Il lunedì mattina arrivano 4 messaggi: uno chiede ferie, due segnalano malattia, uno avvisa di un ritardo. Tu rispondi a singhiozzo mentre apri il cantiere. A fine settimana non ricordi cosa hai approvato e cosa no.",
+    },
+    {
+      icon: FileText,
+      title: "Foglio presenze cartaceo o Excel sempre in ritardo",
+      text: "Il capocantiere ti dà il foglio presenze il venerdì sera. Tu lo digiti sull'Excel HR il lunedì. Il consulente del lavoro lo riceve il giovedì successivo. Ogni passaggio è un'occasione di errore e di compliance al limite.",
+    },
+    {
+      icon: Timer,
+      title: "Costo orario reale per cantiere sconosciuto",
+      text: "Sai quanto guadagni dalla commessa, ma non sai davvero quanto ti è costata in manodopera diretta. Le ore straordinarie spariscono, le riunioni di cantiere non sono imputate, i tempi morti tra cantiere e cantiere svaniscono.",
+    },
+    {
+      icon: AlertTriangle,
+      title: "Compliance CCNL al limite a ogni ispezione",
+      text: "Se domani arriva un'ispezione INPS o INAIL, hai sotto controllo: presenze tracciate, riposi rispettati, ferie godute, formazione sicurezza? La risposta onesta è 'forse'. E 'forse' davanti a un ispettore non basta.",
+    },
+  ],
+
+  baKicker: "Prima e dopo Edilizia in Cloud",
+  baH2: "Stessi operai, stessi turni, stesso CCNL. Cambia solo dove vivono i dati.",
+  baSubheadline:
+    "Il personale è la voce di costo più importante (40-60% del fatturato in edilizia). Quando i dati HR sono frammentati tra Excel, telefono e cervello del titolare, perdi controllo, margine e tranquillità. Ecco cosa cambia con Edilizia in Cloud.",
+  baAreas: [
+    {
+      title: "Timbrature e presenze",
+      before:
+        "Foglio cartaceo firmato dal capocantiere a fine giornata, raccolto a fine settimana, digitato a inizio settimana successiva. 7 giorni di latenza tra ora lavorata e dato in dashboard.",
+      after:
+        "Timbratura GPS al check-in, registrazione automatica delle ore sulla commessa giusta. Il dato è nel sistema in tempo reale, conforme al CCNL Edilizia, archiviato a norma.",
+    },
+    {
+      title: "Ferie e malattie",
+      before:
+        "Richiesta ferie su WhatsApp, malattia comunicata via SMS alle 6 del mattino, certificato medico in fotocopia, archiviazione su una cartella che non trovi quando serve. Caos quando arriva l'ispezione.",
+      after:
+        "Operaio chiede ferie da app, allega certificato medico, tu approvi/rifiuti con un click. Tutto archiviato in cloud, esportabile a richiesta del consulente del lavoro o degli enti.",
+    },
+    {
+      title: "Costo orario per commessa",
+      before:
+        "Costo orario stimato a forfait (es. 22€/ora 'standard'). Ore straordinarie a sentimento, riunioni non imputate, tempi morti dispersi. Il costo manodopera reale per commessa è una stima a posteriori.",
+      after:
+        "Costo orario CCNL applicato per qualifica, contratto e turno (ordinario, straordinario, festivo, notturno). La manodopera entra nel margine della commessa giusta con il costo pieno reale.",
+    },
+    {
+      title: "Comunicazione con il consulente del lavoro",
+      before:
+        "Excel mensile inviato via email, riconciliato manualmente dal consulente, errori di battitura corretti via telefono, busta paga emessa con 5 giorni di ritardo. Costo orario amministrativo molto alto.",
+      after:
+        "Esportazione automatica a TeamSystem, Zucchetti, Datev e altri tracciati standard. Il consulente riceve i dati già strutturati, emette la busta paga in tempo, con metà degli errori di prima.",
+    },
+  ],
+
+  mechanismKicker: "Come funziona",
+  mechanismH2: "Tre passaggi, una sola app per l'operaio, una dashboard sola per il titolare.",
+  mechanismSubheadline:
+    "Il modulo HR è progettato per chi ha 5, 10, 30 operai sparsi su più cantieri. Funziona dal telefono per chi sta in cantiere e dal browser per chi sta in ufficio. Niente formazione lunga: l'operaio medio impara in 15 minuti.",
+  mechanismSteps: [
+    {
+      icon: Smartphone,
+      title: "L'operaio timbra e comunica dall'app",
+      text: "Check-in GPS al cantiere, check-out a fine turno, richieste ferie e malattie con allegati, foto del cantiere con timestamp. Tutto dal telefono personale o aziendale, anche offline.",
+    },
+    {
+      icon: Cloud,
+      title: "I dati entrano nella commessa giusta automaticamente",
+      text: "Le ore vanno sulla commessa giusta con costo orario CCNL applicato, le assenze vanno nel piano ferie/malattie, gli straordinari vengono evidenziati. Niente data entry, niente Excel intermedio.",
+    },
+    {
+      icon: BadgeCheck,
+      title: "Il consulente del lavoro riceve l'export pronto",
+      text: "A fine mese, esportazione automatica per TeamSystem, Zucchetti, Datev o tracciato custom. Il consulente del lavoro emette la busta paga senza riconciliazioni manuali.",
+    },
+  ],
+  mechanismCta: "Prova HR sul tuo team operai",
+
+  commercialKicker: "Perché conviene davvero",
+  commercialH2: "Non un software HR. Un sistema operativo per la voce di costo più importante della tua impresa.",
+  commercialBody:
+    "La manodopera è il 40-60% del fatturato di un'impresa edile. Anche solo 1 punto percentuale recuperato qui vale molto più di un abbonamento. Edilizia in Cloud ti restituisce controllo su ore, costi e compliance, riducendo al tempo stesso il carico amministrativo.",
+  commercialLevers: [
+    {
+      icon: Target,
+      title: "Costo orario reale per commessa",
+      text: "Il margine atteso del preventivo era basato su un costo orario di 22€. Quello reale, includendo straordinari e tempi morti, è 26€. Vederlo in tempo reale ti permette di correggere il prossimo preventivo o riprezzare la variante.",
+    },
+    {
+      icon: Bell,
+      title: "Alert su superamenti orari e CCNL",
+      text: "Notifica push quando un operaio si avvicina al limite settimanale di straordinari, quando un riposo settimanale non è stato rispettato, quando una formazione sicurezza è in scadenza.",
+    },
+    {
+      icon: ShieldCheck,
+      title: "Compliance CCNL e ispezioni tracciate",
+      text: "Timbrature GPS conformi, riposi giornalieri e settimanali rispettati, formazione sicurezza tracciata, certificati medici archiviati. In caso di ispezione INPS o INAIL hai tutto in cloud, esportabile in 2 minuti.",
+    },
+    {
+      icon: TrendingUp,
+      title: "Meno carico amministrativo, meno errori",
+      text: "Tempo dell'amministrazione su HR ridotto del 80%. L'impiegata HR torna a fare il suo lavoro, non riconciliazioni Excel. E gli errori in busta paga calano drasticamente.",
+    },
+  ],
+
+  resultsKicker: "Risultati con Edilizia in Cloud",
+  resultsH2: "L'HR non è un'isola amministrativa. È il cuore operativo dell'impresa edile.",
+  resultsBody:
+    "Quando il personale è collegato a cantieri, margini e fatturazione, smetti di vedere l'amministrazione come un costo e inizi a vederla come un sistema di controllo. Il costo orario reale di ogni cantiere ti restituisce decisioni più giuste e una compliance solida.",
+  integrationPillars: [
+    {
+      icon: MapPin,
+      title: "Timbrature GPS conformi al CCNL",
+      text: "Check-in georeferenziato al cantiere, conformità con il CCNL Edilizia (riposo giornaliero, settimanale, straordinari). Archivio digitale con valore probatorio in caso di contestazione.",
+    },
+    {
+      icon: CalendarDays,
+      title: "Pianificazione ferie e malattie",
+      text: "Calendario ferie multi-operaio, gestione richieste, approvazioni dal capocantiere o titolare, alert su sovrapposizioni. Certificati medici allegati e archiviati a norma.",
+    },
+    {
+      icon: HeartPulse,
+      title: "Sicurezza e formazione tracciate",
+      text: "Scadenze formazione sicurezza (D.Lgs 81/2008), DPI consegnati, visite mediche periodiche, idoneità sanitaria. Alert automatico in scadenza per evitare blocchi in cantiere.",
+    },
+    {
+      icon: FileSignature,
+      title: "Esportazione consulente del lavoro",
+      text: "Tracciati per TeamSystem, Zucchetti, Datev, Inaz e formati custom. Il consulente del lavoro riceve dati già strutturati, riduce gli errori del 70% e velocizza la chiusura mensile.",
+    },
+  ],
+  resultStats: [
+    { value: 80, prefix: "-", suffix: "%", label: "tempo amministrativo dedicato all'HR" },
+    { value: 95, prefix: "+", suffix: "%", label: "operai che timbrano in autonomia entro 14 giorni" },
+    { value: 70, prefix: "-", suffix: "%", label: "errori in busta paga rispetto al flusso Excel" },
+  ],
+  resultsCta: "Apri la dashboard HR di prova",
+
+  roiKicker: "Calcola il tuo ROI",
+  roiH2: "Quanto tempo amministrativo recuperi se gli operai timbrano dall'app?",
+  roiSubheadline:
+    "Sposta i cursori sulla tua realtà: numero di operai gestiti e ore amministrative settimanali dedicate a HR. La stima parte dalla riduzione media dell'80% del tempo HR osservata nei nostri clienti dopo 90 giorni.",
+  roi: {
+    input1Label: "Operai gestiti",
+    input1Default: 12,
+    input1Min: 1,
+    input1Max: 200,
+    input1Step: 1,
+    input1Suffix: "",
+    input2Label: "Costo orario amministrazione (€)",
+    input2Default: 28,
+    input2Min: 15,
+    input2Max: 80,
+    input2Step: 1,
+    input2Suffix: " €",
+    outputLabel: "Risparmio amministrativo stimato/anno",
+    computeOutput: (a, b) => Math.round(a * 1.5 * 0.8 * 50 * b),
+    computeSecondary: (a, b) => [
+      { label: "Ore HR risparmiate/anno", value: `${Math.round(a * 1.5 * 0.8 * 50)} h` },
+      { label: "Errori busta paga evitati/anno (stima)", value: `${Math.max(2, Math.round(a * 0.5))}` },
+      { label: "Costo HR attuale stimato/anno", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * 1.5 * 50 * b) },
+    ],
+    closingPitch:
+      "Stima prudenziale basata su 1,5h HR/operaio/settimana risparmiate (-80% con timbrature digitali). Le imprese più strutturate registrano riduzioni fino al 90%.",
+  },
+
+  salesKicker: "Impatto operativo",
+  salesH2: "Non un'app per timbrare. Un sistema che ti restituisce il controllo del costo del lavoro.",
+  salesBody:
+    "L'HR digitale non è un dettaglio: è il modo in cui smetti di gestire l'azienda 'a sentimento' sul costo del personale. Ecco le 4 dimensioni operative che cambiano da subito quando timbrature, ferie e busta paga vivono in un solo strumento.",
+  salesImpact: [
+    {
+      title: "Amministrazione HR alleggerita",
+      text: "L'impiegata HR non passa più 2 giorni al mese su Excel: passa 4 ore. Il consulente del lavoro riceve i dati già strutturati, le buste paga escono nei tempi previsti.",
+    },
+    {
+      title: "Capocantieri più liberi",
+      text: "Il capocantiere non deve più raccogliere fogli presenze a fine settimana e inseguire chi non li ha consegnati. Il dato c'è già: lui supervisiona solo le anomalie.",
+    },
+    {
+      title: "Conversazioni con gli operai più chiare",
+      text: "Quando l'operaio chiede 'ho fatto X ore questo mese?' apri l'app e gli rispondi in 5 secondi. Niente più contestazioni a fine mese su ferie, straordinari, presenze.",
+    },
+    {
+      title: "Compliance e ispezioni senza ansia",
+      text: "Quando arriva un'ispezione INPS, INAIL o ASL, esporti documenti a norma in 2 minuti. Niente notti perse a riassemblare cartellini o certificati medici sparsi.",
+    },
+  ],
+
+  featureKicker: "Cosa ottieni davvero",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureRows: [
+    {
+      label: "Timbrature GPS multi-cantiere",
+      value:
+        "Check-in/check-out via app con verifica geografica del cantiere. Conformità CCNL Edilizia, archivio a valore probatorio, esportazione con timestamp e geolocalizzazione.",
+    },
+    {
+      label: "Costo orario CCNL per qualifica",
+      value:
+        "Costo orario reale applicato per qualifica (operaio comune, qualificato, specializzato), tipo turno (ordinario, straordinario, festivo, notturno) e contratto (CCNL Edilizia industria, artigiani, cooperative).",
+    },
+    {
+      label: "Ferie, malattie, permessi",
+      value:
+        "Richieste da app con allegato certificato medico, approvazione titolare/capocantiere, calendario multi-operaio, alert su sovrapposizioni e limiti contrattuali.",
+    },
+    {
+      label: "Sicurezza e DPI",
+      value:
+        "Tracciamento corsi sicurezza D.Lgs 81/2008, DPI consegnati con firma digitale, scadenze visite mediche e idoneità sanitaria. Alert automatici in scadenza.",
+    },
+    {
+      label: "Esportazione consulente del lavoro",
+      value:
+        "Tracciati nativi per TeamSystem, Zucchetti, Datev, Inaz e formati custom (CSV, Excel). Esportazione mensile automatica, riduce errori e tempi del consulente.",
+    },
+    {
+      label: "Dashboard costi del personale",
+      value:
+        "Costo manodopera reale per cantiere, ore lavorate per operaio, straordinari accumulati, ferie residue. Vista per titolare, vista filtrata per capocantiere.",
+    },
+    {
+      label: "App offline per zone senza segnale",
+      value:
+        "Tutte le funzioni di campo (timbrature, foto, note, richieste assenza) funzionano offline. Sincronizzazione automatica appena torna il segnale.",
+    },
+  ],
+
+  scenarioKicker: "Tre casi reali sul campo",
+  scenarioH2: "Tre situazioni in cui Edilizia in Cloud ti salva la giornata.",
+  scenarios: [
+    {
+      title: "Lunedì mattina, due operai si danno malati",
+      text:
+        "Alle 7:30 ricevi due notifiche: malattia comunicata da app con certificato allegato. In dashboard vedi quali cantieri sono scoperti, ridistribuisci la squadra in 5 minuti dal browser. I capocantieri ricevono la riassegnazione, gli operai presenti vedono il piano aggiornato.",
+    },
+    {
+      title: "Ispezione INPS a sorpresa",
+      text:
+        "L'ispettore chiede timbrature degli ultimi 6 mesi, certificati medici, formazione sicurezza, registro infortuni. Apri l'app, esporti in PDF firmato in 2 minuti. L'ispezione si chiude senza rilievi.",
+    },
+    {
+      title: "Operaio contesta le ore di un mese",
+      text:
+        "L'operaio dice 'ho fatto 12 ore di straordinario, in busta paga ne sono pagate 10'. Apri il dettaglio timbrature: vedi check-in e check-out, geolocalizzazione, cantiere. La discussione si chiude in 5 minuti, con i dati alla mano.",
+    },
+  ],
+
+  testimonialQuote:
+    "Avevo 18 operai su 6 cantieri e l'HR mi rubava 2 giorni a settimana. Ora i cartellini si compilano da soli, il consulente del lavoro mi dice 'finalmente dati puliti' e io ho riguadagnato un giorno e mezzo di lavoro vero.",
+  testimonialAuthor: "Paolo G.",
+  testimonialRole: "Edil Group Greco, Bari",
+
+  faqKicker: "Domande frequenti",
+  faqH2: "Quello che un titolare di impresa edile vuole sapere prima di decidere.",
+  faqs: [
+    {
+      q: "Le timbrature GPS sono conformi al CCNL Edilizia?",
+      a: "Sì. Il sistema rispetta i requisiti del CCNL Edilizia (industria, artigiani, cooperative): registrazione esatta dell'orario, verifica geografica del cantiere, archiviazione con timestamp a valore probatorio. È stato validato dai consulenti del lavoro più importanti del settore.",
+    },
+    {
+      q: "Funziona anche se il cantiere non ha segnale?",
+      a: "Sì. L'app ha modalità offline completa: timbrature, foto, richieste assenze e note funzionano senza connessione. La sincronizzazione è automatica appena torna il segnale, senza che l'operaio debba fare nulla.",
+    },
+    {
+      q: "Si integra col mio consulente del lavoro?",
+      a: "Sì. Edilizia in Cloud esporta tracciati nativi per TeamSystem, Zucchetti, Datev, Inaz e altri sistemi. Per consulenti che usano formati custom, esportiamo CSV/Excel personalizzato. La maggior parte dei consulenti dichiara una riduzione degli errori del 70% dopo l'attivazione.",
+    },
+    {
+      q: "Posso gestire più contratti CCNL contemporaneamente?",
+      a: "Sì. Il sistema supporta CCNL Edilizia industria, artigiani, cooperative, oltre a CCNL Metalmeccanici per le officine collegate. Per ogni operaio si applica il contratto specifico, con costo orario, riposi e straordinari calcolati di conseguenza.",
+    },
+    {
+      q: "Cosa succede se un operaio non vuole usare il telefono personale?",
+      a: "Hai tre opzioni: (1) telefono aziendale dedicato, (2) tablet condiviso al cantiere con timbratura individuale via PIN, (3) timbratura via QR code stampato in cantiere. La maggior parte dei nostri clienti adotta l'opzione 1 o 2 senza resistenze.",
+    },
+    {
+      q: "Quanto costa? Ci sono vincoli contrattuali?",
+      a: "Il modulo HR e Personale è incluso nei piani Professional e Business di Edilizia in Cloud. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1, configurazione CCNL e supporto italiano sempre inclusi.",
+    },
+  ],
+
+  internalLinksKicker: "Esplora la piattaforma",
+  internalLinksH2: "L'HR non vive da solo. Ecco a cosa è collegato.",
+  internalLinksBody:
+    "HR e Personale è il cuore amministrativo dell'impresa, ma vive collegato ai cantieri, ai margini, ai subappalti e alla fatturazione. Ecco i moduli e le pagine collegate.",
+  internalLinks: [
+    {
+      to: "/funzionalita/gestione-cantieri",
+      title: "Gestione Cantieri",
+      text: "Avanzamento lavori, timbrature GPS, giornale lavori, chat squadra. Dove le ore HR diventano produttività.",
+    },
+    {
+      to: "/funzionalita/margini-cantiere",
+      title: "Margini Cantiere",
+      text: "Margine reale per commessa. La voce manodopera arriva direttamente dal modulo HR, in tempo reale.",
+    },
+    {
+      to: "/funzionalita/preventivi-edilizia",
+      title: "Preventivi Edilizia",
+      text: "Computo metrico con manodopera prezzata sui costi orari reali della tua impresa, non su standard astratti.",
+    },
+    {
+      to: "/funzionalita/fatturazione-elettronica",
+      title: "Fatturazione Elettronica SDI",
+      text: "Dalla commessa al SAL, dalla fattura attiva alla fattura passiva, conserva digitale 10 anni inclusa.",
+    },
+    {
+      to: "/funzionalita/gestione-subappalti",
+      title: "Gestione Subappalti",
+      text: "Subappaltatori, contratti, SAL, ritenute, DURC. Fianco a fianco con la gestione della manodopera diretta.",
+    },
+    {
+      to: "/funzionalita/render-infissi",
+      title: "Render Infissi AI",
+      text: "Per serramentisti: prima/dopo realistico per chiudere preventivi più velocemente.",
+    },
+    {
+      to: "/funzionalita/render-ristrutturazioni",
+      title: "Render Ristrutturazioni AI",
+      text: "Per imprese di ristrutturazione: prima/dopo sulla foto reale del cliente.",
+    },
+    {
+      to: "/per/imprese-costruzione",
+      title: "Software per Imprese di Costruzione",
+      text: "Tutta la piattaforma orientata alle imprese edili italiane: gestione, controllo, vendita, fatturazione.",
+    },
+    {
+      to: "/prezzi",
+      title: "Prezzi e Piani",
+      text: "Piani trasparenti da 49€/mese. Modulo HR e Personale incluso nei piani Professional e Business.",
+    },
+  ],
+
+  finalCtaH2: "Smetti di gestire il personale tra Excel, WhatsApp e fogli cartacei. Inizia a gestirlo da un'app.",
+  finalCtaBody:
+    "31 giorni gratuiti per portare Edilizia in Cloud nella tua amministrazione HR. Setup in 48 ore, importazione anagrafica operai, configurazione CCNL ed esportazione consulente del lavoro inclusi. Onboarding 1-a-1 incluso, cancelli quando vuoi.",
+  finalCtaButton: "Prova gratis 31 giorni",
+  finalCtaMicrocopy: "Setup in 48 ore · CCNL incluso · Esporta a TeamSystem/Zucchetti",
+
+  stickyCtaLabel: "Prova gratis HR e Personale",
+  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+
+  applicationSubCategory: "Construction Workforce Management Software",
+
+  relatedBlogSlugs: [
+    "ccnl-edilizia-guida",
+    "sicurezza-cantieri-dlgs-81",
+    "alternativa-excel-cantieri",
+  ],
+};
 
 export default function HrPersonale() {
-  useSEO({
-    title: "Software HR Presenze Operai Edili — Gestione Personale Cantiere | Edilizia in Cloud",
-    description:
-      "Gestione presenze operai con timbratura GPS da cantiere, calcolo Cassa Edile automatico, CCNL edilizia e export per buste paga. Elimina i foglietti e i doppi inserimenti.",
-    canonical: "/funzionalita/hr-personale",
-    keywords:
-      "presenze operai edili software, timbratura cantiere GPS, gestione personale edilizia, cassa edile software, CCNL edilizia livelli, HR impresa edile, ore cantiere operai",
-  });
-
-  return (
-    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
-      <JsonLd
-        id="jsonld-breadcrumb-hr"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
-            {
-              "@type": "ListItem",
-              position: 3,
-              name: "HR & Personale",
-              item: "https://www.ediliziaincloud.com/funzionalita/hr-personale",
-            },
-          ],
-        }}
-      />
-      <JsonLd
-        id="jsonld-webpage-hr"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "WebPage",
-          name: "Software HR Presenze Operai Edili — Gestione Personale Cantiere",
-          description:
-            "Timbratura GPS da cantiere, Cassa Edile integrata, CCNL edilizia e export per buste paga. Gestione HR completa per imprese edili.",
-          url: "https://www.ediliziaincloud.com/funzionalita/hr-personale",
-          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
-          about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
-        }}
-      />
-      <JsonLd
-        id="jsonld-article-hr"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "Article",
-          headline: "Software HR Presenze Operai Edili — Gestione Personale Cantiere",
-          description:
-            "Timbratura GPS da cantiere, Cassa Edile integrata, CCNL edilizia e export per buste paga.",
-          author: { "@type": "Organization", name: "Edilizia in Cloud" },
-          publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com" },
-          datePublished: "2026-04-08",
-          url: "https://www.ediliziaincloud.com/funzionalita/hr-personale",
-        }}
-      />
-
-      <LandingNavbar />
-
-      {/* ── HERO ── */}
-      <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto">
-          <span className="inline-block bg-[#F97415]/20 text-[#F97415] text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-[#F97415]/30">
-            FUNZIONALITÀ — HR & PERSONALE
-          </span>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-6">
-            Presenze, Cassa Edile e paghe:{" "}
-            <span className="text-[#F97415]">tutto automatico dal cantiere.</span>
-          </h1>
-          <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            L'operaio timbra dal telefono con GPS. Il titolare vede le ore in tempo reale. Il commercialista riceve l'export pronto. Addio ai fogli presenze e ai doppi inserimenti.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/demo"
-              className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
-            >
-              Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/funzionalita"
-              className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
-            >
-              Tutte le funzionalità
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PAIN SECTION ── */}
-      <section className="bg-[#f8f9fa] py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
-            Quante ore perdi ogni mese per gestire il personale?
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            I foglietti cartacei, le telefonate per sapere chi è in cantiere, i dati riscritti tre volte. C'è un modo migliore.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {painPoints.map((p) => (
-              <div key={p.title} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                <div className="text-3xl mb-3">{p.emoji}</div>
-                <h3 className="font-bold text-lg text-[#111111] mb-2">{p.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{p.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURES ── */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
-            Gestione HR pensata per il cantiere edile
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Dalla timbratura GPS all'export per il commercialista: tutto in un unico flusso digitale.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {features.map((f) => (
-              <div
-                key={f.title}
-                className="flex gap-4 items-start bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100"
-              >
-                <div className="text-3xl flex-shrink-0">{f.emoji}</div>
-                <div>
-                  <h3 className="font-bold text-[#111111] mb-1">{f.title}</h3>
-                  <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── STATS ── */}
-      <section className="bg-[#111111] py-20 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-white mb-12">
-            I numeri parlano chiaro
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((s) => (
-              <div key={s.label} className="text-center">
-                <div className="text-4xl font-extrabold text-[#F97415] mb-2">{s.value}</div>
-                <div className="text-white/70 text-sm">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── TESTIMONIAL ── */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="bg-[#f8f9fa] rounded-2xl p-8 border border-gray-100">
-            <p className="text-lg text-[#111111] italic leading-relaxed mb-6">
-              "Prima raccoglievo i fogli presenze ogni venerdì sera dai cantieri. Adesso ogni operaio timbra dall'app e il lunedì mattina ho già tutto il riepilogo pronto per il commercialista. Ho recuperato un giorno intero alla settimana."
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#F97415]/20 flex items-center justify-center font-bold text-[#F97415]">
-                A
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-[#111111] text-sm">Andrea M.</div>
-                <div className="text-gray-400 text-xs">Costruzioni Marchetti, Brescia</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── RELATED FEATURES ── */}
-      <section className="bg-[#f8f9fa] py-16 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-xl font-extrabold text-center text-[#111111] mb-8">Esplora altre funzionalità</h2>
-          <div className="flex flex-wrap gap-4 justify-center">
-            {relatedLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-6 py-3 rounded-2xl transition-colors text-sm"
-              >
-                {link.label} <ArrowRight className="w-4 h-4" />
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ── */}
-      <section className="bg-[#111111] py-20 px-4 text-center">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
-            Digitalizza la gestione del tuo personale oggi
-          </h2>
-          <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis. Operativo in 48 ore. Cancella quando vuoi.
-          </p>
-          <Link
-            to="/demo"
-            className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
-          >
-            Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </Link>
-        </div>
-      </section>
-
-      {/* ── LEGGI ANCHE ── */}
-      {relatedPosts.length > 0 && (
-        <section className="py-14 px-6 bg-white border-t border-gray-100">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-lg font-bold text-[#111111] mb-6">Leggi anche</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
-              {relatedPosts.map((p) => (
-                <Link key={p.slug} to={`/blog/${p.slug}`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-[#F97415]/40 p-4 transition-all hover:shadow-sm">
-                  <img src={p.coverImage} alt={p.title} className="w-full h-28 object-cover rounded-lg" loading="lazy" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">{p.category}</span>
-                  <span className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2">{p.title}</span>
-                  <span className="text-xs text-[#111111]/50">{p.readTime} min di lettura</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── FAQ ── */}
-      <JsonLd
-        id="jsonld-faq-hr"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Come funziona la timbratura GPS per gli operai edili?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Ogni operaio timbra entrata e uscita dall'app mobile di Edilizia in Cloud. La geolocalizzazione GPS associa automaticamente la timbratura al cantiere dove si trova l'operaio. Il titolare vede le presenze in tempo reale dalla dashboard web.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Il software gestisce la Cassa Edile per tutti i territori italiani?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Edilizia in Cloud gestisce il calcolo delle contribuzioni Cassa Edile con i parametri aggiornati per ogni territorio. Il sistema genera automaticamente i file di dichiarazione nel formato richiesto dall'ente locale.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Come vengono imputate le ore al cantiere giusto?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Quando l'operaio timbra, il sistema associa automaticamente le ore al cantiere tramite geolocalizzazione. Il capocantiere può anche assegnare manualmente le ore a cantieri specifici. Le ore imputate per cantiere entrano nel calcolo del costo reale della manodopera per commessa.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Come esporto i dati delle presenze per il commercialista?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "A fine mese, con un click generi un riepilogo presenze per operaio con totale ore, livello CCNL, cantieri di appartenenza e costo calcolato. Il file è esportabile in Excel o PDF, pronto per il commercialista o l'ufficio paghe.",
-              },
-            },
-          ],
-        }}
-      />
-      <section className="py-16 px-6 bg-gray-50">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
-            Domande frequenti su HR & Personale
-          </h2>
-          <div className="divide-y divide-gray-200">
-            {[
-              {
-                q: "Come funziona la timbratura GPS per gli operai edili?",
-                a: "Ogni operaio timbra entrata e uscita dall'app mobile. La geolocalizzazione GPS associa automaticamente la timbratura al cantiere. Il titolare vede le presenze in tempo reale dalla dashboard web.",
-              },
-              {
-                q: "Il software gestisce la Cassa Edile per tutti i territori?",
-                a: "Sì. Edilizia in Cloud calcola le contribuzioni Cassa Edile con i parametri aggiornati per ogni territorio italiano e genera i file di dichiarazione nel formato richiesto dall'ente locale.",
-              },
-              {
-                q: "Come vengono imputate le ore al cantiere giusto?",
-                a: "La timbratura GPS associa automaticamente le ore al cantiere. Il capocantiere può anche assegnare manualmente le ore. Tutte le ore entrano nel calcolo del costo reale della manodopera per commessa.",
-              },
-              {
-                q: "Come esporto i dati delle presenze per il commercialista?",
-                a: "A fine mese generi in un click il riepilogo presenze per operaio con totale ore, livello CCNL e costo calcolato. Esportabile in Excel o PDF, pronto per l'ufficio paghe.",
-              },
-            ].map((item, i) => (
-              <details key={i} className="py-5 group">
-                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
-                  {item.q}
-                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
-                </summary>
-                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <LandingFooter />
-    </div>
-  );
+  return <FunzionalitaPageTemplate config={config} />;
 }

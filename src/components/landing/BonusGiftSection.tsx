@@ -91,14 +91,14 @@ export default function BonusGiftSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
-          <a
-            href="#cta-finale"
-            onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
+          <button
+            type="button"
+            onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#0d9179] text-white font-bold text-base md:text-lg shadow-lg shadow-[#F97415]/25 hover:shadow-[#F97415]/40 transition-all duration-300 hover:scale-105"
           >
             Richiedi la Demo e Ricevi il Corso
             <ArrowRight className="w-5 h-5" />
-          </a>
+          </button>
         </div>
       </div>
     </section>

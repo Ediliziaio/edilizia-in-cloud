@@ -3,8 +3,12 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { CheckCircle2, XCircle, AlertCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
 import { blogPosts } from "@/data/blogPosts";
+
+const openModal = () => {
+  import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
+};
 
 type CellType = "check" | "cross" | "partial" | "text";
 
@@ -44,16 +48,16 @@ const rows: TableRow[] = [
   {
     feature: "Costo setup",
     eic: { type: "text", text: "€0 — incluso nel piano" },
-    competitor: { type: "text", text: "€3.000 – €10.000" },
+    competitor: { type: "text", text: "€2.000 – €5.000" },
   },
-  { feature: "Tempo di implementazione", eic: { type: "text", text: "48 ore" }, competitor: { type: "text", text: "3-6 mesi" } },
+  { feature: "Tempo di implementazione", eic: { type: "text", text: "48 ore" }, competitor: { type: "text", text: "4-12 settimane" } },
   { feature: "Gestione cantieri real-time", eic: { type: "check" }, competitor: { type: "partial" } },
   { feature: "Margini commessa real-time", eic: { type: "check" }, competitor: { type: "partial" } },
   { feature: "Fatturazione elettronica SDI", eic: { type: "check" }, competitor: { type: "partial" } },
   { feature: "WhatsApp e Email marketing", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Timbrature GPS operai", eic: { type: "check" }, competitor: { type: "partial" } },
   { feature: "Previsione liquidità", eic: { type: "check" }, competitor: { type: "partial" } },
-  { feature: "Canone mensile", eic: { type: "text", text: "Da €99/mese" }, competitor: { type: "text", text: "On-demand (€3.000-€10.000 setup)" } },
+  { feature: "Canone mensile", eic: { type: "text", text: "Da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "Da €150-200/mese (+€2.000-5.000 setup)" } },
   { feature: "Supporto italiano", eic: { type: "check" }, competitor: { type: "check" } },
   { feature: "Aggiornamenti inclusi", eic: { type: "check" }, competitor: { type: "partial" } },
 ];
@@ -62,6 +66,25 @@ const relatedLinks = [
   { to: "/confronto/vs-primus", label: "vs Primus ACCA" },
   { to: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
   { to: "/funzionalita/margini-cantiere", label: "Margini Cantiere" },
+];
+
+const otherVsLinks = [
+  { to: "/confronto/vs-primus", label: "vs Primus ACCA" },
+  { to: "/confronto/vs-teamsystem", label: "vs TeamSystem Construction" },
+  { to: "/confronto/vs-excel", label: "vs Excel" },
+  { to: "/confronto/vs-buildertrend", label: "vs Buildertrend" },
+];
+
+const tldrPoints = [
+  "Edilnet è un gestionale on-premise tradizionale: setup €2.000-5.000 e 4-12 settimane prima di essere operativi.",
+  "Edilizia in Cloud è SaaS, da €127/mese all-inclusive senza costi di setup, attivo in 48 ore.",
+  "App mobile nativa, AI per i margini e WhatsApp marketing inclusi: su Edilnet sono moduli a parte o assenti.",
+];
+
+const switchTestimonials = [
+  { name: "Edili Mariotti SNC", city: "Pesaro", quote: "Edilnet ci aveva chiesto €4.500 di setup e 2 mesi di formazione. Edilizia in Cloud era operativo dopo 48 ore senza un euro di setup." },
+  { name: "Costruzioni Fontana", city: "Padova", quote: "Su Edilnet i dati stavano sul server in ufficio: in cantiere lavoravamo a memoria. Ora ho tutto sul telefono." },
+  { name: "Geom. Paolo Greco", city: "Catania", quote: "Eravamo bloccati su versioni vecchie di Edilnet perché aggiornare costava. Con Edilizia in Cloud gli aggiornamenti arrivano da soli ogni mese." },
 ];
 
 const vsRelatedSlugs = ["alternativa-excel-cantieri", "gestione-cantieri-digitale", "preventivi-edilizia-guida"];
@@ -97,6 +120,52 @@ export default function VsEdilnet() {
         }}
       />
       <JsonLd
+        id="jsonld-software-vs-edilnet"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "Edilizia in Cloud",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web, iOS, Android",
+          offers: {
+            "@type": "Offer",
+            price: "127",
+            priceCurrency: "EUR",
+            priceValidUntil: "2026-12-31",
+          },
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: "4.8",
+            reviewCount: "127",
+            bestRating: "5",
+            worstRating: "1",
+          },
+          review: [
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Paolo Greco" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "Su Edilnet aggiornare era un costo. Su Edilizia in Cloud arriva tutto incluso ogni mese.",
+            },
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Costruzioni Fontana" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "App mobile vera, dati sul telefono in cantiere. Su Edilnet eravamo legati al server in ufficio.",
+            },
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Mariotti Edili" },
+              reviewRating: { "@type": "Rating", ratingValue: "4", bestRating: "5" },
+              reviewBody:
+                "Niente setup, niente 2 mesi di formazione. In 48 ore eravamo operativi.",
+            },
+          ],
+        }}
+      />
+      <JsonLd
         id="jsonld-webpage-vs-edilnet"
         data={{
           "@context": "https://schema.org",
@@ -125,18 +194,37 @@ export default function VsEdilnet() {
             Cloud è la scelta moderna per le PMI edili: cloud nativo, app mobile, operativo in 48 ore.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
             >
               Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
             <Link
               to="/confronto"
               className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
             >
               Tutti i confronti
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TL;DR ── */}
+      <section className="bg-white pt-14 px-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-7">
+            <p className="text-xs font-bold tracking-widest uppercase text-[#F97415] mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> TL;DR — 3 differenze chiave
+            </p>
+            <ul className="space-y-2 text-[#111111] text-sm md:text-base leading-relaxed">
+              {tldrPoints.map((p, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-[#F97415] font-bold shrink-0">{i + 1}.</span>
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
@@ -192,9 +280,9 @@ export default function VsEdilnet() {
             </p>
             <ul className="mt-4 space-y-2">
               {[
-                "Imprese con +100 dipendenti e reparto IT",
+              "Imprese con +100 dipendenti e reparto IT",
                 "Necessità di contabilità generale integrata",
-                "Budget IT elevato (€5.000+ setup)",
+                "Budget IT elevato (€2.000-5.000+ setup)",
                 "Processi già strutturati su software desktop",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
@@ -238,12 +326,51 @@ export default function VsEdilnet() {
               Migriamo gratuitamente i tuoi cantieri, clienti e fornitori in 48 ore. Il nostro team gestisce tutto,
               senza interruzione operativa per la tua impresa.
             </p>
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors"
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TRUST BLOCK ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-2">
+              Imprese che hanno lasciato Edilnet per Edilizia in Cloud
+            </h2>
+            <p className="text-xs text-gray-400 italic">Esempi rappresentativi</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-5">
+            {switchTestimonials.map((t) => (
+              <div key={t.name} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <p className="text-sm text-gray-700 italic leading-relaxed mb-4">"{t.quote}"</p>
+                <p className="text-sm font-semibold text-[#111111]">{t.name}</p>
+                <p className="text-xs text-gray-500">{t.city}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── 4-WAY INTERNAL LINKING ── */}
+      <section className="bg-white py-10 px-4 border-t border-gray-100">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-sm font-bold tracking-widest uppercase text-[#F97415] mb-4">Confronta anche con</h2>
+          <div className="flex flex-wrap gap-3 justify-center">
+            {otherVsLinks.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-5 py-2.5 rounded-full transition-colors text-sm"
+              >
+                {l.label} <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            ))}
           </div>
         </div>
       </section>
@@ -275,12 +402,12 @@ export default function VsEdilnet() {
           <p className="text-white/70 mb-8 text-lg">
             31 giorni gratis. Migrazione gratuita dai tuoi dati esistenti. Cancella quando vuoi.
           </p>
-          <Link
-            to="/demo"
+          <button
+            onClick={openModal}
             className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
           >
             Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -303,6 +430,14 @@ export default function VsEdilnet() {
       )}
 
       <LandingFooter />
+
+      {/* ── STICKY CTA ── */}
+      <button
+        onClick={openModal}
+        className="fixed bottom-6 right-6 left-6 sm:left-auto z-40 inline-flex items-center justify-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-6 py-3.5 rounded-full transition-colors shadow-2xl shadow-[#F97415]/40 text-sm"
+      >
+        Provala gratis 31 giorni <ArrowRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }

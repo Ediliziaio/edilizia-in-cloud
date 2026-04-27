@@ -3,7 +3,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   seoTitle: "Software Gestionale per Installatori Fotovoltaico — Pratiche GSE, SAL, Incentivi | Edilizia in Cloud",
-  seoDescription: "Il gestionale per installatori fotovoltaico che automatizza le pratiche GSE, gestisce SAL impianti FV, coordina i tecnici su più cantieri e calcola i margini per kWp in tempo reale. Zero incentivi persi per errori burocratici. Prova gratis 30 giorni.",
+  seoDescription: "Il gestionale per installatori fotovoltaico che automatizza le pratiche GSE, gestisce SAL impianti FV, coordina i tecnici su più cantieri e calcola i margini per kWp in tempo reale. Zero incentivi persi per errori burocratici. Prova gratis 31 giorni.",
   seoKeywords: "software gestionale fotovoltaico, gestionale installatori pannelli solari, software pratiche GSE, gestionale energie rinnovabili, software impianti fotovoltaici, gestionale SAL fotovoltaico, software incentivi fotovoltaico, CACER software, pratiche ARERA fotovoltaico, allaccio rete gestore",
   seoCanonical: "/per/fotovoltaico",
 

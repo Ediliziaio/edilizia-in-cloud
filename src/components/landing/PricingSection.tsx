@@ -26,7 +26,12 @@ export default function PricingSection() {
             <span className="text-7xl md:text-8xl font-extrabold text-white leading-none">€99</span>
             <span className="text-white/40 text-xl mb-3">/mese</span>
           </div>
-          <p className="text-white/40 text-base mb-8">Piano Gestionale · fatturazione annuale · disdici quando vuoi</p>
+          <p className="text-white/40 text-base mb-2">
+            Piano Gestionale · fatturazione annuale · disdici quando vuoi
+          </p>
+          <p className="text-white/30 text-sm mb-8">
+            <span className="text-white/60">Mensile da €127</span> · Professionista da €197/mese (annuale, €247 mensile) · Impresa AI da €437/mese (annuale, €547 mensile)
+          </p>
         </div>
 
         {/* 3 quick features */}
@@ -53,12 +58,13 @@ export default function PricingSection() {
 
         {/* CTAs */}
         <div className={`flex flex-col sm:flex-row items-center justify-center gap-4 transition-all duration-700 delay-400 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-          <Link
-            to="/demo"
+          <button
+            type="button"
+            onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
             className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
           >
             Inizia Gratis Adesso →
-          </Link>
+          </button>
           <Link
             to="/prezzi"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all"
@@ -68,7 +74,7 @@ export default function PricingSection() {
         </div>
 
         <p className={`mt-6 text-white/30 text-xs transition-all duration-700 delay-500 ${isVisible ? "opacity-100" : "opacity-0"}`}>
-          Carta di credito non richiesta · Setup in 48h incluso · Dati al sicuro in Europa
+          Setup in 48h incluso · Supporto italiano dedicato · Dati al sicuro in Europa
         </p>
       </div>
     </section>

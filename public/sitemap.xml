@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornato: 2026-04-13 — 104 URL, 32 articoli, 35 città, 6 confronti (rimossi noindex: privacy, termini) -->
+  <!-- Sitemap aggiornato: 2026-04-27 — 110 URL, 32 articoli, 35 città, 6 confronti, 6 pagine legali -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -513,11 +513,35 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/per/piccole-imprese</loc>
-    <lastmod>2026-04-13</lastmod>
+    <lastmod>2026-04-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/per/piccole-imprese"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/per/piccole-imprese"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/per/medie-imprese</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/per/medie-imprese"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/per/medie-imprese"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/per/grandi-imprese</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/per/grandi-imprese"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/per/grandi-imprese"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/per/commercialista-edilizia</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/per/commercialista-edilizia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/per/commercialista-edilizia"/>
   </url>
 
   <!-- ── Funzionalità sub-pages ───────────────────────────────────── -->
@@ -568,6 +592,374 @@
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/gestione-subappalti"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/gestione-subappalti"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/render-infissi</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/render-infissi"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/render-infissi"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/render-bagni</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/render-bagni"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/render-bagni"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/render-tetti</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/render-tetti"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/render-tetti"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/render-pavimenti</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/render-pavimenti"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/render-pavimenti"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/render-ristrutturazioni</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/render-ristrutturazioni"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/render-ristrutturazioni"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/render-stanza</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/render-stanza"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/render-stanza"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/render-piscine</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/render-piscine"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/render-piscine"/>
+  </url>
+
+  <!-- ── Funzionalità sub-pages — TIER 1 (high-impact SEO) ─────────── -->
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/cassa-cantiere</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/cassa-cantiere"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/cassa-cantiere"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/agenti-ai</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/agenti-ai"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/agenti-ai"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/portale-clienti</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/portale-clienti"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/portale-clienti"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/firma-elettronica</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/firma-elettronica"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/firma-elettronica"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/whatsapp-marketing</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/whatsapp-marketing"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/whatsapp-marketing"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/email-marketing</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/email-marketing"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/email-marketing"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/automazioni</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/automazioni"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/automazioni"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/crm-edilizia</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/crm-edilizia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/crm-edilizia"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/cruscotto-aziendale</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/cruscotto-aziendale"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/cruscotto-aziendale"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/giornale-lavori</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/giornale-lavori"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/giornale-lavori"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/sicurezza-cantiere</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/sicurezza-cantiere"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/sicurezza-cantiere"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/foto-cantiere</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/foto-cantiere"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/foto-cantiere"/>
+  </url>
+
+  <!-- ── Funzionalità sub-pages — TIER 2 (financial / fiscal / ops) ── -->
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/cassetto-sdi</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/cassetto-sdi"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/cassetto-sdi"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/conserva-digitale</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/conserva-digitale"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/conserva-digitale"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/scadenzario</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/scadenzario"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/scadenzario"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/prima-nota</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/prima-nota"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/prima-nota"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/tesoreria</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/tesoreria"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/tesoreria"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/timbrature-gps</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/timbrature-gps"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/timbrature-gps"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/ordini-acquisto</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/ordini-acquisto"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/ordini-acquisto"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/sms-marketing</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/sms-marketing"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/sms-marketing"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/pipeline-vendite</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/pipeline-vendite"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/pipeline-vendite"/>
+  </url>
+
+  <!-- ── Funzionalità sub-pages — TIER 3 (vertical / niche) ────────── -->
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/fotovoltaico</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/fotovoltaico"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/fotovoltaico"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/manutenzione-impianti</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/manutenzione-impianti"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/manutenzione-impianti"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/ddt-digitali</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/ddt-digitali"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/ddt-digitali"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/ritenute-garanzia</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/ritenute-garanzia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/ritenute-garanzia"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/finanziamenti-cantieri</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/finanziamenti-cantieri"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/finanziamenti-cantieri"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/lead-form-facebook</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/lead-form-facebook"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/lead-form-facebook"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/quote-builder-ai</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/quote-builder-ai"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/quote-builder-ai"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/app-cantiere-mobile</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/app-cantiere-mobile"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/app-cantiere-mobile"/>
+  </url>
+
+  <!-- ── Funzionalità sub-pages — TIER 4 (HR / accounting / support) ─ -->
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/cedolini-paga</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/cedolini-paga"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/cedolini-paga"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/ferie-permessi</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/ferie-permessi"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/ferie-permessi"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/ticket-assistenza</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/ticket-assistenza"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/ticket-assistenza"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/chat-interna</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/chat-interna"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/chat-interna"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/registro-iva</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/registro-iva"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/registro-iva"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/contabilita-fiscale</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/contabilita-fiscale"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/contabilita-fiscale"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/calendario-lavori</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/calendario-lavori"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/calendario-lavori"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/funzionalita/report-fatturazione</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/funzionalita/report-fatturazione"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/funzionalita/report-fatturazione"/>
   </url>
 
   <!-- ── Confronto sub-pages ───────────────────────────────────────── -->
@@ -957,7 +1349,54 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/diventa-partner"/>
   </url>
 
-  <!-- Legal pages rimossi dalla sitemap: hanno noindex nel componente React -->
-  <!-- /privacy e /termini sono accessibili ma non devono essere indicizzati -->
+  <!-- ── Pagine legali (indicizzabili per trasparenza GDPR) ───────────── -->
+  <url>
+    <loc>https://www.ediliziaincloud.com/privacy-policy</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/privacy-policy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/privacy-policy"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/termini-e-condizioni</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/termini-e-condizioni"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/termini-e-condizioni"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/avviso-legale</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/avviso-legale"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/avviso-legale"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/condizioni-utilizzo</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/condizioni-utilizzo"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/condizioni-utilizzo"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/cookie-policy</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/cookie-policy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/cookie-policy"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/dpa</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/dpa"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/dpa"/>
+  </url>
 
 </urlset>

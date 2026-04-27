@@ -84,15 +84,15 @@ export default function FinalCtaSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Pronto a smettere di lavorare{" "}
-          <span className="text-[#F97415]">a sensazione?</span>
+          Pronto a vedere i numeri{" "}
+          <span className="text-[#F97415]">VERI della tua azienda?</span>
         </h2>
         <p
-          className={`text-white/50 text-lg mb-10 max-w-2xl mx-auto transition-all duration-700 delay-150 ${
+          className={`text-white/60 text-lg md:text-xl mb-10 max-w-2xl mx-auto transition-all duration-700 delay-150 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Unisciti alle 150+ imprese edili italiane che controllano i numeri ogni giorno.
+          Prenota la tua <strong className="text-white">demo personalizzata di 30 minuti</strong>: ti mostriamo il software sui dati della tua impresa, identifichiamo insieme i primi sprechi e ti diciamo se fa per te. Senza impegno.
         </p>
 
         {/* Countdown */}
@@ -133,15 +133,14 @@ export default function FinalCtaSection() {
 
           {/* Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
-            <a
-              href="https://calendly.com"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
               className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl bg-[#C94F06] hover:bg-[#A84305] text-white font-bold text-base md:text-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-[#C94F06]/30"
             >
               Richiedi Demo Gratuita
               <ArrowRight className="w-5 h-5" />
-            </a>
+            </button>
             <a
               href="#prezzi"
               onClick={(e) => {

@@ -3,7 +3,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   seoTitle: "Gestionale per Imprese di Costruzione — Controllo Margini Commessa in Tempo Reale | Edilizia in Cloud",
-  seoDescription: "Il gestionale per imprese di costruzione con AI: controlla margini reali su ogni commessa, gestisci SAL, subappaltatori e computi metrici. Scopri le perdite prima che accadano. Prova gratis 30 giorni.",
+  seoDescription: "Il gestionale per imprese di costruzione con AI: controlla margini reali su ogni commessa, gestisci SAL, subappaltatori e computi metrici. Scopri le perdite prima che accadano. Prova gratis 31 giorni.",
   seoKeywords: "gestionale impresa costruzione, software impresa edile, software general contractor, gestione appalti edili, software commesse costruzione, gestionale cantieri multipli, software margini costruzione, SAL software, ERP impresa costruzione italiana",
   seoCanonical: "/per/imprese-costruzione",
 

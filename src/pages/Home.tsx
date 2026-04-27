@@ -1,30 +1,42 @@
 
+import { lazy, Suspense } from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
+import TrustBar from "@/components/landing/TrustBar";
 import StatsSection from "@/components/landing/StatsSection";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
-import FeatureShowcaseSection from "@/components/landing/FeatureShowcaseSection";
-import FounderLetterSection from "@/components/landing/FounderLetterSection";
-import BonusGiftSection from "@/components/landing/BonusGiftSection";
-import PainPointsSection from "@/components/landing/PainPointsSection";
-import CostTableSection from "@/components/landing/CostTableSection";
-import SolutionSection from "@/components/landing/SolutionSection";
-import ModulesSection from "@/components/landing/ModulesSection";
-import VideoSection from "@/components/landing/VideoSection";
-import ComparisonSection from "@/components/landing/ComparisonSection";
-import ScenarioSection from "@/components/landing/ScenarioSection";
-import TargetSection from "@/components/landing/TargetSection";
-import CriteriaSection from "@/components/landing/CriteriaSection";
-import PricingSection from "@/components/landing/PricingSection";
-import TestimonialsSection from "@/components/landing/TestimonialsSection";
-import FAQSection from "@/components/landing/FAQSection";
-import FinalCtaSection from "@/components/landing/FinalCtaSection";
-import FounderLetterBottom from "@/components/landing/FounderLetterBottom";
-import LandingFooter from "@/components/landing/LandingFooter";
-import StickyBottomBar from "@/components/landing/StickyBottomBar";
 import { Link } from "react-router-dom";
+
+// Below-the-fold: lazy-loaded
+const ClientLogosSection = lazy(() => import("@/components/landing/ClientLogosSection"));
+const FounderLetterSection = lazy(() => import("@/components/landing/FounderLetterSection"));
+const BonusGiftSection = lazy(() => import("@/components/landing/BonusGiftSection"));
+const PainPointsSection = lazy(() => import("@/components/landing/PainPointsSection"));
+const CostTableSection = lazy(() => import("@/components/landing/CostTableSection"));
+const SolutionSection = lazy(() => import("@/components/landing/SolutionSection"));
+const ModulesSection = lazy(() => import("@/components/landing/ModulesSection"));
+const IntegrationsTeaserSection = lazy(() => import("@/components/landing/IntegrationsTeaserSection"));
+const FeatureShowcaseSection = lazy(() => import("@/components/landing/FeatureShowcaseSection"));
+const VideoSection = lazy(() => import("@/components/landing/VideoSection"));
+const ComparisonSection = lazy(() => import("@/components/landing/ComparisonSection"));
+const CaseStudyTeaserSection = lazy(() => import("@/components/landing/CaseStudyTeaserSection"));
+const ScenarioSection = lazy(() => import("@/components/landing/ScenarioSection"));
+const TestimonialsSection = lazy(() => import("@/components/landing/TestimonialsSection"));
+const TargetSection = lazy(() => import("@/components/landing/TargetSection"));
+const CriteriaSection = lazy(() => import("@/components/landing/CriteriaSection"));
+const GuaranteeSection = lazy(() => import("@/components/landing/GuaranteeSection"));
+const PricingSection = lazy(() => import("@/components/landing/PricingSection"));
+const FAQSection = lazy(() => import("@/components/landing/FAQSection"));
+const BlogTeaserSection = lazy(() => import("@/components/landing/BlogTeaserSection"));
+const FinalCtaSection = lazy(() => import("@/components/landing/FinalCtaSection"));
+const FounderLetterBottom = lazy(() => import("@/components/landing/FounderLetterBottom"));
+const LandingFooter = lazy(() => import("@/components/landing/LandingFooter"));
+const StickyBottomBar = lazy(() => import("@/components/landing/StickyBottomBar"));
+const QuickContactModal = lazy(() => import("@/components/landing/QuickContactModal"));
+
+const SectionFallback = () => <div className="h-32" aria-hidden="true" />;
 
 
 export default function Home() {
@@ -43,6 +55,62 @@ export default function Home() {
         "itemListElement": [
           {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/"}
         ]
+      }} />
+      <JsonLd id="jsonld-organization-home" data={{
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://www.ediliziaincloud.com/#organization",
+        "name": "Edilizia in Cloud",
+        "legalName": "Domus Group S.r.l.",
+        "url": "https://www.ediliziaincloud.com",
+        "logo": "https://www.ediliziaincloud.com/icons/icon-512.png",
+        "vatID": "IT13132010961",
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "IT",
+          "addressRegion": "Lombardia"
+        },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer support",
+          "email": "info@ediliziaincloud.com",
+          "areaServed": "IT",
+          "availableLanguage": ["Italian"]
+        },
+        "sameAs": [
+          "https://www.linkedin.com/company/edilizia-in-cloud",
+          "https://www.facebook.com/ediliziaincloud",
+          "https://www.instagram.com/ediliziaincloud"
+        ]
+      }} />
+      <JsonLd id="jsonld-software-home" data={{
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "@id": "https://www.ediliziaincloud.com/#software",
+        "name": "Edilizia in Cloud",
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Construction Management Software",
+        "operatingSystem": "Web, iOS, Android",
+        "description": "Software gestionale per imprese edili con AI integrata: gestione cantieri, margini in tempo reale, fatturazione elettronica, CRM, HR.",
+        "offers": {
+          "@type": "AggregateOffer",
+          "priceCurrency": "EUR",
+          "lowPrice": "127",
+          "highPrice": "547",
+          "offerCount": "3"
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.8",
+          "reviewCount": "127",
+          "bestRating": "5",
+          "worstRating": "1"
+        },
+        "softwareVersion": "2026.1",
+        "inLanguage": "it-IT",
+        "publisher": {
+          "@id": "https://www.ediliziaincloud.com/#organization"
+        }
       }} />
       <JsonLd id="jsonld-offer-home" data={{
         "@context": "https://schema.org",
@@ -249,30 +317,42 @@ export default function Home() {
 
       <LandingNavbar />
       <HeroSection />
+      <TrustBar />
       <StatsSection />
       <HowItWorksSection />
-      <FeatureShowcaseSection />
-      <FounderLetterSection />
-      <BonusGiftSection />
-      <PainPointsSection />
-      <CostTableSection />
-      <SolutionSection />
-      <ModulesSection />
-      <VideoSection />
-      <ComparisonSection />
-      <ScenarioSection />
-      <TargetSection />
-      <CriteriaSection />
-      <PricingSection />
-      <TestimonialsSection />
-      <FAQSection />
-      <FinalCtaSection />
-      <FounderLetterBottom />
+
+      <Suspense fallback={<SectionFallback />}>
+        <ClientLogosSection />
+        <PainPointsSection />
+        <CostTableSection />
+        <SolutionSection />
+        <ModulesSection />
+        <IntegrationsTeaserSection />
+        <FeatureShowcaseSection />
+        <FounderLetterSection />
+        <BonusGiftSection />
+        <VideoSection />
+        <ComparisonSection />
+        <CaseStudyTeaserSection />
+        <ScenarioSection />
+        <TestimonialsSection />
+        <TargetSection />
+        <CriteriaSection />
+        <GuaranteeSection />
+        <PricingSection />
+        <FAQSection />
+        <BlogTeaserSection />
+        <FinalCtaSection />
+        <FounderLetterBottom />
+      </Suspense>
 
       {/* ── Copertura Geografica ─────────────────────────────────────────── */}
       <section className="py-12 bg-gray-50 border-t border-gray-200">
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="text-lg font-bold text-[#111111] mb-4 text-center">Software Gestionale Edilizia per Città</h2>
+          <p className="max-w-3xl mx-auto text-center text-sm md:text-base text-gray-600 mb-4 leading-relaxed">
+            Edilizia in Cloud è il software gestionale per imprese edili usato in tutta Italia: da Milano a Roma, da Napoli a Torino, abbiamo configurato il sistema per oltre 200 imprese edili nei principali capoluoghi italiani.
+          </p>
           <p className="text-center text-sm text-gray-500 mb-6">Scelto dalle imprese edili di tutta Italia</p>
           <div className="flex justify-center mb-4">
             <Link
@@ -333,8 +413,11 @@ export default function Home() {
         </div>
       </section>
 
-      <LandingFooter />
-      <StickyBottomBar />
+      <Suspense fallback={<SectionFallback />}>
+        <LandingFooter />
+        <StickyBottomBar />
+        <QuickContactModal />
+      </Suspense>
     </div>
   );
 }

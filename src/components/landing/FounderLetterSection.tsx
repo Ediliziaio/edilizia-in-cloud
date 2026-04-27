@@ -78,13 +78,13 @@ export default function FounderLetterSection() {
               <p className="font-semibold text-[#111111]">Perché quando vedi i numeri VERI della tua azienda per la prima volta… non torni più indietro.</p>
 
               <div className="text-center my-8">
-                <a
-                  href="#cta-finale"
-                  onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
+                <button
+                  type="button"
+                  onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
                   className="inline-block px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] transition-all shadow-lg shadow-[#F97415]/30"
                 >
                   👉 RICHIEDI LA TUA DEMO GRATUITA ORA
-                </a>
+                </button>
                 <p className="text-sm text-[#111111]/50 mt-3">15 minuti. Zero costi. Zero impegni. Solo chiarezza.</p>
               </div>
 
@@ -109,13 +109,13 @@ export default function FounderLetterSection() {
               </div>
 
               <div className="text-center mt-8">
-                <a
-                  href="#cta-finale"
-                  onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
+                <button
+                  type="button"
+                  onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
                   className="inline-block px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] transition-all shadow-lg shadow-[#F97415]/30"
                 >
                   👉 SÌ, VOGLIO LA MIA DEMO GRATUITA
-                </a>
+                </button>
               </div>
             </div>
 

@@ -192,12 +192,9 @@ export default function FAQSection() {
           }}
         >
           <p className="text-gray-400 text-sm mb-4">Preferisci parlare con una persona?</p>
-          <a
-            href="#cta-finale"
-            onClick={(e) => {
-              e.preventDefault();
-              document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" });
-            }}
+          <button
+            type="button"
+            onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
             className="inline-flex items-center gap-2 px-7 py-3 rounded-full font-semibold text-sm text-white transition-all duration-200 hover:scale-105"
             style={{
               backgroundColor: "#111111",
@@ -205,7 +202,7 @@ export default function FAQSection() {
             }}
           >
             Prenota una call gratuita — 30 minuti
-          </a>
+          </button>
         </div>
       </div>
     </section>

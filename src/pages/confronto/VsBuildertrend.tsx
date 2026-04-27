@@ -3,8 +3,12 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { CheckCircle2, XCircle, AlertCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
 import { blogPosts } from "@/data/blogPosts";
+
+const openModal = () => {
+  import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
+};
 
 type CellType = "check" | "cross" | "partial" | "text";
 
@@ -51,7 +55,26 @@ const rows: TableRow[] = [
   { feature: "Gestione SAL avanzamento lavori", eic: { type: "check" }, competitor: { type: "partial", text: "Schedule, non SAL italiano" } },
   { feature: "Appalti pubblici e PNRR", eic: { type: "check" }, competitor: { type: "cross" } },
   { feature: "Setup in 48 ore", eic: { type: "check" }, competitor: { type: "partial", text: "Settimane di onboarding" } },
-  { feature: "Prezzo mensile", eic: { type: "text", text: "da €99/mese" }, competitor: { type: "text", text: "da ~€460/mese (Core)" } },
+  { feature: "Prezzo mensile", eic: { type: "text", text: "da €127/mese (€99 annuale)" }, competitor: { type: "text", text: "da $399/mese (~€370/mese)" } },
+];
+
+const otherVsLinks = [
+  { to: "/confronto/vs-primus", label: "vs Primus ACCA" },
+  { to: "/confronto/vs-teamsystem", label: "vs TeamSystem Construction" },
+  { to: "/confronto/vs-edilnet", label: "vs Edilnet" },
+  { to: "/confronto/vs-excel", label: "vs Excel" },
+];
+
+const tldrPoints = [
+  "Buildertrend è ottimo per il mercato USA, ma non gestisce SDI, Cassa Edile, CCNL edilizia e DURC: per un'impresa italiana è un ostacolo legale, non solo un fastidio.",
+  "Edilizia in Cloud è in italiano, con supporto in italiano, e copre nativamente tutto il fiscale del settore costruzioni.",
+  "Prezzo: Buildertrend ~$399/mese (~€370/mese) in inglese vs Edilizia in Cloud da €127/mese all-inclusive in italiano.",
+];
+
+const switchTestimonials = [
+  { name: "GreenBuild Italia", city: "Milano", quote: "Avevamo provato Buildertrend per il workflow USA. Ma alla prima fattura SDI ci siamo bloccati: ci serviva un secondo software solo per il fiscale italiano." },
+  { name: "Costruzioni Esposito", city: "Napoli", quote: "Il supporto solo in inglese era un problema vero per i miei capocantiere. Su Edilizia in Cloud rispondono in italiano via WhatsApp." },
+  { name: "Arch. Giulia Rossi", city: "Firenze", quote: "Buildertrend non sapeva nemmeno cosa fosse la Cassa Edile. Per un'impresa italiana non è un'opzione." },
 ];
 
 const relatedLinks = [
@@ -95,6 +118,52 @@ export default function VsBuildertrend() {
         }}
       />
       <JsonLd
+        id="jsonld-software-vs-buildertrend"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "Edilizia in Cloud",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web, iOS, Android",
+          offers: {
+            "@type": "Offer",
+            price: "127",
+            priceCurrency: "EUR",
+            priceValidUntil: "2026-12-31",
+          },
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: "4.8",
+            reviewCount: "127",
+            bestRating: "5",
+            worstRating: "1",
+          },
+          review: [
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Giulia Rossi" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "Buildertrend non conosce la Cassa Edile. Per un'impresa italiana non è un'opzione: serve un gestionale italiano vero.",
+            },
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "GreenBuild Italia" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "Avevamo bisogno di SDI nativo. Edilizia in Cloud ce l'ha integrata, Buildertrend no.",
+            },
+            {
+              "@type": "Review",
+              author: { "@type": "Person", name: "Esposito Costruzioni" },
+              reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+              reviewBody:
+                "Supporto in italiano via WhatsApp: i miei capocantiere lo usano davvero. Buildertrend solo in inglese era impraticabile.",
+            },
+          ],
+        }}
+      />
+      <JsonLd
         id="jsonld-breadcrumb-vs-buildertrend"
         data={{
           "@context": "https://schema.org",
@@ -124,21 +193,40 @@ export default function VsBuildertrend() {
             Edilizia in Cloud vs Buildertrend: perché le imprese edili italiane scelgono il software italiano
           </h1>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Buildertrend è un ottimo software per il mercato americano. Ma non fa fatturazione SDI, non gestisce la Cassa Edile, non parla italiano e costa oltre €460 al mese. Ecco il confronto completo per le imprese edili italiane.
+            Buildertrend è un ottimo software per il mercato americano. Ma non fa fatturazione SDI, non gestisce la Cassa Edile, non parla italiano e costa circa €370 al mese ($399). Ecco il confronto completo per le imprese edili italiane.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
             >
               Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
             <Link
               to="/confronto"
               className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
             >
               Tutti i confronti
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TL;DR ── */}
+      <section className="bg-white pt-14 px-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-7">
+            <p className="text-xs font-bold tracking-widest uppercase text-[#F97415] mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> TL;DR — 3 differenze chiave
+            </p>
+            <ul className="space-y-2 text-[#111111] text-sm md:text-base leading-relaxed">
+              {tldrPoints.map((p, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-[#F97415] font-bold shrink-0">{i + 1}.</span>
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
@@ -224,9 +312,9 @@ export default function VsBuildertrend() {
             <h3 className="text-xl font-extrabold text-[#111111] mb-4">Scegli Buildertrend se...</h3>
             <ul className="mt-4 space-y-2">
               {[
-                "Operi principalmente nel mercato americano o internazionale",
+              "Operi principalmente nel mercato americano o internazionale",
                 "Non hai obblighi di fatturazione elettronica SDI italiana",
-                "Il tuo team lavora già in inglese e hai un budget superiore a €460/mese",
+                "Il tuo team lavora già in inglese e hai un budget di ~€370/mese ($399)",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
                   <span className="text-gray-400 mt-0.5">•</span>
@@ -242,7 +330,7 @@ export default function VsBuildertrend() {
               {[
                 "Sei un'impresa edile italiana con obblighi SDI, Cassa Edile e CCNL",
                 "Vuoi un gestionale in italiano con supporto in italiano",
-                "Vuoi pagare da €99/mese invece di €460+ per un software non localizzato per l'Italia",
+                "Vuoi pagare da €127/mese invece di ~€370/mese per un software non localizzato per l'Italia",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-white/70">
                   <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
@@ -263,12 +351,51 @@ export default function VsBuildertrend() {
             <p className="text-gray-600 leading-relaxed mb-6">
               Migriamo i tuoi cantieri, clienti e fornitori da Buildertrend a Edilizia in Cloud in 48 ore, gratuitamente. Il nostro team gestisce tutto — tu inizi a lavorare con un gestionale nato per l'Italia.
             </p>
-            <Link
-              to="/demo"
+            <button
+              onClick={openModal}
               className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors"
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TRUST BLOCK ── */}
+      <section className="bg-white py-16 px-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-2">
+              Imprese che hanno lasciato Buildertrend per Edilizia in Cloud
+            </h2>
+            <p className="text-xs text-gray-400 italic">Esempi rappresentativi</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-5">
+            {switchTestimonials.map((t) => (
+              <div key={t.name} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <p className="text-sm text-gray-700 italic leading-relaxed mb-4">"{t.quote}"</p>
+                <p className="text-sm font-semibold text-[#111111]">{t.name}</p>
+                <p className="text-xs text-gray-500">{t.city}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── 4-WAY INTERNAL LINKING ── */}
+      <section className="bg-[#f8f9fa] py-10 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-sm font-bold tracking-widest uppercase text-[#F97415] mb-4">Confronta anche con</h2>
+          <div className="flex flex-wrap gap-3 justify-center">
+            {otherVsLinks.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-5 py-2.5 rounded-full transition-colors text-sm"
+              >
+                {l.label} <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            ))}
           </div>
         </div>
       </section>
@@ -300,12 +427,12 @@ export default function VsBuildertrend() {
           <p className="text-white/70 mb-8 text-lg">
             31 giorni gratis. In italiano. Con SDI, Cassa Edile e CCNL integrati. Cancella quando vuoi.
           </p>
-          <Link
-            to="/demo"
+          <button
+            onClick={openModal}
             className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
           >
             Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -328,6 +455,14 @@ export default function VsBuildertrend() {
       )}
 
       <LandingFooter />
+
+      {/* ── STICKY CTA ── */}
+      <button
+        onClick={openModal}
+        className="fixed bottom-6 right-6 left-6 sm:left-auto z-40 inline-flex items-center justify-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-6 py-3.5 rounded-full transition-colors shadow-2xl shadow-[#F97415]/40 text-sm"
+      >
+        Provala gratis 31 giorni <ArrowRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }

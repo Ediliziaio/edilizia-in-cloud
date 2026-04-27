@@ -1,389 +1,493 @@
-import { useSEO } from "@/hooks/useSEO";
-import { JsonLd } from "@/components/seo/JsonLd";
-import { Link } from "react-router-dom";
-import LandingNavbar from "@/components/landing/LandingNavbar";
-import LandingFooter from "@/components/landing/LandingFooter";
-import { ArrowRight } from "lucide-react";
-import { blogPosts } from "@/data/blogPosts";
+import {
+  AlertTriangle,
+  BadgeCheck,
+  Bell,
+  Camera,
+  ClipboardList,
+  Clock,
+  Cloud,
+  FileText,
+  HardHat,
+  LineChart,
+  MapPin,
+  MessageSquare,
+  Phone,
+  Receipt,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Target,
+  Timer,
+  TrendingUp,
+  Users,
+  Wallet,
+  Wrench,
+  XCircle,
+  Zap,
+} from "lucide-react";
+import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
+import type { FunzionalitaPageConfig } from "./_template/types";
 
-const RELATED_SLUGS = [
-  "sal-cantiere-come-funziona",
-  "sicurezza-cantieri-dlgs-81",
-  "attestazione-soa-imprese-edili",
-  "giornale-dei-lavori-cantiere",
-  "computo-metrico-estimativo-guida",
-  "appalti-pubblici-edilizia-guida",
-];
-const relatedPosts = blogPosts.filter((p) => RELATED_SLUGS.includes(p.slug)).slice(0, 3);
+const config: FunzionalitaPageConfig = {
+  slug: "gestione-cantieri",
+  vertical: "Gestione Cantieri",
+  productName: "Modulo Gestione Cantieri Edilizia in Cloud",
+  audience: "Imprese edili, costruttori, ristrutturatori, general contractor, capi cantiere",
+  audienceShort: "imprese edili",
 
-const painPoints = [
-  {
-    emoji: "🏗️",
-    title: "Scopri i ritardi solo quando è troppo tardi",
-    desc: "Senza visibilità in tempo reale, i ritardi di cantiere si scoprono alla riunione settimanale. A quel punto il danno è fatto.",
+  seo: {
+    title:
+      "Gestione Cantieri Edili — Software Avanzamento Lavori in Tempo Reale | Edilizia in Cloud",
+    description:
+      "Controlla l'avanzamento di ogni cantiere in tempo reale dal telefono. Margini per commessa aggiornati, timbrature GPS, giornale lavori digitale, chat squadra e alert automatici sugli scostamenti. Setup in 48h.",
+    keywords:
+      "gestione cantieri software, avanzamento lavori real time, software cantieri edili, controllo cantiere smartphone, timbrature cantiere digitale, giornale lavori digitale, app cantiere offline, gestione commesse edili, dashboard cantieri",
+    ogImage: "https://www.ediliziaincloud.com/og/gestione-cantieri-og.jpg",
   },
-  {
-    emoji: "📱",
-    title: "I capocantieri ti chiamano invece di aggiornarti",
-    desc: "Ogni telefonata per sapere 'come va il cantiere' è tempo perso. Serve un sistema che mostri lo stato senza chiamate.",
-  },
-  {
-    emoji: "📊",
-    title: "Excel per ogni cantiere, dati sempre in ritardo",
-    desc: "5 cantieri = 5 file Excel diversi aggiornati da 5 persone diverse. Hai mai una visione consolidata in tempo reale? Mai.",
-  },
-  {
-    emoji: "💸",
-    title: "Le ore extra non vengono imputate alla commessa",
-    desc: "Il capocantiere lavora 2 ore extra ma non le registra sulla commessa giusta. Il margine reale scende, tu non lo sai.",
-  },
-];
 
-const features = [
-  {
-    emoji: "⏱️",
-    title: "Avanzamento lavori in tempo reale",
-    desc: "Il capocantiere aggiorna dal telefono. Tu vedi tutto dalla dashboard senza fare una telefonata.",
-  },
-  {
-    emoji: "📍",
-    title: "Timbrature geolocalizzate",
-    desc: "Entrata/uscita in cantiere rilevata automaticamente via GPS. Ore precise su ogni commessa, nessuna frode.",
-  },
-  {
-    emoji: "📋",
-    title: "Giornale lavori digitale",
-    desc: "Note giornaliere, foto, eventi meteo e lavorazioni eseguite — con firma digitale del DL integrata.",
-  },
-  {
-    emoji: "💬",
-    title: "Chat per squadra",
-    desc: "Comunicazione diretta con le squadre di cantiere, con storico messaggi e file. Sostituisce WhatsApp caotico.",
-  },
-  {
-    emoji: "🚨",
-    title: "Alert automatici su scostamenti",
-    desc: "Appena i costi reali superano il budget previsto, ricevi un alert. Prima che la commessa vada in perdita.",
-  },
-  {
-    emoji: "📱",
-    title: "App offline per zone senza segnale",
-    desc: "L'app funziona anche senza internet. I dati si sincronizzano appena torna la connessione.",
-  },
-];
+  heroBadge: "Funzionalità · Gestione Cantieri",
+  heroH1Lead: "Gestisci ogni cantiere dal telefono,",
+  heroH1Highlight: "in tempo reale",
+  heroSubheadline:
+    "Avanzamento lavori, timbrature GPS, giornale lavori digitale, chat squadra e costi per commessa — tutto aggiornato dal capocantiere via app mobile, tutto visibile al titolare in dashboard. Smetti di scoprire i ritardi solo in riunione.",
+  heroPrimaryCta: "Prova gratis 31 giorni",
+  heroSecondaryCta: "Tutte le funzionalità",
+  heroSecondaryCtaTo: "/funzionalita",
 
-const stats = [
-  { value: "-68%", label: "tempo dedicato ai report settimanali" },
-  { value: "+89%", label: "capocantieri aggiornano in autonomia" },
-  { value: "-3h", label: "a settimana di telefonate di aggiornamento" },
-  { value: "4.9/5", label: "soddisfazione dei titolari" },
-];
+  reassurancePoints: ["Setup in 48 ore", "Onboarding 1-a-1 incluso", "Cancelli quando vuoi"],
+  proofPoints: [
+    "Pensato per imprese e ristrutturatori",
+    "App mobile con modalità offline",
+    "Timbrature GPS conformi al CCNL",
+  ],
 
-const relatedLinks = [
-  { to: "/funzionalita/margini-cantiere", label: "Margini Cantiere" },
-  { to: "/funzionalita/fatturazione-elettronica", label: "Fatturazione Elettronica" },
-  { to: "/funzionalita/preventivi-edilizia", label: "Preventivi Edilizia" },
-];
+  objectiveRow: [
+    ["Obiettivo", "Sapere lo stato di ogni cantiere senza una telefonata"],
+    ["Momento chiave", "Mattina, sera e ogni volta che cambia un costo"],
+    ["Risultato", "Meno ritardi nascosti, più margine difeso"],
+  ],
+
+  betaH2: "Più di 320 imprese italiane usano Edilizia in Cloud per controllare i cantieri ogni giorno.",
+  betaBody:
+    "Il modulo Gestione Cantieri è la spina dorsale di Edilizia in Cloud: viene attivato in 48 ore, importa i tuoi cantieri aperti, configura squadre e turni e ti accompagna in 4 sessioni 1-a-1 fino a quando il capocantiere medio aggiorna in autonomia dal telefono. Niente call center: ti seguiamo personalmente.",
+
+  speedH2: "In una settimana il capocantiere aggiorna da solo. In due settimane non fai più riunioni di status.",
+  speedSubheadline:
+    "Non serve formare l'azienda con corsi infiniti. La logica è la stessa di WhatsApp: foto, nota, timbra, fatto. Quello che cambia è dove finiscono i dati: in una dashboard dove tu vedi margini, ore e ritardi su ogni commessa.",
+  speedStats: [
+    { value: 68, prefix: "-", suffix: "%", label: "tempo dedicato ai report settimanali interni" },
+    { value: 89, prefix: "+", suffix: "%", label: "capocantieri che aggiornano in autonomia entro 14 giorni" },
+    { value: 3, prefix: "-", suffix: "h/sett", label: "di telefonate di aggiornamento al titolare" },
+  ],
+
+  familyH2: "Tutta la piattaforma Edilizia in Cloud collegata al cantiere.",
+  familySubheadline:
+    "Il cantiere non è un'isola: è collegato a preventivi, fatture, margini, personale e subappalti. Edilizia in Cloud unisce tutto in una sola piattaforma, così i dati che entrano in cantiere alimentano automaticamente il resto dell'azienda.",
+  familyItems: [
+    {
+      icon: HardHat,
+      title: "Gestione Cantieri",
+      text: "Avanzamento lavori, timbrature GPS, giornale lavori digitale, chat squadra e alert margini per ogni commessa.",
+      to: "/funzionalita/gestione-cantieri",
+    },
+    {
+      icon: Wallet,
+      title: "Margini Cantiere",
+      text: "Margine reale per commessa in tempo reale, scostamento preventivo/consuntivo, alert sui cantieri a rischio.",
+      to: "/funzionalita/margini-cantiere",
+    },
+    {
+      icon: ClipboardList,
+      title: "Preventivi Edilizia",
+      text: "Preventivi in EUR, listini personalizzati, voci di computo metrico, conversione automatica in commessa.",
+      to: "/funzionalita/preventivi-edilizia",
+    },
+    {
+      icon: Receipt,
+      title: "Fatturazione Elettronica SDI",
+      text: "Dalla commessa alla fattura elettronica senza copia-incolla. Conserva digitale 10 anni inclusa.",
+      to: "/funzionalita/fatturazione-elettronica",
+    },
+    {
+      icon: Users,
+      title: "HR e Personale",
+      text: "Operai, ferie, malattie, presenze e costo orario reale collegato alla commessa.",
+      to: "/funzionalita/hr-personale",
+    },
+    {
+      icon: Wrench,
+      title: "Gestione Subappalti",
+      text: "Contratti, SAL, ritenute, DURC e fatture passive dei subappaltatori dentro al cantiere.",
+      to: "/funzionalita/gestione-subappalti",
+    },
+  ],
+  familyBonusTitle: "Una sola piattaforma. Un solo abbonamento. Sei moduli connessi.",
+  familyBonusText:
+    "Ogni modulo si attiva quando ti serve, senza costi extra di integrazione. Niente importazioni notturne, niente file Excel intermedi: il dato del cantiere è già il dato del margine, della fattura e del busta paga.",
+
+  painKicker: "Il problema vero",
+  painH2: "Il titolare scopre i problemi sempre tardi. Quando la commessa è già in perdita.",
+  painSubheadline:
+    "Non è una questione di capocantieri pigri o di dipendenti distratti. È una questione di sistema: senza uno strumento dedicato, l'informazione del cantiere arriva al titolare attraverso telefonate, WhatsApp, Excel e riunioni. Tutto rumore, niente segnale.",
+  painPoints: [
+    {
+      icon: AlertTriangle,
+      title: "Scopri i ritardi solo alla riunione settimanale",
+      text: "Senza visibilità in tempo reale, lo scostamento si vede al venerdì. A quel punto la giornata persa non si recupera, le penali sono già maturate e il cantiere successivo rischia di slittare a sua volta.",
+    },
+    {
+      icon: Phone,
+      title: "I capocantieri ti chiamano invece di aggiornarti",
+      text: "Ogni telefonata 'come va il cantiere?' è tempo che il capocantiere non spende a coordinare la squadra. E ogni ora di ritardo nel rispondere al titolare è un'ora di operai fermi a chiedere chiarimenti.",
+    },
+    {
+      icon: FileText,
+      title: "Excel diversi per ogni cantiere, dati sempre vecchi di tre giorni",
+      text: "5 cantieri = 5 file Excel diversi aggiornati da 5 persone diverse. Una visione consolidata in tempo reale? Mai. E quando confronti i numeri, scopri che le formule non tornano e le date non sono allineate.",
+    },
+    {
+      icon: Timer,
+      title: "Le ore extra non vengono imputate alla commessa giusta",
+      text: "Il capocantiere lavora 2 ore extra per recuperare un ritardo, ma non le registra sulla commessa giusta. Risultato: il margine reale scende, tu non lo sai, e a fine cantiere ti trovi un buco che non sai spiegare al commercialista.",
+    },
+  ],
+
+  baKicker: "Prima e dopo Edilizia in Cloud",
+  baH2: "Stesso titolare, stessi cantieri, stesso team. Cambia solo dove vivono i dati.",
+  baSubheadline:
+    "Non è una rivoluzione organizzativa: è la stessa impresa, semplicemente con un sistema operativo che la regge. Ecco cosa cambia concretamente nelle 4 dimensioni che pesano di più sul margine.",
+  baAreas: [
+    {
+      title: "Comunicazione tra cantiere e ufficio",
+      before:
+        "WhatsApp, telefonate, foto disperse, capocantiere che ti chiama mentre sei dal commercialista. Tre fonti diverse per la stessa informazione, quasi mai allineate, quasi sempre incomplete.",
+      after:
+        "Un'unica timeline per cantiere: nota giornaliera, foto, ore, materiali, eventi meteo, firme. Capocantiere e ufficio leggono la stessa pagina. Tu apri l'app e sai tutto in 30 secondi.",
+    },
+    {
+      title: "Controllo costi per commessa",
+      before:
+        "Excel ad hoc per ogni cantiere, formule che si rompono, manodopera caricata 'a forfait', materiali che arrivano in fattura un mese dopo. Il margine reale si scopre alla chiusura, quando non puoi più correggere.",
+      after:
+        "Costi imputati automaticamente alla commessa: ore reali via timbratura GPS, materiali da DDT importati, subappalti tracciati con SAL e ritenute. Lo scostamento sul preventivo lo vedi giorno per giorno.",
+    },
+    {
+      title: "Avanzamento lavori",
+      before:
+        "Stato lavori dichiarato a voce in riunione del lunedì. Foto sparpagliate sul telefono del capocantiere. Niente confronto sistematico con il cronoprogramma. I ritardi si capiscono solo ai SAL.",
+      after:
+        "Ogni lavorazione ha uno stato: pianificato, in corso, completato. Le foto sono allegate alla lavorazione giusta. Il cronoprogramma confronta automaticamente avanzamento dichiarato e calendario previsto.",
+    },
+    {
+      title: "Gestione operai e turni",
+      before:
+        "Ore registrate a fine settimana, magari su un foglio di carta. Ferie e malattie comunicate via WhatsApp e dimenticate. Costo orario reale per cantiere? Sconosciuto.",
+      after:
+        "Timbratura GPS al check-in, registrazione automatica delle ore sulla commessa, ferie e malattie gestite in app. Il costo orario reale per cantiere lo vedi in dashboard, conforme al CCNL.",
+    },
+  ],
+
+  mechanismKicker: "Come funziona",
+  mechanismH2: "Tre passaggi, niente formazione lunga, niente Excel da abbandonare di colpo.",
+  mechanismSubheadline:
+    "Edilizia in Cloud nasce per essere usato in cantiere, non in aula. Il capocantiere medio impara in 30 minuti, il titolare in 60. Tutti i dati che ti servono passano attraverso questi tre semplici passaggi.",
+  mechanismSteps: [
+    {
+      icon: Smartphone,
+      title: "Il capocantiere apre l'app dal telefono",
+      text: "Timbra l'arrivo via GPS, vede il piano del giorno, scatta foto, registra note, segnala materiali consegnati. Funziona offline: i dati si sincronizzano appena torna il segnale.",
+    },
+    {
+      icon: Cloud,
+      title: "I dati entrano nella commessa giusta automaticamente",
+      text: "Ore sul cantiere giusto, materiali sulla voce di costo giusta, foto sulla lavorazione giusta. Niente data entry, niente Excel intermedio: l'informazione vive direttamente nel suo posto naturale.",
+    },
+    {
+      icon: LineChart,
+      title: "Il titolare vede la dashboard aggiornata in tempo reale",
+      text: "Apri l'app o il browser e vedi: avanzamento, ore consumate, costi reali, scostamento sul preventivo, eventuali alert sui cantieri a rischio. Niente più riunioni 'come va?'.",
+    },
+  ],
+  mechanismCta: "Provalo gratis sul tuo primo cantiere",
+
+  commercialKicker: "Perché conviene davvero",
+  commercialH2: "Non è un costo IT. È margine recuperato che già stavi perdendo.",
+  commercialBody:
+    "I tre punti percentuali di margine che le imprese edili italiane perdono per ritardi non controllati, ore non imputate e materiali fuori budget valgono molto di più dell'abbonamento. Edilizia in Cloud restituisce visibilità prima che il danno sia fatto.",
+  commercialLevers: [
+    {
+      icon: Target,
+      title: "Difendi il margine prima del danno",
+      text: "Lo scostamento sul preventivo lo vedi quando è ancora gestibile, non a fine cantiere. Una giornata di squadra recuperata vale più dell'abbonamento di un anno.",
+    },
+    {
+      icon: Bell,
+      title: "Alert prima che i costi superino il budget",
+      text: "Soglie automatiche su ore, materiali e subappalti. Quando un cantiere supera l'80% del budget previsto, ricevi una notifica e puoi agire subito.",
+    },
+    {
+      icon: ShieldCheck,
+      title: "Conformità CCNL e sicurezza tracciata",
+      text: "Timbrature GPS conformi, giornale lavori digitale firmato dal DL, formazione sicurezza tracciata. In caso di ispezione INPS o INAIL hai tutto in cloud.",
+    },
+    {
+      icon: TrendingUp,
+      title: "Prezzi più giusti sui prossimi preventivi",
+      text: "Lo storico dei costi reali per tipologia di lavorazione ti permette di prezzare meglio. Non più 'a sentimento': sui dati di cantieri simili appena chiusi.",
+    },
+  ],
+
+  resultsKicker: "Risultati con Edilizia in Cloud",
+  resultsH2: "La gestione cantieri non è un modulo isolato. È il cuore del tuo gestionale edile.",
+  resultsBody:
+    "Quando il dato del cantiere è collegato a margini, fatture e busta paga, smetti di gestire l'impresa per silos. Vedi tutto da una dashboard, decidi più in fretta, presenti meglio al commercialista, alla banca e ai soci.",
+  integrationPillars: [
+    {
+      icon: LineChart,
+      title: "Dashboard titolare unificata",
+      text: "Stato di ogni cantiere a colpo d'occhio: avanzamento %, ore residue, scostamento margini, alert. Personalizzabile per ruolo (titolare, geometra, capocantiere).",
+    },
+    {
+      icon: Bell,
+      title: "Alert automatici sugli scostamenti",
+      text: "Notifiche push quando un cantiere supera il budget, salta una scadenza o accumula ore extra non previste. Tu decidi le soglie, il sistema ti avvisa.",
+    },
+    {
+      icon: Camera,
+      title: "Foto e documenti georeferenziati",
+      text: "Ogni foto del cantiere è geolocalizzata e datata. Costituisce prova in caso di contestazioni col cliente o col DL. Niente più foto disperse sul telefono.",
+    },
+    {
+      icon: MessageSquare,
+      title: "Chat squadra integrata",
+      text: "Sostituisce WhatsApp caotico: chat per cantiere, storico messaggi, file allegati alla commessa, lettura confermata. Resta nell'azienda, non sul telefono personale.",
+    },
+  ],
+  resultStats: [
+    { value: 18, prefix: "+", suffix: "%", label: "margine medio recuperato sui cantieri controllati" },
+    { value: 4, prefix: "-", suffix: " gg", label: "di ritardo medio per cantiere rispetto al cronoprogramma" },
+    { value: 92, prefix: "+", suffix: "%", label: "soddisfazione titolari dopo 90 giorni" },
+  ],
+  resultsCta: "Apri la tua dashboard di prova",
+
+  roiKicker: "Calcola il tuo ROI",
+  roiH2: "Quanto margine puoi recuperare se vedi i cantieri in tempo reale?",
+  roiSubheadline:
+    "Sposta i cursori sulla tua realtà: numero di cantieri attivi e fatturato medio annuo per cantiere. La stima parte da 3 punti percentuali di margine recuperato, base media osservata nei nostri clienti dopo 90 giorni.",
+  roi: {
+    input1Label: "Cantieri attivi in media",
+    input1Default: 6,
+    input1Min: 1,
+    input1Max: 50,
+    input1Step: 1,
+    input2Label: "Fatturato medio annuo per cantiere",
+    input2Default: 120000,
+    input2Min: 20000,
+    input2Max: 1500000,
+    input2Step: 10000,
+    input2Suffix: " €",
+    outputLabel: "Margine recuperato stimato/anno",
+    computeOutput: (a, b) => Math.round(a * b * 0.03),
+    computeSecondary: (a, b) => [
+      { label: "Fatturato totale gestito", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(a * b) },
+      { label: "Ore titolare risparmiate/anno", value: `${Math.round(a * 12)} h` },
+      { label: "Ore capocantiere/anno (report)", value: `${Math.round(a * 36)} h` },
+    ],
+    closingPitch:
+      "Stima prudenziale basata su 3% di margine recuperato. La maggior parte dei nostri clienti recupera tra 4% e 7% nei primi 12 mesi.",
+  },
+
+  salesKicker: "Impatto operativo",
+  salesH2: "Non un software in più. Un sistema operativo per l'impresa edile.",
+  salesBody:
+    "Non aggiungiamo un'app al caos esistente. Sostituiamo Excel, WhatsApp di lavoro e telefonate di aggiornamento con un unico flusso, dove ogni informazione vive nel posto giusto.",
+  salesImpact: [
+    {
+      title: "Meno riunioni operative",
+      text: "Le riunioni del lunedì calano del 60% perché ognuno parte dalla dashboard e si concentra solo sulle decisioni.",
+    },
+    {
+      title: "Capocantieri più autonomi",
+      text: "Sapere che il titolare 'vede' senza chiedere libera il capocantiere dall'ansia del report e gli ridà tempo per gestire la squadra.",
+    },
+    {
+      title: "Trattative col cliente più solide",
+      text: "Foto datate, giornale lavori firmato e cronoprogramma reale: contestazioni e revisioni di prezzo si risolvono con i dati alla mano.",
+    },
+    {
+      title: "Crescita più sostenibile",
+      text: "Quando aggiungi il cantiere numero 8, 10 o 15, la struttura non scoppia. Lo stesso sistema regge senza assumere altri impiegati di ufficio.",
+    },
+  ],
+
+  featureKicker: "Cosa ottieni davvero",
+  featureH2: "Non promesse generiche. Un elenco concreto di quello che attiviamo in 48 ore.",
+  featureRows: [
+    {
+      label: "Avanzamento lavori in tempo reale",
+      value:
+        "Ogni lavorazione del cronoprogramma è tracciata con stato, % completata, ore impiegate, foto e note. Confronto automatico con il preventivo iniziale.",
+    },
+    {
+      label: "Timbrature GPS",
+      value:
+        "Check-in e check-out via app con verifica geografica del cantiere. Ore registrate automaticamente sulla commessa, conformi al CCNL edilizia.",
+    },
+    {
+      label: "Giornale lavori digitale",
+      value:
+        "Note giornaliere, eventi meteo, lavorazioni eseguite, presenze e firme digitali del DL. Esportabile in PDF firmato a norma.",
+    },
+    {
+      label: "App offline per zone senza segnale",
+      value:
+        "Tutto funziona anche senza connessione: timbrature, foto, note. La sincronizzazione è automatica appena torna il segnale.",
+    },
+    {
+      label: "Alert automatici su scostamenti",
+      value:
+        "Soglie configurabili su ore, materiali e subappalti. Quando un cantiere si avvicina al budget, ricevi notifica push e email.",
+    },
+    {
+      label: "Chat squadra per cantiere",
+      value:
+        "Sostituisce WhatsApp di lavoro: chat dedicata per ogni cantiere, file allegati alla commessa, storico permanente nell'azienda.",
+    },
+    {
+      label: "Dashboard multi-cantiere",
+      value:
+        "Vista titolare con tutti i cantieri attivi: avanzamento, margine, ritardi, alert. Filtri per cliente, capocantiere, area geografica.",
+    },
+  ],
+
+  scenarioKicker: "Tre casi reali sul campo",
+  scenarioH2: "Tre situazioni in cui Edilizia in Cloud cambia davvero la giornata.",
+  scenarios: [
+    {
+      title: "Lunedì mattina, prima del caffè",
+      text:
+        "Apri l'app: 8 cantieri attivi, 6 in linea, 1 con ritardo di 2 giorni, 1 con alert su materiali. In 30 secondi sai dove serve il tuo intervento e dove no. Il giro telefonico del lunedì lo elimini.",
+    },
+    {
+      title: "Cliente che contesta una variante",
+      text:
+        "Il cliente dice 'questo non l'avevamo deciso'. Apri il giornale lavori del 12 marzo, scarichi la pagina con foto datata, nota del DL e firma digitale. La discussione si chiude in due minuti.",
+    },
+    {
+      title: "Preventivo per il cantiere successivo",
+      text:
+        "Devi prezzare un intervento simile a uno appena chiuso. Apri lo storico costi reali: ore impiegate, materiali consumati, subappalti. Prezzando sui dati reali, fai un'offerta competitiva e con margine.",
+    },
+  ],
+
+  testimonialQuote:
+    "Non faccio più riunioni 'come va il cantiere?'. Apro l'app e so tutto: avanzamento, ore, costi, note del giorno. Il capocantiere aggiorna dal telefono e io dormo meglio la notte.",
+  testimonialAuthor: "Marco D.",
+  testimonialRole: "Costruzioni Del Vecchio Srl, Torino",
+
+  faqKicker: "Domande frequenti",
+  faqH2: "Quello che un titolare di impresa edile vuole sapere prima di decidere.",
+  faqs: [
+    {
+      q: "Quanto tempo ci vuole per essere operativi davvero?",
+      a: "Il setup base è completato in 48 ore. Il nostro team importa i tuoi cantieri aperti dai tuoi Excel, configura le squadre e ti accompagna in 4 sessioni 1-a-1 di 45 minuti. Molti clienti hanno il primo capocantiere che timbra dal telefono già il giorno 2.",
+    },
+    {
+      q: "L'app funziona davvero senza connessione internet?",
+      a: "Sì. Tutte le funzioni di campo (timbrature, foto, note, materiali, giornale lavori) lavorano in modalità offline. I dati si sincronizzano automaticamente appena torna il segnale, senza che il capocantiere debba fare nulla.",
+    },
+    {
+      q: "Posso vedere i margini reali di ogni cantiere in tempo reale?",
+      a: "Sì. Edilizia in Cloud aggrega automaticamente costi di manodopera (dalle timbrature), materiali (dai DDT importati) e subappalti (dai SAL). Lo scostamento preventivo/consuntivo si aggiorna in tempo reale, senza aspettare la chiusura del cantiere o la fattura del fornitore.",
+    },
+    {
+      q: "Quanti cantieri posso gestire contemporaneamente?",
+      a: "Non c'è limite tecnico. I nostri clienti gestiscono in media 5-20 cantieri in parallelo, con dashboard unificata e filtri per cliente, area, capocantiere. Le imprese più strutturate arrivano a 80+ cantieri attivi senza degrado di performance.",
+    },
+    {
+      q: "I miei capocantieri non sono giovani: rischio che non lo usino?",
+      a: "L'app è progettata sul modello WhatsApp: 4 pulsanti grandi, foto, nota, fine. Il capocantiere medio dei nostri clienti ha 52 anni e usa l'app dopo 30 minuti di onboarding. Nei primi 14 giorni offriamo affiancamento dedicato in cantiere se serve.",
+    },
+    {
+      q: "Si integra con il mio commercialista e il mio sistema di fatturazione?",
+      a: "Sì. Edilizia in Cloud include fatturazione elettronica SDI, conserva digitale 10 anni e esporta tracciati per i principali software di contabilità (TeamSystem, Zucchetti, Datev). Il commercialista riceve un export pronto, niente più copia-incolla.",
+    },
+    {
+      q: "Quanto costa? Ci sono vincoli contrattuali?",
+      a: "Il modulo Gestione Cantieri è incluso in tutti i piani Edilizia in Cloud, da 49€/mese per il piano Starter. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1 e supporto italiano sempre inclusi.",
+    },
+  ],
+
+  internalLinksKicker: "Esplora la piattaforma",
+  internalLinksH2: "Il cantiere è collegato. Ecco a cosa.",
+  internalLinksBody:
+    "Gestione Cantieri è il cuore di Edilizia in Cloud, ma vive insieme a margini, fatturazione, preventivi, HR, subappalti e ai moduli Render AI per la vendita. Ecco come si collegano i pezzi.",
+  internalLinks: [
+    {
+      to: "/funzionalita/margini-cantiere",
+      title: "Margini Cantiere",
+      text: "Margine reale per commessa in tempo reale, scostamento preventivo/consuntivo, alert automatici sui cantieri a rischio.",
+    },
+    {
+      to: "/funzionalita/preventivi-edilizia",
+      title: "Preventivi Edilizia",
+      text: "Preventivi professionali con voci di computo metrico, listini personalizzati, conversione in commessa con un click.",
+    },
+    {
+      to: "/funzionalita/fatturazione-elettronica",
+      title: "Fatturazione Elettronica SDI",
+      text: "Dalla commessa al SAL, dall'ordine alla fattura elettronica con conserva digitale 10 anni inclusa.",
+    },
+    {
+      to: "/funzionalita/hr-personale",
+      title: "HR e Personale",
+      text: "Gestione operai, ferie, malattie, presenze, busta paga e costo orario reale collegato alla commessa.",
+    },
+    {
+      to: "/funzionalita/gestione-subappalti",
+      title: "Gestione Subappalti",
+      text: "Contratti, SAL subappalto, ritenute, DURC e fatture passive integrate nel cantiere.",
+    },
+    {
+      to: "/funzionalita/render-infissi",
+      title: "Render Infissi AI",
+      text: "Per serramentisti: prima/dopo sulla foto reale del cliente, integrato al CRM e ai preventivi.",
+    },
+    {
+      to: "/funzionalita/render-ristrutturazioni",
+      title: "Render Ristrutturazioni AI",
+      text: "Per imprese di ristrutturazione: prima/dopo sulla foto reale, dalla cucina al living, dal bagno alla zona notte.",
+    },
+    {
+      to: "/per/imprese-costruzione",
+      title: "Software per Imprese di Costruzione",
+      text: "Tutta la piattaforma orientata alle imprese edili italiane: gestione, controllo, vendita, fatturazione.",
+    },
+    {
+      to: "/prezzi",
+      title: "Prezzi e Piani",
+      text: "Piani trasparenti da 49€/mese. Beta dedicata con prezzo bloccato. Cancelli quando vuoi.",
+    },
+  ],
+
+  finalCtaH2: "Smetti di scoprire i ritardi in riunione. Inizia a vederli prima.",
+  finalCtaBody:
+    "31 giorni gratuiti per portare Edilizia in Cloud nei tuoi cantieri. Setup in 48 ore, onboarding 1-a-1 incluso, cancelli quando vuoi. Quello che cambia non è il software: è la tua serenità di titolare.",
+  finalCtaButton: "Prova gratis 31 giorni",
+  finalCtaMicrocopy: "Setup in 48 ore · Onboarding 1-a-1 incluso · Cancelli quando vuoi",
+
+  stickyCtaLabel: "Prova gratis Gestione Cantieri",
+  stickyCtaMicrocopy: "Setup 48h · Cancelli quando vuoi",
+
+  applicationSubCategory: "Construction Site Management Software",
+
+  relatedBlogSlugs: [
+    "sal-cantiere-come-funziona",
+    "sicurezza-cantieri-dlgs-81",
+    "giornale-dei-lavori-cantiere",
+  ],
+};
 
 export default function GestioneCantieri() {
-  useSEO({
-    title: "Gestione Cantieri Edili — Software Avanzamento Lavori in Tempo Reale | Edilizia in Cloud",
-    description:
-      "Controlla l'avanzamento di ogni cantiere in tempo reale dal telefono. Margini per commessa aggiornati, timbrature operai, giornale lavori digitale e alert automatici. Provalo gratis.",
-    canonical: "/funzionalita/gestione-cantieri",
-    keywords:
-      "gestione cantieri software, avanzamento lavori real time, software cantieri edili, controllo cantiere smartphone, timbrature cantiere digitale, giornale lavori digitale",
-  });
-
-  return (
-    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
-      <JsonLd
-        id="jsonld-breadcrumb-gestione-cantieri"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
-            {
-              "@type": "ListItem",
-              position: 3,
-              name: "Gestione Cantieri",
-              item: "https://www.ediliziaincloud.com/funzionalita/gestione-cantieri",
-            },
-          ],
-        }}
-      />
-      <JsonLd
-        id="jsonld-webpage-gestione-cantieri"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "WebPage",
-          name: "Gestione Cantieri — Software Avanzamento Lavori",
-          description:
-            "Controlla l'avanzamento di ogni cantiere in tempo reale dal telefono. Margini per commessa aggiornati, timbrature operai, giornale lavori digitale e alert automatici.",
-          url: "https://www.ediliziaincloud.com/funzionalita/gestione-cantieri",
-          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
-          about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
-        }}
-      />
-
-      <LandingNavbar />
-
-      {/* ── HERO ── */}
-      <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto">
-          <span className="inline-block bg-[#F97415]/20 text-[#F97415] text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-[#F97415]/30">
-            FUNZIONALITÀ — GESTIONE CANTIERI
-          </span>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-6">
-            Gestisci ogni cantiere dal telefono,{" "}
-            <span className="text-[#F97415]">in tempo reale</span>
-          </h1>
-          <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Avanzamento lavori, timbrature, giornale lavori e costi per commessa — aggiornati in tempo reale dal
-            capocantiere direttamente dall'app mobile.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/demo"
-              className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
-            >
-              Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/funzionalita"
-              className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
-            >
-              Tutte le funzionalità
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PAIN SECTION ── */}
-      <section className="bg-[#f8f9fa] py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
-            Il problema che conosce ogni titolare d'impresa edile
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Prima di avere uno strumento adeguato, la gestione dei cantieri somiglia a questo.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {painPoints.map((p) => (
-              <div key={p.title} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                <div className="text-3xl mb-3">{p.emoji}</div>
-                <h3 className="font-bold text-lg text-[#111111] mb-2">{p.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{p.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURES ── */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
-            Tutto il controllo che mancava
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Ogni strumento pensato per il titolare che vuole sapere senza dover chiedere.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {features.map((f) => (
-              <div
-                key={f.title}
-                className="flex gap-4 items-start bg-[#f8f9fa] rounded-2xl p-6 border border-gray-100"
-              >
-                <div className="text-3xl flex-shrink-0">{f.emoji}</div>
-                <div>
-                  <h3 className="font-bold text-[#111111] mb-1">{f.title}</h3>
-                  <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── STATS ── */}
-      <section className="bg-[#111111] py-20 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-center text-white mb-12">
-            I risultati che ottengono le imprese che usano Edilizia in Cloud
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((s) => (
-              <div key={s.label} className="text-center">
-                <div className="text-4xl font-extrabold text-[#F97415] mb-2">{s.value}</div>
-                <div className="text-white/70 text-sm">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── TESTIMONIAL ── */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="bg-[#f8f9fa] rounded-2xl p-8 border border-gray-100">
-            <p className="text-lg text-[#111111] italic leading-relaxed mb-6">
-              "Non faccio più riunioni 'come va il cantiere'. Apro l'app e so tutto — avanzamento, ore, costi, note del
-              giorno. Il capocantiere aggiorna dal telefono e io dormo meglio la notte."
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#F97415]/20 flex items-center justify-center font-bold text-[#F97415]">
-                M
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-[#111111] text-sm">Marco D.</div>
-                <div className="text-gray-400 text-xs">Costruzioni Del Vecchio Srl, Torino</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── RELATED FEATURES ── */}
-      <section className="bg-[#f8f9fa] py-16 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-xl font-extrabold text-center text-[#111111] mb-8">Esplora altre funzionalità</h2>
-          <div className="flex flex-wrap gap-4 justify-center">
-            {relatedLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-6 py-3 rounded-2xl transition-colors text-sm"
-              >
-                {link.label} <ArrowRight className="w-4 h-4" />
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ── */}
-      <section className="bg-[#111111] py-20 px-4 text-center">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
-            Inizia a controllare i tuoi cantieri oggi
-          </h2>
-          <p className="text-white/70 mb-8 text-lg">
-            31 giorni gratis. Il tuo team operativo in 48 ore. Cancella quando vuoi.
-          </p>
-          <Link
-            to="/demo"
-            className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
-          >
-            Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
-          </Link>
-        </div>
-      </section>
-
-      {/* ── LEGGI ANCHE ── */}
-      {relatedPosts.length > 0 && (
-        <section className="py-14 px-6 bg-white border-t border-gray-100">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-lg font-bold text-[#111111] mb-6">Leggi anche</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
-              {relatedPosts.map((p) => (
-                <Link
-                  key={p.slug}
-                  to={`/blog/${p.slug}`}
-                  className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-[#F97415]/40 p-4 transition-all hover:shadow-sm"
-                >
-                  <img src={p.coverImage} alt={p.title} className="w-full h-28 object-cover rounded-lg" loading="lazy" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">{p.category}</span>
-                  <span className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2">{p.title}</span>
-                  <span className="text-xs text-[#111111]/50">{p.readTime} min di lettura</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── FAQ ── */}
-      <JsonLd
-        id="jsonld-faq-gestione-cantieri"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Quanto tempo ci vuole per impostare la gestione cantieri?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Il setup base è completato in 48 ore. Il nostro team importa i tuoi cantieri aperti, configura le squadre e ti forma. Molti clienti sono operativi già il primo giorno.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "L'app funziona anche senza connessione internet in cantiere?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. L'app mobile di Edilizia in Cloud funziona in modalità offline: i capocantiere aggiornano avanzamento lavori, timbrature e materiali anche senza segnale. I dati si sincronizzano appena la connessione è disponibile.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Posso vedere i margini reali di ogni cantiere in tempo reale?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Sì. Il modulo Gestione Cantieri calcola automaticamente i margini per commessa aggregando costi di manodopera, materiali e subappalti. Il titolare vede lo scostamento preventivo/consuntivo in tempo reale, senza aspettare la chiusura del cantiere.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Quanti cantieri posso gestire contemporaneamente?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Non c'è limite al numero di cantieri aperti contemporaneamente. Molti nostri clienti gestiscono 5-20 cantieri in parallelo con dashboard unificata e alert automatici per i cantieri a rischio margine.",
-              },
-            },
-          ],
-        }}
-      />
-      <section className="py-16 px-6 bg-gray-50">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl font-extrabold text-[#111111] mb-8 text-center">
-            Domande frequenti sulla Gestione Cantieri
-          </h2>
-          <div className="divide-y divide-gray-200">
-            {[
-              {
-                q: "Quanto tempo ci vuole per impostare la gestione cantieri?",
-                a: "Il setup base è completato in 48 ore. Il nostro team importa i tuoi cantieri aperti, configura le squadre e ti forma. Molti clienti sono operativi già il primo giorno.",
-              },
-              {
-                q: "L'app funziona anche senza connessione internet in cantiere?",
-                a: "Sì. L'app mobile funziona in modalità offline: aggiornamenti, timbrature e materiali anche senza segnale. I dati si sincronizzano appena la connessione è disponibile.",
-              },
-              {
-                q: "Posso vedere i margini reali di ogni cantiere in tempo reale?",
-                a: "Sì. Il sistema calcola automaticamente i margini aggregando costi di manodopera, materiali e subappalti. Vedi lo scostamento preventivo/consuntivo in tempo reale.",
-              },
-              {
-                q: "Quanti cantieri posso gestire contemporaneamente?",
-                a: "Non c'è limite. Molti nostri clienti gestiscono 5-20 cantieri in parallelo con dashboard unificata e alert automatici per i cantieri a rischio margine.",
-              },
-            ].map((item, i) => (
-              <details key={i} className="py-5 group">
-                <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
-                  {item.q}
-                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
-                </summary>
-                <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <LandingFooter />
-    </div>
-  );
+  return <FunzionalitaPageTemplate config={config} />;
 }

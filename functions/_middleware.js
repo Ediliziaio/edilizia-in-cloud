@@ -67,7 +67,7 @@ const ROUTES = {
       "Edilizia in Cloud è il gestionale cloud per imprese edili: cantieri, preventivi, fatturazione elettronica SDI e HR. Usato da 500+ imprese. Prova gratis 14 giorni.",
     h1: "Edilizia in Cloud: il software gestionale per imprese edili italiane",
     intro:
-      "Edilizia in Cloud è il software gestionale cloud progettato specificamente per le imprese edili italiane. Permette di gestire cantieri, preventivi professionali, fatturazione elettronica SDI (B2B e PA), subappalti, DDT, ordini fornitori, HR con presenze geolocalizzate e prima nota — tutto in un'unica piattaforma accessibile da smartphone anche in cantiere. Utilizzato da oltre 500 imprese edili in Italia, Edilizia in Cloud riduce il tempo amministrativo del 70% e i costi operativi del 20%. Piani a partire da 49€/mese, prova gratuita 14 giorni senza carta di credito.",
+      "Edilizia in Cloud è il software gestionale cloud progettato specificamente per le imprese edili italiane. Permette di gestire cantieri, preventivi professionali, fatturazione elettronica SDI (B2B e PA), subappalti, DDT, ordini fornitori, HR con presenze geolocalizzate e prima nota — tutto in un'unica piattaforma accessibile da smartphone anche in cantiere. Utilizzato da oltre 500 imprese edili in Italia, Edilizia in Cloud riduce il tempo amministrativo del 70% e i costi operativi del 20%. Piani a partire da 49€/mese, prova gratuita 31 giorni con supporto italiano dedicato.",
     links: [
       { href: "/funzionalita", label: "Scopri le Funzionalità" },
       { href: "/prezzi", label: "Vedi i Prezzi" },
@@ -264,13 +264,647 @@ const ROUTES = {
     ],
   },
 
+  "/funzionalita/render-infissi": {
+    title: "Render Infissi AI per Serramentisti | Prima/Dopo sulla foto reale",
+    description:
+      "Render Infissi AI: mostra al cliente come cambieranno i suoi serramenti sulla foto reale della sua casa. Differenziati dal prezzo e chiudi più preventivi.",
+    h1: "Render Infissi AI per Serramentisti",
+    intro:
+      "Trasforma la foto del cliente in un prima/dopo credibile: nuovi serramenti, colori, vetri, cassonetti, tapparelle e persiane sulla stessa facciata. Il preventivo non è più solo una cifra, ma una scelta che il cliente riesce finalmente a vedere.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/per/serramentisti", label: "Software per Serramentisti" },
+      { href: "/demo", label: "Prova GRATIS il Render AI" },
+    ],
+  },
+
+  "/funzionalita/render-bagni": {
+    title: "Render Bagni AI per Idraulici e Showroom | Prima/Dopo sulla foto reale",
+    description:
+      "Render Bagni AI: trasforma la foto del bagno del cliente in un prima/dopo realistico con nuovi sanitari, doccia, mobile e rivestimenti. Chiudi più preventivi.",
+    h1: "Render Bagni AI per Idraulici e Showroom",
+    intro:
+      "Trasforma la foto reale del bagno del cliente in un prima/dopo credibile: nuovi sanitari, doccia, mobile lavabo, rivestimenti, pavimento e illuminazione applicati allo stesso ambiente. Il preventivo bagno non è più una cifra astratta, ma una proposta che il cliente riesce finalmente a immaginare.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/render-pavimenti", label: "Render Pavimenti" },
+      { href: "/demo", label: "Prova GRATIS Render Bagni" },
+    ],
+  },
+
+  "/funzionalita/render-tetti": {
+    title: "Render Tetti AI per Imprese di Copertura | Prima/Dopo sulla foto reale",
+    description:
+      "Render Tetti AI: mostra al cliente come cambierà il suo tetto sulla foto reale della casa. Coperture, lattoneria, fotovoltaico e lucernari pronti per la trattativa.",
+    h1: "Render Tetti AI per Imprese di Copertura e Lattonieri",
+    intro:
+      "Trasforma la foto reale della casa del cliente in un prima/dopo credibile: nuovo manto di copertura, lattoneria, lucernari, fotovoltaico e finiture applicati alla stessa abitazione. Il preventivo tetto non è più una cifra opaca, ma una proposta che il cliente riesce finalmente a vedere.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/render-ristrutturazioni", label: "Render Ristrutturazioni" },
+      { href: "/demo", label: "Prova GRATIS Render Tetti" },
+    ],
+  },
+
+  "/funzionalita/render-pavimenti": {
+    title: "Render Pavimenti AI per Posatori e Showroom | Prima/Dopo sulla foto reale",
+    description:
+      "Render Pavimenti AI: trasforma la foto della stanza del cliente in un prima/dopo realistico con nuovo gres, parquet, resine e finiture. Chiudi più preventivi.",
+    h1: "Render Pavimenti AI per Posatori e Showroom",
+    intro:
+      "Trasforma la foto reale della stanza del cliente in un prima/dopo credibile: nuovo pavimento in gres, parquet, resina o piastrelle applicato allo stesso ambiente. Il preventivo pavimenti non è più una scheda tecnica, ma una proposta che il cliente riesce finalmente a immaginare.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/render-bagni", label: "Render Bagni" },
+      { href: "/demo", label: "Prova GRATIS Render Pavimenti" },
+    ],
+  },
+
+  "/funzionalita/render-ristrutturazioni": {
+    title: "Render Ristrutturazioni AI per Imprese Edili | Prima/Dopo sulla foto reale",
+    description:
+      "Render Ristrutturazioni AI: mostra al cliente come cambierà la sua casa dopo la ristrutturazione, sulla foto reale. Cucina, bagno, living e finiture in trattativa.",
+    h1: "Render Ristrutturazioni AI per Imprese Edili e General Contractor",
+    intro:
+      "Trasforma la foto reale della casa del cliente in un prima/dopo credibile dell'intera ristrutturazione: cucina, bagno, soggiorno, camera, pavimenti, pareti e finiture applicate agli stessi ambienti. Il preventivo ristrutturazione non è più una stima astratta, ma un progetto che il cliente riesce finalmente a vedere.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/per/ristrutturatori", label: "Software per Ristrutturatori" },
+      { href: "/demo", label: "Prova GRATIS Render Ristrutturazioni" },
+    ],
+  },
+
+  "/funzionalita/render-stanza": {
+    title: "Render Stanza AI per Arredatori e Showroom | Prima/Dopo sulla foto reale",
+    description:
+      "Render Stanza AI: trasforma la foto della stanza del cliente in un prima/dopo realistico con nuovi mobili, divani, illuminazione e tessuti. Chiudi più ordini arredo.",
+    h1: "Render Stanza AI per Arredatori, Mobilieri e Interior Designer",
+    intro:
+      "Trasforma la foto reale del soggiorno, della cucina o della camera del cliente in un prima/dopo credibile: nuovi mobili, divani, cucine, illuminazione e tessili applicati allo stesso ambiente. Il preventivo arredo non è più una lista di codici, ma una proposta che il cliente riesce finalmente a immaginare.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/render-ristrutturazioni", label: "Render Ristrutturazioni" },
+      { href: "/demo", label: "Prova GRATIS Render Stanza" },
+    ],
+  },
+
+  "/funzionalita/render-piscine": {
+    title: "Render Piscine AI per Piscinisti e Costruttori | Prima/Dopo sulla foto reale",
+    description:
+      "Render Piscine AI: trasforma la foto del giardino del cliente in un prima/dopo realistico con nuova piscina, bordo, pavimentazione, pergola e verde. Chiudi più contratti.",
+    h1: "Render Piscine AI per Piscinisti e Installatori Outdoor",
+    intro:
+      "Trasforma la foto reale del giardino del cliente in un prima/dopo credibile: nuova piscina, bordo, pavimentazione esterna, pergola, illuminazione e verde applicati allo stesso spazio. Il preventivo piscina non è più una cifra alta e astratta, ma una proposta che il cliente riesce finalmente a immaginare.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/render-ristrutturazioni", label: "Render Ristrutturazioni" },
+      { href: "/demo", label: "Prova GRATIS Render Piscine" },
+    ],
+  },
+
+  // ── Funzionalità — TIER 1 (high-impact SEO landing pages) ─────────
+  "/funzionalita/cassa-cantiere": {
+    title: "Cassa Cantiere e Cash Flow PSD2 per Edilizia | Edilizia in Cloud",
+    description:
+      "Gestione cassa multi-banca PSD2 con previsionale 30/60/90 giorni per imprese edili. Niente più sorprese di liquidità: alert sconfinamento e proiezione dei pagamenti automatica.",
+    h1: "Cassa Cantiere e Previsionale Cash Flow PSD2",
+    intro:
+      "Edilizia in Cloud collega tutti i tuoi conti banca via PSD2 e calcola in tempo reale la cassa consolidata, il previsionale a 30/60/90 giorni e l'impatto di ogni SAL e fattura sui flussi futuri. Le imprese che usano la Cassa Cantiere riducono lo scoperto medio del 60% e azzerano le sorprese di fine mese.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/tesoreria", label: "Tesoreria" },
+      { href: "/funzionalita/scadenzario", label: "Scadenzario" },
+    ],
+  },
+
+  "/funzionalita/agenti-ai": {
+    title: "Agenti AI per Imprese Edili — GDPR-First | Edilizia in Cloud",
+    description:
+      "Agenti AI verticali per impresa edile: rispondono ai clienti, qualificano lead, redigono preventivi base e gestiscono back-office. Privacy GDPR-first, dati italiani.",
+    h1: "Agenti AI per Imprese Edili: privacy GDPR-first",
+    intro:
+      "Edilizia in Cloud integra agenti AI custom per impresa edile: rispondono a clienti via WhatsApp/email, qualificano lead, redigono preventivi base, gestiscono back-office. Architettura privacy GDPR-first con dati ospitati in Italia, niente training su contenuti del cliente. Risparmio medio 70% sulle ore segreteria.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/automazioni", label: "Automazioni" },
+      { href: "/funzionalita/quote-builder-ai", label: "Quote Builder AI" },
+    ],
+  },
+
+  "/funzionalita/portale-clienti": {
+    title: "Portale Clienti Edilizia — Avanzamento Lavori e SAL Online | Edilizia in Cloud",
+    description:
+      "Area cliente brandizzata con avanzamento cantiere live, foto, documenti, SAL firmabili online. Riduce del 60% le telefonate di update e migliora la percezione della tua impresa.",
+    h1: "Portale Clienti per Imprese Edili e Ristrutturatori",
+    intro:
+      "Edilizia in Cloud offre un portale cliente brandizzato dove ogni cliente accede da web e mobile per vedere avanzamento lavori in tempo reale, foto del giorno, documenti tecnici, SAL firmabili online e fatture. Trasparenza che riduce del 60% le telefonate di update e fa crescere del 35% le recensioni Google a 5 stelle.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/firma-elettronica", label: "Firma Elettronica" },
+      { href: "/funzionalita/foto-cantiere", label: "Foto Cantiere" },
+    ],
+  },
+
+  "/funzionalita/firma-elettronica": {
+    title: "Firma Elettronica Edilizia eIDAS — SAL e Contratti in 30s | Edilizia in Cloud",
+    description:
+      "Firma elettronica avanzata eIDAS per imprese edili: preventivi, SAL, varianti, contratti firmati in 30 secondi dal telefono del cliente. Marca temporale e archivio cloud immutabile.",
+    h1: "Firma Elettronica eIDAS per Imprese Edili",
+    intro:
+      "Edilizia in Cloud integra la firma elettronica avanzata conforme eIDAS in ogni documento: preventivi, SAL, varianti, contratti, DURC. Il cliente firma dal telefono in 30 secondi, marca temporale qualificata, archivio cloud immutabile decennale conforme CAD. Cassa accelerata di 7-12 giorni per ogni SAL.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/portale-clienti", label: "Portale Clienti" },
+      { href: "/funzionalita/conserva-digitale", label: "Conservazione Digitale" },
+    ],
+  },
+
+  "/funzionalita/whatsapp-marketing": {
+    title: "WhatsApp Marketing Edilizia — Notifiche Cantiere Automatiche | Edilizia in Cloud",
+    description:
+      "WhatsApp Business API integrato per imprese edili: notifiche cantiere automatiche, broadcast, template approvati Meta, consensi GDPR. Conversione 8x rispetto all'email.",
+    h1: "WhatsApp Marketing per Imprese Edili",
+    intro:
+      "Edilizia in Cloud integra WhatsApp Business API per inviare notifiche cantiere automatiche, broadcast a clienti edili, follow-up post-consegna. Template approvati Meta, gestione consensi GDPR, tasso di apertura 95%+ e conversione 8x rispetto all'email tradizionale.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/email-marketing", label: "Email Marketing" },
+      { href: "/funzionalita/sms-marketing", label: "SMS Marketing" },
+    ],
+  },
+
+  "/funzionalita/email-marketing": {
+    title: "Email Marketing Edilizia — Campagne Settoriali Pre-Configurate | Edilizia in Cloud",
+    description:
+      "Email marketing verticale per imprese edili: segmentazione clienti attivi/dormienti/lead, template settoriali, automazioni post-cantiere, GDPR. Riattiva i clienti dormienti.",
+    h1: "Email Marketing per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre email marketing verticale per il settore edile: segmentazione automatica (clienti attivi, dormienti, lead caldi), template settoriali, automazioni post-cantiere ('come va dopo 6 mesi?'), gestione consensi GDPR. Riattiva i clienti dormienti e genera passaparola caldo.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/whatsapp-marketing", label: "WhatsApp Marketing" },
+      { href: "/funzionalita/automazioni", label: "Automazioni" },
+    ],
+  },
+
+  "/funzionalita/automazioni": {
+    title: "Automazioni Workflow per Edilizia | Edilizia in Cloud",
+    description:
+      "Automazioni no-code per imprese edili: trigger su SAL, fatture, scadenze, cantieri. Azioni email, WhatsApp, task, notifiche. Libreria template settoriali pronti all'uso.",
+    h1: "Automazioni Workflow per Imprese Edili",
+    intro:
+      "Edilizia in Cloud automatizza i flussi operativi tipici dell'edilizia: trigger su eventi cantiere, SAL, fatture, scadenze; azioni email, WhatsApp, task interni, notifiche team. Libreria di template settoriali pronti (sollecito DURC, follow-up post-cantiere, alert ritenute). Risparmia 1,5 ore a settimana per ogni automazione attiva.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/agenti-ai", label: "Agenti AI" },
+      { href: "/funzionalita/email-marketing", label: "Email Marketing" },
+    ],
+  },
+
+  "/funzionalita/crm-edilizia": {
+    title: "CRM Edilizia — Pipeline Preventivi e Lead per Imprese | Edilizia in Cloud",
+    description:
+      "CRM verticale per imprese edili: pipeline preventivi, lead da Google/Facebook/passaparola, tagging cantieri (residenziale/commerciale), follow-up automatici, conversion rate per fonte.",
+    h1: "CRM Verticale per Imprese Edili",
+    intro:
+      "Edilizia in Cloud è il CRM verticale per imprese edili e ristrutturatori: pipeline preventivi visuale, gestione lead da tutti i canali (Google, Facebook, passaparola, sito), tagging cantieri (residenziale, commerciale, fotovoltaico), follow-up automatici e conversion rate per fonte. Aumenta la conversione lead-cliente del 5-8%.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/pipeline-vendite", label: "Pipeline Vendite" },
+      { href: "/funzionalita/lead-form-facebook", label: "Lead Form Facebook" },
+    ],
+  },
+
+  "/funzionalita/cruscotto-aziendale": {
+    title: "Cruscotto Aziendale Edilizia — KPI Real-Time | Edilizia in Cloud",
+    description:
+      "Dashboard executive per titolari edili: margine cantieri live, cassa 90 giorni, fatturato, pipeline. Drill-down per cantiere/cliente, mobile-first. Decisioni informate.",
+    h1: "Cruscotto Aziendale per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre un cruscotto aziendale real-time per titolari edili: KPI di margine cantieri, cassa consolidata 90 giorni, fatturato per periodo, pipeline preventivi. Drill-down completo per cantiere/cliente, mobile-first per il titolare in cantiere. Recupera il 3% di margine grazie a decisioni più rapide e informate.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/margini-cantiere", label: "Margini Cantiere" },
+      { href: "/funzionalita/report-fatturazione", label: "Report Fatturazione" },
+    ],
+  },
+
+  "/funzionalita/giornale-lavori": {
+    title: "Giornale Lavori Digitale — Conforme D.M. 49/2018 | Edilizia in Cloud",
+    description:
+      "Giornale lavori digitale conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016. Registrazione giornaliera maestranze, mezzi, forniture, eventi. Firma DL e RUP, esportazione PDF/A.",
+    h1: "Giornale Lavori Digitale per Imprese Edili",
+    intro:
+      "Edilizia in Cloud digitalizza il giornale lavori conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016: registrazione giornaliera di maestranze, mezzi, forniture, eventi atmosferici, sospensioni. Firma elettronica del Direttore Lavori e del RUP, esportazione PDF/A per archivio decennale, riduzione 40% del tempo segreteria.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
+      { href: "/funzionalita/foto-cantiere", label: "Foto Cantiere" },
+    ],
+  },
+
+  "/funzionalita/sicurezza-cantiere": {
+    title: "Sicurezza Cantiere D.Lgs 81/2008 — POS Digitali | Edilizia in Cloud",
+    description:
+      "Gestione sicurezza cantiere conforme D.Lgs 81/2008: POS digitali, DUVRI, formazione tracciata, DPI, sopralluoghi, near-miss. Integrazione coordinatore sicurezza, scadenze visite mediche.",
+    h1: "Sicurezza Cantiere per Imprese Edili",
+    intro:
+      "Edilizia in Cloud digitalizza la sicurezza cantiere conforme D.Lgs 81/2008: POS digitali per ogni cantiere, DUVRI, formazione operai tracciata, DPI tracciati con scadenze, sopralluoghi sicurezza, gestione near-miss. Integrazione con il coordinatore sicurezza, scadenze visite mediche operai monitorate, conformità ispezioni ASL pronte in tempo reale.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/hr-personale", label: "HR e Personale" },
+      { href: "/funzionalita/giornale-lavori", label: "Giornale Lavori" },
+    ],
+  },
+
+  "/funzionalita/foto-cantiere": {
+    title: "Foto Cantiere Geolocalizzate — App Mobile | Edilizia in Cloud",
+    description:
+      "App mobile per capocantieri: foto geolocalizzate con timestamp, organizzate per cantiere/giorno, condivise sul portale cliente. Archivio cloud, prova legale di stato cantiere.",
+    h1: "Foto Cantiere per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre un'app mobile dedicata al capocantiere per scattare foto geolocalizzate con timestamp, organizzate automaticamente per cantiere e giorno, condivise sul portale cliente in tempo reale. Archivio cloud illimitato, prova legale di stato cantiere in caso di contestazione, integrazione con giornale lavori.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/portale-clienti", label: "Portale Clienti" },
+      { href: "/funzionalita/app-cantiere-mobile", label: "App Cantiere Mobile" },
+    ],
+  },
+
+  // ── Funzionalità — TIER 2 (financial / fiscal / operational) ──────
+  "/funzionalita/cassetto-sdi": {
+    title: "Cassetto Fiscale SDI Edilizia — Sincronizzazione Automatica | Edilizia in Cloud",
+    description:
+      "Cassetto fiscale Agenzia Entrate integrato: sincronizzazione automatica fatture B2B/B2C ricevute via SDI, riconciliazione contabile, ricerca semantica, export commercialista.",
+    h1: "Cassetto Fiscale SDI per Imprese Edili",
+    intro:
+      "Edilizia in Cloud sincronizza automaticamente con il tuo cassetto fiscale Agenzia Entrate: tutte le fatture B2B e B2C ricevute via SDI vengono importate, riconciliate con i tuoi registri contabili e indicizzate per ricerca semantica. Niente più download manuali, export pronto per il commercialista in 1 click.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione Elettronica SDI" },
+      { href: "/funzionalita/conserva-digitale", label: "Conservazione Digitale" },
+    ],
+  },
+
+  "/funzionalita/conserva-digitale": {
+    title: "Conservazione Digitale CAD — Decennale per Edilizia | Edilizia in Cloud",
+    description:
+      "Conservazione decennale conforme CAD (D.Lgs 82/2005) per fatture, contratti, DDT, libri contabili. Marca temporale qualificata AgID, esibizione su richiesta GdF in 30 secondi.",
+    h1: "Conservazione Digitale per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre conservazione digitale decennale conforme CAD (D.Lgs 82/2005) per tutti i documenti dell'impresa edile: fatture, contratti, DDT, libri contabili, registri IVA. Marca temporale qualificata AgID, hash SHA-256 per integrità, esibizione su richiesta Guardia di Finanza in 30 secondi con dossier completo.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/cassetto-sdi", label: "Cassetto Fiscale SDI" },
+      { href: "/funzionalita/registro-iva", label: "Registro IVA" },
+    ],
+  },
+
+  "/funzionalita/scadenzario": {
+    title: "Scadenzario Clienti e Fornitori Edilizia | Edilizia in Cloud",
+    description:
+      "Scadenzario clienti e fornitori: alert pre-scadenza, solleciti automatici multi-step (email/WhatsApp), aging report, recupero credito strutturato. Riduce le sofferenze del 4%.",
+    h1: "Scadenzario per Imprese Edili",
+    intro:
+      "Edilizia in Cloud gestisce lo scadenzario clienti e fornitori con alert pre-scadenza, solleciti automatici multi-step (email/WhatsApp/SMS), aging report dettagliato, integrazione con il modulo cassa. Recupera in media il 4% delle sofferenze con un sistema di sollecito strutturato e tracciato.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/tesoreria", label: "Tesoreria" },
+      { href: "/funzionalita/cassa-cantiere", label: "Cassa Cantiere" },
+    ],
+  },
+
+  "/funzionalita/prima-nota": {
+    title: "Prima Nota Cassa/Banca Digitale Edilizia | Edilizia in Cloud",
+    description:
+      "Prima nota cassa/banca digitale con riconciliazione automatica estratti conto, categorizzazione AI, dashboard cassa giornaliera, export commercialista in formato XBRL.",
+    h1: "Prima Nota Digitale per Imprese Edili",
+    intro:
+      "Edilizia in Cloud digitalizza la prima nota cassa e banca con riconciliazione automatica degli estratti conto via PSD2, categorizzazione AI dei movimenti (cantieri, fornitori, F24, stipendi), dashboard cassa giornaliera. Export per il commercialista in formato XBRL Banca d'Italia, risparmio 3 minuti per movimento.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/contabilita-fiscale", label: "Contabilità Fiscale" },
+      { href: "/funzionalita/cassa-cantiere", label: "Cassa Cantiere" },
+    ],
+  },
+
+  "/funzionalita/tesoreria": {
+    title: "Tesoreria Multi-Banca PSD2 Edilizia | Edilizia in Cloud",
+    description:
+      "Gestione tesoreria multi-banca PSD2 per imprese edili: posizione cassa consolidata, previsionale 30/60/90 gg, alert sconfinamento, conciliazione automatica. Riduce gli interessi del 60%.",
+    h1: "Tesoreria Multi-Banca per Imprese Edili",
+    intro:
+      "Edilizia in Cloud collega via PSD2 tutti i tuoi conti banca italiani per una posizione cassa consolidata real-time, previsionale 30/60/90 giorni, alert sconfinamento automatici, conciliazione automatica con prima nota. Riduce gli interessi passivi del 60% e azzera le sorprese di fine mese.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/cassa-cantiere", label: "Cassa Cantiere" },
+      { href: "/funzionalita/prima-nota", label: "Prima Nota" },
+    ],
+  },
+
+  "/funzionalita/timbrature-gps": {
+    title: "Timbrature GPS Cantiere — App Mobile Operai | Edilizia in Cloud",
+    description:
+      "App mobile timbrature operai con GPS geofence cantiere, antifrode foto-timbratura, integrazione cedolini paga CCNL Edilizia, ore extra/notturne calcolate automaticamente.",
+    h1: "Timbrature GPS per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre un'app mobile dedicata alle timbrature operai con GPS geofence per cantiere, antifrode foto-timbratura opzionale, integrazione diretta con cedolini paga CCNL Edilizia industria/artigianato, calcolo automatico ore extra, notturne, festive. Recupero medio 1-3 ore al mese per operaio.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/cedolini-paga", label: "Cedolini Paga" },
+      { href: "/funzionalita/hr-personale", label: "HR e Personale" },
+    ],
+  },
+
+  "/funzionalita/ordini-acquisto": {
+    title: "Ordini Acquisto Fornitori Edilizia | Edilizia in Cloud",
+    description:
+      "Gestione ordini fornitori con PO digitali, conferma firma elettronica, riconciliazione DDT/fatture, listini fornitori aggiornati, tracking arrivi cantiere. Recupero 4% sui prezzi.",
+    h1: "Ordini Acquisto per Imprese Edili",
+    intro:
+      "Edilizia in Cloud gestisce gli ordini fornitori con PO digitali, conferma firma elettronica del fornitore, riconciliazione automatica DDT/fatture/ordine, listini fornitori aggiornati, tracking arrivi in cantiere via app. Recupero medio del 4% sui prezzi grazie a controllo prezzi storici e gare automatiche.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/magazzino-cantiere", label: "Magazzino Cantiere" },
+      { href: "/funzionalita/ddt-digitali", label: "DDT Digitali" },
+    ],
+  },
+
+  "/funzionalita/magazzino-cantiere": {
+    title: "Magazzino Cantiere Multi-Sede — Stock per Cantiere | Edilizia in Cloud",
+    description:
+      "Magazzino multi-cantiere con stock per cantiere, prelievi tracciati via app, scorte minime, ordini automatici, codici a barre, valorizzazione FIFO. Recupero 8% su scorte sprecate.",
+    h1: "Magazzino Cantiere per Imprese Edili",
+    intro:
+      "Edilizia in Cloud gestisce il magazzino multi-cantiere: stock per cantiere, prelievi tracciati via app mobile, scorte minime con ordini automatici, codici a barre per identificazione rapida, valorizzazione FIFO conforme principi contabili. Recupero medio dell'8% su scorte sprecate o duplicate tra cantieri.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/ordini-acquisto", label: "Ordini Acquisto" },
+      { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
+    ],
+  },
+
+  "/funzionalita/sms-marketing": {
+    title: "SMS Marketing Edilizia — Notifiche Cantiere | Edilizia in Cloud",
+    description:
+      "SMS transazionali e marketing per imprese edili: notifiche cantiere automatiche, promemoria sopralluogo, alert SAL/fattura. Deliverability 99% Italia, integrazione CRM.",
+    h1: "SMS Marketing per Imprese Edili",
+    intro:
+      "Edilizia in Cloud integra SMS transazionali e marketing per imprese edili: notifiche cantiere automatiche, promemoria sopralluoghi, alert SAL pronti, scadenze fatture. Deliverability 99% sui circuiti italiani, integrazione CRM per personalizzazione, conformità GDPR per consensi e disiscrizione.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/whatsapp-marketing", label: "WhatsApp Marketing" },
+      { href: "/funzionalita/email-marketing", label: "Email Marketing" },
+    ],
+  },
+
+  "/funzionalita/pipeline-vendite": {
+    title: "Pipeline Vendite Edilizia — Drag & Drop Preventivi | Edilizia in Cloud",
+    description:
+      "Pipeline preventivi visuale per imprese edili: drag&drop fasi (lead/sopralluogo/preventivo/trattativa/firmato), forecast cassa, conversion rate per fonte, target vs actual.",
+    h1: "Pipeline Vendite per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre una pipeline preventivi visuale stile Trello per imprese edili: drag&drop tra fasi (lead, sopralluogo, preventivo inviato, trattativa, firmato), forecast cassa basato su probabilità chiusura, conversion rate per fonte (Google, Facebook, passaparola), target vs actual mensile.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/crm-edilizia", label: "CRM Edilizia" },
+      { href: "/funzionalita/preventivi-edilizia", label: "Preventivi Edilizia" },
+    ],
+  },
+
+  // ── Funzionalità — TIER 3 (vertical / niche / advanced) ───────────
+  "/funzionalita/fotovoltaico": {
+    title: "Software Gestione Cantieri Fotovoltaico — Superbonus e GSE | Edilizia in Cloud",
+    description:
+      "Gestione progetti fotovoltaico residenziale e industriale: pratiche GSE, Superbonus 110%/Conto Termico, pratiche Enel, schede tecniche pannelli, monitoraggio post-installazione.",
+    h1: "Software Fotovoltaico per Installatori e Costruttori",
+    intro:
+      "Edilizia in Cloud digitalizza la gestione completa dei cantieri fotovoltaici residenziali e industriali: pratiche GSE Scambio sul Posto e Ritiro Dedicato, Superbonus 110% e Conto Termico, pratiche Enel/distributore, schede tecniche pannelli e inverter, monitoraggio post-installazione, garanzia 25 anni gestita.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/per/fotovoltaico", label: "Per Installatori Fotovoltaico" },
+      { href: "/funzionalita/finanziamenti-cantieri", label: "Finanziamenti Cantieri" },
+    ],
+  },
+
+  "/funzionalita/manutenzione-impianti": {
+    title: "Manutenzione Impianti — DPR 74/2013 e Libretti Digitali | Edilizia in Cloud",
+    description:
+      "Manutenzione programmata e correttiva impianti idraulici, elettrici, climatizzazione, fotovoltaici. Libretti d'impianto, scadenze normative DPR 74/2013, FGAS, app tecnico mobile.",
+    h1: "Manutenzione Impianti per Manutentori Edili",
+    intro:
+      "Edilizia in Cloud gestisce la manutenzione programmata e correttiva di impianti termici, idraulici, elettrici, climatizzazione e fotovoltaici. Libretti d'impianto digitali, scadenze normative DPR 74/2013 e FGAS controllate, contratti di manutenzione tracciati, app mobile per tecnico in trasferta.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/ticket-assistenza", label: "Ticket Assistenza" },
+      { href: "/funzionalita/calendario-lavori", label: "Calendario Lavori" },
+    ],
+  },
+
+  "/funzionalita/ddt-digitali": {
+    title: "DDT Digitali Edilizia — Firma Autista in Mobilità | Edilizia in Cloud",
+    description:
+      "Documenti di trasporto digitali con integrazione fatturazione SDI, firma autista in mobilità, archivio CAD decennale, riconciliazione automatica con ordini e fatture.",
+    h1: "DDT Digitali per Imprese Edili",
+    intro:
+      "Edilizia in Cloud digitalizza i documenti di trasporto: emissione DDT in 30 secondi, firma elettronica autista in mobilità, integrazione fatturazione SDI per emissione differita, archivio decennale conforme CAD, riconciliazione automatica con ordini di acquisto e fatture fornitori.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/ordini-acquisto", label: "Ordini Acquisto" },
+      { href: "/funzionalita/magazzino-cantiere", label: "Magazzino Cantiere" },
+    ],
+  },
+
+  "/funzionalita/ritenute-garanzia": {
+    title: "Ritenute di Garanzia 0,5% e 4% INPS — Subappalto | Edilizia in Cloud",
+    description:
+      "Gestione ritenute 0,5% L. 296/2006 e 4% INPS subappalto art. 17 ter D.P.R. 633/72. Scadenze svincolo controllate, DURC verificati, archivio documentale a norma.",
+    h1: "Ritenute di Garanzia per Imprese Edili",
+    intro:
+      "Edilizia in Cloud gestisce le ritenute di garanzia 0,5% L. 296/2006 sui cantieri pubblici e la ritenuta 4% INPS sul subappalto art. 17 ter D.P.R. 633/72: scadenze svincolo controllate, DURC verificati prima dello svincolo, archivio documentale conforme CAD. Recupero medio 0,5% di valore cantiere mai svincolato per dimenticanza.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/gestione-subappalti", label: "Gestione Subappalti" },
+      { href: "/funzionalita/scadenzario", label: "Scadenzario" },
+    ],
+  },
+
+  "/funzionalita/finanziamenti-cantieri": {
+    title: "Finanziamenti Cantieri — Cessione Credito Superbonus | Edilizia in Cloud",
+    description:
+      "Gestione cessione credito Superbonus/Sismabonus/Ecobonus, factoring fatture cantiere, anticipo SAL banche, dossier finanziabilità. Banche concorrenti per ridurre lo sconto.",
+    h1: "Finanziamenti Cantieri per Imprese Edili",
+    intro:
+      "Edilizia in Cloud gestisce la cessione del credito Superbonus 110%, Sismabonus, Ecobonus, il factoring delle fatture cantiere, l'anticipo SAL bancario. Dossier finanziabilità preparato automaticamente, banche concorrenti messe in competizione per ridurre il costo dello sconto. Recupero medio 2% sul valore del credito ceduto.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/fotovoltaico", label: "Fotovoltaico" },
+      { href: "/funzionalita/cassa-cantiere", label: "Cassa Cantiere" },
+    ],
+  },
+
+  "/funzionalita/lead-form-facebook": {
+    title: "Lead Form Facebook & Instagram per Imprese Edili | Edilizia in Cloud",
+    description:
+      "Integrazione Lead Ads Facebook/Instagram: sync automatico CRM, qualificazione AI, distribuzione commerciali. Conversione lead-cliente edilizia 8-12% medio.",
+    h1: "Lead Form Facebook per Imprese Edili",
+    intro:
+      "Edilizia in Cloud integra direttamente i Lead Ads Facebook e Instagram: sync automatico nel CRM, qualificazione AI dei lead in base a budget/zona/intento, distribuzione automatica ai commerciali, follow-up multi-canale. Conversione lead-cliente edilizia media 8-12% con qualificazione AI.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/crm-edilizia", label: "CRM Edilizia" },
+      { href: "/funzionalita/pipeline-vendite", label: "Pipeline Vendite" },
+    ],
+  },
+
+  "/funzionalita/quote-builder-ai": {
+    title: "Quote Builder AI Edilizia — Preventivi in 5 Minuti | Edilizia in Cloud",
+    description:
+      "Generatore preventivi AI per imprese edili: riconoscimento foto cantiere, suggerimento computo metrico, prezzari regionali integrati, draft in 5 minuti invece di 4 ore.",
+    h1: "Quote Builder AI per Imprese Edili",
+    intro:
+      "Edilizia in Cloud usa l'AI per generare preventivi edili in 5 minuti invece di 4 ore: il sistema analizza le foto del cantiere, suggerisce le voci di computo metrico, applica i prezzari regionali aggiornati (DEI Lombardia, Lazio, Sicilia), genera la pre-bozza pronta per essere rifinita. Risparmio 70% del tempo per preventivo.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/preventivi-edilizia", label: "Preventivi Edilizia" },
+      { href: "/funzionalita/agenti-ai", label: "Agenti AI" },
+    ],
+  },
+
+  "/funzionalita/app-cantiere-mobile": {
+    title: "App Cantiere Mobile iOS/Android — Offline-First | Edilizia in Cloud",
+    description:
+      "App mobile dedicata capocantiere/operai (iOS/Android): timbrature, foto, ordini, SAL, giornale lavori, comunicazione team. Offline-first per cantieri senza copertura.",
+    h1: "App Cantiere Mobile per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre un'app mobile dedicata a capocantieri e operai (iOS e Android): timbrature GPS, foto geolocalizzate, ordini materiali, registrazione SAL, giornale lavori, comunicazione team. Architettura offline-first che funziona anche in cantieri senza copertura, sincronizzazione appena torna la connessione.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/foto-cantiere", label: "Foto Cantiere" },
+      { href: "/funzionalita/timbrature-gps", label: "Timbrature GPS" },
+    ],
+  },
+
+  // ── Funzionalità — TIER 4 (HR / accounting / supporting) ──────────
+  "/funzionalita/cedolini-paga": {
+    title: "Cedolini Paga Edilizia — CCNL Industria e Artigianato | Edilizia in Cloud",
+    description:
+      "Cedolini paga edilizia con CCNL Edilizia industria/artigianato, calcolo automatico cassa edile, ferie/permessi/banca ore, F24 telematico, UNILAV/UNIEMENS integrati.",
+    h1: "Cedolini Paga per Imprese Edili",
+    intro:
+      "Edilizia in Cloud emette i cedolini paga con CCNL Edilizia industria, artigianato e PMI integrati, calcolo automatico cassa edile (91 casse provinciali), ferie/permessi/banca ore, gratifica natalizia, anzianità professionale edile. F24 telematico Entratel, UNILAV e UNIEMENS automatici, MUT e GNF integrati.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/hr-personale", label: "HR e Personale" },
+      { href: "/funzionalita/timbrature-gps", label: "Timbrature GPS" },
+    ],
+  },
+
+  "/funzionalita/ferie-permessi": {
+    title: "Ferie e Permessi Edilizia — Self-Service Operaio | Edilizia in Cloud",
+    description:
+      "Gestione ferie, ROL, permessi, malattie integrata con CCNL Edilizia. App self-service operaio, approvazione capocantiere, conteggio automatico residui, calendario condiviso.",
+    h1: "Ferie e Permessi per Imprese Edili",
+    intro:
+      "Edilizia in Cloud gestisce ferie, ROL, permessi e malattie integrati con CCNL Edilizia: app self-service per l'operaio (richiesta dal telefono), approvazione capocantiere con un click, conteggio automatico residui, calendario condiviso per evitare sovrapposizioni cantieri. Risparmio 70% del tempo amministrazione.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/cedolini-paga", label: "Cedolini Paga" },
+      { href: "/funzionalita/hr-personale", label: "HR e Personale" },
+    ],
+  },
+
+  "/funzionalita/ticket-assistenza": {
+    title: "Ticket Assistenza Edilizia — Garanzia 10 Anni Art. 1669 | Edilizia in Cloud",
+    description:
+      "Ticketing post-cantiere e garanzia 10 anni edilizia (art. 1669 c.c.): SLA, escalation, integrazione portale cliente, knowledge base, app tecnico mobile per interventi.",
+    h1: "Ticket Assistenza per Imprese Edili",
+    intro:
+      "Edilizia in Cloud gestisce il post-cantiere e la garanzia decennale art. 1669 c.c. con un sistema di ticketing dedicato: SLA configurabili, escalation automatica, integrazione portale cliente per apertura ticket self-service, knowledge base, app tecnico mobile per intervento sul posto. Riduce 1,5 ore per ticket.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/manutenzione-impianti", label: "Manutenzione Impianti" },
+      { href: "/funzionalita/portale-clienti", label: "Portale Clienti" },
+    ],
+  },
+
+  "/funzionalita/chat-interna": {
+    title: "Chat Aziendale Edilizia — Canali per Cantiere GDPR | Edilizia in Cloud",
+    description:
+      "Chat aziendale per impresa edile: capocantiere, operai, ufficio. Canali per cantiere, condivisione foto/file/audio, conformità GDPR (no WhatsApp privato), notifiche urgenti.",
+    h1: "Chat Aziendale per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre una chat aziendale dedicata all'impresa edile: canali per ogni cantiere, condivisione foto/file/audio, conformità GDPR (i messaggi restano dell'azienda quando l'operaio se ne va, a differenza di WhatsApp privato), notifiche urgenti, integrazione con i moduli operativi.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/app-cantiere-mobile", label: "App Cantiere Mobile" },
+      { href: "/funzionalita/giornale-lavori", label: "Giornale Lavori" },
+    ],
+  },
+
+  "/funzionalita/registro-iva": {
+    title: "Registri IVA Edilizia — LIPE Automatica | Edilizia in Cloud",
+    description:
+      "Registri IVA acquisti/vendite/corrispettivi automatici da SDI, liquidazione periodica IVA (LIPE), conservazione decennale CAD, esibizione GdF in 30 secondi.",
+    h1: "Registri IVA per Imprese Edili",
+    intro:
+      "Edilizia in Cloud genera automaticamente registri IVA acquisti, vendite e corrispettivi a partire dalle fatture SDI, calcola la liquidazione periodica IVA (LIPE) trimestrale o mensile, gestisce reverse charge edilizia (art. 17 c. 6 D.P.R. 633/72) e split payment PA. Conservazione decennale CAD inclusa.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/contabilita-fiscale", label: "Contabilità Fiscale" },
+      { href: "/funzionalita/cassetto-sdi", label: "Cassetto Fiscale SDI" },
+    ],
+  },
+
+  "/funzionalita/contabilita-fiscale": {
+    title: "Contabilità Fiscale Edilizia — Bilancio CEE e XBRL | Edilizia in Cloud",
+    description:
+      "Contabilità ordinaria/semplificata edilizia: piano dei conti settoriale, ammortamenti automatici, bilancio CEE, esportazione XBRL Banca d'Italia, integrazione fatture SDI.",
+    h1: "Contabilità Fiscale per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre contabilità ordinaria e semplificata dedicata all'edilizia: piano dei conti settoriale, ammortamenti automatici secondo DM 31/12/1988, bilancio CEE conforme art. 2424-2425 c.c., esportazione XBRL Banca d'Italia per il commercialista, integrazione automatica con fatture SDI e prima nota.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/registro-iva", label: "Registri IVA" },
+      { href: "/funzionalita/prima-nota", label: "Prima Nota" },
+    ],
+  },
+
+  "/funzionalita/calendario-lavori": {
+    title: "Calendario Lavori Edilizia — Gantt Multi-Cantiere | Edilizia in Cloud",
+    description:
+      "Calendario condiviso per pianificazione cantieri: gantt visuale multi-cantiere, allocazione squadre, conflict detection, integrazione meteo, sync Google/Outlook.",
+    h1: "Calendario Lavori per Imprese Edili",
+    intro:
+      "Edilizia in Cloud offre un calendario condiviso per la pianificazione cantieri: gantt visuale multi-cantiere, allocazione squadre con conflict detection automatica, integrazione previsioni meteo per riprogrammazione, sincronizzazione Google Calendar e Outlook, app mobile per il capocantiere.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
+      { href: "/funzionalita/hr-personale", label: "HR e Personale" },
+    ],
+  },
+
+  "/funzionalita/report-fatturazione": {
+    title: "Report Fatturazione Edilizia — Dashboard Mensile | Edilizia in Cloud",
+    description:
+      "Reportistica fatturazione (per cliente, cantiere, periodo, agente), dashboard mensile fatturato/incassato/scaduto, export PDF/Excel, KPI commerciali, target vs actual.",
+    h1: "Report Fatturazione per Imprese Edili",
+    intro:
+      "Edilizia in Cloud genera reportistica completa sulla fatturazione: vista per cliente, cantiere, periodo, agente. Dashboard mensile con fatturato, incassato e scaduto, export PDF/Excel per il commercialista, KPI commerciali per la rete vendita, target vs actual mensile per ogni filiale o agente.",
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/cruscotto-aziendale", label: "Cruscotto Aziendale" },
+      { href: "/funzionalita/scadenzario", label: "Scadenzario" },
+    ],
+  },
+
   "/prezzi": {
     title: "Prezzi Edilizia in Cloud — Piani da 49€/mese | Prova Gratis 14 Giorni",
     description:
       "Prezzi di Edilizia in Cloud: piano Starter 49€/mese, Professional 99€/mese, Enterprise 199€/mese. Zero costi di attivazione, zero vincoli. Prova gratis 14 giorni.",
     h1: "Prezzi di Edilizia in Cloud: quanto costa il gestionale per imprese edili",
     intro:
-      "Edilizia in Cloud propone 3 piani pensati per imprese edili di ogni dimensione. Piano Starter da 49€/mese per imprese fino a 5 utenti, piano Professional da 99€/mese per imprese fino a 15 utenti con controllo margini avanzato, piano Enterprise da 199€/mese con utenti illimitati e API. Nessun costo di attivazione, nessun vincolo contrattuale, disdici quando vuoi. Prova gratuita 14 giorni senza carta di credito. Tutti i piani includono fatturazione elettronica SDI, gestione cantieri e supporto italiano.",
+      "Edilizia in Cloud propone 3 piani pensati per imprese edili di ogni dimensione. Piano Starter da 49€/mese per imprese fino a 5 utenti, piano Professional da 99€/mese per imprese fino a 15 utenti con controllo margini avanzato, piano Enterprise da 199€/mese con utenti illimitati e API. Nessun costo di attivazione, nessun vincolo contrattuale, disdici quando vuoi. Prova gratuita 31 giorni con supporto italiano dedicato. Tutti i piani includono fatturazione elettronica SDI, gestione cantieri e supporto italiano.",
     links: [
       { href: "/demo", label: "Richiedi Demo Gratuita" },
       { href: "/funzionalita", label: "Funzionalità Incluse" },
@@ -579,6 +1213,51 @@ const ROUTES = {
     ],
   },
 
+  "/per/medie-imprese": {
+    title: "Software Gestionale Medie Imprese Edili (10-50 Dipendenti) | Edilizia in Cloud",
+    description:
+      "Gestionale multi-cantiere per medie imprese edili 10-50 dipendenti: margini real-time, cassa centralizzata, cruscotto CFO.",
+    h1: "Software per medie imprese edili",
+    intro:
+      "Gestisci 5-15 cantieri attivi e 10-50 dipendenti come un'unica realtà: margini real-time, controllo subappalti, dashboard CFO con KPI consolidati. Migrazione da Primus, Excel o ERP legacy in 30 giorni.",
+    links: [
+      { href: "/funzionalita/margini-cantiere", label: "Margini Cantiere Real-Time" },
+      { href: "/funzionalita/cruscotto-aziendale", label: "Cruscotto Aziendale" },
+      { href: "/per/grandi-imprese", label: "Sei oltre i 50 dipendenti?" },
+      { href: "/demo", label: "Demo Medie Imprese" },
+    ],
+  },
+
+  "/per/grandi-imprese": {
+    title: "Software Grandi Imprese Edili (50+) — General Contractor | Edilizia in Cloud",
+    description:
+      "Gestionale enterprise per grandi imprese edili e general contractor: multi-società, API ERP, dashboard direzionale, governance Codice Appalti.",
+    h1: "Software per grandi imprese edili e general contractor",
+    intro:
+      "50+ dipendenti, 10-50 cantieri attivi, holding multi-società: una sola fonte di verità per CFO e direzione. API integration con SAP/Microsoft Dynamics, audit trail, governance approvazioni multi-livello.",
+    links: [
+      { href: "/integrazioni", label: "Integrazioni ERP" },
+      { href: "/funzionalita/cruscotto-aziendale", label: "Dashboard Direzionale" },
+      { href: "/per/medie-imprese", label: "Per Medie Imprese" },
+      { href: "/demo", label: "Demo Enterprise" },
+    ],
+  },
+
+  "/per/commercialista-edilizia": {
+    title: "Software per Commercialisti Edilizia — Multi-Cliente Cassa Edile | Edilizia in Cloud",
+    description:
+      "Gestionale white-label per commercialisti che seguono imprese edili: cassetto SDI multi-cliente, F24 cassa edile, DURC tracking, bilancio CEE+XBRL.",
+    h1: "Software gestionale per commercialisti dell'edilizia",
+    intro:
+      "Gestisci 30+ clienti edili da un'unica piattaforma multi-azienda: sync cassetto fiscale SDI, F24 cassa edile pre-compilato, DURC tracking automatico, bilancio CEE+XBRL. Programma white-label per studi.",
+    links: [
+      { href: "/funzionalita/cassetto-sdi", label: "Cassetto SDI Multi-Cliente" },
+      { href: "/funzionalita/cedolini-paga", label: "Cedolini & Cassa Edile" },
+      { href: "/funzionalita/contabilita-fiscale", label: "Contabilità Fiscale CEE" },
+      { href: "/diventa-partner", label: "Programma Partner" },
+    ],
+  },
+
   "/diventa-partner": {
     title: "Diventa Partner | Edilizia in Cloud",
     description:
@@ -593,7 +1272,8 @@ const ROUTES = {
     ],
   },
 
-  // /privacy, /termini, /cookie — noindex nel React, non servire ai bot (passthrough alla SPA)
+  // /privacy-policy, /termini-e-condizioni, /avviso-legale, /condizioni-utilizzo, /cookie-policy, /dpa
+  // Pagine legali indicizzabili (trasparenza GDPR) — gestite dalla SPA con LegalLayout
 
   "/formazione": {
     title: "Formazione e Tutorial | Edilizia in Cloud",
@@ -857,9 +1537,12 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
   <footer>
     <p>© 2026 Domus Group S.r.l. — P.IVA 13132010961 — Via Aurelio Saffi 29, 20123 Milano</p>
     <nav>
-      <a href="/privacy">Privacy Policy</a> |
-      <a href="/termini">Termini di Servizio</a> |
-      <a href="/cookie">Cookie Policy</a> |
+      <a href="/privacy-policy">Privacy Policy</a> |
+      <a href="/termini-e-condizioni">Termini e Condizioni</a> |
+      <a href="/avviso-legale">Avviso Legale</a> |
+      <a href="/condizioni-utilizzo">Condizioni di Utilizzo</a> |
+      <a href="/cookie-policy">Cookie Policy</a> |
+      <a href="/dpa">DPA</a> |
       <a href="/sitemap.xml">Sitemap</a> |
       <a href="/llms.txt">LLMs.txt</a>
     </nav>

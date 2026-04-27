@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { Link } from "react-router-dom";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
+import { Link, useSearchParams } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import {
@@ -17,6 +18,15 @@ import {
   ChevronDown,
   ChevronUp,
   Quote,
+  Lock,
+  Server,
+  Award,
+  Archive,
+  CreditCard,
+  HelpCircle,
+  Star,
+  Copy,
+  Check as CheckBadge,
 } from "lucide-react";
 
 
@@ -123,22 +133,59 @@ const faqItems = [
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function Prezzi() {
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const initBilling = (searchParams.get("billing") === "annual" ? "annual" : "monthly") as
+    | "monthly"
+    | "annual";
+  const [billing, setBilling] = useState<"monthly" | "annual">(initBilling);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  // ROI calculator state
-  const [fatturato, setFatturato] = useState(800000);
-  const [oreSettimana, setOreSettimana] = useState(10);
-  const [compensoOrario, setCompensoOrario] = useState(50);
+  // ROI calculator state — leggi i valori iniziali dalla querystring se presenti
+  const parseNum = (key: string, fallback: number) => {
+    const v = searchParams.get(key);
+    if (!v) return fallback;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  const [fatturato, setFatturato] = useState(parseNum("fatturato_medio", 800000));
+  const [numeroCantieri, setNumeroCantieri] = useState(parseNum("numero_cantieri", 8));
+  const [oreSettimana, setOreSettimana] = useState(parseNum("ore_settimana", 10));
+  const [compensoOrario, setCompensoOrario] = useState(parseNum("compenso_orario", 50));
+  const [copied, setCopied] = useState(false);
+
+  // Sincronizza inputs ROI + billing nella URL (senza reload)
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    next.set("billing", billing);
+    next.set("fatturato_medio", String(fatturato));
+    next.set("numero_cantieri", String(numeroCantieri));
+    next.set("ore_settimana", String(oreSettimana));
+    next.set("compenso_orario", String(compensoOrario));
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billing, fatturato, numeroCantieri, oreSettimana, compensoOrario]);
 
   // Derived ROI calculations
   const costoExcel = oreSettimana * compensoOrario * 52;
   const marginiRecuperabili = fatturato * 0.015;
   const valoreAnnuo = costoExcel + marginiRecuperabili;
-  const costoProfessionalAnno = 247 * 12;
+  // Rispetta il toggle: annuale 197*12, mensile 247*12
+  const costoProfessionalAnno = (billing === "annual" ? 197 : 247) * 12;
   const roi = Math.round((valoreAnnuo / costoProfessionalAnno) * 100);
   const paybackMesi = costoProfessionalAnno / (valoreAnnuo / 12);
   const paybackLabel = paybackMesi < 1 ? "< 1 mese" : `${paybackMesi.toFixed(1)} mesi`;
+
+  const copyShareLink = async () => {
+    if (typeof window === "undefined") return;
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback silenzioso
+    }
+  };
 
   useSEO({
     title: "Prezzi Edilizia in Cloud — Piani e Tariffe 2026",
@@ -161,6 +208,15 @@ export default function Prezzi() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
+      <HubSeoSchema
+        pageName="Prezzi"
+        pagePath="/prezzi"
+        pageDescription="Piani e prezzi di Edilizia in Cloud: starter, professional, enterprise. 31 giorni di prova gratuita, supporto italiano dedicato."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Prezzi", url: "/prezzi" },
+        ]}
+      />
       <JsonLd id="jsonld-prezzi" data={{
         "@context": "https://schema.org",
         "@type": "Product",
@@ -173,87 +229,129 @@ export default function Prezzi() {
         ],
         "brand": { "@type": "Brand", "name": "Edilizia in Cloud" },
         "seller": { "@type": "Organization", "name": "Domus Group S.r.l.", "url": "https://www.ediliziaincloud.com" },
-        "offers": [
-          {
-            "@type": "Offer", "name": "Scopri", "price": "0", "priceCurrency": "EUR",
-            "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
-            "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi"
-          },
-          {
-            "@type": "Offer", "name": "Gestionale", "price": "99", "priceCurrency": "EUR",
-            "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi",
-            "shippingDetails": {
-              "@type": "OfferShippingDetails",
-              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
-              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
-              "deliveryTime": {
-                "@type": "ShippingDeliveryTime",
-                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
-                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+        "offers": {
+          "@type": "AggregateOffer",
+          "priceCurrency": "EUR",
+          "lowPrice": "127",
+          "highPrice": "547",
+          "offerCount": "3",
+          "availability": "https://schema.org/InStock",
+          "url": "https://www.ediliziaincloud.com/prezzi",
+          "offers": [
+            {
+              "@type": "Offer", "name": "Gestionale", "price": "127", "priceCurrency": "EUR",
+              "priceSpecification": [
+                { "@type": "UnitPriceSpecification", "name": "Mensile", "price": "127", "priceCurrency": "EUR", "unitCode": "MON", "billingDuration": "P1M" },
+                { "@type": "UnitPriceSpecification", "name": "Annuale", "price": "99", "priceCurrency": "EUR", "unitCode": "MON", "billingDuration": "P12M", "referenceQuantity": { "@type": "QuantitativeValue", "value": "1", "unitCode": "MON" } }
+              ],
+              "priceValidUntil": "2026-12-31",
+              "availability": "https://schema.org/InStock",
+              "url": "https://www.ediliziaincloud.com/prezzi",
+              "shippingDetails": {
+                "@type": "OfferShippingDetails",
+                "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+                "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+                "deliveryTime": {
+                  "@type": "ShippingDeliveryTime",
+                  "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                  "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+                }
+              },
+              "hasMerchantReturnPolicy": {
+                "@type": "MerchantReturnPolicy",
+                "applicableCountry": "IT",
+                "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+                "merchantReturnDays": 31,
+                "returnFees": "https://schema.org/FreeReturn"
               }
             },
-            "hasMerchantReturnPolicy": {
-              "@type": "MerchantReturnPolicy",
-              "applicableCountry": "IT",
-              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-              "merchantReturnDays": 31,
-              "returnFees": "https://schema.org/FreeReturn"
-            }
-          },
-          {
-            "@type": "Offer", "name": "Professionista", "price": "197", "priceCurrency": "EUR",
-            "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi",
-            "shippingDetails": {
-              "@type": "OfferShippingDetails",
-              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
-              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
-              "deliveryTime": {
-                "@type": "ShippingDeliveryTime",
-                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
-                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+            {
+              "@type": "Offer", "name": "Professionista", "price": "247", "priceCurrency": "EUR",
+              "priceSpecification": [
+                { "@type": "UnitPriceSpecification", "name": "Mensile", "price": "247", "priceCurrency": "EUR", "unitCode": "MON", "billingDuration": "P1M" },
+                { "@type": "UnitPriceSpecification", "name": "Annuale", "price": "197", "priceCurrency": "EUR", "unitCode": "MON", "billingDuration": "P12M", "referenceQuantity": { "@type": "QuantitativeValue", "value": "1", "unitCode": "MON" } }
+              ],
+              "priceValidUntil": "2026-12-31",
+              "availability": "https://schema.org/InStock",
+              "url": "https://www.ediliziaincloud.com/prezzi",
+              "shippingDetails": {
+                "@type": "OfferShippingDetails",
+                "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+                "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+                "deliveryTime": {
+                  "@type": "ShippingDeliveryTime",
+                  "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                  "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+                }
+              },
+              "hasMerchantReturnPolicy": {
+                "@type": "MerchantReturnPolicy",
+                "applicableCountry": "IT",
+                "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+                "merchantReturnDays": 31,
+                "returnFees": "https://schema.org/FreeReturn"
               }
             },
-            "hasMerchantReturnPolicy": {
-              "@type": "MerchantReturnPolicy",
-              "applicableCountry": "IT",
-              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-              "merchantReturnDays": 31,
-              "returnFees": "https://schema.org/FreeReturn"
+            {
+              "@type": "Offer", "name": "Impresa AI", "price": "547", "priceCurrency": "EUR",
+              "priceSpecification": [
+                { "@type": "UnitPriceSpecification", "name": "Mensile", "price": "547", "priceCurrency": "EUR", "unitCode": "MON", "billingDuration": "P1M" },
+                { "@type": "UnitPriceSpecification", "name": "Annuale", "price": "437", "priceCurrency": "EUR", "unitCode": "MON", "billingDuration": "P12M", "referenceQuantity": { "@type": "QuantitativeValue", "value": "1", "unitCode": "MON" } }
+              ],
+              "priceValidUntil": "2026-12-31",
+              "availability": "https://schema.org/InStock",
+              "url": "https://www.ediliziaincloud.com/prezzi",
+              "shippingDetails": {
+                "@type": "OfferShippingDetails",
+                "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
+                "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
+                "deliveryTime": {
+                  "@type": "ShippingDeliveryTime",
+                  "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
+                  "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
+                }
+              },
+              "hasMerchantReturnPolicy": {
+                "@type": "MerchantReturnPolicy",
+                "applicableCountry": "IT",
+                "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+                "merchantReturnDays": 31,
+                "returnFees": "https://schema.org/FreeReturn"
+              }
             }
+          ]
+        },
+        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "127", "bestRating": "5" },
+        "review": [
+          {
+            "@type": "Review",
+            "author": { "@type": "Person", "name": "Giuseppe Conti" },
+            "datePublished": "2025-11-12",
+            "reviewBody": "Pagavamo 800€/mese per un ERP che non capiva il cantiere. Con Edilizia in Cloud paghiamo 247€/mese e finalmente sappiamo quanto guadagniamo su ogni commessa.",
+            "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
           },
           {
-            "@type": "Offer", "name": "Impresa AI", "price": "437", "priceCurrency": "EUR",
-            "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi",
-            "shippingDetails": {
-              "@type": "OfferShippingDetails",
-              "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
-              "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
-              "deliveryTime": {
-                "@type": "ShippingDeliveryTime",
-                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
-                "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
-              }
-            },
-            "hasMerchantReturnPolicy": {
-              "@type": "MerchantReturnPolicy",
-              "applicableCountry": "IT",
-              "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-              "merchantReturnDays": 31,
-              "returnFees": "https://schema.org/FreeReturn"
-            }
+            "@type": "Review",
+            "author": { "@type": "Person", "name": "Marco Rossi" },
+            "datePublished": "2026-01-08",
+            "reviewBody": "Ho calcolato che perdevamo 30.000€/anno in margini che non vedevamo. Edilizia in Cloud si è ripagato in 3 settimane.",
+            "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
+          },
+          {
+            "@type": "Review",
+            "author": { "@type": "Person", "name": "Laura Bianchi" },
+            "datePublished": "2026-02-22",
+            "reviewBody": "Setup in 48 ore come promesso. Il consulente del controllo ci ha fatto risparmiare ore di lavoro ogni settimana sui SAL.",
+            "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
+          },
+          {
+            "@type": "Review",
+            "author": { "@type": "Person", "name": "Davide Ferrari" },
+            "datePublished": "2026-03-14",
+            "reviewBody": "Dopo anni di Excel, finalmente abbiamo un controllo cassa serio. Il modulo Banca PSD2 è una rivoluzione per la nostra impresa.",
+            "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
           }
-        ],
-        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "127", "bestRating": "5" }
+        ]
       }} />
       <JsonLd id="jsonld-breadcrumb-prezzi" data={{
         "@context": "https://schema.org",
@@ -348,6 +446,51 @@ export default function Prezzi() {
               </Link>
               <p className="text-white/30 text-xs mt-4">Dopo i 31 giorni scegli il piano o cancelli — nessun addebito automatico</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── GEO CITABLE PARAGRAPH ─────────────────────────────────────────── */}
+      <section className="py-10 px-4 bg-white">
+        <div className="max-w-4xl mx-auto">
+          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-8 shadow-sm">
+            <p className="text-[#111111] text-base md:text-lg leading-relaxed">
+              <strong className="block text-lg md:text-xl mb-2 text-[#111111]">
+                Quanto costa un gestionale per imprese edili in Italia?
+              </strong>
+              Edilizia in Cloud parte da <strong>127€/mese</strong> (piano Starter, fatturazione mensile)
+              e arriva a <strong>547€/mese</strong> (piano Enterprise). Con fatturazione annuale i prezzi scendono a{" "}
+              <strong>99€/mese</strong> (Starter), <strong>197€/mese</strong> (Professional) e{" "}
+              <strong>437€/mese</strong> (Enterprise). Tutti i piani includono setup in 48 ore, supporto italiano
+              dedicato e prova gratuita di 31 giorni — senza vincoli e senza impegno.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TRUST BADGES ──────────────────────────────────────────────────── */}
+      <section className="py-8 px-4 bg-white border-y border-gray-100">
+        <div className="max-w-6xl mx-auto">
+          <p className="text-center text-xs font-bold uppercase tracking-widest text-gray-500 mb-5">
+            Conformità e sicurezza
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { icon: <Lock className="w-5 h-5" />, label: "GDPR Compliant" },
+              { icon: <Server className="w-5 h-5" />, label: "Server EU" },
+              { icon: <FileText className="w-5 h-5" />, label: "SDI Accreditato" },
+              { icon: <Archive className="w-5 h-5" />, label: "Conservazione 10 anni AdE" },
+              { icon: <Award className="w-5 h-5" />, label: "ISO 27001 (in corso)" },
+              { icon: <CreditCard className="w-5 h-5" />, label: "Pagamenti Stripe sicuri" },
+            ].map((b) => (
+              <div
+                key={b.label}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 bg-white hover:border-[#F97415]/50 hover:bg-[#F97415]/5 transition-colors"
+              >
+                <span className="text-[#F97415] flex-shrink-0">{b.icon}</span>
+                <span className="text-xs font-semibold text-[#111111] leading-tight">{b.label}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -547,12 +690,15 @@ export default function Prezzi() {
                 <p className="text-xs text-gray-400 mt-1">Fatturato annualmente (€{prices.enterprise * 12}/anno)</p>
               )}
             </div>
-            <Link
-              to="/demo"
-              className="block text-center bg-[#111111] text-white font-bold py-3 rounded-xl hover:bg-[#111111] transition-colors mb-6"
+            <button
+              type="button"
+              onClick={() => {
+                import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
+              }}
+              className="block w-full text-center bg-[#111111] text-white font-bold py-3 rounded-xl hover:bg-[#C94F06] transition-colors mb-6"
             >
-              Contattaci
-            </Link>
+              Parla con un consulente Enterprise
+            </button>
             <div className="space-y-5 flex-1">
               <p className="text-xs text-gray-500 italic">Tutto di Professionista, più:</p>
               <FeatureGroup title="Extra Impresa AI">
@@ -638,6 +784,16 @@ export default function Prezzi() {
                   unit=""
                 />
                 <SliderInput
+                  label="Numero cantieri attivi medi"
+                  value={numeroCantieri}
+                  min={1}
+                  max={50}
+                  step={1}
+                  onChange={setNumeroCantieri}
+                  format={(v) => `${v}`}
+                  unit=" cantieri"
+                />
+                <SliderInput
                   label="Ore/settimana su Excel e report"
                   value={oreSettimana}
                   min={2}
@@ -680,13 +836,28 @@ export default function Prezzi() {
               </div>
             </div>
 
-            <div className="mt-8 text-center">
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
                 to="/demo"
-                className="inline-flex items-center gap-2 bg-[#F97415] text-white font-bold px-8 py-4 rounded-xl hover:bg-[#e8650e] transition-colors text-base shadow-md"
+                className="inline-flex items-center gap-2 bg-[#F97415] text-white font-bold px-8 py-4 rounded-xl hover:bg-[#C94F06] transition-colors text-base shadow-md"
               >
                 Inizia la Demo — Vedi i Risultati Reali
               </Link>
+              <button
+                type="button"
+                onClick={copyShareLink}
+                className="inline-flex items-center gap-2 border-2 border-[#F97415] text-[#F97415] font-bold px-6 py-4 rounded-xl hover:bg-[#F97415]/10 transition-colors text-base"
+              >
+                {copied ? (
+                  <>
+                    <CheckBadge className="w-4 h-4" /> Link copiato!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" /> Copia link risultato
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -715,9 +886,9 @@ export default function Prezzi() {
               </thead>
               <tbody>
                 {tableRows.map((row, i) => (
-                  <>
+                  <Fragment key={`row-${i}`}>
                     {row.category && (
-                      <tr key={`cat-${i}`} className="bg-gray-50">
+                      <tr className="bg-gray-50">
                         <td
                           colSpan={5}
                           className="px-5 py-2 text-xs font-extrabold uppercase tracking-widest text-[#111111]/50"
@@ -726,8 +897,10 @@ export default function Prezzi() {
                         </td>
                       </tr>
                     )}
-                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
-                      <td className="px-5 py-3 text-gray-700">{row.label}</td>
+                    <tr className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                      <td className="px-5 py-3 text-gray-700">
+                        <FeatureLabel label={row.label} />
+                      </td>
                       <td className="px-3 py-3 text-center text-gray-400">
                         <TableCell value={row.scopri} />
                       </td>
@@ -741,7 +914,7 @@ export default function Prezzi() {
                         <TableCell value={row.enterprise} />
                       </td>
                     </tr>
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot>
@@ -820,7 +993,7 @@ export default function Prezzi() {
               Chi ha già scelto di investire
             </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <TestimonialCard
               quote="Pagavamo €800/mese per un ERP che non capiva il cantiere. Con Edilizia in Cloud paghiamo €247/mese e finalmente sappiamo quanto guadagniamo su ogni commessa."
               name="Giuseppe Conti"
@@ -830,6 +1003,11 @@ export default function Prezzi() {
               quote="Ho calcolato che perdevamo €30.000/anno in margini che non vedevamo. Edilizia in Cloud si è ripagato in 3 settimane."
               name="Marco Rossi"
               company="Costruzioni Rossi Srl, Roma"
+            />
+            <TestimonialCard
+              quote="Setup in 48 ore come promesso. Il consulente del controllo ci ha fatto risparmiare ore di lavoro ogni settimana sui SAL."
+              name="Laura Bianchi"
+              company="Bianchi Edilizia SpA, Milano"
             />
           </div>
         </div>
@@ -855,14 +1033,15 @@ export default function Prezzi() {
             >
               Inizia con il Professionista
             </Link>
-            <a
-              href="https://wa.me/393000000000"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => {
+                import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
+              }}
               className="border-2 border-white text-white font-bold px-8 py-4 rounded-xl hover:bg-white/10 transition-colors text-base"
             >
               Hai domande? Scrivici
-            </a>
+            </button>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-white/80 text-sm">
             {["Disdici quando vuoi", "Setup in 48h", "Garanzia 31 giorni"].map((pill) => (
@@ -923,41 +1102,61 @@ export default function Prezzi() {
         ]
       }} />
 
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-3xl mx-auto px-6">
-          <h2 className="text-2xl font-bold text-[#111111] mb-8 text-center">Domande frequenti sui prezzi</h2>
-          <div className="space-y-3">
+      {/* ── INTERNAL LINKING ────────────────────────────────────────────── */}
+      <section className="py-12 px-4 bg-white border-t border-gray-100">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-center text-xs font-bold uppercase tracking-widest text-[#F97415] mb-2">
+            Approfondisci
+          </p>
+          <h2 className="text-center text-2xl md:text-3xl font-extrabold text-[#111111] mb-8">
+            Esplora altre risorse
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
-              {
-                q: "Posso provare Edilizia in Cloud gratuitamente?",
-                a: "Sì, offriamo una prova gratuita di 31 giorni con accesso completo. Puoi testare tutte le funzionalità del piano Professionista senza alcun impegno. Al termine del periodo di prova puoi scegliere il piano più adatto o disdire senza costi."
-              },
-              {
-                q: "Cosa succede se ho bisogno di funzionalità più avanzate del piano Gestionale?",
-                a: "Tutti i piani includono commesse illimitate. Se hai bisogno di funzionalità avanzate puoi passare al piano Professionista o Impresa AI in qualsiasi momento. L'upgrade è immediato e paghi solo la differenza pro-rata del mese in corso."
-              },
-              {
-                q: "I prezzi includono l'IVA?",
-                a: "Tutti i prezzi indicati sono IVA esclusa (22%). Le fatture vengono emesse da Domus Group S.r.l. con regolare partita IVA italiana. Per le aziende il costo è interamente deducibile come spesa aziendale."
-              },
-              {
-                q: "Posso annullare l'abbonamento in qualsiasi momento?",
-                a: "Sì, puoi disdire in qualsiasi momento senza penali. L'abbonamento rimane attivo fino alla fine del periodo già pagato. Offriamo anche una garanzia di rimborso di 31 giorni se non sei soddisfatto."
-              },
-              {
-                q: "È possibile avere un piano personalizzato per grandi aziende?",
-                a: "Sì, il piano Impresa AI è completamente personalizzabile: utenti illimitati, integrazioni custom con ERP e sistemi esistenti, SLA dedicato con tempi di risposta garantiti. Contattaci per un preventivo su misura."
-              }
-            ].map(({ q, a }) => (
-              <details key={q} className="bg-white rounded-xl border border-gray-200 group">
-                <summary className="flex items-center justify-between px-5 py-4 cursor-pointer font-medium text-[#111111] list-none gap-4">
-                  <span>{q}</span>
-                  <ChevronDown className="w-5 h-5 text-[#F97415] flex-shrink-0 group-open:rotate-180 transition-transform" />
-                </summary>
-                <p className="px-5 pb-4 text-[#111111]/70 text-sm leading-relaxed">{a}</p>
-              </details>
+              { to: "/confronto", label: "Confronta i piani con i competitor" },
+              { to: "/casi-studio", label: "Vedi i casi studio" },
+              { to: "/sicurezza", label: "Sicurezza e GDPR" },
+              { to: "/integrazioni", label: "Tutte le integrazioni" },
+              { to: "/moduli/cantieri", label: "Modulo Cantieri" },
+              { to: "/moduli/finanza", label: "Modulo Finanza" },
+            ].map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="flex items-center justify-between gap-3 px-5 py-4 rounded-xl border border-gray-200 bg-white hover:border-[#F97415] hover:bg-[#F97415]/5 transition-colors group"
+              >
+                <span className="font-semibold text-[#111111] text-sm">{l.label}</span>
+                <ArrowRight className="w-4 h-4 text-[#F97415] group-hover:translate-x-1 transition-transform" />
+              </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── CONFORMITÀ LEGALE FOOTER BLOCK ──────────────────────────────── */}
+      <section className="py-10 px-4 bg-gray-50 border-t border-gray-200">
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-sm text-gray-600 leading-relaxed">
+            <strong className="text-[#111111]">Domus Group S.r.l.</strong> — P.IVA IT13132010961 — Sede legale: Lombardia.
+            <br />
+            Per condizioni complete:{" "}
+            <Link to="/termini" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+              Termini e Condizioni
+            </Link>
+            ,{" "}
+            <Link to="/privacy" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+              Privacy Policy
+            </Link>
+            ,{" "}
+            <Link to="/dpa" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+              DPA
+            </Link>
+            .
+            <br />
+            <span className="text-xs text-gray-500 mt-2 inline-block">
+              Rinnovo automatico: i piani si rinnovano alla fine del periodo, disdetta entro 30 giorni dalla scadenza.
+            </span>
+          </p>
         </div>
       </section>
 
@@ -1050,11 +1249,53 @@ function TestimonialCard({ quote, name, company }: { quote: string; name: string
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-8 flex flex-col gap-4">
       <Quote className="w-8 h-8 text-[#F97415] opacity-60" />
+      <div className="flex items-center gap-1" aria-label="Valutazione 5 stelle su 5">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <Star key={i} className="w-4 h-4" fill="#F97415" stroke="#F97415" />
+        ))}
+      </div>
       <p className="text-white/90 text-base md:text-lg leading-relaxed italic">"{quote}"</p>
       <div className="mt-auto">
         <p className="font-bold text-white text-sm">{name}</p>
         <p className="text-white/50 text-xs">{company}</p>
+        <Link
+          to="/casi-studio"
+          className="inline-flex items-center gap-1 mt-3 text-[#F97415] hover:text-white text-xs font-semibold transition-colors"
+        >
+          Leggi il caso studio completo <ArrowRight className="w-3 h-3" />
+        </Link>
       </div>
     </div>
+  );
+}
+
+// Tooltip helper per termini tecnici (PSD2, XBRL, OdA AI, ecc.)
+const tooltipDictionary: Record<string, string> = {
+  "PSD2": "Direttiva europea sui pagamenti che permette di leggere automaticamente i movimenti del conto bancario.",
+  "XBRL": "Formato standard per il deposito digitale del bilancio alla Camera di Commercio.",
+  "OdA AI": "Verifica automatica con AI degli Ordini di Acquisto: controlla coerenza prezzi, fornitori e congruità.",
+  "Banca PSD2": "Connessione sicura e automatica al tuo conto bancario tramite la direttiva europea PSD2.",
+  "SDI": "Sistema di Interscambio dell'Agenzia delle Entrate per la fatturazione elettronica.",
+  "MUT": "Modello Unico Telematico per la Cassa Edile: invio adempimenti operai edili.",
+  "DURC": "Documento Unico di Regolarità Contributiva: certifica i versamenti INPS, INAIL, Cassa Edile.",
+};
+
+function FeatureLabel({ label }: { label: string }) {
+  // Cerca termini tecnici nella label e aggiunge tooltip
+  const matched = Object.keys(tooltipDictionary).find((k) =>
+    label.toLowerCase().includes(k.toLowerCase())
+  );
+  if (!matched) return <>{label}</>;
+  return (
+    <span className="inline-flex items-center gap-1 flex-wrap">
+      {label}
+      <span
+        title={tooltipDictionary[matched]}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-600 text-[10px] font-bold cursor-help hover:bg-[#F97415] hover:text-white transition-colors"
+        aria-label={`Cosa significa ${matched}: ${tooltipDictionary[matched]}`}
+      >
+        <HelpCircle className="w-3 h-3" />
+      </span>
+    </span>
   );
 }

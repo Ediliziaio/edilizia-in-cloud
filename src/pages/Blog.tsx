@@ -6,6 +6,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { blogPosts, categories, BlogPost } from "@/data/blogPosts";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 
 const categoryColors: Record<string, string> = {
   "Gestione Cantieri": "bg-blue-100 text-blue-700",
@@ -195,6 +196,15 @@ export default function Blog() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <HubSeoSchema
+        pageName="Blog"
+        pagePath="/blog"
+        pageDescription="Articoli, guide e analisi su software gestionale per imprese edili: cantieri, fatturazione SDI, HR, digitalizzazione."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Blog", url: "/blog" },
+        ]}
+      />
       <JsonLd id="jsonld-breadcrumb-blog" data={{
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",

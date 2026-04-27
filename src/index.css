@@ -321,3 +321,80 @@ html.capacitor [role="button"] {
 .fv-tab-scroll::-webkit-scrollbar { height: 4px; }
 .fv-tab-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
 
+
+/* ─── Legal pages prose styles ───────────────────────────────────────────── */
+.legal-prose {
+  color: #4b5563;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+.legal-prose h2 {
+  color: #111111;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.01em;
+}
+.legal-prose h2:first-child { margin-top: 0; }
+.legal-prose h3 {
+  color: #111111;
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+.legal-prose h4 {
+  color: #111111;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+}
+.legal-prose p { margin-bottom: 0.85rem; }
+.legal-prose ul, .legal-prose ol {
+  margin: 0.75rem 0 1rem 1.25rem;
+  padding-left: 0.25rem;
+}
+.legal-prose ul { list-style: disc; }
+.legal-prose ol { list-style: decimal; }
+.legal-prose li { margin-bottom: 0.4rem; }
+.legal-prose strong { color: #111111; font-weight: 600; }
+.legal-prose a { color: #F97415; text-decoration: none; font-weight: 500; }
+.legal-prose a:hover { text-decoration: underline; }
+.legal-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.legal-prose th, .legal-prose td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+.legal-prose th {
+  background: #f9fafb;
+  font-weight: 700;
+  color: #111111;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.legal-prose tr:last-child td { border-bottom: none; }
+.legal-prose blockquote {
+  border-left: 3px solid #F97415;
+  padding: 0.5rem 0 0.5rem 1rem;
+  margin: 1rem 0;
+  background: #FFF7ED;
+  color: #7c2d12;
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-size: 0.88rem;
+}
+.legal-prose .legal-section { scroll-margin-top: 100px; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { scrollbar-width: none; }

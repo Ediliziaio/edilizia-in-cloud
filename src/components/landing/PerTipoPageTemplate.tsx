@@ -21,6 +21,9 @@ const ALL_SECTORS = [
   { slug: "/per/fotovoltaico",         label: "Fotovoltaico",           emoji: "☀️" },
   { slug: "/per/serramentisti",        label: "Serramentisti",          emoji: "🪟" },
   { slug: "/per/piccole-imprese",      label: "Piccole Imprese",        emoji: "🧱" },
+  { slug: "/per/medie-imprese",        label: "Medie Imprese",          emoji: "🏢" },
+  { slug: "/per/grandi-imprese",       label: "Grandi Imprese",         emoji: "🏭" },
+  { slug: "/per/commercialista-edilizia", label: "Commercialisti",      emoji: "📊" },
 ];
 
 // Mappa seoCanonical → categorie blog pertinenti per "Leggi anche"
@@ -31,6 +34,9 @@ const SECTOR_BLOG_CATEGORIES: Record<string, string[]> = {
   "/per/fotovoltaico":         ["Finanza", "Gestione Cantieri"],
   "/per/serramentisti":        ["Commerciale", "Gestione Cantieri"],
   "/per/piccole-imprese":      ["Digitalizzazione", "Finanza"],
+  "/per/medie-imprese":        ["Gestione Cantieri", "Finanza"],
+  "/per/grandi-imprese":       ["Gestione Cantieri", "Digitalizzazione"],
+  "/per/commercialista-edilizia": ["Finanza", "Digitalizzazione"],
 };
 
 
@@ -304,7 +310,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           </div>
           <div className={`flex flex-col sm:flex-row items-center justify-center gap-4 transition-all duration-700 delay-300 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             <Link to="/demo" className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
-              Prova Gratis 30 Giorni →
+              Prova Gratis 31 Giorni →
             </Link>
             <Link to="/prezzi" className="w-full sm:w-auto px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all">
               Vedi i Prezzi

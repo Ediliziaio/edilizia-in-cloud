@@ -186,12 +186,9 @@ export default function HowItWorksSection() {
             transform: isVisible ? "translateY(0)" : "translateY(16px)",
           }}
         >
-          <a
-            href="#cta-finale"
-            onClick={(e) => {
-              e.preventDefault();
-              document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" });
-            }}
+          <button
+            type="button"
+            onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-white text-base transition-all duration-200 hover:scale-105 hover:shadow-xl"
             style={{
               backgroundColor: "#F97415",
@@ -199,7 +196,7 @@ export default function HowItWorksSection() {
             }}
           >
             Inizia ora — Setup in 48 ore
-          </a>
+          </button>
           <p className="text-gray-400 text-sm mt-3">Nessuna competenza tecnica richiesta</p>
         </div>
       </div>

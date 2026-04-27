@@ -87,6 +87,9 @@ const Integrazioni = lazy(() => import("@/pages/Integrazioni"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TerminiServizio = lazy(() => import("@/pages/TerminiServizio"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
+const AvvisoLegale = lazy(() => import("@/pages/AvvisoLegale"));
+const CondizioniUtilizzoSito = lazy(() => import("@/pages/CondizioniUtilizzoSito"));
+const DPA = lazy(() => import("@/pages/DPA"));
 const Formazione = lazy(() => import("@/pages/Formazione"));
 const CasiStudio = lazy(() => import("@/pages/CasiStudio"));
 const ImpreseCostuzione = lazy(() => import("@/pages/per/ImpreseCostuzione"));
@@ -95,8 +98,12 @@ const Ristrutturatori = lazy(() => import("@/pages/per/Ristrutturatori"));
 const Fotovoltaico = lazy(() => import("@/pages/per/Fotovoltaico"));
 const Serramentisti = lazy(() => import("@/pages/per/Serramentisti"));
 const PiccoleImprese   = lazy(() => import("@/pages/per/PiccoleImprese"));
+const MedieImprese     = lazy(() => import("@/pages/per/MedieImprese"));
+const GrandiImprese    = lazy(() => import("@/pages/per/GrandiImprese"));
+const CommercialistaEdilizia = lazy(() => import("@/pages/per/CommercialistaEdilizia"));
 const ReferralLanding  = lazy(() => import("@/pages/ReferralLanding"));
 const DiventaPartner   = lazy(() => import("@/pages/DiventaPartner"));
+const PianificaMigrazione = lazy(() => import("@/pages/PianificaMigrazione"));
 
 // Funzionalità sub-pages
 const GestioneCantieri       = lazy(() => import("@/pages/funzionalita/GestioneCantieri"));
@@ -106,6 +113,58 @@ const MarginiCantiere        = lazy(() => import("@/pages/funzionalita/MarginiCa
 const HrPersonale            = lazy(() => import("@/pages/funzionalita/HrPersonale"));
 const GestioneSubappalti     = lazy(() => import("@/pages/funzionalita/GestioneSubappalti"));
 const RenderInfissi          = lazy(() => import("@/pages/funzionalita/RenderInfissi"));
+const RenderBagni            = lazy(() => import("@/pages/funzionalita/render/RenderBagni"));
+const RenderTetti            = lazy(() => import("@/pages/funzionalita/render/RenderTetti"));
+const RenderPavimenti        = lazy(() => import("@/pages/funzionalita/render/RenderPavimenti"));
+const RenderRistrutturazioni = lazy(() => import("@/pages/funzionalita/render/RenderRistrutturazioni"));
+const RenderStanza           = lazy(() => import("@/pages/funzionalita/render/RenderStanza"));
+const RenderPiscine          = lazy(() => import("@/pages/funzionalita/render/RenderPiscine"));
+
+// Funzionalità sub-pages — TIER 1 (high-impact SEO landing pages)
+const CassaCantiere          = lazy(() => import("@/pages/funzionalita/CassaCantiere"));
+const AgentiAi               = lazy(() => import("@/pages/funzionalita/AgentiAi"));
+const PortaleClienti         = lazy(() => import("@/pages/funzionalita/PortaleClienti"));
+const FirmaElettronica       = lazy(() => import("@/pages/funzionalita/FirmaElettronica"));
+const WhatsappMarketing      = lazy(() => import("@/pages/funzionalita/WhatsappMarketing"));
+const EmailMarketing         = lazy(() => import("@/pages/funzionalita/EmailMarketing"));
+const Automazioni            = lazy(() => import("@/pages/funzionalita/Automazioni"));
+const CrmEdilizia            = lazy(() => import("@/pages/funzionalita/CrmEdilizia"));
+const CruscottoAziendale     = lazy(() => import("@/pages/funzionalita/CruscottoAziendale"));
+const GiornaleLavori         = lazy(() => import("@/pages/funzionalita/GiornaleLavori"));
+const SicurezzaCantiere      = lazy(() => import("@/pages/funzionalita/SicurezzaCantiere"));
+const FotoCantiere           = lazy(() => import("@/pages/funzionalita/FotoCantiere"));
+
+// Funzionalità sub-pages — TIER 2 (financial / fiscal / operational ops)
+const CassettoSdi            = lazy(() => import("@/pages/funzionalita/CassettoSdi"));
+const ConservaDigitale       = lazy(() => import("@/pages/funzionalita/ConservaDigitale"));
+const Scadenzario            = lazy(() => import("@/pages/funzionalita/Scadenzario"));
+const PrimaNota              = lazy(() => import("@/pages/funzionalita/PrimaNota"));
+const Tesoreria              = lazy(() => import("@/pages/funzionalita/Tesoreria"));
+const TimbratureGps          = lazy(() => import("@/pages/funzionalita/TimbratureGps"));
+const OrdiniAcquisto         = lazy(() => import("@/pages/funzionalita/OrdiniAcquisto"));
+const MagazzinoCantiere      = lazy(() => import("@/pages/funzionalita/MagazzinoCantiere"));
+const SmsMarketing           = lazy(() => import("@/pages/funzionalita/SmsMarketing"));
+const PipelineVendite        = lazy(() => import("@/pages/funzionalita/PipelineVendite"));
+
+// Funzionalità sub-pages — TIER 3 (vertical / niche / advanced)
+const FotovoltaicoFunz       = lazy(() => import("@/pages/funzionalita/Fotovoltaico"));
+const ManutenzioneImpianti   = lazy(() => import("@/pages/funzionalita/ManutenzioneImpianti"));
+const DdtDigitali            = lazy(() => import("@/pages/funzionalita/DdtDigitali"));
+const RitenuteGaranzia       = lazy(() => import("@/pages/funzionalita/RitenuteGaranzia"));
+const FinanziamentiCantieri  = lazy(() => import("@/pages/funzionalita/FinanziamentiCantieri"));
+const LeadFormFacebook       = lazy(() => import("@/pages/funzionalita/LeadFormFacebook"));
+const QuoteBuilderAi         = lazy(() => import("@/pages/funzionalita/QuoteBuilderAi"));
+const AppCantiereMobile      = lazy(() => import("@/pages/funzionalita/AppCantiereMobile"));
+
+// Funzionalità sub-pages — TIER 4 (HR / accounting / supporting)
+const CedoliniPaga           = lazy(() => import("@/pages/funzionalita/CedoliniPaga"));
+const FeriePermessi          = lazy(() => import("@/pages/funzionalita/FeriePermessi"));
+const TicketAssistenza       = lazy(() => import("@/pages/funzionalita/TicketAssistenza"));
+const ChatInterna            = lazy(() => import("@/pages/funzionalita/ChatInterna"));
+const RegistroIva            = lazy(() => import("@/pages/funzionalita/RegistroIva"));
+const ContabilitaFiscale     = lazy(() => import("@/pages/funzionalita/ContabilitaFiscale"));
+const CalendarioLavori       = lazy(() => import("@/pages/funzionalita/CalendarioLavori"));
+const ReportFatturazione     = lazy(() => import("@/pages/funzionalita/ReportFatturazione"));
 
 // Confronto sub-pages
 const VsPrimus      = lazy(() => import("@/pages/confronto/VsPrimus"));
@@ -237,6 +296,9 @@ const App = () => (
               <Route path="/per/fotovoltaico" element={<Fotovoltaico />} />
               <Route path="/per/serramentisti" element={<Serramentisti />} />
               <Route path="/per/piccole-imprese" element={<PiccoleImprese />} />
+              <Route path="/per/medie-imprese" element={<MedieImprese />} />
+              <Route path="/per/grandi-imprese" element={<GrandiImprese />} />
+              <Route path="/per/commercialista-edilizia" element={<CommercialistaEdilizia />} />
               <Route path="/funzionalita/gestione-cantieri" element={<GestioneCantieri />} />
               <Route path="/funzionalita/fatturazione-elettronica" element={<FatturazioneElettronica />} />
               <Route path="/funzionalita/preventivi-edilizia" element={<PreventiviEdilizia />} />
@@ -244,6 +306,58 @@ const App = () => (
               <Route path="/funzionalita/hr-personale" element={<HrPersonale />} />
               <Route path="/funzionalita/gestione-subappalti" element={<GestioneSubappalti />} />
               <Route path="/funzionalita/render-infissi" element={<RenderInfissi />} />
+              <Route path="/funzionalita/render-bagni" element={<RenderBagni />} />
+              <Route path="/funzionalita/render-tetti" element={<RenderTetti />} />
+              <Route path="/funzionalita/render-pavimenti" element={<RenderPavimenti />} />
+              <Route path="/funzionalita/render-ristrutturazioni" element={<RenderRistrutturazioni />} />
+              <Route path="/funzionalita/render-stanza" element={<RenderStanza />} />
+              <Route path="/funzionalita/render-piscine" element={<RenderPiscine />} />
+
+              {/* Funzionalità — TIER 1 (high-impact SEO landing pages) */}
+              <Route path="/funzionalita/cassa-cantiere" element={<CassaCantiere />} />
+              <Route path="/funzionalita/agenti-ai" element={<AgentiAi />} />
+              <Route path="/funzionalita/portale-clienti" element={<PortaleClienti />} />
+              <Route path="/funzionalita/firma-elettronica" element={<FirmaElettronica />} />
+              <Route path="/funzionalita/whatsapp-marketing" element={<WhatsappMarketing />} />
+              <Route path="/funzionalita/email-marketing" element={<EmailMarketing />} />
+              <Route path="/funzionalita/automazioni" element={<Automazioni />} />
+              <Route path="/funzionalita/crm-edilizia" element={<CrmEdilizia />} />
+              <Route path="/funzionalita/cruscotto-aziendale" element={<CruscottoAziendale />} />
+              <Route path="/funzionalita/giornale-lavori" element={<GiornaleLavori />} />
+              <Route path="/funzionalita/sicurezza-cantiere" element={<SicurezzaCantiere />} />
+              <Route path="/funzionalita/foto-cantiere" element={<FotoCantiere />} />
+
+              {/* Funzionalità — TIER 2 (financial / fiscal / operational) */}
+              <Route path="/funzionalita/cassetto-sdi" element={<CassettoSdi />} />
+              <Route path="/funzionalita/conserva-digitale" element={<ConservaDigitale />} />
+              <Route path="/funzionalita/scadenzario" element={<Scadenzario />} />
+              <Route path="/funzionalita/prima-nota" element={<PrimaNota />} />
+              <Route path="/funzionalita/tesoreria" element={<Tesoreria />} />
+              <Route path="/funzionalita/timbrature-gps" element={<TimbratureGps />} />
+              <Route path="/funzionalita/ordini-acquisto" element={<OrdiniAcquisto />} />
+              <Route path="/funzionalita/magazzino-cantiere" element={<MagazzinoCantiere />} />
+              <Route path="/funzionalita/sms-marketing" element={<SmsMarketing />} />
+              <Route path="/funzionalita/pipeline-vendite" element={<PipelineVendite />} />
+
+              {/* Funzionalità — TIER 3 (vertical / niche / advanced) */}
+              <Route path="/funzionalita/fotovoltaico" element={<FotovoltaicoFunz />} />
+              <Route path="/funzionalita/manutenzione-impianti" element={<ManutenzioneImpianti />} />
+              <Route path="/funzionalita/ddt-digitali" element={<DdtDigitali />} />
+              <Route path="/funzionalita/ritenute-garanzia" element={<RitenuteGaranzia />} />
+              <Route path="/funzionalita/finanziamenti-cantieri" element={<FinanziamentiCantieri />} />
+              <Route path="/funzionalita/lead-form-facebook" element={<LeadFormFacebook />} />
+              <Route path="/funzionalita/quote-builder-ai" element={<QuoteBuilderAi />} />
+              <Route path="/funzionalita/app-cantiere-mobile" element={<AppCantiereMobile />} />
+
+              {/* Funzionalità — TIER 4 (HR / accounting / supporting) */}
+              <Route path="/funzionalita/cedolini-paga" element={<CedoliniPaga />} />
+              <Route path="/funzionalita/ferie-permessi" element={<FeriePermessi />} />
+              <Route path="/funzionalita/ticket-assistenza" element={<TicketAssistenza />} />
+              <Route path="/funzionalita/chat-interna" element={<ChatInterna />} />
+              <Route path="/funzionalita/registro-iva" element={<RegistroIva />} />
+              <Route path="/funzionalita/contabilita-fiscale" element={<ContabilitaFiscale />} />
+              <Route path="/funzionalita/calendario-lavori" element={<CalendarioLavori />} />
+              <Route path="/funzionalita/report-fatturazione" element={<ReportFatturazione />} />
               <Route path="/confronto/vs-primus" element={<VsPrimus />} />
               <Route path="/confronto/vs-edilnet" element={<VsEdilnet />} />
               <Route path="/confronto/vs-teamsystem" element={<VsTeamSystem />} />
@@ -252,7 +366,12 @@ const App = () => (
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/termini" element={<TerminiServizio />} />
+              <Route path="/termini-e-condizioni" element={<TerminiServizio />} />
               <Route path="/cookie" element={<CookiePolicy />} />
+              <Route path="/cookie-policy" element={<CookiePolicy />} />
+              <Route path="/avviso-legale" element={<AvvisoLegale />} />
+              <Route path="/condizioni-utilizzo" element={<CondizioniUtilizzoSito />} />
+              <Route path="/dpa" element={<DPA />} />
               <Route path="/login" element={<LoginRouter />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />
@@ -271,6 +390,7 @@ const App = () => (
               {/* Referral public pages */}
               <Route path="/ref/:code" element={<ReferralLanding />} />
               <Route path="/diventa-partner" element={<DiventaPartner />} />
+              <Route path="/pianifica-migrazione" element={<PianificaMigrazione />} />
 
               {/* Root — subdomain-aware redirect */}
               <Route path="/" element={<SubdomainRedirect />} />

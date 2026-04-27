@@ -1,729 +1,662 @@
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { ChevronDown } from "lucide-react";
-
-/* ─────────────────────────────────────────────
-   ICONE EDILIZIA FLOATING
-───────────────────────────────────────────── */
-const EDILIZIA_ICONS = [
-  // Caschetto
-  { id: "caschetto", svg: (
-    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 22h20v2a1 1 0 01-1 1H7a1 1 0 01-1-1v-2z"/>
-      <path d="M6 22v-1a10 10 0 0120 0v1"/>
-      <path d="M16 8v4M11 10a6 6 0 0110 0"/>
-      <path d="M4 22h24"/>
-    </svg>
-  )},
-  // Finestra infisso
-  { id: "infisso", svg: (
-    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="4" width="24" height="24" rx="1.5"/>
-      <path d="M16 4v24M4 16h24"/>
-      <path d="M8 8v4M24 8v4M8 20v4M24 20v4"/>
-    </svg>
-  )},
-  // Pannello fotovoltaico
-  { id: "fotovoltaico", svg: (
-    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="8" width="28" height="16" rx="1.5"/>
-      <path d="M11 8v16M21 8v16M2 13h28M2 19h28"/>
-      <path d="M13 28h6M16 24v4"/>
-    </svg>
-  )},
-  // Casa ristrutturazione
-  { id: "casa", svg: (
-    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 13L16 3l12 10v16a1 1 0 01-1 1H5a1 1 0 01-1-1V13z"/>
-      <path d="M12 29V19h8v10"/>
-      <path d="M20 9l3 2.5M22 6v5M19 7h5"/>
-    </svg>
-  )},
-  // Gru da cantiere
-  { id: "gru", svg: (
-    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 28V6"/>
-      <path d="M10 6h16"/>
-      <path d="M26 6v10"/>
-      <path d="M26 16l-4 4M21 16H10"/>
-      <path d="M18 20v4"/>
-      <rect x="7" y="26" width="6" height="3" rx="1"/>
-      <path d="M10 8l3 2M10 11l3 2M10 14l3 2"/>
-    </svg>
-  )},
-  // Muro / mattoni
-  { id: "muro", svg: (
-    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="5" width="10" height="6" rx="0.8"/>
-      <rect x="16" y="5" width="14" height="6" rx="0.8"/>
-      <rect x="2" y="14" width="14" height="6" rx="0.8"/>
-      <rect x="20" y="14" width="10" height="6" rx="0.8"/>
-      <rect x="2" y="23" width="10" height="6" rx="0.8"/>
-      <rect x="16" y="23" width="14" height="6" rx="0.8"/>
-    </svg>
-  )},
-  // Chiave inglese
-  { id: "chiave", svg: (
-    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 4a6 6 0 00-5.66 8L4 22.3 5.7 28l5.7-1.7L21 16.66A6 6 0 0020 4z"/>
-      <circle cx="21" cy="9" r="2"/>
-    </svg>
-  )},
-  // Misuratore / nastro metrico
-  { id: "metro", svg: (
-    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="11" width="28" height="10" rx="2"/>
-      <path d="M7 11v4M12 11v6M17 11v4M22 11v6M27 11v4"/>
-    </svg>
-  )},
-];
-
-type IconParticle = {
-  iconId: string;
-  size: number;
-  top: string;
-  left?: string;
-  right?: string;
-  delay: string;
-  dur: string;
-  opacity: number;
-  rotate: number;
-};
-
-function FloatingIcons({ particles }: { particles: IconParticle[] }) {
-  return (
-    <>
-      {particles.map((p, i) => {
-        const icon = EDILIZIA_ICONS.find(ic => ic.id === p.iconId) ?? EDILIZIA_ICONS[i % EDILIZIA_ICONS.length];
-        return (
-          <div
-            key={i}
-            className="absolute pointer-events-none animate-float"
-            style={{
-              width: p.size,
-              height: p.size,
-              top: p.top,
-              left: p.left,
-              right: p.right,
-              color: "#F97415",
-              opacity: p.opacity,
-              animationDelay: p.delay,
-              animationDuration: p.dur,
-              transform: `rotate(${p.rotate}deg)`,
-              filter: `drop-shadow(0 0 ${Math.round(p.size / 4)}px rgba(249,116,21,0.5))`,
-            }}
-          >
-            {icon.svg}
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
+import {
+  ArrowRight,
+  ChevronDown,
+  CheckCircle2,
+  ShieldCheck,
+  HardHat,
+  MapPin,
+  Code2,
+  Users,
+  Wrench,
+  HeartHandshake,
+  Eye,
+  Hammer,
+  Truck,
+  Sun,
+  CloudRain,
+  Clock,
+} from "lucide-react";
 
 /* ─────────────────────────────────────────────
    DATA
 ───────────────────────────────────────────── */
-const keyNumbers = [
-  { value: "18 mesi", label: "di sviluppo e test su impresa reale prima del lancio" },
-  { value: "€ 12M+", label: "di fatturato edile gestito ogni mese sulla piattaforma" },
-  { value: "97%", label: "di clienti che rinnovano ogni anno" },
-  { value: "48h", label: "tempo medio di setup dalla firma del contratto" },
+
+const principi = [
+  {
+    icon: HardHat,
+    title: "Costruito da chi il cantiere lo vive davvero",
+    desc: "Non siamo un'azienda di software che ha letto un libro sul settore edile. Siamo nati dentro un'impresa edile, dalla scrivania di chi ogni mattina deve sapere quanti operai sono in cantiere, se il DURC è in ordine, quanto manca da incassare. Ogni funzione che vedi è stata pensata per risolvere un problema vissuto in prima persona — non immaginato in una stanza con vista.",
+  },
+  {
+    icon: Eye,
+    title: "Trasparenza come default",
+    desc: "Prezzi pubblici sul sito. Nessun commerciale che ti chiama tre volte al giorno. Nessun contratto pluriennale obbligatorio. Cancelli quando vuoi. I nostri Termini di servizio e il DPA sono leggibili sul sito prima di firmare.",
+  },
+  {
+    icon: HeartHandshake,
+    title: "Ti rispondiamo davvero",
+    desc: "Quando chiami, risponde una persona del nostro team — non un IVR, non un chatbot. Quando scrivi, ti risponde chi conosce il tuo caso. Niente ticket dispersi tra reparti. Siamo un team piccolo per scelta: ognuno conosce ogni cliente.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "I tuoi dati restano tuoi",
+    desc: "Server europei, GDPR, cifratura AES-256 a riposo, TLS 1.3 in transito. Backup giornalieri. DPA pubblico firmabile. Se decidi di andartene, ti consegniamo tutti i tuoi dati in formato standard entro 7 giorni. Senza domande, senza penali.",
+  },
+];
+
+const cosaFacciamo = [
+  {
+    icon: Hammer,
+    title: "Costruiamo software",
+    desc: "Edilizia in Cloud è una piattaforma cloud per imprese edili italiane: cantieri, fatturazione SDI, preventivi, HR e Cassa Edile, marketing, AI per render e quote builder.",
+  },
+  {
+    icon: Wrench,
+    title: "Configuriamo per te",
+    desc: "Onboarding gratuito in 48 ore: importiamo i tuoi dati dal vecchio gestionale, configuriamo cantieri/listini/team, formazione 1-on-1.",
+  },
+  {
+    icon: Users,
+    title: "Affianchiamo nel tempo",
+    desc: "Customer Success dedicato, sessioni di analisi mensili sui tuoi numeri, aggiornamenti continui guidati dai feedback reali dei clienti.",
+  },
+];
+
+const cosaNonFacciamo = [
+  "Non vendiamo i tuoi dati. A nessuno. Mai.",
+  "Non facciamo training di modelli AI sui tuoi documenti privati.",
+  "Non ti blocchiamo con contratti pluriennali o lock-in tecnologici.",
+  "Non promettiamo numeri che non possiamo dimostrare.",
+  "Non chiamiamo a casa tua tutti i giorni se non rispondi al primo contatto.",
+];
+
+const cantiereLife = [
+  {
+    icon: Sun,
+    title: "Le 6:30 del mattino",
+    desc: "Quando il software l'abbiamo pensato, eravamo già in cantiere. La timbratura GPS, l'app offline, la foto geolocalizzata: non sono feature da brochure. Sono cose che servivano a noi, ogni giorno.",
+  },
+  {
+    icon: CloudRain,
+    title: "La pioggia che ferma il getto",
+    desc: "Sappiamo cosa significa rimandare un getto di calcestruzzo, riprogrammare una squadra, comunicare il ritardo al cliente, aggiornare il SAL. Per questo il calendario lavori e il giornale di cantiere parlano la lingua del cantiere — non quella dei consulenti.",
+  },
+  {
+    icon: Truck,
+    title: "Il fornitore che chiama per essere pagato",
+    desc: "Lo scadenzario, il previsionale di cassa, le ritenute di garanzia: li abbiamo costruiti dopo aver vissuto in prima persona la telefonata del fornitore alle 18:00 di venerdì. Non da uno schema in PowerPoint.",
+  },
+  {
+    icon: Clock,
+    title: "Il consuntivo a fine commessa",
+    desc: "Sapere se un cantiere ha guadagnato o perso — davvero, non sulla carta — è la cosa che separa un'impresa che resiste da una che chiude. Margini cantiere live, preventivo vs consuntivo: è la nostra ossessione perché è stata la nostra paura.",
+  },
 ];
 
 const timeline = [
   {
-    year: "2019",
-    title: "Il problema diventa insostenibile",
-    desc: "Marco Verdi gestisce cantieri per 5M di fatturato. I numeri non tornano mai. Inizia a cercare soluzioni che non esistono.",
+    year: "L'origine",
+    title: "Un'impresa edile con un problema",
+    desc: "Il software nasce dentro una vera impresa edile italiana. Fatturava bene, ma a fine anno i conti non tornavano. Cantieri apparentemente redditizi che chiudevano in perdita. Cassa che andava e veniva senza logica.",
   },
   {
-    year: "2021 Q1",
-    title: "Si assume il primo sviluppatore",
-    desc: "Inizia a costruire un tool per uso interno. Nessuna ambizione commerciale: solo risolvere un problema reale.",
+    year: "La ricerca",
+    title: "Niente sul mercato funzionava",
+    desc: "ERP costosi pensati per multinazionali. Excel infiniti. Software generici pensati anche per ristoranti e parrucchieri. Niente di costruito davvero per il cantiere italiano.",
   },
   {
-    year: "2021 Q3",
-    title: "Primi test su cantieri reali",
-    desc: "Margini finalmente visibili in tempo reale. I dati tornano. Le decisioni diventano più facili.",
+    year: "2021",
+    title: "Domus Group S.r.l.",
+    desc: "Costituita la società che svilupperà la piattaforma. Sede Milano. Prima missione: risolvere il problema dentro casa, prima ancora di pensare al mercato.",
   },
   {
-    year: "2022 Q1",
-    title: "Lancio pubblico con 12 imprese pilota",
-    desc: "Feedback entusiasta. Gli imprenditori edili non avevano mai visto niente di simile.",
+    year: "Sviluppo iniziale",
+    title: "Test su impresa reale, non su slide",
+    desc: "Mesi di sviluppo direttamente sul cantiere: margini, cassa, integrazione SDI, Cassa Edile. Si tiene quello che serve a chi è in cantiere alle 6:30. Si butta tutto il resto.",
   },
   {
-    year: "2022 Q4",
-    title: "50 imprese attive",
-    desc: "Il team cresce a 6 persone. Il passaparola diventa il principale canale di acquisizione.",
-  },
-  {
-    year: "2023",
-    title: "100+ imprese",
-    desc: "Aggiunta del modulo Marketing e CRM. Il prodotto cresce guidato dai clienti, non dal marketing.",
+    year: "Apertura al mercato",
+    title: "Le prime imprese",
+    desc: "Colleghi imprenditori chiedono di provarlo. Si parte con un gruppo ristretto. Ogni feedback diventa una feature. Il prodotto cresce guidato da chi il cantiere lo conosce, non dal marketing.",
   },
   {
     year: "2024",
-    title: "150+ imprese — Lancio AI e fatturazione",
-    desc: "Lancio moduli AI, HR avanzato, fatturazione elettronica nativa. La piattaforma diventa completa.",
+    title: "AI nativa e fatturazione completa",
+    desc: "Quote Builder AI, render AI per infissi/bagni/tetti, agenti AI per il customer support. Fatturazione elettronica nativa, conservazione decennale a norma CAD/AgID.",
   },
   {
     year: "Oggi",
-    title: "€12M+ gestiti ogni mese",
-    desc: "La piattaforma gestisce oltre €12M di fatturato edile ogni mese. E siamo solo all'inizio.",
+    title: "Crescita guidata dal passaparola",
+    desc: "Nuove imprese si uniscono ogni mese, principalmente per consiglio di chi ci usa già. Il team rimane piccolo per scelta: meno persone, più qualità, contatto diretto con ogni cliente.",
   },
 ];
 
-const valori = [
+const faqs = [
   {
-    title: "Trasparenza",
-    desc: "Prezzi chiari pubblicati sul sito. Nessun commercial che ti chiama ogni giorno. Nessun contratto pluriennale obbligatorio. Puoi vedere tutto, confrontare tutto, decidere senza pressione.",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="1.5" className="w-8 h-8">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="12" cy="12" r="3" />
-        <path d="M12 5v1M12 18v1M5 12H4M20 12h-1" strokeLinecap="round" />
-      </svg>
-    ),
+    q: "Chi c'è dietro Edilizia in Cloud?",
+    a: "Edilizia in Cloud è sviluppato e operato da Domus Group S.r.l., con sede a Milano (P.IVA IT13132010961). Il software è nato dentro un'impresa edile italiana come strumento operativo interno, ed è stato aperto al mercato dopo essere stato validato in produzione sul campo. Il team combina chi il cantiere lo conosce davvero (operatività, fiscale, contabilità di commessa) con sviluppatori italiani specializzati in cloud e AI.",
   },
   {
-    title: "Costruito per l'edilizia",
-    desc: "Ogni funzione nasce da un problema reale di cantiere. Non prendiamo feature dai concorrenti e le copiamo. Ascoltiamo i nostri clienti ogni settimana e costruiamo quello che manca davvero.",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="1.5" className="w-8 h-8">
-        <path d="M2 20h20" strokeLinecap="round" />
-        <path d="M4 20V10l4-4h8l4 4v10" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M9 20v-6h6v6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M12 6V4" strokeLinecap="round" />
-        <path d="M8 10h8" strokeLinecap="round" />
-        <circle cx="12" cy="3" r="1" fill="#F97415" />
-      </svg>
-    ),
+    q: "Cosa significa 'costruito da chi vive il cantiere'?",
+    a: "Significa che ogni decisione di prodotto passa attraverso chi il cantiere lo ha vissuto sulla pelle: scadenze del DURC, ritardi del fornitore, riprogrammazione di una squadra perché piove, F24 da pagare il 16. Non lavoriamo su requisiti astratti scritti da consulenti: lavoriamo su problemi reali raccolti ogni settimana dai clienti e dal nostro stesso uso operativo.",
   },
   {
-    title: "Risultati o gratis",
-    desc: "La nostra garanzia non è marketing. Se il software non ti fa guadagnare più di quanto spendi entro 90 giorni, ti rimborsiamo tutto. È scritto nel contratto.",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="1.5" className="w-8 h-8">
-        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points="16 7 22 7 22 13" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M2 21h20" strokeLinecap="round" opacity="0.3" />
-      </svg>
-    ),
-  },
-];
-
-const teamMembers = [
-  {
-    name: "Marco Verdi",
-    initials: "MV",
-    gradient: "linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)",
-    role: "CEO & Fondatore",
-    quote: "Ex imprenditore edile. Ti capisce perché ci è passato.",
-    info: "Risponde entro 4h via email",
+    q: "Il software è italiano?",
+    a: "Sì, sviluppato interamente in Italia da un team italiano. È pensato specificamente per il mercato italiano: fatturazione elettronica SDI, CCNL Edilizia, Cassa Edile, prezzari regionali (DEI), normativa fiscale e sicurezza italiane. Non è un software estero adattato al volo.",
   },
   {
-    name: "Sara Colombo",
-    initials: "SC",
-    gradient: "linear-gradient(135deg, #F97415 0%, #e8650e 100%)",
-    role: "Head of Customer Success",
-    quote: "Risponde al telefono entro 2 squilli. Conosce ogni cliente per nome.",
-    info: "Disponibile lun–ven 9–18",
+    q: "Quante persone siete?",
+    a: "Siamo un team piccolo per scelta. Preferiamo essere in pochi e conoscere ogni cliente per nome, piuttosto che essere tanti e diventare un call center anonimo. Quando chiami, risponde una persona del team — non un primo livello che gira il ticket.",
   },
   {
-    name: "Luca Ferretti",
-    initials: "LF",
-    gradient: "linear-gradient(135deg, #2d2d2d 0%, #111111 100%)",
-    role: "Lead Developer",
-    quote: "10 anni di esperienza in gestionali PMI. Costruisce per la semplicità, non per i premi.",
-    info: "Risponde ai bug in meno di 24h",
+    q: "Come gestite la sicurezza e la privacy dei dati?",
+    a: "Server in UE, conformi GDPR. Cifratura AES-256 a riposo e TLS 1.3 in transito. Backup giornalieri con retention 90 giorni. DPA (Data Processing Agreement) firmato all'attivazione. Non condividiamo dati con terze parti per scopi commerciali e non li usiamo per addestrare modelli AI.",
   },
   {
-    name: "Anna Ricci",
-    initials: "AR",
-    gradient: "linear-gradient(135deg, #444444 0%, #222222 100%)",
-    role: "Consulente del Controllo",
-    quote: "Specialista in controllo di gestione per edilizia. Il tuo consulente personale incluso nel piano.",
-    info: "Sessione mensile inclusa in ogni piano",
-  },
-];
-
-const press = [
-  {
-    source: "Il Sole 24 Ore Edilizia",
-    quote:
-      "Il gestionale che mancava alle PMI edili italiane. Finalmente qualcuno che conosce il settore.",
-  },
-  {
-    source: "PMI Magazine",
-    quote: "Tra i 10 software più innovativi per le piccole imprese del 2023.",
-  },
-  {
-    source: "Confindustria Edilizia Newsletter",
-    quote: "Un tool che parla il linguaggio di chi lavora in cantiere.",
+    q: "Avete un programma per partner e consulenti?",
+    a: "Sì. Il programma Diventa Partner è aperto a commercialisti, agenzie marketing, commerciali del settore e aziende edili che vogliono proporre Edilizia in Cloud ai loro clienti/colleghi. 4 tier (15–30% ricorrente), pagamento via fattura elettronica + bonifico 30gg.",
   },
 ];
 
 /* ─────────────────────────────────────────────
-   MAIN COMPONENT
+   COMPONENT
 ───────────────────────────────────────────── */
+
 export default function ChiSiamo() {
   useSEO({
-    title: "Chi Siamo — Edilizia in Cloud, il Gestionale Edilizia con AI",
-    description: "Nati dall'esperienza diretta in cantiere per risolvere i problemi reali delle imprese edili. Scopri il team dietro al gestionale edilizia con AI n°1 in Italia. €12M+ gestiti, 150+ imprese.",
+    title: "Chi Siamo — Edilizia in Cloud, costruito da chi vive il cantiere",
+    description: "Edilizia in Cloud è il gestionale cloud per imprese edili italiane sviluppato da Domus Group S.r.l. (Milano). Nato dentro un'impresa edile reale, da chi il cantiere lo vive ogni giorno. GDPR compliant.",
     canonical: "/chi-siamo",
-    keywords: "chi siamo edilizia in cloud, team gestionale edilizia, storia software edilizia, domus group srl, imprenditore edile software, gestionale edilizia italiano, software edilizia made in italy",
+    keywords: "chi siamo edilizia in cloud, domus group srl, gestionale edilizia italiano, software edilizia made in italy, software edilizia cantiere, gestionale costruito da imprenditori edili",
   });
 
   const heroAnim = useScrollAnimation();
-  const numbersAnim = useScrollAnimation();
-  const founderAnim = useScrollAnimation();
+  const principiAnim = useScrollAnimation();
+  const cantiereAnim = useScrollAnimation();
   const timelineAnim = useScrollAnimation();
-  const valoriAnim = useScrollAnimation();
-  const teamAnim = useScrollAnimation();
-  const pressAnim = useScrollAnimation();
+  const cosaAnim = useScrollAnimation();
   const ctaAnim = useScrollAnimation();
 
   return (
     <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
-      <JsonLd id="jsonld-breadcrumb-chisiamo" data={{
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Chi Siamo", "item": "https://www.ediliziaincloud.com/chi-siamo" }
-        ]
-      }} />
-      <JsonLd id="jsonld-organization-chisiamo" data={{
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "@id": "https://www.ediliziaincloud.com/#organization",
-        "name": "Edilizia in Cloud",
-        "legalName": "Domus Group S.r.l.",
-        "url": "https://www.ediliziaincloud.com",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://www.ediliziaincloud.com/icons/icon-512.png",
-          "width": 512,
-          "height": 512
-        },
-        "image": "https://www.ediliziaincloud.com/icons/icon-512.png",
-        "description": "Edilizia in Cloud è il gestionale cloud con AI per imprese edili italiane. Gestisci cantieri, fatturazione, preventivi e squadre in un'unica piattaforma.",
-        "foundingDate": "2021",
-        "vatID": "IT13132010961",
-        "taxID": "13132010961",
-        "address": {
-          "@type": "PostalAddress",
-          "streetAddress": "Via Aurelio Saffi 29",
-          "postalCode": "20123",
-          "addressLocality": "Milano",
-          "addressRegion": "MI",
-          "addressCountry": "IT"
-        },
-        "contactPoint": [
-          {
-            "@type": "ContactPoint",
-            "telephone": "+39-02-87198520",
-            "contactType": "customer support",
-            "availableLanguage": "Italian",
-            "areaServed": "IT"
+      <HubSeoSchema
+        pageName="Chi Siamo"
+        pagePath="/chi-siamo"
+        pageDescription="Edilizia in Cloud: il gestionale cloud per imprese edili italiane, costruito da chi il cantiere lo vive ogni giorno. Sede Milano. GDPR compliant."
+        breadcrumbs={[
+          { name: "Home", url: "/" },
+          { name: "Chi Siamo", url: "/chi-siamo" },
+        ]}
+      />
+      <JsonLd
+        id="jsonld-aboutpage-chisiamo"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "AboutPage",
+          "@id": "https://www.ediliziaincloud.com/chi-siamo#aboutpage",
+          url: "https://www.ediliziaincloud.com/chi-siamo",
+          name: "Chi Siamo — Edilizia in Cloud",
+          description:
+            "La storia di Edilizia in Cloud: gestionale cantieri costruito da chi il cantiere lo vive ogni giorno. Sede Milano, sviluppato da Domus Group S.r.l.",
+          inLanguage: "it-IT",
+          isPartOf: { "@id": "https://www.ediliziaincloud.com/#website" },
+          about: { "@id": "https://www.ediliziaincloud.com/#organization" },
+          mainEntity: { "@id": "https://www.ediliziaincloud.com/#organization" },
+        }}
+      />
+      <JsonLd
+        id="jsonld-organization-chisiamo"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "@id": "https://www.ediliziaincloud.com/#organization",
+          name: "Edilizia in Cloud",
+          legalName: "Domus Group S.r.l.",
+          url: "https://www.ediliziaincloud.com",
+          logo: {
+            "@type": "ImageObject",
+            url: "https://www.ediliziaincloud.com/icons/icon-512.png",
+            width: 512,
+            height: 512,
           },
-          {
-            "@type": "ContactPoint",
-            "email": "info@ediliziaincloud.com",
-            "contactType": "customer service"
-          }
-        ],
-        "numberOfEmployees": { "@type": "QuantitativeValue", "value": 8 },
-        "sameAs": [
-          "https://www.linkedin.com/company/edilizia-in-cloud",
-          "https://www.facebook.com/ediliziaincloud",
-          "https://www.instagram.com/ediliziaincloud"
-        ]
-      }} />
-      <JsonLd id="jsonld-person-founder" data={{
-        "@context": "https://schema.org",
-        "@type": "Person",
-        "@id": "https://www.ediliziaincloud.com/#author-flo",
-        "name": "Marco Verdi",
-        "jobTitle": "Founder & CEO",
-        "description": "Ex imprenditore edile, fondatore di Edilizia in Cloud. Ha sviluppato il gestionale per risolvere i problemi reali di gestione cantieri, margini e fatturazione della propria impresa.",
-        "url": "https://www.ediliziaincloud.com/chi-siamo",
-        "worksFor": { "@id": "https://www.ediliziaincloud.com/#organization" },
-        "knowsAbout": [
-          "Gestione impresa edile",
-          "Software gestionale edilizia",
-          "Contabilità cantieri",
-          "Margini commessa",
-          "Fatturazione elettronica edilizia"
-        ],
-        "sameAs": [
-          "https://www.linkedin.com/company/edilizia-in-cloud"
-        ]
-      }} />
+          description:
+            "Gestionale cloud con AI per imprese edili italiane. Cantieri, fatturazione SDI, preventivi, HR. Sviluppato da Domus Group S.r.l. Costruito da chi vive il cantiere ogni giorno.",
+          foundingDate: "2021",
+          vatID: "IT13132010961",
+          taxID: "13132010961",
+          address: {
+            "@type": "PostalAddress",
+            addressLocality: "Milano",
+            addressRegion: "MI",
+            addressCountry: "IT",
+          },
+          contactPoint: [
+            {
+              "@type": "ContactPoint",
+              email: "info@ediliziaincloud.com",
+              contactType: "customer service",
+              availableLanguage: "Italian",
+              areaServed: "IT",
+            },
+          ],
+          sameAs: ["https://www.linkedin.com/company/edilizia-in-cloud"],
+        }}
+      />
+      <JsonLd
+        id="jsonld-faq-chisiamo"
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faqs.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        }}
+      />
+
       <LandingNavbar />
 
-      {/* ── 1. HERO ── */}
+      {/* ── HERO ── */}
       <section
-        className="relative pt-36 pb-28 px-6 text-center flex items-center justify-center min-h-[560px] overflow-hidden"
-        style={{ background: "#111111" }}
+        className="relative pt-36 pb-24 px-6 overflow-hidden"
+        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #111111 100%)" }}
       >
-        {/* Background image */}
+        {/* Background image cantiere */}
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-center opacity-25"
           style={{
             backgroundImage:
               "url('https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80')",
           }}
         />
-        {/* Dark overlay */}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,10,10,0.7) 0%, rgba(17,17,17,0.95) 100%)" }} />
+
         <div
-          className="absolute inset-0"
-          style={{ background: "rgba(17,17,17,0.88)" }}
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse at top, rgba(249,116,21,0.18) 0%, transparent 70%)",
+            filter: "blur(40px)",
+          }}
         />
-
-        {/* ── Glow orbs arancioni ── */}
-        <div className="absolute top-[-80px] right-[-60px] w-[420px] h-[420px] rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 70%)", filter: "blur(40px)" }} />
-        <div className="absolute bottom-[-60px] left-[-40px] w-[320px] h-[320px] rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 70%)", filter: "blur(50px)" }} />
-        <div className="absolute top-[40%] left-[10%] w-[180px] h-[180px] rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle, rgba(249,116,21,0.07) 0%, transparent 70%)", filter: "blur(30px)" }} />
-
-        {/* ── Icone edilizia floating ── */}
-        <FloatingIcons particles={[
-          { iconId: "caschetto",    size: 36, top: "16%", left: "6%",   delay: "0s",   dur: "7s",   opacity: 0.30, rotate: -8  },
-          { iconId: "fotovoltaico", size: 30, top: "62%", left: "10%",  delay: "1.8s", dur: "8.5s", opacity: 0.22, rotate: 6   },
-          { iconId: "infisso",      size: 28, top: "28%", right: "8%",  delay: "0.6s", dur: "6.5s", opacity: 0.25, rotate: 10  },
-          { iconId: "gru",          size: 34, top: "70%", right: "14%", delay: "2.4s", dur: "9s",   opacity: 0.20, rotate: -5  },
-          { iconId: "casa",         size: 26, top: "10%", left: "42%",  delay: "3.2s", dur: "7.5s", opacity: 0.18, rotate: 4   },
-          { iconId: "chiave",       size: 24, top: "82%", left: "55%",  delay: "1.1s", dur: "6s",   opacity: 0.22, rotate: -12 },
-          { iconId: "muro",         size: 28, top: "45%", right: "5%",  delay: "4s",   dur: "8s",   opacity: 0.18, rotate: 0   },
-          { iconId: "metro",        size: 26, top: "88%", left: "25%",  delay: "2s",   dur: "10s",  opacity: 0.16, rotate: 8   },
-        ]} />
 
         <div
           ref={heroAnim.ref}
-          className="relative z-10 max-w-3xl mx-auto transition-all duration-1000"
+          className="relative z-10 max-w-4xl mx-auto text-center transition-all duration-1000"
           style={{
             opacity: heroAnim.isVisible ? 1 : 0,
             transform: heroAnim.isVisible ? "translateY(0)" : "translateY(32px)",
           }}
         >
-          {/* Badge */}
           <div
             className="inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-7"
-            style={{ background: "rgba(249,116,21,0.2)", color: "#F97415", border: "1px solid rgba(249,116,21,0.35)" }}
+            style={{
+              background: "rgba(249,116,21,0.18)",
+              color: "#F97415",
+              border: "1px solid rgba(249,116,21,0.35)",
+            }}
           >
-            LA NOSTRA STORIA
+            Chi siamo
           </div>
 
-          {/* Title */}
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
-            Costruito da chi{" "}
-            <span style={{ color: "#F97415" }}>ha perso soldi</span>
-            {" "}in cantiere.{" "}
-            <br className="hidden md:block" />
-            Per chi non vuole perderli più.
+            Costruito da chi il <span style={{ color: "#F97415" }}>cantiere</span>
+            <br className="hidden md:block" /> lo vive tutti i giorni.
           </h1>
 
-          {/* Subtitle */}
-          <p className="text-lg md:text-xl text-white/70 leading-relaxed max-w-2xl mx-auto mb-12">
-            Abbiamo vissuto gli stessi problemi che vuoi risolvere. Poi abbiamo costruito la soluzione.
+          <p className="text-lg md:text-xl text-white/65 leading-relaxed max-w-2xl mx-auto mb-10">
+            Niente storie da unicorno tech. Niente claim di marketing inventati. Solo un software nato
+            dentro un'impresa edile reale, validato sul campo prima di essere offerto al mercato.
           </p>
 
-          {/* Mini stats */}
-          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
-            {[
-              { label: "Fondato nel 2021" },
-              { label: "150+ Imprese clienti" },
-              { label: "Team di 8 persone" },
-            ].map((s, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ background: "#F97415" }}
-                />
-                <span className="text-white/80 text-sm font-medium">{s.label}</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-white/70">
+            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> Domus Group S.r.l.</span>
+            <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#F97415]" /> Sede Milano</span>
+            <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#F97415]" /> GDPR · Server UE</span>
+            <span className="flex items-center gap-2"><Code2 className="w-4 h-4 text-[#F97415]" /> Made in Italy</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── ORIGINE — narrativa lunga ── */}
+      <section className="py-24 px-6 bg-white">
+        <div
+          ref={cantiereAnim.ref}
+          className="max-w-4xl mx-auto transition-all duration-1000"
+          style={{
+            opacity: cantiereAnim.isVisible ? 1 : 0,
+            transform: cantiereAnim.isVisible ? "translateY(0)" : "translateY(32px)",
+          }}
+        >
+          <div className="text-center mb-12">
+            <span
+              className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
+              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
+            >
+              L'origine
+            </span>
+            <h2 className="text-2xl md:text-4xl font-bold text-[#111111] mb-4 leading-tight">
+              Non un software di software house.<br />
+              <span style={{ color: "#F97415" }}>Uno strumento di lavoro nato in cantiere.</span>
+            </h2>
+          </div>
+
+          <div className="space-y-5 text-[#111111]/75 leading-relaxed text-base md:text-lg max-w-3xl mx-auto">
+            <p>
+              La maggior parte dei gestionali edili sul mercato è scritta da ingegneri che il cantiere
+              non l'hanno mai messo. Hanno progettato schermate guardando un manuale, intervistato due
+              imprenditori per un'ora e hanno chiamato quello "ricerca utente". Il risultato lo conosci:
+              menu infiniti, 500 funzioni di cui ne usi 3, configurazioni che richiedono settimane di
+              consulenza pagata a parte.
+            </p>
+            <p>
+              Edilizia in Cloud nasce dalla parte opposta. Da una scrivania accanto al cantiere — non
+              di fronte a un poster del cantiere. <strong>Da chi alle 6:30 del mattino doveva sapere
+              chi era timbrato, alle 11:00 doveva rispondere al fornitore arrabbiato, alle 17:00 doveva
+              capire se la commessa stava guadagnando o perdendo.</strong>
+            </p>
+            <p>
+              Lo abbiamo costruito perché ci serviva a noi. Lo abbiamo testato per mesi sulla nostra
+              operatività vera, prima di mostrarlo a chiunque. Quello che vedi oggi — margini cantiere
+              live, cassa previsionale, fatturazione SDI, Cassa Edile, F24, DURC, foto geolocalizzate
+              — non è una checklist di feature: è la lista delle cose che servivano per arrivare a
+              fine giornata senza sorprese.
+            </p>
+            <p>
+              Quando colleghi imprenditori hanno visto come funzionava, hanno chiesto di poterlo usare.
+              È a quel punto che è nata <strong>Domus Group S.r.l.</strong> e Edilizia in Cloud è
+              diventato il prodotto che è oggi: <em>uno strumento di chi sta in cantiere, per chi sta
+              in cantiere</em>.
+            </p>
+          </div>
+
+          {/* Pull quote */}
+          <div className="mt-12 max-w-2xl mx-auto">
+            <blockquote
+              className="rounded-2xl p-7 text-center"
+              style={{
+                background: "rgba(249,116,21,0.06)",
+                borderLeft: "4px solid #F97415",
+              }}
+            >
+              <p className="italic text-[#111111]/80 text-base md:text-lg leading-relaxed">
+                Il fatturato è vanità. Il margine è sanità. La cassa è realtà. <br />
+                <span className="text-sm not-italic font-semibold text-[#F97415]">
+                  — È il principio attorno al quale è stato pensato ogni schermo del software.
+                </span>
+              </p>
+            </blockquote>
+          </div>
+        </div>
+      </section>
+
+      {/* ── SCENE DI CANTIERE → FEATURE ── */}
+      <section className="py-24 px-6" style={{ background: "#0a0a0a" }}>
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-14">
+            <span
+              className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
+              style={{ background: "rgba(249,116,21,0.18)", color: "#F97415", border: "1px solid rgba(249,116,21,0.35)" }}
+            >
+              Quattro scene di cantiere
+            </span>
+            <h2 className="text-2xl md:text-4xl font-bold text-white mb-3">
+              Da dove arrivano le funzioni che usi
+            </h2>
+            <p className="text-white/60 max-w-2xl mx-auto">
+              Ogni feature di Edilizia in Cloud è nata da un momento preciso del cantiere. Non da un focus group.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-5">
+            {cantiereLife.map((s, i) => (
+              <div
+                key={s.title}
+                className="rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(249,116,21,0.15)" }}
+                  >
+                    <s.icon className="w-5 h-5" style={{ color: "#F97415" }} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-lg mb-2">{s.title}</h3>
+                    <p className="text-white/65 text-sm leading-relaxed">{s.desc}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── 2. NUMERI CHIAVE ── */}
-      <section
-        ref={numbersAnim.ref}
-        className="relative py-16 px-6 overflow-hidden"
-        style={{ background: "#111111" }}
-      >
-        {/* Bordo superiore arancione luminoso */}
-        <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-          style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 30%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.8) 70%, transparent 100%)" }} />
-        {/* Bordo inferiore */}
-        <div className="absolute bottom-0 left-0 right-0 h-px pointer-events-none"
-          style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.3) 50%, transparent 100%)" }} />
-        {/* Glow centrale di sfondo */}
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.06) 0%, transparent 70%)" }} />
-        {/* Glow laterali */}
-        <div className="absolute left-0 top-0 bottom-0 w-1/3 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at left center, rgba(249,116,21,0.08) 0%, transparent 70%)" }} />
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at right center, rgba(249,116,21,0.08) 0%, transparent 70%)" }} />
-
-        <div className="relative max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4">
-          {keyNumbers.map((n, i) => (
-            <div
-              key={i}
-              className="text-center transition-all duration-700"
-              style={{
-                opacity: numbersAnim.isVisible ? 1 : 0,
-                transform: numbersAnim.isVisible ? "translateY(0)" : "translateY(24px)",
-                transitionDelay: `${i * 100}ms`,
-              }}
-            >
-              <div
-                className="text-3xl md:text-4xl font-extrabold mb-2"
-                style={{ color: "#F97415" }}
-              >
-                {n.value}
-              </div>
-              <div className="text-white/60 text-xs md:text-sm leading-snug">{n.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── 3. STORIA DEL FONDATORE ── */}
-      <section className="py-24 px-6 bg-white">
-        <div
-          ref={founderAnim.ref}
-          className="max-w-6xl mx-auto grid md:grid-cols-2 gap-16 items-start transition-all duration-1000"
-          style={{
-            opacity: founderAnim.isVisible ? 1 : 0,
-            transform: founderAnim.isVisible ? "translateY(0)" : "translateY(32px)",
-          }}
-        >
-          {/* LEFT — Founder card */}
-          <div className="flex flex-col items-center md:items-start">
-            {/* Founder avatar card */}
-            <div
-              className="w-full max-w-xs rounded-3xl p-10 text-center shadow-2xl mb-6"
-              style={{ background: "linear-gradient(160deg, #1a1a1a 0%, #0f0f0f 100%)" }}
-            >
-              <div
-                className="w-28 h-28 rounded-full flex items-center justify-center text-white font-extrabold text-4xl mx-auto mb-5 shadow-inner"
-                style={{ background: "rgba(249,116,21,0.25)", border: "3px solid rgba(249,116,21,0.5)" }}
-              >
-                MV
-              </div>
-              <div className="text-white font-bold text-xl mb-1">Marco Verdi</div>
-              <div className="text-white/60 text-sm mb-1">CEO & Fondatore</div>
-              <div
-                className="text-sm font-semibold mt-2"
-                style={{ color: "#F97415" }}
-              >
-                15 anni nel settore edile
-              </div>
-            </div>
-
-            {/* Pills */}
-            <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-              {["Imprenditore edile", "Nord Italia", "Fatturato gestito: 5M+"].map((pill, i) => (
-                <span
-                  key={i}
-                  className="px-3 py-1 rounded-full text-xs font-semibold"
-                  style={{
-                    background: "rgba(249,116,21,0.1)",
-                    color: "#F97415",
-                    border: "1px solid rgba(249,116,21,0.25)",
-                  }}
-                >
-                  {pill}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* RIGHT — Text */}
-          <div>
-            <div
-              className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-5"
+      {/* ── PRINCIPI ── */}
+      <section className="py-24 px-6" style={{ background: "#f7f9fc" }}>
+        <div ref={principiAnim.ref} className="max-w-6xl mx-auto">
+          <div
+            className="text-center mb-14 transition-all duration-700"
+            style={{
+              opacity: principiAnim.isVisible ? 1 : 0,
+              transform: principiAnim.isVisible ? "translateY(0)" : "translateY(24px)",
+            }}
+          >
+            <span
+              className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
               style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
             >
-              La storia del fondatore
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-7 leading-snug">
-              Da imprenditore edile a costruttore di software.
+              I nostri principi
+            </span>
+            <h2 className="text-2xl md:text-4xl font-bold text-[#111111] mb-3">
+              Quattro regole che guidano tutto quello che facciamo
             </h2>
+            <p className="text-[#111111]/60 max-w-2xl mx-auto">
+              Niente mission da copywriter. Sono le regole che applichiamo davvero, ogni giorno, in ogni decisione di prodotto.
+            </p>
+          </div>
 
-            <div className="space-y-5 text-[#111111]/65 leading-relaxed text-base mb-8">
-              <p>
-                Marco Verdi ha trascorso più di un decennio a gestire cantieri nel nord Italia. Ristrutturazioni
-                residenziali, capannoni industriali, lavori pubblici. Fatturava bene, i clienti erano soddisfatti,
-                le squadre erano affidabili. Eppure, a fine anno, i numeri non tornavano mai. Commesse che sembravano
-                redditizie si rivelavano in perdita. I costi della manodopera erano sempre più alti del previsto.
-                La cassa andava e veniva senza logica apparente.
-              </p>
-              <p>
-                Ha provato ogni strumento sul mercato: ERP costosissimi pensati per le multinazionali, fogli Excel
-                sempre più complicati, software generici che richiedevano mesi di customizzazione. Niente funzionava
-                davvero per una PMI edile. Tutto era troppo complicato, troppo costoso, o semplicemente pensato per
-                un settore diverso. Nel 2021, assunto un programmatore, ha iniziato a costruire il tool che avrebbe
-                voluto avere sin dall'inizio: semplice, focalizzato, costruito attorno ai numeri reali del cantiere.
-              </p>
-              <p>
-                Dopo 18 mesi di test interni su impresa propria, i risultati erano evidenti: margini aumentati del
-                12%, zero sorprese di cassa, meno ore perse in amministrazione. Colleghi imprenditori hanno iniziato
-                a chiedergli di usarlo. E così Edilizia in Cloud ha smesso di essere un tool interno ed è diventato
-                quello che è oggi.
-              </p>
-            </div>
-
-            {/* Quote */}
-            <blockquote
-              className="relative rounded-2xl p-6"
-              style={{
-                background: "rgba(249,116,21,0.06)",
-                borderLeft: "4px solid #F97415",
-              }}
-            >
-              <span
-                className="absolute -top-4 left-4 text-6xl font-serif leading-none select-none"
-                style={{ color: "#F97415", opacity: 0.4 }}
+          <div className="grid md:grid-cols-2 gap-6">
+            {principi.map((p, i) => (
+              <div
+                key={p.title}
+                className="bg-white rounded-2xl p-7 transition-all duration-700 hover:shadow-md"
+                style={{
+                  border: "1px solid #e8ecf0",
+                  borderTop: "3px solid #F97415",
+                  opacity: principiAnim.isVisible ? 1 : 0,
+                  transform: principiAnim.isVisible ? "translateY(0)" : "translateY(24px)",
+                  transitionDelay: `${i * 90}ms`,
+                }}
               >
-                "
-              </span>
-              <p className="italic text-[#111111]/80 leading-relaxed text-base">
-                Non ho creato Edilizia in Cloud per fare soldi con il software. L'ho creato perché ero stanco di
-                non sapere se stavo guadagnando o perdendo. E so che ci sono migliaia di imprenditori come me.
-              </p>
-              <footer className="mt-3 text-sm font-semibold" style={{ color: "#F97415" }}>
-                — Marco Verdi, CEO
-              </footer>
-            </blockquote>
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
+                  style={{ background: "rgba(249,116,21,0.1)" }}
+                >
+                  <p.icon className="w-5 h-5" style={{ color: "#F97415" }} />
+                </div>
+                <h3 className="font-bold text-[#111111] text-lg mb-3">{p.title}</h3>
+                <p className="text-[#111111]/65 text-sm leading-relaxed">{p.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── 4. TIMELINE ── */}
-      <section className="py-24 px-6" style={{ background: "#f7f9fc" }}>
-        <div
-          ref={timelineAnim.ref}
-          className="max-w-4xl mx-auto"
-        >
+      {/* ── COSA FACCIAMO / NON FACCIAMO ── */}
+      <section className="py-24 px-6 bg-white">
+        <div ref={cosaAnim.ref} className="max-w-6xl mx-auto">
           <div
-            className="text-center mb-16 transition-all duration-700"
+            className="text-center mb-14 transition-all duration-700"
+            style={{
+              opacity: cosaAnim.isVisible ? 1 : 0,
+              transform: cosaAnim.isVisible ? "translateY(0)" : "translateY(24px)",
+            }}
+          >
+            <h2 className="text-2xl md:text-4xl font-bold text-[#111111] mb-3">
+              Cosa facciamo. Cosa <span style={{ color: "#F97415" }}>non</span> facciamo.
+            </h2>
+            <p className="text-[#111111]/60 max-w-2xl mx-auto">Per sapere subito se siamo o no la scelta giusta per te.</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Cosa facciamo */}
+            <div
+              className="rounded-3xl p-8 transition-all duration-700"
+              style={{
+                background: "linear-gradient(135deg, rgba(249,116,21,0.06) 0%, rgba(249,116,21,0.02) 100%)",
+                border: "1px solid rgba(249,116,21,0.15)",
+                opacity: cosaAnim.isVisible ? 1 : 0,
+                transform: cosaAnim.isVisible ? "translateY(0)" : "translateY(28px)",
+              }}
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(249,116,21,0.15)" }}
+                >
+                  <CheckCircle2 className="w-5 h-5" style={{ color: "#F97415" }} />
+                </div>
+                <h3 className="font-bold text-[#111111] text-lg">Cosa facciamo</h3>
+              </div>
+              <ul className="space-y-5">
+                {cosaFacciamo.map((c) => (
+                  <li key={c.title} className="flex items-start gap-3">
+                    <span
+                      className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg"
+                      style={{ background: "white", border: "1px solid rgba(249,116,21,0.15)" }}
+                    >
+                      <c.icon className="w-4 h-4" style={{ color: "#F97415" }} />
+                    </span>
+                    <div>
+                      <div className="font-bold text-[#111111] text-sm">{c.title}</div>
+                      <div className="text-[#111111]/65 text-xs leading-relaxed mt-0.5">{c.desc}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Cosa NON facciamo */}
+            <div
+              className="rounded-3xl p-8 transition-all duration-700"
+              style={{
+                background: "#0f0f0f",
+                opacity: cosaAnim.isVisible ? 1 : 0,
+                transform: cosaAnim.isVisible ? "translateY(0)" : "translateY(28px)",
+                transitionDelay: "120ms",
+              }}
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(255,255,255,0.08)" }}
+                >
+                  <span className="text-white/70 text-xl leading-none">×</span>
+                </div>
+                <h3 className="font-bold text-white text-lg">Cosa NON facciamo</h3>
+              </div>
+              <ul className="space-y-3">
+                {cosaNonFacciamo.map((item) => (
+                  <li key={item} className="flex items-start gap-3">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#F97415" }} />
+                    <span className="text-white/75 text-sm leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TIMELINE ── */}
+      <section className="py-24 px-6" style={{ background: "#f7f9fc" }}>
+        <div ref={timelineAnim.ref} className="max-w-4xl mx-auto">
+          <div
+            className="text-center mb-14 transition-all duration-700"
             style={{
               opacity: timelineAnim.isVisible ? 1 : 0,
               transform: timelineAnim.isVisible ? "translateY(0)" : "translateY(24px)",
             }}
           >
-            <div
+            <span
               className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
               style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
             >
-              La nostra storia
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#111111]">
               Come siamo arrivati qui
-            </h2>
+            </span>
+            <h2 className="text-2xl md:text-4xl font-bold text-[#111111]">Il percorso, senza filtri</h2>
           </div>
 
-          {/* Timeline */}
           <div className="relative">
-            {/* Central line — hidden on mobile */}
             <div
-              className="hidden md:block absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-0.5"
+              className="absolute left-4 md:left-1/2 md:-translate-x-1/2 top-0 bottom-0 w-0.5"
               style={{ background: "linear-gradient(to bottom, #F97415, rgba(249,116,21,0.1))" }}
             />
 
-            <div className="space-y-10 md:space-y-0">
-              {timeline.map((item, i) => {
+            <div className="space-y-8">
+              {timeline.map((t, i) => {
                 const isLeft = i % 2 === 0;
                 return (
                   <div
                     key={i}
-                    className="relative transition-all duration-700 md:flex md:items-center"
+                    className="relative transition-all duration-700"
                     style={{
                       opacity: timelineAnim.isVisible ? 1 : 0,
-                      transform: timelineAnim.isVisible ? "translateX(0)" : `translateX(${isLeft ? "-20px" : "20px"})`,
+                      transform: timelineAnim.isVisible
+                        ? "translateX(0)"
+                        : `translateX(${isLeft ? "-16px" : "16px"})`,
                       transitionDelay: `${i * 80}ms`,
-                      minHeight: 80,
                     }}
                   >
-                    {/* Mobile: single column */}
-                    <div className="md:hidden flex gap-4 pl-6 relative">
+                    {/* Mobile */}
+                    <div className="md:hidden flex gap-4 pl-10 relative">
                       <div
-                        className="absolute left-0 top-1.5 w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ background: "#F97415", boxShadow: "0 0 0 4px rgba(249,116,21,0.15)" }}
+                        className="absolute left-2 top-1.5 w-4 h-4 rounded-full flex-shrink-0 z-10"
+                        style={{ background: "#F97415", boxShadow: "0 0 0 4px rgba(249,116,21,0.18)" }}
                       />
-                      <div
-                        className="absolute left-1.5 top-4 bottom-0 w-0.5"
-                        style={{ background: "rgba(249,116,21,0.2)" }}
-                      />
-                      <div className="pb-8">
+                      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 w-full">
                         <span
                           className="inline-block px-3 py-0.5 rounded-full text-xs font-bold mb-2"
                           style={{ background: "#F97415", color: "white" }}
                         >
-                          {item.year}
+                          {t.year}
                         </span>
-                        <h3 className="font-bold text-[#111111] text-sm mb-1">{item.title}</h3>
-                        <p className="text-[#111111]/55 text-xs leading-relaxed">{item.desc}</p>
+                        <h3 className="font-bold text-[#111111] text-sm mb-1">{t.title}</h3>
+                        <p className="text-[#111111]/60 text-xs leading-relaxed">{t.desc}</p>
                       </div>
                     </div>
 
-                    {/* Desktop: alternating */}
-                    <div className="hidden md:contents">
-                      {/* Left content */}
-                      <div className={`w-1/2 pr-10 ${isLeft ? "text-right" : ""}`}>
-                        {isLeft && (
-                          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 inline-block text-left w-full">
-                            <span
-                              className="inline-block px-3 py-0.5 rounded-full text-xs font-bold mb-2"
-                              style={{ background: "#F97415", color: "white" }}
-                            >
-                              {item.year}
-                            </span>
-                            <h3 className="font-bold text-[#111111] text-sm mb-1">{item.title}</h3>
-                            <p className="text-[#111111]/55 text-xs leading-relaxed">{item.desc}</p>
-                          </div>
-                        )}
+                    {/* Desktop */}
+                    <div className="hidden md:flex md:items-center">
+                      <div className={`w-1/2 ${isLeft ? "pr-10 text-right" : "order-3 pl-10"}`}>
+                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 inline-block text-left w-full">
+                          <span
+                            className="inline-block px-3 py-0.5 rounded-full text-xs font-bold mb-2"
+                            style={{ background: "#F97415", color: "white" }}
+                          >
+                            {t.year}
+                          </span>
+                          <h3 className="font-bold text-[#111111] text-sm mb-1">{t.title}</h3>
+                          <p className="text-[#111111]/60 text-xs leading-relaxed">{t.desc}</p>
+                        </div>
                       </div>
-
-                      {/* Center dot */}
                       <div
-                        className="absolute left-1/2 w-4 h-4 rounded-full -translate-x-1/2 z-10 flex-shrink-0"
-                        style={{
-                          background: "#F97415",
-                          boxShadow: "0 0 0 5px rgba(249,116,21,0.18)",
-                          top: "50%",
-                          transform: "translate(-50%, -50%)",
-                        }}
+                        className="w-4 h-4 rounded-full flex-shrink-0 mx-auto z-10 order-2"
+                        style={{ background: "#F97415", boxShadow: "0 0 0 5px rgba(249,116,21,0.18)" }}
                       />
-
-                      {/* Right content */}
-                      <div className={`w-1/2 pl-10 ${!isLeft ? "" : ""}`}>
-                        {!isLeft && (
-                          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 inline-block text-left w-full">
-                            <span
-                              className="inline-block px-3 py-0.5 rounded-full text-xs font-bold mb-2"
-                              style={{ background: "#F97415", color: "white" }}
-                            >
-                              {item.year}
-                            </span>
-                            <h3 className="font-bold text-[#111111] text-sm mb-1">{item.title}</h3>
-                            <p className="text-[#111111]/55 text-xs leading-relaxed">{item.desc}</p>
-                          </div>
-                        )}
-                      </div>
+                      <div className={`w-1/2 ${isLeft ? "order-3" : "pr-10"}`} />
                     </div>
                   </div>
                 );
@@ -733,242 +666,48 @@ export default function ChiSiamo() {
         </div>
       </section>
 
-      {/* ── 5. VALORI ── */}
-      <section className="py-24 px-6 bg-white">
-        <div
-          ref={valoriAnim.ref}
-          className="max-w-5xl mx-auto"
-        >
-          <div
-            className="text-center mb-16 transition-all duration-700"
-            style={{
-              opacity: valoriAnim.isVisible ? 1 : 0,
-              transform: valoriAnim.isVisible ? "translateY(0)" : "translateY(24px)",
-            }}
-          >
-            <div
+      {/* ── FAQ ── */}
+      <section className="py-20 px-6" style={{ background: "#f7f9fc" }}>
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-10">
+            <span
               className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
               style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
             >
-              I nostri valori
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#111111]">
-              Quello in cui crediamo davvero
-            </h2>
+              Domande frequenti
+            </span>
+            <h2 className="text-2xl md:text-4xl font-bold text-[#111111]">Risposte dirette</h2>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {valori.map((v, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl p-8 shadow-md transition-all duration-700 hover:shadow-xl hover:-translate-y-1"
-                style={{
-                  borderTop: "3px solid #F97415",
-                  opacity: valoriAnim.isVisible ? 1 : 0,
-                  transform: valoriAnim.isVisible ? "translateY(0)" : "translateY(28px)",
-                  transitionDelay: `${i * 120}ms`,
-                }}
-              >
-                <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
-                  style={{ background: "rgba(249,116,21,0.1)" }}
-                >
-                  {v.icon}
-                </div>
-                <h3 className="text-lg font-bold text-[#111111] mb-3">{v.title}</h3>
-                <p className="text-[#111111]/60 text-sm leading-relaxed">{v.desc}</p>
-              </div>
+          <div className="space-y-3">
+            {faqs.map((f) => (
+              <details key={f.q} className="bg-white rounded-2xl group" style={{ border: "1px solid #e8ecf0" }}>
+                <summary className="flex items-center justify-between gap-4 p-5 cursor-pointer list-none">
+                  <span className="font-semibold text-[#111111] text-sm md:text-base">{f.q}</span>
+                  <ChevronDown className="w-5 h-5 text-[#F97415] flex-shrink-0 group-open:rotate-180 transition-transform" />
+                </summary>
+                <p className="px-5 pb-5 text-[#111111]/65 text-sm leading-relaxed">{f.a}</p>
+              </details>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── 6. TEAM ── */}
-      <section className="py-24 px-6" style={{ background: "#f7f9fc" }}>
+      {/* ── CTA FINALE ── */}
+      <section className="relative py-24 px-6 text-center overflow-hidden" style={{ background: "#0a0a0a" }}>
         <div
-          ref={teamAnim.ref}
-          className="max-w-6xl mx-auto"
-        >
-          <div
-            className="text-center mb-16 transition-all duration-700"
-            style={{
-              opacity: teamAnim.isVisible ? 1 : 0,
-              transform: teamAnim.isVisible ? "translateY(0)" : "translateY(24px)",
-            }}
-          >
-            <div
-              className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
-              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
-            >
-              Il team
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#111111]">
-              Le persone che ti rispondono quando chiami
-            </h2>
-            <p className="text-[#111111]/50 text-sm mt-3 max-w-md mx-auto">
-              Un team piccolo, focalizzato e autentico. Ogni persona conosce il settore edile.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            {teamMembers.map((member, i) => (
-              <div
-                key={member.name}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
-                style={{
-                  opacity: teamAnim.isVisible ? 1 : 0,
-                  transform: teamAnim.isVisible ? "translateY(0)" : "translateY(28px)",
-                  transitionDelay: `${i * 100}ms`,
-                  transition: "opacity 0.6s ease, transform 0.6s ease, box-shadow 0.3s ease",
-                }}
-              >
-                {/* Avatar */}
-                <div
-                  className="w-20 h-20 rounded-full flex items-center justify-center text-white font-extrabold text-2xl mx-auto mb-4 shadow-md"
-                  style={{ background: member.gradient }}
-                >
-                  {member.initials}
-                </div>
-                <h3 className="font-bold text-[#111111] text-sm mb-0.5">{member.name}</h3>
-                <p
-                  className="text-xs font-semibold mb-3 uppercase tracking-wide"
-                  style={{ color: "#F97415" }}
-                >
-                  {member.role}
-                </p>
-                <p className="text-[#111111]/55 text-xs leading-relaxed italic mb-3">
-                  "{member.quote}"
-                </p>
-                <div
-                  className="inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold"
-                  style={{ background: "rgba(249,116,21,0.08)", color: "#F97415" }}
-                >
-                  {member.info}
-                </div>
-              </div>
-            ))}
-
-            {/* Open position card */}
-            <div
-              className="rounded-2xl p-6 text-center flex flex-col items-center justify-center min-h-[260px] transition-all duration-300 hover:shadow-lg"
-              style={{
-                border: "2px dashed rgba(249,116,21,0.35)",
-                background: "rgba(249,116,21,0.03)",
-                opacity: teamAnim.isVisible ? 1 : 0,
-                transform: teamAnim.isVisible ? "translateY(0)" : "translateY(28px)",
-                transitionDelay: `${teamMembers.length * 100}ms`,
-                transition: "opacity 0.6s ease, transform 0.6s ease, box-shadow 0.3s ease",
-              }}
-            >
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
-                style={{ background: "rgba(249,116,21,0.1)" }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="1.5" className="w-6 h-6">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 8v8M8 12h8" strokeLinecap="round" />
-                </svg>
-              </div>
-              <h3 className="font-bold text-[#111111] text-sm mb-2">Posizione aperta</h3>
-              <p className="text-[#111111]/55 text-xs leading-relaxed mb-4">
-                Stiamo cercando persone che amano l'edilizia e la tecnologia.
-              </p>
-              <a
-                href="#"
-                className="text-xs font-bold transition-colors"
-                style={{ color: "#F97415" }}
-              >
-                Vedi le posizioni aperte →
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 7. PRESS ── */}
-      <section className="py-20 px-6 bg-white">
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse at bottom, rgba(249,116,21,0.18) 0%, transparent 70%)",
+            filter: "blur(20px)",
+          }}
+        />
         <div
-          ref={pressAnim.ref}
-          className="max-w-5xl mx-auto"
-        >
-          <div
-            className="text-center mb-14 transition-all duration-700"
-            style={{
-              opacity: pressAnim.isVisible ? 1 : 0,
-              transform: pressAnim.isVisible ? "translateY(0)" : "translateY(24px)",
-            }}
-          >
-            <div
-              className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-4"
-              style={{ background: "rgba(249,116,21,0.1)", color: "#F97415" }}
-            >
-              Press & Riconoscimenti
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#111111]">
-              Cosa dicono di noi
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {press.map((p, i) => (
-              <div
-                key={i}
-                className="rounded-2xl p-7 transition-all duration-700 hover:shadow-md"
-                style={{
-                  border: "1px solid #e8ecf0",
-                  background: "white",
-                  opacity: pressAnim.isVisible ? 1 : 0,
-                  transform: pressAnim.isVisible ? "translateY(0)" : "translateY(24px)",
-                  transitionDelay: `${i * 120}ms`,
-                }}
-              >
-                <div className="font-extrabold text-[#111111] text-sm mb-4 tracking-tight">
-                  {p.source}
-                </div>
-                <blockquote>
-                  <span
-                    className="text-4xl font-serif leading-none"
-                    style={{ color: "#F97415", opacity: 0.5 }}
-                  >
-                    "
-                  </span>
-                  <p className="italic text-[#111111]/60 text-sm leading-relaxed -mt-2">
-                    {p.quote}
-                  </p>
-                </blockquote>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-
-      {/* ── 8. CTA FINALE ── */}
-      <section
-        className="relative py-24 px-6 text-center overflow-hidden"
-        style={{ background: "#0a0a0a" }}
-      >
-        {/* Glow arancione centrale sotto i bottoni */}
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at bottom, rgba(249,116,21,0.18) 0%, transparent 70%)", filter: "blur(20px)" }} />
-        {/* Glow top */}
-        <div className="absolute top-[-40px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at top, rgba(249,116,21,0.10) 0%, transparent 70%)", filter: "blur(30px)" }} />
-        {/* Bordo superiore */}
-        <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-          style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.6) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.6) 60%, transparent 100%)" }} />
-
-        {/* Icone edilizia floating */}
-        <FloatingIcons particles={[
-          { iconId: "caschetto",    size: 30, top: "14%", left: "5%",   delay: "0s",   dur: "7s",   opacity: 0.20, rotate: -6  },
-          { iconId: "casa",         size: 26, top: "68%", left: "8%",   delay: "2s",   dur: "8.5s", opacity: 0.18, rotate: 5   },
-          { iconId: "fotovoltaico", size: 28, top: "22%", left: "18%",  delay: "1.2s", dur: "6.5s", opacity: 0.16, rotate: -10 },
-          { iconId: "muro",         size: 24, top: "78%", left: "38%",  delay: "3.5s", dur: "9s",   opacity: 0.15, rotate: 0   },
-          { iconId: "gru",          size: 32, top: "8%",  right: "6%",  delay: "0.5s", dur: "7.5s", opacity: 0.18, rotate: 8   },
-          { iconId: "infisso",      size: 26, top: "58%", right: "10%", delay: "1.8s", dur: "6s",   opacity: 0.20, rotate: -4  },
-          { iconId: "chiave",       size: 22, top: "38%", right: "22%", delay: "2.8s", dur: "8s",   opacity: 0.15, rotate: 15  },
-          { iconId: "metro",        size: 28, top: "82%", right: "32%", delay: "4s",   dur: "7s",   opacity: 0.14, rotate: -8  },
-        ]} />
+          className="absolute top-0 left-0 right-0 h-px pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.6) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.6) 60%, transparent 100%)",
+          }}
+        />
 
         <div
           ref={ctaAnim.ref}
@@ -979,117 +718,28 @@ export default function ChiSiamo() {
           }}
         >
           <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-5 leading-tight">
-            Vuoi vedere il prodotto in azione?
+            Vedi il prodotto in azione
           </h2>
-          <p className="text-white/55 mb-10 text-base leading-relaxed max-w-lg mx-auto">
-            Una chiamata di 30 minuti è tutto quello che serve. Ti mostriamo il software live,
-            rispondiamo alle tue domande, e decidi senza fretta.
+          <p className="text-white/60 mb-10 text-base leading-relaxed max-w-lg mx-auto">
+            30 minuti, una persona del team, il software live sul tuo caso reale. Decidi tu, senza pressione.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               to="/demo"
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-white font-bold text-base transition-all hover:opacity-90 hover:scale-105 shadow-lg"
-              style={{
-                background: "#F97415",
-                boxShadow: "0 8px 30px rgba(249,116,21,0.35)",
-              }}
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-white font-bold text-base hover:scale-105 transition-all shadow-lg"
+              style={{ background: "#F97415", boxShadow: "0 8px 30px rgba(249,116,21,0.35)" }}
             >
-              Prenota Demo Gratuita
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
+              Prenota demo gratuita
+              <ArrowRight className="w-5 h-5" />
             </Link>
-
-            <a
-              href="https://wa.me/393000000000"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-base transition-all hover:bg-white/10"
-              style={{
-                border: "2px solid rgba(255,255,255,0.35)",
-                color: "white",
-              }}
+            <Link
+              to="/pianifica-migrazione"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-base text-white hover:bg-white/10 transition-all"
+              style={{ border: "2px solid rgba(255,255,255,0.35)" }}
             >
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5" style={{ color: "#25D366" }}>
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-              </svg>
-              Scrivici su WhatsApp
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
-      <JsonLd id="jsonld-faq-chisiamo" data={{
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Chi c'è dietro Edilizia in Cloud?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Edilizia in Cloud è sviluppato da Domus Group S.r.l., una software house milanese fondata nel 2021 da imprenditori con esperienza diretta nel settore edile. Il team combina competenze di sviluppo software, intelligenza artificiale e profonda conoscenza delle esigenze delle imprese edili italiane."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Il software è italiano e pensato per le imprese edili italiane?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì, Edilizia in Cloud è sviluppato interamente in Italia da un team italiano. È progettato specificamente per il mercato italiano: fatturazione elettronica SDI, CCNL Edilizia, Cassa Edile, prezzari regionali, normativa sismica e paesaggistica italiana. Non è un software straniero adattato: è nato per il cantiere italiano."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Come viene garantita la sicurezza dei dati?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "I dati sono ospitati su infrastrutture cloud europee (UE) con certificazione ISO 27001. Tutti i dati sono crittografati in transito (TLS 1.3) e a riposo (AES-256). Backup automatici giornalieri con retention 90 giorni. Edilizia in Cloud è conforme al GDPR e non condivide mai i dati con terze parti per scopi commerciali."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Avete un programma di partnership per commercialisti e consulenti?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Sì, offriamo il programma Diventa Partner rivolto a commercialisti, consulenti aziendali, geometri e tecnici che vogliono proporre Edilizia in Cloud ai propri clienti imprenditori edili. I partner ricevono formazione, materiali marketing e una commissione ricorrente su ogni cliente portato."
-            }
-          }
-        ]
-      }} />
-
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-3xl mx-auto px-6">
-          <h2 className="text-2xl font-bold text-[#111111] mb-8 text-center">Domande frequenti su di noi</h2>
-          <div className="space-y-3">
-            {[
-              {
-                q: "Chi c'è dietro Edilizia in Cloud?",
-                a: "Edilizia in Cloud è sviluppato da Domus Group S.r.l., una software house milanese fondata nel 2021 da imprenditori con esperienza diretta nel settore edile."
-              },
-              {
-                q: "Il software è italiano e pensato per le imprese edili italiane?",
-                a: "Sì, è sviluppato interamente in Italia. È progettato specificatamente per il mercato italiano: fatturazione elettronica SDI, CCNL Edilizia, Cassa Edile, prezzari regionali. Non è un software straniero adattato."
-              },
-              {
-                q: "Come viene garantita la sicurezza dei dati?",
-                a: "I dati sono ospitati su infrastrutture cloud europee (UE) con certificazione ISO 27001. Crittografia TLS 1.3 in transito, AES-256 a riposo. Backup automatici giornalieri, retention 90 giorni. Conformi al GDPR."
-              },
-              {
-                q: "Avete un programma di partnership per commercialisti e consulenti?",
-                a: "Sì, il programma Diventa Partner è rivolto a commercialisti, consulenti aziendali, geometri e tecnici. I partner ricevono formazione, materiali marketing e commissioni ricorrenti."
-              },
-            ].map(({ q, a }) => (
-              <details key={q} className="bg-white rounded-xl border border-gray-200 group">
-                <summary className="flex items-center justify-between px-5 py-4 cursor-pointer font-medium text-[#111111] list-none gap-4">
-                  <span>{q}</span>
-                  <ChevronDown className="w-5 h-5 text-[#F97415] flex-shrink-0 group-open:rotate-180 transition-transform" />
-                </summary>
-                <p className="px-5 pb-4 text-[#111111]/70 text-sm leading-relaxed">{a}</p>
-              </details>
-            ))}
+              Pianifica la migrazione
+            </Link>
           </div>
         </div>
       </section>
