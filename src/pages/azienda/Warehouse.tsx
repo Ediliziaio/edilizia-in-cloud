@@ -1,7 +1,5 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -23,8 +21,6 @@ import {
   Clock,
   PackageOpen,
   RefreshCw,
-  Eye,
-  EyeOff,
   GripVertical,
   ScanLine,
   Package,
@@ -68,27 +64,21 @@ import {
 } from "@/components/ui/sheet";
 import { SlidersHorizontal } from "lucide-react";
 
-import WarehouseAlerts from "@/components/warehouse/WarehouseAlerts";
-import { StockAlertBanner } from "@/components/warehouse/StockAlertBanner";
-import BlockedOrdersPanel from "@/components/warehouse/BlockedOrdersPanel";
-import LowStockAlertsPanel from "@/components/warehouse/LowStockAlertsPanel";
 import WarehouseStats from "@/components/warehouse/WarehouseStats";
 import WarehouseInventoryStats from "@/components/warehouse/WarehouseInventoryStats";
 import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
 import WarehouseListView from "@/components/warehouse/WarehouseListView";
 import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
-import { WarehouseMapView } from "@/components/warehouse/WarehouseMapView";
 import WarehouseLottiTab from "@/components/warehouse/WarehouseLottiTab";
 import { WarehouseDDTTab } from "@/components/warehouse/WarehouseDDTTab";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
-import type { StockItem, WarehouseItem } from "@/types/warehouse";
+import type { WarehouseItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransferPanel";
-import { supabase } from "@/integrations/supabase/client";
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
@@ -103,7 +93,6 @@ export default function Warehouse() {
     stockItems,
     uniqueOrders,
     urgentItemsCount,
-    overdueItemsCount,
     activeItemsCount,
     page,
     setPage,
@@ -147,31 +136,7 @@ export default function Warehouse() {
   const { isScopriPlan } = useSubscriptionLimits();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
-
-  const [showMap, setShowMap] = useState(() => {
-    try {
-      const stored = localStorage.getItem("warehouse-show-map");
-      return stored !== null ? stored === "true" : true;
-    } catch { return true; }
-  });
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
-  const { data: fullStockItems = [] } = useQuery({
-    queryKey: queryKeys.warehouse.stock(effectiveCompany?.id),
-    queryFn: async () => {
-      if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
-        .from("warehouse_stock")
-        .select("id, company_id, name, description, quantity, unit_cost, vat_rate, supplier_id, section_id, min_stock_level, created_at, updated_at")
-        .eq("company_id", effectiveCompany.id)
-        .order("name")
-        .limit(2000);
-      if (error) throw error;
-      return data as StockItem[];
-    },
-    enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
 
   // Multi-selection state for order items DnD
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -243,8 +208,16 @@ export default function Warehouse() {
     );
   }
 
-  const isOrderItemView = viewMode !== "stock" && viewMode !== "calendar";
-  const showDroppableMap = isOrderItemView && showMap && sections.length > 0;
+  // ─── Modalità macro: separa concettualmente "Tracking ordini" da "Inventario" ───
+  //   • workflow: Lista, Kanban, Calendario (cosa devo gestire per i cantieri)
+  //   • inventario: Giacenze, Lotti, DDT (gestione magazzino fisico)
+  // Toggle macro al top → l'utente sceglie il mental model PRIMA di scegliere la vista.
+  const isInventario = viewMode === "stock" || viewMode === "lotti" || viewMode === "ddt";
+  const macroMode: "workflow" | "inventario" = isInventario ? "inventario" : "workflow";
+  const switchMacroMode = (next: "workflow" | "inventario") => {
+    if (next === macroMode) return;
+    setViewMode(next === "workflow" ? "list" : "stock");
+  };
 
   // ─── Filtro attivo per WarehouseStats cards cliccabili ───
   // Le KPI cards sono cliccabili e applicano filtro: status (in_magazzino/ordinato/da_ordinare)
@@ -257,6 +230,10 @@ export default function Warehouse() {
         : { kind: "all" };
 
   const handleStatsCardClick = (next: import("@/components/warehouse/WarehouseStats").WarehouseStatsFilter) => {
+    // Le KPI workflow sono sempre visibili anche in modalità inventario.
+    // Se l'utente clicca da inventario → forziamo lo switch a workflow,
+    // altrimenti il filtro non avrebbe nessun effetto visibile.
+    if (isInventario) setViewMode("list");
     if (next.kind === "all") {
       setQuickFilter("all");
       setStatusFilter("all");
@@ -271,19 +248,6 @@ export default function Warehouse() {
       setQuickFilter("all");
       setStatusFilter(next.value);
     }
-  };
-
-  // ─── Modalità macro: separa concettualmente "Tracking ordini" da "Inventario" ───
-  // Risolve la confusione UX di avere 6 tab piatti che mescolano due mondi diversi:
-  //   • workflow: Lista, Kanban, Calendario (cosa devo gestire per i cantieri)
-  //   • inventario: Giacenze, Lotti, DDT (gestione magazzino fisico)
-  // Toggle macro al top → l'utente sceglie il mental model PRIMA di scegliere la vista.
-  const isInventario = viewMode === "stock" || viewMode === "lotti" || viewMode === "ddt";
-  const macroMode: "workflow" | "inventario" = isInventario ? "inventario" : "workflow";
-  const switchMacroMode = (next: "workflow" | "inventario") => {
-    if (next === macroMode) return;
-    // Salta al primo tab della modalità di destinazione
-    setViewMode(next === "workflow" ? "list" : "stock");
   };
 
   return (
@@ -378,76 +342,21 @@ export default function Warehouse() {
         </Alert>
       )}
 
-      {/* Alerts contestuali — mostriamo solo gli avvisi rilevanti
-          per la tab attiva, riducendo il rumore visivo. */}
-      <div className="print:hidden space-y-3">
-        {/* StockAlertBanner: sottoscorta → rilevante per Giacenze/Lotti */}
-        {(viewMode === "stock" || viewMode === "lotti") && (
-          <StockAlertBanner companyId={effectiveCompany.id} />
-        )}
-        {/* WarehouseAlerts: ritardi/urgenti → rilevante per workflow ordini */}
-        {(viewMode === "list" || viewMode === "kanban" || viewMode === "calendar") && (
-          <WarehouseAlerts items={items} />
-        )}
-      </div>
+      {/* Banner avvisi RIMOSSI completamente — riducono il rumore visivo
+          e duplicano informazioni già presenti nelle KPI cliccabili sotto. */}
 
-      {/* Mini panel BlockedOrders + LowStock RIMOSSI — info ridondante con KPI cards
-          cliccabili (In Ritardo) e con il banner sottoscorta in modalità Inventario.
-          Riduce il rumore visuale e accorpa l'informazione operativa nelle KPI. */}
-
-      {/* Stats KPI — sempre visibili, contestuali alla modalità macro.
-          Importante: NON nascondiamo le KPI quando si passa da workflow a inventario,
-          altrimenti il layout della pagina "salta" — disorientante per l'utente.
-          Swap del contenuto invece di hide/show: ingombro stabile, transizione fluida. */}
-      {macroMode === "workflow" ? (
+      {/* KPI sempre visibili su 2 righe fisse — workflow (5) + inventario (4) = 9.
+          Layout invariato al toggle macro: l'utente vede sempre tutte le metriche.
+          Click su una KPI workflow da modalità inventario → switch automatico
+          a workflow + applica filtro (vedi handleStatsCardClick). */}
+      <div className="space-y-3">
         <WarehouseStats
           items={items}
           activeFilter={activeStatsFilter}
           onCardClick={handleStatsCardClick}
         />
-      ) : (
         <WarehouseInventoryStats companyId={effectiveCompany.id} />
-      )}
-
-      {/* Warehouse Map - toggleable */}
-      {viewMode !== "stock" && (
-        <div className="hidden sm:block print:hidden">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              Mappa Magazzino
-              {isOrderItemView && showMap && sections.length > 0 && (
-                <span className="text-xs text-muted-foreground/70 ml-1">
-                  — trascina articoli qui per assegnarli a una zona
-                </span>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setShowMap((v) => {
-                  try { localStorage.setItem("warehouse-show-map", String(!v)); } catch { /* Safari Private Browsing */ }
-                  return !v;
-                });
-              }}
-              className="gap-1.5 text-xs text-muted-foreground"
-            >
-              {showMap ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {showMap ? "Nascondi mappa" : "Mostra mappa"}
-            </Button>
-          </div>
-          {showMap && (
-            <WarehouseMapView
-              stockItems={fullStockItems}
-              sections={sections}
-              activeSectionFilter="all"
-              onFilterSection={() => {}}
-              showTitle={false}
-              droppable={showDroppableMap}
-            />
-          )}
-        </div>
-      )}
+      </div>
 
       {/* View Toggle & Filters */}
       {/* ─── Toggle macro: 2 mondi separati invece di 6 tab piatti ───
