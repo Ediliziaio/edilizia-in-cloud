@@ -57,19 +57,15 @@ CREATE TRIGGER modulo_richieste_set_updated_at
 ALTER TABLE public.modulo_richieste_attivazione ENABLE ROW LEVEL SECURITY;
 
 -- Lettura: solo super_admin può vedere TUTTE le richieste (dashboard staff).
--- Le company NON leggono storico richieste lato UI (per ora).
+-- Pattern canonico EiC: la fonte di verità per il ruolo applicativo è
+-- `user_roles` via SECURITY DEFINER `public.has_role(uid, app_role)`.
+-- (NON usare `profiles.role` — quella colonna non esiste in profiles.)
 DROP POLICY IF EXISTS "super_admin_read_richieste" ON public.modulo_richieste_attivazione;
 CREATE POLICY "super_admin_read_richieste"
   ON public.modulo_richieste_attivazione
   FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid()
-        AND p.role = 'super_admin'
-    )
-  );
+  USING (public.has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Update: solo super_admin (gestione status + note interne)
 DROP POLICY IF EXISTS "super_admin_update_richieste" ON public.modulo_richieste_attivazione;
@@ -77,25 +73,11 @@ CREATE POLICY "super_admin_update_richieste"
   ON public.modulo_richieste_attivazione
   FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid()
-        AND p.role = 'super_admin'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid()
-        AND p.role = 'super_admin'
-    )
-  );
+  USING (public.has_role(auth.uid(), 'super_admin'::app_role))
+  WITH CHECK (public.has_role(auth.uid(), 'super_admin'::app_role));
 
 -- Insert: gestito esclusivamente da edge function con SERVICE_ROLE_KEY
--- (nessuna policy esplicita per authenticated → bloccato)
-DROP POLICY IF EXISTS "service_role_insert_richieste" ON public.modulo_richieste_attivazione;
--- (la service role bypassa RLS by default; nessuna policy necessaria qui)
+-- (nessuna policy esplicita per authenticated → bloccato by RLS deny-default)
 
 COMMENT ON TABLE public.modulo_richieste_attivazione IS
   'Audit log delle richieste di attivazione moduli vendita verticali generate dall''edge function richiesta-attivazione-modulo (introdotta 2026-04-27).';

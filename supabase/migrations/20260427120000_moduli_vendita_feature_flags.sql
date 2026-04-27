@@ -97,27 +97,52 @@ WHERE feature_key = 'fv_modulo_attivo'
 ON CONFLICT (company_id, feature_key) DO NOTHING;
 
 -- 3) Backfill: companies con fv_modulo_attivo=TRUE ma senza override esplicito
---    (caso tipico: flag abilitato pre-feature-flags via colonna boolean)
-INSERT INTO public.company_feature_overrides
-  (company_id, feature_key, is_enabled, notes)
-SELECT
-  c.id,
-  'modulo_fotovoltaico_attivo',
-  TRUE,
-  '[backfill 2026-04-27 from companies.fv_modulo_attivo=true]'
-FROM public.companies c
-WHERE c.fv_modulo_attivo = TRUE
-  AND NOT EXISTS (
+--    (caso tipico: flag abilitato pre-feature-flags via colonna boolean).
+--
+--    NOTA su ordine migrazioni: la colonna `companies.fv_modulo_attivo` è
+--    creata da `20261027120000_fv_modulo_wave1.sql` (timestamp Oct 2026,
+--    posteriore a questo). Su DB di produzione la colonna esiste già; su
+--    deploy fresh (CI/E2E) potrebbe non esistere ancora — guard con
+--    `to_regclass` + `information_schema.columns` per essere robusti.
+DO $$
+DECLARE
+  v_has_col BOOLEAN;
+BEGIN
+  SELECT EXISTS (
     SELECT 1
-    FROM public.company_feature_overrides o
-    WHERE o.company_id = c.id
-      AND o.feature_key = 'modulo_fotovoltaico_attivo'
-  )
-ON CONFLICT (company_id, feature_key) DO NOTHING;
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name   = 'companies'
+      AND column_name  = 'fv_modulo_attivo'
+  ) INTO v_has_col;
 
--- 4) Marca la colonna legacy come DEPRECATED (cleanup fisico posticipato)
-COMMENT ON COLUMN public.companies.fv_modulo_attivo IS
-  'DEPRECATED 2026-04-27: usare resolve_company_feature(company_id, ''modulo_fotovoltaico_attivo''). Mantenuto per backward compatibility durante transizione. Cleanup pianificato dopo verifica produzione.';
+  IF v_has_col THEN
+    EXECUTE $sql$
+      INSERT INTO public.company_feature_overrides
+        (company_id, feature_key, is_enabled, notes)
+      SELECT
+        c.id,
+        'modulo_fotovoltaico_attivo',
+        TRUE,
+        '[backfill 2026-04-27 from companies.fv_modulo_attivo=true]'
+      FROM public.companies c
+      WHERE c.fv_modulo_attivo = TRUE
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.company_feature_overrides o
+          WHERE o.company_id = c.id
+            AND o.feature_key = 'modulo_fotovoltaico_attivo'
+        )
+      ON CONFLICT (company_id, feature_key) DO NOTHING
+    $sql$;
+
+    -- Marca la colonna legacy come DEPRECATED solo se esiste
+    EXECUTE 'COMMENT ON COLUMN public.companies.fv_modulo_attivo IS '
+         || quote_literal('DEPRECATED 2026-04-27: usare resolve_company_feature(company_id, ''modulo_fotovoltaico_attivo''). Mantenuto per backward compatibility durante transizione. Cleanup pianificato dopo verifica produzione.');
+  ELSE
+    RAISE NOTICE 'Skipping fv_modulo_attivo backfill: column not yet created (sarà gestito dalla migration successiva idempotente)';
+  END IF;
+END $$;
 
 COMMENT ON TABLE public.platform_feature_flags IS
   'Catalogo master delle feature. Categoria modulo_vendita aggiunta 2026-04-27 per moduli di vendita verticali (Fotovoltaico + 5 in arrivo) gestiti dall''Hub Preventivi.';

@@ -157,7 +157,7 @@ export function CompanyModuliVendutaSection({ companyId, companyName }: Props) {
               return (
                 <div
                   key={modulo.slug}
-                  className="flex flex-col gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/30"
+                  className="relative flex flex-col gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/30"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">

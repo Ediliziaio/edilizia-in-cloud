@@ -40,9 +40,10 @@ Deno.serve(async (req) => {
     }
 
     // Verifica che l'utente abbia accesso a quella company
+    // NB: profiles ha first_name/last_name (NON full_name)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, email, full_name, company_id")
+      .select("id, email, first_name, last_name, company_id")
       .eq("id", userId)
       .maybeSingle();
 
@@ -52,6 +53,10 @@ Deno.serve(async (req) => {
         { status: 403, headers: cors },
       );
     }
+    const fullName = [profile.first_name, profile.last_name]
+      .filter((s): s is string => Boolean(s && s.trim()))
+      .join(" ")
+      .trim() || null;
 
     const { data: company } = await supabase
       .from("companies")
@@ -77,7 +82,7 @@ Deno.serve(async (req) => {
         feature_key: featureKey,
         status: "pending",
         requested_by_email: profile.email ?? null,
-        requested_by_name: profile.full_name ?? null,
+        requested_by_name: fullName,
       });
 
     if (insertErr) {
@@ -93,7 +98,7 @@ Deno.serve(async (req) => {
         <h2>Nuova richiesta attivazione modulo verticale</h2>
         <p><strong>Company:</strong> ${escapeHtml(company.name)} (id: <code>${companyId}</code>)</p>
         <p><strong>Modulo richiesto:</strong> ${escapeHtml(moduloNome)} (<code>${featureKey}</code>)</p>
-        <p><strong>Richiedente:</strong> ${escapeHtml(profile.full_name ?? "—")} &lt;${escapeHtml(profile.email ?? "")}&gt;</p>
+        <p><strong>Richiedente:</strong> ${escapeHtml(fullName ?? "—")} &lt;${escapeHtml(profile.email ?? "")}&gt;</p>
         <hr/>
         <p style="font-size:12px;color:#666">
           Apri il pannello SuperAdmin → Companies → ${escapeHtml(company.name)} → Subscription
