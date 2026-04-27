@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -794,7 +794,7 @@ function OrderDetailInner() {
     .reduce((sum, i) => sum + i.amount, 0);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* ── New Header (breadcrumb + title + actions) ──────────── */}
       <OrdineDetailHeader
         ordineId={id!}
@@ -853,55 +853,50 @@ function OrderDetailInner() {
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
           <Tabs defaultValue="stato">
-            <TabsList className="w-full flex overflow-x-auto scrollbar-hide h-auto gap-0.5">
-              <TabsTrigger value="stato" className="text-xs py-2 px-3 shrink-0">Stato</TabsTrigger>
-              <TabsTrigger value="articoli" className="text-xs py-2 px-3 shrink-0">Articoli</TabsTrigger>
-              <TabsTrigger value="finanza" className="text-xs py-2 px-3 shrink-0">Finanza</TabsTrigger>
-              <TabsTrigger value="sal" className="text-xs py-2 px-3 shrink-0">SAL</TabsTrigger>
-              <TabsTrigger value="cantiere" className="text-xs py-2 px-3 shrink-0">Cantiere</TabsTrigger>
-              <TabsTrigger value="campo" className="text-xs py-2 px-3 shrink-0">
+            <TabsList className="w-full flex overflow-x-auto scrollbar-hide h-auto gap-0.5 bg-white border border-slate-200 rounded-lg p-1">
+              <TabsTrigger value="stato" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Stato</TabsTrigger>
+              <TabsTrigger value="articoli" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Articoli</TabsTrigger>
+              <TabsTrigger value="finanza" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Finanza</TabsTrigger>
+              <TabsTrigger value="sal" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">SAL</TabsTrigger>
+              <TabsTrigger value="cantiere" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Cantiere</TabsTrigger>
+              <TabsTrigger value="campo" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">
                 <div className="flex items-center gap-1">
                   <HardHat className="w-3 h-3" />
                   Campo
                 </div>
               </TabsTrigger>
-              <TabsTrigger value="altro" className="text-xs py-2 px-3 shrink-0">Altro</TabsTrigger>
-              <TabsTrigger value="ritenute" className="text-xs py-2 px-3 shrink-0">Ritenute</TabsTrigger>
+              <TabsTrigger value="altro" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Altro</TabsTrigger>
+              <TabsTrigger value="ritenute" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Ritenute</TabsTrigger>
             </TabsList>
 
             {/* Tab 1: Stato + Cliente + Date */}
             <TabsContent value="stato" className="space-y-4 mt-4">
               <OrdineCliente customer={order.customer} />
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Storico Stati</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {statusHistory.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">Nessuno storico</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {statusHistory.map((entry) => (
-                        <div
-                          key={entry.id}
-                          className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0"
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: entry.status.color }}
-                            />
-                            <span className="text-sm font-medium">{entry.status.name}</span>
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDateTime(entry.changed_at)}
-                          </span>
+              <QuoteCard title="Storico Stati">
+                {statusHistory.length === 0 ? (
+                  <p className="text-slate-500 text-sm">Nessuno storico</p>
+                ) : (
+                  <div className="space-y-3">
+                    {statusHistory.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: entry.status.color }}
+                          />
+                          <span className="text-sm font-medium text-slate-900">{entry.status.name}</span>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                        <span className="text-xs text-slate-500">
+                          {formatDateTime(entry.changed_at)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </QuoteCard>
               <OrdineTempistiche
                 orderId={order.id}
                 expectedDate={order.expected_date}
@@ -942,19 +937,18 @@ function OrderDetailInner() {
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
               />
               {/* Fatturazione */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Receipt className="h-4 w-4" />
+              <QuoteCard
+                title={
+                  <span className="flex items-center gap-2">
                     Fatturazione
                     {fattureCollegate.length > 0 && (
-                      <Badge variant="secondary" className="ml-auto text-xs">
-                        {fattureCollegate.length}
-                      </Badge>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{fattureCollegate.length}</span>
                     )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                  </span>
+                }
+                icon={<Receipt className="h-4 w-4" />}
+              >
+                <div className="space-y-3">
                   {fattureCollegate.length > 0 ? (
                     <div className="space-y-2">
                       {fattureCollegate.map((f: any) => (
@@ -1053,8 +1047,8 @@ function OrderDetailInner() {
                       N. Credito
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </QuoteCard>
             </TabsContent>
 
             {/* Tab 4: SAL */}
@@ -1230,55 +1224,47 @@ function OrderDetailInner() {
             />
 
             {/* Storico stati */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Storico Stati
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {statusHistory.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Nessuno storico disponibile
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {statusHistory.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: entry.status.color }}
-                          />
-                          <span className="text-sm font-medium">{entry.status.name}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDateTime(entry.changed_at)}
-                        </span>
+            <QuoteCard title="Storico Stati">
+              {statusHistory.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  Nessuno storico disponibile
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {statusHistory.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: entry.status.color }}
+                        />
+                        <span className="text-sm font-medium text-slate-900">{entry.status.name}</span>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      <span className="text-xs text-slate-500">
+                        {formatDateTime(entry.changed_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </QuoteCard>
 
             {/* Fatturazione */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                  <Receipt className="h-4 w-4" />
+            <QuoteCard
+              title={
+                <span className="flex items-center gap-2">
                   Fatturazione
                   {fattureCollegate.length > 0 && (
-                    <Badge variant="secondary" className="ml-auto text-xs">
-                      {fattureCollegate.length}
-                    </Badge>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{fattureCollegate.length}</span>
                   )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+                </span>
+              }
+              icon={<Receipt className="h-4 w-4" />}
+            >
+              <div className="space-y-3">
                 {fattureCollegate.length > 0 ? (
                   <div className="space-y-2">
                     {fattureCollegate.map((f: any) => (
@@ -1373,8 +1359,8 @@ function OrderDetailInner() {
                     N. Credito
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </QuoteCard>
 
             {/* Note */}
             <OrdineNote

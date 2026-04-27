@@ -2,7 +2,6 @@ import { useState, lazy, Suspense } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +10,14 @@ import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
   Truck, Save, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
-  AlertTriangle, ScanLine,
+  AlertTriangle, ScanLine, ClipboardList, StickyNote, CalendarClock,
 } from "lucide-react";
+import {
+  QuotePageHeader,
+  QuoteCard,
+  QuoteChip,
+  QuotePrimaryButton,
+} from "@/components/marketing/preventivi/ui/builderUI";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
@@ -48,13 +53,13 @@ const STATUS_LABELS: Record<string, string> = {
   parziale: "Parziale", ricevuto: "Ricevuto", annullato: "Annullato",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  bozza: "bg-muted text-muted-foreground",
-  inviato: "bg-blue-100 text-blue-800",
-  confermato: "bg-emerald-100 text-emerald-800",
-  parziale: "bg-amber-100 text-amber-800",
-  ricevuto: "bg-green-100 text-green-800",
-  annullato: "bg-destructive/10 text-destructive",
+const STATUS_CHIP_VARIANT: Record<string, "default" | "green" | "orange" | "red" | "navy" | "yellow" | "blue"> = {
+  bozza: "default",
+  inviato: "blue",
+  confermato: "green",
+  parziale: "yellow",
+  ricevuto: "green",
+  annullato: "red",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -141,92 +146,110 @@ export default function PurchaseOrderDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Back link */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate("/azienda/ordini-acquisto")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Ordini Acquisto
         </Button>
       </div>
 
-      <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold font-mono">{order.oda_number}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge className={`text-xs border-0 ${STATUS_COLORS[order.status] || ""}`}>{STATUS_LABELS[order.status] || order.status}</Badge>
-            {order.orders?.order_code && (
-              <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
-                <Badge variant="outline" className="text-xs hover:bg-accent cursor-pointer">
-                  Ord. {order.orders.order_code} <ExternalLink className="h-3 w-3 ml-1" />
-                </Badge>
-              </Link>
+      <QuotePageHeader
+        numero={order.oda_number}
+        stato={
+          <QuoteChip variant={STATUS_CHIP_VARIANT[order.status] || "default"}>
+            {STATUS_LABELS[order.status] || order.status}
+          </QuoteChip>
+        }
+        chips={
+          order.orders?.order_code ? (
+            <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors">
+                Ord. {order.orders.order_code} <ExternalLink className="h-3 w-3" />
+              </span>
+            </Link>
+          ) : null
+        }
+        title={`OdA ${order.oda_number}`}
+        subtitle={supplier?.name ? `Fornitore: ${supplier.name}` : undefined}
+        icon={<ClipboardList className="h-5 w-5" />}
+        actions={
+          <>
+            {order.status !== "bozza" && order.status !== "annullato" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVerifyDialogOpen(true)}
+              >
+                <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                Verifica AI
+              </Button>
             )}
-          </div>
-        </div>
-
-        {/* Status actions */}
-        <div className="flex gap-2 flex-wrap">
-          {order.status !== "bozza" && order.status !== "annullato" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setVerifyDialogOpen(true)}
-            >
-              <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-              Verifica AI
-            </Button>
-          )}
-          {/* MP2 P1a: ricezione via scansione QR — solo per ODA in stato pending */}
-          {(["inviato", "confermato", "parziale"] as Array<typeof order.status>).includes(order.status) && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setReceiveScanOpen(true)}
-            >
-              <ScanLine className="h-3.5 w-3.5 mr-1" />
-              Ricevi via scansione
-            </Button>
-          )}
-          {nextStatuses.map((ns) => (
-            <Button
-              key={ns}
-              variant={ns === "annullato" ? "destructive" : "default"}
-              size="sm"
-              onClick={() => handleStatusChange(ns)}
-              disabled={updateStatus.isPending}
-            >
-              {STATUS_ICONS[ns]}
-              {STATUS_LABELS[ns]}
-            </Button>
-          ))}
-        </div>
-      </div>
+            {(["inviato", "confermato", "parziale"] as Array<typeof order.status>).includes(order.status) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReceiveScanOpen(true)}
+              >
+                <ScanLine className="h-3.5 w-3.5 mr-1" />
+                Ricevi via scansione
+              </Button>
+            )}
+            {nextStatuses.map((ns) =>
+              ns === "annullato" ? (
+                <Button
+                  key={ns}
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleStatusChange(ns)}
+                  disabled={updateStatus.isPending}
+                >
+                  {STATUS_ICONS[ns]}
+                  {STATUS_LABELS[ns]}
+                </Button>
+              ) : (
+                <QuotePrimaryButton
+                  key={ns}
+                  size="sm"
+                  onClick={() => handleStatusChange(ns)}
+                  disabled={updateStatus.isPending}
+                >
+                  {STATUS_ICONS[ns]}
+                  {STATUS_LABELS[ns]}
+                </QuotePrimaryButton>
+              )
+            )}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Editor */}
         <div className="lg:col-span-2 space-y-4">
           {/* Items table */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Articoli</CardTitle>
-                {isEditable && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => addItem.mutate({
-                      purchase_order_id: order.id,
-                      description: "Nuovo articolo",
-                      quantity: 1,
-                      unit_price: 0,
-                      vat_rate: 22,
-                    })}
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
+          <QuoteCard noHeader className="p-0 sm:p-0">
+            <div className="px-5 sm:px-6 pt-5 pb-4 flex items-center justify-between gap-3 flex-wrap">
+              <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
+                <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-amber-400" />
+                <span className="text-orange-500"><Package className="h-4 w-4" /></span>
+                Articoli
+              </h3>
+              {isEditable && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => addItem.mutate({
+                    purchase_order_id: order.id,
+                    description: "Nuovo articolo",
+                    quantity: 1,
+                    unit_price: 0,
+                    vat_rate: 22,
+                  })}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi
+                </Button>
+              )}
+            </div>
+            <div className="border-t border-slate-100">
               {isItemsLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : items.length === 0 ? (
@@ -277,90 +300,93 @@ export default function PurchaseOrderDetail() {
                   </table>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </QuoteCard>
 
           {/* Notes */}
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium">Note</p>
-                {!editingNotes ? (
-                  <Button variant="ghost" size="sm" onClick={() => { setNotes(order.notes || ""); setEditingNotes(true); }}>Modifica</Button>
-                ) : (
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setEditingNotes(false)}>Annulla</Button>
-                    <Button size="sm" onClick={() => { update.mutate({ id: order.id, updates: { notes } }); setEditingNotes(false); }}>
-                      <Save className="h-3.5 w-3.5 mr-1" /> Salva
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {editingNotes ? (
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          <QuoteCard
+            title="Note"
+            icon={<StickyNote className="h-4 w-4" />}
+            action={
+              !editingNotes ? (
+                <button
+                  type="button"
+                  className="text-xs text-orange-600 font-semibold hover:text-orange-700"
+                  onClick={() => { setNotes(order.notes || ""); setEditingNotes(true); }}
+                >
+                  Modifica
+                </button>
               ) : (
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{order.notes || "Nessuna nota."}</p>
-              )}
-            </CardContent>
-          </Card>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setEditingNotes(false)}>Annulla</Button>
+                  <Button size="sm" onClick={() => { update.mutate({ id: order.id, updates: { notes } }); setEditingNotes(false); }}>
+                    <Save className="h-3.5 w-3.5 mr-1" /> Salva
+                  </Button>
+                </div>
+              )
+            }
+          >
+            {editingNotes ? (
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+            ) : (
+              <p className="text-sm text-slate-600 whitespace-pre-wrap">{order.notes || "Nessuna nota."}</p>
+            )}
+          </QuoteCard>
         </div>
 
         {/* Right: Preview / Info */}
         <div className="space-y-4">
-          <Card>
-            <CardContent className="pt-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Truck className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-medium">Fornitore</p>
-              </div>
-              <p className="font-semibold">{supplier?.name || "—"}</p>
-              {supplier?.email && <p className="text-sm text-muted-foreground">{supplier.email}</p>}
-              {supplier?.address && <p className="text-xs text-muted-foreground">{supplier.address}, {supplier.city} {supplier.province}</p>}
-              {supplier?.vat_number && <p className="text-xs text-muted-foreground">P.IVA: {supplier.vat_number}</p>}
+          <QuoteCard title="Fornitore" icon={<Truck className="h-4 w-4" />}>
+            <div className="space-y-2">
+              <p className="font-semibold text-slate-900">{supplier?.name || "—"}</p>
+              {supplier?.email && <p className="text-sm text-slate-500">{supplier.email}</p>}
+              {supplier?.address && <p className="text-xs text-slate-500">{supplier.address}, {supplier.city} {supplier.province}</p>}
+              {supplier?.vat_number && <p className="text-xs text-slate-500">P.IVA: {supplier.vat_number}</p>}
               {supplier?.iban && (
                 <>
-                  <Separator />
+                  <Separator className="my-2" />
                   <div>
-                    <p className="text-xs text-muted-foreground">IBAN</p>
+                    <p className="text-xs text-slate-500">IBAN</p>
                     <p className="text-xs font-mono">{supplier.iban}</p>
-                    {supplier.bank_name && <p className="text-xs text-muted-foreground">{supplier.bank_name}</p>}
+                    {supplier.bank_name && <p className="text-xs text-slate-500">{supplier.bank_name}</p>}
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </QuoteCard>
 
-          <Card>
-            <CardContent className="pt-4 space-y-2 text-sm">
+          <QuoteCard title="Info ordine" icon={<CalendarClock className="h-4 w-4" />}>
+            <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Data emissione</span>
-                <span>{format(new Date(order.issue_date), "dd/MM/yyyy", { locale: it })}</span>
+                <span className="text-slate-500">Data emissione</span>
+                <span className="font-medium text-slate-900">{format(new Date(order.issue_date), "dd/MM/yyyy", { locale: it })}</span>
               </div>
               {order.expected_delivery_date && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Consegna prevista</span>
-                  <span>{format(new Date(order.expected_delivery_date), "dd/MM/yyyy", { locale: it })}</span>
+                  <span className="text-slate-500">Consegna prevista</span>
+                  <span className="font-medium text-slate-900">{format(new Date(order.expected_delivery_date), "dd/MM/yyyy", { locale: it })}</span>
                 </div>
               )}
               {order.actual_delivery_date && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Consegna effettiva</span>
-                  <span>{format(new Date(order.actual_delivery_date), "dd/MM/yyyy", { locale: it })}</span>
+                  <span className="text-slate-500">Consegna effettiva</span>
+                  <span className="font-medium text-slate-900">{format(new Date(order.actual_delivery_date), "dd/MM/yyyy", { locale: it })}</span>
                 </div>
               )}
               {order.payment_terms && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Pagamento</span>
-                  <span>{order.payment_terms}</span>
+                  <span className="text-slate-500">Pagamento</span>
+                  <span className="font-medium text-slate-900">{order.payment_terms}</span>
                 </div>
               )}
-              <Separator />
-              <div className="flex justify-between font-medium">
-                <span>Totale</span>
-                <span>{fmtEur(Number(order.total))}</span>
+              <div className="rounded-lg bg-gradient-to-br from-slate-50 to-white border border-slate-200 px-3 py-2 mt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-wider font-semibold text-slate-500">Totale</span>
+                  <span className="text-xl font-bold text-orange-600 tabular-nums">{fmtEur(Number(order.total))}</span>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </QuoteCard>
 
           {/* Progresso Ricezione */}
           {order.status !== "bozza" && order.status !== "annullato" && items.length > 0 && (() => {
@@ -368,44 +394,50 @@ export default function PurchaseOrderDetail() {
             const receivedQty = items.reduce((s, i) => s + Number(i.quantity_received || 0), 0);
             const pct = totalQty > 0 ? Math.round((receivedQty / totalQty) * 100) : 0;
             return (
-              <Card>
-                <CardContent className="pt-4 pb-3 space-y-2">
+              <QuoteCard noHeader compact>
+                <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-1.5">
-                      <Package className="h-3.5 w-3.5" /> Ricezione merce
+                    <span className="text-slate-500 flex items-center gap-1.5">
+                      <Package className="h-3.5 w-3.5 text-orange-500" /> Ricezione merce
                     </span>
-                    <span className="font-medium">{receivedQty}/{totalQty} pz ({pct}%)</span>
+                    <span className="font-semibold text-slate-900 tabular-nums">{receivedQty}/{totalQty} pz ({pct}%)</span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${
-                        pct === 100 ? "bg-emerald-500" : pct > 0 ? "bg-amber-500" : "bg-muted-foreground/20"
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        pct === 100 ? "bg-emerald-500" : pct > 0 ? "bg-gradient-to-r from-orange-500 to-amber-400" : "bg-slate-300"
                       }`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                   {pct === 100 && (
-                    <p className="text-xs text-emerald-600 font-medium">Tutti gli articoli ricevuti</p>
+                    <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Tutti gli articoli ricevuti
+                    </p>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </QuoteCard>
             );
           })()}
 
           {/* M4 — DDT Ricezione card */}
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileCheck className="h-4 w-4" aria-hidden="true" /> DDT Ricezione
-                  {ddtList.length > 0 && (
-                    <Badge variant="secondary" className="text-xs">{ddtList.length}</Badge>
-                  )}
-                </CardTitle>
-                <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => setDdtDialogOpen(true)}>
-                  <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Registra
-                </Button>
-              </div>
+          <QuoteCard
+            title={
+              <span className="flex items-center gap-2">
+                DDT Ricezione
+                {ddtList.length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{ddtList.length}</span>
+                )}
+              </span>
+            }
+            icon={<FileCheck className="h-4 w-4" />}
+            action={
+              <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => setDdtDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Registra
+              </Button>
+            }
+          >
+            <div>
               {ddtList.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-wrap text-[10px] mt-1">
                   {(() => {
@@ -442,18 +474,16 @@ export default function PurchaseOrderDetail() {
                   })()}
                 </div>
               )}
-            </CardHeader>
-            <CardContent className="pt-0">
               {ddtList.length === 0 ? (
                 <div className="text-center py-5 space-y-2">
-                  <FileCheck className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                  <p className="text-xs text-muted-foreground">Nessun DDT registrato</p>
+                  <FileCheck className="h-8 w-8 mx-auto text-slate-300" />
+                  <p className="text-xs text-slate-500">Nessun DDT registrato</p>
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setDdtDialogOpen(true)}>
                     <Plus className="h-3.5 w-3.5" /> Registra il primo DDT
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 mt-2">
                   {(ddtList as {
                     id: string;
                     numero_ddt: string;
@@ -473,21 +503,21 @@ export default function PurchaseOrderDetail() {
                         type="button"
                         key={ddt.id}
                         onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
-                        className="w-full flex items-start justify-between p-2 rounded-md bg-muted/40 hover:bg-muted text-xs gap-2 text-left transition-colors group border border-transparent hover:border-primary/20"
+                        className="w-full flex items-start justify-between p-2 rounded-md bg-slate-50 hover:bg-slate-100 text-xs gap-2 text-left transition-colors group border border-transparent hover:border-orange-200"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
-                            <p className="font-medium truncate font-mono">{ddt.numero_ddt}</p>
-                            <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                            <p className="font-medium truncate font-mono text-slate-900">{ddt.numero_ddt}</p>
+                            <ExternalLink className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 shrink-0" />
                           </div>
-                          <p className="text-muted-foreground mt-0.5">
+                          <p className="text-slate-500 mt-0.5">
                             {ddt.data_ricezione?.split("-").reverse().join("/")} ·{" "}
                             {Number(ddt.quantita_ricevuta).toLocaleString("it-IT", { maximumFractionDigits: 2 })} unità
                           </p>
                           {(attachCount > 0 || ddt.has_damages) && (
                             <div className="flex items-center gap-1.5 mt-1">
                               {attachCount > 0 && (
-                                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                <span className="text-[10px] text-slate-500 flex items-center gap-0.5">
                                   <Paperclip className="h-2.5 w-2.5" />
                                   {attachCount}
                                 </span>
@@ -500,7 +530,7 @@ export default function PurchaseOrderDetail() {
                               )}
                             </div>
                           )}
-                          {ddt.note && <p className="text-muted-foreground italic truncate mt-0.5">{ddt.note}</p>}
+                          {ddt.note && <p className="text-slate-500 italic truncate mt-0.5">{ddt.note}</p>}
                         </div>
                         <DDTStatusBadge stato={ddt.stato} size="sm" className="shrink-0" />
                       </button>
@@ -508,8 +538,8 @@ export default function PurchaseOrderDetail() {
                   })}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </QuoteCard>
 
           {/* Verification History */}
           <VerificationHistoryCard purchaseOrderId={order.id} />

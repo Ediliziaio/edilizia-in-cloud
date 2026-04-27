@@ -1120,19 +1120,19 @@ function OrdersListInner() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Package className="h-5 w-5 text-primary" />
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <Package className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Ordini</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Ordini</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
               Cantieri, ODA, DDT, anomalie e marginalità in un'unica vista.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Filtri avanzati */}
           <Button
             variant="outline"
@@ -1444,25 +1444,31 @@ export default function OrdersList() {
   return (
     <div className="space-y-6">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
-      <div className="border-b">
-        <nav className="-mb-px flex gap-3 sm:gap-6 overflow-x-auto scrollbar-none" role="tablist" aria-label="Sezioni ordini">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === t.id}
-              onClick={() => handleTabChange(t.id)}
-              className={`pb-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                activeTab === t.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <t.icon className="h-4 w-4" aria-hidden="true" />
-              {t.label}
-            </button>
-          ))}
+      <div className="border-b border-slate-200 bg-white rounded-t-2xl">
+        <nav className="-mb-px flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-3" role="tablist" aria-label="Sezioni ordini">
+          {tabs.map((t) => {
+            const isActive = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => handleTabChange(t.id)}
+                className={`relative flex items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-[3px] -mb-px ${
+                  isActive
+                    ? "border-orange-500 text-slate-900 font-semibold"
+                    : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <t.icon
+                  className={`h-4 w-4 shrink-0 ${isActive ? "text-orange-500" : "text-slate-400"}`}
+                  aria-hidden="true"
+                />
+                {t.label}
+              </button>
+            );
+          })}
         </nav>
       </div>
 

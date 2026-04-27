@@ -4,9 +4,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ShoppingCart, Plus, Loader2, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
-  FileSpreadsheet, Filter, X, Calendar as CalendarIcon,
+  FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Activity,
 } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
@@ -26,14 +24,22 @@ import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { formatCurrency } from "@/lib/formatters";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
+import {
+  QuotePageHeader,
+  QuoteKpi,
+  QuoteHubTabs,
+  QuoteChip,
+  QuotePrimaryButton,
+  type HubTab,
+} from "@/components/marketing/preventivi/ui/builderUI";
 
-const STATUS_COLORS: Record<string, string> = {
-  bozza: "bg-muted text-muted-foreground",
-  inviato: "bg-blue-100 text-blue-800",
-  confermato: "bg-emerald-100 text-emerald-800",
-  parziale: "bg-amber-100 text-amber-800",
-  ricevuto: "bg-green-100 text-green-800",
-  annullato: "bg-destructive/10 text-destructive",
+const STATUS_CHIP_VARIANT: Record<string, "default" | "green" | "orange" | "red" | "navy" | "yellow" | "blue"> = {
+  bozza: "default",
+  inviato: "blue",
+  confermato: "green",
+  parziale: "yellow",
+  ricevuto: "green",
+  annullato: "red",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -287,137 +293,136 @@ export default function PurchaseOrdersList() {
     );
   };
 
+  const hubTabs: HubTab[] = [
+    { key: "tutti", label: "Tutti", icon: <ShoppingCart className="h-4 w-4" />, count: counts.tutti },
+    { key: "attivi", label: "Attivi", icon: <Activity className="h-4 w-4" />, count: counts.attivi },
+    { key: "ricevuti", label: "Ricevuti", icon: <Package className="h-4 w-4" />, count: counts.ricevuti },
+    { key: "annullati", label: "Annullati", icon: <X className="h-4 w-4" />, count: counts.annullati },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Header con pattern h-10 w-10 bg-primary/10 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <ShoppingCart className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight truncate">Ordini d'Acquisto</h1>
-            <p className="text-sm text-muted-foreground">
-              OdA ai fornitori: stato, verifica DDT, consegne previste.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Export dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Esporta</span>
-                <ChevronDown className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel className="text-[11px]">OdA filtrati ({filtered.length})</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportCSV}>
-                <FileText className="h-4 w-4 mr-2" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportXLSX}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportPDF}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+      <QuotePageHeader
+        title="Ordini d'Acquisto"
+        subtitle="OdA ai fornitori: stato, verifica DDT, consegne previste."
+        icon={<ShoppingCart className="h-5 w-5" />}
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-1.5" />
+                  <span className="hidden sm:inline">Esporta</span>
+                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="text-[11px]">OdA filtrati ({filtered.length})</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportCSV}>
+                  <FileText className="h-4 w-4 mr-2" /> CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportXLSX}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportPDF}>
+                  <FileText className="h-4 w-4 mr-2" /> PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {/* Filtri avanzati popover */}
-          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="relative">
-                <Filter className="h-4 w-4 mr-1.5" />
-                Filtri
-                {activeFiltersCount > 0 && (
-                  <Badge className="ml-2 h-5 px-1.5 text-[10px] bg-primary">{activeFiltersCount}</Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-[320px] p-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold">Filtri avanzati</p>
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="relative">
+                  <Filter className="h-4 w-4 mr-1.5" />
+                  Filtri
                   {activeFiltersCount > 0 && (
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearFilters}>
-                      <X className="h-3 w-3 mr-1" /> Azzera
-                    </Button>
+                    <Badge className="ml-2 h-5 px-1.5 text-[10px] bg-orange-500 hover:bg-orange-500">{activeFiltersCount}</Badge>
                   )}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Fornitore</Label>
-                  <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tutti i fornitori</SelectItem>
-                      {suppliers.filter((s) => s.is_active).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs flex items-center gap-1"><CalendarIcon className="h-3 w-3" />Data dal</Label>
-                    <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-9 text-xs" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[320px] p-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">Filtri avanzati</p>
+                    {activeFiltersCount > 0 && (
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearFilters}>
+                        <X className="h-3 w-3 mr-1" /> Azzera
+                      </Button>
+                    )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Data al</Label>
-                    <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9 text-xs" />
+                    <Label className="text-xs">Fornitore</Label>
+                    <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tutti i fornitori</SelectItem>
+                        {suppliers.filter((s) => s.is_active).map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center gap-1"><CalendarIcon className="h-3 w-3" />Data dal</Label>
+                      <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-9 text-xs" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Data al</Label>
+                      <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9 text-xs" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Importo min €</Label>
+                      <Input type="number" value={filterAmountMin} onChange={(e) => setFilterAmountMin(e.target.value)} className="h-9 text-xs" placeholder="0" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Importo max €</Label>
+                      <Input type="number" value={filterAmountMax} onChange={(e) => setFilterAmountMax(e.target.value)} className="h-9 text-xs" placeholder="∞" />
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Importo min €</Label>
-                    <Input type="number" value={filterAmountMin} onChange={(e) => setFilterAmountMin(e.target.value)} className="h-9 text-xs" placeholder="0" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Importo max €</Label>
-                    <Input type="number" value={filterAmountMax} onChange={(e) => setFilterAmountMax(e.target.value)} className="h-9 text-xs" placeholder="∞" />
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </PopoverContent>
+            </Popover>
 
-          <Button onClick={() => setNewOpen(true)} size="sm" className="shrink-0">
-            <Plus className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Nuovo OdA</span>
-            <span className="sm:hidden">Nuovo</span>
-          </Button>
-        </div>
-      </div>
+            <QuotePrimaryButton onClick={() => setNewOpen(true)} size="sm">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nuovo OdA</span>
+              <span className="sm:hidden">Nuovo</span>
+            </QuotePrimaryButton>
+          </>
+        }
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Card><CardContent className="pt-4 pb-3">
-          <p className="text-xs text-muted-foreground">OdA attivi</p>
-          <p className="text-xl font-bold">{kpis.activeCount}</p>
-          <p className="text-xs text-muted-foreground">{formatCurrency(kpis.activeTotal)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-4 pb-3">
-          <p className="text-xs text-muted-foreground">Totale OdA</p>
-          <p className="text-xl font-bold">{orders.length}</p>
-        </CardContent></Card>
-        <Card className="col-span-2 sm:col-span-1"><CardContent className="pt-4 pb-3">
-          <p className="text-xs text-muted-foreground">Valore totale</p>
-          <p className="text-xl font-bold">{formatCurrency(kpis.totalAll)}</p>
-        </CardContent></Card>
+        <QuoteKpi
+          label="OdA attivi"
+          value={kpis.activeCount}
+          variant="orange"
+          icon={<Activity className="h-4 w-4" />}
+          hint={formatCurrency(kpis.activeTotal)}
+        />
+        <QuoteKpi
+          label="Totale OdA"
+          value={orders.length}
+          variant="blue"
+          icon={<ShoppingCart className="h-4 w-4" />}
+        />
+        <QuoteKpi
+          label="Valore totale"
+          value={formatCurrency(kpis.totalAll)}
+          variant="green"
+          icon={<Wallet className="h-4 w-4" />}
+        />
       </div>
 
       {/* Tabs + Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <Tabs value={tab} onValueChange={setTab} className="flex-1">
-          <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full justify-start overflow-x-auto scrollbar-none">
-            <TabsTrigger value="tutti" className="shrink-0">Tutti ({counts.tutti})</TabsTrigger>
-            <TabsTrigger value="attivi" className="shrink-0">Attivi ({counts.attivi})</TabsTrigger>
-            <TabsTrigger value="ricevuti" className="shrink-0">Ricevuti ({counts.ricevuti})</TabsTrigger>
-            <TabsTrigger value="annullati" className="shrink-0">Annullati ({counts.annullati})</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+        <div className="flex-1 min-w-0">
+          <QuoteHubTabs tabs={hubTabs} active={tab} onSelect={setTab} />
+        </div>
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Cerca OdA..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
@@ -453,9 +458,11 @@ export default function PurchaseOrdersList() {
               onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
             >
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-xs font-medium">{o.oda_number}</span>
-                  <Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>{STATUS_LABELS[o.status] || o.status}</Badge>
+                  <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>
+                    {STATUS_LABELS[o.status] || o.status}
+                  </QuoteChip>
                   <VerificationBadge result={o.last_verification?.result} />
                 </div>
                 <div className="text-sm font-medium mt-0.5 flex items-center gap-1">
@@ -517,9 +524,9 @@ export default function PurchaseOrdersList() {
                   <td className="p-3 text-muted-foreground">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</td>
                   <td className="p-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <Badge className={`text-xs ${STATUS_COLORS[o.status] || ""}`}>
+                      <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>
                         {STATUS_LABELS[o.status] || o.status}
-                      </Badge>
+                      </QuoteChip>
                       <VerificationBadge result={o.last_verification?.result} />
                     </div>
                   </td>
