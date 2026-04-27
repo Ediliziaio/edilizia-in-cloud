@@ -14,6 +14,30 @@
 
 **Fix applicato**: la colonna ora è una `DATE` normale, calcolata da un **trigger BEFORE INSERT/UPDATE** (`trg_stock_units_warranty` + funzione `stock_units_compute_warranty_expires`) che usa `make_interval(months => ...)`. Risultato funzionale identico, compatibile con qualsiasi versione Postgres. **Nessuna azione richiesta da parte tua** — è già nel file della migration. Se avevi provato l'applicazione prima del fix e avevi visto rollback (BEGIN/COMMIT atomico), basta rilanciare adesso.
 
+### Errore C (NON è un errore) — `P0001: Unauthorized: no auth.uid()`
+
+Se vedi questo errore lanciando `SELECT * FROM warehouse_scan_lookup('...')` dallo SQL Editor del dashboard Supabase, **la migration è andata a buon fine!**
+
+**Causa**: la funzione fa un safety check `IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Unauthorized: no auth.uid()'`. Nello SQL Editor sei loggato come `postgres` (superuser DB) ma **non come utente Supabase Auth** → `auth.uid()` ritorna NULL → la funzione rifiuta correttamente.
+
+Questo è il comportamento desiderato per sicurezza: la funzione non deve mai essere chiamabile senza un utente autenticato (RLS multi-tenant).
+
+**Per verificare la migration**, usa queste query alternative (non chiamano la funzione):
+```sql
+-- 1. La funzione esiste con la firma giusta
+SELECT proname, pg_get_function_identity_arguments(oid)
+FROM pg_proc WHERE proname = 'warehouse_scan_lookup';
+-- Atteso: 1 riga, args = "p_code text, p_supplier_id uuid DEFAULT NULL"
+
+-- 2. Colonne aggiunte (vedi Sanity Query 1 sotto)
+-- 3. Tabelle nuove con RLS (vedi Sanity Query 2 sotto)
+```
+
+**Per testare la cascata end-to-end**, fallo dal frontend dopo login (non dallo SQL Editor):
+1. Login utente `company_admin` o `super_admin`
+2. Magazzino → Giacenze → "Scansiona QR" → digita un codice → "Risolvi"
+3. Atteso: card colorata con esito (Match articolo / Match seriale / Codice non riconosciuto), NON più "function does not exist".
+
 ---
 
 ## Step 1 — Applicare la migration
