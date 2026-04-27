@@ -83,13 +83,11 @@ CREATE TABLE IF NOT EXISTS public.stock_units (
   -- Garanzia (calcolata)
   warranty_start_date DATE,
   warranty_months INTEGER,
-  warranty_expires_at DATE GENERATED ALWAYS AS (
-    CASE
-      WHEN warranty_start_date IS NOT NULL AND warranty_months IS NOT NULL
-      THEN (warranty_start_date + (warranty_months || ' months')::INTERVAL)::DATE
-      ELSE NULL
-    END
-  ) STORED,
+  -- warranty_expires_at era originariamente GENERATED ALWAYS AS, ma Postgres
+  -- considera `date + (text || ' months')::interval` non IMMUTABLE
+  -- (errore 42P17). La calcoliamo via trigger BEFORE INSERT/UPDATE: stesso
+  -- risultato funzionale, compatibile con qualsiasi versione Postgres.
+  warranty_expires_at DATE,
   manufacturer_warranty_code TEXT,
   -- Installazione (popolato in fase futura P2)
   installed_at TIMESTAMPTZ,
@@ -130,6 +128,28 @@ CREATE OR REPLACE FUNCTION public.stock_units_set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
+
+-- Calcolo automatico di warranty_expires_at al posto della GENERATED column.
+-- Si attiva quando l'utente popola/aggiorna warranty_start_date o warranty_months.
+-- Se uno dei due è NULL, expires_at torna NULL (consistente con la vecchia logica).
+CREATE OR REPLACE FUNCTION public.stock_units_compute_warranty_expires()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.warranty_start_date IS NOT NULL AND NEW.warranty_months IS NOT NULL THEN
+    NEW.warranty_expires_at :=
+      (NEW.warranty_start_date + make_interval(months => NEW.warranty_months))::DATE;
+  ELSE
+    NEW.warranty_expires_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_stock_units_warranty ON public.stock_units;
+CREATE TRIGGER trg_stock_units_warranty
+  BEFORE INSERT OR UPDATE OF warranty_start_date, warranty_months
+  ON public.stock_units
+  FOR EACH ROW EXECUTE FUNCTION public.stock_units_compute_warranty_expires();
 
 DROP TRIGGER IF EXISTS trg_stock_units_updated_at ON public.stock_units;
 CREATE TRIGGER trg_stock_units_updated_at

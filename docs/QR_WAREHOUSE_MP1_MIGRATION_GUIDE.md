@@ -1,16 +1,18 @@
 # QR Warehouse MP1 — Guida applicazione migration
 
-## ⚠️ Errore comune e fix
+## ⚠️ Errori risolti
 
-L'errore:
-```
-ERROR: 42883: function warehouse_scan_lookup(unknown, unknown) does not exist
-HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
-```
+### Errore A — `function warehouse_scan_lookup(unknown, unknown) does not exist`
 
-**Causa**: PostgreSQL interpreta i letterali `'CODICE_TEST'` e `NULL` come tipo `unknown`. La funzione è definita con firma `(text, uuid)` e Postgres NON converte automaticamente `unknown → uuid`. Quindi non risolve l'overload.
+**Causa**: PostgreSQL interpreta i letterali `'CODICE_TEST'` e `NULL` come tipo `unknown`. La funzione è definita con firma `(text, uuid)` e Postgres NON converte automaticamente `unknown → uuid`.
 
-**Fix**: usa cast espliciti (vedi sanity query 3 più sotto). La migration in sé è corretta.
+**Fix**: usa cast espliciti nelle sanity query (vedi sotto). La migration in sé è corretta.
+
+### Errore B — `42P17: generation expression is not immutable`
+
+**Causa**: la prima versione della migration aveva `warranty_expires_at` come `GENERATED ALWAYS AS (...) STORED` con espressione `(date + (text || ' months')::interval)::date`. Postgres considera il cast `text → interval` non IMMUTABLE (può dipendere da locale/timezone).
+
+**Fix applicato**: la colonna ora è una `DATE` normale, calcolata da un **trigger BEFORE INSERT/UPDATE** (`trg_stock_units_warranty` + funzione `stock_units_compute_warranty_expires`) che usa `make_interval(months => ...)`. Risultato funzionale identico, compatibile con qualsiasi versione Postgres. **Nessuna azione richiesta da parte tua** — è già nel file della migration. Se avevi provato l'applicazione prima del fix e avevi visto rollback (BEGIN/COMMIT atomico), basta rilanciare adesso.
 
 ---
 
@@ -141,6 +143,7 @@ DROP FUNCTION IF EXISTS public.warehouse_scan_lookup(text, uuid);
 DROP TABLE IF EXISTS public.warehouse_scan_events CASCADE;
 DROP TABLE IF EXISTS public.stock_units CASCADE;
 DROP FUNCTION IF EXISTS public.stock_units_set_updated_at() CASCADE;
+DROP FUNCTION IF EXISTS public.stock_units_compute_warranty_expires() CASCADE;
 
 ALTER TABLE public.warehouse_stock
   DROP COLUMN IF EXISTS barcode,
