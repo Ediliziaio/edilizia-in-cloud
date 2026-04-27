@@ -28,11 +28,13 @@ import {
   ScanLine,
   Package,
   Plus,
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   FileText,
   Loader2,
+  Settings as SettingsIcon,
+  ArrowLeftRight,
+  Boxes,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -245,9 +247,9 @@ export default function Warehouse() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Selettore magazzino */}
-          <div className="w-48 hidden sm:block">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Selettore magazzino — visibile anche su mobile (full-width sm:w-48) */}
+          <div className="w-full sm:w-48 order-1 sm:order-none">
             <WarehouseSelect
               value={warehouseFilter}
               onChange={setWarehouseFilter}
@@ -256,35 +258,37 @@ export default function Warehouse() {
               className="h-9 text-sm"
             />
           </div>
-          {/* Trasferimento e gestione magazzini */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setTransferOpen(true)}
-            className="hidden sm:flex"
-            title="Trasferisci merce"
-          >
-            <ArrowLeft className="h-4 w-4 rotate-180 sm:mr-2" />
-            <span className="hidden sm:inline">Trasferisci</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/azienda/magazzino/gestione")}
-            className="hidden sm:flex"
-            title="Gestione magazzini"
-          >
-            <Package className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Magazzini</span>
-          </Button>
+
+          {/* Gestione magazzino — dropdown unico (Trasferisci + Magazzini)
+              accessibile anche da mobile (prima erano hidden sm:flex → bug). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="order-2 sm:order-none">
+                <SettingsIcon className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Gestione</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTransferOpen(true)}>
+                <ArrowLeftRight className="h-4 w-4 mr-2" />
+                Trasferisci merce
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/azienda/magazzino/gestione")}>
+                <Boxes className="h-4 w-4 mr-2" />
+                Gestione magazzini
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Export */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="order-3 sm:order-none">
                 <Download className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Esporta</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
+            <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={exportToCSV}>
                 <Download className="h-4 w-4 mr-2" />
                 Esporta CSV
@@ -321,20 +325,31 @@ export default function Warehouse() {
         </Alert>
       )}
 
-      {/* Alerts */}
+      {/* Alerts contestuali — mostriamo solo gli avvisi rilevanti
+          per la tab attiva, riducendo il rumore visivo. */}
       <div className="print:hidden space-y-3">
-        <StockAlertBanner companyId={effectiveCompany.id} />
-        <WarehouseAlerts items={items} />
+        {/* StockAlertBanner: sottoscorta → rilevante per Giacenze/Lotti */}
+        {(viewMode === "stock" || viewMode === "lotti") && (
+          <StockAlertBanner companyId={effectiveCompany.id} />
+        )}
+        {/* WarehouseAlerts: ritardi/urgenti → rilevante per workflow ordini */}
+        {(viewMode === "list" || viewMode === "kanban" || viewMode === "calendar") && (
+          <WarehouseAlerts items={items} />
+        )}
       </div>
 
-      {/* Live panels - minimal mode */}
-      <div className="flex items-center gap-3 print:hidden">
-        <BlockedOrdersPanel companyId={effectiveCompany.id} minimal />
-        <LowStockAlertsPanel companyId={effectiveCompany.id} minimal />
-      </div>
+      {/* Live panels - mini banner (sempre visibili: scoperti rapidamente) */}
+      {(viewMode === "list" || viewMode === "kanban" || viewMode === "calendar") && (
+        <div className="flex items-center gap-3 print:hidden">
+          <BlockedOrdersPanel companyId={effectiveCompany.id} minimal />
+          <LowStockAlertsPanel companyId={effectiveCompany.id} minimal />
+        </div>
+      )}
 
-      {/* Stats */}
-      <WarehouseStats items={items} />
+      {/* Stats KPI — solo per workflow ordini (sono ordini-related) */}
+      {(viewMode === "list" || viewMode === "kanban" || viewMode === "calendar") && (
+        <WarehouseStats items={items} />
+      )}
 
       {/* Warehouse Map - toggleable */}
       {viewMode !== "stock" && (

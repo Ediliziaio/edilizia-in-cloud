@@ -6,7 +6,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -454,41 +461,64 @@ export default function WarehouseStockTab() {
               </SelectContent>
             </Select>
           )}
+          {/* Quick scan singolo (lookup veloce) — bottone principale, sempre rapido */}
           <Button
             variant="outline"
             onClick={() => setQuickScanOpen(true)}
             aria-label="Scansiona QR / barcode"
           >
             <ScanLine className="h-4 w-4 mr-2" />
-            Scansiona QR
+            Scansiona
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => setCaricoOpen(true)}
-            aria-label="Carico rapido"
-          >
-            <ArrowDownCircle className="h-4 w-4 mr-2" />
-            Carico rapido
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setOdaReceiveOpen(true)}
-            aria-label="Ricevi da ODA"
-          >
-            <Package className="h-4 w-4 mr-2" />
-            Ricevi da ODA
-          </Button>
+
+          {/* Operazioni di CARICO raggruppate (riduce 2 bottoni a 1 dropdown) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" aria-label="Carica merce">
+                <ArrowDownCircle className="h-4 w-4 mr-2" />
+                Carica
+                <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground">
+                Carico merce
+              </DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setCaricoOpen(true)}>
+                <ArrowDownCircle className="h-4 w-4 mr-2" />
+                <div className="flex flex-col items-start">
+                  <span>Carico rapido</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Scansione libera batch
+                  </span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setOdaReceiveOpen(true)}>
+                <Package className="h-4 w-4 mr-2" />
+                <div className="flex flex-col items-start">
+                  <span>Ricevi da ODA</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Vincolata a un ordine fornitore
+                  </span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Operazioni di SCARICO (per ora solo Scarico cantiere → DDT) */}
           <Button
             variant="outline"
             onClick={() => setScaricoOpen(true)}
             aria-label="Scarico cantiere"
           >
             <ArrowUpCircle className="h-4 w-4 mr-2" />
-            Scarico cantiere
+            Scarica
           </Button>
+
+          {/* Aggiunta manuale articolo — primary CTA */}
           <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" />
-            Aggiungi Articolo
+            <span className="hidden sm:inline">Aggiungi </span>Articolo
           </Button>
         </div>
 
