@@ -140,8 +140,10 @@ import {
   ChevronDown,
   FileCheck2,
   Euro,
+  ShoppingBag,
 } from "lucide-react";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
+import { ModuliVendutaTab } from "@/components/marketing/preventivi/moduli/ModuliVendutaTab";
 
 export default function Preventivi() {
   const { effectiveCompany, user, role } = useAuth();
@@ -596,6 +598,20 @@ export default function Preventivi() {
             }`}
           >
             Lista Preventivi
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "moduli"}
+            onClick={() => handleTabChange("moduli")}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === "moduli"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ShoppingBag className="h-4 w-4" aria-hidden="true" />
+            Moduli Vendita
           </button>
           {isAdmin && (
             <button
@@ -1308,6 +1324,8 @@ export default function Preventivi() {
       </AlertDialog>
         </>
       )}
+
+      {activeTab === "moduli" && <ModuliVendutaTab />}
 
       {activeTab === "approvazioni" && isAdmin && <QuoteApprovals />}
 
