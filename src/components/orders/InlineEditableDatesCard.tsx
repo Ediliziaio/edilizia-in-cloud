@@ -9,7 +9,7 @@ import { logger } from "@/utils/logger";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import {
   Popover,
   PopoverContent,
@@ -35,18 +35,18 @@ function InlineDatePicker({
 }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-xs text-muted-foreground font-medium">{label}</p>
+      <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">{label}</p>
       <Popover>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             size="sm"
             className={cn(
-              "w-full justify-start text-left font-normal h-9",
-              !value && "text-muted-foreground"
+              "w-full justify-start text-left font-normal h-9 border-slate-200 hover:border-orange-300 hover:bg-orange-50/40",
+              !value && "text-slate-400"
             )}
           >
-            <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+            <CalendarIcon className="mr-2 h-3.5 w-3.5 text-orange-500" />
             {value ? format(value, "d MMM yyyy", { locale: it }) : "Non impostata"}
           </Button>
         </PopoverTrigger>
@@ -114,14 +114,11 @@ export function InlineEditableDatesCard({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <CalendarLucide className="h-5 w-5" />
-          Tempistiche per il Cliente
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-3">
+    <QuoteCard
+      title="Tempistiche per il Cliente"
+      icon={<CalendarLucide className="h-4 w-4" />}
+    >
+      <div className="grid grid-cols-1 gap-3">
         <InlineDatePicker
           label="Data Posa Prevista"
           value={expected}
@@ -142,7 +139,7 @@ export function InlineEditableDatesCard({
           value={workEnd}
           onSelect={(d) => handleChange("work_end_date", setWorkEnd, d)}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </QuoteCard>
   );
 }

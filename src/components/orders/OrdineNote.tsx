@@ -1,7 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { StickyNote } from "lucide-react";
+import { StickyNote, Loader2 } from "lucide-react";
+import {
+  QuoteCard,
+  QuotePrimaryButton,
+} from "@/components/marketing/preventivi/ui/builderUI";
 
 interface OrdineNoteProps {
   notes: string | null;
@@ -25,48 +28,58 @@ export function OrdineNote({
   onNotesChange,
 }: OrdineNoteProps) {
   return (
-    <Card>
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
-          <StickyNote className="h-4 w-4" />
-          Note Interne
-        </CardTitle>
-        {!isEditing && (
-          <Button
-            variant="ghost"
-            size="sm"
+    <QuoteCard
+      title="Note Interne"
+      icon={<StickyNote className="h-4 w-4" />}
+      action={
+        !isEditing ? (
+          <button
+            type="button"
             onClick={onEdit}
-            className="text-xs h-7"
+            className="text-xs font-semibold text-orange-600 hover:text-orange-700 hover:underline"
           >
             Modifica
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent>
-        {isEditing ? (
-          <div className="space-y-3">
-            <Textarea
-              value={editedNotes}
-              onChange={(e) => onNotesChange(e.target.value)}
-              rows={4}
-              placeholder="Aggiungi note interne..."
-              className="text-sm"
-            />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={onSave} disabled={isSaving}>
-                {isSaving ? "Salvataggio..." : "Salva"}
-              </Button>
-              <Button size="sm" variant="outline" onClick={onCancel}>
-                Annulla
-              </Button>
-            </div>
+          </button>
+        ) : null
+      }
+    >
+      {isEditing ? (
+        <div className="space-y-3">
+          <Textarea
+            value={editedNotes}
+            onChange={(e) => onNotesChange(e.target.value)}
+            rows={4}
+            placeholder="Aggiungi note interne..."
+            className="text-sm border-slate-200 focus-visible:ring-orange-500"
+          />
+          <div className="flex gap-2">
+            <QuotePrimaryButton size="sm" onClick={onSave} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Salvataggio...
+                </>
+              ) : (
+                "Salva"
+              )}
+            </QuotePrimaryButton>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onCancel}
+              className="text-xs"
+            >
+              Annulla
+            </Button>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {notes || "Nessuna nota interna"}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-600 whitespace-pre-wrap">
+          {notes || (
+            <span className="text-slate-400 italic">Nessuna nota interna</span>
+          )}
+        </p>
+      )}
+    </QuoteCard>
   );
 }

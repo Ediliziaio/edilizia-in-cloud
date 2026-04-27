@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Mail, Phone, MapPin } from "lucide-react";
+import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 
 interface Cliente {
   id: string;
@@ -18,17 +18,9 @@ interface OrdineClienteProps {
 export function OrdineCliente({ customer }: OrdineClienteProps) {
   if (!customer) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
-            <User className="h-4 w-4" />
-            Cliente
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Cliente non disponibile</p>
-        </CardContent>
-      </Card>
+      <QuoteCard title="Cliente" icon={<User className="h-4 w-4" />}>
+        <p className="text-sm text-slate-500">Cliente non disponibile</p>
+      </QuoteCard>
     );
   }
 
@@ -36,44 +28,36 @@ export function OrdineCliente({ customer }: OrdineClienteProps) {
   const fullName = `${customer.first_name} ${customer.last_name}`;
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium text-gray-600">
-          <User className="h-4 w-4" />
-          Cliente
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-sm font-semibold shrink-0">
-            {initials}
-          </div>
-          <Link
-            to={`/azienda/clienti/${customer.id}`}
-            className="font-semibold text-gray-900 hover:text-orange-600 hover:underline leading-tight"
-          >
-            {fullName}
-          </Link>
+    <QuoteCard title="Cliente" icon={<User className="h-4 w-4" />}>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-100 to-amber-100 text-orange-700 flex items-center justify-center text-sm font-semibold shrink-0 ring-1 ring-orange-200">
+          {initials}
         </div>
-        <div className="space-y-1.5 text-sm">
-          <div className="flex items-center gap-2 text-gray-500">
-            <Mail className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{customer.email}</span>
-          </div>
-          {customer.phone && (
-            <div className="flex items-center gap-2 text-gray-500">
-              <Phone className="h-3.5 w-3.5 shrink-0" />
-              <span>{customer.phone}</span>
-            </div>
-          )}
-          {customer.address && (
-            <div className="flex items-start gap-2 text-gray-500">
-              <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              <span>{customer.address}</span>
-            </div>
-          )}
+        <Link
+          to={`/azienda/clienti/${customer.id}`}
+          className="font-semibold text-slate-900 hover:text-orange-600 hover:underline leading-tight"
+        >
+          {fullName}
+        </Link>
+      </div>
+      <div className="space-y-1.5 text-sm">
+        <div className="flex items-center gap-2 text-slate-500">
+          <Mail className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{customer.email}</span>
         </div>
-      </CardContent>
-    </Card>
+        {customer.phone && (
+          <div className="flex items-center gap-2 text-slate-500">
+            <Phone className="h-3.5 w-3.5 shrink-0" />
+            <span>{customer.phone}</span>
+          </div>
+        )}
+        {customer.address && (
+          <div className="flex items-start gap-2 text-slate-500">
+            <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span>{customer.address}</span>
+          </div>
+        )}
+      </div>
+    </QuoteCard>
   );
 }

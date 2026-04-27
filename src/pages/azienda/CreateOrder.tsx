@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
@@ -30,7 +30,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  QuotePageHeader,
+  QuoteCard,
+  QuotePrimaryButton,
+} from "@/components/marketing/preventivi/ui/builderUI";
 import { cn } from "@/lib/utils";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
@@ -499,11 +503,11 @@ function CreateOrderInner() {
               <Button
                 variant="outline"
                 className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !field.value && "text-muted-foreground"
+                  "w-full justify-start text-left font-normal border-slate-200 hover:border-orange-300 hover:bg-orange-50/40",
+                  !field.value && "text-slate-400"
                 )}
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
+                <CalendarIcon className="mr-2 h-4 w-4 text-orange-500" />
                 {field.value ? format(field.value, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
               </Button>
             </PopoverTrigger>
@@ -527,31 +531,36 @@ function CreateOrderInner() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Nuovo Ordine</h1>
-          <p className="text-muted-foreground">
-            Crea un nuovo ordine per un cliente
-          </p>
-        </div>
-      </div>
+      <QuotePageHeader
+        icon={<ClipboardList className="h-5 w-5" />}
+        title="Nuovo Ordine"
+        subtitle="Crea un nuovo ordine per un cliente"
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="text-xs"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+            Indietro
+          </Button>
+        }
+      />
 
       {/* Draft restored banner */}
       {draftRestored && !createdOrderId && (
-        <Alert className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30">
-          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+        <Alert className="border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">
-            <span className="text-yellow-800 dark:text-yellow-200">
+            <span className="text-amber-900 font-medium">
               Bozza recuperata — i dati precedenti sono stati ripristinati.
             </span>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="ml-4 shrink-0"
+              className="ml-4 shrink-0 border-amber-300 hover:bg-amber-100"
               onClick={handleClearDraft}
             >
               <Trash2 className="h-3 w-3 mr-1" />
@@ -564,11 +573,8 @@ function CreateOrderInner() {
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Dettagli Ordine</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <QuoteCard title="Dettagli Ordine" icon={<ClipboardList className="h-4 w-4" />}>
+            <div className="space-y-4">
               {/* Order Code */}
               <Controller
                 control={control}
@@ -714,8 +720,8 @@ function CreateOrderInner() {
                   placeholder="Magazzino predefinito"
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </QuoteCard>
 
           <FinancialSummary
             totalAmount={totalAmount || ""}
@@ -737,19 +743,17 @@ function CreateOrderInner() {
         </div>
 
         {/* Customer Dates Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Tempistiche per il Cliente</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <DatePickerField name="expected_date" label="Data Prevista" />
-              <DatePickerField name="warehouse_arrival_date" label="Arrivo Merce in Magazzino" />
-              <DatePickerField name="work_start_date" label="Inizio Lavori" />
-              <DatePickerField name="work_end_date" label="Fine Lavori" />
-            </div>
-          </CardContent>
-        </Card>
+        <QuoteCard
+          title="Tempistiche per il Cliente"
+          icon={<CalendarIcon className="h-4 w-4" />}
+        >
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <DatePickerField name="expected_date" label="Data Prevista" />
+            <DatePickerField name="warehouse_arrival_date" label="Arrivo Merce in Magazzino" />
+            <DatePickerField name="work_start_date" label="Inizio Lavori" />
+            <DatePickerField name="work_end_date" label="Fine Lavori" />
+          </div>
+        </QuoteCard>
 
         {/* Order Items */}
         <OrderItemsList
@@ -767,11 +771,11 @@ function CreateOrderInner() {
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-3 sticky bottom-0 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent pt-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
           {createdOrderId ? (
-            <Button onClick={() => navigate(`/azienda/ordini/${createdOrderId}`)}>
+            <QuotePrimaryButton onClick={() => navigate(`/azienda/ordini/${createdOrderId}`)}>
               Vai all'Ordine
-            </Button>
+            </QuotePrimaryButton>
           ) : (
             <>
               <Button
@@ -781,9 +785,9 @@ function CreateOrderInner() {
               >
                 Annulla
               </Button>
-              <Button type="submit" disabled={createOrderMutation.isPending}>
+              <QuotePrimaryButton type="submit" disabled={createOrderMutation.isPending}>
                 {createOrderMutation.isPending ? "Creazione..." : "Crea Ordine"}
-              </Button>
+              </QuotePrimaryButton>
             </>
           )}
         </div>

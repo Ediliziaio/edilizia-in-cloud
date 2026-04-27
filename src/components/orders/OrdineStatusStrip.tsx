@@ -43,25 +43,30 @@ export function OrdineStatusStrip({
           const isCompleted = index < currentIndex;
           const isCurrent = index === currentIndex;
           const date = getDate(status.id);
-          const color = status.color || "#6b7280";
+          const color = status.color || "#64748b";
 
           // Circle styles driven by the status's own color
           const circleStyle: React.CSSProperties = isCompleted
             ? { backgroundColor: color, borderColor: color, color: "#fff" }
             : isCurrent
-            ? { backgroundColor: hexToRgba(color, 0.12), borderColor: color, color }
-            : { backgroundColor: "#fff", borderColor: "#e5e7eb", color: "#9ca3af" };
+            ? {
+                backgroundColor: hexToRgba(color, 0.12),
+                borderColor: color,
+                color,
+                boxShadow: `0 4px 12px ${hexToRgba(color, 0.3)}`,
+              }
+            : { backgroundColor: "#fff", borderColor: "#e2e8f0", color: "#94a3b8" };
 
           // Label color
           const labelStyle: React.CSSProperties = isCompleted
-            ? { color: "#6b7280" }
+            ? { color: "#64748b" }
             : isCurrent
-            ? { color, fontWeight: 600 }
-            : { color: "#9ca3af" };
+            ? { color, fontWeight: 700 }
+            : { color: "#94a3b8" };
 
           // Connector color
           const connectorStyle: React.CSSProperties = {
-            backgroundColor: index < currentIndex ? color : "#e5e7eb",
+            backgroundColor: index < currentIndex ? color : "#e2e8f0",
           };
 
           return (
@@ -88,7 +93,7 @@ export function OrdineStatusStrip({
                   {status.name}
                 </span>
                 {date && (
-                  <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                  <span className="text-[10px] text-slate-400 whitespace-nowrap font-medium">
                     {date}
                   </span>
                 )}

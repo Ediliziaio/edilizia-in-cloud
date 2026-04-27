@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { BookOpen, ChevronRight, Copy, FileDown, Loader2, Pencil, TrendingUp, Trash2 } from "lucide-react";
+import { BookOpen, ChevronRight, Copy, FileDown, Loader2, Pencil, TrendingUp, Trash2, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -33,36 +34,43 @@ export function OrdineDetailHeader({
 }: OrdineDetailHeaderProps) {
   const navigate = useNavigate();
   return (
-    <div className="bg-white border-b border-gray-100 px-6 py-4">
+    <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-5">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-xs text-gray-400 mb-2">
+      <div className="flex items-center gap-1 text-xs text-slate-400 mb-3">
         <span
-          className="cursor-pointer hover:text-gray-600"
+          className="cursor-pointer hover:text-orange-500 font-medium"
           onClick={() => navigate("/azienda/ordini")}
         >
           Ordini
         </span>
         <ChevronRight className="h-3 w-3" />
-        <span className="text-gray-600">{orderCode}</span>
+        <span className="font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px]">
+          {orderCode}
+        </span>
       </div>
       {/* Title row */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-medium text-gray-900">
-            {descrizione || "Ordine senza descrizione"}
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Creato il{" "}
-            {(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: it }); } catch { return "—"; } })()} ·{" "}
-            {nomeCliente}
-          </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <ClipboardList className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              {descrizione || "Ordine senza descrizione"}
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Creato il{" "}
+              {(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: it }); } catch { return "—"; } })()} ·{" "}
+              <span className="font-medium text-slate-700">{nomeCliente}</span>
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigate(`/azienda/ordini/${ordineId}/diario`)}
-            className="text-xs text-primary border-primary/30 hover:bg-primary/5"
+            className="text-xs text-orange-600 border-orange-200 hover:bg-orange-50 hover:text-orange-700"
           >
             <BookOpen className="h-3.5 w-3.5 mr-1" />
             Diario Ordine
@@ -101,13 +109,13 @@ export function OrdineDetailHeader({
             <Pencil className="h-3.5 w-3.5 mr-1" />
             Modifica
           </Button>
-          <Button
+          <QuotePrimaryButton
             size="sm"
             onClick={onNuovoSAL}
-            className="text-xs bg-orange-500 hover:bg-orange-600 text-white border-0"
           >
-            <TrendingUp className="h-3.5 w-3.5 mr-1" />+ SAL
-          </Button>
+            <TrendingUp className="h-3.5 w-3.5" />
+            + SAL
+          </QuotePrimaryButton>
           <Button
             variant="outline"
             size="sm"
