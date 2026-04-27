@@ -42,6 +42,9 @@ const CaricoRapidoSheet = lazy(() =>
 const OdaReceiveSheet = lazy(() =>
   import("./OdaReceiveSheet").then((m) => ({ default: m.OdaReceiveSheet })),
 );
+const ScaricoCantiereSheet = lazy(() =>
+  import("./ScaricoCantiereSheet").then((m) => ({ default: m.ScaricoCantiereSheet })),
+);
 
 export default function WarehouseStockTab() {
   const { effectiveCompany, user } = useAuth();
@@ -68,9 +71,10 @@ export default function WarehouseStockTab() {
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   /** Barcode pre-compilato quando l'utente arriva da Quick Scan no-match. */
   const [prefillBarcodeForDialog, setPrefillBarcodeForDialog] = useState<string | undefined>();
-  // Carico rapido + ODA Reverse (MP2 P1a)
+  // Carico rapido + ODA Reverse (MP2 P1a) + Scarico cantiere (MP3 P1b)
   const [caricoOpen, setCaricoOpen] = useState(false);
   const [odaReceiveOpen, setOdaReceiveOpen] = useState(false);
+  const [scaricoOpen, setScaricoOpen] = useState(false);
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
@@ -474,6 +478,14 @@ export default function WarehouseStockTab() {
             <Package className="h-4 w-4 mr-2" />
             Ricevi da ODA
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setScaricoOpen(true)}
+            aria-label="Scarico cantiere"
+          >
+            <ArrowUpCircle className="h-4 w-4 mr-2" />
+            Scarico cantiere
+          </Button>
           <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi Articolo
@@ -727,6 +739,13 @@ export default function WarehouseStockTab() {
         <Suspense fallback={null}>
           {odaReceiveOpen && (
             <OdaReceiveSheet open={odaReceiveOpen} onOpenChange={setOdaReceiveOpen} />
+          )}
+        </Suspense>
+
+        {/* Scarico cantiere → DDT in bozza (MP3 P1b) */}
+        <Suspense fallback={null}>
+          {scaricoOpen && (
+            <ScaricoCantiereSheet open={scaricoOpen} onOpenChange={setScaricoOpen} />
           )}
         </Suspense>
       </div>
