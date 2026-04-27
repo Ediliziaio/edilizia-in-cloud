@@ -37,7 +37,9 @@ import {
   ArrowLeft,
   Info,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
@@ -192,6 +194,16 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                   )}
                 </SelectContent>
               </Select>
+            )}
+            {!suppliersLoading && suppliers.length === 0 && (
+              <Link
+                to="/azienda/impostazioni/fornitori"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                onClick={() => onOpenChange(false)}
+              >
+                <ExternalLink className="h-3 w-3" />
+                Aggiungi un fornitore prima di continuare
+              </Link>
             )}
           </div>
 

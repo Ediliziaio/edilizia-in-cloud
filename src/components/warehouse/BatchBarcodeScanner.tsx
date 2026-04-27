@@ -240,9 +240,9 @@ export function BatchBarcodeScanner({
         if (stream) {
           streamRef.current = stream;
           const track = stream.getVideoTracks()[0];
-          // Feature detect torch
-          // deno-lint-ignore no-explicit-any
-          const caps = (track?.getCapabilities?.() as any) ?? {};
+          // Feature detect torch — torch è in MediaTrackCapabilities ma non
+          // ancora tipizzato dalle TS lib. Cast safe a Record<string, unknown>.
+          const caps = (track?.getCapabilities?.() ?? {}) as Record<string, unknown>;
           if (caps.torch) setTorchSupported(true);
           clearInterval(checkStream);
         }
@@ -258,8 +258,11 @@ export function BatchBarcodeScanner({
     const track = streamRef.current?.getVideoTracks()[0];
     if (!track) return;
     try {
-      // deno-lint-ignore no-explicit-any
-      await track.applyConstraints({ advanced: [{ torch: !torchOn } as any] });
+      // torch non è nelle TS lib type per MediaTrackConstraintSet; il cast a
+      // unknown poi MediaTrackConstraints è il workaround più pulito senza any.
+      await track.applyConstraints({
+        advanced: [{ torch: !torchOn } as unknown as MediaTrackConstraintSet],
+      });
       setTorchOn((v) => !v);
       void impactFeedback();
     } catch {

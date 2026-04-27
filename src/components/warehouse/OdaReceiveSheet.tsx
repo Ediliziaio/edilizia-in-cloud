@@ -42,7 +42,6 @@ import {
   ArrowRight,
   ScanLine,
   Camera,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   Calendar,
@@ -55,6 +54,7 @@ import { useOdaMatcher, type OdaMatch } from "@/hooks/warehouse/useOdaMatcher";
 import { useReceiveFromOda } from "@/hooks/warehouse/useReceiveFromOda";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { it as itLocale } from "date-fns/locale";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
@@ -81,7 +81,6 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
 
   const [step, setStep] = useState<Step>(lockedOdaId ? "warehouse-pick" : "first-scan");
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [firstStockItemId, setFirstStockItemId] = useState<string | null>(null);
   const [firstItemName, setFirstItemName] = useState<string | null>(null);
   const [selectedOdaId, setSelectedOdaId] = useState<string | undefined>(lockedOdaId);
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
@@ -152,7 +151,6 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
   useEffect(() => {
     if (!open) {
       setStep(lockedOdaId ? "warehouse-pick" : "first-scan");
-      setFirstStockItemId(null);
       setFirstItemName(null);
       setSelectedOdaId(lockedOdaId);
       setEntries([]);
@@ -170,8 +168,13 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
         const result = await lookup.mutateAsync({ rawScan: rawCode });
         const action = result.action;
         if (action.kind === "offer_create_new") {
-          // Articolo non in anagrafica → non possiamo fare match ODA. Fall through:
-          // l'utente può comunque andare a "Carico libero" cambiando flow.
+          // Articolo non in anagrafica → non possiamo fare match ODA.
+          // Feedback UX: toast esplicativo + suggerisce "Carico rapido" come
+          // alternativa (l'utente può chiudere e usare quel flow).
+          toast.warning("Codice non riconosciuto", {
+            description:
+              "Questo articolo non è in anagrafica: non posso suggerire un'ODA. Usa 'Carico rapido' per registrarlo come carico libero.",
+          });
           return;
         }
         const itemId =
@@ -183,7 +186,6 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
                 ? action.rows[0]?.stock_item_id ?? null
                 : null;
         if (!itemId) return;
-        setFirstStockItemId(itemId);
         const row = result.rows.find((r) => r.stock_item_id === itemId);
         setFirstItemName(row?.item_name ?? null);
         // Trigger ODA matcher

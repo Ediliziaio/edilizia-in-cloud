@@ -16,7 +16,7 @@
  *   - BarcodeScanner per opening della camera (single-shot)
  */
 
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";

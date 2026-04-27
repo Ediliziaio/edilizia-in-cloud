@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, QrCode, Package } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -63,9 +63,9 @@ export default function WarehouseStockTab() {
   const [batchTargetSection, setBatchTargetSection] = useState<string>("");
   const [draggingItem, setDraggingItem] = useState<StockItem | null>(null);
   const [auditItem, setAuditItem] = useState<StockItem | null>(null);
-  // Quick scan integration: highlight item dopo lookup per navigazione veloce.
+  // Quick scan integration: filter+toast invece di highlight visivo
+  // (più semplice e già feedback chiaro tramite searchQuery + toast).
   const [quickScanOpen, setQuickScanOpen] = useState(false);
-  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   /** Barcode pre-compilato quando l'utente arriva da Quick Scan no-match. */
   const [prefillBarcodeForDialog, setPrefillBarcodeForDialog] = useState<string | undefined>();
   // Carico rapido + ODA Reverse (MP2 P1a)
@@ -684,13 +684,12 @@ export default function WarehouseStockTab() {
               open={quickScanOpen}
               onOpenChange={setQuickScanOpen}
               onSelectItem={(id) => {
-                // Filtra in tabella + highlight visivo della riga matchata.
+                // Filtra la tabella per nome articolo + toast con giacenza.
+                // È sufficiente come feedback visivo: la riga matching diventa
+                // l'unica visibile dopo il filter (no need di highlight extra).
                 const item = stockItems.find((s) => s.id === id);
                 if (item) {
                   setSearchQueryWithReset(item.name);
-                  setHighlightedItemId(id);
-                  // Auto-clear highlight dopo 4s per non confondere lo stato.
-                  setTimeout(() => setHighlightedItemId(null), 4000);
                   toast.success(`Trovato: ${item.name}`, {
                     description: `Giacenza attuale: ${item.quantity}`,
                   });
