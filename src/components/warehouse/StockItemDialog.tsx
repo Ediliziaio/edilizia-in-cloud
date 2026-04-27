@@ -170,7 +170,7 @@ export function StockItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {editingItem ? "Modifica Articolo" : "Nuovo Articolo in Giacenza"}
@@ -201,7 +201,7 @@ export function StockItemDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Quantità</Label>
               <Input
@@ -227,7 +227,7 @@ export function StockItemDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>IVA</Label>
               <Select
@@ -400,7 +400,7 @@ export function StockItemDialog({
                 </Label>
               </div>
               {registerCost && (
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Data pagamento</Label>
                     <Input

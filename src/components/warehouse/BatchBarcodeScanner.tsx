@@ -51,6 +51,7 @@ import {
   Plus,
   Minus,
   Loader2,
+  PackagePlus,
 } from "lucide-react";
 import {
   successFeedback,
@@ -120,6 +121,22 @@ interface BatchBarcodeScannerProps {
   confirmLabel?: string;
   /** True quando il commit è in corso. */
   isConfirming?: boolean;
+  /**
+   * Quando una scansione restituisce "offer_create_new", il caller può
+   * fornire questo callback per permettere all'utente di creare l'articolo
+   * inline (apre un dialog StockItemDialog precompilato). Se non fornito,
+   * la riga viene aggiunta come "no-match" e l'utente la deve creare
+   * separatamente prima di confermare.
+   *
+   * Risolvendo con i dati dell'articolo creato, BatchBarcodeScanner
+   * sostituisce la riga no-match con un'entry valida; risolvendo `null`
+   * (utente ha annullato) la riga no-match viene rimossa.
+   */
+  onRequestCreateItem?: (rawCode: string) => Promise<{
+    stockItemId: string;
+    itemName: string;
+    trackingMode: "fungible" | "serialized";
+  } | null>;
 }
 
 const DUPLICATE_THROTTLE_MS = 2000;
@@ -150,6 +167,7 @@ export function BatchBarcodeScanner({
   onConfirm,
   confirmLabel = "Conferma",
   isConfirming = false,
+  onRequestCreateItem,
 }: BatchBarcodeScannerProps) {
   const [entries, setEntries] = useState<BatchScanEntry[]>(initialEntries ?? []);
   const [manualMode, setManualMode] = useState(false);
@@ -469,6 +487,56 @@ export function BatchBarcodeScanner({
     setEntries((prev) => prev.filter((e) => e.clientUuid !== uuid));
   }
 
+  // ID dell'entry attualmente in corso di creazione (per disabilitare il
+  // bottone e mostrare lo spinner solo su quella riga).
+  const [creatingForUuid, setCreatingForUuid] = useState<string | null>(null);
+
+  /**
+   * Inline create: il caller apre un StockItemDialog precompilato, e quando
+   * l'utente salva risolve la promessa con l'item creato. La riga no-match
+   * viene "promossa" a entry valida con stockItemId/itemName/trackingMode.
+   */
+  const handleCreateFromNoMatch = useCallback(
+    async (uuid: string) => {
+      if (!onRequestCreateItem) return;
+      const target = entries.find((e) => e.clientUuid === uuid);
+      if (!target) return;
+      setCreatingForUuid(uuid);
+      try {
+        const result = await onRequestCreateItem(target.rawCode);
+        if (!result) return; // utente ha annullato il dialog
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.clientUuid === uuid
+              ? {
+                  ...e,
+                  stockItemId: result.stockItemId,
+                  itemName: result.itemName,
+                  trackingMode: result.trackingMode,
+                  // Nota: per fungibili manteniamo quantity esistente (1+
+                  // se l'utente ha scansionato lo stesso codice più volte).
+                  // Per serializzati il rawCode diventa il primo seriale.
+                  serialNumbers:
+                    result.trackingMode === "serialized" && e.serialNumbers.length === 0
+                      ? [target.rawCode]
+                      : e.serialNumbers,
+                }
+              : e,
+          ),
+        );
+        await successFeedback();
+        toast.success("Articolo creato e collegato alla scansione");
+      } catch (err) {
+        toast.error("Errore creazione articolo", {
+          description: (err as Error)?.message ?? "Riprova",
+        });
+      } finally {
+        setCreatingForUuid(null);
+      }
+    },
+    [entries, onRequestCreateItem],
+  );
+
   const totalScans = useMemo(
     () => entries.reduce((sum, e) => sum + e.quantity, 0),
     [entries],
@@ -628,6 +696,12 @@ export function BatchBarcodeScanner({
                   onIncrement={() => updateEntryQty(entry.clientUuid, +1)}
                   onDecrement={() => updateEntryQty(entry.clientUuid, -1)}
                   onRemove={() => removeEntry(entry.clientUuid)}
+                  onCreateFromNoMatch={
+                    onRequestCreateItem
+                      ? () => handleCreateFromNoMatch(entry.clientUuid)
+                      : undefined
+                  }
+                  creating={creatingForUuid === entry.clientUuid}
                 />
               ))
             )}
@@ -641,7 +715,10 @@ export function BatchBarcodeScanner({
               <Package className="h-4 w-4" />
               <AlertDescription className="text-xs">
                 {noMatchCount} {noMatchCount === 1 ? "scansione" : "scansioni"} senza match in
-                anagrafica. Prima di confermare crea l'articolo o rimuovi la riga.
+                anagrafica.{" "}
+                {onRequestCreateItem
+                  ? "Tocca \"Crea\" sulla riga per registrare l'articolo, oppure rimuovila."
+                  : "Prima di confermare crea l'articolo o rimuovi la riga."}
               </AlertDescription>
             </Alert>
           )}
@@ -689,16 +766,20 @@ function EntryRow({
   onIncrement,
   onDecrement,
   onRemove,
+  onCreateFromNoMatch,
+  creating,
 }: {
   entry: BatchScanEntry;
   onIncrement: () => void;
   onDecrement: () => void;
   onRemove: () => void;
+  onCreateFromNoMatch?: () => void;
+  creating?: boolean;
 }) {
   const noMatch = entry.stockItemId === null;
   return (
     <div
-      className={`rounded-lg border p-3 flex items-center gap-3 ${
+      className={`rounded-lg border p-3 flex flex-col sm:flex-row sm:items-center gap-3 ${
         noMatch ? "border-amber-300 bg-amber-50/40 dark:bg-amber-950/20" : "bg-card"
       }`}
     >
@@ -724,7 +805,24 @@ function EntryRow({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+        {noMatch && onCreateFromNoMatch && (
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={onCreateFromNoMatch}
+            disabled={creating}
+            className="h-8 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+          >
+            {creating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <PackagePlus className="h-3.5 w-3.5" />
+            )}
+            <span className="text-xs">Crea</span>
+          </Button>
+        )}
         {entry.trackingMode === "fungible" && (
           <>
             <Button

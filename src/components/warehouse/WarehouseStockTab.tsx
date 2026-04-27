@@ -6,13 +6,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -430,9 +431,9 @@ export default function WarehouseStockTab() {
           />
         )}
 
-        {/* Header with search, filter and add */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 max-w-sm">
+        {/* Header with search, filter and add — responsive mobile-first */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 sm:flex-wrap">
+          <div className="relative flex-1 sm:max-w-sm w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Cerca articolo..."
@@ -443,7 +444,7 @@ export default function WarehouseStockTab() {
           </div>
           {sections.length > 0 && (
             <Select value={sectionFilter} onValueChange={setSectionFilterWithReset}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                 <SelectValue placeholder="Filtra zona" />
               </SelectTrigger>
@@ -461,65 +462,74 @@ export default function WarehouseStockTab() {
               </SelectContent>
             </Select>
           )}
-          {/* Quick scan singolo (lookup veloce) — bottone principale, sempre rapido */}
-          <Button
-            variant="outline"
-            onClick={() => setQuickScanOpen(true)}
-            aria-label="Scansiona QR / barcode"
-          >
-            <ScanLine className="h-4 w-4 mr-2" />
-            Scansiona
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Quick scan — bottone principale, sempre rapido */}
+            <Button
+              variant="outline"
+              onClick={() => setQuickScanOpen(true)}
+              aria-label="Scansiona QR / barcode"
+              className="flex-1 sm:flex-initial"
+            >
+              <ScanLine className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Scansiona</span>
+            </Button>
 
-          {/* Operazioni di CARICO raggruppate (riduce 2 bottoni a 1 dropdown) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" aria-label="Carica merce">
-                <ArrowDownCircle className="h-4 w-4 mr-2" />
-                Carica
-                <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground">
-                Carico merce
-              </DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => setCaricoOpen(true)}>
-                <ArrowDownCircle className="h-4 w-4 mr-2" />
-                <div className="flex flex-col items-start">
-                  <span>Carico rapido</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Scansione libera batch
-                  </span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setOdaReceiveOpen(true)}>
-                <Package className="h-4 w-4 mr-2" />
-                <div className="flex flex-col items-start">
-                  <span>Ricevi da ODA</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Vincolata a un ordine fornitore
-                  </span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            {/* Operazioni di CARICO raggruppate */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" aria-label="Carica merce" className="flex-1 sm:flex-initial">
+                  <ArrowDownCircle className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Carica</span>
+                  <ChevronDown className="h-3.5 w-3.5 ml-1 sm:ml-1.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground">
+                  Carico merce
+                </DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => setCaricoOpen(true)}>
+                  <ArrowDownCircle className="h-4 w-4 mr-2" />
+                  <div className="flex flex-col items-start">
+                    <span>Carico rapido</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Scansione libera batch
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setOdaReceiveOpen(true)}>
+                  <Package className="h-4 w-4 mr-2" />
+                  <div className="flex flex-col items-start">
+                    <span>Ricevi da ODA</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Vincolata a un ordine fornitore
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {/* Operazioni di SCARICO (per ora solo Scarico cantiere → DDT) */}
-          <Button
-            variant="outline"
-            onClick={() => setScaricoOpen(true)}
-            aria-label="Scarico cantiere"
-          >
-            <ArrowUpCircle className="h-4 w-4 mr-2" />
-            Scarica
-          </Button>
+            {/* Operazioni di SCARICO */}
+            <Button
+              variant="outline"
+              onClick={() => setScaricoOpen(true)}
+              aria-label="Scarico cantiere"
+              className="flex-1 sm:flex-initial"
+            >
+              <ArrowUpCircle className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Scarica</span>
+            </Button>
 
-          {/* Aggiunta manuale articolo — primary CTA */}
-          <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Aggiungi </span>Articolo
-          </Button>
+            {/* Aggiunta manuale articolo — primary CTA */}
+            <Button
+              onClick={() => { setEditingItem(null); setDialogOpen(true); }}
+              className="flex-1 sm:flex-initial"
+            >
+              <Plus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Aggiungi </span>
+              <span className="sm:hidden">Nuovo</span>
+              <span className="hidden sm:inline">Articolo</span>
+            </Button>
+          </div>
         </div>
 
         {/* Batch action bar */}
@@ -579,52 +589,76 @@ export default function WarehouseStockTab() {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-8" />
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={allSelected}
-                        onCheckedChange={toggleSelectAll}
-                        aria-label="Seleziona tutti"
+          <>
+            {/* Desktop / tablet: Tabella completa */}
+            <Card className="hidden md:block">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8" />
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={toggleSelectAll}
+                          aria-label="Seleziona tutti"
+                        />
+                      </TableHead>
+                      <TableHead>Articolo</TableHead>
+                      {sections.length > 0 && <TableHead>Zona</TableHead>}
+                      <TableHead className="text-center">Qtà</TableHead>
+                      <TableHead className="text-right">Costo Unit.</TableHead>
+                      <TableHead className="text-right">Valore Totale</TableHead>
+                      <TableHead>Fornitore</TableHead>
+                      <TableHead className="text-center">Soglia</TableHead>
+                      <TableHead className="text-right">Azioni</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedItems.map((item) => (
+                      <DraggableStockRow
+                        key={item.id}
+                        item={item}
+                        isLow={item.min_stock_level > 0 && item.quantity <= item.min_stock_level}
+                        section={getSectionName(item.section_id)}
+                        isSelected={selectedIds.has(item.id)}
+                        hasSections={sections.length > 0}
+                        supplierName={getSupplierName(item.supplier_id)}
+                        onToggleSelect={() => toggleSelect(item.id)}
+                        onEdit={() => { setEditingItem(item); setDialogOpen(true); }}
+                        onCarico={() => setMovementDialog({ open: true, type: "carico", item })}
+                        onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
+                        onHistory={() => setHistoryItem(item)}
+                        onTask={() => setTaskItem(item)}
+                        onAudit={() => setAuditItem(item)}
                       />
-                    </TableHead>
-                    <TableHead>Articolo</TableHead>
-                    {sections.length > 0 && <TableHead>Zona</TableHead>}
-                    <TableHead className="text-center">Qtà</TableHead>
-                    <TableHead className="text-right">Costo Unit.</TableHead>
-                    <TableHead className="text-right">Valore Totale</TableHead>
-                    <TableHead>Fornitore</TableHead>
-                    <TableHead className="text-center">Soglia</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedItems.map((item) => (
-                    <DraggableStockRow
-                      key={item.id}
-                      item={item}
-                      isLow={item.min_stock_level > 0 && item.quantity <= item.min_stock_level}
-                      section={getSectionName(item.section_id)}
-                      isSelected={selectedIds.has(item.id)}
-                      hasSections={sections.length > 0}
-                      supplierName={getSupplierName(item.supplier_id)}
-                      onToggleSelect={() => toggleSelect(item.id)}
-                      onEdit={() => { setEditingItem(item); setDialogOpen(true); }}
-                      onCarico={() => setMovementDialog({ open: true, type: "carico", item })}
-                      onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
-                      onHistory={() => setHistoryItem(item)}
-                      onTask={() => setTaskItem(item)}
-                      onAudit={() => setAuditItem(item)}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {/* Mobile: Lista a cards */}
+            <div className="md:hidden space-y-2">
+              {paginatedItems.map((item) => (
+                <StockItemMobileCard
+                  key={item.id}
+                  item={item}
+                  isLow={item.min_stock_level > 0 && item.quantity <= item.min_stock_level}
+                  section={getSectionName(item.section_id)}
+                  isSelected={selectedIds.has(item.id)}
+                  supplierName={getSupplierName(item.supplier_id)}
+                  onToggleSelect={() => toggleSelect(item.id)}
+                  onEdit={() => { setEditingItem(item); setDialogOpen(true); }}
+                  onCarico={() => setMovementDialog({ open: true, type: "carico", item })}
+                  onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
+                  onHistory={() => setHistoryItem(item)}
+                  onTask={() => setTaskItem(item)}
+                  onAudit={() => setAuditItem(item)}
+                />
+              ))}
+            </div>
+          </>
         )}
 
         {/* Pagination */}
@@ -877,5 +911,116 @@ const DraggableStockRow = memo(function DraggableStockRow({
         </div>
       </TableCell>
   </TableRow>
+  );
+});
+
+// --- Mobile card row ---
+// Layout dedicato a smartphone: una sola card per articolo, info essenziali
+// (nome + qty + valore + zona) e actions raggruppate in un dropdown "..."
+// per non saturare lo schermo. Layout drag-free: il drag&drop sezione non
+// è il caso d'uso primario in mobile.
+
+interface StockItemMobileCardProps {
+  item: StockItem;
+  isLow: boolean;
+  section: { name: string; color: string } | null;
+  isSelected: boolean;
+  supplierName: string;
+  onToggleSelect: () => void;
+  onEdit: () => void;
+  onCarico: () => void;
+  onScarico: () => void;
+  onHistory: () => void;
+  onTask: () => void;
+  onAudit: () => void;
+}
+
+const StockItemMobileCard = memo(function StockItemMobileCard({
+  item, isLow, section, isSelected, supplierName,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit,
+}: StockItemMobileCardProps) {
+  return (
+    <Card
+      className={`${isLow ? "border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/10" : ""}`}
+    >
+      <CardContent className="p-3 space-y-2.5">
+        <div className="flex items-start gap-2.5">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={onToggleSelect}
+            aria-label={`Seleziona ${item.name}`}
+            className="mt-0.5 shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm leading-tight truncate">{item.name}</p>
+            {item.description && (
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {item.description}
+              </p>
+            )}
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <Badge variant={isLow ? "destructive" : "secondary"} className="text-[10px]">
+                {item.quantity} pz
+              </Badge>
+              {item.min_stock_level > 0 && (
+                <span className="text-[10px] text-muted-foreground">
+                  min {item.min_stock_level}
+                </span>
+              )}
+              {section && (
+                <Badge variant="outline" className="text-[10px] gap-1">
+                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: section.color }} />
+                  {section.name}
+                </Badge>
+              )}
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Azioni">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={onCarico}>
+                <ArrowUpCircle className="h-4 w-4 mr-2 text-emerald-600" />
+                Carico
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onScarico} disabled={item.quantity === 0}>
+                <ArrowDownCircle className="h-4 w-4 mr-2 text-red-500" />
+                Scarico
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Modifica
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onHistory}>
+                <History className="h-4 w-4 mr-2 text-muted-foreground" />
+                Storico
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onAudit}>
+                <ClipboardCheck className="h-4 w-4 mr-2 text-muted-foreground" />
+                Inventario
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onTask}>
+                <CheckSquare className="h-4 w-4 mr-2 text-primary" />
+                Task
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t pt-2">
+          <span className="truncate flex-1">{supplierName}</span>
+          <div className="flex items-center gap-3 shrink-0">
+            <span>{formatCurrency(item.unit_cost)}/u</span>
+            <span className="font-medium text-foreground">
+              {formatCurrency(item.unit_cost * item.quantity)}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 });
