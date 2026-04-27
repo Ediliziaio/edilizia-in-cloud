@@ -67,8 +67,14 @@ export default function RenderPiscineNew() {
   const renderPlan = buildPiscineRenderConfig(config);
 
   useEffect(() => () => {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+    if (dotsIntervalRef.current) {
+      clearInterval(dotsIntervalRef.current);
+      dotsIntervalRef.current = null;
+    }
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

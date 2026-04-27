@@ -15,6 +15,26 @@ export interface RenderGalleryMeta {
 const compactName = (...parts: Array<string | null | undefined>) =>
   parts.map((part) => part?.trim()).filter(Boolean).join(" ") || null;
 
+// Supabase URL caps `IN ()` filters at a few thousand items in practice (and
+// the URL itself caps near ~16 KB). Chunking keeps each request bounded for
+// gallerie con migliaia di sessioni.
+const META_BATCH_SIZE = 500;
+
+async function fetchInBatches<T>(
+  ids: string[],
+  fetcher: (chunk: string[]) => Promise<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  if (ids.length === 0) return [];
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += META_BATCH_SIZE) {
+    const chunk = ids.slice(i, i + META_BATCH_SIZE);
+    const { data, error } = await fetcher(chunk);
+    if (error) throw new Error(error.message);
+    if (data) out.push(...data);
+  }
+  return out;
+}
+
 export async function loadRenderGalleryMeta(rows: RenderGalleryMetaSource[]): Promise<{
   byUser: Record<string, string>;
   byContact: Record<string, string>;
@@ -24,29 +44,29 @@ export async function loadRenderGalleryMeta(rows: RenderGalleryMetaSource[]): Pr
   const contactIds = [...new Set(rows.map((row) => row.contact_id).filter(Boolean) as string[])];
   const opportunityIds = [...new Set(rows.map((row) => row.opportunity_id).filter(Boolean) as string[])];
 
-  const [usersRes, contactsRes, opportunitiesRes] = await Promise.all([
-    userIds.length
-      ? supabase.from("profiles").select("id, first_name, last_name, email").in("id", userIds)
-      : Promise.resolve({ data: [], error: null }),
-    contactIds.length
-      ? supabase.from("marketing_contacts").select("id, first_name, last_name, company_name, email").in("id", contactIds)
-      : Promise.resolve({ data: [], error: null }),
-    opportunityIds.length
-      ? supabase.from("marketing_opportunities").select("id, name").in("id", opportunityIds)
-      : Promise.resolve({ data: [], error: null }),
+  type ProfileRow = { id: string; first_name: string | null; last_name: string | null; email: string | null };
+  type ContactRow = { id: string; first_name: string | null; last_name: string | null; company_name: string | null; email: string | null };
+  type OpportunityRow = { id: string; name: string | null };
+
+  const [users, contacts, opportunities] = await Promise.all([
+    fetchInBatches<ProfileRow>(userIds, (chunk) =>
+      supabase.from("profiles").select("id, first_name, last_name, email").in("id", chunk),
+    ),
+    fetchInBatches<ContactRow>(contactIds, (chunk) =>
+      supabase.from("marketing_contacts").select("id, first_name, last_name, company_name, email").in("id", chunk),
+    ),
+    fetchInBatches<OpportunityRow>(opportunityIds, (chunk) =>
+      supabase.from("marketing_opportunities").select("id, name").in("id", chunk),
+    ),
   ]);
 
-  if (usersRes.error) throw usersRes.error;
-  if (contactsRes.error) throw contactsRes.error;
-  if (opportunitiesRes.error) throw opportunitiesRes.error;
-
   const byUser: Record<string, string> = {};
-  for (const user of usersRes.data ?? []) {
+  for (const user of users) {
     byUser[user.id] = compactName(user.first_name, user.last_name) || user.email || "Utente";
   }
 
   const byContact: Record<string, string> = {};
-  for (const contact of contactsRes.data ?? []) {
+  for (const contact of contacts) {
     byContact[contact.id] =
       compactName(contact.first_name, contact.last_name) ||
       contact.company_name ||
@@ -55,7 +75,7 @@ export async function loadRenderGalleryMeta(rows: RenderGalleryMetaSource[]): Pr
   }
 
   const byOpportunity: Record<string, string> = {};
-  for (const opportunity of opportunitiesRes.data ?? []) {
+  for (const opportunity of opportunities) {
     byOpportunity[opportunity.id] = opportunity.name || "Opportunità";
   }
 

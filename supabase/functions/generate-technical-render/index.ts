@@ -309,11 +309,14 @@ function buildTechnicalPrompt(args: {
 
   const userPrompt = Object.values(blocks).slice(1).join("\n\n");
   const finalPrompt = `${blocks.A}\n\n${userPrompt}`;
+  const requiredBlocks = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"] as const;
+  const missingBlocks = requiredBlocks.filter((key) => !blocks[key]?.includes(`[BLOCK ${key}`));
   const validation = {
-    is_valid: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"].every((key) => blocks[key]?.includes(`[BLOCK ${key}`)),
+    is_valid: missingBlocks.length === 0,
     warnings: [] as string[],
-    errors: [] as string[],
+    errors: missingBlocks.map((key) => `Missing or malformed BLOCK ${key}`),
     required_blocks: Object.keys(blocks),
+    missing_blocks: missingBlocks,
   };
 
   return {
@@ -422,7 +425,13 @@ Deno.serve(async (req) => {
     const { finalPrompt, userPrompt, promptVersion, promptPayload } = buildTechnicalPrompt({ moduleType, config: rawConfig });
 
     if (!promptPayload.validation.is_valid) {
-      throw new Error("Prompt tecnico non valido: blocchi obbligatori mancanti");
+      const missing = promptPayload.validation.errors?.join(", ") || "blocchi obbligatori mancanti";
+      console.error("[generate-technical-render] prompt validation failed:", {
+        moduleType,
+        session_id,
+        missing_blocks: promptPayload.validation.missing_blocks,
+      });
+      throw new Error(`Prompt tecnico non valido: ${missing}`);
     }
 
     const { data: providerConfig } = await supabase

@@ -127,8 +127,14 @@ export default function RenderFacciataNew() {
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearTimeout(pollRef.current);
-      if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+      if (pollRef.current) {
+        clearTimeout(pollRef.current);
+        pollRef.current = null;
+      }
+      if (dotsIntervalRef.current) {
+        clearInterval(dotsIntervalRef.current);
+        dotsIntervalRef.current = null;
+      }
       if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
     };
   }, [photoPreview]);
@@ -257,11 +263,22 @@ export default function RenderFacciataNew() {
     }
   }, [companyId, config, contactId, opportunityId, photo, photoMeta, photoPreview, runAnalysis, user]);
 
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+    if (dotsIntervalRef.current) {
+      clearInterval(dotsIntervalRef.current);
+      dotsIntervalRef.current = null;
+    }
+  }, []);
+
   const startPolling = useCallback(
     (sid: string) => {
-      if (pollRef.current) clearTimeout(pollRef.current);
-      if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+      stopPolling();
       pollCountRef.current = 0;
+      elapsedRef.current = 0;
 
       dotsIntervalRef.current = setInterval(() => {
         elapsedRef.current += 1;
@@ -274,7 +291,7 @@ export default function RenderFacciataNew() {
 
       const poll = async () => {
         if (elapsedRef.current >= MAX_POLL_SEC) {
-          if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+          stopPolling();
           setGenerating(false);
           toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
           setStep(3);
@@ -290,7 +307,7 @@ export default function RenderFacciataNew() {
         const statusRow = sess as { status: string; result_urls: string[] | null } | null;
 
         if (statusRow?.status === "completed" && statusRow.result_urls?.length) {
-          if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+          stopPolling();
           setResultUrls(statusRow.result_urls);
           setGenerating(false);
           queryClient.invalidateQueries({ queryKey: ["render-facciata-sessions", companyId] });
@@ -301,7 +318,7 @@ export default function RenderFacciataNew() {
         }
 
         if (statusRow?.status === "failed") {
-          if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+          stopPolling();
           setGenerating(false);
           toast.error("Render fallito. Ricontrolliamo intervento e vincoli e riproviamo.");
           setStep(3);
@@ -320,7 +337,7 @@ export default function RenderFacciataNew() {
 
       poll();
     },
-    [companyId, queryClient],
+    [companyId, queryClient, stopPolling],
   );
 
   const startRender = useCallback(async () => {

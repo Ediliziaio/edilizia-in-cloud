@@ -289,7 +289,7 @@ export default function RenderCategoryHub() {
   const [recentStatusFilter, setRecentStatusFilter] = useState("all");
   const [crmFilter, setCrmFilter] = useState("all");
 
-  const { data: recentRenders = [], isLoading } = useQuery({
+  const { data: recentRenders = [], isLoading, error: recentError, refetch: refetchRecent } = useQuery({
     queryKey: ["render-unified-recent", companyId],
     queryFn: async () => {
       if (!companyId) return [] as RecentRender[];
@@ -309,6 +309,7 @@ export default function RenderCategoryHub() {
       }));
     },
     enabled: !!companyId,
+    retry: 1,
   });
 
   const categoryCounts = useMemo(() => {
@@ -565,6 +566,21 @@ export default function RenderCategoryHub() {
               <Skeleton key={item} className="aspect-video rounded-xl" />
             ))}
           </div>
+        ) : recentError ? (
+          <Card>
+            <CardContent className="py-12 flex flex-col items-center gap-3 text-center" role="alert">
+              <Image className="h-10 w-10 text-destructive/40" aria-hidden="true" />
+              <div>
+                <p className="font-medium">Impossibile caricare i render recenti</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Si è verificato un errore durante il recupero. Riprova fra qualche istante.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refetchRecent()}>
+                Riprova
+              </Button>
+            </CardContent>
+          </Card>
         ) : recentRenders.length === 0 ? (
           <Card>
             <CardContent className="py-14 flex flex-col items-center gap-3 text-center">

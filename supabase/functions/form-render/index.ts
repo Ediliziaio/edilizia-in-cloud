@@ -1,11 +1,43 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+// HTML entity escape for any user-controlled value rendered into the markup.
+// Prevents XSS via labels, placeholders, options, theme strings, etc.
+function esc(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Whitelist for CSS values inserted in <style> (color/family) — strip anything
+// that could break out of the rule (quotes, braces, parens, semicolons, <, >).
+function cssSafe(value: unknown, fallback: string): string {
+  if (value === null || value === undefined) return fallback;
+  const v = String(value).replace(/[<>"'`{}();\\\n\r]/g, "").trim();
+  return v.length > 0 ? v : fallback;
+}
+
+// Safe insertion of a string inside a JS single-quoted literal.
+function jsStr(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, "\\r")
+    .replace(/\n/g, "\\n")
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e");
+}
+
 function renderField(f: any): string {
   const req = f.required ? "required" : "";
-  const fieldKey = f.id || f.name;
-  const label = f.label || f.name;
-  const ph = f.placeholder || "";
+  const fieldKey = esc(f.id || f.name);
+  const label = esc(f.label || f.name);
+  const ph = esc(f.placeholder || "");
 
   switch (f.type) {
     case "heading":
@@ -15,16 +47,16 @@ function renderField(f: any): string {
     case "divider":
       return `<hr class="divider">`;
     case "hidden":
-      return `<input type="hidden" name="${fieldKey}" value="${f.defaultValue || ''}">`;
+      return `<input type="hidden" name="${fieldKey}" value="${esc(f.defaultValue || '')}">`;
     case "textarea":
       return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><textarea name="${fieldKey}" ${req} rows="4" placeholder="${ph}"></textarea></div>`;
     case "select": {
-      const opts = ((f.options || []) as string[]).map((o: string) => `<option value="${o}">${o}</option>`).join("");
+      const opts = ((f.options || []) as string[]).map((o: string) => `<option value="${esc(o)}">${esc(o)}</option>`).join("");
       return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><select name="${fieldKey}" ${req}><option value="">Seleziona...</option>${opts}</select></div>`;
     }
     case "radio": {
       const radios = ((f.options || []) as string[]).map((o: string) =>
-        `<label class="radio-opt"><input type="radio" name="${fieldKey}" value="${o}" ${req}> ${o}</label>`
+        `<label class="radio-opt"><input type="radio" name="${fieldKey}" value="${esc(o)}" ${req}> ${esc(o)}</label>`
       ).join("");
       return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><div class="radio-group">${radios}</div></div>`;
     }
@@ -80,15 +112,14 @@ Deno.serve(async (req) => {
   const theme = (form.theme as any) || {};
   const settings = (form.settings as any) || {};
 
-  const bgColor = theme.background_color || "#ffffff";
-  const textColor = theme.text_color || "#1a1a1a";
-  const accentColor = theme.accent_color || "#2563eb";
-  const fontFamily = theme.font_family || "system-ui, sans-serif";
+  const bgColor = cssSafe(theme.background_color, "#ffffff");
+  const textColor = cssSafe(theme.text_color, "#1a1a1a");
+  const accentColor = cssSafe(theme.accent_color, "#2563eb");
+  const fontFamily = cssSafe(theme.font_family, "system-ui, sans-serif");
   const formTitle = settings.title || form.name;
   const successTitle = theme.success_title || settings.success_title || "✓";
   const successMessage = settings.success_message || "Grazie! La tua richiesta è stata inviata.";
   const submitLabel = settings.submit_label || "Invia";
-  const redirectUrl = settings.redirectUrl || "";
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
   const fieldsHTML = fields.map(renderField).join("\n");
@@ -98,7 +129,7 @@ Deno.serve(async (req) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${formTitle}</title>
+  <title>${esc(formTitle)}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:${fontFamily};background:${bgColor};color:${textColor};min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -130,23 +161,23 @@ Deno.serve(async (req) => {
 <body>
   <div class="container">
     <div id="formSection">
-      <h1>${formTitle}</h1>
-      ${form.description ? `<p class="desc">${form.description}</p>` : ""}
+      <h1>${esc(formTitle)}</h1>
+      ${form.description ? `<p class="desc">${esc(form.description)}</p>` : ""}
       <form id="leadForm">
         ${fieldsHTML}
-        <button type="submit" id="submitBtn">${submitLabel}</button>
+        <button type="submit" id="submitBtn">${esc(submitLabel)}</button>
         <div id="errorMsg" class="error hidden"></div>
       </form>
     </div>
     <div id="successSection" class="success hidden">
-      <h2 id="successTitle">${successTitle}</h2>
-      <p id="successMsg">${successMessage}</p>
+      <h2 id="successTitle">${esc(successTitle)}</h2>
+      <p id="successMsg">${esc(successMessage)}</p>
     </div>
   </div>
   <script>
   (function(){
-    var CID='${companyId}';
-    var BASE='${supabaseUrl}';
+    var CID='${jsStr(companyId)}';
+    var BASE='${jsStr(supabaseUrl)}';
 
     function uuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)});}
 
@@ -201,7 +232,7 @@ Deno.serve(async (req) => {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          form_id:'${form.id}',
+          form_id:'${jsStr(form.id)}',
           data:data,
           session_id:window._attrSessionId||null,
           visitor_id:window._attrVisitorId||null,
@@ -229,7 +260,7 @@ Deno.serve(async (req) => {
       }).catch(function(err){
         document.getElementById('errorMsg').textContent=err.message;
         document.getElementById('errorMsg').classList.remove('hidden');
-        btn.disabled=false;btn.textContent='${submitLabel}';
+        btn.disabled=false;btn.textContent='${jsStr(submitLabel)}';
       });
     });
   })();

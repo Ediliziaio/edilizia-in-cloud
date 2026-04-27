@@ -140,8 +140,14 @@ export default function RenderNewV2() {
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearTimeout(pollRef.current);
-      if (tickRef.current) clearInterval(tickRef.current);
+      if (pollRef.current) {
+        clearTimeout(pollRef.current);
+        pollRef.current = null;
+      }
+      if (tickRef.current) {
+        clearInterval(tickRef.current);
+        tickRef.current = null;
+      }
       if (photoPreview) URL.revokeObjectURL(photoPreview);
     };
   }, [photoPreview]);
@@ -301,13 +307,26 @@ export default function RenderNewV2() {
     }
   }, [companyId, photo, photoPath, sessionId, user]);
 
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+    if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
+  }, []);
+
   const startPolling = useCallback((sid: string) => {
-    if (pollRef.current) clearTimeout(pollRef.current);
+    // Always cancel any existing poll before starting a new one — guards
+    // against doppio-click "Genera" che produrrebbe due loop concorrenti.
+    stopPolling();
     let intervalIdx = 0;
 
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
-        if (tickRef.current) clearInterval(tickRef.current);
+        stopPolling();
         setGenerating(false);
         setGenerateError("Timeout: il render sta impiegando troppo tempo.");
         return;
@@ -320,7 +339,7 @@ export default function RenderNewV2() {
         .single();
 
       if (sess?.status === "completed" && sess.result_urls?.length) {
-        if (tickRef.current) clearInterval(tickRef.current);
+        stopPolling();
         setResultUrl(sess.result_urls[0]);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
@@ -329,7 +348,7 @@ export default function RenderNewV2() {
       }
 
       if (sess?.status === "failed") {
-        if (tickRef.current) clearInterval(tickRef.current);
+        stopPolling();
         setGenerating(false);
         setGenerateError("Render fallito");
         return;
@@ -342,7 +361,7 @@ export default function RenderNewV2() {
     };
 
     poll();
-  }, [companyId, queryClient]);
+  }, [companyId, queryClient, stopPolling]);
 
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
@@ -359,8 +378,7 @@ export default function RenderNewV2() {
       return;
     }
 
-    if (tickRef.current) clearInterval(tickRef.current);
-    if (pollRef.current) clearTimeout(pollRef.current);
+    stopPolling();
 
     setGenerating(true);
     setGenerateError(null);
@@ -406,7 +424,7 @@ export default function RenderNewV2() {
       }
 
       if (data?.result_url) {
-        if (tickRef.current) clearInterval(tickRef.current);
+        stopPolling();
         setResultUrl(data.result_url as string);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
@@ -416,13 +434,13 @@ export default function RenderNewV2() {
 
       startPolling(sessionId);
     } catch (err) {
-      if (tickRef.current) clearInterval(tickRef.current);
+      stopPolling();
       setGenerating(false);
       const message = err instanceof Error ? err.message : String(err);
       setGenerateError(message);
       toast.error(message);
     }
-  }, [companyId, generating, notes, photoMeta, queryClient, sceneAnalysis, selectedOpeningIds, sessionId, startPolling, state]);
+  }, [companyId, generating, notes, photoMeta, queryClient, sceneAnalysis, selectedOpeningIds, sessionId, startPolling, stopPolling, state]);
 
   useEffect(() => {
     if (!photoPath || originalSignedUrl) return;
@@ -460,8 +478,7 @@ export default function RenderNewV2() {
   }, [step]);
 
   const reset = useCallback(() => {
-    if (pollRef.current) clearTimeout(pollRef.current);
-    if (tickRef.current) clearInterval(tickRef.current);
+    stopPolling();
     crmPersistedRef.current = false;
 
     setStep(1);
@@ -483,7 +500,7 @@ export default function RenderNewV2() {
     setElapsedSec(0);
     setContactId(null);
     setOpportunityId(null);
-  }, []);
+  }, [stopPolling]);
 
   const downloadResult = useCallback(async () => {
     if (!resultUrl) return;
