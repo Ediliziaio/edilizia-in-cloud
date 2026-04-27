@@ -59,6 +59,13 @@ import {
 } from "@/lib/mobile/native-haptics";
 import { onNetworkChange } from "@/lib/mobile/native-network";
 import { useBarcodeLookup } from "@/hooks/warehouse/useBarcodeLookup";
+import {
+  openScannerStream,
+  pulseFocus,
+  isTorchSupported,
+  setTorch as applyTorch,
+  stopStream,
+} from "@/lib/scanner/cameraStream";
 import { toast } from "sonner";
 
 // ────────────────────────────────────────────────────────────
@@ -205,88 +212,69 @@ export function BatchBarcodeScanner({
       /* noop */
     }
     readerRef.current = null;
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
+    stopStream(streamRef.current);
+    streamRef.current = null;
     setTorchOn(false);
     setTorchSupported(false);
   }
 
+  /**
+   * Avvio camera con stream gestito dal helper condiviso (vedi
+   * src/lib/scanner/cameraStream.ts). Garantisce focusMode/exposureMode/
+   * whiteBalanceMode = "continuous" su Chrome Android e usa la smart
+   * camera virtuale su iPhone tramite facingMode invece di deviceId.
+   */
   async function startCamera() {
     setCameraError(null);
     try {
+      const stream = await openScannerStream();
+      streamRef.current = stream;
+
       const reader = new BrowserMultiFormatReader();
       readerRef.current = reader;
 
-      // Standard browser API: navigator.mediaDevices.enumerateDevices().
-      // BrowserMultiFormatReader.listVideoInputDevices() come statico è
-      // undefined su Safari iOS → bug noto. Usiamo l'API W3C standard.
-      if (!navigator.mediaDevices?.enumerateDevices) {
-        setCameraError("Fotocamera non disponibile su questo browser.");
+      const video = videoRef.current;
+      if (!video) {
+        stopStream(stream);
         return;
       }
-      // Su iOS Safari, enumerateDevices() ritorna labels vuote finché
-      // non chiamiamo getUserMedia almeno una volta. Lo prefettiamo qui
-      // per ottenere i label e riconoscere la camera posteriore.
-      try {
-        const probe = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-        });
-        probe.getTracks().forEach((t) => t.stop());
-      } catch { /* permessi negati gestiti dal codeReader sotto */ }
 
-      const allDevices = await navigator.mediaDevices.enumerateDevices();
-      const devices = allDevices.filter((d) => d.kind === "videoinput");
-      if (devices.length === 0) {
-        setCameraError("Nessuna fotocamera disponibile sul dispositivo.");
-        return;
-      }
-      const back =
-        devices.find((d) => /back|rear|environment/i.test(d.label)) ||
-        devices[devices.length - 1];
+      // Polling torch capability (può essere undefined per i primi 100–500ms
+      // su Chrome Android dopo getUserMedia).
+      let attempts = 0;
+      const torchPoll = setInterval(() => {
+        attempts++;
+        if (isTorchSupported(streamRef.current)) {
+          setTorchSupported(true);
+          clearInterval(torchPoll);
+        } else if (attempts > 25) {
+          clearInterval(torchPoll);
+        }
+      }, 200);
 
-      reader.decodeFromVideoDevice(back.deviceId, videoRef.current!, (result) => {
+      reader.decodeFromStream(stream, video, (result) => {
         if (!result) return;
         handleScan(result.getText(), result.getBarcodeFormat?.()?.toString());
       });
-
-      // Salva lo stream del video element per torch toggle
-      // (zxing crea il MediaStream e lo lega al <video>; lo recuperiamo da srcObject).
-      const checkStream = setInterval(() => {
-        const stream = videoRef.current?.srcObject as MediaStream | null;
-        if (stream) {
-          streamRef.current = stream;
-          const track = stream.getVideoTracks()[0];
-          // Feature detect torch — torch è in MediaTrackCapabilities ma non
-          // ancora tipizzato dalle TS lib. Cast safe a Record<string, unknown>.
-          const caps = (track?.getCapabilities?.() ?? {}) as Record<string, unknown>;
-          if (caps.torch) setTorchSupported(true);
-          clearInterval(checkStream);
-        }
-      }, 200);
-      // safety: clear interval dopo 5s comunque
-      setTimeout(() => clearInterval(checkStream), 5000);
     } catch (e) {
       setCameraError(e instanceof Error ? e.message : "Errore avvio fotocamera");
     }
   }
 
   async function toggleTorch() {
-    const track = streamRef.current?.getVideoTracks()[0];
-    if (!track) return;
-    try {
-      // torch non è nelle TS lib type per MediaTrackConstraintSet; il cast a
-      // unknown poi MediaTrackConstraints è il workaround più pulito senza any.
-      await track.applyConstraints({
-        advanced: [{ torch: !torchOn } as unknown as MediaTrackConstraintSet],
-      });
+    const ok = await applyTorch(streamRef.current, !torchOn);
+    if (ok) {
       setTorchOn((v) => !v);
       void impactFeedback();
-    } catch {
+    } else {
       toast.error("Torcia non supportata su questo dispositivo");
       setTorchSupported(false);
     }
+  }
+
+  /** Tap-to-focus: pulse single-shot focus poi torna a continuous. */
+  function handleTapFocus() {
+    if (streamRef.current) void pulseFocus(streamRef.current);
   }
 
   // ─── Handler scansione ───────────────────────────────────
@@ -525,13 +513,18 @@ export function BatchBarcodeScanner({
             <div className="relative">
               <video
                 ref={videoRef}
-                className="w-full aspect-video object-cover"
+                className="w-full aspect-video object-cover cursor-pointer"
                 playsInline
                 muted
+                onClick={handleTapFocus}
               />
               {/* Reticolo */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                 <div className="w-3/4 max-w-xs h-32 border-2 border-white/60 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+              </div>
+              {/* Hint tap-to-focus */}
+              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-white/80 text-[10px] bg-black/40 px-2 py-0.5 rounded-full pointer-events-none">
+                Tocca per mettere a fuoco
               </div>
               {/* Toolbar overlay */}
               <div className="absolute top-2 right-2 flex gap-2">

@@ -2,7 +2,14 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { ScanLine, X } from "lucide-react";
+import { ScanLine, X, Flashlight, FlashlightOff, Focus } from "lucide-react";
+import {
+  openScannerStream,
+  pulseFocus,
+  isTorchSupported,
+  setTorch,
+  stopStream,
+} from "@/lib/scanner/cameraStream";
 
 interface BarcodeScannerProps {
   open: boolean;
@@ -10,16 +17,38 @@ interface BarcodeScannerProps {
   onScan: (result: string) => void;
 }
 
+/**
+ * Single-shot barcode scanner.
+ *
+ * Strategia camera (vedi src/lib/scanner/cameraStream.ts per il razionale):
+ *  - Stream gestito a mano con focusMode/exposureMode/whiteBalanceMode
+ *    "continuous" applicati post-init, NON via decodeFromVideoDevice.
+ *  - facingMode ideal "environment" senza pin del deviceId → su iPhone
+ *    si usa la smart camera virtuale che gestisce macro automaticamente.
+ *  - Tap-to-focus: tap sul video → single-shot focus pulse.
+ *  - Torch toggle se supportato.
+ */
 export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchAvailable, setTorchAvailable] = useState(false);
 
   const stopScanner = useCallback(() => {
-    readerRef.current?.reset();
+    try {
+      readerRef.current?.reset();
+    } catch {
+      /* noop */
+    }
     readerRef.current = null;
+    stopStream(streamRef.current);
+    streamRef.current = null;
     setScanning(false);
+    setTorchOn(false);
+    setTorchAvailable(false);
   }, []);
 
   useEffect(() => {
@@ -37,35 +66,29 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
 
     (async () => {
       try {
-        // Standard browser API — funziona ovunque (Safari iOS, Chrome, Firefox).
-        // BrowserMultiFormatReader.listVideoInputDevices() è solo statico in
-        // alcune versioni di @zxing/library e undefined su Safari → bug noto.
-        // navigator.mediaDevices.enumerateDevices() è W3C standard.
-        if (!navigator.mediaDevices?.enumerateDevices) {
-          setError("Fotocamera non disponibile su questo browser.");
-          setScanning(false);
+        const stream = await openScannerStream();
+        if (!active) {
+          stopStream(stream);
           return;
         }
-        // Su iOS Safari enumerateDevices() ritorna labels vuote finché non si
-        // chiama getUserMedia almeno una volta. Lo facciamo qui per avere i label.
-        try {
-          const probeStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" } },
-          });
-          probeStream.getTracks().forEach((t) => t.stop());
-        } catch { /* permessi negati gestiti sotto */ }
+        streamRef.current = stream;
 
-        const allDevices = await navigator.mediaDevices.enumerateDevices();
-        const devices = allDevices.filter((d) => d.kind === "videoinput");
-        if (devices.length === 0) {
-          setError("Nessuna fotocamera disponibile.");
-          setScanning(false);
-          return;
-        }
-        // Prefer back camera
-        const back = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+        const video = videoRef.current;
+        if (!video) return;
 
-        reader.decodeFromVideoDevice(back.deviceId, videoRef.current!, (result, err) => {
+        // Torch capability può richiedere un po' di tempo per popolarsi.
+        // Polling 200ms × 5s.
+        let attempts = 0;
+        const torchPoll = setInterval(() => {
+          attempts++;
+          if (!active || isTorchSupported(streamRef.current) || attempts > 25) {
+            if (isTorchSupported(streamRef.current)) setTorchAvailable(true);
+            clearInterval(torchPoll);
+          }
+        }, 200);
+
+        // decodeFromStream attacca il MediaStream al video element e fa play().
+        await reader.decodeFromStream(stream, video, (result, err) => {
           if (!active) return;
           if (result) {
             const text = result.getText();
@@ -79,7 +102,10 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
         });
       } catch (e: unknown) {
         if (active) {
-          setError((e instanceof Error ? e.message : null) || "Impossibile accedere alla fotocamera.");
+          setError(
+            (e instanceof Error ? e.message : null) ||
+              "Impossibile accedere alla fotocamera.",
+          );
           setScanning(false);
         }
       }
@@ -87,9 +113,20 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
 
     return () => {
       active = false;
-      reader.reset();
+      stopScanner();
     };
   }, [open, onScan, onOpenChange, stopScanner]);
+
+  const handleTapFocus = useCallback(() => {
+    if (streamRef.current) void pulseFocus(streamRef.current);
+  }, []);
+
+  const handleToggleTorch = useCallback(async () => {
+    if (!streamRef.current) return;
+    const ok = await setTorch(streamRef.current, !torchOn);
+    if (ok) setTorchOn((v) => !v);
+    else setTorchAvailable(false);
+  }, [torchOn]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -100,18 +137,50 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
             Scansiona codice
           </SheetTitle>
           <SheetDescription>
-            Inquadra un barcode o QR code per cercare l'articolo in magazzino.
+            Inquadra un barcode o QR code. Tocca lo schermo per ri-focalizzare.
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 relative bg-black overflow-hidden">
           <video
             ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover cursor-pointer"
             autoPlay
             muted
             playsInline
+            onClick={handleTapFocus}
           />
+
+          {/* Toolbar overlay (torch + manual focus) */}
+          <div className="absolute top-3 right-3 flex gap-2 z-10">
+            {torchAvailable && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                onClick={handleToggleTorch}
+                aria-label={torchOn ? "Spegni torcia" : "Accendi torcia"}
+                className="h-9 w-9 bg-white/90 hover:bg-white"
+              >
+                {torchOn ? (
+                  <FlashlightOff className="h-4 w-4" />
+                ) : (
+                  <Flashlight className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              onClick={handleTapFocus}
+              aria-label="Ri-focalizza"
+              className="h-9 w-9 bg-white/90 hover:bg-white"
+            >
+              <Focus className="h-4 w-4" />
+            </Button>
+          </div>
+
           {/* Scan overlay */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-64 h-64 relative">
@@ -125,6 +194,13 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
               )}
             </div>
           </div>
+
+          {/* Tap-to-focus hint */}
+          {scanning && !error && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-white/80 text-[11px] bg-black/40 px-3 py-1 rounded-full pointer-events-none">
+              Tocca lo schermo per mettere a fuoco
+            </div>
+          )}
 
           {error && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/70">
