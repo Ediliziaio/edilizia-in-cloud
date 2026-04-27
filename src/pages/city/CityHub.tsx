@@ -45,7 +45,7 @@ const CITIES = [
   { name: "Ferrara", slug: "ferrara", region: "Emilia-Romagna", desc: "Restauro patrimonio UNESCO, zona delta e riqualificazione residenziale" },
 ];
 
-const baseUrl = "https://ediliziaincloud.com";
+const baseUrl = "https://www.ediliziaincloud.com";
 
 export default function CityHub() {
   useSEO({

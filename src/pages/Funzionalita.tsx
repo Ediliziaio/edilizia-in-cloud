@@ -647,22 +647,22 @@ export default function Funzionalita() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Funzionalità", "item": "https://ediliziaincloud.com/funzionalita" }
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Funzionalità", "item": "https://www.ediliziaincloud.com/funzionalita" }
         ]
       }} />
       {/* HowTo rimosso: rich results eliminati da Google a settembre 2023 */}
       <JsonLd id="jsonld-webpage-funzionalita" data={{
         "@context": "https://schema.org",
         "@type": "WebPage",
-        "@id": "https://ediliziaincloud.com/funzionalita",
+        "@id": "https://www.ediliziaincloud.com/funzionalita",
         "name": "Funzionalità Gestionale Edilizia — 26 Moduli + AI",
         "description": "Tutti i moduli del gestionale edilizia con AI: cantieri, margini, CRM, WhatsApp, fatturazione SDI, HR, previsione liquidità. Scopri tutto ciò che puoi fare con Edilizia in Cloud.",
-        "url": "https://ediliziaincloud.com/funzionalita",
+        "url": "https://www.ediliziaincloud.com/funzionalita",
         "inLanguage": "it",
-        "isPartOf": { "@id": "https://ediliziaincloud.com/#website" },
-        "about": { "@id": "https://ediliziaincloud.com/#software" },
-        "publisher": { "@id": "https://ediliziaincloud.com/#organization" }
+        "isPartOf": { "@id": "https://www.ediliziaincloud.com/#website" },
+        "about": { "@id": "https://www.ediliziaincloud.com/#software" },
+        "publisher": { "@id": "https://www.ediliziaincloud.com/#organization" }
       }} />
 
       <LandingNavbar />
@@ -964,6 +964,12 @@ export default function Funzionalita() {
           </div>
           <div className="grid sm:grid-cols-2 gap-5">
             {[
+              {
+                href: "/funzionalita/render-infissi",
+                title: "Render Infissi AI",
+                desc: "Mostra nuovi infissi, colori, vetri e oscuranti sulla foto reale del cliente prima del preventivo.",
+                badge: "Per serramentisti",
+              },
               {
                 href: "/funzionalita/gestione-cantieri",
                 title: "Gestione Cantieri",

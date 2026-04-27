@@ -1717,7 +1717,7 @@ export default function CityLanding() {
   const city = cityParam ?? pathname.match(/^\/software-gestionale-edilizia-(.+)$/)?.[1];
   const config = city ? CITY_CONFIGS[city] : undefined;
 
-  const baseUrl = "https://ediliziaincloud.com";
+  const baseUrl = "https://www.ediliziaincloud.com";
   const pageUrl = config ? `${baseUrl}/software-gestionale-edilizia-${config.slug}` : baseUrl;
 
   useSEO({

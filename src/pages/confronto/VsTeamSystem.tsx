@@ -83,7 +83,7 @@ export default function VsTeamSystem() {
           headline: "Edilizia in Cloud vs TeamSystem: quale scegliere per la tua impresa edile?",
           description:
             "Confronto completo Edilizia in Cloud vs TeamSystem per imprese edili. Prezzo, funzionalità, semplicità d'uso e assistenza a confronto.",
-          url: "https://ediliziaincloud.com/confronto/vs-teamsystem",
+          url: "https://www.ediliziaincloud.com/confronto/vs-teamsystem",
           datePublished: "2026-01-01",
           dateModified: "2026-04-08",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
@@ -96,13 +96,13 @@ export default function VsTeamSystem() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Confronto", item: "https://ediliziaincloud.com/confronto" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Confronto", item: "https://www.ediliziaincloud.com/confronto" },
             {
               "@type": "ListItem",
               position: 3,
               name: "vs TeamSystem",
-              item: "https://ediliziaincloud.com/confronto/vs-teamsystem",
+              item: "https://www.ediliziaincloud.com/confronto/vs-teamsystem",
             },
           ],
         }}

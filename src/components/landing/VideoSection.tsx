@@ -67,7 +67,7 @@ export default function VideoSection() {
           }`}
         >
           <a
-            href="https://ediliziaincloud.com/demo"
+            href="https://www.ediliziaincloud.com/demo"
             target="_blank"
             rel="noopener noreferrer"
             className="group block relative max-w-4xl mx-auto rounded-2xl overflow-hidden shadow-2xl"
@@ -126,7 +126,7 @@ export default function VideoSection() {
         >
           <a
             href="/demo"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/30"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#C94F06] text-white font-bold text-lg hover:bg-[#A84305] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#C94F06]/30"
           >
             Prenota la tua Demo Live
             <span className="text-lg">→</span>
@@ -136,4 +136,3 @@ export default function VideoSection() {
     </section>
   );
 }
-

@@ -100,7 +100,7 @@ export default function Glossario() {
     return list.sort((a, b) => a.term.localeCompare(b.term, "it"));
   }, [search, activeCategory, activeLetter]);
 
-  const baseUrl = "https://ediliziaincloud.com";
+  const baseUrl = "https://www.ediliziaincloud.com";
 
   return (
     <div className="min-h-screen bg-white text-[#111111]">

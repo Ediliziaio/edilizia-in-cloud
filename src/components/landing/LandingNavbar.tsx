@@ -105,7 +105,10 @@ export default function LandingNavbar() {
           {/* Dedicato a dropdown */}
           <div ref={dropdownRef} className="relative">
             <button
+              type="button"
               onClick={() => setDedicatoOpen(!dedicatoOpen)}
+              aria-expanded={dedicatoOpen}
+              aria-haspopup="menu"
               className={`flex items-center gap-1 text-sm font-medium transition-colors ${
                 isWhiteBg ? "text-[#111111]/70 hover:text-[#111111]" : "text-white/80 hover:text-white"
               }`}
@@ -116,7 +119,7 @@ export default function LandingNavbar() {
               />
             </button>
             {dedicatoOpen && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50">
+              <div role="menu" className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50">
                 <div className="px-3 pb-1 pt-0.5">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#F97415]/70">Tipo di impresa</p>
                 </div>
@@ -191,7 +194,7 @@ export default function LandingNavbar() {
 
           <Link
             to="/demo"
-            className="px-5 py-2.5 rounded-full bg-[#F97415] text-white text-sm font-bold hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/20"
+            className="px-5 py-2.5 rounded-full bg-[#C94F06] text-white text-sm font-bold hover:bg-[#A84305] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#C94F06]/20"
           >
             Richiedi Demo
           </Link>
@@ -199,8 +202,12 @@ export default function LandingNavbar() {
 
         {/* Mobile toggle */}
         <button
+          type="button"
           className={`md:hidden ${isWhiteBg ? "text-[#111111]" : "text-white"}`}
           onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label={mobileOpen ? "Chiudi menu di navigazione" : "Apri menu di navigazione"}
+          aria-expanded={mobileOpen}
+          aria-controls="landing-mobile-menu"
         >
           {mobileOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -208,10 +215,12 @@ export default function LandingNavbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden bg-white border-t border-gray-100 px-6 pb-6 pt-2 space-y-1 shadow-lg">
+        <div id="landing-mobile-menu" className="md:hidden bg-white border-t border-gray-100 px-6 pb-6 pt-2 space-y-1 shadow-lg">
           {/* Dedicato a mobile accordion */}
           <button
+            type="button"
             onClick={() => setMobileDedicatoOpen(!mobileDedicatoOpen)}
+            aria-expanded={mobileDedicatoOpen}
             className="w-full flex items-center justify-between py-2 font-medium text-[#111111]"
           >
             <span>Dedicato a</span>
@@ -299,7 +308,7 @@ export default function LandingNavbar() {
           <Link
             to="/demo"
             onClick={() => setMobileOpen(false)}
-            className="block text-center px-5 py-3 rounded-full bg-[#F97415] text-white font-bold mt-2"
+            className="block text-center px-5 py-3 rounded-full bg-[#C94F06] text-white font-bold mt-2"
           >
             Richiedi Demo
           </Link>
@@ -309,4 +318,3 @@ export default function LandingNavbar() {
     </>
   );
 }
-

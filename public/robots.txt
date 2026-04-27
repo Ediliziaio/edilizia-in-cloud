@@ -70,9 +70,10 @@ Allow: /
 User-agent: YouBot
 Allow: /
 
-Sitemap: https://ediliziaincloud.com/sitemap.xml
+Sitemap: https://www.ediliziaincloud.com/sitemap.xml
 
 # AI / LLM context files — https://llmstxt.org
-# Provide structured context about EdiliziaInCloud for AI models
-LLMs-Txt: https://ediliziaincloud.com/llms.txt
-LLMs-Full-Txt: https://ediliziaincloud.com/llms-full.txt
+# Provide structured context about EdiliziaInCloud for AI models.
+# Kept as comments because robots.txt only accepts user-agent directives and sitemap entries.
+# LLMs.txt: https://www.ediliziaincloud.com/llms.txt
+# LLMs Full: https://www.ediliziaincloud.com/llms-full.txt

@@ -68,7 +68,7 @@ export default function Integrazioni() {
     keywords: "integrazioni gestionale edilizia, software edilizia fatturazione elettronica, edilizia zucchetti, teamSystem edilizia, API gestionale edilizia, whatsapp impresa edile, cassa edile software, prezzari edilizia software",
   });
 
-  const baseUrl = "https://ediliziaincloud.com";
+  const baseUrl = "https://www.ediliziaincloud.com";
   const nativeCount = INTEGRATIONS.filter((i) => i.status === "nativa").length;
 
   return (

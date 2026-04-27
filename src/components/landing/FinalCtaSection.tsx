@@ -101,7 +101,7 @@ export default function FinalCtaSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
-          <span className="text-white/40 text-sm font-medium">Offerta valida ancora per:</span>
+          <span className="text-white/70 text-sm font-medium">Offerta valida ancora per:</span>
           <div className="flex items-center gap-1.5">
             {[hh, mm, ss].map((unit, i) => (
               <div key={i} className="flex items-center gap-1.5">
@@ -137,7 +137,7 @@ export default function FinalCtaSection() {
               href="https://calendly.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-base md:text-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-[#F97415]/30"
+              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl bg-[#C94F06] hover:bg-[#A84305] text-white font-bold text-base md:text-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-[#C94F06]/30"
             >
               Richiedi Demo Gratuita
               <ArrowRight className="w-5 h-5" />
@@ -155,7 +155,7 @@ export default function FinalCtaSection() {
           </div>
 
           {/* Micro-promises */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 text-white/40 text-sm">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 text-white/70 text-sm">
             <span className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-[#F97415]" />
               Dati al sicuro

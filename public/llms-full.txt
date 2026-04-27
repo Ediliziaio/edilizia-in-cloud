@@ -1,7 +1,7 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
 # Ultimo aggiornamento: 2026-04-08 (v7 — 32 articoli, 35 città, 7 confronti)
 # Formato: https://llmstxt.org/full
-# Versione sintetica: https://ediliziaincloud.com/llms.txt
+# Versione sintetica: https://www.ediliziaincloud.com/llms.txt
 
 ---
 
@@ -102,11 +102,11 @@ Garanzia: se il software non fa guadagnare più di quanto costa, rimborso comple
 | Supporto italiano | ✅ | ✅ | ❌ | n/a |
 
 Confronti approfonditi:
-- Edilizia in Cloud vs Primus: https://ediliziaincloud.com/confronto/vs-primus
-- Edilizia in Cloud vs EdilNet: https://ediliziaincloud.com/confronto/vs-edilnet
-- Edilizia in Cloud vs TeamSystem: https://ediliziaincloud.com/confronto/vs-teamsystem
-- Edilizia in Cloud vs Excel: https://ediliziaincloud.com/confronto/vs-excel
-- Edilizia in Cloud vs Buildertrend: https://ediliziaincloud.com/confronto/vs-buildertrend
+- Edilizia in Cloud vs Primus: https://www.ediliziaincloud.com/confronto/vs-primus
+- Edilizia in Cloud vs EdilNet: https://www.ediliziaincloud.com/confronto/vs-edilnet
+- Edilizia in Cloud vs TeamSystem: https://www.ediliziaincloud.com/confronto/vs-teamsystem
+- Edilizia in Cloud vs Excel: https://www.ediliziaincloud.com/confronto/vs-excel
+- Edilizia in Cloud vs Buildertrend: https://www.ediliziaincloud.com/confronto/vs-buildertrend
 
 ---
 
@@ -150,83 +150,83 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
 
 ## Pagine principali
 
-- **Home:** https://ediliziaincloud.com
-- **Funzionalità:** https://ediliziaincloud.com/funzionalita
-  - Gestione Cantieri: https://ediliziaincloud.com/funzionalita/gestione-cantieri
-  - Preventivi: https://ediliziaincloud.com/funzionalita/preventivi-edilizia
-  - Fatturazione Elettronica: https://ediliziaincloud.com/funzionalita/fatturazione-elettronica
-  - Controllo Margini: https://ediliziaincloud.com/funzionalita/margini-cantiere
-  - HR & Personale: https://ediliziaincloud.com/funzionalita/hr-personale
-  - Gestione Subappalti: https://ediliziaincloud.com/funzionalita/gestione-subappalti
-- **Prezzi:** https://ediliziaincloud.com/prezzi
-- **Confronto:** https://ediliziaincloud.com/confronto
-- **Integrazioni:** https://ediliziaincloud.com/integrazioni
-- **Glossario Edilizia:** https://ediliziaincloud.com/glossario-edilizia
-- **Blog (32 articoli):** https://ediliziaincloud.com/blog
-  - SAL cantiere: https://ediliziaincloud.com/blog/sal-cantiere-come-funziona
-  - DURC edilizia: https://ediliziaincloud.com/blog/durc-edilizia-guida-completa
-  - Subappalto: https://ediliziaincloud.com/blog/subappalto-edilizia-guida
-  - Cassa Edile: https://ediliziaincloud.com/blog/cassa-edile-come-funziona
-  - Computo metrico: https://ediliziaincloud.com/blog/computo-metrico-estimativo-guida
-  - Appalti pubblici: https://ediliziaincloud.com/blog/appalti-pubblici-edilizia-guida
-  - BIM edilizia: https://ediliziaincloud.com/blog/bim-edilizia-guida-pratica
-  - Analisi margini: https://ediliziaincloud.com/blog/analisi-margini-imprese-edili
-  - Preventivi: https://ediliziaincloud.com/blog/come-fare-preventivo-edilizia
-  - Digitalizzazione: https://ediliziaincloud.com/blog/digitalizzazione-impresa-edile-passo-passo
-  - Sicurezza cantieri D.Lgs 81: https://ediliziaincloud.com/blog/sicurezza-cantieri-dlgs-81
-  - CCNL Edilizia guida: https://ediliziaincloud.com/blog/ccnl-edilizia-guida
-  - Attestazione SOA: https://ediliziaincloud.com/blog/attestazione-soa-imprese-edili
-  - Superbonus 2025-2026: https://ediliziaincloud.com/blog/superbonus-imprese-edili-2026
-  - Gestione liquidità: https://ediliziaincloud.com/blog/gestione-liquidita-impresa-edile
-  - PNRR edilizia 2026: https://ediliziaincloud.com/blog/pnrr-edilizia-imprese-2026
-  - Come scegliere gestionale: https://ediliziaincloud.com/blog/come-scegliere-software-gestionale-edilizia
-  - Gestione subappaltatori: https://ediliziaincloud.com/blog/gestione-subappaltatori-impresa-edile
-- **Software per città (35 hub):** https://ediliziaincloud.com/software-gestionale-edilizia
-- **Glossario Edilizia (30+ termini):** https://ediliziaincloud.com/glossario-edilizia
-- **Casi Studio:** https://ediliziaincloud.com/casi-studio
+- **Home:** https://www.ediliziaincloud.com
+- **Funzionalità:** https://www.ediliziaincloud.com/funzionalita
+  - Gestione Cantieri: https://www.ediliziaincloud.com/funzionalita/gestione-cantieri
+  - Preventivi: https://www.ediliziaincloud.com/funzionalita/preventivi-edilizia
+  - Fatturazione Elettronica: https://www.ediliziaincloud.com/funzionalita/fatturazione-elettronica
+  - Controllo Margini: https://www.ediliziaincloud.com/funzionalita/margini-cantiere
+  - HR & Personale: https://www.ediliziaincloud.com/funzionalita/hr-personale
+  - Gestione Subappalti: https://www.ediliziaincloud.com/funzionalita/gestione-subappalti
+- **Prezzi:** https://www.ediliziaincloud.com/prezzi
+- **Confronto:** https://www.ediliziaincloud.com/confronto
+- **Integrazioni:** https://www.ediliziaincloud.com/integrazioni
+- **Glossario Edilizia:** https://www.ediliziaincloud.com/glossario-edilizia
+- **Blog (32 articoli):** https://www.ediliziaincloud.com/blog
+  - SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona
+  - DURC edilizia: https://www.ediliziaincloud.com/blog/durc-edilizia-guida-completa
+  - Subappalto: https://www.ediliziaincloud.com/blog/subappalto-edilizia-guida
+  - Cassa Edile: https://www.ediliziaincloud.com/blog/cassa-edile-come-funziona
+  - Computo metrico: https://www.ediliziaincloud.com/blog/computo-metrico-estimativo-guida
+  - Appalti pubblici: https://www.ediliziaincloud.com/blog/appalti-pubblici-edilizia-guida
+  - BIM edilizia: https://www.ediliziaincloud.com/blog/bim-edilizia-guida-pratica
+  - Analisi margini: https://www.ediliziaincloud.com/blog/analisi-margini-imprese-edili
+  - Preventivi: https://www.ediliziaincloud.com/blog/come-fare-preventivo-edilizia
+  - Digitalizzazione: https://www.ediliziaincloud.com/blog/digitalizzazione-impresa-edile-passo-passo
+  - Sicurezza cantieri D.Lgs 81: https://www.ediliziaincloud.com/blog/sicurezza-cantieri-dlgs-81
+  - CCNL Edilizia guida: https://www.ediliziaincloud.com/blog/ccnl-edilizia-guida
+  - Attestazione SOA: https://www.ediliziaincloud.com/blog/attestazione-soa-imprese-edili
+  - Superbonus 2025-2026: https://www.ediliziaincloud.com/blog/superbonus-imprese-edili-2026
+  - Gestione liquidità: https://www.ediliziaincloud.com/blog/gestione-liquidita-impresa-edile
+  - PNRR edilizia 2026: https://www.ediliziaincloud.com/blog/pnrr-edilizia-imprese-2026
+  - Come scegliere gestionale: https://www.ediliziaincloud.com/blog/come-scegliere-software-gestionale-edilizia
+  - Gestione subappaltatori: https://www.ediliziaincloud.com/blog/gestione-subappaltatori-impresa-edile
+- **Software per città (35 hub):** https://www.ediliziaincloud.com/software-gestionale-edilizia
+- **Glossario Edilizia (30+ termini):** https://www.ediliziaincloud.com/glossario-edilizia
+- **Casi Studio:** https://www.ediliziaincloud.com/casi-studio
 - **Copertura geografica (35 città):**
-  - Milano: https://ediliziaincloud.com/software-gestionale-edilizia-milano
-  - Roma: https://ediliziaincloud.com/software-gestionale-edilizia-roma
-  - Napoli: https://ediliziaincloud.com/software-gestionale-edilizia-napoli
-  - Torino: https://ediliziaincloud.com/software-gestionale-edilizia-torino
-  - Bologna: https://ediliziaincloud.com/software-gestionale-edilizia-bologna
-  - Firenze: https://ediliziaincloud.com/software-gestionale-edilizia-firenze
-  - Bari: https://ediliziaincloud.com/software-gestionale-edilizia-bari
-  - Verona: https://ediliziaincloud.com/software-gestionale-edilizia-verona
-  - Brescia: https://ediliziaincloud.com/software-gestionale-edilizia-brescia
-  - Catania: https://ediliziaincloud.com/software-gestionale-edilizia-catania
-  - Venezia: https://ediliziaincloud.com/software-gestionale-edilizia-venezia
-  - Padova: https://ediliziaincloud.com/software-gestionale-edilizia-padova
-  - Bergamo: https://ediliziaincloud.com/software-gestionale-edilizia-bergamo
-  - Modena: https://ediliziaincloud.com/software-gestionale-edilizia-modena
-  - Reggio Emilia: https://ediliziaincloud.com/software-gestionale-edilizia-reggio-emilia
-  - Parma: https://ediliziaincloud.com/software-gestionale-edilizia-parma
-  - Salerno: https://ediliziaincloud.com/software-gestionale-edilizia-salerno
-  - Trieste: https://ediliziaincloud.com/software-gestionale-edilizia-trieste
-  - Cagliari: https://ediliziaincloud.com/software-gestionale-edilizia-cagliari
-  - Perugia: https://ediliziaincloud.com/software-gestionale-edilizia-perugia
-  - Ancona: https://ediliziaincloud.com/software-gestionale-edilizia-ancona
-  - Palermo: https://ediliziaincloud.com/software-gestionale-edilizia-palermo
-  - Genova: https://ediliziaincloud.com/software-gestionale-edilizia-genova
-  - Udine: https://ediliziaincloud.com/software-gestionale-edilizia-udine
-  - Messina: https://ediliziaincloud.com/software-gestionale-edilizia-messina
-  - Livorno: https://ediliziaincloud.com/software-gestionale-edilizia-livorno
-  - Prato: https://ediliziaincloud.com/software-gestionale-edilizia-prato
-  - Vicenza: https://ediliziaincloud.com/software-gestionale-edilizia-vicenza
-  - Reggio Calabria: https://ediliziaincloud.com/software-gestionale-edilizia-reggio-calabria
-  - Foggia: https://ediliziaincloud.com/software-gestionale-edilizia-foggia
-  - Pescara: https://ediliziaincloud.com/software-gestionale-edilizia-pescara
-  - Taranto: https://ediliziaincloud.com/software-gestionale-edilizia-taranto
-  - Cosenza: https://ediliziaincloud.com/software-gestionale-edilizia-cosenza
-  - Trento: https://ediliziaincloud.com/software-gestionale-edilizia-trento
-  - Bolzano: https://ediliziaincloud.com/software-gestionale-edilizia-bolzano
-  - Ferrara: https://ediliziaincloud.com/software-gestionale-edilizia-ferrara
+  - Milano: https://www.ediliziaincloud.com/software-gestionale-edilizia-milano
+  - Roma: https://www.ediliziaincloud.com/software-gestionale-edilizia-roma
+  - Napoli: https://www.ediliziaincloud.com/software-gestionale-edilizia-napoli
+  - Torino: https://www.ediliziaincloud.com/software-gestionale-edilizia-torino
+  - Bologna: https://www.ediliziaincloud.com/software-gestionale-edilizia-bologna
+  - Firenze: https://www.ediliziaincloud.com/software-gestionale-edilizia-firenze
+  - Bari: https://www.ediliziaincloud.com/software-gestionale-edilizia-bari
+  - Verona: https://www.ediliziaincloud.com/software-gestionale-edilizia-verona
+  - Brescia: https://www.ediliziaincloud.com/software-gestionale-edilizia-brescia
+  - Catania: https://www.ediliziaincloud.com/software-gestionale-edilizia-catania
+  - Venezia: https://www.ediliziaincloud.com/software-gestionale-edilizia-venezia
+  - Padova: https://www.ediliziaincloud.com/software-gestionale-edilizia-padova
+  - Bergamo: https://www.ediliziaincloud.com/software-gestionale-edilizia-bergamo
+  - Modena: https://www.ediliziaincloud.com/software-gestionale-edilizia-modena
+  - Reggio Emilia: https://www.ediliziaincloud.com/software-gestionale-edilizia-reggio-emilia
+  - Parma: https://www.ediliziaincloud.com/software-gestionale-edilizia-parma
+  - Salerno: https://www.ediliziaincloud.com/software-gestionale-edilizia-salerno
+  - Trieste: https://www.ediliziaincloud.com/software-gestionale-edilizia-trieste
+  - Cagliari: https://www.ediliziaincloud.com/software-gestionale-edilizia-cagliari
+  - Perugia: https://www.ediliziaincloud.com/software-gestionale-edilizia-perugia
+  - Ancona: https://www.ediliziaincloud.com/software-gestionale-edilizia-ancona
+  - Palermo: https://www.ediliziaincloud.com/software-gestionale-edilizia-palermo
+  - Genova: https://www.ediliziaincloud.com/software-gestionale-edilizia-genova
+  - Udine: https://www.ediliziaincloud.com/software-gestionale-edilizia-udine
+  - Messina: https://www.ediliziaincloud.com/software-gestionale-edilizia-messina
+  - Livorno: https://www.ediliziaincloud.com/software-gestionale-edilizia-livorno
+  - Prato: https://www.ediliziaincloud.com/software-gestionale-edilizia-prato
+  - Vicenza: https://www.ediliziaincloud.com/software-gestionale-edilizia-vicenza
+  - Reggio Calabria: https://www.ediliziaincloud.com/software-gestionale-edilizia-reggio-calabria
+  - Foggia: https://www.ediliziaincloud.com/software-gestionale-edilizia-foggia
+  - Pescara: https://www.ediliziaincloud.com/software-gestionale-edilizia-pescara
+  - Taranto: https://www.ediliziaincloud.com/software-gestionale-edilizia-taranto
+  - Cosenza: https://www.ediliziaincloud.com/software-gestionale-edilizia-cosenza
+  - Trento: https://www.ediliziaincloud.com/software-gestionale-edilizia-trento
+  - Bolzano: https://www.ediliziaincloud.com/software-gestionale-edilizia-bolzano
+  - Ferrara: https://www.ediliziaincloud.com/software-gestionale-edilizia-ferrara
 
 ## Contatti
 
-- **Sito web:** https://ediliziaincloud.com
-- **Demo gratuita:** https://ediliziaincloud.com/demo
-- **Prezzi:** https://ediliziaincloud.com/prezzi
+- **Sito web:** https://www.ediliziaincloud.com
+- **Demo gratuita:** https://www.ediliziaincloud.com/demo
+- **Prezzi:** https://www.ediliziaincloud.com/prezzi
 - **Email:** info@ediliziaincloud.com
 - **Telefono:** +39 02 87198520
 - **LinkedIn:** https://www.linkedin.com/company/edilizia-in-cloud

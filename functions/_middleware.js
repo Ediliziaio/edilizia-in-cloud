@@ -21,6 +21,16 @@ const BOT_PATTERNS = [
   /linkedinbot/i,
   /whatsapp/i,
   /telegrambot/i,
+  /slackbot/i,
+  /discordbot/i,
+  /pinterestbot/i,
+  /redditbot/i,
+  /embedly/i,
+  /skypeuripreview/i,
+  /microsoftpreview/i,
+  /teams/i,
+  /vkshare/i,
+  /tumblr/i,
   /applebot/i,
   /gptbot/i,          // OpenAI
   /chatgpt-user/i,
@@ -48,7 +58,7 @@ function isBot(userAgent) {
 
 // ─── Route meta definitions ──────────────────────────────────────────────────
 
-const BASE = "https://ediliziaincloud.com";
+const BASE = "https://www.ediliziaincloud.com";
 
 const ROUTES = {
   "/": {
@@ -75,7 +85,7 @@ const ROUTES = {
         operatingSystem: "Web, iOS, Android",
         description:
           "Software gestionale cloud per imprese edili italiane: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR.",
-        url: "https://ediliziaincloud.com",
+        url: "https://www.ediliziaincloud.com",
         inLanguage: "it",
         offers: {
           "@type": "AggregateOffer",
@@ -85,15 +95,15 @@ const ROUTES = {
           offerCount: "3",
         },
         featureList: "Gestione cantieri, Preventivi professionali, Fatturazione elettronica SDI, Gestione subappalti, DDT, Ordini fornitori, HR e presenze, Prima nota, App mobile cantiere",
-        screenshot: "https://ediliziaincloud.com/og/home.png",
+        screenshot: "https://www.ediliziaincloud.com/og/home.png",
       },
       {
         "@context": "https://schema.org",
         "@type": "Organization",
         name: "Edilizia in Cloud",
         legalName: "Domus Group S.r.l.",
-        url: "https://ediliziaincloud.com",
-        logo: "https://ediliziaincloud.com/logo.png",
+        url: "https://www.ediliziaincloud.com",
+        logo: "https://www.ediliziaincloud.com/logo.png",
         sameAs: [
           "https://www.linkedin.com/company/ediliziaincloud",
           "https://www.youtube.com/@ediliziaincloud",
@@ -428,7 +438,7 @@ const ROUTES = {
       "@type": "DefinedTermSet",
       name: "Glossario Edilizia",
       description: "Dizionario dei principali termini del settore edile italiano",
-      url: "https://ediliziaincloud.com/glossario-edilizia",
+      url: "https://www.ediliziaincloud.com/glossario-edilizia",
       inLanguage: "it",
     },
   },
@@ -781,7 +791,7 @@ const BLOG_CATEGORIES = {
 
 // ─── HTML builder ────────────────────────────────────────────────────────────
 
-function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "", ogType = "website", ogImage = "https://ediliziaincloud.com/og/home.png" }) {
+function buildHtml({ title, description, canonical, h1, intro, links = [], jsonLd = null, extra = "", ogType = "website", ogImage = "https://www.ediliziaincloud.com/og/home.png" }) {
   const jsonLdScript = jsonLd
     ? Array.isArray(jsonLd)
       ? jsonLd.map(j => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join("\n  ")
@@ -793,7 +803,7 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
     .join("\n        ");
 
   const breadcrumb = canonical
-    .replace("https://ediliziaincloud.com", "")
+    .replace("https://www.ediliziaincloud.com", "")
     .split("/")
     .filter(Boolean)
     .map((s) => s.replace(/-/g, " "))
@@ -817,7 +827,7 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
   <meta name="twitter:title" content="${escAttr(title)}"/>
   <meta name="twitter:description" content="${escAttr(description)}"/>
   ${jsonLdScript}
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://ediliziaincloud.com/"}${breadcrumb ? `,${ buildBreadcrumbItems(canonical) }` : ""}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://www.ediliziaincloud.com/"}${breadcrumb ? `,${ buildBreadcrumbItems(canonical) }` : ""}]}</script>
   <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt"/>
   <link rel="alternate" type="text/plain" title="LLMs Full" href="/llms-full.txt"/>
   <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml"/>
@@ -859,11 +869,11 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
 }
 
 function buildBreadcrumbItems(canonical) {
-  const parts = canonical.replace("https://ediliziaincloud.com", "").split("/").filter(Boolean);
+  const parts = canonical.replace("https://www.ediliziaincloud.com", "").split("/").filter(Boolean);
   return parts
     .map((part, i) => {
       const pos = i + 2;
-      const href = "https://ediliziaincloud.com/" + parts.slice(0, i + 1).join("/");
+      const href = "https://www.ediliziaincloud.com/" + parts.slice(0, i + 1).join("/");
       const name = part.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       return `{"@type":"ListItem","position":${pos},"name":"${name}","item":"${href}"}`;
     })
@@ -1034,8 +1044,8 @@ function resolveRoute(pathname) {
       url: BASE + pathname,
       datePublished: meta.publishedAt || "",
       author: { "@type": "Person", name: "Florin Andriciuc" },
-      publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://ediliziaincloud.com" },
-      image: meta.coverImage || "https://ediliziaincloud.com/og/home.png",
+      publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com" },
+      image: meta.coverImage || "https://www.ediliziaincloud.com/og/home.png",
       keywords: meta.tags ? meta.tags.join(", ") : "",
       inLanguage: "it",
     } : null;
@@ -1053,7 +1063,7 @@ function resolveRoute(pathname) {
       ],
       jsonLd: articleJsonLd,
       ogType: "article",
-      ogImage: meta.coverImage || "https://ediliziaincloud.com/og/home.png",
+      ogImage: meta.coverImage || "https://www.ediliziaincloud.com/og/home.png",
     };
   }
 

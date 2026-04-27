@@ -85,13 +85,13 @@ export default function VsEdilnet() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Confronto", item: "https://ediliziaincloud.com/confronto" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Confronto", item: "https://www.ediliziaincloud.com/confronto" },
             {
               "@type": "ListItem",
               position: 3,
               name: "vs Edilnet",
-              item: "https://ediliziaincloud.com/confronto/vs-edilnet",
+              item: "https://www.ediliziaincloud.com/confronto/vs-edilnet",
             },
           ],
         }}
@@ -104,7 +104,7 @@ export default function VsEdilnet() {
           name: "Edilizia in Cloud vs Edilnet — Confronto Gestionale Edilizia 2026",
           description:
             "Confronto tra Edilizia in Cloud e Edilnet: funzionalità, prezzi, supporto e facilità di migrazione.",
-          url: "https://ediliziaincloud.com/confronto/vs-edilnet",
+          url: "https://www.ediliziaincloud.com/confronto/vs-edilnet",
         }}
       />
 

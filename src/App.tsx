@@ -105,6 +105,7 @@ const PreventiviEdilizia     = lazy(() => import("@/pages/funzionalita/Preventiv
 const MarginiCantiere        = lazy(() => import("@/pages/funzionalita/MarginiCantiere"));
 const HrPersonale            = lazy(() => import("@/pages/funzionalita/HrPersonale"));
 const GestioneSubappalti     = lazy(() => import("@/pages/funzionalita/GestioneSubappalti"));
+const RenderInfissi          = lazy(() => import("@/pages/funzionalita/RenderInfissi"));
 
 // Confronto sub-pages
 const VsPrimus      = lazy(() => import("@/pages/confronto/VsPrimus"));
@@ -242,6 +243,7 @@ const App = () => (
               <Route path="/funzionalita/margini-cantiere" element={<MarginiCantiere />} />
               <Route path="/funzionalita/hr-personale" element={<HrPersonale />} />
               <Route path="/funzionalita/gestione-subappalti" element={<GestioneSubappalti />} />
+              <Route path="/funzionalita/render-infissi" element={<RenderInfissi />} />
               <Route path="/confronto/vs-primus" element={<VsPrimus />} />
               <Route path="/confronto/vs-edilnet" element={<VsEdilnet />} />
               <Route path="/confronto/vs-teamsystem" element={<VsTeamSystem />} />

@@ -101,13 +101,13 @@ export default function GestioneSubappalti() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://ediliziaincloud.com/funzionalita" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
             {
               "@type": "ListItem",
               position: 3,
               name: "Gestione Subappalti",
-              item: "https://ediliziaincloud.com/funzionalita/gestione-subappalti",
+              item: "https://www.ediliziaincloud.com/funzionalita/gestione-subappalti",
             },
           ],
         }}
@@ -120,8 +120,8 @@ export default function GestioneSubappalti() {
           name: "Gestione Subappalti Edilizia — Software per Subappaltatori",
           description:
             "Registro subappaltatori digitale, DURC con alert automatici, contratti e tracciamento pagamenti per imprese edili.",
-          url: "https://ediliziaincloud.com/funzionalita/gestione-subappalti",
-          isPartOf: { "@type": "WebSite", url: "https://ediliziaincloud.com/funzionalita" },
+          url: "https://www.ediliziaincloud.com/funzionalita/gestione-subappalti",
+          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
           about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
         }}
       />
@@ -134,9 +134,9 @@ export default function GestioneSubappalti() {
           description:
             "Registro subappaltatori, DURC alert automatici, contratti digitali, pagamenti e responsabilità solidale.",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
-          publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://ediliziaincloud.com" },
+          publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com" },
           datePublished: "2026-04-08",
-          url: "https://ediliziaincloud.com/funzionalita/gestione-subappalti",
+          url: "https://www.ediliziaincloud.com/funzionalita/gestione-subappalti",
         }}
       />
 

@@ -57,10 +57,10 @@ export default function LandingFooter() {
         </div>
 
         <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-[#111111]/40 text-sm">
+          <p className="text-[#111111]/65 text-sm">
             © 2026 Domus Group S.r.l. — Tutti i diritti riservati.
           </p>
-          <div className="flex gap-6 text-sm text-[#111111]/40">
+          <div className="flex gap-6 text-sm text-[#111111]/65">
             <Link to="/privacy" className="hover:text-[#F97415] transition-colors">Privacy Policy</Link>
             <Link to="/termini" className="hover:text-[#F97415] transition-colors">Termini di Servizio</Link>
             <Link to="/cookie" className="hover:text-[#F97415] transition-colors">Cookie Policy</Link>

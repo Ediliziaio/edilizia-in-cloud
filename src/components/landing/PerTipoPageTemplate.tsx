@@ -231,28 +231,28 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Dedicato a", "item": "https://ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 3, "name": config.badge, "item": `https://ediliziaincloud.com${config.seoCanonical}` },
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Dedicato a", "item": "https://www.ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 3, "name": config.badge, "item": `https://www.ediliziaincloud.com${config.seoCanonical}` },
         ]
       }} />
       <JsonLd id={`jsonld-service-${config.seoCanonical.replace(/\//g, "-")}`} data={{
         "@context": "https://schema.org",
         "@type": "Service",
-        "@id": `https://ediliziaincloud.com${config.seoCanonical}`,
+        "@id": `https://www.ediliziaincloud.com${config.seoCanonical}`,
         "name": config.seoTitle,
         "serviceType": "Software Gestionale Edilizia",
         "description": config.seoDescription,
-        "url": `https://ediliziaincloud.com${config.seoCanonical}`,
-        "provider": { "@id": "https://ediliziaincloud.com/#organization" },
+        "url": `https://www.ediliziaincloud.com${config.seoCanonical}`,
+        "provider": { "@id": "https://www.ediliziaincloud.com/#organization" },
         "areaServed": { "@type": "Country", "name": "Italia" },
         "hasOfferCatalog": {
           "@type": "OfferCatalog",
           "name": "Piani Edilizia in Cloud",
           "itemListElement": [
-            { "@type": "Offer", "name": "Gestionale", "price": 99, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" },
-            { "@type": "Offer", "name": "Professionista", "price": 197, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" },
-            { "@type": "Offer", "name": "Impresa AI", "price": 437, "priceCurrency": "EUR", "url": "https://ediliziaincloud.com/prezzi" }
+            { "@type": "Offer", "name": "Gestionale", "price": 99, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" },
+            { "@type": "Offer", "name": "Professionista", "price": 197, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" },
+            { "@type": "Offer", "name": "Impresa AI", "price": 437, "priceCurrency": "EUR", "url": "https://www.ediliziaincloud.com/prezzi" }
           ]
         }
       }} />

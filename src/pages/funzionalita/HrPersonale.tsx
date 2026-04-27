@@ -101,13 +101,13 @@ export default function HrPersonale() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://ediliziaincloud.com/funzionalita" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
             {
               "@type": "ListItem",
               position: 3,
               name: "HR & Personale",
-              item: "https://ediliziaincloud.com/funzionalita/hr-personale",
+              item: "https://www.ediliziaincloud.com/funzionalita/hr-personale",
             },
           ],
         }}
@@ -120,8 +120,8 @@ export default function HrPersonale() {
           name: "Software HR Presenze Operai Edili — Gestione Personale Cantiere",
           description:
             "Timbratura GPS da cantiere, Cassa Edile integrata, CCNL edilizia e export per buste paga. Gestione HR completa per imprese edili.",
-          url: "https://ediliziaincloud.com/funzionalita/hr-personale",
-          isPartOf: { "@type": "WebSite", url: "https://ediliziaincloud.com/funzionalita" },
+          url: "https://www.ediliziaincloud.com/funzionalita/hr-personale",
+          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
           about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
         }}
       />
@@ -134,9 +134,9 @@ export default function HrPersonale() {
           description:
             "Timbratura GPS da cantiere, Cassa Edile integrata, CCNL edilizia e export per buste paga.",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
-          publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://ediliziaincloud.com" },
+          publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com" },
           datePublished: "2026-04-08",
-          url: "https://ediliziaincloud.com/funzionalita/hr-personale",
+          url: "https://www.ediliziaincloud.com/funzionalita/hr-personale",
         }}
       />
 

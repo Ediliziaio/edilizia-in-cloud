@@ -234,7 +234,7 @@ export default function BlogPost() {
   const jsonLdData = {
     "@context": "https://schema.org",
     "@type": "Article",
-    "@id": `https://ediliziaincloud.com/blog/${post.slug}`,
+    "@id": `https://www.ediliziaincloud.com/blog/${post.slug}`,
     headline: post.title,
     description: post.excerpt,
     image: {
@@ -248,18 +248,18 @@ export default function BlogPost() {
     keywords: post.tags.join(", "),
     articleSection: post.category,
     inLanguage: "it",
-    mainEntityOfPage: { "@type": "WebPage", "@id": `https://ediliziaincloud.com/blog/${post.slug}` },
-    isPartOf: { "@id": "https://ediliziaincloud.com/blog" },
+    mainEntityOfPage: { "@type": "WebPage", "@id": `https://www.ediliziaincloud.com/blog/${post.slug}` },
+    isPartOf: { "@id": "https://www.ediliziaincloud.com/blog" },
     author: {
       "@type": "Person",
-      "@id": "https://ediliziaincloud.com/#author-flo",
+      "@id": "https://www.ediliziaincloud.com/#author-flo",
       name: post.author.name,
       jobTitle: post.author.role,
-      url: "https://ediliziaincloud.com/chi-siamo",
+      url: "https://www.ediliziaincloud.com/chi-siamo",
       sameAs: ["https://www.linkedin.com/company/edilizia-in-cloud"],
-      worksFor: { "@id": "https://ediliziaincloud.com/#organization" },
+      worksFor: { "@id": "https://www.ediliziaincloud.com/#organization" },
     },
-    publisher: { "@id": "https://ediliziaincloud.com/#organization" },
+    publisher: { "@id": "https://www.ediliziaincloud.com/#organization" },
     timeRequired: `PT${post.readTime}M`,
     wordCount: post.readTime * 200,
     speakable: {
@@ -303,9 +303,9 @@ export default function BlogPost() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://ediliziaincloud.com/blog" },
-          { "@type": "ListItem", "position": 3, "name": post.title, "item": `https://ediliziaincloud.com/blog/${post.slug}` }
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://www.ediliziaincloud.com/blog" },
+          { "@type": "ListItem", "position": 3, "name": post.title, "item": `https://www.ediliziaincloud.com/blog/${post.slug}` }
         ]
       }} />
 

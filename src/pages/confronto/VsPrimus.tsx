@@ -93,13 +93,13 @@ export default function VsPrimus() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Confronto", item: "https://ediliziaincloud.com/confronto" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Confronto", item: "https://www.ediliziaincloud.com/confronto" },
             {
               "@type": "ListItem",
               position: 3,
               name: "vs Primus",
-              item: "https://ediliziaincloud.com/confronto/vs-primus",
+              item: "https://www.ediliziaincloud.com/confronto/vs-primus",
             },
           ],
         }}
@@ -112,7 +112,7 @@ export default function VsPrimus() {
           name: "Edilizia in Cloud vs Primus ACCA — Confronto Gestionale Edilizia 2026",
           description:
             "Confronto dettagliato tra Edilizia in Cloud e Primus ACCA Software: funzionalità, prezzi, facilità d'uso e supporto.",
-          url: "https://ediliziaincloud.com/confronto/vs-primus",
+          url: "https://www.ediliziaincloud.com/confronto/vs-primus",
         }}
       />
 

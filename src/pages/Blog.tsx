@@ -199,21 +199,21 @@ export default function Blog() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Blog Edilizia", "item": "https://ediliziaincloud.com/blog" }
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Blog Edilizia", "item": "https://www.ediliziaincloud.com/blog" }
         ]
       }} />
       <JsonLd id="jsonld-blog-collection" data={{
         "@context": "https://schema.org",
         "@type": "Blog",
-        "@id": "https://ediliziaincloud.com/blog",
+        "@id": "https://www.ediliziaincloud.com/blog",
         "name": "Blog Edilizia in Cloud",
         "description": "Guide e strategie per imprenditori edili: gestione cantieri, AI, margini, digitalizzazione",
-        "url": "https://ediliziaincloud.com/blog",
+        "url": "https://www.ediliziaincloud.com/blog",
         "inLanguage": "it",
         "publisher": {
           "@type": "Organization",
-          "@id": "https://ediliziaincloud.com/#organization",
+          "@id": "https://www.ediliziaincloud.com/#organization",
           "name": "Edilizia in Cloud"
         }
       }} />
@@ -221,18 +221,18 @@ export default function Blog() {
         "@context": "https://schema.org",
         "@type": "ItemList",
         "name": "Articoli recenti — Blog Edilizia in Cloud",
-        "url": "https://ediliziaincloud.com/blog",
+        "url": "https://www.ediliziaincloud.com/blog",
         "numberOfItems": blogPosts.length,
         "itemListElement": blogPosts.slice(0, 12).map((post, i) => ({
           "@type": "ListItem",
           "position": i + 1,
-          "url": `https://ediliziaincloud.com/blog/${post.slug}`,
+          "url": `https://www.ediliziaincloud.com/blog/${post.slug}`,
           "name": post.title,
           "item": {
             "@type": "Article",
             "name": post.title,
             "description": post.excerpt,
-            "url": `https://ediliziaincloud.com/blog/${post.slug}`,
+            "url": `https://www.ediliziaincloud.com/blog/${post.slug}`,
             "image": post.coverImage,
             "datePublished": post.publishedAt,
           }

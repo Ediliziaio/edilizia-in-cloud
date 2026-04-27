@@ -66,9 +66,10 @@ export function getCurrentSubdomain(): string {
   if (typeof window === "undefined") return "app";
   const hostname = window.location.hostname;
 
-  // Local development — no subdomain routing
+  // Local marketing/SEO preview — match the public www site at the root.
+  // Protected app routes remain available by explicit path (for example /azienda).
   if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return "app";
+    return "www";
   }
 
   // Extract the first segment: "admin.ediliziaincloud.com" → "admin"

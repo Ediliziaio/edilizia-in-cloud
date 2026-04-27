@@ -41,18 +41,18 @@ export default function Home() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/"}
+          {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/"}
         ]
       }} />
       <JsonLd id="jsonld-offer-home" data={{
         "@context": "https://schema.org",
         "@type": "Product",
-        "@id": "https://ediliziaincloud.com/#product",
+        "@id": "https://www.ediliziaincloud.com/#product",
         "name": "Edilizia in Cloud — Software Gestionale Imprese Edili",
         "description": "Software gestionale completo per imprese edili: gestione cantieri, margini in tempo reale, fatturazione elettronica, CRM, HR e intelligenza artificiale.",
         "image": [
           "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png",
-          "https://ediliziaincloud.com/icons/icon-512.png"
+          "https://www.ediliziaincloud.com/icons/icon-512.png"
         ],
         "brand": {
           "@type": "Brand",
@@ -61,7 +61,7 @@ export default function Home() {
         "seller": {
           "@type": "Organization",
           "name": "Domus Group S.r.l.",
-          "url": "https://ediliziaincloud.com"
+          "url": "https://www.ediliziaincloud.com"
         },
         "offers": [
           {
@@ -71,7 +71,7 @@ export default function Home() {
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi",
             "description": "Gestione cantieri, finanza e documenti base",
             "shippingDetails": {
               "@type": "OfferShippingDetails",
@@ -98,7 +98,7 @@ export default function Home() {
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi",
             "description": "Tutto Starter + CRM, marketing, HR completo e AI",
             "shippingDetails": {
               "@type": "OfferShippingDetails",
@@ -125,7 +125,7 @@ export default function Home() {
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi",
             "description": "Multi-azienda, API, supporto dedicato",
             "shippingDetails": {
               "@type": "OfferShippingDetails",

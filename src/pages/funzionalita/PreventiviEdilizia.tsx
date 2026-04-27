@@ -101,13 +101,13 @@ export default function PreventiviEdilizia() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://ediliziaincloud.com/funzionalita" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
             {
               "@type": "ListItem",
               position: 3,
               name: "Preventivi Edilizia",
-              item: "https://ediliziaincloud.com/funzionalita/preventivi-edilizia",
+              item: "https://www.ediliziaincloud.com/funzionalita/preventivi-edilizia",
             },
           ],
         }}
@@ -120,8 +120,8 @@ export default function PreventiviEdilizia() {
           name: "Preventivi Edilizia Digitali — Computo Metrico e Firma Elettronica",
           description:
             "Crea preventivi professionali con computo metrico integrato. Prezzari regionali aggiornati, firma digitale del cliente.",
-          url: "https://ediliziaincloud.com/funzionalita/preventivi-edilizia",
-          isPartOf: { "@type": "WebSite", url: "https://ediliziaincloud.com/funzionalita" },
+          url: "https://www.ediliziaincloud.com/funzionalita/preventivi-edilizia",
+          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
           about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
         }}
       />

@@ -28,6 +28,9 @@ dist-ssr
 # Supabase CLI local cache
 supabase/.temp/
 
+# Cloudflare Wrangler local preview/cache
+.wrangler/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

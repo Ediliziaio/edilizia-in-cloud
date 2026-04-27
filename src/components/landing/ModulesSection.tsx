@@ -204,7 +204,7 @@ export default function ModulesSection() {
           <div className="text-center mt-10">
             <button
               onClick={() => setShowAll(true)}
-              className="px-8 py-3 rounded-full border-2 border-[#F97415] text-[#F97415] font-semibold hover:bg-[#F97415] hover:text-white transition-all duration-200"
+              className="px-8 py-3 rounded-full border-2 border-[#B45309] text-[#B45309] font-semibold hover:bg-[#B45309] hover:text-white transition-all duration-200"
             >
               Mostra tutti i moduli ({filtered.length - INITIAL_VISIBLE} altri)
             </button>

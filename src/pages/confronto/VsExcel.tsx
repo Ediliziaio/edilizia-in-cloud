@@ -119,7 +119,7 @@ export default function VsExcel() {
             "Edilizia in Cloud vs Excel: il vero costo nascosto di gestire i cantieri con i fogli di calcolo",
           description:
             "Excel per gestire i cantieri? Scopri quanto ti costa davvero e perché le imprese edili stanno passando a Edilizia in Cloud. Confronto completo 2026.",
-          url: "https://ediliziaincloud.com/confronto/vs-excel",
+          url: "https://www.ediliziaincloud.com/confronto/vs-excel",
           datePublished: "2026-01-01",
           dateModified: "2026-04-08",
           author: { "@type": "Organization", name: "Edilizia in Cloud" },
@@ -132,13 +132,13 @@ export default function VsExcel() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Confronto", item: "https://ediliziaincloud.com/confronto" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Confronto", item: "https://www.ediliziaincloud.com/confronto" },
             {
               "@type": "ListItem",
               position: 3,
               name: "vs Excel",
-              item: "https://ediliziaincloud.com/confronto/vs-excel",
+              item: "https://www.ediliziaincloud.com/confronto/vs-excel",
             },
           ],
         }}

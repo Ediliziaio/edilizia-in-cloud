@@ -295,24 +295,24 @@ export default function ChiSiamo() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Chi Siamo", "item": "https://ediliziaincloud.com/chi-siamo" }
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Chi Siamo", "item": "https://www.ediliziaincloud.com/chi-siamo" }
         ]
       }} />
       <JsonLd id="jsonld-organization-chisiamo" data={{
         "@context": "https://schema.org",
         "@type": "Organization",
-        "@id": "https://ediliziaincloud.com/#organization",
+        "@id": "https://www.ediliziaincloud.com/#organization",
         "name": "Edilizia in Cloud",
         "legalName": "Domus Group S.r.l.",
-        "url": "https://ediliziaincloud.com",
+        "url": "https://www.ediliziaincloud.com",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://ediliziaincloud.com/icons/icon-512.png",
+          "url": "https://www.ediliziaincloud.com/icons/icon-512.png",
           "width": 512,
           "height": 512
         },
-        "image": "https://ediliziaincloud.com/icons/icon-512.png",
+        "image": "https://www.ediliziaincloud.com/icons/icon-512.png",
         "description": "Edilizia in Cloud è il gestionale cloud con AI per imprese edili italiane. Gestisci cantieri, fatturazione, preventivi e squadre in un'unica piattaforma.",
         "foundingDate": "2021",
         "vatID": "IT13132010961",
@@ -349,12 +349,12 @@ export default function ChiSiamo() {
       <JsonLd id="jsonld-person-founder" data={{
         "@context": "https://schema.org",
         "@type": "Person",
-        "@id": "https://ediliziaincloud.com/#author-flo",
+        "@id": "https://www.ediliziaincloud.com/#author-flo",
         "name": "Marco Verdi",
         "jobTitle": "Founder & CEO",
         "description": "Ex imprenditore edile, fondatore di Edilizia in Cloud. Ha sviluppato il gestionale per risolvere i problemi reali di gestione cantieri, margini e fatturazione della propria impresa.",
-        "url": "https://ediliziaincloud.com/chi-siamo",
-        "worksFor": { "@id": "https://ediliziaincloud.com/#organization" },
+        "url": "https://www.ediliziaincloud.com/chi-siamo",
+        "worksFor": { "@id": "https://www.ediliziaincloud.com/#organization" },
         "knowsAbout": [
           "Gestione impresa edile",
           "Software gestionale edilizia",

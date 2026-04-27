@@ -82,7 +82,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
               <div
                 key={i}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                  item.active ? "bg-[#F97415]/20 text-[#F97415]" : "text-white/25 hover:text-white/40"
+                  item.active ? "bg-[#F97415]/20 text-[#F97415]" : "text-white/60 hover:text-white/80"
                 }`}
               >
                 <item.Icon size={16} />
@@ -95,7 +95,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
             {/* Header bar */}
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-white/40 text-[9px] md:text-[10px]">Benvenuto</p>
+                <p className="text-white/70 text-[9px] md:text-[10px]">Benvenuto</p>
                 <p className="text-white text-xs md:text-sm font-semibold">Dashboard</p>
               </div>
               <div className="flex items-center gap-2">
@@ -113,7 +113,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
                     <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: stat.bg }}>
                       <stat.icon size={10} style={{ color: stat.color }} />
                     </div>
-                    <span className="text-white/40 text-[8px] md:text-[9px]">{stat.label}</span>
+                    <span className="text-white/70 text-[8px] md:text-[9px]">{stat.label}</span>
                   </div>
                   <p className="text-white text-xs md:text-sm font-bold">{stat.value}</p>
                 </div>
@@ -124,7 +124,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 min-w-0">
               {/* Bar chart */}
               <div className="bg-white/[0.04] rounded-lg p-2.5 border border-white/5">
-                <p className="text-white/50 text-[9px] mb-2 font-medium">Fatturato Mensile</p>
+                <p className="text-white/70 text-[9px] mb-2 font-medium">Fatturato Mensile</p>
                 <div className="flex items-end gap-1.5 h-16">
                   {chartBars.map((bar, i) => (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -135,7 +135,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
                           background: `linear-gradient(to top, #F97415, #F9741599)`,
                         }}
                       />
-                      <span className="text-white/30 text-[7px]">{bar.month}</span>
+                      <span className="text-white/65 text-[7px]">{bar.month}</span>
                     </div>
                   ))}
                 </div>
@@ -143,13 +143,13 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
 
               {/* Orders table */}
               <div className="hidden md:block bg-white/[0.04] rounded-lg p-2.5 border border-white/5">
-                <p className="text-white/50 text-[9px] mb-2 font-medium">Ultimi Ordini</p>
+                <p className="text-white/70 text-[9px] mb-2 font-medium">Ultimi Ordini</p>
                 <div className="space-y-1.5">
                   {ordersData.map((order, i) => (
                     <div key={i} className="flex items-center justify-between text-[8px] md:text-[9px]">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[#F97415] font-mono font-medium shrink-0">{order.code}</span>
-                        <span className="text-white/50 truncate">{order.client}</span>
+                        <span className="text-white/70 truncate">{order.client}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-white/70 font-medium">{order.amount}</span>
@@ -307,7 +307,7 @@ export default function HeroSection() {
             in tempo reale
           </div>
 
-          <p className="text-sm md:text-base text-white/50 mb-0 max-w-xl mx-auto">
+          <p className="text-sm md:text-base text-white/70 mb-0 max-w-xl mx-auto">
             L'unico gestionale costruito da zero per l'edilizia italiana.
           </p>
         </div>
@@ -333,7 +333,7 @@ export default function HeroSection() {
           <a
             href="#cta-finale"
             onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
-            className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-[#F97415] text-white font-bold text-base md:text-lg hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#F97415]/30"
+            className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-[#C94F06] text-white font-bold text-base md:text-lg hover:bg-[#A84305] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#C94F06]/30"
           >
             Inizia Gratis — 30 Giorni
           </a>
@@ -369,19 +369,19 @@ export default function HeroSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <div className="flex items-center gap-2 text-white/50 text-xs md:text-sm">
+          <div className="flex items-center gap-2 text-white/70 text-xs md:text-sm">
             <Users size={16} className="text-[#F97415]" />
             <span>200+ Imprese Attive</span>
           </div>
           <div className="hidden sm:block w-px h-4 bg-white/20" />
-          <div className="flex items-center gap-1.5 text-white/50 text-xs md:text-sm">
+          <div className="flex items-center gap-1.5 text-white/70 text-xs md:text-sm">
             {[...Array(5)].map((_, i) => (
               <Star key={i} size={14} className="text-[#F97415] fill-[#F97415]" />
             ))}
             <span className="ml-1">4.9/5 Soddisfazione</span>
           </div>
           <div className="hidden sm:block w-px h-4 bg-white/20" />
-          <div className="flex items-center gap-2 text-white/50 text-xs md:text-sm">
+          <div className="flex items-center gap-2 text-white/70 text-xs md:text-sm">
             <Headphones size={16} className="text-[#F97415]" />
             <span>Supporto Italiano</span>
           </div>
@@ -393,7 +393,7 @@ export default function HeroSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <p className="text-white/40 text-xs mb-4">Usato da imprenditori che lavorano con</p>
+          <p className="text-white/70 text-xs mb-4">Usato da imprenditori che lavorano con</p>
           <div
             className="overflow-hidden"
             style={{
@@ -405,7 +405,7 @@ export default function HeroSection() {
               {[...Array(2)].map((_, copy) => (
                 <div key={copy} className="flex items-center shrink-0">
                   {["ANCE", "Confindustria Edilizia", "Cassa Edile", "Edilportale", "SAP Certified", "Collegio Geometri", "ANIEM", "FederCAM"].map((name) => (
-                    <span key={`${copy}-${name}`} className="mx-4 md:mx-6 text-white/30 text-xs md:text-sm font-bold uppercase tracking-widest shrink-0">
+                    <span key={`${copy}-${name}`} className="mx-4 md:mx-6 text-white/65 text-xs md:text-sm font-bold uppercase tracking-widest shrink-0">
                       {name}
                     </span>
                   ))}

@@ -101,13 +101,13 @@ export default function MarginiCantiere() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://ediliziaincloud.com/funzionalita" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
             {
               "@type": "ListItem",
               position: 3,
               name: "Margini Cantiere",
-              item: "https://ediliziaincloud.com/funzionalita/margini-cantiere",
+              item: "https://www.ediliziaincloud.com/funzionalita/margini-cantiere",
             },
           ],
         }}
@@ -120,8 +120,8 @@ export default function MarginiCantiere() {
           name: "Controllo Margini Cantiere in Tempo Reale — Redditività per Commessa",
           description:
             "Vedi il margine reale di ogni cantiere in tempo reale: costi effettivi vs budget, scostamenti, ore imputate e previsione finale.",
-          url: "https://ediliziaincloud.com/funzionalita/margini-cantiere",
-          isPartOf: { "@type": "WebSite", url: "https://ediliziaincloud.com/funzionalita" },
+          url: "https://www.ediliziaincloud.com/funzionalita/margini-cantiere",
+          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
           about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
         }}
       />

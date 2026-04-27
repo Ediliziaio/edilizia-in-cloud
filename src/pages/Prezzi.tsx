@@ -164,28 +164,28 @@ export default function Prezzi() {
       <JsonLd id="jsonld-prezzi" data={{
         "@context": "https://schema.org",
         "@type": "Product",
-        "@id": "https://ediliziaincloud.com/#product",
+        "@id": "https://www.ediliziaincloud.com/#product",
         "name": "Edilizia in Cloud",
         "description": "Software gestionale completo per imprese edili italiane",
         "image": [
           "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png",
-          "https://ediliziaincloud.com/icons/icon-512.png"
+          "https://www.ediliziaincloud.com/icons/icon-512.png"
         ],
         "brand": { "@type": "Brand", "name": "Edilizia in Cloud" },
-        "seller": { "@type": "Organization", "name": "Domus Group S.r.l.", "url": "https://ediliziaincloud.com" },
+        "seller": { "@type": "Organization", "name": "Domus Group S.r.l.", "url": "https://www.ediliziaincloud.com" },
         "offers": [
           {
             "@type": "Offer", "name": "Scopri", "price": "0", "priceCurrency": "EUR",
             "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
             "availability": "https://schema.org/InStock",
-            "url": "https://ediliziaincloud.com/prezzi"
+            "url": "https://www.ediliziaincloud.com/prezzi"
           },
           {
             "@type": "Offer", "name": "Gestionale", "price": "99", "priceCurrency": "EUR",
             "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi",
             "shippingDetails": {
               "@type": "OfferShippingDetails",
               "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
@@ -209,7 +209,7 @@ export default function Prezzi() {
             "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi",
             "shippingDetails": {
               "@type": "OfferShippingDetails",
               "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
@@ -233,7 +233,7 @@ export default function Prezzi() {
             "priceSpecification": { "@type": "UnitPriceSpecification", "unitText": "MONTH" },
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi",
             "shippingDetails": {
               "@type": "OfferShippingDetails",
               "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
@@ -259,8 +259,8 @@ export default function Prezzi() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Prezzi", "item": "https://ediliziaincloud.com/prezzi" }
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Prezzi", "item": "https://www.ediliziaincloud.com/prezzi" }
         ]
       }} />
       <LandingNavbar />

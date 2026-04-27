@@ -104,7 +104,7 @@ export default function BlogCategory() {
   const colorClass = categoryColors[meta.category] ?? "bg-gray-100 text-gray-700";
   const [featured, ...rest] = posts;
 
-  const baseUrl = "https://ediliziaincloud.com";
+  const baseUrl = "https://www.ediliziaincloud.com";
   const pageUrl = `${baseUrl}/blog/categoria/${slug}`;
 
   return (

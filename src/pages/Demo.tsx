@@ -91,8 +91,8 @@ export default function Demo() {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ediliziaincloud.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Demo", "item": "https://ediliziaincloud.com/demo" }
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.ediliziaincloud.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Demo", "item": "https://www.ediliziaincloud.com/demo" }
         ]
       }} />
       <LandingNavbar />

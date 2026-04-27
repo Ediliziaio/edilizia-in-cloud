@@ -103,13 +103,13 @@ export default function GestioneCantieri() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://ediliziaincloud.com/funzionalita" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
             {
               "@type": "ListItem",
               position: 3,
               name: "Gestione Cantieri",
-              item: "https://ediliziaincloud.com/funzionalita/gestione-cantieri",
+              item: "https://www.ediliziaincloud.com/funzionalita/gestione-cantieri",
             },
           ],
         }}
@@ -122,8 +122,8 @@ export default function GestioneCantieri() {
           name: "Gestione Cantieri — Software Avanzamento Lavori",
           description:
             "Controlla l'avanzamento di ogni cantiere in tempo reale dal telefono. Margini per commessa aggiornati, timbrature operai, giornale lavori digitale e alert automatici.",
-          url: "https://ediliziaincloud.com/funzionalita/gestione-cantieri",
-          isPartOf: { "@type": "WebSite", url: "https://ediliziaincloud.com/funzionalita" },
+          url: "https://www.ediliziaincloud.com/funzionalita/gestione-cantieri",
+          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
           about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
         }}
       />

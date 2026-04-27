@@ -101,13 +101,13 @@ export default function FatturazioneElettronica() {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://ediliziaincloud.com/" },
-            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://ediliziaincloud.com/funzionalita" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" },
+            { "@type": "ListItem", position: 2, name: "Funzionalità", item: "https://www.ediliziaincloud.com/funzionalita" },
             {
               "@type": "ListItem",
               position: 3,
               name: "Fatturazione Elettronica",
-              item: "https://ediliziaincloud.com/funzionalita/fatturazione-elettronica",
+              item: "https://www.ediliziaincloud.com/funzionalita/fatturazione-elettronica",
             },
           ],
         }}
@@ -120,8 +120,8 @@ export default function FatturazioneElettronica() {
           name: "Fatturazione Elettronica Edilizia — SDI, SAL e Conservazione Sostitutiva",
           description:
             "Emetti fatture elettroniche direttamente dai SAL di cantiere. Invio SDI automatico, conservazione sostitutiva a norma.",
-          url: "https://ediliziaincloud.com/funzionalita/fatturazione-elettronica",
-          isPartOf: { "@type": "WebSite", url: "https://ediliziaincloud.com/funzionalita" },
+          url: "https://www.ediliziaincloud.com/funzionalita/fatturazione-elettronica",
+          isPartOf: { "@type": "WebSite", url: "https://www.ediliziaincloud.com/funzionalita" },
           about: { "@type": "SoftwareApplication", name: "Edilizia in Cloud" },
         }}
       />
