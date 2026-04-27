@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, QrCode } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, QrCode, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -32,9 +32,15 @@ import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import InventoryAuditDialog from "./InventoryAuditDialog";
 import type { StockItem } from "@/types/warehouse";
 
-// Quick scan: lazy-loaded perché trascina @zxing/library nel bundle solo on-demand.
+// Quick scan + carico/oda: lazy per non gonfiare il bundle iniziale (@zxing/library ~500KB).
 const WarehouseQuickScanSheet = lazy(() =>
   import("./WarehouseQuickScanSheet").then((m) => ({ default: m.WarehouseQuickScanSheet })),
+);
+const CaricoRapidoSheet = lazy(() =>
+  import("./CaricoRapidoSheet").then((m) => ({ default: m.CaricoRapidoSheet })),
+);
+const OdaReceiveSheet = lazy(() =>
+  import("./OdaReceiveSheet").then((m) => ({ default: m.OdaReceiveSheet })),
 );
 
 export default function WarehouseStockTab() {
@@ -62,6 +68,9 @@ export default function WarehouseStockTab() {
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   /** Barcode pre-compilato quando l'utente arriva da Quick Scan no-match. */
   const [prefillBarcodeForDialog, setPrefillBarcodeForDialog] = useState<string | undefined>();
+  // Carico rapido + ODA Reverse (MP2 P1a)
+  const [caricoOpen, setCaricoOpen] = useState(false);
+  const [odaReceiveOpen, setOdaReceiveOpen] = useState(false);
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
@@ -449,6 +458,22 @@ export default function WarehouseStockTab() {
             <ScanLine className="h-4 w-4 mr-2" />
             Scansiona QR
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setCaricoOpen(true)}
+            aria-label="Carico rapido"
+          >
+            <ArrowDownCircle className="h-4 w-4 mr-2" />
+            Carico rapido
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setOdaReceiveOpen(true)}
+            aria-label="Ricevi da ODA"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Ricevi da ODA
+          </Button>
           <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi Articolo
@@ -689,6 +714,20 @@ export default function WarehouseStockTab() {
                 setDialogOpen(true);
               }}
             />
+          )}
+        </Suspense>
+
+        {/* Carico rapido (MP2 P1a) */}
+        <Suspense fallback={null}>
+          {caricoOpen && (
+            <CaricoRapidoSheet open={caricoOpen} onOpenChange={setCaricoOpen} />
+          )}
+        </Suspense>
+
+        {/* Ricezione da ODA (MP2 P1a) */}
+        <Suspense fallback={null}>
+          {odaReceiveOpen && (
+            <OdaReceiveSheet open={odaReceiveOpen} onOpenChange={setOdaReceiveOpen} />
           )}
         </Suspense>
       </div>

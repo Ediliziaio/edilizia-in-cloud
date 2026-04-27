@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
   Truck, Save, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
-  AlertTriangle,
+  AlertTriangle, ScanLine,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
@@ -26,6 +26,11 @@ import { VerifyPurchaseOrderDialog } from "@/components/orders/VerifyPurchaseOrd
 import { VerificationHistoryCard } from "@/components/orders/VerificationHistoryCard";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { DDTStatusBadge } from "@/components/ddt/DDTStatusBadge";
+
+// MP2 P1a: ricezione via scansione QR/barcode (lazy: trascina @zxing solo on-demand).
+const OdaReceiveSheet = lazy(() =>
+  import("@/components/warehouse/OdaReceiveSheet").then((m) => ({ default: m.OdaReceiveSheet })),
+);
 
 const fmtEur = (n: number) => formatCurrency(n);
 
@@ -74,6 +79,7 @@ export default function PurchaseOrderDetail() {
 
   // M4 — DDT ricezione (nuovo wizard procedurale)
   const [ddtDialogOpen, setDdtDialogOpen] = useState(false);
+  const [receiveScanOpen, setReceiveScanOpen] = useState(false);
 
   const { data: ddtList = [] } = useQuery({
     queryKey: ["ddt-ricezione", odaId],
@@ -167,6 +173,17 @@ export default function PurchaseOrderDetail() {
             >
               <ShieldCheck className="h-3.5 w-3.5 mr-1" />
               Verifica AI
+            </Button>
+          )}
+          {/* MP2 P1a: ricezione via scansione QR — solo per ODA in stato pending */}
+          {(["inviato", "confermato", "parziale"] as Array<typeof order.status>).includes(order.status) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReceiveScanOpen(true)}
+            >
+              <ScanLine className="h-3.5 w-3.5 mr-1" />
+              Ricevi via scansione
             </Button>
           )}
           {nextStatuses.map((ns) => (
@@ -515,6 +532,17 @@ export default function PurchaseOrderDetail() {
         onOpenChange={setDdtDialogOpen}
         prefillPurchaseOrderId={odaId ?? null}
       />
+
+      {/* MP2 P1a — ricezione via scansione QR/barcode (skip step 1-2 grazie a lockedOdaId) */}
+      <Suspense fallback={null}>
+        {receiveScanOpen && (
+          <OdaReceiveSheet
+            open={receiveScanOpen}
+            onOpenChange={setReceiveScanOpen}
+            lockedOdaId={order.id}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
