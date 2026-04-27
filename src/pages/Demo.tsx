@@ -115,7 +115,7 @@ export default function Demo() {
   };
 
   const inputClass = (field: keyof FormErrors) =>
-    `w-full px-4 py-3 rounded-lg border text-[#111111] text-sm focus:outline-none focus:ring-2 transition-all ${
+    `w-full px-4 py-3 rounded-lg border text-[#111111] text-base sm:text-sm focus:outline-none focus:ring-2 transition-all ${
       errors[field]
         ? "border-red-400 focus:ring-red-200"
         : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
@@ -187,24 +187,24 @@ export default function Demo() {
       {/* Hero */}
       <section
         style={{ background: "linear-gradient(135deg, #111111 0%, #111111 100%)" }}
-        className="pt-36 pb-20 px-6 text-center"
+        className="pt-28 sm:pt-36 pb-14 sm:pb-20 px-5 sm:px-6 text-center"
       >
         <div className="max-w-3xl mx-auto">
           <div
-            className="inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-6"
+            className="inline-block px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold tracking-widest uppercase mb-5 sm:mb-6"
             style={{ background: "rgba(249,116,21,0.18)", color: "#F97415" }}
           >
             Demo Gratuita — Senza Impegno
           </div>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight mb-5">
+          <h1 className="text-[28px] leading-[1.15] sm:text-4xl md:text-5xl font-extrabold text-white sm:leading-tight mb-4 sm:mb-5 px-1">
             Prenota la tua Demo Gratuita
           </h1>
-          <p className="text-lg md:text-xl text-white/70 leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl text-white/70 leading-relaxed">
             Vedi come funziona in 30 minuti. Nessun impegno, cancella quando vuoi.
           </p>
 
           {/* Benefit bar */}
-          <div className="mt-10 flex flex-col md:flex-row items-center justify-center gap-6 md:gap-10">
+          <div className="mt-8 sm:mt-10 flex flex-col md:flex-row items-start sm:items-center md:items-center justify-center gap-4 sm:gap-6 md:gap-10 max-w-md sm:max-w-none mx-auto text-left">
             {[
               { icon: "M", text: "Demo personalizzata sulla tua impresa" },
               { icon: "S", text: "Setup completo incluso nel prezzo" },
@@ -241,9 +241,9 @@ export default function Demo() {
       </section>
 
       {/* Form Section */}
-      <section className="py-16 px-6" style={{ background: "#f7f9fc" }}>
+      <section className="py-12 sm:py-16 px-5 sm:px-6" style={{ background: "#f7f9fc" }}>
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 md:p-10">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-8 md:p-10">
             {submitted ? (
               <div className="text-center py-10">
                 <div
@@ -461,7 +461,7 @@ export default function Demo() {
       </section>
 
       {/* Cosa succede dopo */}
-      <section className="py-16 px-6 bg-white">
+      <section className="py-12 sm:py-16 px-5 sm:px-6 bg-white">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-3">
             Cosa succede dopo?
@@ -503,7 +503,7 @@ export default function Demo() {
       </section>
 
       {/* Cosa vedi nei 30 minuti */}
-      <section className="py-16 px-6" style={{ background: "#fafafa" }}>
+      <section className="py-12 sm:py-16 px-5 sm:px-6" style={{ background: "#fafafa" }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
             <span
@@ -538,7 +538,7 @@ export default function Demo() {
       </section>
 
       {/* FAQ Demo */}
-      <section className="py-16 px-6 bg-white">
+      <section className="py-12 sm:py-16 px-5 sm:px-6 bg-white">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-3">

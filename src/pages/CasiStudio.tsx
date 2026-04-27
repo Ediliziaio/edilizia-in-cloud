@@ -159,22 +159,22 @@ export default function CasiStudio() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-20 md:pt-32 pb-16 bg-[#111111]">
+      <section className="relative overflow-hidden pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 bg-[#111111]">
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-[150px]" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[130px]" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
-        <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+        <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-5 sm:px-6 text-center">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-xs font-bold uppercase tracking-widest">
+            <span className="inline-flex items-center gap-2 mb-5 sm:mb-6 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-[10px] sm:text-xs font-bold uppercase tracking-widest">
               <Star size={12} className="fill-current" /> Casi Studio Reali
             </span>
-            <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-4">
+            <h1 className="text-[28px] leading-[1.15] sm:text-4xl md:text-5xl font-extrabold text-white sm:leading-tight mb-4 px-1">
               Imprese come la tua. <span className="text-[#F97415]">Risultati veri.</span>
             </h1>
-            <p className="text-white/60 text-lg max-w-2xl mx-auto mb-8">
+            <p className="text-white/60 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto mb-7 sm:mb-8">
               Non promesse. Non statistiche inventate. Imprenditori edili italiani che hanno trasformato la loro azienda con dati reali, nomi reali e numeri verificabili.
             </p>
-            <div className="flex flex-wrap justify-center gap-6">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap justify-center items-center gap-3 sm:gap-6">
               {[
                 { Icon: Users, label: "150+ imprese attive" },
                 { Icon: BarChart3, label: "€12M+ fatturato gestito" },
@@ -188,8 +188,8 @@ export default function CasiStudio() {
       </section>
 
       {/* Cases */}
-      <section className="py-16 md:py-24 bg-white">
-        <div ref={casesAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6 space-y-16">
+      <section className="py-12 sm:py-16 md:py-24 bg-white">
+        <div ref={casesAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-5 sm:px-6 space-y-12 sm:space-y-16">
           {cases.map((c, i) => (
             <div key={i}
               className={`grid md:grid-cols-2 gap-8 md:gap-12 items-start transition-all duration-700 ${casesAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
@@ -220,7 +220,7 @@ export default function CasiStudio() {
                 <blockquote className="border-l-4 border-[#F97415] pl-4 italic text-gray-700 text-sm leading-relaxed">"{c.quote}"</blockquote>
               </div>
               {/* Right: results */}
-              <div className={`bg-[#111111] rounded-3xl p-6 md:p-8 ${i % 2 === 1 ? "md:order-1" : ""}`}>
+              <div className={`bg-[#111111] rounded-3xl p-5 sm:p-6 md:p-8 ${i % 2 === 1 ? "md:order-1" : ""}`}>
                 <p className="text-white/50 text-xs font-bold uppercase tracking-widest mb-6">Risultati Misurati</p>
                 <div className="space-y-5">
                   {c.results.map((r, j) => (
@@ -246,16 +246,16 @@ export default function CasiStudio() {
       </section>
 
       {/* CTA */}
-      <section ref={ctaAnim.ref as React.RefObject<HTMLDivElement>} className="py-16 md:py-24 bg-[#111111] relative overflow-hidden">
+      <section ref={ctaAnim.ref as React.RefObject<HTMLDivElement>} className="py-14 sm:py-16 md:py-24 bg-[#111111] relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
         <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.10) 0%, transparent 100%)" }} />
-        <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
+        <div className="relative z-10 max-w-3xl mx-auto px-5 sm:px-6 text-center">
           <div className={`transition-all duration-700 ${ctaAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+            <h2 className="text-[26px] leading-tight sm:text-3xl md:text-5xl font-extrabold text-white mb-4 px-1">
               La prossima storia di successo <span className="text-[#F97415]">è la tua.</span>
             </h2>
-            <p className="text-white/50 text-lg mb-10">30 minuti di demo gratuita. Nessun impegno. Solo chiarezza su cosa puoi ottenere.</p>
-            <Link to="/demo" className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+            <p className="text-white/50 text-base sm:text-lg mb-8 sm:mb-10 leading-relaxed">30 minuti di demo gratuita. Nessun impegno. Solo chiarezza su cosa puoi ottenere.</p>
+            <Link to="/demo" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-base sm:text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
               Richiedi Demo Gratuita <ArrowRight size={18} />
             </Link>
           </div>

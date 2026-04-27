@@ -556,7 +556,7 @@ export default function DiventaPartner() {
       />
 
       {/* HERO */}
-      <section className="relative pt-28 md:pt-36 pb-16 md:pb-24 overflow-hidden">
+      <section className="relative pt-24 sm:pt-28 md:pt-36 pb-12 sm:pb-16 md:pb-24 overflow-hidden">
         <div
           className="absolute inset-0"
           style={{
@@ -564,15 +564,15 @@ export default function DiventaPartner() {
               "radial-gradient(ellipse at top right, rgba(249,116,21,0.08), transparent 60%), linear-gradient(180deg, #FFF8F2 0%, #FFFFFF 100%)",
           }}
         />
-        <div className="relative max-w-6xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+        <div className="relative max-w-6xl mx-auto px-5 sm:px-6">
+          <div className="grid md:grid-cols-2 gap-8 sm:gap-10 items-center">
             <div>
-              <span className="inline-flex items-center gap-2 mb-5 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+              <span className="inline-flex items-center gap-2 mb-4 sm:mb-5 px-3 sm:px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-[10px] sm:text-xs font-bold tracking-widest uppercase">
                 <Sparkles className="w-3.5 h-3.5" />
                 Partner Program 2026
               </span>
 
-              <h1 className="text-4xl md:text-6xl font-extrabold leading-[1.05] tracking-tight mb-6">
+              <h1 className="text-[28px] leading-[1.15] sm:text-4xl md:text-6xl font-extrabold sm:leading-[1.05] tracking-tight mb-5 sm:mb-6">
                 Fino al{" "}
                 <span className="relative inline-block">
                   <span className="relative z-10 text-[#F97415]">30% ricorrente</span>
@@ -584,7 +584,7 @@ export default function DiventaPartner() {
                 portando imprese edili su Edilizia in Cloud
               </h1>
 
-              <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed">
+              <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-7 sm:mb-8 leading-relaxed">
                 Sei un <strong className="text-[#111111]">commercialista</strong>, un'
                 <strong className="text-[#111111]">agenzia di marketing</strong>, un
                 <strong className="text-[#111111]"> commerciale</strong> o un'
@@ -594,18 +594,18 @@ export default function DiventaPartner() {
                 la commissione matura quando il cliente paga.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 mb-8">
+              <div className="flex flex-col sm:flex-row gap-3 mb-7 sm:mb-8">
                 <button
                   type="button"
                   onClick={scrollToForm}
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-base transition-all hover:scale-105 shadow-lg shadow-[#F97415]/30"
+                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-full bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-base transition-all hover:scale-105 shadow-lg shadow-[#F97415]/30"
                 >
                   Candidati ora — è gratis
                   <ArrowRight className="w-5 h-5" />
                 </button>
                 <a
                   href="#calcolatore"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full border-2 border-[#111111]/15 text-[#111111] font-bold text-base hover:bg-[#111111]/5 transition-all"
+                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-full border-2 border-[#111111]/15 text-[#111111] font-bold text-base hover:bg-[#111111]/5 transition-all"
                 >
                   <Calculator className="w-5 h-5" />
                   Calcola il guadagno
@@ -686,8 +686,8 @@ export default function DiventaPartner() {
       </section>
 
       {/* TARGET PERSONAS */}
-      <section className="py-20 md:py-28 bg-white">
-        <div className="max-w-6xl mx-auto px-6">
+      <section className="py-14 sm:py-20 md:py-28 bg-white">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
               Per chi è il programma
@@ -758,7 +758,7 @@ export default function DiventaPartner() {
         className="py-20 md:py-28"
         style={{ backgroundColor: "#f8fafb" }}
       >
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
               Il viaggio del partner
@@ -832,8 +832,8 @@ export default function DiventaPartner() {
       </section>
 
       {/* TIERS — 4 livelli */}
-      <section className="py-20 md:py-28 bg-white">
-        <div className="max-w-6xl mx-auto px-6">
+      <section className="py-14 sm:py-20 md:py-28 bg-white">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
               4 tier meritocratici
@@ -934,8 +934,8 @@ export default function DiventaPartner() {
       </section>
 
       {/* COSA SI COMMISSIONA / COSA NO */}
-      <section className="py-20 md:py-28" style={{ backgroundColor: "#f8fafb" }}>
-        <div className="max-w-5xl mx-auto px-6">
+      <section className="py-14 sm:py-20 md:py-28" style={{ backgroundColor: "#f8fafb" }}>
+        <div className="max-w-5xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-12">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
               Trasparenza totale
@@ -1039,7 +1039,7 @@ export default function DiventaPartner() {
           background: "linear-gradient(180deg, #FFF8F2 0%, #FFFFFF 100%)",
         }}
       >
-        <div className="max-w-4xl mx-auto px-6">
+        <div className="max-w-4xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-12">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
               Calcolatore guadagno
@@ -1058,8 +1058,8 @@ export default function DiventaPartner() {
       </section>
 
       {/* BENEFITS */}
-      <section className="py-20 md:py-28 bg-white">
-        <div className="max-w-6xl mx-auto px-6">
+      <section className="py-14 sm:py-20 md:py-28 bg-white">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
               Cosa ricevi
@@ -1087,8 +1087,8 @@ export default function DiventaPartner() {
       </section>
 
       {/* TESTIMONIAL */}
-      <section className="py-20 md:py-24" style={{ backgroundColor: "#111111" }}>
-        <div className="max-w-4xl mx-auto px-6 text-center">
+      <section className="py-14 sm:py-20 md:py-24" style={{ backgroundColor: "#111111" }}>
+        <div className="max-w-4xl mx-auto px-5 sm:px-6 text-center">
           <div className="flex items-center justify-center gap-1 mb-6">
             {[...Array(5)].map((_, i) => (
               <Star key={i} className="w-5 h-5 fill-[#F97415] text-[#F97415]" />
@@ -1113,8 +1113,8 @@ export default function DiventaPartner() {
       </section>
 
       {/* FAQ */}
-      <section className="py-20 md:py-28 bg-white">
-        <div className="max-w-3xl mx-auto px-6">
+      <section className="py-14 sm:py-20 md:py-28 bg-white">
+        <div className="max-w-3xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-12">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
               Domande frequenti
@@ -1176,7 +1176,7 @@ export default function DiventaPartner() {
           background: "linear-gradient(180deg, #FFFFFF 0%, #FFF8F2 100%)",
         }}
       >
-        <div className="max-w-3xl mx-auto px-6">
+        <div className="max-w-3xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-12">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
               Candidatura partner

@@ -266,7 +266,7 @@ export default function ChiSiamo() {
 
       {/* ── HERO ── */}
       <section
-        className="relative pt-36 pb-24 px-6 overflow-hidden"
+        className="relative pt-28 sm:pt-36 pb-16 sm:pb-24 px-5 sm:px-6 overflow-hidden"
         style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #111111 100%)" }}
       >
         {/* Background image cantiere */}
@@ -306,12 +306,12 @@ export default function ChiSiamo() {
             Chi siamo
           </div>
 
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
+          <h1 className="text-[28px] leading-[1.15] sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white sm:leading-tight mb-5 sm:mb-6 px-1">
             Costruito da chi il <span style={{ color: "#F97415" }}>cantiere</span>
             <br className="hidden md:block" /> lo vive tutti i giorni.
           </h1>
 
-          <p className="text-lg md:text-xl text-white/65 leading-relaxed max-w-2xl mx-auto mb-10">
+          <p className="text-base sm:text-lg md:text-xl text-white/65 leading-relaxed max-w-2xl mx-auto mb-8 sm:mb-10">
             Niente storie da unicorno tech. Niente claim di marketing inventati. Solo un software nato
             dentro un'impresa edile reale, validato sul campo prima di essere offerto al mercato.
           </p>
@@ -326,7 +326,7 @@ export default function ChiSiamo() {
       </section>
 
       {/* ── ORIGINE — narrativa lunga ── */}
-      <section className="py-24 px-6 bg-white">
+      <section className="py-16 sm:py-24 px-5 sm:px-6 bg-white">
         <div
           ref={cantiereAnim.ref}
           className="max-w-4xl mx-auto transition-all duration-1000"
@@ -398,7 +398,7 @@ export default function ChiSiamo() {
       </section>
 
       {/* ── SCENE DI CANTIERE → FEATURE ── */}
-      <section className="py-24 px-6" style={{ background: "#0a0a0a" }}>
+      <section className="py-16 sm:py-24 px-5 sm:px-6" style={{ background: "#0a0a0a" }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <span
@@ -444,7 +444,7 @@ export default function ChiSiamo() {
       </section>
 
       {/* ── PRINCIPI ── */}
-      <section className="py-24 px-6" style={{ background: "#f7f9fc" }}>
+      <section className="py-16 sm:py-24 px-5 sm:px-6" style={{ background: "#f7f9fc" }}>
         <div ref={principiAnim.ref} className="max-w-6xl mx-auto">
           <div
             className="text-center mb-14 transition-all duration-700"
@@ -495,7 +495,7 @@ export default function ChiSiamo() {
       </section>
 
       {/* ── COSA FACCIAMO / NON FACCIAMO ── */}
-      <section className="py-24 px-6 bg-white">
+      <section className="py-16 sm:py-24 px-5 sm:px-6 bg-white">
         <div ref={cosaAnim.ref} className="max-w-6xl mx-auto">
           <div
             className="text-center mb-14 transition-all duration-700"
@@ -581,7 +581,7 @@ export default function ChiSiamo() {
       </section>
 
       {/* ── TIMELINE ── */}
-      <section className="py-24 px-6" style={{ background: "#f7f9fc" }}>
+      <section className="py-16 sm:py-24 px-5 sm:px-6" style={{ background: "#f7f9fc" }}>
         <div ref={timelineAnim.ref} className="max-w-4xl mx-auto">
           <div
             className="text-center mb-14 transition-all duration-700"
@@ -667,7 +667,7 @@ export default function ChiSiamo() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-20 px-6" style={{ background: "#f7f9fc" }}>
+      <section className="py-14 sm:py-20 px-5 sm:px-6" style={{ background: "#f7f9fc" }}>
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-10">
             <span
@@ -693,7 +693,7 @@ export default function ChiSiamo() {
       </section>
 
       {/* ── CTA FINALE ── */}
-      <section className="relative py-24 px-6 text-center overflow-hidden" style={{ background: "#0a0a0a" }}>
+      <section className="relative py-16 sm:py-24 px-5 sm:px-6 text-center overflow-hidden" style={{ background: "#0a0a0a" }}>
         <div
           className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] pointer-events-none"
           style={{

@@ -287,7 +287,7 @@ export default function PianificaMigrazione() {
   };
 
   const inputClass = (field: keyof FormData) =>
-    `w-full px-4 py-3 rounded-lg border text-[#111111] text-sm focus:outline-none focus:ring-2 transition-all ${
+    `w-full px-4 py-3 rounded-lg border text-[#111111] text-base sm:text-sm focus:outline-none focus:ring-2 transition-all ${
       errors[field]
         ? "border-red-400 focus:ring-red-200"
         : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
@@ -345,7 +345,7 @@ export default function PianificaMigrazione() {
 
       {/* ── HERO ── */}
       <section
-        className="relative pt-36 pb-20 px-6 overflow-hidden"
+        className="relative pt-28 sm:pt-36 pb-14 sm:pb-20 px-5 sm:px-6 overflow-hidden"
         style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #111111 100%)" }}
       >
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] pointer-events-none"
@@ -367,20 +367,20 @@ export default function PianificaMigrazione() {
             Setup in 48 ore garantite
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-6">
+          <h1 className="text-[28px] leading-[1.15] sm:text-4xl md:text-6xl font-extrabold text-white sm:leading-tight mb-5 sm:mb-6 px-1">
             Migra dal tuo gestionale attuale.{" "}
             <span style={{ color: "#F97415" }}>Senza perdere un dato. Senza fermare l'attività.</span>
           </h1>
 
-          <p className="text-lg md:text-xl text-white/70 leading-relaxed max-w-3xl mx-auto mb-10">
+          <p className="text-base sm:text-lg md:text-xl text-white/70 leading-relaxed max-w-3xl mx-auto mb-8 sm:mb-10">
             Importiamo gratis cantieri, fatture, anagrafiche e archivio storico dal tuo software.
             Tu approvi, noi facciamo. In 48 ore sei operativo su Edilizia in Cloud.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 mb-10 sm:mb-12">
             <a
               href="#form"
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-white font-bold text-base hover:scale-105 transition-all shadow-lg"
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-full text-white font-bold text-base hover:scale-105 transition-all shadow-lg"
               style={{ background: "#F97415", boxShadow: "0 8px 30px rgba(249,116,21,0.35)" }}
             >
               Pianifica la mia migrazione
@@ -388,7 +388,7 @@ export default function PianificaMigrazione() {
             </a>
             <a
               href="#processo"
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-base text-white hover:bg-white/10 transition-all"
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-full font-bold text-base text-white hover:bg-white/10 transition-all"
               style={{ border: "2px solid rgba(255,255,255,0.35)" }}
             >
               Come funziona
@@ -406,7 +406,7 @@ export default function PianificaMigrazione() {
       </section>
 
       {/* ── DA QUALI SOFTWARE ── */}
-      <section className="py-20 px-6 bg-white">
+      <section className="py-14 sm:py-20 px-5 sm:px-6 bg-white">
         <div
           ref={sourcesAnim.ref}
           className="max-w-6xl mx-auto"
@@ -460,7 +460,7 @@ export default function PianificaMigrazione() {
       </section>
 
       {/* ── COSA IMPORTIAMO / NON IMPORTIAMO ── */}
-      <section className="py-20 px-6" style={{ background: "#f7f9fc" }}>
+      <section className="py-14 sm:py-20 px-5 sm:px-6" style={{ background: "#f7f9fc" }}>
         <div ref={importAnim.ref} className="max-w-6xl mx-auto">
           <div
             className="text-center mb-14 transition-all duration-700"
@@ -555,7 +555,7 @@ export default function PianificaMigrazione() {
       </section>
 
       {/* ── PROCESSO ── */}
-      <section id="processo" className="py-24 px-6 bg-white">
+      <section id="processo" className="py-16 sm:py-24 px-5 sm:px-6 bg-white">
         <div ref={processoAnim.ref} className="max-w-5xl mx-auto">
           <div
             className="text-center mb-16 transition-all duration-700"
@@ -645,7 +645,7 @@ export default function PianificaMigrazione() {
       </section>
 
       {/* ── GARANZIE ── */}
-      <section className="py-20 px-6" style={{ background: "#0a0a0a" }}>
+      <section className="py-14 sm:py-20 px-5 sm:px-6" style={{ background: "#0a0a0a" }}>
         <div ref={garanzieAnim.ref} className="max-w-6xl mx-auto">
           <div
             className="text-center mb-14 transition-all duration-700"
@@ -696,7 +696,7 @@ export default function PianificaMigrazione() {
       </section>
 
       {/* ── FORM ── */}
-      <section id="form" className="py-24 px-6 bg-white">
+      <section id="form" className="py-16 sm:py-24 px-5 sm:px-6 bg-white">
         <div ref={formAnim.ref} className="max-w-3xl mx-auto">
           <div
             className="text-center mb-10 transition-all duration-700"
@@ -863,7 +863,7 @@ export default function PianificaMigrazione() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-20 px-6" style={{ background: "#f7f9fc" }}>
+      <section className="py-14 sm:py-20 px-5 sm:px-6" style={{ background: "#f7f9fc" }}>
         <div ref={faqAnim.ref} className="max-w-3xl mx-auto">
           <div
             className="text-center mb-10 transition-all duration-700"
