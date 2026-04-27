@@ -747,6 +747,15 @@ export function useServiziCatalogo() {
 }
 
 // ─── Hook feature flag per gating ──────────────────────────────────────────
+/**
+ * @deprecated dal 2026-04-27: il flag aziendale è ora `modulo_fotovoltaico_attivo`
+ * risolto via `resolve_company_feature` (vedi `useFeatureAccess`). Questo hook
+ * resta come wrapper di compatibilità per `fv_setup_completato` (campo locale
+ * che NON è una feature flag) e ritorna `attivo` leggendo la colonna legacy
+ * `companies.fv_modulo_attivo` finché non viene rimossa fisicamente.
+ *
+ * Nuovi consumer: usare `useFeatureAccess("modulo_fotovoltaico_attivo")`.
+ */
 export function useFvModuloAttivo() {
   return useQuery({
     queryKey: ["fv", "modulo-attivo"],

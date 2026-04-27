@@ -51,7 +51,6 @@ import {
   Settings,
   Calculator,
   ShieldCheck,
-  Sun,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -165,8 +164,11 @@ export const macroAreas: MacroArea[] = [
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports" },
-      // Modulo Fotovoltaico — gated dal feature flag aziendale fv_modulo_attivo
-      { title: "Fotovoltaico", url: "/azienda/marketing/fotovoltaico", icon: Sun, featureKey: "fv_modulo_attivo" },
+      // 2026-04-27: voce "Fotovoltaico" rimossa dalla sidebar.
+      // L'accesso al modulo passa ora dall'Hub Preventivi → tab "Moduli Vendita"
+      // (gated dal feature flag modulo_fotovoltaico_attivo). La route resta
+      // raggiungibile via URL diretto / link card; le route in companyRoutes.tsx
+      // restano gated da FeatureRoute.
     ],
   },
 

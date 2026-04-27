@@ -59,7 +59,7 @@ const SettingsFinanziamenti = lazy(() => import("@/pages/azienda/settings/Settin
 const SettingsFinanziamentiNuova = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiNuova"));
 const SettingsFinanziamentiDetail = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiDetail"));
 const SettingsFinanziamentiCalcolatore = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiCalcolatore"));
-// Modulo Fotovoltaico (gated da feature flag fv_modulo_attivo)
+// Modulo Fotovoltaico (gated da feature flag modulo_fotovoltaico_attivo)
 const FotovoltaicoIndex = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoIndex"));
 const FotovoltaicoWizard = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoWizard"));
 const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoDettaglio"));
@@ -487,24 +487,24 @@ export function companyRoutes() {
         <Route path="sms/automazioni" element={<SmsPage defaultTab="automazioni" />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
-        {/* Modulo Fotovoltaico — gated da feature flag fv_modulo_attivo */}
+        {/* Modulo Fotovoltaico — gated da feature flag modulo_fotovoltaico_attivo */}
         <Route path="marketing/fotovoltaico" element={
-          <FeatureRoute featureKey="fv_modulo_attivo">
+          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
             <ErrorBoundary title="Errore modulo Fotovoltaico"><FotovoltaicoIndex /></ErrorBoundary>
           </FeatureRoute>
         } />
         <Route path="marketing/fotovoltaico/nuovo" element={
-          <FeatureRoute featureKey="fv_modulo_attivo">
+          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
             <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
           </FeatureRoute>
         } />
         <Route path="marketing/fotovoltaico/:id" element={
-          <FeatureRoute featureKey="fv_modulo_attivo">
+          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
             <ErrorBoundary title="Errore dettaglio Fotovoltaico"><FotovoltaicoDettaglio /></ErrorBoundary>
           </FeatureRoute>
         } />
         <Route path="marketing/fotovoltaico/:id/modifica" element={
-          <FeatureRoute featureKey="fv_modulo_attivo">
+          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
             <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
           </FeatureRoute>
         } />

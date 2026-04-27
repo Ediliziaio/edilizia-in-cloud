@@ -36,6 +36,7 @@ import { PaymentMethodCard } from "./PaymentMethodCard";
 import { CreditTransactionsTable } from "./CreditTransactionsTable";
 import { CreditManagerCard } from "./CreditManagerCard";
 import { CompanyFeatureOverridesCard } from "./CompanyFeatureOverridesCard";
+import { CompanyModuliVendutaSection } from "./CompanyModuliVendutaSection";
 import { CompanyOverrideAuditLogCard } from "./CompanyOverrideAuditLogCard";
 import {
   getEffectivePaymentStatus, getEffectiveMRR, PAYMENT_STATUS_META,
@@ -393,6 +394,12 @@ export function CompanySubscriptionTab({
         onGenerateCheckout={onGenerateCheckout}
         isGeneratingCheckout={isGeneratingCheckout}
         checkoutUrl={checkoutUrl}
+      />
+
+      {/* Sezione dedicata Moduli Vendita Verticali (categoria modulo_vendita) */}
+      <CompanyModuliVendutaSection
+        companyId={company.id}
+        companyName={company.name}
       />
 
       {/* Override feature inline (sblocco/blocco + limiti + scadenze + prezzi custom) */}
