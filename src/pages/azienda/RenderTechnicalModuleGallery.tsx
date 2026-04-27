@@ -41,6 +41,9 @@ function compact(values: Array<string | null | undefined>) {
 export default function RenderTechnicalModuleGallery({ moduleId }: { moduleId: TechnicalRenderModuleId }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  // render_technical_sessions is not in the generated supabase types yet,
+  // so we cast the client locally to keep the queries strongly scoped here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const spec = getTechnicalRenderModuleSpec(moduleId);
   const hubConfig = renderModuleHubConfigs[moduleId];

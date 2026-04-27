@@ -149,6 +149,77 @@ export default function RenderStanzaNew() {
     }
   }, [photo, companyId, user, config, contactId, opportunityId]);
 
+  // ── Polling helpers (declared before startRender so the callback can capture them stably) ──
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+    if (dotsIntervalRef.current) {
+      clearInterval(dotsIntervalRef.current);
+      dotsIntervalRef.current = null;
+    }
+  }, []);
+
+  const startPolling = useCallback((sid: string) => {
+    stopPolling();
+    pollCountRef.current = 0;
+    elapsedRef.current = 0;
+
+    dotsIntervalRef.current = setInterval(() => {
+      elapsedRef.current += 1;
+      setPollState(prev => ({
+        ...prev,
+        dots: (prev.dots + 1) % 4,
+        elapsedSec: elapsedRef.current,
+      }));
+    }, 1000);
+
+    const poll = async () => {
+      if (elapsedRef.current >= MAX_POLL_SEC) {
+        stopPolling();
+        setGenerating(false);
+        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
+        setStep(2);
+        return;
+      }
+
+      const { data: sess } = await supabase
+        .from("render_stanza_sessions")
+        .select("status, result_urls, error_message")
+        .eq("id", sid)
+        .single();
+
+      const s = sess as { status: string; result_urls: string[] | null; error_message?: string | null } | null;
+
+      if (s?.status === "completed" && s.result_urls?.length) {
+        stopPolling();
+        setResultUrls(s.result_urls);
+        setGenerating(false);
+        queryClient.invalidateQueries({ queryKey: ["render-stanza-sessions", companyId] });
+        queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
+        setStep(4);
+        return;
+      }
+
+      if (s?.status === "failed") {
+        stopPolling();
+        setGenerating(false);
+        toast.error(s.error_message || "Render fallito. Riprova.");
+        setStep(2);
+        return;
+      }
+
+      setPollState(prev => ({ ...prev, status: s?.status ?? "processing" }));
+
+      const intervalIdx = Math.min(pollCountRef.current, POLL_INTERVALS.length - 1);
+      pollCountRef.current += 1;
+      pollRef.current = setTimeout(poll, POLL_INTERVALS[intervalIdx]);
+    };
+
+    poll();
+  }, [companyId, queryClient, stopPolling]);
+
   // ── Step 2 → Step 3: start render ──────────────────────────────────────────
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId) return;
@@ -246,77 +317,7 @@ export default function RenderStanzaNew() {
       setStep(2);
       toast.error(msg || "Render fallito");
     }
-  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, generating]);
-
-  function stopPolling() {
-    if (pollRef.current) {
-      clearTimeout(pollRef.current);
-      pollRef.current = null;
-    }
-    if (dotsIntervalRef.current) {
-      clearInterval(dotsIntervalRef.current);
-      dotsIntervalRef.current = null;
-    }
-  }
-
-  function startPolling(sid: string) {
-    stopPolling();
-    pollCountRef.current = 0;
-    elapsedRef.current = 0;
-
-    dotsIntervalRef.current = setInterval(() => {
-      elapsedRef.current += 1;
-      setPollState(prev => ({
-        ...prev,
-        dots: (prev.dots + 1) % 4,
-        elapsedSec: elapsedRef.current,
-      }));
-    }, 1000);
-
-    const poll = async () => {
-      if (elapsedRef.current >= MAX_POLL_SEC) {
-        if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
-        setGenerating(false);
-        toast.error("Timeout: il render sta impiegando troppo tempo. Riprova.");
-        setStep(2);
-        return;
-      }
-
-      const { data: sess } = await supabase
-        .from("render_stanza_sessions")
-        .select("status, result_urls, error_message")
-        .eq("id", sid)
-        .single();
-
-      const s = sess as { status: string; result_urls: string[] | null; error_message?: string | null } | null;
-
-      if (s?.status === "completed" && s.result_urls?.length) {
-        stopPolling();
-        setResultUrls(s.result_urls);
-        setGenerating(false);
-        queryClient.invalidateQueries({ queryKey: ["render-stanza-sessions", companyId] });
-        queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
-        setStep(4);
-        return;
-      }
-
-      if (s?.status === "failed") {
-        stopPolling();
-        setGenerating(false);
-        toast.error(s.error_message || "Render fallito. Riprova.");
-        setStep(2);
-        return;
-      }
-
-      setPollState(prev => ({ ...prev, status: s?.status ?? "processing" }));
-
-      const intervalIdx = Math.min(pollCountRef.current, POLL_INTERVALS.length - 1);
-      pollCountRef.current += 1;
-      pollRef.current = setTimeout(poll, POLL_INTERVALS[intervalIdx]);
-    };
-
-    poll();
-  }
+  }, [sessionId, companyId, config, photo, photoPreview, queryClient, startPolling, stopPolling, generating]);
 
   // ── Save to gallery ─────────────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
