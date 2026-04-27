@@ -13,15 +13,19 @@ import { QuoteSignatureStatusCard } from "@/components/marketing/preventivi/Quot
 import { VersioniPreventivo } from "@/components/marketing/preventivi/VersioniPreventivo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText,
-  MessageCircle, Copy, HardHat,
+  ArrowLeft, Pencil, Send, FileDown, Loader2, User, FileText, FileCheck,
+  MessageCircle, Copy, HardHat, Package, StickyNote,
 } from "lucide-react";
+import {
+  QuotePageHeader,
+  QuoteCard,
+  QuoteChip,
+} from "@/components/marketing/preventivi/ui/builderUI";
 
 export default function QuoteDetail() {
   const { id } = useParams();
@@ -155,103 +159,115 @@ export default function QuoteDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/marketing/preventivi")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">{quote.quote_number}</h1>
-            <Badge variant={sc.variant}>{sc.label}</Badge>
-          </div>
-          <p className="text-muted-foreground">{quote.title}</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={handleGeneratePdf} disabled={generating}>
-            {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
-            {generating ? "Generando..." : "Genera PDF"}
-          </Button>
-
-          {quote.status === "bozza" && (
+      {/* Header (replica FvPageHeader) */}
+      <QuotePageHeader
+        numero={quote.quote_number}
+        title={quote.title || "Preventivo"}
+        subtitle={quote.client_name || undefined}
+        icon={<FileCheck className="h-5 w-5" />}
+        stato={<Badge variant={sc.variant}>{sc.label}</Badge>}
+        actions={
+          <>
             <Button
-              variant="outline"
-              onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
+              variant="ghost"
+              size="sm"
+              className="h-9 hidden md:inline-flex"
+              onClick={() => navigate("/azienda/marketing/preventivi")}
             >
-              <Pencil className="h-4 w-4 mr-2" />
-              Modifica
+              <ArrowLeft className="h-4 w-4 mr-2" /> Lista
             </Button>
-          )}
-
-          {(quote.status === "bozza" || quote.status === "inviata") && (
-            <Button onClick={() => setSendDialogOpen(true)}>
-              <Send className="h-4 w-4 mr-2" />
-              {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
+            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9">
+              {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
+              {generating ? "Generando..." : "Genera PDF"}
             </Button>
-          )}
 
-          {quote.status === "accettata" && (
-            <Button
-              onClick={handleConvertToCantiere}
-              disabled={converting}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {converting
-                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                : <HardHat className="h-4 w-4 mr-2" />}
-              {converting ? "Conversione..." : "Converti in Cantiere"}
-            </Button>
-          )}
-
-          {/* WhatsApp e copia link — visibili solo se il preventivo è stato inviato */}
-          {quote.status === "inviata" && quote.signature_token && (
-            <>
+            {quote.status === "bozza" && (
               <Button
                 variant="outline"
-                className="gap-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10"
-                aria-label="Invia link firma via WhatsApp"
-                onClick={() => openWhatsApp(quote)}
+                onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
+                className="h-9"
               >
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp
+                <Pencil className="h-4 w-4 mr-2" />
+                Modifica
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Copia link firma negli appunti"
-                onClick={() => copySignatureLink(quote)}
+            )}
+
+            {(quote.status === "bozza" || quote.status === "inviata") && (
+              <button
+                type="button"
+                onClick={() => setSendDialogOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9"
               >
-                <Copy className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+                <Send className="h-4 w-4" />
+                {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
+              </button>
+            )}
+
+            {quote.status === "accettata" && (
+              <button
+                type="button"
+                onClick={handleConvertToCantiere}
+                disabled={converting}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
+              >
+                {converting
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <HardHat className="h-4 w-4" />}
+                {converting ? "Conversione..." : "Converti in Cantiere"}
+              </button>
+            )}
+
+            {/* WhatsApp e copia link — visibili solo se il preventivo è stato inviato */}
+            {quote.status === "inviata" && quote.signature_token && (
+              <>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10 h-9"
+                  aria-label="Invia link firma via WhatsApp"
+                  onClick={() => openWhatsApp(quote)}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label="Copia link firma negli appunti"
+                  onClick={() => copySignatureLink(quote)}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </>
+        }
+      />
 
       <Tabs defaultValue="offerta">
-        <TabsList>
-          <TabsTrigger value="offerta">Offerta</TabsTrigger>
-          <TabsTrigger value="cliente">Cliente</TabsTrigger>
-          <TabsTrigger value="documenti">Documenti ({attachments.length})</TabsTrigger>
-          <TabsTrigger value="attivita">Attività</TabsTrigger>
-          <TabsTrigger value="versioni" className="gap-1.5">
+        <TabsList className="bg-slate-100">
+          <TabsTrigger value="offerta" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm gap-1.5">
+            <Package className="h-3.5 w-3.5" /> Offerta
+          </TabsTrigger>
+          <TabsTrigger value="cliente" className="data-[state=active]:bg-white gap-1.5">
+            <User className="h-3.5 w-3.5" /> Cliente
+          </TabsTrigger>
+          <TabsTrigger value="documenti" className="data-[state=active]:bg-white gap-1.5">
+            <FileText className="h-3.5 w-3.5" /> Documenti ({attachments.length})
+          </TabsTrigger>
+          <TabsTrigger value="attivita" className="data-[state=active]:bg-white">Attività</TabsTrigger>
+          <TabsTrigger value="versioni" className="gap-1.5 data-[state=active]:bg-white">
             Versioni
             {versionCount > 0 && (
-              <Badge variant="secondary" className="px-1.5 py-0 text-xs leading-tight">
-                {versionCount}
-              </Badge>
+              <QuoteChip variant="orange" className="ml-0.5">{versionCount}</QuoteChip>
             )}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="offerta" className="space-y-6 mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Prodotti e Servizi</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <QuoteCard title="Prodotti e Servizi" icon={<Package className="h-4 w-4" />}>
               {items.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Nessun prodotto</p>
+                <p className="text-slate-500 text-sm">Nessun prodotto</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -288,132 +304,121 @@ export default function QuoteDetail() {
               )}
 
               <div className="mt-4 flex justify-end">
-                <div className="w-full max-w-xs space-y-1 text-sm">
+                <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 space-y-1.5 text-sm shadow-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotale</span>
-                    <span>{formatCurrency(quote.subtotal || 0)}</span>
+                    <span className="text-slate-500">Subtotale</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(quote.subtotal || 0)}</span>
                   </div>
                   {(quote.discount_percent || 0) > 0 && (
-                    <div className="flex justify-between text-destructive">
+                    <div className="flex justify-between text-orange-600">
                       <span>Sconto {quote.discount_percent}%</span>
-                      <span>-{formatCurrency(quote.discount_amount || 0)}</span>
+                      <span className="tabular-nums">-{formatCurrency(quote.discount_amount || 0)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">IVA</span>
-                    <span>{formatCurrency(quote.vat_amount || 0)}</span>
+                    <span className="text-slate-500">IVA</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(quote.vat_amount || 0)}</span>
                   </div>
-                  <hr />
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Totale</span>
-                    <span>{formatCurrency(quote.total || 0)}</span>
+                  <div className="border-t border-slate-200 my-2" />
+                  <div className="flex justify-between items-center font-bold">
+                    <span className="text-base">Totale</span>
+                    <span className="text-2xl tabular-nums text-orange-600">{formatCurrency(quote.total || 0)}</span>
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </QuoteCard>
 
           {(quote.notes || quote.description) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Note</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+            <QuoteCard title="Note" icon={<StickyNote className="h-4 w-4" />}>
+              <div className="space-y-3 text-sm">
                 {quote.description && (
                   <div>
-                    <p className="text-muted-foreground font-medium">Descrizione</p>
-                    <p>{quote.description}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Descrizione</p>
+                    <p className="text-slate-700">{quote.description}</p>
                   </div>
                 )}
                 {quote.notes && (
                   <div>
-                    <p className="text-muted-foreground font-medium">Note per il cliente</p>
-                    <p>{quote.notes}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Note per il cliente</p>
+                    <p className="text-slate-700">{quote.notes}</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </QuoteCard>
           )}
         </TabsContent>
 
         <TabsContent value="cliente" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 justify-between">
-                <div className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Dati Cliente
-                </div>
-                {quote.contact_id && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/azienda/marketing/contatti/${quote.contact_id}`)}
-                  >
-                    <User className="h-4 w-4 mr-2" />
-                    Vedi nel CRM
-                  </Button>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Nome</p>
-                  <p className="font-medium">{quote.client_name || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Email</p>
-                  <p className="font-medium">{quote.client_email || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Telefono</p>
-                  <p className="font-medium">{quote.client_phone || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Azienda</p>
-                  <p className="font-medium">{quote.client_company || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Codice Fiscale</p>
-                  <p className="font-medium">{quote.client_fiscal_code || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">P.IVA</p>
-                  <p className="font-medium">{quote.client_vat_number || "—"}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-muted-foreground">Indirizzo</p>
-                  <p className="font-medium">{quote.client_address || "—"}</p>
-                </div>
+          <QuoteCard
+            title="Dati Cliente"
+            icon={<User className="h-4 w-4" />}
+            action={
+              quote.contact_id ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/azienda/marketing/contatti/${quote.contact_id}`)}
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Vedi nel CRM
+                </Button>
+              ) : null
+            }
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Nome</p>
+                <p className="font-medium text-slate-900">{quote.client_name || "—"}</p>
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Email</p>
+                <p className="font-medium text-slate-900">{quote.client_email || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Telefono</p>
+                <p className="font-medium text-slate-900">{quote.client_phone || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Azienda</p>
+                <p className="font-medium text-slate-900">{quote.client_company || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Codice Fiscale</p>
+                <p className="font-medium text-slate-900">{quote.client_fiscal_code || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">P.IVA</p>
+                <p className="font-medium text-slate-900">{quote.client_vat_number || "—"}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Indirizzo</p>
+                <p className="font-medium text-slate-900">{quote.client_address || "—"}</p>
+              </div>
+            </div>
+          </QuoteCard>
         </TabsContent>
 
         <TabsContent value="documenti" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Documenti Allegati</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {attachments.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Nessun documento allegato</p>
-              ) : (
-                <div className="space-y-2">
-                  {attachments.map((a) => (
-                    <div key={a.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                      <div className="flex-1">
-                        <p className="font-medium">{a.quote_pdf_materials?.name || "—"}</p>
-                        <p className="text-xs text-muted-foreground">{a.quote_pdf_materials?.category}</p>
-                      </div>
+          <QuoteCard title="Documenti Allegati" icon={<FileText className="h-4 w-4" />}>
+            {attachments.length === 0 ? (
+              <p className="text-slate-500 text-sm">Nessun documento allegato</p>
+            ) : (
+              <div className="space-y-2">
+                {attachments.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg hover:bg-orange-50/50 hover:border-orange-200 transition-colors"
+                  >
+                    <FileText className="h-5 w-5 text-orange-500" />
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">{a.quote_pdf_materials?.name || "—"}</p>
+                      <p className="text-xs text-slate-500">{a.quote_pdf_materials?.category}</p>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  </div>
+                ))}
+              </div>
+            )}
+          </QuoteCard>
         </TabsContent>
 
         <TabsContent value="attivita" className="mt-4">

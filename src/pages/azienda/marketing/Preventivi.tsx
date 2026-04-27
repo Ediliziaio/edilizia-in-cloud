@@ -65,13 +65,8 @@ interface QuoteForDuplicate extends QuoteRow {
 }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import {
   QuotesFiltersSheet,
   EMPTY_QUOTE_FILTERS,
@@ -144,6 +139,13 @@ import {
 } from "lucide-react";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 import { ModuliVendutaTab } from "@/components/marketing/preventivi/moduli/ModuliVendutaTab";
+import {
+  QuoteHubTabs,
+  QuotePageHeader,
+  QuoteKpi,
+  QuoteCard,
+  type HubTab,
+} from "@/components/marketing/preventivi/ui/builderUI";
 
 export default function Preventivi() {
   const { effectiveCompany, user, role } = useAuth();
@@ -581,218 +583,166 @@ export default function Preventivi() {
     URL.revokeObjectURL(url);
   };
 
+  // Tabs configuration per QuoteHubTabs (replica look del wizard FV)
+  const hubTabs: HubTab[] = [
+    { key: "lista", label: "Lista Preventivi", icon: <FileSignature className="h-4 w-4" /> },
+    { key: "moduli", label: "Moduli Vendita", icon: <ShoppingBag className="h-4 w-4" /> },
+    ...(isAdmin
+      ? [
+          {
+            key: "approvazioni",
+            label: "Approvazioni sconto",
+            icon: <Percent className="h-4 w-4" />,
+            badge: pendingApprovalsCount > 0 ? (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
+                {pendingApprovalsCount}
+              </Badge>
+            ) : null,
+          },
+          {
+            key: "analisi",
+            label: "Analisi AI",
+            icon: <BrainCircuit className="h-4 w-4" />,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      {/* ─── Tab navigation ─────────────────────────────────────────── */}
-      <div className="border-b mb-2">
-        <nav className="-mb-px flex gap-4 md:gap-6 overflow-x-auto" role="tablist" aria-label="Sezioni preventivi">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "lista"}
-            onClick={() => handleTabChange("lista")}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "lista"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Lista Preventivi
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "moduli"}
-            onClick={() => handleTabChange("moduli")}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === "moduli"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <ShoppingBag className="h-4 w-4" aria-hidden="true" />
-            Moduli Vendita
-          </button>
-          {isAdmin && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "approvazioni"}
-              onClick={() => handleTabChange("approvazioni")}
-              className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-                activeTab === "approvazioni"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Percent className="h-4 w-4" aria-hidden="true" />
-              Approvazioni sconto
-              {pendingApprovalsCount > 0 && (
-                <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
-                  {pendingApprovalsCount}
-                </Badge>
-              )}
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "analisi"}
-              onClick={() => handleTabChange("analisi")}
-              className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-                activeTab === "analisi"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <BrainCircuit className="h-4 w-4" aria-hidden="true" />
-              Analisi AI
-            </button>
-          )}
-        </nav>
-      </div>
+      {/* ─── Tab navigation (replica look wizard FV) ─────────────────── */}
+      <QuoteHubTabs tabs={hubTabs} active={activeTab} onSelect={handleTabChange} />
 
       {activeTab === "lista" && (
         <>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <FileSignature className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Preventivi</h1>
-            <p className="text-sm text-muted-foreground">Gestisci le offerte commerciali</p>
-          </div>
-        </div>
-        <div className="flex gap-2 items-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9">
-                <Sparkles className="h-4 w-4 mr-2" />
-                Crea da...
-                <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
-                <FileUp className="h-4 w-4 mr-2" />
-                Computo metrico
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
-                <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                Foto / PDF (AI)
-              </DropdownMenuItem>
-              {filtered.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleExportExcel}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Esporta Excel (tutti)
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")} size="sm" className="h-9">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuovo preventivo
-          </Button>
-        </div>
-      </div>
+      <QuotePageHeader
+        title="Preventivi"
+        subtitle="Gestisci le offerte commerciali"
+        icon={<FileSignature className="h-5 w-5" />}
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Crea da...
+                  <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
+                  <FileUp className="h-4 w-4 mr-2" />
+                  Computo metrico
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
+                  <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                  Foto / PDF (AI)
+                </DropdownMenuItem>
+                {filtered.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleExportExcel}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Esporta Excel (tutti)
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}
+              size="sm"
+              className="h-9 bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] hover:-translate-y-px transition-all border-0"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nuovo preventivo
+            </Button>
+          </>
+        }
+      />
 
-      {/* KPI Hero — 4 metriche chiave + 4 avanzati toggleable */}
+      {/* KPI Hero — 4 metriche chiave (look replica wizard FV) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="overflow-hidden border-l-4 border-l-slate-400">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bozze</p>
-              <FileText className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="text-2xl font-bold mt-1.5">{bozze}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">da completare</p>
-          </CardContent>
-        </Card>
-        <Card className="overflow-hidden border-l-4 border-l-blue-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Inviate</p>
-              <TrendingUp className="h-4 w-4 text-blue-500" />
-            </div>
-            <p className="text-2xl font-bold mt-1.5">{inviate}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {pipeline > 0 ? `${formatCurrency(pipeline)} in pipeline` : "nessuna pipeline"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="overflow-hidden border-l-4 border-l-emerald-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Accettate</p>
-              <FileCheck2 className="h-4 w-4 text-emerald-500" />
-            </div>
-            <p className="text-2xl font-bold mt-1.5">{accettate}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {tassoConversione !== null ? `${tassoConversione}% conversion rate` : "—"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="overflow-hidden border-l-4 border-l-primary">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ricavo firmato</p>
-              <Euro className="h-4 w-4 text-primary" />
-            </div>
-            <p className="text-2xl font-bold mt-1.5 truncate">{formatCurrency(valoreTotale)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {accettate > 0
-                ? `ticket medio ${formatCurrency(valoreTotale / accettate)}`
-                : "nessuna firmata"}
-            </p>
-          </CardContent>
-        </Card>
+        <QuoteKpi
+          variant="slate"
+          label="Bozze"
+          value={bozze}
+          hint="da completare"
+          icon={<FileText className="h-4 w-4" />}
+        />
+        <QuoteKpi
+          variant="blue"
+          label="Inviate"
+          value={inviate}
+          hint={pipeline > 0 ? `${formatCurrency(pipeline)} in pipeline` : "nessuna pipeline"}
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <QuoteKpi
+          variant="green"
+          label="Accettate"
+          value={accettate}
+          hint={tassoConversione !== null ? `${tassoConversione}% conversion rate` : "—"}
+          icon={<FileCheck2 className="h-4 w-4" />}
+        />
+        <QuoteKpi
+          variant="orange"
+          label="Ricavo firmato"
+          value={formatCurrency(valoreTotale)}
+          hint={accettate > 0 ? `ticket medio ${formatCurrency(valoreTotale / accettate)}` : "nessuna firmata"}
+          icon={<Euro className="h-4 w-4" />}
+        />
       </div>
 
-      {/* KPI avanzati — più compatti, senza Card heavy */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-lg border bg-muted/30 p-3">
-        <div className="flex items-start gap-2.5">
-          <Target className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tasso conversione</p>
-            <p className="text-lg font-semibold">
-              {tassoConversione !== null ? `${tassoConversione}%` : "—"}
-            </p>
-            {decisioni > 0 && (
-              <p className="text-[10px] text-muted-foreground">{accettate}/{decisioni} con risposta</p>
-            )}
+      {/* KPI avanzati — striscia compatta navy gradient (replica hero FV) */}
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-[#1E3A5F] to-[#2C5184] p-4 sm:p-5 shadow-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex items-start gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+              <Target className="h-4 w-4 text-orange-300" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Tasso conversione</p>
+              <p className="text-lg font-bold text-white tabular-nums">
+                {tassoConversione !== null ? `${tassoConversione}%` : "—"}
+              </p>
+              {decisioni > 0 && (
+                <p className="text-[10px] text-slate-300">{accettate}/{decisioni} con risposta</p>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="flex items-start gap-2.5">
-          <TrendingUp className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Pipeline attiva</p>
-            <p className="text-lg font-semibold truncate">{formatCurrency(pipeline)}</p>
-            <p className="text-[10px] text-muted-foreground">{inviate} offert{inviate === 1 ? "a" : "e"}</p>
+          <div className="flex items-start gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+              <TrendingUp className="h-4 w-4 text-orange-300" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Pipeline attiva</p>
+              <p className="text-lg font-bold text-white tabular-nums truncate">{formatCurrency(pipeline)}</p>
+              <p className="text-[10px] text-slate-300">{inviate} offert{inviate === 1 ? "a" : "e"}</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-start gap-2.5">
-          <FileText className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Valore medio offerta</p>
-            <p className="text-lg font-semibold truncate">{formatCurrency(valoremedioOfferta)}</p>
-            <p className="text-[10px] text-muted-foreground">su {nonBozze.length} offert{nonBozze.length === 1 ? "a" : "e"}</p>
+          <div className="flex items-start gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+              <FileText className="h-4 w-4 text-orange-300" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Valore medio</p>
+              <p className="text-lg font-bold text-white tabular-nums truncate">{formatCurrency(valoremedioOfferta)}</p>
+              <p className="text-[10px] text-slate-300">su {nonBozze.length} offert{nonBozze.length === 1 ? "a" : "e"}</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-start gap-2.5">
-          <Clock className="h-4 w-4 text-[#1E3A5F] mt-0.5 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tempo medio firma</p>
-            <p className="text-lg font-semibold">
-              {tempoMedioGiorni !== null ? `${tempoMedioGiorni}gg` : "—"}
-            </p>
-            {conRisposta.length > 0 && (
-              <p className="text-[10px] text-muted-foreground">su {conRisposta.length} firmat{conRisposta.length === 1 ? "a" : "e"}</p>
-            )}
+          <div className="flex items-start gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+              <Clock className="h-4 w-4 text-orange-300" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Tempo medio firma</p>
+              <p className="text-lg font-bold text-white tabular-nums">
+                {tempoMedioGiorni !== null ? `${tempoMedioGiorni}gg` : "—"}
+              </p>
+              {conRisposta.length > 0 && (
+                <p className="text-[10px] text-slate-300">su {conRisposta.length} firmat{conRisposta.length === 1 ? "a" : "e"}</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -800,69 +750,63 @@ export default function Preventivi() {
       {/* Grafici KPI — trend mensile + distribuzione stati */}
       {chartQuotes.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card className="lg:col-span-2">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <p className="text-sm font-medium">Trend ultimi 6 mesi</p>
-                  <p className="text-xs text-muted-foreground">Preventivi creati vs accettati</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Valore accettato</p>
-                  <p className="text-sm font-semibold text-green-600">
-                    {formatCurrency(monthlyTrend.reduce((s, m) => s + m.value, 0))}
-                  </p>
-                </div>
-              </div>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={monthlyTrend} barCategoryGap="25%">
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                    formatter={(v: number, name: string) => [v, name]}
-                  />
-                  <Bar dataKey="created" name="Creati" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="accepted" name="Accettati" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          <QuoteCard
+            className="lg:col-span-2"
+            title="Trend ultimi 6 mesi"
+            subtitle="Preventivi creati vs accettati"
+            action={
+              <span className="text-emerald-600 tabular-nums">
+                {formatCurrency(monthlyTrend.reduce((s, m) => s + m.value, 0))} firmato
+              </span>
+            }
+            compact
+          >
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={monthlyTrend} barCategoryGap="25%">
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                  formatter={(v: number, name: string) => [v, name]}
+                />
+                <Bar dataKey="created" name="Creati" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="accepted" name="Accettati" fill="#16a34a" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </QuoteCard>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="mb-2">
-                <p className="text-sm font-medium">Distribuzione stati</p>
-                <p className="text-xs text-muted-foreground">{chartQuotes.length} preventivi (6 mesi)</p>
+          <QuoteCard
+            title="Distribuzione stati"
+            subtitle={`${chartQuotes.length} preventivi (6 mesi)`}
+            compact
+          >
+            {statusDistribution.length === 0 ? (
+              <div className="h-[180px] flex items-center justify-center text-muted-foreground text-xs">
+                Nessun dato
               </div>
-              {statusDistribution.length === 0 ? (
-                <div className="h-[180px] flex items-center justify-center text-muted-foreground text-xs">
-                  Nessun dato
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={statusDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={75}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {statusDistribution.map((d, i) => (
-                        <Cell key={i} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={statusDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={75}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {statusDistribution.map((d, i) => (
+                      <Cell key={i} fill={d.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </QuoteCard>
         </div>
       )}
 

@@ -126,6 +126,13 @@ import {
   Percent,
   Lock,
 } from "lucide-react";
+import {
+  QuotePageHeader,
+  QuoteCard,
+  QuoteChip,
+  QuoteStepper,
+  type QuoteStep,
+} from "@/components/marketing/preventivi/ui/builderUI";
 
 // ─── Helper components ────────────────────────────────────────────────────────
 
@@ -1823,143 +1830,94 @@ export default function QuoteBuilder() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
+  // Step config per QuoteStepper (replica look wizard FV)
+  const stepperSteps: QuoteStep[] = STEPS.map((s) => ({
+    key: s.key,
+    label: s.label,
+    icon: <s.icon className="h-4 w-4" />,
+  }));
+
   return (
     <div className="space-y-5 pb-24">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 rounded-lg shrink-0"
-            onClick={() => navigate("/azienda/marketing/preventivi")}
-            title="Torna alla lista"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <FileCheck className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-              {isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
-            </h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-              <span>
-                Step {step + 1} di {STEPS.length} · {STEPS[step]?.label}
+      {/* Header (replica FvPageHeader) */}
+      <QuotePageHeader
+        title={isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
+        subtitle={
+          <span className="flex items-center gap-2 flex-wrap">
+            <span>Step {step + 1} di {STEPS.length} · {STEPS[step]?.label}</span>
+            {autosaveFailed && (
+              <span className="text-red-600 flex items-center gap-1 font-medium">
+                <AlertTriangle className="h-3 w-3" />
+                salvataggio auto fallito
               </span>
-              {autosaveFailed && (
-                <span className="text-destructive flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  salvataggio auto fallito
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Live totals badge (visibile quando c'è almeno un totale) */}
-          {total > 0 && (
-            <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg border bg-muted/30 text-xs">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Subtotale
-                </p>
-                <p className="font-semibold tabular-nums">
-                  {formatCurrency(subtotal)}
-                </p>
-              </div>
-              {discountAmt > 0 && (
-                <>
-                  <div className="h-6 w-px bg-border" />
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Sconto
-                    </p>
-                    <p className="font-semibold tabular-nums text-orange-600">
-                      -{formatCurrency(discountAmt)}
-                    </p>
-                  </div>
-                </>
-              )}
-              <div className="h-6 w-px bg-border" />
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Totale
-                </p>
-                <p className="font-bold tabular-nums text-primary">
-                  {formatCurrency(total)}
-                </p>
-              </div>
-            </div>
-          )}
-          {isAdmin && isEdit && id && (
-            <Link
-              to={`/azienda/marketing/preventivi/${id}/margini`}
-              className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-100 transition-colors h-9"
+            )}
+          </span>
+        }
+        icon={<FileCheck className="h-5 w-5" />}
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9"
+              onClick={() => navigate("/azienda/marketing/preventivi")}
+              title="Torna alla lista"
             >
-              <TrendingUp className="h-3.5 w-3.5" />
-              Margini & pianificazione
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Stepper pill moderno con progress visibile + check per step completati */}
-      <div className="relative">
-        <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-muted -translate-y-1/2 -z-0" aria-hidden />
-        <div
-          className="absolute top-1/2 left-0 h-[2px] bg-primary -translate-y-1/2 -z-0 transition-all duration-300"
-          style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }}
-          aria-hidden
-        />
-        <div className="relative flex items-center justify-between gap-2 z-10">
-          {STEPS.map((s, i) => {
-            const done = i < step;
-            const active = i === step;
-            return (
-              <button
-                key={s.key}
-                onClick={() => setStep(i)}
-                className={`group relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
-                  active
-                    ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20"
-                    : done
-                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300"
-                    : "bg-background border text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {done ? (
-                  <FileCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                ) : (
-                  <s.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Lista
+            </Button>
+            {/* Live totals badge */}
+            {total > 0 && (
+              <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Subtotale</p>
+                  <p className="font-semibold tabular-nums text-slate-900">{formatCurrency(subtotal)}</p>
+                </div>
+                {discountAmt > 0 && (
+                  <>
+                    <div className="h-6 w-px bg-slate-200" />
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Sconto</p>
+                      <p className="font-semibold tabular-nums text-orange-600">-{formatCurrency(discountAmt)}</p>
+                    </div>
+                  </>
                 )}
-                <span className="hidden sm:inline">{s.label}</span>
-                <span
-                  className={`sm:hidden text-[10px] font-bold tabular-nums ${
-                    active ? "" : done ? "" : "text-muted-foreground"
-                  }`}
-                >
-                  {i + 1}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+                <div className="h-6 w-px bg-slate-200" />
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Totale</p>
+                  <p className="font-bold tabular-nums text-orange-600">{formatCurrency(total)}</p>
+                </div>
+              </div>
+            )}
+            {isAdmin && isEdit && id && (
+              <Link
+                to={`/azienda/marketing/preventivi/${id}/margini`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors h-9"
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                Margini
+              </Link>
+            )}
+          </>
+        }
+      />
+
+      {/* Stepper (replica FvTabBar) */}
+      <QuoteStepper
+        steps={stepperSteps}
+        current={step}
+        onSelect={setStep}
+        allowJumpForward
+      />
 
       {/* ── STEP 0: Cliente ── */}
       {step === 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Dati cliente</CardTitle>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline" className="text-[10px]">Step 1 di 4</Badge>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
+        <QuoteCard
+          title="Dati cliente"
+          icon={<User className="h-4 w-4" />}
+          action={<QuoteChip variant="orange">Step 1 di 4</QuoteChip>}
+        >
+          <div className="space-y-5">
             {/* Blocco 1: Selezione rapida da contatto */}
             <div className="rounded-lg border bg-muted/30 p-3">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Seleziona contatto esistente</Label>
@@ -2142,8 +2100,8 @@ export default function QuoteBuilder() {
               )}
             </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </QuoteCard>
       )}
 
       {/* ── STEP 1: Prodotti ── */}
@@ -3076,45 +3034,44 @@ export default function QuoteBuilder() {
 
       {/* ── STEP 3: Riepilogo ── */}
       {step === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Riepilogo Preventivo</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
+        <QuoteCard
+          title="Riepilogo Preventivo"
+          icon={<FileCheck className="h-4 w-4" />}
+          action={<QuoteChip variant="orange">Step 4 di 4</QuoteChip>}
+        >
+          <div className="space-y-6">
             {/* Client summary */}
             <div>
-              <h3 className="font-medium mb-2">Cliente</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-orange-500" /> Cliente
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-sm rounded-lg border border-slate-200 bg-slate-50/50 p-3">
                 <div>
-                  <span className="text-muted-foreground">Nome:</span>{" "}
-                  {clientName || "—"}
+                  <span className="text-slate-500">Nome:</span>{" "}
+                  <span className="font-medium">{clientName || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Email:</span>{" "}
-                  {clientEmail || "—"}
+                  <span className="text-slate-500">Email:</span>{" "}
+                  <span className="font-medium">{clientEmail || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Azienda:</span>{" "}
-                  {clientCompany || "—"}
+                  <span className="text-slate-500">Azienda:</span>{" "}
+                  <span className="font-medium">{clientCompany || "—"}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Telefono:</span>{" "}
-                  {clientPhone || "—"}
+                  <span className="text-slate-500">Telefono:</span>{" "}
+                  <span className="font-medium">{clientPhone || "—"}</span>
                 </div>
                 {tipoLavoro && (
                   <div className="col-span-2">
-                    <span className="text-muted-foreground">
-                      Tipo di lavoro:
-                    </span>{" "}
-                    {tipoLavoro}
+                    <span className="text-slate-500">Tipo di lavoro:</span>{" "}
+                    <span className="font-medium">{tipoLavoro}</span>
                   </div>
                 )}
                 {indirizzoLavori && (
                   <div className="col-span-2">
-                    <span className="text-muted-foreground">
-                      Indirizzo lavori:
-                    </span>{" "}
-                    {indirizzoLavori}
+                    <span className="text-slate-500">Indirizzo lavori:</span>{" "}
+                    <span className="font-medium">{indirizzoLavori}</span>
                   </div>
                 )}
               </div>
@@ -3122,7 +3079,9 @@ export default function QuoteBuilder() {
 
             {/* Items summary */}
             <div>
-              <h3 className="font-medium mb-2">Prodotti ({items.length})</h3>
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5 text-orange-500" /> Prodotti ({items.length})
+              </h4>
               {items.length > 0 ? (
                 <Table>
                   <TableHeader>
@@ -3166,27 +3125,27 @@ export default function QuoteBuilder() {
               )}
             </div>
 
-            {/* Totals */}
+            {/* Totals (replica look hero FV) */}
             <div className="flex justify-end">
-              <div className="w-full max-w-xs space-y-1 text-sm">
+              <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 space-y-1.5 text-sm shadow-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotale</span>
-                  <span>{formatCurrency(subtotal)}</span>
+                  <span className="text-slate-500">Subtotale</span>
+                  <span className="font-medium tabular-nums">{formatCurrency(subtotal)}</span>
                 </div>
                 {discountPercent > 0 && (
-                  <div className="flex justify-between text-destructive">
+                  <div className="flex justify-between text-orange-600">
                     <span>Sconto {discountPercent}%</span>
-                    <span>-{formatCurrency(discountAmt)}</span>
+                    <span className="tabular-nums">-{formatCurrency(discountAmt)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">IVA</span>
-                  <span>{formatCurrency(vatAmount)}</span>
+                  <span className="text-slate-500">IVA</span>
+                  <span className="font-medium tabular-nums">{formatCurrency(vatAmount)}</span>
                 </div>
-                <hr />
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Totale</span>
-                  <span>{formatCurrency(total)}</span>
+                <div className="border-t border-slate-200 my-2" />
+                <div className="flex justify-between items-center font-bold">
+                  <span className="text-base">Totale</span>
+                  <span className="text-2xl tabular-nums text-orange-600">{formatCurrency(total)}</span>
                 </div>
               </div>
             </div>
@@ -3472,29 +3431,49 @@ export default function QuoteBuilder() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </QuoteCard>
       )}
 
-      {/* Sticky action bar — sempre visibile nella parte bassa */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-background/95 backdrop-blur-md border-t shadow-lg">
+      {/* Sticky action bar (replica FvFooter) */}
+      <div className="fixed bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setStep(Math.max(0, step - 1))}
-            disabled={step === 0}
-            className="h-9"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Indietro
-          </Button>
+          <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap">
+            {saving ? (
+              <span className="flex items-center gap-1.5 text-blue-600 font-medium">
+                <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+              </span>
+            ) : autosaveFailed ? (
+              <span className="flex items-center gap-1.5 text-red-600 font-medium">
+                <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
+              </span>
+            ) : isEdit ? (
+              <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Salvataggio automatico
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-slate-400">
+                <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setStep(Math.max(0, step - 1))}
+              disabled={step === 0}
+              className="h-9"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1.5" />
+              Indietro
+            </Button>
+          </div>
 
           {/* Totale live per mobile (desktop è nell'header) */}
           {total > 0 && (
             <div className="md:hidden flex items-center gap-3 text-xs flex-1 justify-center">
-              <span className="text-muted-foreground">Totale:</span>
-              <span className="font-bold text-primary tabular-nums text-sm">
+              <span className="text-slate-500">Totale:</span>
+              <span className="font-bold text-orange-600 tabular-nums text-sm">
                 {formatCurrency(total)}
               </span>
             </div>
@@ -3506,7 +3485,7 @@ export default function QuoteBuilder() {
               size="sm"
               onClick={() => handleSave("bozza")}
               disabled={saving}
-              className="h-9 text-muted-foreground"
+              className="h-9 text-slate-600"
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -3516,24 +3495,29 @@ export default function QuoteBuilder() {
               Bozza
             </Button>
             {step < STEPS.length - 1 ? (
-              <Button onClick={handleNext} size="sm" className="h-9">
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
+              >
                 Avanti · {STEPS[step + 1]?.label}
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+                <ArrowRight className="h-4 w-4" />
+              </button>
             ) : (
-              <Button
+              <button
+                type="button"
                 onClick={() => handleSave("bozza")}
                 disabled={saving || !clientName}
-                size="sm"
-                className="h-9 bg-emerald-600 hover:bg-emerald-700"
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
               >
                 {saving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <FileCheck className="h-4 w-4 mr-2" />
+                  <FileCheck className="h-4 w-4" />
                 )}
                 Salva preventivo
-              </Button>
+              </button>
             )}
           </div>
         </div>
