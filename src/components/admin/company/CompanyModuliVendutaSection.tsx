@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -279,8 +279,8 @@ function ModuloEditDialog({ modulo, override, companyId, companyName, onClose }:
   );
   const [notes, setNotes] = useState(override?.notes ?? "");
 
-  // Sincronizza stato locale quando cambia il modulo target
-  useMemo(() => {
+  // Sincronizza stato locale quando cambia il modulo target o l'override
+  useEffect(() => {
     setIsEnabled(override?.is_enabled === true);
     setExpiresAt(override?.expires_at ? override.expires_at.slice(0, 10) : "");
     setPriceOverride(
@@ -289,7 +289,7 @@ function ModuloEditDialog({ modulo, override, companyId, companyName, onClose }:
         : "",
     );
     setNotes(override?.notes ?? "");
-  }, [modulo?.flag, override]);
+  }, [override]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
