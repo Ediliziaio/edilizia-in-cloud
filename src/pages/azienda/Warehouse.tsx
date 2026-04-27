@@ -246,6 +246,33 @@ export default function Warehouse() {
   const isOrderItemView = viewMode !== "stock" && viewMode !== "calendar";
   const showDroppableMap = isOrderItemView && showMap && sections.length > 0;
 
+  // ─── Filtro attivo per WarehouseStats cards cliccabili ───
+  // Le KPI cards sono cliccabili e applicano filtro: status (in_magazzino/ordinato/da_ordinare)
+  // o quick (overdue). Lo derivo dallo stato esistente per evitare duplicazione.
+  const activeStatsFilter: import("@/components/warehouse/WarehouseStats").WarehouseStatsFilter =
+    quickFilter === "overdue"
+      ? { kind: "quick", value: "overdue" }
+      : statusFilter === "in_magazzino" || statusFilter === "ordinato" || statusFilter === "da_ordinare"
+        ? { kind: "status", value: statusFilter as OrderItemStatus }
+        : { kind: "all" };
+
+  const handleStatsCardClick = (next: import("@/components/warehouse/WarehouseStats").WarehouseStatsFilter) => {
+    if (next.kind === "all") {
+      setQuickFilter("all");
+      setStatusFilter("all");
+      return;
+    }
+    if (next.kind === "quick") {
+      setStatusFilter("all");
+      setQuickFilter(next.value);
+      return;
+    }
+    if (next.kind === "status") {
+      setQuickFilter("all");
+      setStatusFilter(next.value);
+    }
+  };
+
   // ─── Modalità macro: separa concettualmente "Tracking ordini" da "Inventario" ───
   // Risolve la confusione UX di avere 6 tab piatti che mescolano due mondi diversi:
   //   • workflow: Lista, Kanban, Calendario (cosa devo gestire per i cantieri)
@@ -364,20 +391,20 @@ export default function Warehouse() {
         )}
       </div>
 
-      {/* Live panels - mini banner (sempre visibili: scoperti rapidamente) */}
-      {(viewMode === "list" || viewMode === "kanban" || viewMode === "calendar") && (
-        <div className="flex items-center gap-3 print:hidden">
-          <BlockedOrdersPanel companyId={effectiveCompany.id} minimal />
-          <LowStockAlertsPanel companyId={effectiveCompany.id} minimal />
-        </div>
-      )}
+      {/* Mini panel BlockedOrders + LowStock RIMOSSI — info ridondante con KPI cards
+          cliccabili (In Ritardo) e con il banner sottoscorta in modalità Inventario.
+          Riduce il rumore visuale e accorpa l'informazione operativa nelle KPI. */}
 
       {/* Stats KPI — sempre visibili, contestuali alla modalità macro.
           Importante: NON nascondiamo le KPI quando si passa da workflow a inventario,
           altrimenti il layout della pagina "salta" — disorientante per l'utente.
           Swap del contenuto invece di hide/show: ingombro stabile, transizione fluida. */}
       {macroMode === "workflow" ? (
-        <WarehouseStats items={items} />
+        <WarehouseStats
+          items={items}
+          activeFilter={activeStatsFilter}
+          onCardClick={handleStatsCardClick}
+        />
       ) : (
         <WarehouseInventoryStats companyId={effectiveCompany.id} />
       )}
@@ -556,36 +583,26 @@ export default function Warehouse() {
                   </span>
                 )}
               </Button>
-              <Button
-                variant={quickFilter === "overdue" ? "destructive" : "outline"}
-                size="sm"
-                onClick={() => setQuickFilter("overdue")}
-                className="gap-1 shrink-0"
-              >
-                <Clock className="h-4 w-4" />
-                In Ritardo
-                {overdueItemsCount > 0 && (
-                  <span className="ml-1 bg-destructive-foreground text-destructive rounded-full px-1.5 py-0.5 text-xs font-bold">
-                    {overdueItemsCount}
-                  </span>
-                )}
-              </Button>
+              {/* "In Ritardo" pill rimosso — duplicato della KPI card cliccabile sopra. */}
               <Button
                 variant={quickFilter === "thisWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("thisWeek")}
                 className="gap-1 shrink-0"
+                title="Articoli con posa entro 7 giorni"
               >
                 <Clock className="h-4 w-4" />
-                Questa sett.
+                Posa 7gg
               </Button>
               <Button
                 variant={quickFilter === "nextWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("nextWeek")}
-                className="shrink-0"
+                className="gap-1 shrink-0"
+                title="Articoli con posa entro 14 giorni"
               >
-                Prox. sett.
+                <Clock className="h-4 w-4" />
+                Posa 14gg
               </Button>
             </div>
             )}
