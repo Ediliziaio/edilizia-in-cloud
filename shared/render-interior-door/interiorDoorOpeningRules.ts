@@ -30,6 +30,9 @@ export function buildInteriorDoorTargetOpeningMap(
   scene: InteriorDoorSceneAnalysis,
 ): InteriorDoorTargetOpeningMap {
   const wallSliding = isWallSliding(config);
+  const wallSpace = config.apertura.spazio_scorrimento_parete;
+  const wallSlidingFeasible = wallSliding && (wallSpace === "sufficiente" || wallSpace === "ampio");
+  const wallSlidingNotFeasible = wallSliding && (wallSpace === "assente" || wallSpace === "ridotto");
   return {
     targetDoorway: `${config.apertura.vano_target}: visible internal doorway in ${scene.doorwayPosition}`,
     openingLimits: [
@@ -41,9 +44,11 @@ export function buildInteriorDoorTargetOpeningMap(
     leafArea: "replace/refinish only the door leaf or visible sliding/folding panel inside the selected doorway system",
     frameCasingArea: "frame/casing/coprifili zone around the opening; keep adjacent wall outside this zone untouched",
     thresholdPassageArea: "threshold/pass-through strip at floor level; preserve surrounding floor continuity",
-    wallSlidingArea: wallSliding
+    wallSlidingArea: wallSlidingFeasible
       ? "wall-sliding travel area beside the opening, including rail zone and clear wall strip"
-      : "no external wall-sliding travel area unless explicitly selected",
+      : wallSlidingNotFeasible
+        ? `external wall-sliding selected but available wall travel area is ${wallSpace}: do NOT render an external rail or wall-mounted sliding panel; treat as not-buildable and fall back to the closest plausible system`
+        : "no external wall-sliding travel area unless explicitly selected",
     hardwareArea: [
       "handle/pomolo/privacy lock zone at realistic hand height",
       "hinge zone only for hinged/folding systems if visible",
@@ -81,7 +86,7 @@ export function buildInteriorDoorCompatibilityEnvelope(
   const glass = structuralChange && (config.door_type === "vetrata" || config.glass.enabled || config.interventi.includes("add_glazing"));
 
   if (wallSliding && !["sufficiente", "ampio"].includes(config.apertura.spazio_scorrimento_parete)) {
-    warnings.push("External wall sliding selected but available wall travel area is not sufficient.");
+    warnings.push(`External wall sliding selected but available wall travel area is ${config.apertura.spazio_scorrimento_parete}: not buildable, fall back to a hinged or pocket system.`);
   }
   if (doubleLeaf && !["ampia", "molto_ampia"].includes(config.apertura.larghezza_apparente)) {
     warnings.push("Double-leaf door requires a wide apparent doorway.");
@@ -102,7 +107,9 @@ export function buildInteriorDoorCompatibilityEnvelope(
       ? "pocket sliding logic mandatory: no visible external rail, clean wall-pocket reading, no old swing traces and a plausible sliding passage"
       : "no pocket sliding system unless selected",
     wallSlidingFeasibility: wallSliding
-      ? "wall sliding feasibility mandatory: free wall area beside the opening, visible rail only if selected, no collision with furniture, switches, pictures or radiators"
+      ? (["sufficiente", "ampio"].includes(config.apertura.spazio_scorrimento_parete)
+        ? "wall sliding feasibility mandatory: free wall area beside the opening, visible rail only if selected, no collision with furniture, switches, pictures or radiators"
+        : `wall sliding NOT FEASIBLE: available wall travel area is ${config.apertura.spazio_scorrimento_parete}; do not render an external rail/panel and treat the request as not-buildable`)
       : "no external wall rail or wall-mounted sliding panel unless selected",
     doubleLeafWidthPlausibility: doubleLeaf
       ? "double-leaf width plausibility mandatory: doorway must read wide enough, with coherent central split and realistic hardware scale"

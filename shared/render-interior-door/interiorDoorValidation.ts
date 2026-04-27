@@ -60,6 +60,13 @@ export function validateInteriorDoorPromptConfig(config: InteriorDoorRenderConfi
   if (legacy.interventi.includes("replace_existing_door") && !includesAny(allText, ["remove the old interior door completely", "old swing", "ghost outlines"])) {
     missingBusinessRules.push("replace_existing_door requires old-door removal rules");
   }
+  if (
+    legacy.interventi.includes("replace_existing_door")
+    && legacy.interventi.includes("recolor_or_restyle_only")
+    && !includesAny(allText, ["multi-intervention rule", "absorbed into the replacement"])
+  ) {
+    warnings.push("replace_existing_door + recolor_or_restyle_only are redundant: merged into a single replacement using the selected finish/color.");
+  }
   if (!includesAny(allText, ["frame", "casing", "skirting", "threshold"])) {
     missingBusinessRules.push("frame/casing/skirting/threshold rules must be present");
   }

@@ -90,6 +90,9 @@ export function buildInteriorDoorReplacementManifest(
     envelope.swingCompatibility,
   ];
   const recolorOnly = config.interventi.length === 1 && config.interventi[0] === "recolor_or_restyle_only";
+  const recolorWithReplace = !recolorOnly
+    && config.interventi.includes("recolor_or_restyle_only")
+    && config.interventi.includes("replace_existing_door");
   const pocket = isPocket(config);
   const wallSliding = isWallSliding(config);
   const flush = isFlush(config);
@@ -102,6 +105,10 @@ export function buildInteriorDoorReplacementManifest(
     removals.push("Remove old swing/battuta/trim traces that conflict with the selected new system; no ghost outlines or double frames.");
     replacements.push(`Install the new ${DOOR_TYPE_DESCRIPTIONS[config.door_type]} inside the exact same target doorway.`);
     conversionRules.push("Rebuild frame-wall, casing-skirting and threshold/floor junctions cleanly after removing the old door.");
+    if (recolorWithReplace) {
+      replacements.push(`The new door must already be finished in ${FINISH_DESCRIPTIONS[config.finish]} (color: ${config.colore}); the additional recolor_or_restyle_only intervention is absorbed into the replacement and must NOT trigger an extra finish-only pass.`);
+      conversionRules.push("Multi-intervention rule: replace_existing_door + recolor_or_restyle_only are merged into a single replacement using the selected finish/color; do not produce a hybrid old-door-with-new-finish state.");
+    }
   }
 
   if (recolorOnly) {

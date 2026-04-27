@@ -12,6 +12,8 @@ import {
   openAIImageEditResultToDataUrl,
   runOpenAIImageEditWithFallback,
 } from "../_shared/openaiImageEdit.ts";
+import { buildInteriorDoorPrompt } from "../../../shared/render-interior-door/interiorDoorPromptBuilder.ts";
+import { buildSecurityDoorPrompt } from "../../../shared/render-security-door/securityDoorPromptBuilder.ts";
 
 type TechnicalModuleId =
   | "ristrutturazioni"
@@ -253,11 +255,78 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2, de
   throw new Error("fetchWithRetry: all retries exhausted");
 }
 
+function looksLikeStructuredDoorConfig(config: Record<string, unknown>): boolean {
+  const interventi = (config as { interventi?: unknown }).interventi;
+  const apertura = (config as { apertura?: unknown }).apertura;
+  return Array.isArray(interventi) && interventi.length > 0
+    && typeof apertura === "object" && apertura !== null
+    && typeof (config as { door_type?: unknown }).door_type === "string";
+}
+
+function buildRichDoorPrompt(
+  moduleType: "porte-interne" | "porte-blindate",
+  config: Record<string, unknown>,
+) {
+  const rawAnalysis = (config as { scene_analysis?: unknown }).scene_analysis;
+  const photoMeta = (config as { photo_meta?: { width?: number; height?: number; orientation?: "portrait" | "landscape" | "square" | "unknown" } }).photo_meta ?? null;
+  if (moduleType === "porte-interne") {
+    const built = buildInteriorDoorPrompt(config, rawAnalysis, photoMeta);
+    return {
+      systemPrompt: built.systemPrompt,
+      userPrompt: built.userPrompt,
+      finalPrompt: `${built.systemPrompt}\n\n${built.userPrompt}`,
+      promptVersion: built.promptVersion,
+      promptPayload: {
+        scene_analysis: built.normalizedConfig.scene_analysis,
+        target_map: built.normalizedConfig.target_opening_map,
+        replacement_manifest: built.normalizedConfig.replacement_manifest,
+        validation: {
+          is_valid: built.validation.isValid,
+          warnings: built.validation.warnings,
+          errors: [
+            ...built.validation.missingSections.map((section) => `Missing section: ${section}`),
+            ...built.validation.missingBusinessRules.map((rule) => `Missing rule: ${rule}`),
+          ],
+          required_blocks: Object.keys(built.blocks),
+          missing_blocks: [] as string[],
+        },
+        blocks: built.blocks,
+      },
+    };
+  }
+  const built = buildSecurityDoorPrompt(config, rawAnalysis, photoMeta);
+  return {
+    systemPrompt: built.systemPrompt,
+    userPrompt: built.userPrompt,
+    finalPrompt: `${built.systemPrompt}\n\n${built.userPrompt}`,
+    promptVersion: built.promptVersion,
+    promptPayload: {
+      scene_analysis: built.normalizedConfig.scene_analysis,
+      target_map: built.normalizedConfig.target_opening_map,
+      replacement_manifest: built.normalizedConfig.replacement_manifest,
+      validation: {
+        is_valid: built.validation.isValid,
+        warnings: built.validation.warnings,
+        errors: [
+          ...built.validation.missingSections.map((section) => `Missing section: ${section}`),
+          ...built.validation.missingBusinessRules.map((rule) => `Missing rule: ${rule}`),
+        ],
+        required_blocks: Object.keys(built.blocks),
+        missing_blocks: [] as string[],
+      },
+      blocks: built.blocks,
+    },
+  };
+}
+
 function buildTechnicalPrompt(args: {
   moduleType: TechnicalModuleId;
   config: Record<string, unknown>;
 }) {
   const { moduleType, config } = args;
+  if ((moduleType === "porte-interne" || moduleType === "porte-blindate") && looksLikeStructuredDoorConfig(config)) {
+    return buildRichDoorPrompt(moduleType, config);
+  }
   const rules = MODULE_RULES[moduleType];
   const interventionPreset = text(config.interventionPreset, "technical_render");
   const targetArea = text(config.targetArea, "visible target area in the uploaded photo");

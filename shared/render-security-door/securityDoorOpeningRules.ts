@@ -18,20 +18,26 @@ export function buildSecurityDoorTargetOpeningMap(
   scene: SecurityDoorSceneAnalysis,
 ): SecurityDoorTargetOpeningMap {
   const structuralChange = !isRecolorOnly(config);
-  const hasSidelight = structuralChange && (config.vetri.fiancoluce || config.apertura.presenza_fiancoluce || config.interventi.includes("add_sidelight"));
-  const hasTransom = structuralChange && (config.vetri.sopraluce || config.apertura.presenza_sopraluce || config.interventi.includes("add_transom"));
+  const sidelightSelected = structuralChange && (config.vetri.fiancoluce || config.apertura.presenza_fiancoluce || config.interventi.includes("add_sidelight"));
+  const transomSelected = structuralChange && (config.vetri.sopraluce || config.apertura.presenza_sopraluce || config.interventi.includes("add_transom"));
+  const sidelightFeasible = sidelightSelected && config.apertura.larghezza_apparente !== "stretta";
+  const transomFeasible = transomSelected && config.apertura.altezza_apparente !== "bassa";
   return {
     targetOpening: `${config.apertura.vano_target}: existing entrance doorway visible in ${scene.environmentType}`,
     openingPerimeter: "use the exact visible doorway perimeter as the installation boundary; do not move the opening",
     leafArea: "replace/refinish only the visible door leaf plane inside the existing opening",
     frameArea: "frame zone around the leaf, including visible jambs and head frame",
     casingArea: "casing/coprifili area immediately around the frame; keep adjacent wall outside this zone untouched",
-    sidelightArea: hasSidelight
+    sidelightArea: sidelightFeasible
       ? "sidelight module area integrated laterally within a plausible available width"
-      : "no sidelight area; do not invent lateral glass or panels",
-    transomArea: hasTransom
+      : sidelightSelected
+        ? "sidelight requested but NOT FEASIBLE on this narrow opening: do NOT invent lateral glass/panels"
+        : "no sidelight area; do not invent lateral glass or panels",
+    transomArea: transomFeasible
       ? "transom/sopraluce module above the leaf only if the visible opening height supports it"
-      : "no transom area; do not invent glass above the door",
+      : transomSelected
+        ? "transom requested but NOT FEASIBLE on this low opening: do NOT invent glass above the door"
+        : "no transom area; do not invent glass above the door",
     thresholdZone: "base threshold and floor-door junction only, with clean relation to existing floor",
     hardwareZones: [
       "handle/knob/pull bar zone at realistic hand height",
@@ -70,13 +76,13 @@ export function buildSecurityDoorBuildabilityEnvelope(
   const flush = structuralChange && (config.frame.tipo === "rasomuro" || config.door_type === "rasomuro" || config.interventi.includes("convert_to_flush_or_minimal"));
 
   if (addSidelight && config.apertura.larghezza_apparente === "stretta") {
-    warnings.push("Selected sidelight on a narrow apparent opening: keep sidelight very slim or validator may flag low plausibility.");
+    warnings.push("Selected sidelight on a narrow apparent opening: not buildable without widening the target opening; treat as not-feasible and fall back to single leaf without sidelight.");
   }
   if (doubleLeaf && !["ampia", "molto_ampia"].includes(config.apertura.larghezza_apparente)) {
     warnings.push("Double leaf requires wide apparent opening; keep active/passive split subtle if the source doorway is not wide.");
   }
   if (addTransom && config.apertura.altezza_apparente === "bassa") {
-    warnings.push("Selected transom on a low opening: transom must be avoided or extremely shallow.");
+    warnings.push("Selected transom on a low opening: not buildable; treat as not-feasible and fall back to a clean head frame without transom.");
   }
 
   return {
@@ -86,10 +92,14 @@ export function buildSecurityDoorBuildabilityEnvelope(
       ? "minimal casing logic mandatory: no traditional bulky coprifili, clean flush-wall shadow gap and restored wall junctions"
       : "casing must match selected frame type, proportioned to the visible opening and surrounding wall scale",
     sidelightWidthPlausibility: addSidelight
-      ? "sidelight width plausibility mandatory: keep a narrow, proportional glass/panel module integrated in the frame without warping the doorway"
+      ? (config.apertura.larghezza_apparente === "stretta"
+        ? "sidelight NOT FEASIBLE: apparent opening is narrow; do NOT render a lateral glass/panel module and do not warp the doorway to fit one"
+        : "sidelight width plausibility mandatory: keep a narrow, proportional glass/panel module integrated in the frame without warping the doorway")
       : "no sidelight: preserve solid opening edges and do not create lateral glass",
     transomHeightPlausibility: addTransom
-      ? "transom height plausibility mandatory: only a shallow, proportional upper module if the existing opening/head zone supports it"
+      ? (config.apertura.altezza_apparente === "bassa"
+        ? "transom NOT FEASIBLE: apparent opening height is low; do NOT render an upper glass/transom module and do not stretch the head zone"
+        : "transom height plausibility mandatory: only a shallow, proportional upper module if the existing opening/head zone supports it")
       : "no transom: keep head frame clean and do not invent an upper glass module",
     doubleLeafWidthPlausibility: doubleLeaf
       ? "double-leaf width plausibility mandatory: show a coherent vertical leaf split and realistic active/passive proportions for the visible width"
