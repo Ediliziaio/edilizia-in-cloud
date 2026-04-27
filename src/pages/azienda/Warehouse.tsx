@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { OrderItemStatus } from "@/types/warehouse";
@@ -35,6 +36,7 @@ import {
   Settings as SettingsIcon,
   ArrowLeftRight,
   Boxes,
+  ClipboardCheck,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -233,6 +235,19 @@ export default function Warehouse() {
   const isOrderItemView = viewMode !== "stock" && viewMode !== "calendar";
   const showDroppableMap = isOrderItemView && showMap && sections.length > 0;
 
+  // ─── Modalità macro: separa concettualmente "Tracking ordini" da "Inventario" ───
+  // Risolve la confusione UX di avere 6 tab piatti che mescolano due mondi diversi:
+  //   • workflow: Lista, Kanban, Calendario (cosa devo gestire per i cantieri)
+  //   • inventario: Giacenze, Lotti, DDT (gestione magazzino fisico)
+  // Toggle macro al top → l'utente sceglie il mental model PRIMA di scegliere la vista.
+  const isInventario = viewMode === "stock" || viewMode === "lotti" || viewMode === "ddt";
+  const macroMode: "workflow" | "inventario" = isInventario ? "inventario" : "workflow";
+  const switchMacroMode = (next: "workflow" | "inventario") => {
+    if (next === macroMode) return;
+    // Salta al primo tab della modalità di destinazione
+    setViewMode(next === "workflow" ? "list" : "stock");
+  };
+
   return (
     <div className="space-y-6 print:space-y-4">
       {/* Header */}
@@ -392,38 +407,81 @@ export default function Warehouse() {
       )}
 
       {/* View Toggle & Filters */}
+      {/* ─── Toggle macro: 2 mondi separati invece di 6 tab piatti ───
+           Workflow = Tracking ordini per cantieri (Lista/Kanban/Calendario).
+           Inventario = Gestione magazzino fisico (Giacenze/Lotti/DDT).
+           Ogni modalità ha i suoi KPI, alert, filtri, tab — niente leak. */}
+      <div className="flex justify-center print:hidden">
+        <div className="inline-flex rounded-lg border bg-card p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => switchMacroMode("workflow")}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+              macroMode === "workflow"
+                ? "bg-primary text-primary-foreground shadow"
+                : "text-muted-foreground hover:bg-muted",
+            )}
+            aria-pressed={macroMode === "workflow"}
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            <span>Tracking ordini</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMacroMode("inventario")}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+              macroMode === "inventario"
+                ? "bg-primary text-primary-foreground shadow"
+                : "text-muted-foreground hover:bg-muted",
+            )}
+            aria-pressed={macroMode === "inventario"}
+          >
+            <Boxes className="h-4 w-4" />
+            <span>Inventario</span>
+          </button>
+        </div>
+      </div>
+
       <Card className="print:hidden">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
-            {/* View mode tabs */}
+            {/* View mode tabs — set diverso a seconda della modalità macro.
+                Su workflow: Lista/Kanban/Calendario. Su inventario: Giacenze/Lotti/DDT. */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-                <TabsList className="flex-wrap h-auto">
-                  <TabsTrigger value="list" className="gap-1.5">
-                    <List className="h-4 w-4" />
-                    <span className="hidden sm:inline">Lista</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="kanban" className="gap-1.5">
-                    <LayoutGrid className="h-4 w-4" />
-                    <span className="hidden sm:inline">Kanban</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="calendar" className="gap-1.5">
-                    <CalendarIcon className="h-4 w-4" />
-                    <span className="hidden sm:inline">Calendario</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="stock" className="gap-1.5">
-                    <PackageOpen className="h-4 w-4" />
-                    <span className="hidden sm:inline">Giacenze</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="lotti" className="gap-1.5">
-                    <Package className="h-4 w-4" />
-                    <span className="hidden sm:inline">Lotti</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="ddt" className="gap-1.5">
-                    <FileText className="h-4 w-4" />
-                    <span className="hidden sm:inline">DDT</span>
-                  </TabsTrigger>
-                </TabsList>
+                {macroMode === "workflow" ? (
+                  <TabsList className="flex-wrap h-auto">
+                    <TabsTrigger value="list" className="gap-1.5">
+                      <List className="h-4 w-4" />
+                      <span className="hidden sm:inline">Lista</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="kanban" className="gap-1.5">
+                      <LayoutGrid className="h-4 w-4" />
+                      <span className="hidden sm:inline">Kanban</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="calendar" className="gap-1.5">
+                      <CalendarIcon className="h-4 w-4" />
+                      <span className="hidden sm:inline">Calendario</span>
+                    </TabsTrigger>
+                  </TabsList>
+                ) : (
+                  <TabsList className="flex-wrap h-auto">
+                    <TabsTrigger value="stock" className="gap-1.5">
+                      <PackageOpen className="h-4 w-4" />
+                      <span className="hidden sm:inline">Giacenze</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="lotti" className="gap-1.5">
+                      <Package className="h-4 w-4" />
+                      <span className="hidden sm:inline">Lotti</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="ddt" className="gap-1.5">
+                      <FileText className="h-4 w-4" />
+                      <span className="hidden sm:inline">DDT</span>
+                    </TabsTrigger>
+                  </TabsList>
+                )}
               </Tabs>
 
               {viewMode === "list" && (
