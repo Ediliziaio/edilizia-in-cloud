@@ -58,12 +58,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { SlidersHorizontal } from "lucide-react";
 
 import WarehouseAlerts from "@/components/warehouse/WarehouseAlerts";
 import { StockAlertBanner } from "@/components/warehouse/StockAlertBanner";
 import BlockedOrdersPanel from "@/components/warehouse/BlockedOrdersPanel";
 import LowStockAlertsPanel from "@/components/warehouse/LowStockAlertsPanel";
 import WarehouseStats from "@/components/warehouse/WarehouseStats";
+import WarehouseInventoryStats from "@/components/warehouse/WarehouseInventoryStats";
 import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
 import WarehouseListView from "@/components/warehouse/WarehouseListView";
@@ -144,6 +154,7 @@ export default function Warehouse() {
       return stored !== null ? stored === "true" : true;
     } catch { return true; }
   });
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const { data: fullStockItems = [] } = useQuery({
     queryKey: queryKeys.warehouse.stock(effectiveCompany?.id),
     queryFn: async () => {
@@ -361,9 +372,14 @@ export default function Warehouse() {
         </div>
       )}
 
-      {/* Stats KPI — solo per workflow ordini (sono ordini-related) */}
-      {(viewMode === "list" || viewMode === "kanban" || viewMode === "calendar") && (
+      {/* Stats KPI — sempre visibili, contestuali alla modalità macro.
+          Importante: NON nascondiamo le KPI quando si passa da workflow a inventario,
+          altrimenti il layout della pagina "salta" — disorientante per l'utente.
+          Swap del contenuto invece di hide/show: ingombro stabile, transizione fluida. */}
+      {macroMode === "workflow" ? (
         <WarehouseStats items={items} />
+      ) : (
+        <WarehouseInventoryStats companyId={effectiveCompany.id} />
       )}
 
       {/* Warehouse Map - toggleable */}
@@ -499,7 +515,10 @@ export default function Warehouse() {
               )}
             </div>
 
-            {/* Quick filters */}
+            {/* Quick filters — solo workflow ordini (sono filtri ordini-related:
+                Da Lavorare, Urgenti, In Ritardo, Questa/Prox. sett. di posa). Su
+                Inventario sono inerti e occupano spazio inutilmente. */}
+            {macroMode === "workflow" && (
             <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:pb-0">
               <Button
                 variant={quickFilter === "all" ? "default" : "outline"}
@@ -569,32 +588,77 @@ export default function Warehouse() {
                 Prox. sett.
               </Button>
             </div>
+            )}
 
-            {/* Filters */}
-            <div className="flex flex-wrap gap-4">
-              <div className="flex-1 min-w-[200px] flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Cerca articolo..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="sm:hidden shrink-0"
-                  onClick={() => setScannerOpen(true)}
-                  title="Scansiona barcode"
-                >
-                  <ScanLine className="h-4 w-4" />
-                </Button>
+            {/* Filtri compatti — solo workflow ordini.
+                In Inventario (Giacenze/Lotti/DDT) ogni sub-tab ha i suoi filtri
+                propri (vedi WarehouseStockTab toolbar QR), evitiamo doppione confondente.
+                I Select (Stato/Ordine/Fornitore/Zona) sono dentro lo Sheet sidebar. */}
+            {macroMode === "workflow" && (
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca articolo..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
               </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="sm:hidden shrink-0"
+                onClick={() => setScannerOpen(true)}
+                title="Scansiona barcode"
+              >
+                <ScanLine className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setFiltersSheetOpen(true)}
+                className="shrink-0 gap-2"
+                title="Apri filtri avanzati"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span className="hidden sm:inline">Filtri</span>
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                    {[
+                      statusFilter !== "all",
+                      orderFilter !== "all",
+                      supplierFilter !== "all",
+                      sectionFilter !== "all",
+                    ].filter(Boolean).length}
+                  </Badge>
+                )}
+              </Button>
+            </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Sheet filtri avanzati — sidebar destra, dismiss on outside click */}
+      <Sheet open={filtersSheetOpen} onOpenChange={setFiltersSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md flex flex-col">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <SlidersHorizontal className="h-5 w-5" />
+              Filtri avanzati
+            </SheetTitle>
+            <SheetDescription>
+              Filtra gli articoli per stato, ordine, fornitore o zona del magazzino.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Stato
+              </label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectTrigger>
                   <SelectValue placeholder="Stato" />
                 </SelectTrigger>
                 <SelectContent>
@@ -606,9 +670,14 @@ export default function Warehouse() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
 
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Ordine
+              </label>
               <Select value={orderFilter} onValueChange={setOrderFilter}>
-                <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectTrigger>
                   <SelectValue placeholder="Ordine" />
                 </SelectTrigger>
                 <SelectContent>
@@ -620,9 +689,14 @@ export default function Warehouse() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
 
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Fornitore
+              </label>
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger>
                   <SelectValue placeholder="Fornitore" />
                 </SelectTrigger>
                 <SelectContent>
@@ -634,10 +708,15 @@ export default function Warehouse() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
 
-              {sections.length > 0 && (
+            {sections.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Zona magazzino
+                </label>
                 <Select value={sectionFilter} onValueChange={setSectionFilter}>
-                  <SelectTrigger className="w-full sm:w-[160px]">
+                  <SelectTrigger>
                     <SelectValue placeholder="Zona" />
                   </SelectTrigger>
                   <SelectContent>
@@ -650,18 +729,29 @@ export default function Warehouse() {
                     ))}
                   </SelectContent>
                 </Select>
-              )}
-
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <X className="h-4 w-4 mr-1" />
-                  Pulisci filtri
-                </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        </CardContent>
-      </Card>
+
+          <SheetFooter className="flex-row gap-2 sm:flex-row sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                clearFilters();
+                setFiltersSheetOpen(false);
+              }}
+              disabled={!hasActiveFilters}
+              className="flex-1"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Pulisci tutto
+            </Button>
+            <Button onClick={() => setFiltersSheetOpen(false)} className="flex-1">
+              Applica
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Content based on view mode */}
       {viewMode === "ddt" ? (
