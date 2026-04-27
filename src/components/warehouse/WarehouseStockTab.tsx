@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo } from "react";
+import { useState, useMemo, useCallback, memo, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,11 @@ import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import InventoryAuditDialog from "./InventoryAuditDialog";
 import type { StockItem } from "@/types/warehouse";
 
+// Quick scan: lazy-loaded perché trascina @zxing/library nel bundle solo on-demand.
+const WarehouseQuickScanSheet = lazy(() =>
+  import("./WarehouseQuickScanSheet").then((m) => ({ default: m.WarehouseQuickScanSheet })),
+);
+
 export default function WarehouseStockTab() {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
@@ -52,6 +57,11 @@ export default function WarehouseStockTab() {
   const [batchTargetSection, setBatchTargetSection] = useState<string>("");
   const [draggingItem, setDraggingItem] = useState<StockItem | null>(null);
   const [auditItem, setAuditItem] = useState<StockItem | null>(null);
+  // Quick scan integration: highlight item dopo lookup per navigazione veloce.
+  const [quickScanOpen, setQuickScanOpen] = useState(false);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  /** Barcode pre-compilato quando l'utente arriva da Quick Scan no-match. */
+  const [prefillBarcodeForDialog, setPrefillBarcodeForDialog] = useState<string | undefined>();
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
@@ -431,6 +441,14 @@ export default function WarehouseStockTab() {
               </SelectContent>
             </Select>
           )}
+          <Button
+            variant="outline"
+            onClick={() => setQuickScanOpen(true)}
+            aria-label="Scansiona QR / barcode"
+          >
+            <ScanLine className="h-4 w-4 mr-2" />
+            Scansiona QR
+          </Button>
           <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi Articolo
@@ -589,9 +607,16 @@ export default function WarehouseStockTab() {
         {/* Dialogs */}
         <StockItemDialog
           open={dialogOpen}
-          onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditingItem(null); }}
+          onOpenChange={(v) => {
+            setDialogOpen(v);
+            if (!v) {
+              setEditingItem(null);
+              setPrefillBarcodeForDialog(undefined);
+            }
+          }}
           editingItem={editingItem}
           isPending={saveMutation.isPending}
+          prefillBarcode={prefillBarcodeForDialog}
           onSave={(data) => saveMutation.mutate({ ...data, id: editingItem?.id })}
         />
         <StockMovementDialog
@@ -626,6 +651,46 @@ export default function WarehouseStockTab() {
           stockItem={auditItem}
           companyId={companyId!}
         />
+
+        {/* Quick Scan — collega QR ↔ giacenze. Lazy per non gonfiare il bundle iniziale. */}
+        <Suspense fallback={null}>
+          {quickScanOpen && (
+            <WarehouseQuickScanSheet
+              open={quickScanOpen}
+              onOpenChange={setQuickScanOpen}
+              onSelectItem={(id) => {
+                // Filtra in tabella + highlight visivo della riga matchata.
+                const item = stockItems.find((s) => s.id === id);
+                if (item) {
+                  setSearchQueryWithReset(item.name);
+                  setHighlightedItemId(id);
+                  // Auto-clear highlight dopo 4s per non confondere lo stato.
+                  setTimeout(() => setHighlightedItemId(null), 4000);
+                  toast.success(`Trovato: ${item.name}`, {
+                    description: `Giacenza attuale: ${item.quantity}`,
+                  });
+                } else {
+                  toast.warning("Articolo non visibile in questa pagina", {
+                    description: "Probabilmente filtrato o paginato fuori vista.",
+                  });
+                }
+              }}
+              onEditItem={(id) => {
+                const item = stockItems.find((s) => s.id === id);
+                if (item) {
+                  setEditingItem(item);
+                  setDialogOpen(true);
+                }
+              }}
+              onCreateFromBarcode={(barcode) => {
+                // Apri StockItemDialog precompilato (prop prefillBarcode già supportata in MP1 TASK 8).
+                setEditingItem(null);
+                setPrefillBarcodeForDialog(barcode);
+                setDialogOpen(true);
+              }}
+            />
+          )}
+        </Suspense>
       </div>
     </DndContext>
   );
