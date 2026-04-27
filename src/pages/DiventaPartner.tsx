@@ -7,7 +7,6 @@ import {
   Send,
   CheckCircle,
   Calculator,
-  TrendingUp,
   Users,
   Briefcase,
   Building2,
@@ -417,37 +416,74 @@ export default function DiventaPartner() {
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const validate = (): string | null => {
+    if (!form.name.trim()) return "Inserisci nome e cognome.";
+    if (!form.email.trim()) return "Inserisci la tua email.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+      return "L'indirizzo email non è valido.";
+    if (form.phone.trim() && !/^[+0-9\s()-]{8,}$/.test(form.phone.trim()))
+      return "Il numero di telefono non è valido (min 8 cifre).";
+    if (form.network_size && !/^\d+$/.test(form.network_size.trim()))
+      return "Il campo \"imprese edili\" deve essere un numero intero.";
+    if (!form.privacy_consent)
+      return "Devi accettare la Privacy Policy per inviare la candidatura.";
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email) {
-      toast.error("Nome ed email sono obbligatori");
-      return;
-    }
-    if (!form.privacy_consent) {
-      toast.error("Devi accettare la Privacy Policy per inviare la candidatura");
+    if (loading) return;
+    const validationError = validate();
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     setLoading(true);
     try {
+      const networkSize = form.network_size.trim()
+        ? parseInt(form.network_size.trim(), 10)
+        : null;
+      const trimmedNotes = form.notes.trim();
+      const trimmedCompany = form.company.trim();
       const { error } = await supabase.from("partner_applications").insert({
-        name: form.name,
-        email: form.email.toLowerCase(),
-        phone: form.phone || null,
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim() || null,
         partner_type: form.partner_type,
-        network_size: parseInt(form.network_size) || null,
-        notes: form.company
-          ? `Azienda/Studio: ${form.company}\n\n${form.notes || ""}`
-          : form.notes || null,
+        network_size: Number.isFinite(networkSize) ? networkSize : null,
+        notes: trimmedCompany
+          ? `Azienda/Studio: ${trimmedCompany}${trimmedNotes ? `\n\n${trimmedNotes}` : ""}`
+          : trimmedNotes || null,
         status: "pending",
       });
       if (error) throw error;
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (err: any) {
-      toast.error("Errore invio", { description: err.message });
+    } catch (err) {
+      console.error("[diventa-partner] submit error", err);
+      toast.error("Invio non riuscito", {
+        description:
+          "Si è verificato un errore. Riprova fra qualche istante o scrivici a info@ediliziaincloud.com.",
+      });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReset = () => {
+    setForm({
+      name: "",
+      email: "",
+      phone: "",
+      company: "",
+      partner_type: "professional",
+      network_size: "",
+      notes: "",
+      privacy_consent: false,
+      marketing_consent: false,
+    });
+    setSubmitted(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -494,12 +530,22 @@ export default function DiventaPartner() {
               </li>
             </ul>
           </div>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-[#F97415] hover:text-[#C94F06] font-semibold"
-          >
-            ← Torna alla home
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-[#F97415] hover:text-[#C94F06] font-semibold"
+            >
+              ← Torna alla home
+            </Link>
+            <span className="hidden sm:inline text-gray-300">·</span>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center gap-2 text-[#111111]/60 hover:text-[#F97415] font-semibold underline"
+            >
+              Invia un'altra candidatura
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1192,6 +1238,7 @@ export default function DiventaPartner() {
 
           <form
             onSubmit={handleSubmit}
+            noValidate
             className="bg-white rounded-3xl p-6 md:p-10 shadow-2xl border border-[#F97415]/10 space-y-5"
           >
             <div className="grid md:grid-cols-2 gap-4">
@@ -1204,8 +1251,9 @@ export default function DiventaPartner() {
                   required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
                   placeholder="Mario Rossi"
+                  autoComplete="name"
                 />
               </div>
               <div>
@@ -1217,8 +1265,10 @@ export default function DiventaPartner() {
                   required
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
                   placeholder="mario@esempio.it"
+                  autoComplete="email"
+                  inputMode="email"
                 />
               </div>
             </div>
@@ -1232,8 +1282,10 @@ export default function DiventaPartner() {
                   type="tel"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
                   placeholder="+39 333 1234567"
+                  autoComplete="tel"
+                  inputMode="tel"
                 />
               </div>
               <div>
@@ -1244,8 +1296,9 @@ export default function DiventaPartner() {
                   type="text"
                   value={form.company}
                   onChange={(e) => setForm({ ...form, company: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
                   placeholder="Studio Rossi & Associati"
+                  autoComplete="organization"
                 />
               </div>
             </div>
@@ -1288,10 +1341,12 @@ export default function DiventaPartner() {
               <input
                 type="number"
                 min="1"
+                step="1"
                 value={form.network_size}
                 onChange={(e) => setForm({ ...form, network_size: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-sm"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
                 placeholder="es. 8"
+                inputMode="numeric"
               />
             </div>
 
@@ -1304,7 +1359,7 @@ export default function DiventaPartner() {
                 rows={4}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-sm resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm resize-none"
                 placeholder="Chi sei, settore di attività, come conosci le imprese edili, perché vuoi entrare nel programma..."
               />
             </div>
@@ -1362,7 +1417,8 @@ export default function DiventaPartner() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-base transition-all hover:scale-[1.02] shadow-lg shadow-[#F97415]/30 disabled:opacity-60 disabled:hover:scale-100"
+              aria-busy={loading}
+              className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-base transition-all hover:scale-[1.02] shadow-lg shadow-[#F97415]/30 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {loading ? (
                 <>

@@ -70,6 +70,8 @@ export default function Demo() {
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useSEO({
     title: "Demo Gratuita Gestionale Edilizia — Prova Edilizia in Cloud con AI",
@@ -83,7 +85,11 @@ export default function Demo() {
     if (!formData.nome.trim()) newErrors.nome = "Campo obbligatorio";
     if (!formData.cognome.trim()) newErrors.cognome = "Campo obbligatorio";
     if (!formData.azienda.trim()) newErrors.azienda = "Campo obbligatorio";
-    if (!formData.telefono.trim()) newErrors.telefono = "Campo obbligatorio";
+    if (!formData.telefono.trim()) {
+      newErrors.telefono = "Campo obbligatorio";
+    } else if (!/^[+0-9\s()-]{8,}$/.test(formData.telefono.trim())) {
+      newErrors.telefono = "Numero non valido (min 8 cifre)";
+    }
     if (!formData.email.trim()) {
       newErrors.email = "Campo obbligatorio";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
@@ -107,11 +113,60 @@ export default function Demo() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
+    if (submitting) return;
+    if (!validate()) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const mod = await import("@/integrations/supabase/client");
+      const fatturatoLabel =
+        {
+          "fino-300k": "Fino a 300K",
+          "300k-1m": "300K – 1M",
+          "1m-3m": "1M – 3M",
+          "oltre-3m": "Oltre 3M",
+        }[formData.fatturato] ?? formData.fatturato;
+      const noteUtente = formData.messaggio.trim();
+      const messaggio = `[DEMO] Fatturato annuo: ${fatturatoLabel}${noteUtente ? ` | Note: ${noteUtente}` : ""}`;
+      const { error } = await mod.supabase.from("demo_requests").insert({
+        nome: `${formData.nome.trim()} ${formData.cognome.trim()}`.trim(),
+        email: formData.email.trim().toLowerCase(),
+        telefono: formData.telefono.trim(),
+        azienda: formData.azienda.trim(),
+        messaggio,
+        marketing_consent: formData.marketingConsent,
+        source: "demo",
+        status: "pending",
+      });
+      if (error) throw error;
       setSubmitted(true);
+    } catch (err) {
+      console.error("[demo] submit error", err);
+      setSubmitError(
+        "Si è verificato un errore nell'invio. Riprova fra qualche istante o scrivici a info@ediliziaincloud.com."
+      );
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleReset = () => {
+    setFormData({
+      nome: "",
+      cognome: "",
+      azienda: "",
+      telefono: "",
+      email: "",
+      fatturato: "",
+      messaggio: "",
+      privacyConsent: false,
+      marketingConsent: false,
+    });
+    setErrors({});
+    setSubmitError(null);
+    setSubmitted(false);
   };
 
   const inputClass = (field: keyof FormErrors) =>
@@ -261,13 +316,22 @@ export default function Demo() {
                   Uno del nostro team ti contatterà presto per fissare la data della demo.
                   Controlla la tua email per conferma.
                 </p>
-                <Link
-                  to="/"
-                  className="inline-block px-6 py-3 rounded-full text-white text-sm font-bold transition-all hover:opacity-90"
-                  style={{ background: "#F97415" }}
-                >
-                  Torna alla Home
-                </Link>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
+                  <Link
+                    to="/"
+                    className="inline-flex items-center justify-center px-6 py-3 rounded-full text-white text-sm font-bold transition-all hover:opacity-90"
+                    style={{ background: "#F97415" }}
+                  >
+                    Torna alla Home
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="inline-flex items-center justify-center px-6 py-3 rounded-full text-[#F97415] text-sm font-bold border-2 border-[#F97415]/30 hover:bg-[#F97415]/5 transition-all"
+                  >
+                    Invia un'altra richiesta
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -290,6 +354,8 @@ export default function Demo() {
                         onChange={handleChange}
                         className={inputClass("nome")}
                         placeholder="Mario"
+                        autoComplete="given-name"
+                        aria-invalid={!!errors.nome}
                       />
                       {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
                     </div>
@@ -304,6 +370,8 @@ export default function Demo() {
                         onChange={handleChange}
                         className={inputClass("cognome")}
                         placeholder="Rossi"
+                        autoComplete="family-name"
+                        aria-invalid={!!errors.cognome}
                       />
                       {errors.cognome && <p className="text-red-500 text-xs mt-1">{errors.cognome}</p>}
                     </div>
@@ -321,6 +389,8 @@ export default function Demo() {
                       onChange={handleChange}
                       className={inputClass("azienda")}
                       placeholder="Rossi Costruzioni S.r.l."
+                      autoComplete="organization"
+                      aria-invalid={!!errors.azienda}
                     />
                     {errors.azienda && <p className="text-red-500 text-xs mt-1">{errors.azienda}</p>}
                   </div>
@@ -338,6 +408,9 @@ export default function Demo() {
                         onChange={handleChange}
                         className={inputClass("telefono")}
                         placeholder="+39 333 000 0000"
+                        autoComplete="tel"
+                        inputMode="tel"
+                        aria-invalid={!!errors.telefono}
                       />
                       {errors.telefono && <p className="text-red-500 text-xs mt-1">{errors.telefono}</p>}
                     </div>
@@ -352,6 +425,9 @@ export default function Demo() {
                         onChange={handleChange}
                         className={inputClass("email")}
                         placeholder="mario@rossicostruzioni.it"
+                        autoComplete="email"
+                        inputMode="email"
+                        aria-invalid={!!errors.email}
                       />
                       {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                     </div>
@@ -367,6 +443,7 @@ export default function Demo() {
                       value={formData.fatturato}
                       onChange={handleChange}
                       className={`${inputClass("fatturato")} bg-white`}
+                      aria-invalid={!!errors.fatturato}
                     >
                       <option value="">Seleziona una fascia...</option>
                       <option value="fino-300k">Fino a 300K</option>
@@ -405,6 +482,7 @@ export default function Demo() {
                         name="privacyConsent"
                         checked={formData.privacyConsent}
                         onChange={handleChange}
+                        aria-invalid={!!errors.privacyConsent}
                         className={`mt-0.5 w-4 h-4 rounded border-2 cursor-pointer accent-[#F97415] flex-shrink-0 ${
                           errors.privacyConsent ? "border-red-400" : "border-gray-300"
                         }`}
@@ -439,13 +517,26 @@ export default function Demo() {
 
                   </div>
 
+                  {/* Errore submit */}
+                  {submitError && (
+                    <div
+                      role="alert"
+                      aria-live="polite"
+                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                    >
+                      {submitError}
+                    </div>
+                  )}
+
                   {/* Submit */}
                   <button
                     type="submit"
-                    className="w-full py-4 rounded-xl text-white font-bold text-base tracking-wide transition-all hover:opacity-90 hover:scale-[1.01] shadow-lg"
+                    disabled={submitting}
+                    aria-busy={submitting}
+                    className="w-full py-4 rounded-xl text-white font-bold text-base tracking-wide transition-all hover:opacity-90 hover:scale-[1.01] shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
                     style={{ background: "#F97415", boxShadow: "0 8px 30px rgba(249,116,21,0.3)" }}
                   >
-                    Richiedi la Demo Gratuita →
+                    {submitting ? "Invio in corso..." : "Richiedi la Demo Gratuita →"}
                   </button>
 
                   <p className="text-center text-[#111111]/45 text-xs pt-1 leading-relaxed">

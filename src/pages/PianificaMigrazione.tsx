@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   Clock,
   Database,
-  FileSpreadsheet,
   FileText,
   Users,
   HardHat,
@@ -231,6 +230,7 @@ export default function PianificaMigrazione() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const validate = () => {
     const e: Partial<Record<keyof FormData, string>> = {};
@@ -238,6 +238,7 @@ export default function PianificaMigrazione() {
     if (!form.email.trim()) e.email = "Campo obbligatorio";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Email non valida";
     if (!form.telefono.trim()) e.telefono = "Campo obbligatorio";
+    else if (!/^[+0-9\s()-]{8,}$/.test(form.telefono.trim())) e.telefono = "Numero non valido (min 8 cifre)";
     if (!form.azienda.trim()) e.azienda = "Campo obbligatorio";
     if (!form.software_attuale) e.software_attuale = "Seleziona un'opzione";
     if (!form.num_cantieri) e.num_cantieri = "Seleziona un'opzione";
@@ -260,30 +261,50 @@ export default function PianificaMigrazione() {
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    if (submitting) return;
     if (!validate()) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
-      try {
-        const mod = await import("@/integrations/supabase/client");
-        await mod.supabase.from("demo_requests").insert({
-          nome: form.nome,
-          email: form.email.toLowerCase(),
-          telefono: form.telefono,
-          azienda: form.azienda,
-          messaggio: `[MIGRAZIONE] Software attuale: ${form.software_attuale} | Cantieri: ${form.num_cantieri} | Anni dati: ${form.anni_dati || "—"} | Note: ${form.note || "—"}`,
-          marketing_consent: form.marketing,
-          source: "pianifica_migrazione",
-          status: "pending",
-        });
-      } catch {
-        /* fallback silenzioso */
-      }
+      const mod = await import("@/integrations/supabase/client");
+      const { error } = await mod.supabase.from("demo_requests").insert({
+        nome: form.nome.trim(),
+        email: form.email.trim().toLowerCase(),
+        telefono: form.telefono.trim(),
+        azienda: form.azienda.trim(),
+        messaggio: `[MIGRAZIONE] Software attuale: ${form.software_attuale} | Cantieri: ${form.num_cantieri} | Anni dati: ${form.anni_dati || "—"} | Note: ${form.note.trim() || "—"}`,
+        marketing_consent: form.marketing,
+        source: "pianifica_migrazione",
+        status: "pending",
+      });
+      if (error) throw error;
       setSubmitted(true);
-    } catch {
-      setSubmitted(true);
+    } catch (err) {
+      console.error("[pianifica-migrazione] submit error", err);
+      setSubmitError(
+        "Si è verificato un errore nell'invio. Riprova fra qualche istante o scrivici a info@ediliziaincloud.com."
+      );
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleReset = () => {
+    setForm({
+      nome: "",
+      email: "",
+      telefono: "",
+      azienda: "",
+      software_attuale: "",
+      num_cantieri: "",
+      anni_dati: "",
+      note: "",
+      privacy: false,
+      marketing: false,
+    });
+    setErrors({});
+    setSubmitError(null);
+    setSubmitted(false);
   };
 
   const inputClass = (field: keyof FormData) =>
@@ -756,6 +777,13 @@ export default function PianificaMigrazione() {
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="mt-4 text-xs text-[#111111]/55 underline hover:text-[#F97415] transition"
+              >
+                Invia un'altra richiesta
+              </button>
             </div>
           ) : (
             <form
@@ -771,27 +799,27 @@ export default function PianificaMigrazione() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Nome e cognome *</label>
-                  <input name="nome" value={form.nome} onChange={handleChange} className={inputClass("nome")} placeholder="Mario Rossi" />
+                  <input name="nome" value={form.nome} onChange={handleChange} className={inputClass("nome")} placeholder="Mario Rossi" autoComplete="name" aria-invalid={!!errors.nome} />
                   {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Azienda *</label>
-                  <input name="azienda" value={form.azienda} onChange={handleChange} className={inputClass("azienda")} placeholder="Rossi Costruzioni S.r.l." />
+                  <input name="azienda" value={form.azienda} onChange={handleChange} className={inputClass("azienda")} placeholder="Rossi Costruzioni S.r.l." autoComplete="organization" aria-invalid={!!errors.azienda} />
                   {errors.azienda && <p className="text-red-500 text-xs mt-1">{errors.azienda}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Email *</label>
-                  <input type="email" name="email" value={form.email} onChange={handleChange} className={inputClass("email")} placeholder="mario@rossi.it" />
+                  <input type="email" name="email" value={form.email} onChange={handleChange} className={inputClass("email")} placeholder="mario@rossi.it" autoComplete="email" inputMode="email" aria-invalid={!!errors.email} />
                   {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Telefono *</label>
-                  <input name="telefono" value={form.telefono} onChange={handleChange} className={inputClass("telefono")} placeholder="+39 333 1234567" />
+                  <input type="tel" name="telefono" value={form.telefono} onChange={handleChange} className={inputClass("telefono")} placeholder="+39 333 1234567" autoComplete="tel" inputMode="tel" aria-invalid={!!errors.telefono} />
                   {errors.telefono && <p className="text-red-500 text-xs mt-1">{errors.telefono}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Software attuale *</label>
-                  <select name="software_attuale" value={form.software_attuale} onChange={handleChange} className={inputClass("software_attuale")}>
+                  <select name="software_attuale" value={form.software_attuale} onChange={handleChange} className={inputClass("software_attuale")} aria-invalid={!!errors.software_attuale}>
                     <option value="">Seleziona…</option>
                     {SOFTWARE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -799,7 +827,7 @@ export default function PianificaMigrazione() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Numero cantieri/anno *</label>
-                  <select name="num_cantieri" value={form.num_cantieri} onChange={handleChange} className={inputClass("num_cantieri")}>
+                  <select name="num_cantieri" value={form.num_cantieri} onChange={handleChange} className={inputClass("num_cantieri")} aria-invalid={!!errors.num_cantieri}>
                     <option value="">Seleziona…</option>
                     {NUM_CANTIERI_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -844,10 +872,21 @@ export default function PianificaMigrazione() {
                 </label>
               </div>
 
+              {submitError && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                >
+                  {submitError}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={submitting}
-                className="mt-7 w-full inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full text-white font-bold text-base transition-all hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed shadow-lg"
+                aria-busy={submitting}
+                className="mt-7 w-full inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full text-white font-bold text-base transition-all hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg"
                 style={{ background: "#F97415", boxShadow: "0 8px 30px rgba(249,116,21,0.3)" }}
               >
                 {submitting ? "Invio…" : "Pianifica la mia migrazione"}
