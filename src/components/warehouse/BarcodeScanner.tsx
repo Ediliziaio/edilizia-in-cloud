@@ -37,7 +37,26 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
 
     (async () => {
       try {
-        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+        // Standard browser API — funziona ovunque (Safari iOS, Chrome, Firefox).
+        // BrowserMultiFormatReader.listVideoInputDevices() è solo statico in
+        // alcune versioni di @zxing/library e undefined su Safari → bug noto.
+        // navigator.mediaDevices.enumerateDevices() è W3C standard.
+        if (!navigator.mediaDevices?.enumerateDevices) {
+          setError("Fotocamera non disponibile su questo browser.");
+          setScanning(false);
+          return;
+        }
+        // Su iOS Safari enumerateDevices() ritorna labels vuote finché non si
+        // chiama getUserMedia almeno una volta. Lo facciamo qui per avere i label.
+        try {
+          const probeStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+          });
+          probeStream.getTracks().forEach((t) => t.stop());
+        } catch { /* permessi negati gestiti sotto */ }
+
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        const devices = allDevices.filter((d) => d.kind === "videoinput");
         if (devices.length === 0) {
           setError("Nessuna fotocamera disponibile.");
           setScanning(false);

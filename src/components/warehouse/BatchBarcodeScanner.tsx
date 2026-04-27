@@ -219,7 +219,25 @@ export function BatchBarcodeScanner({
       const reader = new BrowserMultiFormatReader();
       readerRef.current = reader;
 
-      const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+      // Standard browser API: navigator.mediaDevices.enumerateDevices().
+      // BrowserMultiFormatReader.listVideoInputDevices() come statico è
+      // undefined su Safari iOS → bug noto. Usiamo l'API W3C standard.
+      if (!navigator.mediaDevices?.enumerateDevices) {
+        setCameraError("Fotocamera non disponibile su questo browser.");
+        return;
+      }
+      // Su iOS Safari, enumerateDevices() ritorna labels vuote finché
+      // non chiamiamo getUserMedia almeno una volta. Lo prefettiamo qui
+      // per ottenere i label e riconoscere la camera posteriore.
+      try {
+        const probe = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+        });
+        probe.getTracks().forEach((t) => t.stop());
+      } catch { /* permessi negati gestiti dal codeReader sotto */ }
+
+      const allDevices = await navigator.mediaDevices.enumerateDevices();
+      const devices = allDevices.filter((d) => d.kind === "videoinput");
       if (devices.length === 0) {
         setCameraError("Nessuna fotocamera disponibile sul dispositivo.");
         return;
