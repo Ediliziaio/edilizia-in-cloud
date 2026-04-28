@@ -812,6 +812,7 @@ function OrderDetailInner() {
             ? `${order.customer.first_name} ${order.customer.last_name}`
             : "Cliente non disponibile"
         }
+        orderType={order.order_type}
         onDuplica={() => setDuplicateDialogOpen(true)}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
         onNuovoSAL={() => {

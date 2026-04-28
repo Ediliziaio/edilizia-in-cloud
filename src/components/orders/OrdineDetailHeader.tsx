@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { BookOpen, ChevronRight, Copy, FileDown, Loader2, Pencil, TrendingUp, Trash2, ClipboardList } from "lucide-react";
+import { BookOpen, ChevronRight, Copy, FileDown, HardHat, Loader2, Pencil, TrendingUp, Trash2, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
 import { format } from "date-fns";
@@ -11,6 +11,8 @@ interface OrdineDetailHeaderProps {
   descrizione: string;
   dataCreazione: string;
   nomeCliente: string;
+  /** Tipo ordine: 'appaltatore_lavoro' mostra badge dedicato. */
+  orderType?: "cliente" | "appaltatore_lavoro" | null;
   onDuplica: () => void;
   onModifica: () => void;
   onNuovoSAL: () => void;
@@ -25,6 +27,7 @@ export function OrdineDetailHeader({
   descrizione,
   dataCreazione,
   nomeCliente,
+  orderType,
   onDuplica,
   onModifica,
   onNuovoSAL,
@@ -32,11 +35,12 @@ export function OrdineDetailHeader({
   onDownloadPDF,
   isGeneratingPDF = false,
 }: OrdineDetailHeaderProps) {
+  const isAppaltatoreLavoro = orderType === "appaltatore_lavoro";
   const navigate = useNavigate();
   return (
     <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-5">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-xs text-slate-400 mb-3">
+      <div className="flex items-center gap-1 text-xs text-slate-400 mb-3 flex-wrap">
         <span
           className="cursor-pointer hover:text-orange-500 font-medium"
           onClick={() => navigate("/azienda/ordini")}
@@ -47,6 +51,12 @@ export function OrdineDetailHeader({
         <span className="font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px]">
           {orderCode}
         </span>
+        {isAppaltatoreLavoro && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+            <HardHat className="h-2.5 w-2.5" />
+            Lavoro per appaltatore
+          </span>
+        )}
       </div>
       {/* Title row */}
       <div className="flex items-start justify-between gap-4 flex-wrap">

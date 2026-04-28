@@ -202,6 +202,10 @@ export interface OrderWithDetails {
   financing_expected_date?: string | null;
   financing_cost?: number | null;
   payment_type?: string | null;
+  // ── Modulo Appaltatori ──────────────────────────────────────
+  // Default a 'cliente' lato server (migration); manteniamo nullable
+  // per safe-fall sui record letti prima del refresh delle types.
+  order_type?: "cliente" | "appaltatore_lavoro" | null;
   customer: {
     first_name: string;
     last_name: string;

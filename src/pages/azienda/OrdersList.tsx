@@ -200,6 +200,7 @@ function OrdersListInner() {
           warehouse_arrival_date, customer_id, current_status_id, payment_type,
           financing_amount, deposit_2_amount, has_building_bonus,
           deposit_paid, deposit_2_paid, balance_paid, financing_paid,
+          order_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color)
         `, { count: "exact" })
@@ -303,6 +304,7 @@ function OrdersListInner() {
           warehouse_arrival_date, customer_id, current_status_id, payment_type,
           financing_amount, deposit_2_amount, has_building_bonus,
           deposit_paid, deposit_2_paid, balance_paid, financing_paid,
+          order_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color)
         `)

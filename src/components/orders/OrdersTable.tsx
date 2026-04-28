@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Link } from "react-router-dom";
-import { Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
+import { Eye, Pencil, Trash2, X, ChevronDown, HardHat } from "lucide-react";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { format } from "date-fns";
@@ -165,9 +165,21 @@ export const OrdersTable = React.memo(function OrdersTable({
               to={`/azienda/ordini/${order.id}`}
               className="flex flex-col gap-2 px-4 py-4 hover:bg-muted/50 active:bg-muted transition-colors"
             >
-              {/* Riga 1: codice + stato */}
+              {/* Riga 1: codice + badges */}
               <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-sm">{order.order_code || "—"}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-bold text-sm">{order.order_code || "—"}</span>
+                  {order.order_type === "appaltatore_lavoro" && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 shrink-0 border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/40"
+                      aria-label="Lavoro per appaltatore"
+                    >
+                      <HardHat className="h-2.5 w-2.5 mr-0.5" />
+                      Lavoro
+                    </Badge>
+                  )}
+                </div>
                 {order.status && (
                   <Badge
                     variant="outline"
@@ -345,9 +357,20 @@ export const OrdersTable = React.memo(function OrdersTable({
                     />
                   </TableCell>
                   <TableCell className="font-medium">
-                    <Link to={`/azienda/ordini/${order.id}`} className="text-primary hover:underline cursor-pointer">
-                      {order.order_code || "—"}
-                    </Link>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Link to={`/azienda/ordini/${order.id}`} className="text-primary hover:underline cursor-pointer">
+                        {order.order_code || "—"}
+                      </Link>
+                      {order.order_type === "appaltatore_lavoro" && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1 py-0 shrink-0 border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/40"
+                          title="Lavoro per appaltatore"
+                        >
+                          <HardHat className="h-2.5 w-2.5" />
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   {visibleColumns.has("date") && (
                     <TableCell className="hidden md:table-cell text-muted-foreground text-sm whitespace-nowrap">
