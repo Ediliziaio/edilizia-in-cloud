@@ -24,6 +24,7 @@ Deno.serve(async (req) => {
       send_welcome_email,           // boolean, default: true se portal abilitato
       is_business,                  // boolean
       business_name,
+      customer_type,                // 'privato' | 'appaltatore' (modulo Appaltatori)
       city,
       postal_code,
       province,
@@ -47,6 +48,20 @@ Deno.serve(async (req) => {
     const businessName = cleanTxt(business_name, 200);
     if (isBusiness && !businessName) {
       return errorResponse("La ragione sociale è obbligatoria per i clienti Azienda");
+    }
+
+    // Modulo Appaltatori: il client può specificare customer_type='appaltatore'.
+    // L'attivazione UI è gated dal feature flag, ma il server è permissivo
+    // (whitelist su valori validi) per evitare rotture in caso di feature flag
+    // disabilitato post-creazione. Default 'privato' per retrocompatibilità.
+    const rawCustomerType =
+      typeof customer_type === "string" ? customer_type.trim().toLowerCase() : null;
+    const customerType: "privato" | "appaltatore" =
+      rawCustomerType === "appaltatore" ? "appaltatore" : "privato";
+    if (customerType === "appaltatore" && !isBusiness) {
+      return errorResponse(
+        "Un cliente di tipo Appaltatore deve essere un'Azienda (ragione sociale + P.IVA).",
+      );
     }
 
     // --- Sanitizzazione + auto-correzione input ---
@@ -151,6 +166,7 @@ Deno.serve(async (req) => {
       // Nuovi campi: business + address strutturato
       is_business: isBusiness,
       business_name: businessName,
+      customer_type: customerType,
       city: cleanTxt(city, 100),
       postal_code: cleanTxt(postal_code, 10),
       province: cleanTxt(province, 10)?.toUpperCase() ?? null,

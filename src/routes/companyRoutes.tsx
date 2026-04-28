@@ -82,6 +82,7 @@ const SettingsFormBuilder = lazy(() => import("@/pages/azienda/settings/Settings
 const SettingsPhoneNumbers = lazy(() => import("@/pages/azienda/settings/SettingsPhoneNumbers"));
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
 const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
+const CreateLavoroAppaltatore = lazy(() => import("@/pages/azienda/CreateLavoroAppaltatore"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
 const OrderDiaryPage = lazy(() => import("@/pages/azienda/OrderDiaryPage"));
 const EditOrder = lazy(() => import("@/pages/azienda/EditOrder"));
@@ -292,6 +293,7 @@ export function companyRoutes() {
         <Route path="dashboards/:id/modifica" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
         <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento ordini"><OrdersList /></ErrorBoundary>} />
         <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione ordine"><CreateOrder /></ErrorBoundary>} />
+        <Route path="ordini/nuovo-lavoro-appaltatore" element={<FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute>} />
         <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio ordine"><OrderDetail /></ErrorBoundary>} />
         <Route path="ordini/:id/diario" element={<ErrorBoundary title="Errore nel diario ordine"><OrderDiaryPage /></ErrorBoundary>} />
         <Route path="ordini/:id/modifica" element={<EditOrder />} />

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import {
@@ -19,6 +19,8 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -37,7 +39,18 @@ export default function CreateCustomer() {
   const companyPortalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
     ?.customer_portal_enabled !== false;
 
+  // ── Modulo Appaltatori (feature flag) ─────────────────────
+  const appaltatoreEnabled = useAppaltatoreModuleEnabled();
+
   // ── Form state ─────────────────────────────────────────────
+  // customer_type pilota la UI:
+  //   - "privato"     → flusso esistente (Tabs persona/azienda)
+  //   - "appaltatore" → forza isBusiness=true, nasconde campi cantiere
+  //                     personali, dialog success non offre portale
+  // Aggiunto solo se il modulo Appaltatori è attivo.
+  const [customerType, setCustomerType] = useState<"privato" | "appaltatore">("privato");
+  const isAppaltatore = appaltatoreEnabled && customerType === "appaltatore";
+
   const [isBusiness, setIsBusiness] = useState(false);
   const [businessName, setBusinessName] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -60,6 +73,12 @@ export default function CreateCustomer() {
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Appaltatore = sempre azienda (P.IVA + ragione sociale obbligatorie).
+  // Forziamo isBusiness=true ogni volta che si passa a quel tipo.
+  useEffect(() => {
+    if (isAppaltatore && !isBusiness) setIsBusiness(true);
+  }, [isAppaltatore, isBusiness]);
 
   // ── Success dialog ─────────────────────────────────────────
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -142,6 +161,9 @@ export default function CreateCustomer() {
         body: {
           is_business: isBusiness,
           business_name: isBusiness ? businessName.trim() : null,
+          // Categoria cliente: "appaltatore" solo se Modulo Appaltatori attivo
+          // (server è permissivo: default 'privato' se valore non valido).
+          customer_type: customerType,
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           email: email.trim().toLowerCase(),
@@ -246,22 +268,56 @@ export default function CreateCustomer() {
                 <CardDescription>Informazioni di contatto del cliente</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Tipo cliente */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Tipo cliente</Label>
-                  <Tabs value={isBusiness ? "business" : "person"} onValueChange={(v) => setIsBusiness(v === "business")}>
-                    <TabsList className="grid grid-cols-2 w-full">
-                      <TabsTrigger value="person">
-                        <UserIcon className="h-3.5 w-3.5 mr-1.5" />
-                        Persona fisica
-                      </TabsTrigger>
-                      <TabsTrigger value="business">
-                        <Building2 className="h-3.5 w-3.5 mr-1.5" />
-                        Azienda / P. IVA
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
+                {/* Categoria cliente — visibile solo se Modulo Appaltatori attivo */}
+                {appaltatoreEnabled && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                      Categoria cliente
+                      <Badge variant="outline" className="text-[9px] uppercase tracking-wider">
+                        Modulo Appaltatori
+                      </Badge>
+                    </Label>
+                    <Tabs
+                      value={customerType}
+                      onValueChange={(v) => setCustomerType(v as "privato" | "appaltatore")}
+                    >
+                      <TabsList className="grid grid-cols-2 w-full">
+                        <TabsTrigger value="privato">
+                          <UserIcon className="h-3.5 w-3.5 mr-1.5" />
+                          Cliente privato
+                        </TabsTrigger>
+                        <TabsTrigger value="appaltatore">
+                          <HardHat className="h-3.5 w-3.5 mr-1.5" />
+                          Cliente appaltatore
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    <p className="text-[11px] text-muted-foreground">
+                      {isAppaltatore
+                        ? "Impresa committente che ti passa lavori di sola manodopera. Solo dati aziendali."
+                        : "Cliente finale per fornitura+posa (default, comportamento standard)."}
+                    </p>
+                  </div>
+                )}
+
+                {/* Tipo cliente persona/azienda — nascosto se Appaltatore (forzato a azienda) */}
+                {!isAppaltatore && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Tipo cliente</Label>
+                    <Tabs value={isBusiness ? "business" : "person"} onValueChange={(v) => setIsBusiness(v === "business")}>
+                      <TabsList className="grid grid-cols-2 w-full">
+                        <TabsTrigger value="person">
+                          <UserIcon className="h-3.5 w-3.5 mr-1.5" />
+                          Persona fisica
+                        </TabsTrigger>
+                        <TabsTrigger value="business">
+                          <Building2 className="h-3.5 w-3.5 mr-1.5" />
+                          Azienda / P. IVA
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                )}
 
                 {/* Ragione sociale (solo azienda) */}
                 {isBusiness && (

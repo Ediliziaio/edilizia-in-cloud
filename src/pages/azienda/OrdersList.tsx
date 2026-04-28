@@ -37,6 +37,8 @@ import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPaym
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
+import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
 
 interface DateRange {
   from: Date | undefined;
@@ -62,6 +64,8 @@ function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const { isScopriPlan, remainingOrders, currentPlan } = useSubscriptionLimits();
+  const appaltatoreEnabled = useAppaltatoreModuleEnabled();
+  const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
   const queryClient = useQueryClient();
   const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
     searchQuery: { key: "q", defaultValue: "" },
@@ -1247,13 +1251,21 @@ function OrdersListInner() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button asChild>
-            <Link to="/azienda/ordini/nuovo">
+          {appaltatoreEnabled ? (
+            <Button onClick={() => setShowOrderTypeDialog(true)}>
               <Plus className="h-4 w-4 mr-1" />
               <span className="hidden sm:inline">Nuovo Ordine</span>
               <span className="sm:hidden">Nuovo</span>
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button asChild>
+              <Link to="/azienda/ordini/nuovo">
+                <Plus className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Nuovo Ordine</span>
+                <span className="sm:hidden">Nuovo</span>
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1350,12 +1362,19 @@ function OrdersListInner() {
                     : "Nessun ordine corrisponde ai filtri selezionati."}
                 </p>
                 {totalCount === 0 && (
-                  <Button asChild>
-                    <Link to="/azienda/ordini/nuovo">
+                  appaltatoreEnabled ? (
+                    <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />
                       Crea il primo ordine
-                    </Link>
-                  </Button>
+                    </Button>
+                  ) : (
+                    <Button asChild>
+                      <Link to="/azienda/ordini/nuovo">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Crea il primo ordine
+                      </Link>
+                    </Button>
+                  )
                 )}
               </CardContent>
             </Card>
@@ -1419,6 +1438,12 @@ function OrdersListInner() {
       <CustomerSheetsExportDialog
         open={customerSheetsOpen}
         onOpenChange={setCustomerSheetsOpen}
+      />
+
+      {/* Bivio iniziale "Nuovo Ordine" — solo se Modulo Appaltatori attivo. */}
+      <OrderTypeChoiceDialog
+        open={showOrderTypeDialog}
+        onOpenChange={setShowOrderTypeDialog}
       />
     </div>
   );
