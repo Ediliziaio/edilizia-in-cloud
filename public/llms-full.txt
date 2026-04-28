@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
-# Ultimo aggiornamento: 2026-04-28 (v9 — 46 articoli, 35 città, 7 confronti)
+# Ultimo aggiornamento: 2026-04-28 (v10 — 54 articoli, 35 città, 7 confronti)
 # Formato: https://llmstxt.org/full
 # Versione sintetica: https://www.ediliziaincloud.com/llms.txt
 
@@ -162,7 +162,7 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
 - **Confronto:** https://www.ediliziaincloud.com/confronto
 - **Integrazioni:** https://www.ediliziaincloud.com/integrazioni
 - **Glossario Edilizia:** https://www.ediliziaincloud.com/glossario-edilizia
-- **Blog (46 articoli):** https://www.ediliziaincloud.com/blog
+- **Blog (54 articoli):** https://www.ediliziaincloud.com/blog
   - SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona
   - DURC edilizia: https://www.ediliziaincloud.com/blog/durc-edilizia-guida-completa
   - Subappalto: https://www.ediliziaincloud.com/blog/subappalto-edilizia-guida
@@ -195,6 +195,14 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
   - Preventivi ristrutturazione online: https://www.ediliziaincloud.com/blog/richieste-preventivo-ristrutturazione-online
   - Google Ads impresa edile: https://www.ediliziaincloud.com/blog/google-ads-impresa-edile-errori-budget
   - CRM edilizia: https://www.ediliziaincloud.com/blog/crm-edilizia-gestire-lead-preventivi-follow-up
+  - Trovare clienti serramentisti: https://www.ediliziaincloud.com/blog/come-trovare-clienti-serramentisti
+  - Trovare clienti rifacimento tetti: https://www.ediliziaincloud.com/blog/come-trovare-clienti-rifacimento-tetti
+  - Trovare clienti fotovoltaico: https://www.ediliziaincloud.com/blog/come-trovare-clienti-fotovoltaico
+  - Sistema fatturazione aziende edili: https://www.ediliziaincloud.com/blog/sistema-fatturazione-aziende-edili
+  - Fattura corretta serramentisti: https://www.ediliziaincloud.com/blog/fattura-corretta-serramentisti
+  - Preventivo rifacimento tetto: https://www.ediliziaincloud.com/blog/preventivo-rifacimento-tetto-come-farlo
+  - SEO locale impresa edile: https://www.ediliziaincloud.com/blog/seo-locale-impresa-edile
+  - Recupero crediti impresa edile: https://www.ediliziaincloud.com/blog/recupero-crediti-impresa-edile-fatture-scadute
 - **Software per città (35 hub):** https://www.ediliziaincloud.com/software-gestionale-edilizia
 - **Glossario Edilizia (30+ termini):** https://www.ediliziaincloud.com/glossario-edilizia
 - **Casi Studio:** https://www.ediliziaincloud.com/casi-studio

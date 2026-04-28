@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornata: 2026-04-28 — 172 URL, 46 articoli, 35 città, 6 confronti -->
+  <!-- Sitemap aggiornata: 2026-04-28 — 180 URL, 54 articoli, 35 città, 6 confronti -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -621,6 +621,94 @@
     <image:image>
       <image:loc>https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
       <image:title>CRM per Edilizia: Lead, Preventivi e Follow-up</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/come-trovare-clienti-serramentisti</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/come-trovare-clienti-serramentisti"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Come Trovare Clienti per Serramentisti</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/come-trovare-clienti-rifacimento-tetti</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/come-trovare-clienti-rifacimento-tetti"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Come Trovare Clienti per Rifacimento Tetti</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/come-trovare-clienti-fotovoltaico</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/come-trovare-clienti-fotovoltaico"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Come Trovare Clienti per Aziende Fotovoltaiche</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/sistema-fatturazione-aziende-edili</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/sistema-fatturazione-aziende-edili"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1554224154-26032fced8bd?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Sistema di Fatturazione per Aziende Edili</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/fattura-corretta-serramentisti</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/fattura-corretta-serramentisti"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Fattura Corretta per Serramentisti</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/preventivo-rifacimento-tetto-come-farlo</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/preventivo-rifacimento-tetto-come-farlo"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Preventivo Rifacimento Tetto</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/seo-locale-impresa-edile</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/seo-locale-impresa-edile"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>SEO Locale per Imprese Edili</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/recupero-crediti-impresa-edile-fatture-scadute</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/recupero-crediti-impresa-edile-fatture-scadute"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Recupero Crediti per Imprese Edili</image:title>
     </image:image>
   </url>
 
