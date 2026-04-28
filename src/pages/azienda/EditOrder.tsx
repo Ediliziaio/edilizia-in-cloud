@@ -3,7 +3,7 @@ import { logger } from "@/utils/logger";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, HardHat, MapPin, Package, FileText } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
@@ -68,6 +68,11 @@ interface OrderData {
   warehouse_arrival_date: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  // ── Modulo Appaltatori ─────────────────────────────────────────
+  order_type: "cliente" | "appaltatore_lavoro" | null;
+  work_address: string | null;
+  work_description: string | null;
+  materials_location: string | null;
   deposit_paid: boolean;
   deposit_paid_date: string | null;
   deposit_expected_date: string | null;
@@ -101,6 +106,12 @@ function EditOrderInner() {
   const [warehouseArrivalDate, setWarehouseArrivalDate] = useState<Date | undefined>();
   const [workStartDate, setWorkStartDate] = useState<Date | undefined>();
   const [workEndDate, setWorkEndDate] = useState<Date | undefined>();
+
+  // ── Modulo Appaltatori (visibili solo se order_type='appaltatore_lavoro') ──
+  const [workAddress, setWorkAddress] = useState("");
+  const [workDescription, setWorkDescription] = useState("");
+  const [materialsLocation, setMaterialsLocation] = useState("");
+  const [orderTypeState, setOrderTypeState] = useState<"cliente" | "appaltatore_lavoro">("cliente");
 
   // Financial state
   const [paymentType, setPaymentType] = useState<PaymentType>('standard');
@@ -289,6 +300,11 @@ function EditOrderInner() {
     setFinancingCost((order.financing_cost || 0).toString());
     setHasBuildingBonus(order.has_building_bonus || false);
     setAssignedTo(order.assigned_to || "");
+    // Modulo Appaltatori
+    setOrderTypeState(order.order_type === "appaltatore_lavoro" ? "appaltatore_lavoro" : "cliente");
+    setWorkAddress(order.work_address || "");
+    setWorkDescription(order.work_description || "");
+    setMaterialsLocation(order.materials_location || "");
 
     // Load installments from DB table, or build from legacy
     if (dbInstallments.length > 0) {
@@ -451,7 +467,17 @@ function EditOrderInner() {
           financing_cost: parseFloat(financingCost) || 0,
           has_building_bonus: hasBuildingBonus,
           assigned_to: assignedTo || null,
-        })
+          // Modulo Appaltatori — persistiamo solo se l'ordine è già di tipo
+          // appaltatore_lavoro: per ordini cliente standard manteniamo i campi
+          // a NULL (no-op silenzioso anche se l'utente li avesse riempiti).
+          ...(orderTypeState === "appaltatore_lavoro"
+            ? {
+                work_address: workAddress.trim() || null,
+                work_description: workDescription.trim() || null,
+                materials_location: materialsLocation.trim() || null,
+              }
+            : {}),
+        } as never)
         .eq("id", id!);
 
       if (error) throw error;
@@ -853,6 +879,58 @@ function EditOrderInner() {
               </div>
           </div>
         </QuoteCard>
+
+        {/* ── Modulo Appaltatori — campi specifici per lavoro manodopera ── */}
+        {orderTypeState === "appaltatore_lavoro" && (
+          <QuoteCard
+            title="Lavoro per appaltatore"
+            icon={<HardHat className="h-4 w-4" />}
+            subtitle="Sola manodopera — dettagli operativi del cantiere."
+          >
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="workAddress" className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />
+                  Indirizzo cantiere
+                </Label>
+                <Input
+                  id="workAddress"
+                  value={workAddress}
+                  onChange={(e) => setWorkAddress(e.target.value)}
+                  placeholder="Via del cantiere, 5 — 20100 Milano"
+                  maxLength={250}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="workDescription" className="flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" />
+                  Cosa va fatto (briefing operativo)
+                </Label>
+                <Textarea
+                  id="workDescription"
+                  value={workDescription}
+                  onChange={(e) => setWorkDescription(e.target.value)}
+                  placeholder="Smontaggio infissi, posa, sigillature, ripristino imbotti..."
+                  rows={4}
+                  maxLength={2000}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="materialsLocation" className="flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5" />
+                  Posizione materiali
+                </Label>
+                <Input
+                  id="materialsLocation"
+                  value={materialsLocation}
+                  onChange={(e) => setMaterialsLocation(e.target.value)}
+                  placeholder="Magazzino appaltatore / cantiere stesso / deposito X"
+                  maxLength={200}
+                />
+              </div>
+            </div>
+          </QuoteCard>
+        )}
 
         {/* Order Items */}
         <OrderItemsList
