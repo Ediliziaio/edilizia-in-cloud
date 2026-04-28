@@ -39,6 +39,7 @@ import { OrdineArticoli } from "@/components/orders/OrdineArticoli";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
+import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltatoreLavoroCard";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { OrdineSAL } from "@/components/orders/OrdineSAL";
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
@@ -140,6 +141,11 @@ interface OrderDetail {
   warehouse_arrival_date: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  // ── Modulo Appaltatori (default: order_type='cliente') ─────────────
+  order_type: "cliente" | "appaltatore_lavoro" | null;
+  work_address: string | null;
+  work_description: string | null;
+  materials_location: string | null;
   deposit_paid: boolean;
   deposit_paid_date: string | null;
   deposit_expected_date: string | null;
@@ -871,6 +877,15 @@ function OrderDetailInner() {
 
             {/* Tab 1: Stato + Cliente + Date */}
             <TabsContent value="stato" className="space-y-4 mt-4">
+              {order.order_type === "appaltatore_lavoro" && (
+                <OrdineAppaltatoreLavoroCard
+                  workAddress={order.work_address}
+                  workDescription={order.work_description}
+                  materialsLocation={order.materials_location}
+                  workStartDate={order.work_start_date}
+                  workEndDate={order.work_end_date}
+                />
+              )}
               <OrdineCliente customer={order.customer} />
               <QuoteCard title="Storico Stati">
                 {statusHistory.length === 0 ? (
@@ -1138,6 +1153,18 @@ function OrderDetailInner() {
         <div className="hidden sm:grid gap-6 lg:grid-cols-3">
           {/* ── Left Column (2/3) ──────────────────────────────── */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Modulo Appaltatori — pannello dedicato per lavori di sola
+                manodopera. Non viene montato per ordini cliente standard. */}
+            {order.order_type === "appaltatore_lavoro" && (
+              <OrdineAppaltatoreLavoroCard
+                workAddress={order.work_address}
+                workDescription={order.work_description}
+                materialsLocation={order.materials_location}
+                workStartDate={order.work_start_date}
+                workEndDate={order.work_end_date}
+              />
+            )}
+
             {/* Articoli */}
             <OrdineArticoli
               orderId={id!}
