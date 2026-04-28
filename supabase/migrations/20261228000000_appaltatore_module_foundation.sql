@@ -118,7 +118,7 @@ VALUES (
   'HardHat',
   true,
   false,
-  '[]'::jsonb,
+  '{}'::text[],
   200
 )
 ON CONFLICT (key) DO UPDATE SET
