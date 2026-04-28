@@ -11,12 +11,12 @@
  * sfruttando le tabelle già esistenti (order_employees,
  * appointments, payments) — niente nuovi store da introdurre.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, HardHat, Loader2, MapPin, FileText, Package,
-  CalendarDays, Wallet, Save,
+  CalendarDays, Wallet, Save, CheckCircle2, Circle, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,12 +28,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   QuotePageHeader, QuoteCard, QuotePrimaryButton,
 } from "@/components/marketing/preventivi/ui/builderUI";
+import {
+  type Installment,
+  createDefaultInstallments,
+  installmentsToLegacyColumns,
+} from "@/lib/orderUtils";
+
+type LavoroPaymentMode = "single" | "installments";
 
 interface AppaltatoreOption {
   id: string;
@@ -64,6 +73,54 @@ export default function CreateLavoroAppaltatore() {
   const [totalAmount, setTotalAmount] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
 
+  // ── Pagamenti: rate / unica / acconto+saldo ─────────────────────
+  const [paymentMode, setPaymentMode] = useState<LavoroPaymentMode>("single");
+  const [numInstallments, setNumInstallments] = useState<number>(2); // 2=acconto+saldo, 3=acconto1+acconto2+saldo
+  const [installments, setInstallments] = useState<Installment[]>(
+    createDefaultInstallments("standard", 1) // default: solo saldo
+  );
+
+  // Sincronizza la struttura delle rate quando cambia mode/numero rate
+  useEffect(() => {
+    const target = paymentMode === "single" ? 1 : numInstallments;
+    setInstallments((prev) => {
+      const next = createDefaultInstallments("standard", target);
+      // Riusa importi/date esistenti dove possibile
+      const existingDeposits = prev.filter((i) => i.type === "deposit");
+      const existingBalance = prev.find((i) => i.type === "balance");
+      return next.map((inst) => {
+        if (inst.type === "deposit") {
+          const match = existingDeposits[inst.position];
+          if (match) {
+            return {
+              ...inst,
+              amount: match.amount,
+              expected_date: match.expected_date,
+              is_paid: match.is_paid,
+              paid_date: match.paid_date,
+            };
+          }
+        }
+        if (inst.type === "balance" && existingBalance) {
+          return {
+            ...inst,
+            expected_date: existingBalance.expected_date,
+            is_paid: existingBalance.is_paid,
+            paid_date: existingBalance.paid_date,
+          };
+        }
+        return inst;
+      });
+    });
+  }, [paymentMode, numInstallments]);
+
+  // Helper update rata
+  const updateInstallment = (position: number, patch: Partial<Installment>) => {
+    setInstallments((prev) =>
+      prev.map((i) => (i.position === position ? { ...i, ...patch } : i))
+    );
+  };
+
   // ── Lista appaltatori già censiti per la company corrente ─────
   const { data: appaltatori = [], isLoading: loadingAppaltatori } = useQuery({
     queryKey: ["appaltatori-list", companyId],
@@ -90,13 +147,37 @@ export default function CreateLavoroAppaltatore() {
     return null;
   }, [workStartDate, workEndDate]);
 
+  // ── Importi pagamento (saldo = totale - somma acconti) ──────────
+  const totalNum = useMemo(() => {
+    const v = totalAmount ? Number(totalAmount.replace(",", ".")) : 0;
+    return Number.isNaN(v) ? 0 : v;
+  }, [totalAmount]);
+
+  const depositsSum = useMemo(
+    () =>
+      installments
+        .filter((i) => i.type === "deposit")
+        .reduce((acc, i) => acc + (Number.isFinite(i.amount) ? i.amount : 0), 0),
+    [installments]
+  );
+
+  const balanceComputed = Math.max(0, totalNum - depositsSum);
+
+  const paymentError = useMemo(() => {
+    if (totalNum > 0 && depositsSum > totalNum + 0.005) {
+      return "La somma degli acconti supera l'importo totale.";
+    }
+    return null;
+  }, [totalNum, depositsSum]);
+
   const canSubmit =
     !!companyId &&
     !!customerId &&
     description.trim().length > 0 &&
-    !dateError;
+    !dateError &&
+    !paymentError;
 
-  // ── Mutation: insert orders + redirect a /azienda/ordini/:id ───
+  // ── Mutation: insert orders + installments + redirect ──────────
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non disponibile.");
@@ -107,17 +188,21 @@ export default function CreateLavoroAppaltatore() {
         throw new Error("Importo non valido.");
       }
 
+      // Calcolo rate finali: saldo = totale - somma acconti
+      const installmentsForSave: Installment[] = installments.map((i) =>
+        i.type === "balance" ? { ...i, amount: balanceComputed } : i
+      );
+      const legacy = installmentsToLegacyColumns(installmentsForSave);
+
       const payload = {
         company_id: companyId,
         customer_id: customerId,
         order_code: orderCode.trim() || null,
         description: description.trim(),
         total_amount: totalVal,
-        balance_amount: totalVal,
-        deposit_amount: 0,
-        deposit_2_amount: 0,
+        ...legacy,
         vat_rate: 22,
-        payment_type: "balance",
+        payment_type: paymentMode === "single" ? "balance" : "standard",
         // Campi specifici Modulo Appaltatori
         order_type: "appaltatore_lavoro",
         work_address: workAddress.trim() || null,
@@ -136,7 +221,33 @@ export default function CreateLavoroAppaltatore() {
         .select("id")
         .single();
       if (error) throw error;
-      return data as { id: string };
+      const orderId = (data as { id: string }).id;
+
+      // Persisti anche le rate nella tabella order_installments per
+      // coerenza con il resto dell'app (FinancialSummary, dashboard,
+      // cashflow, customer portal). Allineato a EditOrder.
+      if (installmentsForSave.length > 0) {
+        const rows = installmentsForSave.map((i) => ({
+          order_id: orderId,
+          position: i.position,
+          label: i.label,
+          type: i.type,
+          amount: i.amount,
+          is_paid: i.is_paid,
+          paid_date: i.paid_date || null,
+          expected_date: i.expected_date || null,
+        }));
+        const { error: instErr } = await supabase
+          .from("order_installments")
+          .insert(rows as never);
+        if (instErr) {
+          logger.error("Insert installments error:", instErr);
+          // Non blocchiamo la creazione: i campi legacy sono già
+          // persistiti su orders e la UI legge da entrambe.
+        }
+      }
+
+      return { id: orderId } as { id: string };
     },
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -376,24 +487,214 @@ export default function CreateLavoroAppaltatore() {
           </p>
         </QuoteCard>
 
-        {/* ── Riepilogo finanziario (semplice) ────────────────────── */}
-        <QuoteCard title="Compenso pattuito" icon={<Wallet className="h-4 w-4" />}>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="totalAmount">Importo totale (€) — netto</Label>
-              <Input
-                id="totalAmount"
-                type="text"
-                inputMode="decimal"
-                value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value)}
-                placeholder="0,00"
-              />
-              <p className="text-xs text-muted-foreground">
-                Compenso pattuito per la sola manodopera. Acconti, fatture e
-                pagamenti si gestiscono dal dettaglio dopo la creazione.
-              </p>
+        {/* ── Compenso pattuito + piano pagamenti ─────────────────── */}
+        <QuoteCard title="Compenso e pagamenti" icon={<Wallet className="h-4 w-4" />}>
+          <div className="space-y-5">
+            {/* Importo totale */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="totalAmount">Importo totale (€) — netto</Label>
+                <Input
+                  id="totalAmount"
+                  type="text"
+                  inputMode="decimal"
+                  value={totalAmount}
+                  onChange={(e) => setTotalAmount(e.target.value)}
+                  placeholder="0,00"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Compenso pattuito per la sola manodopera (IVA esclusa).
+                </p>
+              </div>
             </div>
+
+            {/* Modalità pagamento */}
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                Modalità di pagamento
+              </Label>
+              <Tabs
+                value={paymentMode}
+                onValueChange={(v) => setPaymentMode(v as LavoroPaymentMode)}
+              >
+                <TabsList className="grid grid-cols-2 w-full sm:max-w-md">
+                  <TabsTrigger value="single">
+                    <Wallet className="h-3.5 w-3.5 mr-1.5" />
+                    Unica rata (saldo)
+                  </TabsTrigger>
+                  <TabsTrigger value="installments">
+                    <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                    Rateale
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {paymentMode === "installments" && (
+                <div className="flex items-center gap-3 pt-2">
+                  <Label htmlFor="numInstallments" className="text-xs text-muted-foreground shrink-0">
+                    Numero rate
+                  </Label>
+                  <Select
+                    value={String(numInstallments)}
+                    onValueChange={(v) => setNumInstallments(parseInt(v, 10))}
+                  >
+                    <SelectTrigger id="numInstallments" className="w-32 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">2 (acconto + saldo)</SelectItem>
+                      <SelectItem value="3">3 (2 acconti + saldo)</SelectItem>
+                      <SelectItem value="4">4 (3 acconti + saldo)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {/* Lista rate */}
+            <div className="space-y-2">
+              {installments.map((inst) => {
+                const isBalance = inst.type === "balance";
+                const displayAmount = isBalance ? balanceComputed : inst.amount;
+                return (
+                  <div
+                    key={inst.position}
+                    className={`rounded-lg border p-3 sm:p-4 transition-colors ${
+                      inst.is_paid
+                        ? "border-emerald-200 bg-emerald-50/40"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="mt-0.5 shrink-0">
+                        {inst.is_paid ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <Circle className="h-4 w-4 text-slate-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="font-semibold text-sm text-slate-800">
+                            {inst.label}
+                            {isBalance && (
+                              <span className="ml-2 text-[10px] uppercase tracking-wider text-slate-400 font-medium">
+                                Calcolato
+                              </span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-slate-500">Pagato</span>
+                            <Switch
+                              checked={inst.is_paid}
+                              onCheckedChange={(v) =>
+                                updateInstallment(inst.position, {
+                                  is_paid: v,
+                                  paid_date: v ? (inst.paid_date || new Date().toISOString().slice(0, 10)) : null,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 ml-7">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">
+                          Importo (€)
+                        </Label>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={isBalance ? (displayAmount > 0 ? displayAmount.toFixed(2) : "") : (inst.amount > 0 ? String(inst.amount) : "")}
+                          onChange={(e) => {
+                            if (isBalance) return; // saldo è calcolato
+                            const v = parseFloat(e.target.value.replace(",", ".")) || 0;
+                            updateInstallment(inst.position, { amount: v });
+                          }}
+                          placeholder="0,00"
+                          disabled={isBalance}
+                          className={isBalance ? "bg-slate-50 text-slate-700 font-semibold" : ""}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">
+                          Data prevista
+                        </Label>
+                        <Input
+                          type="date"
+                          value={inst.expected_date || ""}
+                          onChange={(e) =>
+                            updateInstallment(inst.position, {
+                              expected_date: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">
+                          {inst.is_paid ? "Data pagamento" : "Data pagamento (se pagato)"}
+                        </Label>
+                        <Input
+                          type="date"
+                          value={inst.paid_date || ""}
+                          onChange={(e) =>
+                            updateInstallment(inst.position, {
+                              paid_date: e.target.value || null,
+                              is_paid: !!e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Validation banner */}
+            {paymentError && (
+              <Alert variant="destructive" className="py-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-xs">{paymentError}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Sintesi rapida */}
+            {totalNum > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 text-xs">
+                <div>
+                  <div className="text-slate-500">Totale</div>
+                  <div className="font-semibold text-slate-800">
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(totalNum)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Acconti</div>
+                  <div className="font-semibold text-slate-800">
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(depositsSum)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Saldo residuo</div>
+                  <div className="font-semibold text-orange-600">
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(balanceComputed)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Già incassato</div>
+                  <div className="font-semibold text-emerald-600">
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(
+                      installments
+                        .map((i) => (i.type === "balance" ? { ...i, amount: balanceComputed } : i))
+                        .filter((i) => i.is_paid)
+                        .reduce((s, i) => s + i.amount, 0)
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </QuoteCard>
 
@@ -454,7 +755,47 @@ export default function CreateLavoroAppaltatore() {
                   <dd className="font-bold text-right text-orange-600">{formattedTotal}</dd>
                 </div>
               )}
+              {totalNum > 0 && (
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-slate-500 shrink-0">Pagamento</dt>
+                  <dd className="font-medium text-right text-slate-800">
+                    {paymentMode === "single"
+                      ? "Unica rata"
+                      : `${numInstallments} rate`}
+                  </dd>
+                </div>
+              )}
             </dl>
+
+            {/* Mini-plan rate */}
+            {totalNum > 0 && installments.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                {installments.map((inst) => {
+                  const amt = inst.type === "balance" ? balanceComputed : inst.amount;
+                  if (amt <= 0 && inst.type !== "balance") return null;
+                  return (
+                    <div key={inst.position} className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="flex items-center gap-1.5 text-slate-600 truncate">
+                        {inst.is_paid ? (
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                        ) : (
+                          <Circle className="h-3 w-3 text-slate-300 shrink-0" />
+                        )}
+                        <span className="truncate">{inst.label}</span>
+                        {inst.expected_date && (
+                          <span className="text-slate-400 hidden sm:inline">
+                            · {new Date(inst.expected_date).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-medium text-slate-800 shrink-0">
+                        {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(amt)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </QuoteCard>
 
           <QuoteCard noHeader compact className="bg-slate-50/60">
@@ -493,7 +834,9 @@ export default function CreateLavoroAppaltatore() {
                       ? "Inserisci una descrizione breve."
                       : dateError
                         ? "Correggi le date dei lavori."
-                        : "Compila i campi obbligatori."}
+                        : paymentError
+                          ? "Acconti superiori al totale."
+                          : "Compila i campi obbligatori."}
                 </p>
               )}
             </div>
