@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
@@ -20,6 +19,8 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { preloadImage } from "@/lib/render/preloadImage";
 import type { ConfigurazionePavimento, AnalisiPavimento } from "@/modules/render-pavimento/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
@@ -209,6 +210,7 @@ export default function RenderPavimentoNew() {
 
       if (s?.status === "completed" && s.result_urls?.length) {
         if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
+        if (s.result_urls[0]) await preloadImage(s.result_urls[0]);
         setResultUrls(s.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-pavimento-sessions", companyId] });
@@ -309,6 +311,7 @@ export default function RenderPavimentoNew() {
 
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
+      if (urls[0]) await preloadImage(urls[0]);
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-pavimento-sessions", companyId] });
@@ -586,25 +589,13 @@ export default function RenderPavimentoNew() {
           STEP 3 -- Elaborazione
       ══════════════════════════════════════════════════════════════════ */}
       {step === 3 && (
-        <Card className="border-amber-500/30">
-          <CardContent className="py-12 flex flex-col items-center gap-4 text-center">
-            <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center">
-              <Loader2 className="h-10 w-10 text-amber-600 animate-spin" />
-            </div>
-            <div>
-              <p className="font-semibold text-lg">
-                Generazione in corso{".".repeat(pollState.dots + 1)}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                L'AI sta sostituendo il pavimento nella foto. Aggiornamento automatico.
-              </p>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              {pollState.elapsedSec}s trascorsi
-            </Badge>
-            <Progress value={Math.min((pollState.elapsedSec / 60) * 100, 95)} className="h-1.5 max-w-xs" />
-          </CardContent>
-        </Card>
+        <RenderProcessingCard
+          photoPreview={photoPreview}
+          elapsedSec={pollState.elapsedSec}
+          dots={pollState.dots}
+          accent="emerald"
+          subjectLabel="L'AI sta elaborando il render del pavimento"
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════

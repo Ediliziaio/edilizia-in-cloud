@@ -18,6 +18,8 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { preloadImage } from "@/lib/render/preloadImage";
 import type { ConfigurazioneTetto } from "@/modules/render-tetto/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
@@ -42,6 +44,13 @@ function isIdleTimeoutMessage(message: string) {
   const normalized = message.toLowerCase();
   return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
 }
+
+const TETTO_TIPS = [
+  "L'AI riconosce la geometria del tetto dalla foto e applica la nuova copertura preservando luci e ombre.",
+  "Più la foto è nitida e in piano, più il render risulterà realistico.",
+  "Puoi rigenerare il render con piccoli ritocchi senza dover ricaricare la foto.",
+  "Una volta pronto, potrai scaricarlo o inviarlo direttamente al cliente via WhatsApp.",
+];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function RenderTettoNew() {
@@ -185,6 +194,8 @@ export default function RenderTettoNew() {
 
       if (s?.status === "completed" && s.result_urls?.length) {
         stopPolling();
+        // Pre-load to avoid CDN propagation race causing empty <img>.
+        await preloadImage(s.result_urls[0]);
         setResultUrls(s.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-tetto-sessions", companyId] });
@@ -280,6 +291,7 @@ export default function RenderTettoNew() {
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
       stopPolling();
+      if (urls[0]) await preloadImage(urls[0]);
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-tetto-sessions", companyId] });
@@ -494,25 +506,14 @@ export default function RenderTettoNew() {
           STEP 3 — Elaborazione
       ══════════════════════════════════════════════════════════════════════ */}
       {step === 3 && (
-        <Card>
-          <CardContent className="py-16 flex flex-col items-center gap-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center">
-              <Zap className="h-10 w-10 text-red-600 animate-pulse" />
-            </div>
-            <div>
-              <p className="font-semibold text-lg">
-                Generazione in corso{".".repeat(pollState.dots)}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                L'AI sta elaborando il render del tetto. Ci vogliono circa 30-60 secondi.
-              </p>
-            </div>
-            <div className="w-full max-w-xs">
-              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">{pollState.elapsedSec}s trascorsi · può richiedere 1-4 minuti</p>
-            </div>
-          </CardContent>
-        </Card>
+        <RenderProcessingCard
+          photoPreview={photoPreview}
+          elapsedSec={pollState.elapsedSec}
+          dots={pollState.dots}
+          accent="red"
+          tips={TETTO_TIPS}
+          subjectLabel="L'AI sta elaborando il render del tetto"
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════

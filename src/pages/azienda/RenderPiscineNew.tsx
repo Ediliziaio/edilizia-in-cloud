@@ -19,6 +19,8 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { preloadImage } from "@/lib/render/preloadImage";
 import { buildPiscineRenderConfig } from "@/modules/render-piscine/lib/piscineRenderConfig";
 import type { ConfigurazionePiscine } from "@/modules/render-piscine/lib/types";
 import { getPiscineDb } from "@/modules/render-piscine/lib/dynamicSupabase";
@@ -161,6 +163,7 @@ export default function RenderPiscineNew() {
 
       if (sess?.status === "completed" && sess.result_urls?.length) {
         stopPolling();
+        if (sess.result_urls[0]) await preloadImage(sess.result_urls[0]);
         setResultUrls(sess.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-piscine-sessions", companyId] });
@@ -245,6 +248,7 @@ export default function RenderPiscineNew() {
     const urls: string[] = fnData?.result_urls ?? (fnData?.result_url ? [fnData.result_url] : []);
     if (urls.length) {
       stopPolling();
+      if (urls[0]) await preloadImage(urls[0]);
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-piscine-sessions", companyId] });
@@ -415,21 +419,13 @@ export default function RenderPiscineNew() {
       )}
 
       {step === 3 && (
-        <Card>
-          <CardContent className="py-16 flex flex-col items-center gap-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center">
-              <Zap className="h-10 w-10 text-emerald-600 animate-pulse" />
-            </div>
-            <div>
-              <p className="font-semibold text-lg">Generazione in corso{".".repeat(dots)}</p>
-              <p className="text-sm text-muted-foreground mt-1">L'AI sta installando la piscina sulla stessa foto, preservando edificio e prospettiva.</p>
-            </div>
-            <div className="w-full max-w-xs">
-              <Progress value={Math.min((elapsedSec / 240) * 100, 95)} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">{elapsedSec}s trascorsi · può richiedere 1-4 minuti</p>
-            </div>
-          </CardContent>
-        </Card>
+        <RenderProcessingCard
+          photoPreview={photoPreview}
+          elapsedSec={elapsedSec}
+          dots={dots}
+          accent="blue"
+          subjectLabel="L'AI sta elaborando il render della piscina"
+        />
       )}
 
       {step === 4 && resultUrls.length > 0 && (

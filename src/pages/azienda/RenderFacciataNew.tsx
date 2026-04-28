@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -30,6 +29,8 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { preloadImage } from "@/lib/render/preloadImage";
 import type {
   AnalisiFacciata,
   ConfigurazioneFacciata,
@@ -308,6 +309,7 @@ export default function RenderFacciataNew() {
 
         if (statusRow?.status === "completed" && statusRow.result_urls?.length) {
           stopPolling();
+          if (statusRow.result_urls[0]) await preloadImage(statusRow.result_urls[0]);
           setResultUrls(statusRow.result_urls);
           setGenerating(false);
           queryClient.invalidateQueries({ queryKey: ["render-facciata-sessions", companyId] });
@@ -391,6 +393,7 @@ export default function RenderFacciataNew() {
 
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
+      if (urls[0]) await preloadImage(urls[0]);
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-facciata-sessions", companyId] });
@@ -697,23 +700,13 @@ export default function RenderFacciataNew() {
       )}
 
       {step === 4 && (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-6 py-16 text-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-orange-50">
-              <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold">Render facciata in corso{".".repeat(pollState.dots)}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Sto applicando l’intervento architettonico richiesto mantenendo edificio, geometrie, contesto e luce originali.
-              </p>
-            </div>
-            <div className="w-full max-w-sm">
-              <Progress value={Math.min((pollState.elapsedSec / 60) * 100, 95)} className="h-2" />
-              <p className="mt-2 text-xs text-muted-foreground">{pollState.elapsedSec}s trascorsi</p>
-            </div>
-          </CardContent>
-        </Card>
+        <RenderProcessingCard
+          photoPreview={photoPreview}
+          elapsedSec={pollState.elapsedSec}
+          dots={pollState.dots}
+          accent="amber"
+          subjectLabel="L'AI sta elaborando il render della facciata"
+        />
       )}
 
       {step === 5 && resultUrls.length > 0 && (

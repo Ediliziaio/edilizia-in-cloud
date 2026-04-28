@@ -59,6 +59,8 @@ import {
   normalizeWindowSceneAnalysis,
 } from "@/modules/render/lib/windowSceneAnalysis";
 import type { WindowPhotoMeta, WindowRenderConfig, WindowSceneAnalysis } from "@/modules/render/lib/types";
+import { preloadImage } from "@/lib/render/preloadImage";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
 const MAX_POLL_SEC = 180;
@@ -340,6 +342,7 @@ export default function RenderNewV2() {
 
       if (sess?.status === "completed" && sess.result_urls?.length) {
         stopPolling();
+        await preloadImage(sess.result_urls[0]);
         setResultUrl(sess.result_urls[0]);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
@@ -425,6 +428,7 @@ export default function RenderNewV2() {
 
       if (data?.result_url) {
         stopPolling();
+        await preloadImage(data.result_url as string);
         setResultUrl(data.result_url as string);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
@@ -1454,7 +1458,6 @@ function StepRender({
   onDownload: () => void;
   onCreateQuote: () => void;
 }) {
-  const progress = Math.min(96, Math.max(8, Math.round((elapsedSec / 50) * 100)));
 
   return (
     <div className="space-y-4">
@@ -1582,21 +1585,17 @@ function StepRender({
           </CardContent>
         </Card>
       ) : generating ? (
-        <Card className="bg-gradient-to-br from-slate-800 to-slate-700 text-white">
-          <CardContent className="space-y-4 p-6">
-            <div className="flex items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <div>
-                <div className="text-lg font-bold">Generazione in corso</div>
-                <div className="text-sm text-white/70">
-                  L'AI sta mantenendo lo stesso ambiente mentre sostituisce gli infissi target.
-                </div>
-              </div>
-            </div>
-            <Progress value={progress} className="h-2 bg-white/20" />
-            <div className="text-sm text-white/70">Tempo trascorso: {elapsedSec}s</div>
-          </CardContent>
-        </Card>
+        <RenderProcessingCard
+          photoPreview={originalSignedUrl ?? localPreview ?? undefined}
+          elapsedSec={elapsedSec}
+          accent="orange"
+          subjectLabel="L'AI sostituisce gli infissi mantenendo l'ambiente originale"
+          tips={[
+            "L'AI individua le aperture target e preserva intatti gli elementi non selezionati.",
+            "Più la foto è frontale e ben illuminata, più il render risulterà fedele.",
+            "Una volta pronto, potrai confrontare prima/dopo e collegare il render al CRM.",
+          ]}
+        />
       ) : resultUrl ? (
         <>
           <Card className="border-emerald-500/30 bg-emerald-50">

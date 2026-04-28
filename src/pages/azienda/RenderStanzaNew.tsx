@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
@@ -20,6 +19,8 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { preloadImage } from "@/lib/render/preloadImage";
 import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
@@ -194,6 +195,7 @@ export default function RenderStanzaNew() {
 
       if (s?.status === "completed" && s.result_urls?.length) {
         stopPolling();
+        if (s.result_urls[0]) await preloadImage(s.result_urls[0]);
         setResultUrls(s.result_urls);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-stanza-sessions", companyId] });
@@ -299,6 +301,7 @@ export default function RenderStanzaNew() {
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] = fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
       stopPolling();
+      if (urls[0]) await preloadImage(urls[0]);
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-stanza-sessions", companyId] });
@@ -560,61 +563,13 @@ export default function RenderStanzaNew() {
           STEP 3 — Elaborazione
       ══════════════════════════════════════════════════════════════════════ */}
       {step === 3 && (
-        <div className="space-y-6">
-          <Card className="border-purple-300/30 bg-purple-50/50 dark:bg-purple-950/20">
-            <CardContent className="py-8 flex flex-col items-center gap-6 text-center">
-              <div className="relative w-20 h-20">
-                <div className="absolute inset-0 rounded-full border-4 border-purple-300/20 animate-ping" />
-                <div className="absolute inset-2 rounded-full bg-purple-100/50 flex items-center justify-center">
-                  <Zap className="h-8 w-8 text-purple-600 animate-pulse" />
-                </div>
-              </div>
-              <div>
-                <p className="text-lg font-semibold">
-                  Render in elaborazione{".".repeat(pollState.dots)}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  L&apos;AI sta trasformando la stanza con il nuovo design
-                </p>
-                <p className="text-xs text-muted-foreground mt-3">
-                  Tempo trascorso: {pollState.elapsedSec}s &middot; Puo richiedere 1-4 minuti
-                </p>
-              </div>
-              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="w-full h-2" />
-            </CardContent>
-          </Card>
-
-          {photoPreview && (
-            <Card>
-              <CardContent className="py-3">
-                <p className="text-xs text-muted-foreground mb-2">Foto originale caricata</p>
-                <img
-                  src={photoPreview}
-                  alt="Originale"
-                  className="w-full max-h-52 object-cover rounded-lg"
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Config summary */}
-          <Card className="bg-muted/30">
-            <CardContent className="py-3">
-              <p className="text-xs font-semibold mb-2">Configurazione applicata</p>
-              <div className="flex flex-wrap gap-1.5">
-                <Badge variant="secondary" className="text-xs capitalize">
-                  {config.tipo_stanza.replace(/_/g, " ")}
-                </Badge>
-                <Badge variant="secondary" className="text-xs capitalize">
-                  {config.stile_target.replace(/_/g, " ")}
-                </Badge>
-                <Badge variant="secondary" className="text-xs capitalize">
-                  {config.intensita}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <RenderProcessingCard
+          photoPreview={photoPreview}
+          elapsedSec={pollState.elapsedSec}
+          dots={pollState.dots}
+          accent="violet"
+          subjectLabel="L'AI sta elaborando il render della stanza"
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════

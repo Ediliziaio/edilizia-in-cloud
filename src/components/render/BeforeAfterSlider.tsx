@@ -1,18 +1,41 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 interface Props {
-  beforeUrl: string;
-  afterUrl: string;
+  /** Preferred prop name. */
+  beforeUrl?: string;
+  /** Preferred prop name. */
+  afterUrl?: string;
+  /** Backward compat alias for `beforeUrl`. */
+  beforeSrc?: string;
+  /** Backward compat alias for `afterUrl`. */
+  afterSrc?: string;
+  beforeLabel?: string;
+  afterLabel?: string;
   className?: string;
 }
 
-export function BeforeAfterSlider({ beforeUrl, afterUrl, className = "" }: Props) {
+export function BeforeAfterSlider({
+  beforeUrl,
+  afterUrl,
+  beforeSrc,
+  afterSrc,
+  beforeLabel = "Originale",
+  afterLabel = "Render AI",
+  className = "",
+}: Props) {
+  const before = beforeUrl ?? beforeSrc ?? "";
+  const after = afterUrl ?? afterSrc ?? "";
+
   const [position, setPosition] = useState(50);
   const [aspectRatio, setAspectRatio] = useState<number>(4 / 3);
+  const [afterReady, setAfterReady] = useState(false);
+  const [afterError, setAfterError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
+  // Compute aspect ratio from the BEFORE image (typically already loaded as ObjectURL).
   useEffect(() => {
+    if (!before) return;
     let active = true;
     const image = new window.Image();
     image.onload = () => {
@@ -23,11 +46,46 @@ export function BeforeAfterSlider({ beforeUrl, afterUrl, className = "" }: Props
         setAspectRatio(width / height);
       }
     };
-    image.src = beforeUrl;
+    image.src = before;
     return () => {
       active = false;
     };
-  }, [beforeUrl]);
+  }, [before]);
+
+  // Pre-load the AFTER image and retry on transient 404 (CDN propagation delay).
+  useEffect(() => {
+    if (!after) {
+      setAfterReady(false);
+      return;
+    }
+    let active = true;
+    let attempts = 0;
+    setAfterReady(false);
+    setAfterError(false);
+
+    const tryLoad = () => {
+      const image = new window.Image();
+      image.onload = () => {
+        if (!active) return;
+        setAfterReady(true);
+      };
+      image.onerror = () => {
+        if (!active) return;
+        attempts += 1;
+        if (attempts < 4) {
+          setTimeout(tryLoad, 800 * attempts);
+        } else {
+          setAfterError(true);
+        }
+      };
+      image.src = attempts === 0 ? after : `${after}${after.includes("?") ? "&" : "?"}retry=${attempts}`;
+    };
+
+    tryLoad();
+    return () => {
+      active = false;
+    };
+  }, [after]);
 
   const updatePosition = useCallback((clientX: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -67,24 +125,44 @@ export function BeforeAfterSlider({ beforeUrl, afterUrl, className = "" }: Props
       onTouchMove={onTouchMove}
       onTouchStart={(event) => updatePosition(event.touches[0].clientX)}
     >
-      <img
-        src={beforeUrl}
-        alt="Foto originale"
-        className="absolute inset-0 h-full w-full object-contain block"
-        draggable={false}
-      />
-
-      <div
-        className="absolute inset-0 overflow-hidden"
-        style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
-      >
+      {before && (
         <img
-          src={afterUrl}
-          alt="Render AI"
+          src={before}
+          alt="Foto originale"
           className="absolute inset-0 h-full w-full object-contain block"
           draggable={false}
         />
-      </div>
+      )}
+
+      {after && (
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+        >
+          <img
+            src={after}
+            alt="Render AI"
+            className={`absolute inset-0 h-full w-full object-contain block transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}`}
+            draggable={false}
+          />
+        </div>
+      )}
+
+      {/* Skeleton overlay while AFTER image loads (CDN propagation buffer). */}
+      {after && !afterReady && !afterError && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2 text-slate-600">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
+            <span className="text-xs font-medium">Caricamento render…</span>
+          </div>
+        </div>
+      )}
+
+      {after && afterError && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-red-50/90">
+          <span className="text-xs font-medium text-red-700">Render non disponibile · ricarica la pagina</span>
+        </div>
+      )}
 
       <div
         className="absolute bottom-0 top-0 w-0.5 bg-white shadow-lg"
@@ -105,10 +183,10 @@ export function BeforeAfterSlider({ beforeUrl, afterUrl, className = "" }: Props
       </div>
 
       <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
-        Originale
+        {beforeLabel}
       </div>
       <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-primary/80 px-2 py-0.5 text-xs text-white">
-        Render AI
+        {afterLabel}
       </div>
     </div>
   );

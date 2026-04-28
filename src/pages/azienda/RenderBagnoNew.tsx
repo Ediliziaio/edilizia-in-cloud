@@ -25,6 +25,8 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { preloadImage } from "@/lib/render/preloadImage";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
 import { buildBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
@@ -352,6 +354,7 @@ export default function RenderBagnoNew() {
 
       if (s?.stato === "completato" && s.render_result_url) {
         stopPolling();
+        await preloadImage(s.render_result_url);
         setResultUrl(s.render_result_url);
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-bagno-sessions", companyId] });
@@ -501,6 +504,7 @@ export default function RenderBagnoNew() {
     // Synchronous result
     if (fnData?.result_url) {
       stopPolling();
+      await preloadImage(fnData.result_url);
       setResultUrl(fnData.result_url);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-bagno-sessions", companyId] });
@@ -945,62 +949,13 @@ export default function RenderBagnoNew() {
           STEP 4 — Elaborazione / Risultato
       ═════════════════════════════════════════════════════════════ */}
       {step === 4 && generating && (
-        <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
-          <Card className="border-cyan-400/30 bg-cyan-50/50 dark:bg-cyan-950/20">
-            <CardContent className="py-8 flex flex-col items-center gap-6 text-center">
-              <div className="relative w-20 h-20" aria-hidden="true">
-                <div className="absolute inset-0 rounded-full border-4 border-cyan-400/20 animate-ping" />
-                <div className="absolute inset-2 rounded-full bg-cyan-500/10 flex items-center justify-center">
-                  <Bath className="h-8 w-8 text-cyan-600 animate-pulse" />
-                </div>
-              </div>
-              <div>
-                <p className="text-lg font-semibold">
-                  Render in elaborazione{".".repeat(pollState.dots)}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  L&apos;AI sta trasformando il bagno con la nuova configurazione
-                </p>
-                <p className="text-xs text-muted-foreground mt-3">
-                  Tempo trascorso: {pollState.elapsedSec}s - Puo richiedere 1-4 minuti
-                </p>
-              </div>
-              <Progress value={Math.min((pollState.elapsedSec / 240) * 100, 95)} className="w-full h-2" />
-            </CardContent>
-          </Card>
-
-          {photoPreview && (
-            <Card>
-              <CardContent className="py-3">
-                <p className="text-xs text-muted-foreground mb-2">Foto originale caricata</p>
-                <div className="flex max-h-[18rem] min-h-[180px] items-center justify-center overflow-hidden rounded-lg bg-muted/20">
-                  <img src={photoPreview} alt="Originale" className="max-h-[18rem] w-full object-contain" />
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card className="bg-muted/30">
-            <CardContent className="py-3">
-              <p className="text-xs font-semibold mb-2">Configurazione applicata</p>
-              <div className="flex flex-wrap gap-1.5">
-                <Badge variant="secondary" className="text-xs capitalize">
-                  {config.tipo_intervento.replace(/_/g, " ")}
-                </Badge>
-                {config.sostituzione.piastrelle_parete && (
-                  <Badge variant="secondary" className="text-xs capitalize">
-                    {config.piastrelle_parete.effetto.replace(/_/g, " ")}
-                  </Badge>
-                )}
-                {config.sostituzione.doccia && (
-                  <Badge variant="secondary" className="text-xs capitalize">
-                    Doccia {config.doccia.tipo.replace(/_/g, " ")}
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <RenderProcessingCard
+          photoPreview={photoPreview}
+          elapsedSec={pollState.elapsedSec}
+          dots={pollState.dots}
+          accent="blue"
+          subjectLabel="L'AI sta elaborando il render del bagno"
+        />
       )}
 
       {step === 4 && !generating && resultUrl && (

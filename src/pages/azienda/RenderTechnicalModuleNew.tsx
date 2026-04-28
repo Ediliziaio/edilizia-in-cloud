@@ -28,6 +28,8 @@ import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { preloadImage } from "@/lib/render/preloadImage";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 import { renderModuleHubConfigs } from "@/lib/render/renderModuleHubConfigs";
 import {
@@ -212,6 +214,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
       if (session?.status === "completed" && session.result_urls?.length) {
         stopPolling();
+        if (session.result_urls[0]) await preloadImage(session.result_urls[0]);
         setResultUrls(session.result_urls);
         setGenerating(false);
         await queryClient.invalidateQueries({ queryKey: ["render-module-hub", companyId, moduleId] });
@@ -285,6 +288,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
       const urls: string[] = data?.result_urls ?? (data?.result_url ? [data.result_url] : []);
       if (urls.length) {
         stopPolling();
+        if (urls[0]) await preloadImage(urls[0]);
         setResultUrls(urls);
         setGenerating(false);
         await queryClient.invalidateQueries({ queryKey: ["render-module-hub", companyId, moduleId] });
@@ -504,23 +508,13 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
       )}
 
       {step === 3 && (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-6 py-16 text-center">
-            <div className={`flex h-20 w-20 items-center justify-center rounded-full ${hubConfig.iconBgClassName}`}>
-              <Zap className={`h-10 w-10 animate-pulse ${hubConfig.accentClassName}`} />
-            </div>
-            <div>
-              <p className="text-lg font-semibold">Generazione in corso{".".repeat(dots)}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Il backend sta elaborando il render sulla stessa foto, con sessione, crediti e galleria collegati.
-              </p>
-            </div>
-            <div className="w-full max-w-xs">
-              <Progress value={Math.min((elapsedSec / 240) * 100, 95)} className="h-2" />
-              <p className="mt-1 text-xs text-muted-foreground">{elapsedSec}s trascorsi · può richiedere 1-4 minuti</p>
-            </div>
-          </CardContent>
-        </Card>
+        <RenderProcessingCard
+          photoPreview={photoPreview}
+          elapsedSec={elapsedSec}
+          dots={dots}
+          accent="orange"
+          subjectLabel="L'AI sta elaborando il render tecnico"
+        />
       )}
 
       {step === 4 && resultUrls.length > 0 && (

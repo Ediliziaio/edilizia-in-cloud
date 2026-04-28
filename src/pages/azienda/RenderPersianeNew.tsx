@@ -33,6 +33,8 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
+import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { preloadImage } from "@/lib/render/preloadImage";
 import type {
   AnalisiPersiane,
   ConfigurazionePersiane,
@@ -317,6 +319,7 @@ export default function RenderPersianeNew() {
 
         if (statusRow?.status === "completed" && statusRow.result_urls?.length) {
           stopPolling();
+          if (statusRow.result_urls[0]) await preloadImage(statusRow.result_urls[0]);
           setResultUrls(statusRow.result_urls);
           setGenerating(false);
           queryClient.invalidateQueries({ queryKey: ["render-persiane-sessions", companyId] });
@@ -401,6 +404,7 @@ export default function RenderPersianeNew() {
     if (fnData?.result_url || fnData?.result_urls) {
       const urls: string[] =
         fnData.result_urls ?? (fnData.result_url ? [fnData.result_url] : []);
+      if (urls[0]) await preloadImage(urls[0]);
       setResultUrls(urls);
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["render-persiane-sessions", companyId] });
@@ -806,26 +810,13 @@ export default function RenderPersianeNew() {
       )}
 
       {step === 4 && (
-        <Card className="border-green-600/30 bg-green-50/30">
-          <CardContent className="py-12 flex flex-col items-center gap-4 text-center">
-            <div className="w-16 h-16 rounded-full bg-green-600/10 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-lg">
-                Generazione render persiane
-                {".".repeat(pollState.dots)}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Sto applicando la sostituzione chirurgica degli oscuranti mantenendo facciata, aperture e geometrie originali.
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Tempo trascorso: {pollState.elapsedSec}s · stato: {pollState.status}
-              </p>
-            </div>
-            <Progress value={Math.min((pollState.elapsedSec / 60) * 100, 95)} className="w-56 h-1.5" />
-          </CardContent>
-        </Card>
+        <RenderProcessingCard
+          photoPreview={photoPreview}
+          elapsedSec={pollState.elapsedSec}
+          dots={pollState.dots}
+          accent="rose"
+          subjectLabel="L'AI sta elaborando il render delle persiane"
+        />
       )}
 
       {step === 5 && resultUrls.length > 0 && (
