@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   Upload,
   Loader2,
   Zap,
@@ -21,6 +20,8 @@ import {
   ScanSearch,
   ShieldCheck,
 } from "lucide-react";
+
+import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 
 import { FacciataConfigForm } from "@/components/render-facciata/FacciataConfigForm";
 import { DEFAULT_FACCIATA_CONFIG } from "@/components/render-facciata/defaultFacciataConfig";
@@ -435,46 +436,27 @@ export default function RenderFacciataNew() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-12">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (step > 1 && step < 5) {
-              setStep((step - 1) as Step);
-            } else {
-              navigate("/azienda/render/facciata");
-            }
-          }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-orange-600" />
-            Render Facciata
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {step === 1 && "Carica la facciata da rinnovare"}
-            {step === 2 && "Lettura AI dell’edificio e dei dettagli esistenti"}
-            {step === 3 && "Configuriamo materiali, zone e dettagli architettonici"}
-            {step === 4 && "Sto generando il render fotorealistico"}
-            {step === 5 && "Risultato pronto per confronto e condivisione"}
-          </p>
-        </div>
+      <RenderWizardHeader
+        onBack={() => {
+          if (step > 1 && step < 5) {
+            setStep((step - 1) as Step);
+          } else {
+            navigate("/azienda/render/facciata");
+          }
+        }}
+        eyebrow="Riqualificazione facciata fotorealistica"
+        title="Stessa casa, nuova facciata"
+        description="L'AI applica intonaco, colori e finiture mantenendo prospettiva, contorno e arredo urbano della foto originale."
+        badgeLabel="Render AI — Facciate"
+        stepLabels={["Foto", "Analisi", "Configura", "Elaborazione", "Risultato"]}
+        currentStep={step}
+        accent="amber"
+      />
+      <div className="flex justify-end">
         <RenderCreditsWidget />
       </div>
 
       <RenderCreditGate />
-
-      <div className="flex items-center gap-2">
-        {[1, 2, 3, 4, 5].map((index) => (
-          <div
-            key={index}
-            className={`h-1.5 flex-1 rounded-full transition-colors ${index <= step ? "bg-orange-500" : "bg-muted"}`}
-          />
-        ))}
-      </div>
 
       {step === 1 && (
         <div className="space-y-4">

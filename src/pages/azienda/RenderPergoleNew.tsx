@@ -6,12 +6,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Upload, Image as ImageIcon, Loader2, Zap,
-  CheckCircle2, Download, Share2, RefreshCw, Sun,
+  Upload, Image as ImageIcon, Loader2, Zap,
+  CheckCircle2, Download, Share2, RefreshCw,
 } from "lucide-react";
+import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { PergoleConfigForm } from "@/components/render-pergole/PergoleConfigForm";
 import { DEFAULT_PERGOLE_CONFIG } from "@/components/render-pergole/defaultPergoleConfig";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
@@ -298,46 +298,25 @@ export default function RenderPergoleNew() {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto pb-12">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (step === 1 || step === 4) navigate("/azienda/render/pergole");
-            else if (step === 2) setStep(1);
-            else if (step === 3 && !generating) setStep(2);
-          }}
-          disabled={step === 3 && generating}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Sun className="h-5 w-5 text-emerald-600" />
-            Nuovo render pergole
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {step === 1 && "Carica la foto dello spazio esterno"}
-            {step === 2 && "Configura struttura, copertura, chiusure e installazione"}
-            {step === 3 && "Generazione in corso..."}
-            {step === 4 && "Render completato"}
-          </p>
-        </div>
+      <RenderWizardHeader
+        onBack={() => {
+          if (step === 1 || step === 4) navigate("/azienda/render/pergole");
+          else if (step === 2) setStep(1);
+          else if (step === 3 && !generating) setStep(2);
+        }}
+        eyebrow="Render pergola fotorealistico"
+        title="Stesso esterno, nuova pergola"
+        description="Visualizza la pergola sul tuo terrazzo o giardino con materiali, colori e copertura scelti."
+        badgeLabel="Render AI — Pergole"
+        stepLabels={["Foto", "Configura", "Elaborazione", "Risultato"]}
+        currentStep={step}
+        accent="violet"
+      />
+      <div className="flex justify-end">
         <RenderCreditsWidget />
       </div>
 
       <RenderCreditGate />
-
-      <div className="space-y-2">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          {["Foto", "Configura", "Elaborazione", "Risultato"].map((label, i) => (
-            <span key={label} className={step === i + 1 ? "text-emerald-700 font-semibold" : step > i + 1 ? "text-foreground" : ""}>
-              {i + 1}. {label}
-            </span>
-          ))}
-        </div>
-        <Progress value={(step / 4) * 100} className="h-1.5" />
-      </div>
 
       {step === 1 && (
         <div className="space-y-4">

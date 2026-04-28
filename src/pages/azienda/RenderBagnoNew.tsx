@@ -6,13 +6,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Upload, Image as ImageIcon, Loader2, Zap,
-  CheckCircle2, Download, Share2, RefreshCw, Wand2, Bath,
+  Upload, Image as ImageIcon, Loader2, Zap,
+  CheckCircle2, Download, Share2, RefreshCw, Wand2,
 } from "lucide-react";
+
+import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 
 import {
   BathroomConfigForm,
@@ -587,52 +588,26 @@ export default function RenderBagnoNew() {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto pb-12">
-      {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (step === 1 || step === 4) navigate("/azienda/render/bagno");
-            else if (step === 2) setStep(1);
-            else if (step === 3 && !generating) setStep(2);
-          }}
-          disabled={step === 4 && generating}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Bath className="h-5 w-5 text-cyan-600" />
-            Nuovo render bagno
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {step === 1 && "Carica la foto del bagno attuale"}
-            {step === 2 && "Lettura dell'ambiente esistente"}
-            {step === 3 && "Definisci con precisione cosa cambia e cosa resta"}
-            {step === 4 && (generating ? "Generazione in corso..." : "Render completato!")}
-          </p>
-        </div>
+      <RenderWizardHeader
+        onBack={() => {
+          if (step === 1 || step === 4) navigate("/azienda/render/bagno");
+          else if (step === 2) setStep(1);
+          else if (step === 3 && !generating) setStep(2);
+        }}
+        eyebrow="Ristrutturazione bagno fotorealistica"
+        title="Stesso bagno, nuove finiture"
+        description="Genera una visualizzazione realistica del bagno con i materiali, le piastrelle e i sanitari che hai scelto."
+        badgeLabel="Render AI — Bagni"
+        stepLabels={["Foto", "Analisi scena", "Intervento", "Render"]}
+        currentStep={step}
+        accent="blue"
+      />
+      <div className="flex justify-end">
         <RenderCreditsWidget />
       </div>
 
       {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
       <RenderCreditGate />
-
-      {/* ── Progress stepper ──────────────────────────────────────── */}
-      <div className="space-y-2">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          {["Foto", "Analisi scena", "Intervento", "Render"].map((label, i) => (
-            <span
-              key={label}
-              className={step === i + 1 ? "text-cyan-600 font-semibold" : step > i + 1 ? "text-foreground" : ""}
-            >
-              {i + 1}. {label}
-            </span>
-          ))}
-        </div>
-        <Progress value={(step / 4) * 100} className="h-1.5" />
-      </div>
 
       {/* ═════════════════════════════════════════════════════════════
           STEP 1 — Foto

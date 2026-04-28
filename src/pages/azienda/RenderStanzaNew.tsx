@@ -5,14 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Upload, Image as ImageIcon, Loader2, Zap,
+  Upload, Image as ImageIcon, Loader2, Zap,
   CheckCircle2, Download, Share2, RefreshCw, Wand2, Sofa,
 } from "lucide-react";
 
+import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { StanzaConfigForm, DEFAULT_STANZA_CONFIG } from "@/components/render-stanza/StanzaConfigForm";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
@@ -379,49 +379,26 @@ export default function RenderStanzaNew() {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto pb-12">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (step === 1 || step === 4) navigate("/azienda/render/stanza");
-            else if (step === 2) setStep(1);
-            else if (step === 3 && !generating) setStep(2);
-          }}
-          disabled={step === 3 && generating}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold">Nuovo render stanza</h1>
-          <p className="text-sm text-muted-foreground">
-            {step === 1 && "Carica la foto della stanza"}
-            {step === 2 && "Configura lo stile e gli interventi"}
-            {step === 3 && "Generazione in corso..."}
-            {step === 4 && "Render completato!"}
-          </p>
-        </div>
+      <RenderWizardHeader
+        onBack={() => {
+          if (step === 1 || step === 4) navigate("/azienda/render/stanza");
+          else if (step === 2) setStep(1);
+          else if (step === 3 && !generating) setStep(2);
+        }}
+        eyebrow="Restyling stanza fotorealistico"
+        title="Stessa stanza, nuovo stile"
+        description="Cambia colori, finiture e arredi mantenendo struttura e proporzioni della stanza originale."
+        badgeLabel="Render AI — Stanze"
+        stepLabels={["Foto", "Configura", "Elaborazione", "Risultati"]}
+        currentStep={step}
+        accent="violet"
+      />
+      <div className="flex justify-end">
         <RenderCreditsWidget />
       </div>
 
       {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
       <RenderCreditGate />
-
-      {/* ── Progress stepper ───────────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          {["Foto", "Configura", "Elaborazione", "Risultati"].map((label, i) => (
-            <span
-              key={label}
-              className={step === i + 1 ? "text-purple-600 font-semibold" : step > i + 1 ? "text-foreground" : ""}
-            >
-              {i + 1}. {label}
-            </span>
-          ))}
-        </div>
-        <Progress value={(step / 4) * 100} className="h-1.5" />
-      </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           STEP 1 — Foto

@@ -5,14 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Upload, Image as ImageIcon, Loader2, Zap,
-  CheckCircle2, Download, Share2, RefreshCw, Home,
+  Upload, Image as ImageIcon, Loader2, Zap,
+  CheckCircle2, Download, Share2, RefreshCw,
 } from "lucide-react";
 
 import { TettoConfigForm, DEFAULT_TETTO_CONFIG } from "@/components/render-tetto/TettoConfigForm";
+import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
@@ -337,52 +337,26 @@ export default function RenderTettoNew() {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto pb-12">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (step === 1 || step === 4) navigate("/azienda/render/tetto");
-            else if (step === 2) setStep(1);
-            else if (step === 3 && !generating) setStep(2);
-          }}
-          disabled={step === 3 && generating}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Home className="h-5 w-5 text-red-600" />
-            Nuovo render tetto
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {step === 1 && "Carica la foto del tetto"}
-            {step === 2 && "Configura la nuova copertura"}
-            {step === 3 && "Generazione in corso..."}
-            {step === 4 && "Render completato!"}
-          </p>
-        </div>
+      <RenderWizardHeader
+        onBack={() => {
+          if (step === 1 || step === 4) navigate("/azienda/render/tetto");
+          else if (step === 2) setStep(1);
+          else if (step === 3 && !generating) setStep(2);
+        }}
+        eyebrow="Render copertura tetto fotorealistico"
+        title="Stessa casa, stesso tetto, nuova copertura"
+        description="L'AI sostituisce solo la copertura del tetto preservando struttura, prospettiva, luci e contorno della foto originale."
+        badgeLabel="Render AI — Tetti"
+        stepLabels={["Foto", "Configura", "Elaborazione", "Risultati"]}
+        currentStep={step}
+        accent="red"
+      />
+      <div className="flex justify-end">
         <RenderCreditsWidget />
       </div>
 
       {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
       <RenderCreditGate />
-
-      {/* ── Progress stepper ───────────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          {["Foto", "Configura", "Elaborazione", "Risultati"].map((label, i) => (
-            <span
-              key={label}
-              className={step === i + 1 ? "text-red-600 font-semibold" : step > i + 1 ? "text-foreground" : ""}
-            >
-              {i + 1}. {label}
-            </span>
-          ))}
-        </div>
-        <Progress value={(step / 4) * 100} className="h-1.5" />
-      </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           STEP 1 — Foto

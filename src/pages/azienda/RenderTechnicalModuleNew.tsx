@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   CheckCircle2,
   Download,
   Image as ImageIcon,
@@ -20,13 +19,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 import { preloadImage } from "@/lib/render/preloadImage";
@@ -90,7 +89,6 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const db = supabase as unknown as DynamicRenderDb;
   const spec = getTechnicalRenderModuleSpec(moduleId);
   const hubConfig = renderModuleHubConfigs[moduleId];
-  const ModuleIcon = hubConfig.icon;
 
   const [step, setStep] = useState<Step>(1);
   const [photo, setPhoto] = useState<File | null>(null);
@@ -323,46 +321,25 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-12">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (step === 1 || step === 4) navigate(`/azienda/render/${moduleId}`);
-            else if (step === 2) setStep(1);
-            else if (step === 3 && !generating) setStep(2);
-          }}
-          disabled={step === 3 && generating}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="flex items-center gap-2 text-xl font-bold">
-            <ModuleIcon className={`h-5 w-5 ${hubConfig.accentClassName}`} />
-            Nuovo render {spec.label.toLowerCase()}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {step === 1 && spec.uploadDescription}
-            {step === 2 && "Configura l'intervento tecnico e i vincoli di preservazione"}
-            {step === 3 && "Generazione in corso..."}
-            {step === 4 && spec.resultTitle}
-          </p>
-        </div>
+      <RenderWizardHeader
+        onBack={() => {
+          if (step === 1 || step === 4) navigate(`/azienda/render/${moduleId}`);
+          else if (step === 2) setStep(1);
+          else if (step === 3 && !generating) setStep(2);
+        }}
+        eyebrow="Render tecnico fotorealistico"
+        title="Sostituzione modulo tecnico"
+        description="Genera il render dell'elemento tecnico mantenendo coerenza con la foto originale."
+        badgeLabel="Render AI — Tecnico"
+        stepLabels={["Foto", "Configura", "Elaborazione", "Risultato"]}
+        currentStep={step}
+        accent="orange"
+      />
+      <div className="flex justify-end">
         <RenderCreditsWidget />
       </div>
 
       <RenderCreditGate />
-
-      <div className="space-y-2">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          {["Foto", "Configura", "Elaborazione", "Risultato"].map((label, index) => (
-            <span key={label} className={step === index + 1 ? "font-semibold text-primary" : step > index + 1 ? "text-foreground" : ""}>
-              {index + 1}. {label}
-            </span>
-          ))}
-        </div>
-        <Progress value={(step / 4) * 100} className="h-1.5" />
-      </div>
 
       {step === 1 && (
         <div className="space-y-4">

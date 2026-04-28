@@ -5,11 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   Upload,
   Image as ImageIcon,
   Loader2,
@@ -23,6 +21,8 @@ import {
   Building2,
   ShieldCheck,
 } from "lucide-react";
+
+import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 
 import {
   PersianeConfigForm,
@@ -453,54 +453,26 @@ export default function RenderPersianeNew() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (step === 1 || step === 5) navigate("/azienda/render/persiane");
-            else if (step === 2) setStep(1);
-            else if (step === 3) setStep(2);
-            else if (step === 4 && !generating) setStep(3);
-          }}
-          disabled={step === 4 && generating}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold">Nuovo render persiane</h1>
-          <p className="text-sm text-muted-foreground">
-            {step === 1 && "Carica la facciata o la finestra da trasformare"}
-            {step === 2 && "Lettura AI della facciata e delle aperture esistenti"}
-            {step === 3 && "Configura oscuranti, finiture e regole di sostituzione"}
-            {step === 4 && "Generazione render in corso"}
-            {step === 5 && "Render persiane completato"}
-          </p>
-        </div>
+      <RenderWizardHeader
+        onBack={() => {
+          if (step === 1 || step === 5) navigate("/azienda/render/persiane");
+          else if (step === 2) setStep(1);
+          else if (step === 3) setStep(2);
+          else if (step === 4 && !generating) setStep(3);
+        }}
+        eyebrow="Sostituzione persiane fotorealistica"
+        title="Stessa casa, nuove persiane"
+        description="L'AI sostituisce solo le persiane mantenendo serramenti, contorno e arredo della foto originale."
+        badgeLabel="Render AI — Persiane"
+        stepLabels={["Foto", "Analisi", "Configura", "Elaborazione", "Risultato"]}
+        currentStep={step}
+        accent="rose"
+      />
+      <div className="flex justify-end">
         <RenderCreditsWidget />
       </div>
 
       <RenderCreditGate />
-
-      <div className="space-y-2">
-        <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-          {["Foto", "Analisi", "Configura", "Elaborazione", "Risultato"].map((label, i) => (
-            <span
-              key={label}
-              className={
-                step === i + 1
-                  ? "text-green-600 font-semibold"
-                  : step > i + 1
-                    ? "text-foreground"
-                    : ""
-              }
-            >
-              {i + 1}. {label}
-            </span>
-          ))}
-        </div>
-        <Progress value={(step / 5) * 100} className="h-1.5" />
-      </div>
 
       {step === 1 && (
         <div className="space-y-4">

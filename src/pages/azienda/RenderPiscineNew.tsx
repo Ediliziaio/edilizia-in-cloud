@@ -6,12 +6,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Upload, Image as ImageIcon, Loader2, Zap,
-  CheckCircle2, Download, Share2, RefreshCw, Waves,
+  Upload, Image as ImageIcon, Loader2, Zap,
+  CheckCircle2, Download, Share2, RefreshCw,
 } from "lucide-react";
+import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { PiscineConfigForm } from "@/components/render-piscine/PiscineConfigForm";
 import { DEFAULT_PISCINE_CONFIG } from "@/components/render-piscine/defaultPiscineConfig";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
@@ -287,46 +287,25 @@ export default function RenderPiscineNew() {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto pb-12">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (step === 1 || step === 4) navigate("/azienda/render/piscine");
-            else if (step === 2) setStep(1);
-            else if (step === 3 && !generating) setStep(2);
-          }}
-          disabled={step === 3 && generating}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Waves className="h-5 w-5 text-emerald-600" />
-            Nuovo render piscine
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {step === 1 && "Carica la foto dello spazio esterno"}
-            {step === 2 && "Configura geometria, acqua, bordo, accessi e inserimento"}
-            {step === 3 && "Generazione in corso..."}
-            {step === 4 && "Render completato"}
-          </p>
-        </div>
+      <RenderWizardHeader
+        onBack={() => {
+          if (step === 1 || step === 4) navigate("/azienda/render/piscine");
+          else if (step === 2) setStep(1);
+          else if (step === 3 && !generating) setStep(2);
+        }}
+        eyebrow="Render piscina fotorealistico"
+        title="Stesso giardino, nuova piscina"
+        description="Aggiungi la piscina su terrazzo o giardino con forma, dimensioni e finiture personalizzate."
+        badgeLabel="Render AI — Piscine"
+        stepLabels={["Foto", "Configura", "Elaborazione", "Risultato"]}
+        currentStep={step}
+        accent="blue"
+      />
+      <div className="flex justify-end">
         <RenderCreditsWidget />
       </div>
 
       <RenderCreditGate />
-
-      <div className="space-y-2">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          {["Foto", "Configura", "Elaborazione", "Risultato"].map((label, i) => (
-            <span key={label} className={step === i + 1 ? "text-emerald-700 font-semibold" : step > i + 1 ? "text-foreground" : ""}>
-              {i + 1}. {label}
-            </span>
-          ))}
-        </div>
-        <Progress value={(step / 4) * 100} className="h-1.5" />
-      </div>
 
       {step === 1 && (
         <div className="space-y-4">
