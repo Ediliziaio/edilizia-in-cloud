@@ -664,8 +664,16 @@ function EditOrderInner() {
       toast.error("Campo obbligatorio", { description: "Inserisci una descrizione del lavoro." });
       return;
     }
-    if (total <= 0) {
+    // Per i lavori per appaltatore (sola manodopera) l'importo può essere 0
+    // perché spesso il compenso è gestito a SAL/contratto separato.
+    if (orderTypeState !== "appaltatore_lavoro" && total <= 0) {
       toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
+      return;
+    }
+    if (workStartDate && workEndDate && workEndDate < workStartDate) {
+      toast.error("Date lavori non valide", {
+        description: "La data di fine lavori non può precedere quella di inizio.",
+      });
       return;
     }
     if (orderItems.length > 0) {
