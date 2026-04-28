@@ -255,9 +255,9 @@ export default function CreateCustomer() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Colonna principale */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-8 space-y-6">
             {/* Dati anagrafici */}
             <Card className="border-l-4 border-l-primary">
               <CardHeader>
@@ -538,8 +538,56 @@ export default function CreateCustomer() {
             </Card>
           </div>
 
-          {/* Colonna laterale — Portale / Riepilogo */}
-          <div className="space-y-6">
+          {/* Colonna laterale — Portale / Riepilogo (sticky su desktop) */}
+          <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-6 lg:self-start">
+            {/* Riepilogo live */}
+            <Card className="border-l-4 border-l-primary/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  Riepilogo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-muted-foreground shrink-0">Tipo</span>
+                  <span className="font-medium text-right">
+                    {isAppaltatore
+                      ? "Cliente appaltatore"
+                      : isBusiness
+                        ? "Azienda"
+                        : "Persona fisica"}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-muted-foreground shrink-0">Nominativo</span>
+                  <span className="font-medium text-right truncate">
+                    {isBusiness
+                      ? (businessName.trim() || <em className="text-muted-foreground font-normal">—</em>)
+                      : ((`${firstName} ${lastName}`).trim() || <em className="text-muted-foreground font-normal">—</em>)}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-muted-foreground shrink-0">Email</span>
+                  <span className="font-medium text-right truncate max-w-[60%]">
+                    {email.trim() || <em className="text-muted-foreground font-normal">—</em>}
+                  </span>
+                </div>
+                {phone.trim() && (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-muted-foreground shrink-0">Telefono</span>
+                    <span className="font-medium text-right truncate">{phone.trim()}</span>
+                  </div>
+                )}
+                {fiscalCode.trim() && (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-muted-foreground shrink-0">{isBusiness ? "P.IVA/CF" : "CF"}</span>
+                    <span className="font-medium text-right truncate font-mono text-[11px]">{fiscalCode.trim()}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card className={`border-l-4 ${createPortalAccount && companyPortalEnabled ? "border-l-emerald-500" : "border-l-muted"}`}>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">

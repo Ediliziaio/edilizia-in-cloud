@@ -174,8 +174,24 @@ export default function CreateLavoroAppaltatore() {
     );
   }
 
+  // ── Riepilogo live ──────────────────────────────────────────────
+  const selectedAppaltatore = appaltatori.find((a) => a.id === customerId);
+  const totalForSummary = totalAmount
+    ? Number(totalAmount.replace(",", "."))
+    : 0;
+  const formattedTotal = !Number.isNaN(totalForSummary) && totalForSummary > 0
+    ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(totalForSummary)
+    : null;
+  const durationDays = useMemo(() => {
+    if (!workStartDate || !workEndDate || dateError) return null;
+    const start = new Date(workStartDate);
+    const end = new Date(workEndDate);
+    const diff = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+    return diff > 0 ? diff : null;
+  }, [workStartDate, workEndDate, dateError]);
+
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <QuotePageHeader
         icon={<HardHat className="h-5 w-5" />}
         title="Nuovo lavoro per appaltatore"
@@ -200,8 +216,9 @@ export default function CreateLavoroAppaltatore() {
           if (!canSubmit || createMutation.isPending) return;
           createMutation.mutate();
         }}
-        className="space-y-6"
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6"
       >
+        <div className="lg:col-span-8 space-y-6">
         {/* ── Cliente appaltatore ────────────────────────────────── */}
         <QuoteCard
           title="Appaltatore committente"
@@ -391,34 +408,97 @@ export default function CreateLavoroAppaltatore() {
             maxLength={1000}
           />
         </QuoteCard>
-
-        {/* ── Action bar ──────────────────────────────────────────── */}
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate("/azienda/ordini")}
-            disabled={createMutation.isPending}
-          >
-            Annulla
-          </Button>
-          <QuotePrimaryButton
-            type="submit"
-            disabled={!canSubmit || createMutation.isPending}
-          >
-            {createMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Creazione...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Crea lavoro
-              </>
-            )}
-          </QuotePrimaryButton>
         </div>
+
+        {/* ── Sidebar: riepilogo + actions (sticky su desktop) ─────── */}
+        <aside className="lg:col-span-4 space-y-4 lg:sticky lg:top-6 lg:self-start">
+          <QuoteCard title="Riepilogo lavoro" icon={<HardHat className="h-4 w-4" />} compact>
+            <dl className="space-y-2.5 text-xs">
+              <div className="flex items-start justify-between gap-3">
+                <dt className="text-slate-500 shrink-0">Appaltatore</dt>
+                <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
+                  {selectedAppaltatore?.business_name || <em className="text-slate-400 font-normal">Da selezionare</em>}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="text-slate-500 shrink-0">Codice</dt>
+                <dd className="font-medium text-right text-slate-800 truncate font-mono text-[11px]">
+                  {orderCode.trim() || <em className="text-slate-400 font-normal font-sans">Auto</em>}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="text-slate-500 shrink-0">Descrizione</dt>
+                <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
+                  {description.trim() || <em className="text-slate-400 font-normal">—</em>}
+                </dd>
+              </div>
+              {workAddress.trim() && (
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-slate-500 shrink-0">Cantiere</dt>
+                  <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
+                    {workAddress.trim()}
+                  </dd>
+                </div>
+              )}
+              {durationDays !== null && (
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-slate-500 shrink-0">Durata</dt>
+                  <dd className="font-medium text-right text-slate-800">
+                    {durationDays} {durationDays === 1 ? "giorno" : "giorni"}
+                  </dd>
+                </div>
+              )}
+              {formattedTotal && (
+                <div className="flex items-start justify-between gap-3 pt-2 border-t border-slate-100">
+                  <dt className="text-slate-500 shrink-0">Compenso</dt>
+                  <dd className="font-bold text-right text-orange-600">{formattedTotal}</dd>
+                </div>
+              )}
+            </dl>
+          </QuoteCard>
+
+          <QuoteCard noHeader compact className="bg-slate-50/60">
+            <div className="space-y-2">
+              <QuotePrimaryButton
+                type="submit"
+                disabled={!canSubmit || createMutation.isPending}
+                className="w-full justify-center"
+              >
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Creazione...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Crea lavoro
+                  </>
+                )}
+              </QuotePrimaryButton>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate("/azienda/ordini")}
+                disabled={createMutation.isPending}
+                className="w-full"
+              >
+                Annulla
+              </Button>
+              {!canSubmit && !createMutation.isPending && (
+                <p className="text-[11px] text-slate-500 text-center pt-1">
+                  {!customerId
+                    ? "Seleziona un appaltatore per continuare."
+                    : !description.trim()
+                      ? "Inserisci una descrizione breve."
+                      : dateError
+                        ? "Correggi le date dei lavori."
+                        : "Compila i campi obbligatori."}
+                </p>
+              )}
+            </div>
+          </QuoteCard>
+        </aside>
       </form>
     </div>
   );
