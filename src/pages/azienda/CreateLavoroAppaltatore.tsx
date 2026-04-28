@@ -267,6 +267,23 @@ export default function CreateLavoroAppaltatore() {
     },
   });
 
+  // ── Riepilogo live (DEVE stare prima di ogni early return per
+  //     rispettare le rules-of-hooks di React) ────────────────────
+  const selectedAppaltatore = appaltatori.find((a) => a.id === customerId);
+  const totalForSummary = totalAmount
+    ? Number(totalAmount.replace(",", "."))
+    : 0;
+  const formattedTotal = !Number.isNaN(totalForSummary) && totalForSummary > 0
+    ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(totalForSummary)
+    : null;
+  const durationDays = useMemo(() => {
+    if (!workStartDate || !workEndDate || dateError) return null;
+    const start = new Date(workStartDate);
+    const end = new Date(workEndDate);
+    const diff = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+    return diff > 0 ? diff : null;
+  }, [workStartDate, workEndDate, dateError]);
+
   // ── Guard: feature disattivata → redirect alla lista ordini ────
   if (!featureEnabled) {
     return (
@@ -284,22 +301,6 @@ export default function CreateLavoroAppaltatore() {
       </div>
     );
   }
-
-  // ── Riepilogo live ──────────────────────────────────────────────
-  const selectedAppaltatore = appaltatori.find((a) => a.id === customerId);
-  const totalForSummary = totalAmount
-    ? Number(totalAmount.replace(",", "."))
-    : 0;
-  const formattedTotal = !Number.isNaN(totalForSummary) && totalForSummary > 0
-    ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(totalForSummary)
-    : null;
-  const durationDays = useMemo(() => {
-    if (!workStartDate || !workEndDate || dateError) return null;
-    const start = new Date(workStartDate);
-    const end = new Date(workEndDate);
-    const diff = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
-    return diff > 0 ? diff : null;
-  }, [workStartDate, workEndDate, dateError]);
 
   return (
     <div className="space-y-6">

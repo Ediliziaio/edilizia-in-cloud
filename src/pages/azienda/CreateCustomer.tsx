@@ -27,7 +27,7 @@ import {
 
 // Regex client-side (resta comunque validato server-side)
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g; // caratteri invisibili
-const PHONE_ALLOWED = /^[0-9+\-\s()\.]+$/;
+const PHONE_ALLOWED = /^[0-9+\-\s().]+$/;
 
 export default function CreateCustomer() {
   const navigate = useNavigate();
