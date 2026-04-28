@@ -2722,7 +2722,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["come trovare clienti impresa edile", "marketing impresa edile", "clienti edilizia", "lead edilizia", "acquisire clienti edilizia"],
     publishedAt: "2026-04-28",
     updatedAt: "2026-04-28",
-    readTime: 4,
+    readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -2757,6 +2757,75 @@ export const blogPosts: BlogPost[] = [
         body: "Non basta sapere quanto costa un lead. Devi sapere quanto costa un cliente acquisito e quanto margine lascia. Un lead da 20 euro che non compra vale zero. Un lead da 120 euro che genera una ristrutturazione profittevole è ottimo. Per questo marketing, preventivi e margini devono parlarsi nello stesso sistema.",
       },
       {
+        type: "section",
+        heading: "Da dove arrivano davvero i clienti migliori",
+        body: "Per un'impresa edile non tutti i canali valgono allo stesso modo. Google intercetta domanda calda: persone che cercano ristrutturazione, rifacimento tetto, cappotto, serramenti o impresa edile nella propria zona. Meta e Instagram creano domanda e funzionano bene con prima/dopo, cantieri finiti e testimonianze. Il passaparola resta potente, ma va trasformato in processo: chiedere recensioni, richiedere referenze e ricontattare vecchi clienti prima che lo faccia un concorrente.",
+      },
+      {
+        type: "list",
+        heading: "I contenuti che attirano clienti edili seri",
+        items: [
+          "Pagine servizio con esempi reali: bagno, tetto, facciata, serramenti, ristrutturazione completa.",
+          "Articoli sui costi, ma con range e variabili, non prezzi buttati a caso.",
+          "Casi studio con problema iniziale, soluzione, tempi, foto e risultato finale.",
+          "FAQ su permessi, bonus, tempi, materiali, pagamenti e garanzie.",
+          "Guide locali: lavori edili nella tua provincia, quartieri serviti, tipologie di immobili.",
+          "Recensioni dettagliate con nome, città e tipo di lavoro svolto.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come qualificare un cliente prima del sopralluogo",
+        body: "Il sopralluogo gratuito può diventare una perdita enorme se lo fai per chiunque. Prima di muovere un tecnico devi capire tipo di lavoro, zona, tempi, budget indicativo, stato della decisione e presenza di altri preventivi. Non significa essere freddi: significa rispettare il tuo tempo. Un cliente che non vuole rispondere a nessuna domanda spesso non è pronto. Un cliente che manda foto, misure e obiettivi invece merita priorità.",
+      },
+      {
+        type: "section",
+        heading: "Il follow-up è dove si vincono molti lavori",
+        body: "Molte imprese edili perdono clienti non perché costano troppo, ma perché spariscono dopo il preventivo. Il cliente ha dubbi, confronta alternative, parla con il partner, chiede al tecnico, rimanda. Se nessuno lo guida, sceglie chi resta presente. Un follow-up fatto bene non insiste: chiarisce dubbi, ricorda la scadenza dell'offerta, propone una chiamata e mostra disponibilità. Deve essere programmato, non lasciato alla memoria.",
+      },
+      {
+        type: "quote",
+        quote: "Il marketing non serve a riempire il telefono di richieste qualsiasi. Serve a portare richieste tracciabili, misurabili e compatibili con il tipo di cantiere che vuoi davvero aprire.",
+        author: "Edilizia in Cloud",
+      },
+      {
+        type: "section",
+        heading: "Piano operativo di 30 giorni",
+        body: "Nei primi 30 giorni devi evitare di fare tutto insieme. Parti da una pagina servizio forte, sistema il modulo contatto, crea una pipeline commerciale e recupera recensioni dai clienti migliori. Poi attiva una campagna piccola su una sola zona e misura ogni richiesta fino al preventivo. Dopo un mese avrai dati veri: quali lavori interessano, quali clienti rispondono, quali preventivi si chiudono e dove il processo perde pezzi.",
+      },
+      {
+        type: "list",
+        heading: "Errori che bloccano l'acquisizione clienti",
+        items: [
+          "Parlare solo dell'azienda e non dei problemi del cliente.",
+          "Non mostrare lavori reali, foto, testimonianze e zone servite.",
+          "Rispondere ai contatti quando il cliente è già passato oltre.",
+          "Fare preventivi senza registrare motivo di perdita o margine.",
+          "Delegare il marketing senza controllare lead, sopralluoghi e vendite.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Quando aumentare il budget marketing",
+        body: "Aumenti il budget solo quando il processo regge. Se hai 20 lead e ne richiami 8, non serve comprare altri contatti: serve sistemare la gestione. Se fai sopralluoghi ma non invii preventivi in tempo, il problema non è il marketing. Se invece sai fonte, costo, tasso di chiusura e margine, puoi investire di più con criterio. Il marketing edile funziona quando vendite e produzione sono pronte a ricevere domanda.",
+      },
+      {
+        type: "list",
+        heading: "FAQ: trovare clienti per impresa edile",
+        items: [
+          "Quanto tempo serve per vedere risultati? Con SEO servono mesi; con campagne ben tracciate puoi vedere richieste in pochi giorni, ma la qualità si misura sui lavori chiusi.",
+          "Meglio Google o social? Google intercetta chi cerca subito un servizio, i social aiutano reputazione e remarketing. La scelta dipende dal tipo di lavoro e dalla zona.",
+          "Devo pubblicare prezzi? Meglio pubblicare range e spiegare variabili: filtri curiosi e aumenti fiducia.",
+          "Serve un CRM anche a una piccola impresa? Sì, perché anche 20 contatti al mese diventano ingestibili se restano tra telefono, WhatsApp e memoria.",
+          "Qual è il primo investimento? Una pagina servizio seria, recensioni ordinate e un processo di risposta veloce prima ancora di aumentare il budget.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il risultato da cercare",
+        body: "L'obiettivo non è avere più telefonate in assoluto. È avere più richieste giuste, più sopralluoghi qualificati, più preventivi seguiti e più cantieri con margine. Quando il marketing lavora così, l'imprenditore non subisce più mesi pieni e mesi vuoti: costruisce una macchina commerciale prevedibile.",
+      },
+      {
         type: "cta",
         heading: "Da contatti sparsi a clienti misurabili",
         body: "Edilizia in Cloud collega marketing, CRM, preventivi e cantieri. Vedi da dove arrivano i clienti, quanto valgono, chi li sta seguendo e quali lavori diventano fatturato. Così il marketing smette di essere una spesa vaga e diventa un processo commerciale controllabile.",
@@ -2772,7 +2841,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["aumentare vendite impresa edile", "vendere lavori edili", "chiudere preventivi edilizia", "commerciale edilizia", "margine preventivi"],
     publishedAt: "2026-04-28",
     updatedAt: "2026-04-28",
-    readTime: 4,
+    readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -2807,6 +2876,75 @@ export const blogPosts: BlogPost[] = [
         body: "Vendere di più è inutile se vendi male. Ogni sconto deve mostrare l'impatto sul margine. Ogni variante deve essere approvata e tracciata. Ogni preventivo perso deve avere un motivo. Dopo 30 trattative analizzate, capisci dove stai perdendo: velocità, fiducia, prezzo, documento o follow-up.",
       },
       {
+        type: "section",
+        heading: "Perché il cliente non compra solo il prezzo",
+        body: "Nel lavoro edile il cliente compra sicurezza. Ha paura di ritardi, lavori fatti male, extra non previsti, casa lasciata sporca, problemi con vicini o amministratore, materiali diversi da quelli promessi. Se il tuo preventivo non risponde a queste paure, il prezzo diventa l'unico punto di confronto. Vendere meglio significa rendere visibile il metodo: sopralluogo, capitolato, pianificazione, controllo qualità, comunicazione e garanzia.",
+      },
+      {
+        type: "list",
+        heading: "Cosa deve contenere un preventivo che vende",
+        items: [
+          "Riepilogo del problema del cliente e obiettivo del lavoro.",
+          "Descrizione chiara delle lavorazioni incluse ed escluse.",
+          "Materiali principali, marche o standard qualitativi.",
+          "Tempi stimati, fasi del cantiere e condizioni di avvio.",
+          "Opzioni alternative per aumentare valore medio senza forzare sconti.",
+          "Condizioni di pagamento, validità offerta e prossima azione.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Aumentare lo scontrino medio con le opzioni",
+        body: "Molti imprenditori edili fanno un solo preventivo e aspettano un sì o un no. È un errore. Offrire tre opzioni aiuta il cliente a scegliere: soluzione essenziale, soluzione consigliata e soluzione premium. In questo modo non confronta solo te contro un concorrente, ma valuta anche livelli diversi di qualità, tempi e garanzie. Spesso la scelta migliore non è la più economica, ma quella spiegata meglio.",
+      },
+      {
+        type: "section",
+        heading: "Misurare il tasso di chiusura per servizio",
+        body: "Non tutte le vendite sono uguali. Potresti chiudere bene i bagni ma male le ristrutturazioni complete, oppure ricevere tanti preventivi per serramenti ma pochi ordini perché il follow-up è lento. Devi misurare tasso di chiusura, valore medio, margine medio e tempo medio tra richiesta e firma. Solo così capisci dove aumentare vendite: più lead, migliore preventivo, risposta più veloce o selezione dei clienti.",
+      },
+      {
+        type: "quote",
+        quote: "La vendita edile non finisce quando mandi il PDF. In molti casi inizia proprio lì: il cliente ha bisogno di capire, fidarsi e decidere senza sentirsi abbandonato.",
+        author: "Edilizia in Cloud",
+      },
+      {
+        type: "section",
+        heading: "Come preparare una trattativa prima del sopralluogo",
+        body: "Una vendita migliore inizia prima di vedere il cantiere. Devi raccogliere informazioni, capire urgenza, budget, contesto familiare o aziendale, altri preventivi richiesti e timori principali. Se arrivi al sopralluogo senza sapere nulla, improvvisi. Se arrivi preparato, fai domande migliori, noti più dettagli e costruisci un'offerta più vicina a ciò che il cliente vuole davvero comprare.",
+      },
+      {
+        type: "list",
+        heading: "Obiezioni frequenti e risposte corrette",
+        items: [
+          "Costa troppo: spiega differenze su materiali, posa, garanzia, tempi e gestione imprevisti.",
+          "Ci penso: programma subito una chiamata di chiarimento, non lasciare la decisione nel vuoto.",
+          "Ho un preventivo più basso: confronta inclusioni, esclusioni, pagamenti e qualità.",
+          "Vorrei iniziare subito: verifica capacità produttiva prima di promettere date rischiose.",
+          "Mi tolga qualcosa: mostra l'effetto sul risultato, non tagliare margine alla cieca.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Vendere di più senza saturare i cantieri",
+        body: "Aumentare le vendite non deve creare caos operativo. Se chiudi più lavori di quanti puoi gestire, peggiori qualità, tempi e reputazione. Ogni trattativa dovrebbe essere collegata alla capacità produttiva: squadre disponibili, fornitori, tempi materiali, capocantiere e cassa necessaria per partire. Vendere bene significa anche scegliere quando dire no o rimandare.",
+      },
+      {
+        type: "list",
+        heading: "FAQ: aumentare vendite in edilizia",
+        items: [
+          "Come aumento le vendite senza fare sconti? Migliorando risposta, preventivo, prova sociale, opzioni e follow-up.",
+          "Quale numero devo guardare per primo? Il tasso di chiusura dei preventivi per servizio, non solo il fatturato totale.",
+          "Quando uno sconto è pericoloso? Quando non conosci margine, costi futuri e varianti probabili.",
+          "Serve un commerciale dedicato? Non sempre, ma serve un processo commerciale dedicato anche se lo segue il titolare.",
+          "Come capisco perché perdo lavori? Registrando il motivo reale di ogni preventivo perso e rileggendo i dati ogni mese.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il risultato da cercare",
+        body: "Un'impresa edile vende bene quando non deve rincorrere ogni opportunità. Ha criteri per scegliere, strumenti per presentarsi, numeri per proteggere margine e metodo per seguire il cliente. A quel punto aumentare le vendite non significa lavorare più confusi: significa far rendere meglio ogni richiesta ricevuta.",
+      },
+      {
         type: "cta",
         heading: "Da preventivi inviati a vendite controllate",
         body: "Con Edilizia in Cloud gestisci lead, preventivi, follow-up, margini e cantieri in continuità. Ogni vendita nasce da una richiesta, diventa trattativa e poi commessa. Così aumenti il tasso di chiusura senza regalare margine con sconti fatti al buio.",
@@ -2822,7 +2960,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["lead serramenti", "clienti serramenti", "marketing serramenti", "preventivi infissi", "vendere serramenti"],
     publishedAt: "2026-04-28",
     updatedAt: "2026-04-28",
-    readTime: 4,
+    readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -2857,6 +2995,76 @@ export const blogPosts: BlogPost[] = [
         body: "Il lead va richiamato velocemente, qualificato e portato a sopralluogo. Se aspetti due giorni, probabilmente ha già parlato con altri. Una pipeline per serramenti deve mostrare contatti nuovi, sopralluoghi fissati, preventivi inviati, pratiche bonus, ordini materiali e installazioni pianificate.",
       },
       {
+        type: "section",
+        heading: "Le keyword che intercettano domanda reale",
+        body: "Chi cerca serramenti non usa sempre la stessa parola. Alcuni cercano 'infissi PVC prezzo', altri 'sostituzione finestre bonus', 'preventivo serramenti alluminio', 'persiane nuove', 'porte interne su misura' o 'serramentista vicino a me'. Una strategia SEO efficace deve coprire materiali, problemi, bonus, città servite e tipologie di prodotto. Una sola pagina generica sugli infissi difficilmente basta.",
+      },
+      {
+        type: "list",
+        heading: "Pagine da creare per un'azienda di serramenti",
+        items: [
+          "Infissi PVC, infissi alluminio, infissi legno-alluminio.",
+          "Sostituzione finestre con posa certificata.",
+          "Porte interne, portoncini blindati, persiane e tapparelle.",
+          "Guide sui bonus e sulla documentazione necessaria.",
+          "Pagine locali per province e città dove lavori davvero.",
+          "Casi studio con foto prima/dopo e tempi di installazione.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come evitare lead fuori target",
+        body: "Un lead serramenti è utile solo se rientra nella tua zona, nel tuo tipo di lavoro e nella tua fascia di prezzo. Se vendi prodotti di qualità, devi evitare messaggi da chi cerca solo il prezzo più basso. La pagina deve filtrare: spiegare materiali, posa, garanzie, sopralluogo e investimento indicativo. Filtrare non riduce il business: riduce il tempo perso.",
+      },
+      {
+        type: "section",
+        heading: "Dal preventivo al contratto",
+        body: "Nel serramento il preventivo non deve essere solo una lista di pezzi. Deve spiegare posa, smaltimento, tempi di consegna, eventuali opere murarie, assistenza documentale, garanzie e condizioni di pagamento. Il cliente spesso confronta preventivi molto diversi senza rendersene conto. Se non spieghi la differenza, rischi di essere messo accanto a offerte non paragonabili.",
+      },
+      {
+        type: "quote",
+        quote: "Nel mercato dei serramenti il lead economico non è sempre un buon affare. Il lead giusto è quello che diventa sopralluogo, ordine e posa senza consumare ore inutili.",
+        author: "Edilizia in Cloud",
+      },
+      {
+        type: "section",
+        heading: "SEO locale per serramentisti",
+        body: "Chi cerca serramenti spesso vuole qualcuno vicino, veloce e affidabile. Per questo devi lavorare su pagine locali, Google Business Profile, recensioni e contenuti legati alla zona. Una pagina 'serramenti Milano' o 'infissi PVC Monza' deve parlare davvero di copertura, tempi, sopralluoghi e installazioni in quell'area. Copiare la stessa pagina cambiando città non basta e rischia di sembrare contenuto debole.",
+      },
+      {
+        type: "list",
+        heading: "Indicatori da controllare sui lead serramenti",
+        items: [
+          "Costo per lead qualificato, non solo costo per contatto.",
+          "Percentuale di lead richiamati entro 2 ore.",
+          "Tasso da lead a sopralluogo.",
+          "Tasso da sopralluogo a preventivo inviato.",
+          "Tasso da preventivo a ordine firmato.",
+          "Margine medio per installazione chiusa.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il ruolo dei listini e della velocità",
+        body: "Nel serramento la velocità del preventivo conta moltissimo. Se listini, scontistiche, accessori, posa e costi extra sono sparsi tra Excel e PDF dei fornitori, il commerciale rallenta. Un sistema ordinato permette di preparare offerte più coerenti e riduce errori di prezzo. Il cliente percepisce professionalità, e l'azienda protegge margine anche quando i listini cambiano.",
+      },
+      {
+        type: "list",
+        heading: "FAQ: lead serramenti",
+        items: [
+          "Quanto vale un lead serramenti? Dipende da zona, numero infissi, materiale, urgenza e probabilità di sopralluogo.",
+          "Meglio lead economici o qualificati? Meglio qualificati: un lead economico che non compra consuma tempo commerciale.",
+          "Devo usare pagine locali? Sì, se lavori in aree precise: il cliente cerca prossimità e tempi rapidi.",
+          "Cosa aumenta il tasso di chiusura? Foto reali, posa certificata, garanzie, tempi chiari e preventivo rapido.",
+          "Come riduco contatti inutili? Con moduli guidati, range di investimento e spiegazione chiara dei lavori che segui.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il risultato da cercare",
+        body: "Una strategia lead serramenti funziona quando collega marketing, listini, sopralluoghi e installazione. Il cliente entra da una ricerca online, riceve risposta veloce, ottiene un preventivo comprensibile e arriva alla posa senza perdere informazioni. Questo è il percorso che trasforma visibilità in fatturato.",
+      },
+      {
         type: "cta",
         heading: "Da lead serramenti a lavori installati",
         body: "Edilizia in Cloud ti permette di gestire richieste, preventivi, listini, sopralluoghi e installazioni in un unico flusso. Così non misuri solo quanti lead arrivano, ma quanti diventano lavori chiusi e quanto margine portano davvero alla tua azienda.",
@@ -2872,7 +3080,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["richieste preventivo ristrutturazione", "lead ristrutturazioni", "clienti ristrutturazione", "preventivo ristrutturazione", "marketing ristrutturazioni"],
     publishedAt: "2026-04-28",
     updatedAt: "2026-04-28",
-    readTime: 4,
+    readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -2907,6 +3115,76 @@ export const blogPosts: BlogPost[] = [
         body: "Per ristrutturazioni funzionano foto prima/dopo, casi studio, spiegazioni sui tempi, checklist dei documenti e guide sui costi. Questi contenuti non servono solo alla SEO: aiutano il cliente a fidarsi prima del contatto. Quando arriva il sopralluogo, non parti da zero.",
       },
       {
+        type: "section",
+        heading: "Perché le ristrutturazioni sono lead complessi",
+        body: "Una richiesta di ristrutturazione può valere molto, ma è raramente semplice. Il cliente può essere all'inizio, non avere un progetto, non conoscere i costi, avere tempi stretti o aspettative irrealistiche. Per questo il primo contatto deve educare e filtrare. Chi gestisce bene questa fase arriva al sopralluogo con più informazioni e prepara un preventivo più preciso.",
+      },
+      {
+        type: "list",
+        heading: "Domande da fare prima di fissare il sopralluogo",
+        items: [
+          "L'immobile è abitato, vuoto o ancora da acquistare?",
+          "Serve una ristrutturazione completa o solo alcune stanze?",
+          "Ci sono progetto, computo metrico o tecnico già coinvolto?",
+          "Il cliente ha un budget realistico o sta ancora esplorando?",
+          "Qual è la scadenza: trasloco, vendita, affitto, consegna chiavi?",
+          "Quante imprese sta già valutando?",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come costruire fiducia prima della visita",
+        body: "Prima del sopralluogo puoi già distinguerti. Invia una breve checklist, spiega quali documenti preparare, chiedi foto, chiarisci come funziona il tuo metodo e mostra esempi simili. Questo crea percezione di organizzazione. Il cliente non vede ancora il cantiere, ma vede come lavori. Nell'edilizia residenziale questa sensazione pesa moltissimo.",
+      },
+      {
+        type: "section",
+        heading: "La gestione delle varianti",
+        body: "Le ristrutturazioni generano quasi sempre varianti: materiali diversi, imprevisti sugli impianti, richieste del cliente, modifiche in corso. Se non le tracci commercialmente e tecnicamente, diventano discussioni. Ogni variante deve avere descrizione, importo, approvazione e impatto sui tempi. Anche questo è marketing: un cliente che vive un cantiere ordinato parlerà bene dell'impresa.",
+      },
+      {
+        type: "quote",
+        quote: "Il cliente che chiede una ristrutturazione non cerca solo un prezzo. Cerca qualcuno che gli faccia sentire che il cantiere non gli esploderà in mano.",
+        author: "Edilizia in Cloud",
+      },
+      {
+        type: "section",
+        heading: "Perché una guida sui costi porta lead migliori",
+        body: "Molte imprese evitano di parlare di prezzi per paura di essere confrontate. In realtà una guida sui costi fatta bene filtra e prepara il cliente. Non devi promettere un prezzo fisso: devi spiegare le variabili, le fasce indicative, cosa incide sul budget e perché due preventivi possono essere molto diversi. Chi legge arriva più consapevole e fa domande migliori.",
+      },
+      {
+        type: "list",
+        heading: "Contenuti da creare per ristrutturazioni",
+        items: [
+          "Costo ristrutturazione bagno con esempi di varianti.",
+          "Costo ristrutturazione casa al metro quadro e fattori che cambiano il prezzo.",
+          "Checklist documenti prima di aprire un cantiere domestico.",
+          "Guida tempi: quanto dura una ristrutturazione completa.",
+          "Casi studio con foto prima/dopo e problemi risolti.",
+          "Pagina dedicata alle zone dove l'impresa lavora davvero.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Dal marketing alla reputazione",
+        body: "Le ristrutturazioni generano recensioni molto forti, positive o negative. Un cliente soddisfatto racconta ordine, pulizia, comunicazione, rispetto dei tempi e gestione degli imprevisti. Questi elementi devono entrare anche nel marketing: non vendere solo muratura o impianti, vendi serenità durante un periodo stressante. È ciò che differenzia un'impresa organizzata da una che compete solo sul prezzo.",
+      },
+      {
+        type: "list",
+        heading: "FAQ: richieste preventivo ristrutturazione",
+        items: [
+          "Devo rispondere con un prezzo subito? Meglio dare range e spiegare quali dati servono per un preventivo serio.",
+          "Il sopralluogo deve essere gratuito? Può esserlo, ma va qualificato prima per non perdere tempo con richieste deboli.",
+          "Cosa chiede davvero il cliente? Vuole capire costo, tempi, rischi, affidabilità e cosa succede se emergono imprevisti.",
+          "Come distinguermi dai concorrenti? Con metodo, casi studio, tempi chiari, documenti ordinati e follow-up.",
+          "Come trasformo il lead in cantiere? Con CRM, sopralluogo rapido, preventivo completo e richiamo programmato.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il risultato da cercare",
+        body: "La richiesta online deve diventare un percorso guidato, non una semplice email. Quando l'impresa accompagna il cliente dalla prima domanda alla firma, aumenta la fiducia e riduce il confronto solo sul prezzo. La ristrutturazione resta complessa, ma il processo commerciale diventa chiaro.",
+      },
+      {
         type: "cta",
         heading: "Da richiesta online a cantiere aperto",
         body: "Con Edilizia in Cloud ogni richiesta di ristrutturazione diventa una trattativa tracciata: fonte, budget, sopralluogo, preventivo, follow-up e cantiere. Il cliente si sente seguito e tu sai esattamente quali contatti stanno diventando lavori veri.",
@@ -2922,7 +3200,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["Google Ads impresa edile", "pubblicità edilizia", "campagne Google edilizia", "lead edilizia Google Ads", "budget marketing edilizia"],
     publishedAt: "2026-04-28",
     updatedAt: "2026-04-28",
-    readTime: 4,
+    readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -2957,6 +3235,76 @@ export const blogPosts: BlogPost[] = [
         body: "Il lead va registrato con fonte Google Ads, campagna e servizio richiesto. Poi devi seguirlo fino alla chiusura: sopralluogo, preventivo, esito, importo e margine stimato. Solo così sai se una campagna costa troppo o se in realtà porta pochi lead ma molto buoni.",
       },
       {
+        type: "section",
+        heading: "Quando Google Ads funziona per l'edilizia",
+        body: "Google Ads funziona quando intercetti ricerche con intenzione chiara: preventivo ristrutturazione, impresa edile vicino a me, rifacimento tetto, posa cappotto, sostituzione serramenti, manutenzione condominio. Funziona meno quando compri traffico generico o quando non hai una pagina che parla esattamente del servizio cercato. L'annuncio promette, la pagina deve confermare.",
+      },
+      {
+        type: "list",
+        heading: "Struttura minima di una campagna edile",
+        items: [
+          "Una campagna per area geografica reale, non per tutta Italia se lavori in una provincia.",
+          "Gruppi annunci separati per servizio: ristrutturazione, serramenti, tetti, facciate.",
+          "Parole chiave negative per evitare ricerche di lavoro, corsi, fai da te o materiali.",
+          "Landing page coerente con la keyword e con prove concrete.",
+          "Tracciamento chiamate, form, WhatsApp e preventivi generati.",
+          "Report finale su lavori chiusi, non solo lead ricevuti.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il budget va protetto con la qualifica",
+        body: "Se paghi ogni clic, devi evitare contatti fuori zona, lavori troppo piccoli o clienti che cercano solo consigli gratuiti. Il modulo deve chiedere informazioni utili e la pagina deve spiegare il tipo di lavori che segui. Un'impresa edile non ha bisogno di tante richieste confuse: ha bisogno di poche richieste buone, veloci da qualificare e con potenziale margine.",
+      },
+      {
+        type: "section",
+        heading: "Come capire se una campagna sta funzionando",
+        body: "Dopo un mese non guardare solo il costo per lead. Guarda quanti lead sono stati contattati, quanti sopralluoghi fissati, quanti preventivi inviati, quanti lavori chiusi e quanto margine previsto. Se la campagna genera lead ma il commerciale non richiama, non è solo un problema di Ads. Se i lead sono buoni ma i preventivi non si chiudono, il problema è vendita o offerta.",
+      },
+      {
+        type: "quote",
+        quote: "Google Ads non salva un processo commerciale disordinato. Amplifica quello che hai: se hai metodo, porta opportunità; se hai caos, porta caos a pagamento.",
+        author: "Edilizia in Cloud",
+      },
+      {
+        type: "section",
+        heading: "Landing page: cosa deve vedere il cliente",
+        body: "Una landing per Google Ads deve confermare subito la ricerca dell'utente. Se cerca 'rifacimento tetto', non deve finire su una home generica. Deve vedere lavori su tetti, zone servite, foto reali, garanzie, tempi, domande frequenti e modulo specifico. Più la pagina è coerente con la ricerca, più aumenta la probabilità che il clic diventi contatto utile.",
+      },
+      {
+        type: "list",
+        heading: "Numeri da guardare ogni settimana",
+        items: [
+          "Spesa per servizio e per zona.",
+          "Lead ricevuti, lead validi e lead fuori target.",
+          "Tempo medio di risposta commerciale.",
+          "Sopralluoghi fissati e preventivi inviati.",
+          "Importo dei lavori chiusi e margine stimato.",
+          "Parole chiave che consumano budget senza generare cantieri.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Quando spegnere una campagna",
+        body: "Una campagna va fermata o corretta quando genera traffico fuori zona, richieste troppo piccole, lead non contattabili o lavori con margine basso. Ma prima di spegnerla devi capire se il problema è l'annuncio, la pagina, il modulo o il follow-up. Molte campagne sembrano non funzionare perché nessuno richiama in tempo o perché i preventivi restano fermi per giorni.",
+      },
+      {
+        type: "list",
+        heading: "FAQ: Google Ads per imprese edili",
+        items: [
+          "Quanto budget serve? Dipende da zona e servizio, ma conviene partire piccolo e misurare fino ai lavori chiusi.",
+          "Quali keyword evitare? Ricerche fai da te, lavoro, corsi, materiali singoli e zone non servite.",
+          "Meglio chiamate o form? Entrambi, ma devono essere tracciati e collegati alla trattativa.",
+          "Perché pago lead che non comprano? Spesso pagina, targeting o qualifica non filtrano abbastanza.",
+          "Come so se aumentare budget? Solo quando conosci costo per sopralluogo, preventivo, cliente e margine.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il risultato da cercare",
+        body: "Google Ads deve diventare una leva controllata, non una scommessa mensile. Ogni campagna deve dire quali servizi generano richieste, quali zone rendono, quali preventivi si chiudono e quali parole chiave mangiano budget. Solo così la pubblicità diventa investimento.",
+      },
+      {
         type: "cta",
         heading: "Da budget pubblicitario a vendite tracciate",
         body: "Edilizia in Cloud ti aiuta a collegare richieste, campagne, preventivi e lavori chiusi. Non guardi solo il costo del clic: vedi quali campagne portano clienti, quali servizi rendono e dove conviene aumentare investimento senza perdere controllo.",
@@ -2972,7 +3320,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["CRM edilizia", "gestione lead edilizia", "follow up preventivi", "pipeline commerciale edilizia", "clienti impresa edile"],
     publishedAt: "2026-04-28",
     updatedAt: "2026-04-28",
-    readTime: 4,
+    readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=1200&q=80",
     content: [
@@ -3005,6 +3353,76 @@ export const blogPosts: BlogPost[] = [
         type: "section",
         heading: "Il vantaggio: vendite e produzione parlano",
         body: "Quando CRM e gestione cantieri sono separati, le informazioni si perdono: promesse commerciali, tempi concordati, materiali scelti, varianti, condizioni di pagamento. Un CRM edile collegato alla produzione evita questi buchi e rende il passaggio da vendita a cantiere molto più fluido.",
+      },
+      {
+        type: "section",
+        heading: "Perché un CRM generico spesso non basta",
+        body: "Un CRM generico sa gestire contatti e trattative, ma l'edilizia ha passaggi specifici: sopralluogo, computo, preventivo tecnico, varianti, SAL, documenti, squadre e apertura commessa. Se il CRM non comunica con preventivi e cantieri, il commerciale chiude un lavoro e poi qualcuno deve riscrivere tutto altrove. È lì che nascono errori e promesse dimenticate.",
+      },
+      {
+        type: "list",
+        heading: "Dati che ogni lead edile dovrebbe avere",
+        items: [
+          "Fonte del contatto: SEO, Google Ads, Meta, referral, vecchio cliente.",
+          "Servizio richiesto e zona del lavoro.",
+          "Budget indicativo, urgenza e livello di decisione.",
+          "Data sopralluogo, tecnico assegnato e note raccolte.",
+          "Preventivi inviati, revisioni e follow-up programmati.",
+          "Motivo di perdita quando il cliente non firma.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il follow-up non deve dipendere dalla memoria",
+        body: "In un'impresa edile le giornate cambiano velocemente. Una chiamata urgente dal cantiere basta per dimenticare un preventivo da richiamare. Il CRM serve a creare attività automatiche: chi chiamare oggi, quale preventivo sta scadendo, quale cliente ha chiesto una modifica, quale lead non è stato ancora qualificato. Senza attività, la pipeline è solo un elenco.",
+      },
+      {
+        type: "section",
+        heading: "Dal CRM alla previsione di fatturato",
+        body: "Quando le trattative sono tracciate, puoi stimare il fatturato futuro: preventivi aperti, probabilità di chiusura, mese previsto di partenza, margine stimato e capacità produttiva. Questo aiuta a non vendere lavori che non puoi gestire e a non restare senza cantieri tra due mesi. Il CRM diventa anche uno strumento di pianificazione aziendale.",
+      },
+      {
+        type: "quote",
+        quote: "Un CRM edile fatto bene non serve solo a vendere. Serve a non perdere informazioni nel passaggio più delicato: da promessa commerciale a cantiere reale.",
+        author: "Edilizia in Cloud",
+      },
+      {
+        type: "section",
+        heading: "Come organizzare la pipeline commerciale",
+        body: "La pipeline deve essere semplice, altrimenti nessuno la usa. Pochi stati chiari, attività obbligatoria successiva e responsabilità assegnata. Ogni mattina il titolare o il responsabile commerciale deve vedere nuovi lead, preventivi senza risposta, sopralluoghi della settimana e trattative calde. Questo trasforma il CRM da archivio a strumento quotidiano.",
+      },
+      {
+        type: "list",
+        heading: "Automazioni utili in un CRM edile",
+        items: [
+          "Notifica immediata quando entra un nuovo lead dal sito.",
+          "Promemoria se nessuno richiama entro poche ore.",
+          "Task automatico dopo sopralluogo per preparare il preventivo.",
+          "Follow-up dopo 3, 7 e 14 giorni dall'invio dell'offerta.",
+          "Richiesta recensione quando il cantiere viene chiuso.",
+          "Alert al titolare sui preventivi di valore alto ancora aperti.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il CRM come memoria commerciale dell'azienda",
+        body: "Quando un cliente torna dopo sei mesi, devi sapere cosa aveva chiesto, perché non aveva firmato, quale budget aveva, chi lo aveva seguito e quali documenti erano stati inviati. Questa memoria vale soldi. Senza CRM, ogni ricontatto riparte da zero. Con un CRM ordinato, invece, puoi riaprire trattative dormienti e recuperare preventivi che sembravano persi.",
+      },
+      {
+        type: "list",
+        heading: "FAQ: CRM per edilizia",
+        items: [
+          "Un CRM serve anche se ho pochi clienti? Sì, perché il valore medio di una trattativa edile è alto e perderne una pesa.",
+          "Che differenza c'è tra CRM e rubrica? La rubrica conserva nomi; il CRM conserva stato, valore, attività e prossima azione.",
+          "Chi deve usarlo? Titolare, commerciale, amministrazione e chi prepara preventivi o sopralluoghi.",
+          "Cosa succede dopo la firma? I dati devono passare a commessa, cantiere, documenti e fatturazione.",
+          "Qual è il rischio di non usarlo? Preventivi dimenticati, clienti non richiamati, promesse perse e vendite non misurate.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il risultato da cercare",
+        body: "Il CRM giusto rende visibile il futuro commerciale dell'impresa. Non mostra solo chi ha chiamato ieri, ma quali lavori possono partire domani, quale fatturato è probabile e quali clienti vanno seguiti oggi. Per un imprenditore edile questo significa meno improvvisazione e più controllo.",
       },
       {
         type: "cta",
