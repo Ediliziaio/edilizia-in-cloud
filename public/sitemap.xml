@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornato: 2026-04-27 — 110 URL, 32 articoli, 35 città, 6 confronti, 6 pagine legali -->
+  <!-- Sitemap aggiornata: 2026-04-28 — 172 URL, 46 articoli, 35 città, 6 confronti -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -467,6 +467,160 @@
     <image:image>
       <image:loc>https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
       <image:title>Gestione Subappaltatori: Contratti, DURC e Pagamenti</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/cassa-impresa-edile-non-torna</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/cassa-impresa-edile-non-torna"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Ho Fatturato ma Non Ho Soldi</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/trovare-operai-edili-qualificati</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/trovare-operai-edili-qualificati"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Come Trovare Operai Edili Qualificati</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/passaparola-impresa-edile-non-basta</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/passaparola-impresa-edile-non-basta"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Il Passaparola Non Basta Più per l'Impresa Edile</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/gestire-piu-cantieri-contemporaneamente</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/gestire-piu-cantieri-contemporaneamente"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Come Gestire Più Cantieri Contemporaneamente</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/burocrazia-impresa-edile-scadenze-documenti</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/burocrazia-impresa-edile-scadenze-documenti"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Burocrazia Edile: Scadenze e Documenti da Non Dimenticare</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/delegare-impresa-edile-senza-perdere-controllo</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/delegare-impresa-edile-senza-perdere-controllo"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1507209696998-3c532be9b2b5?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Come Delegare in un'Impresa Edile</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/preventivi-edili-non-si-chiudono</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/preventivi-edili-non-si-chiudono"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Perché i Preventivi Edili Non Si Chiudono</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/segnali-crisi-impresa-edile</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/segnali-crisi-impresa-edile"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1543286386-713bdd548da4?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Segnali di Crisi in un'Impresa Edile</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/come-trovare-clienti-impresa-edile-marketing</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/come-trovare-clienti-impresa-edile-marketing"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Come Trovare Clienti per un'Impresa Edile</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/aumentare-vendite-impresa-edile</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/aumentare-vendite-impresa-edile"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Come Aumentare le Vendite di un'Impresa Edile</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/lead-serramenti-come-generare-richieste-qualificate</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/lead-serramenti-come-generare-richieste-qualificate"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Lead Serramenti: Richieste Qualificate per Infissi</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/richieste-preventivo-ristrutturazione-online</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/richieste-preventivo-ristrutturazione-online"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Richieste di Preventivo Ristrutturazione Online</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/google-ads-impresa-edile-errori-budget</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/google-ads-impresa-edile-errori-budget"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>Google Ads per Imprese Edili</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/crm-edilizia-gestire-lead-preventivi-follow-up</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/blog/crm-edilizia-gestire-lead-preventivi-follow-up"/>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&amp;fit=crop&amp;w=1200&amp;q=80</image:loc>
+      <image:title>CRM per Edilizia: Lead, Preventivi e Follow-up</image:title>
     </image:image>
   </url>
 
