@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -462,73 +462,134 @@ export default function WarehouseStockTab() {
               </SelectContent>
             </Select>
           )}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Quick scan — bottone principale, sempre rapido */}
-            <Button
-              variant="outline"
-              onClick={() => setQuickScanOpen(true)}
-              aria-label="Scansiona QR / barcode"
-              className="flex-1 sm:flex-initial"
-            >
-              <ScanLine className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Scansiona</span>
-            </Button>
+          <div className="w-full sm:w-auto">
+            <div className="sm:hidden space-y-2">
+              <Button
+                onClick={() => setQuickScanOpen(true)}
+                aria-label="Cerca articolo via scansione QR/barcode"
+                size="lg"
+                className="w-full h-12 text-base font-semibold"
+              >
+                <ScanLine className="h-5 w-5 mr-2" />
+                Cerca articolo
+              </Button>
 
-            {/* Operazioni di CARICO raggruppate */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" aria-label="Carica merce" className="flex-1 sm:flex-initial">
-                  <ArrowDownCircle className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Carica</span>
-                  <ChevronDown className="h-3.5 w-3.5 ml-1 sm:ml-1.5 opacity-60" />
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setCaricoOpen(true)}
+                  aria-label="Registra arrivo merce — carico libero"
+                  className="h-auto py-2.5 flex flex-col items-center justify-center gap-1 text-xs"
+                >
+                  <ArrowDownCircle className="h-5 w-5" />
+                  <span className="leading-tight">Registra<br />arrivo</span>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground">
-                  Carico merce
-                </DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setCaricoOpen(true)}>
-                  <ArrowDownCircle className="h-4 w-4 mr-2" />
-                  <div className="flex flex-col items-start">
-                    <span>Carico rapido</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      Scansione libera batch
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setOdaReceiveOpen(true)}>
-                  <Package className="h-4 w-4 mr-2" />
-                  <div className="flex flex-col items-start">
-                    <span>Ricevi da ODA</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      Vincolata a un ordine fornitore
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <Button
+                  variant="outline"
+                  onClick={() => setOdaReceiveOpen(true)}
+                  aria-label="Ricevi merce contro ordine fornitore (ODA)"
+                  className="h-auto py-2.5 flex flex-col items-center justify-center gap-1 text-xs"
+                >
+                  <Package className="h-5 w-5" />
+                  <span className="leading-tight">Ricevi<br />da ODA</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setScaricoOpen(true)}
+                  aria-label="Spedisci merce a cantiere — genera DDT"
+                  className="h-auto py-2.5 flex flex-col items-center justify-center gap-1 text-xs"
+                >
+                  <Truck className="h-5 w-5" />
+                  <span className="leading-tight">Spedisci<br />cantiere</span>
+                </Button>
+              </div>
 
-            {/* Operazioni di SCARICO */}
-            <Button
-              variant="outline"
-              onClick={() => setScaricoOpen(true)}
-              aria-label="Scarico cantiere"
-              className="flex-1 sm:flex-initial"
-            >
-              <ArrowUpCircle className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Scarica</span>
-            </Button>
+              <div className="flex justify-end">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" aria-label="Altre azioni">
+                      <MoreVertical className="h-4 w-4 mr-1" />
+                      <span className="text-xs">Altre azioni</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Aggiungi articolo manualmente
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
 
-            {/* Aggiunta manuale articolo — primary CTA */}
-            <Button
-              onClick={() => { setEditingItem(null); setDialogOpen(true); }}
-              className="flex-1 sm:flex-initial"
-            >
-              <Plus className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Aggiungi </span>
-              <span className="sm:hidden">Nuovo</span>
-              <span className="hidden sm:inline">Articolo</span>
-            </Button>
+            <div className="hidden sm:flex items-center gap-2 flex-wrap">
+              {/* Quick scan — bottone principale, sempre rapido */}
+              <Button
+                variant="outline"
+                onClick={() => setQuickScanOpen(true)}
+                aria-label="Scansiona QR / barcode"
+                className="flex-1 sm:flex-initial"
+              >
+                <ScanLine className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Scansiona</span>
+              </Button>
+
+              {/* Operazioni di CARICO raggruppate */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" aria-label="Carica merce" className="flex-1 sm:flex-initial">
+                    <ArrowDownCircle className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Carica</span>
+                    <ChevronDown className="h-3.5 w-3.5 ml-1 sm:ml-1.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground">
+                    Carico merce
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => setCaricoOpen(true)}>
+                    <ArrowDownCircle className="h-4 w-4 mr-2" />
+                    <div className="flex flex-col items-start">
+                      <span>Carico rapido</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Scansione libera batch
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setOdaReceiveOpen(true)}>
+                    <Package className="h-4 w-4 mr-2" />
+                    <div className="flex flex-col items-start">
+                      <span>Ricevi da ODA</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Vincolata a un ordine fornitore
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Operazioni di SCARICO */}
+              <Button
+                variant="outline"
+                onClick={() => setScaricoOpen(true)}
+                aria-label="Scarico cantiere"
+                className="flex-1 sm:flex-initial"
+              >
+                <ArrowUpCircle className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Scarica</span>
+              </Button>
+
+              {/* Aggiunta manuale articolo — primary CTA */}
+              <Button
+                onClick={() => { setEditingItem(null); setDialogOpen(true); }}
+                className="flex-1 sm:flex-initial"
+              >
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Aggiungi </span>
+                <span className="sm:hidden">Nuovo</span>
+                <span className="hidden sm:inline">Articolo</span>
+              </Button>
+            </div>
           </div>
         </div>
 
