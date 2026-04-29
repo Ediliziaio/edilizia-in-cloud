@@ -109,11 +109,11 @@ export function RenderCrmLinker({
           size="sm"
           className="w-full justify-between text-muted-foreground hover:text-foreground"
         >
-          <span className="flex items-center gap-1.5">
-            <Link2 className="h-3.5 w-3.5" />
-            {hasLink ? "Collegato a CRM" : "Collega a contatto / opportunità"}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Link2 className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{hasLink ? "Collegato a CRM" : "Collega a contatto / opportunità"}</span>
             {hasLink && (
-              <Badge variant="secondary" className="text-[10px] px-1 py-0 ml-1">
+              <Badge variant="secondary" className="ml-1 max-w-[140px] px-1 py-0 text-[10px]">
                 {[contactId && "Contatto", opportunityId && "Opportunità"].filter(Boolean).join(" + ")}
               </Badge>
             )}
@@ -141,7 +141,7 @@ export function RenderCrmLinker({
                   <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[300px] p-0" align="start">
+              <PopoverContent className="w-[calc(100vw-2rem)] p-0 sm:w-[300px]" align="start">
                 <Command>
                   <CommandInput placeholder="Nome, azienda, email..." />
                   <CommandList>
@@ -204,7 +204,7 @@ export function RenderCrmLinker({
                   <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[300px] p-0" align="start">
+              <PopoverContent className="w-[calc(100vw-2rem)] p-0 sm:w-[300px]" align="start">
                 <Command>
                   <CommandInput placeholder="Nome opportunità..." />
                   <CommandList>

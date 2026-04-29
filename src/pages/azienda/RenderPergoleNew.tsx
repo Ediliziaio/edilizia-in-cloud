@@ -91,6 +91,10 @@ export default function RenderPergoleNew() {
     }
   }, []);
 
+  useEffect(() => () => {
+    if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

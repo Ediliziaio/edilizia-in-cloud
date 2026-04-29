@@ -95,6 +95,12 @@ export default function RenderTettoNew() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
+
   // ── Step 4: Result ────────────────────────────────────────────────────────
   const [resultUrls, setResultUrls] = useState<string[]>([]);
 
