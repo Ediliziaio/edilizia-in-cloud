@@ -515,7 +515,7 @@ export default function WarehouseStockTab() {
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuItem onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
                       <Plus className="h-4 w-4 mr-2" />
-                      Aggiungi articolo manualmente
+                      Aggiungi articolo
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -527,30 +527,30 @@ export default function WarehouseStockTab() {
               <Button
                 variant="outline"
                 onClick={() => setQuickScanOpen(true)}
-                aria-label="Scansiona QR / barcode"
+                aria-label="Cerca articolo via scansione QR/barcode"
                 className="flex-1 sm:flex-initial"
               >
                 <ScanLine className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Scansiona</span>
+                <span className="hidden sm:inline">Cerca articolo</span>
               </Button>
 
               {/* Operazioni di CARICO raggruppate */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" aria-label="Carica merce" className="flex-1 sm:flex-initial">
+                  <Button variant="outline" aria-label="Registra arrivo merce" className="flex-1 sm:flex-initial">
                     <ArrowDownCircle className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Carica</span>
+                    <span className="hidden sm:inline">Registra arrivo</span>
                     <ChevronDown className="h-3.5 w-3.5 ml-1 sm:ml-1.5 opacity-60" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-64">
                   <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground">
-                    Carico merce
+                    Registra arrivo merce
                   </DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => setCaricoOpen(true)}>
                     <ArrowDownCircle className="h-4 w-4 mr-2" />
                     <div className="flex flex-col items-start">
-                      <span>Carico rapido</span>
+                      <span>Senza ordine fornitore</span>
                       <span className="text-[11px] text-muted-foreground">
                         Scansione libera batch
                       </span>
@@ -559,9 +559,9 @@ export default function WarehouseStockTab() {
                   <DropdownMenuItem onClick={() => setOdaReceiveOpen(true)}>
                     <Package className="h-4 w-4 mr-2" />
                     <div className="flex flex-col items-start">
-                      <span>Ricevi da ODA</span>
+                      <span>Da ordine fornitore (ODA)</span>
                       <span className="text-[11px] text-muted-foreground">
-                        Vincolata a un ordine fornitore
+                        Vincolato a ODA pending
                       </span>
                     </div>
                   </DropdownMenuItem>
@@ -572,22 +572,21 @@ export default function WarehouseStockTab() {
               <Button
                 variant="outline"
                 onClick={() => setScaricoOpen(true)}
-                aria-label="Scarico cantiere"
+                aria-label="Spedisci merce a cantiere — genera DDT"
                 className="flex-1 sm:flex-initial"
               >
-                <ArrowUpCircle className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Scarica</span>
+                <Truck className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Spedisci a cantiere</span>
               </Button>
 
-              {/* Aggiunta manuale articolo — primary CTA */}
+              {/* Aggiunta manuale articolo */}
               <Button
                 onClick={() => { setEditingItem(null); setDialogOpen(true); }}
+                aria-label="Aggiungi articolo"
                 className="flex-1 sm:flex-initial"
               >
                 <Plus className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Aggiungi </span>
-                <span className="sm:hidden">Nuovo</span>
-                <span className="hidden sm:inline">Articolo</span>
+                <span>Aggiungi articolo</span>
               </Button>
             </div>
           </div>
