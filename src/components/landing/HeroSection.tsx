@@ -177,7 +177,7 @@ export default function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
 
   // Typing animation state
-  const [wordIndex, setWordIndex] = useState(0);
+  const [, setWordIndex] = useState(0);
   const [displayWord, setDisplayWord] = useState(typingWords[0]);
   const [fadeState, setFadeState] = useState<"in" | "out">("in");
 
@@ -219,7 +219,7 @@ export default function HeroSection() {
       <img
         src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80"
         alt="Cantiere edile italiano gestito con Edilizia in Cloud"
-        fetchPriority="high"
+        fetchpriority="high"
         loading="eager"
         decoding="sync"
         width={1920}

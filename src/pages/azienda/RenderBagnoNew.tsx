@@ -57,6 +57,18 @@ function isIdleTimeoutMessage(message: string) {
   return normalized.includes("idle timeout") || normalized.includes("timeout limit") || normalized.includes("150s");
 }
 
+async function getFunctionErrorMessage(error: unknown, fallback: string) {
+  let errBody: { error?: string; message?: string } | null = null;
+  try {
+    const ctx = (error as { context?: unknown } | null)?.context;
+    if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
+  } catch {
+    // Parsing best-effort: se il body non e JSON usiamo il messaggio standard.
+  }
+
+  return errBody?.error ?? errBody?.message ?? (error as { message?: string } | null)?.message ?? fallback;
+}
+
 // ═════════════════════════════════════════════════════════════════════
 export default function RenderBagnoNew() {
   const navigate = useNavigate();
@@ -84,6 +96,10 @@ export default function RenderBagnoNew() {
 
   // ── Step 3: Config ─────────────────────────────────────────────────
   const [config, setConfig] = useState<BathroomConfig>(DEFAULT_BATHROOM_CONFIG);
+  const hasActiveBathroomChange = useMemo(
+    () => Object.values(config.sostituzione).some(Boolean),
+    [config.sostituzione],
+  );
 
   // ── Step 4: Processing ─────────────────────────────────────────────
   const [generating, setGenerating] = useState(false);
@@ -217,6 +233,64 @@ export default function RenderBagnoNew() {
     image.src = previewUrl;
   };
 
+  const runBathroomAnalysis = useCallback(async (sid: string, imageUrl: string) => {
+    setAnalysisLoading(true);
+    setAnalysisError(undefined);
+
+    await supabase
+      .from("render_bagno_sessions")
+      .update({ stato: "analyzing" })
+      .eq("id", sid);
+
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const token = authSession?.access_token;
+      const resp = await supabase.functions.invoke("generate-bathroom-render", {
+        body: { action: "analyze", image_url: imageUrl, session_id: sid },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (resp.error) {
+        throw new Error(await getFunctionErrorMessage(resp.error, "Analisi non riuscita"));
+      }
+
+      const analysisData = resp.data?.analisi_bagno || resp.data?.analisi || resp.data;
+      if (!analysisData) {
+        throw new Error("Risposta analisi vuota");
+      }
+
+      setAnalisi(analysisData as AnalisiBagno);
+
+      await supabase
+        .from("render_bagno_sessions")
+        .update({
+          stato: "analysis_done",
+          analisi_bagno: analysisData,
+        })
+        .eq("id", sid);
+    } catch (err) {
+      setAnalysisError(`Analisi AI non disponibile: ${err instanceof Error ? err.message : String(err)}`);
+      await supabase
+        .from("render_bagno_sessions")
+        .update({ stato: "analysis_done" })
+        .eq("id", sid);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, []);
+
+  const retryAnalysis = useCallback(async () => {
+    if (!sessionId || !sourceOriginalPath || analysisLoading) return;
+
+    const imageUrl = await createRenderOriginalSignedUrl("bagno-originals", sourceOriginalPath, 300);
+    if (!imageUrl) {
+      setAnalysisError("Non sono riuscito a preparare la foto per una nuova analisi. Puoi procedere manualmente o cambiare foto.");
+      return;
+    }
+
+    await runBathroomAnalysis(sessionId, imageUrl);
+  }, [analysisLoading, runBathroomAnalysis, sessionId, sourceOriginalPath]);
+
   // ── Step 1 -> Step 2: upload + analyze ─────────────────────────────
   const goToStep2 = useCallback(async () => {
     if (!photo || !companyId || !user) return;
@@ -250,70 +324,25 @@ export default function RenderBagnoNew() {
       if (sessErr || !sess) throw new Error("Creazione sessione fallita");
       const sid = (sess as { id: string }).id;
       setSessionId(sid);
+      setSourceOriginalPath(storagePath);
 
       // 3. Signed URL per analisi
       const imageUrl = await createRenderOriginalSignedUrl("bagno-originals", storagePath, 300);
 
       setStep(2);
 
-        // 4. Analisi in background (bathroom-specific edge function)
-        if (imageUrl) {
-          setAnalysisLoading(true);
-          setAnalysisError(undefined);
-
-        // Update session status
-        await supabase
-          .from("render_bagno_sessions")
-          .update({ stato: "analyzing" })
-          .eq("id", sid);
-
-        try {
-          const { data: { session: authSession } } = await supabase.auth.getSession();
-          const token = authSession?.access_token;
-          const resp = await supabase.functions.invoke("generate-bathroom-render", {
-            body: { action: "analyze", image_url: imageUrl, session_id: sid },
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          if (resp.error) {
-            // FIX P3.5: rimossi `as any`. Il `FunctionsHttpError` di supabase-js
-            // espone `context` come Response nel campo .context (runtime).
-            let errBody: { error?: string; message?: string } | null = null;
-            try {
-              const ctx = (resp.error as unknown as { context?: unknown }).context;
-              if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
-            } catch { /* ignore parse error, fall through to message below */ }
-            throw new Error(errBody?.error ?? errBody?.message ?? resp.error.message ?? "Errore");
-          }
-
-          const analysisData = resp.data?.analisi_bagno || resp.data?.analisi || resp.data;
-          if (analysisData) {
-            setAnalisi(analysisData as AnalisiBagno);
-
-            // Save analysis to session
-            await supabase
-              .from("render_bagno_sessions")
-              .update({
-                stato: "analysis_done",
-                analisi_bagno: analysisData,
-              })
-              .eq("id", sid);
-          }
-        } catch (err) {
-          setAnalysisError(`Analisi AI non disponibile: ${err instanceof Error ? err.message : String(err)}`);
-          await supabase
-            .from("render_bagno_sessions")
-            .update({ stato: "analysis_done" })
-            .eq("id", sid);
-        } finally {
-          setAnalysisLoading(false);
-        }
+      // 4. Analisi in background (bathroom-specific edge function)
+      if (imageUrl) {
+        await runBathroomAnalysis(sid, imageUrl);
+      } else {
+        setAnalysisError("Non sono riuscito a preparare la foto per l'analisi. Puoi procedere manualmente.");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload foto fallito");
     } finally {
       setUploading(false);
     }
-  }, [photo, companyId, user, config, contactId, opportunityId]);
+  }, [photo, companyId, user, config, contactId, opportunityId, runBathroomAnalysis]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -386,6 +415,10 @@ export default function RenderBagnoNew() {
   const startRender = useCallback(async () => {
     if (!companyId || !user) return;
     if (!sessionId && !sourceOriginalPath) return;
+    if (!hasActiveBathroomChange) {
+      toast.error("Attiva almeno una modifica al bagno prima di generare il render.");
+      return;
+    }
     // P1 FIX: guard contro double-click / doppio credit deduction.
     // Se c'è già un render in corso, ignora il click (pulsante "Genera" / "Rigenera").
     if (generating) return;
@@ -473,17 +506,8 @@ export default function RenderBagnoNew() {
     );
 
     if (fnErr || fnData?.error) {
-      let errBody: { error?: string; message?: string } | null = null;
-      try {
-        const ctx = (fnErr as unknown as { context?: unknown } | null)?.context;
-        if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
-      } catch {
-        // ignore parse error and fall back below
-      }
       const msg =
-        errBody?.message ??
-        errBody?.error ??
-        fnErr?.message ??
+        (fnErr ? await getFunctionErrorMessage(fnErr, "Generazione fallita") : undefined) ??
         fnData?.message ??
         fnData?.error ??
         "Generazione fallita";
@@ -519,7 +543,7 @@ export default function RenderBagnoNew() {
       setStep(3);
       toast.error(err instanceof Error ? err.message : "Render fallito");
     }
-  }, [sessionId, companyId, user, sourceOriginalPath, config, queryClient, generating, startPolling, stopPolling, photoMeta, analisi, contactId, opportunityId]);
+  }, [sessionId, companyId, user, sourceOriginalPath, hasActiveBathroomChange, config, queryClient, generating, startPolling, stopPolling, photoMeta, analisi, contactId, opportunityId]);
 
   // ── Save to gallery ────────────────────────────────────────────────
   const saveToGallery = useCallback(async () => {
@@ -551,9 +575,11 @@ export default function RenderBagnoNew() {
       const resp = await fetch(resultUrl);
       const blob = await resp.blob();
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
+      const objectUrl = URL.createObjectURL(blob);
+      a.href = objectUrl;
       a.download = `render_bagno_${Date.now()}.png`;
       a.click();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch {
       toast.error("Download fallito");
     }
@@ -761,6 +787,19 @@ export default function RenderBagnoNew() {
                   <p className="text-xs text-muted-foreground">
                     Puoi comunque procedere con la configurazione manuale.
                   </p>
+                  {sessionId && sourceOriginalPath ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={retryAnalysis}
+                      disabled={analysisLoading}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Riprova analisi
+                    </Button>
+                  ) : null}
                 </div>
               ) : analisi ? (
                 <div className="space-y-3">
@@ -909,13 +948,23 @@ export default function RenderBagnoNew() {
             </CardContent>
           </Card>
 
+          {!hasActiveBathroomChange ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+              Attiva almeno una modifica prima di generare: cosi evitiamo un render identico alla foto e non consumiamo crediti inutilmente.
+            </div>
+          ) : null}
+
           <Button
             className="w-full gap-2"
             size="lg"
             onClick={startRender}
+            disabled={generating || !hasActiveBathroomChange || (!sessionId && !sourceOriginalPath)}
           >
-            <Zap className="h-4 w-4" />
-            Conferma scelte e genera render AI
+            {generating ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />Generazione in corso...</>
+            ) : (
+              <><Zap className="h-4 w-4" />Conferma scelte e genera render AI</>
+            )}
           </Button>
         </div>
       )}

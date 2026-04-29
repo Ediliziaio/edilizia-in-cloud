@@ -270,7 +270,7 @@ function VisualOptionGrid(props: {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <Label className="text-xs">{label}</Label>
         {helper ? <span className="text-[11px] text-muted-foreground">{helper}</span> : null}
       </div>
@@ -281,9 +281,10 @@ function VisualOptionGrid(props: {
             <button
               key={option.value}
               type="button"
+              aria-pressed={selected}
               onClick={() => onChange(option.value)}
               className={cn(
-                "group relative overflow-hidden rounded-xl border text-left transition-all",
+                "group relative overflow-hidden rounded-xl border text-left transition-all active:scale-[0.99]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                 selected
                   ? "border-primary bg-primary/5 shadow-sm"

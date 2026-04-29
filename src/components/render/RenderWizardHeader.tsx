@@ -52,13 +52,13 @@ export function RenderWizardHeader({
     : 0;
 
   return (
-    <div className="mb-6 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-5 text-white">
-      <div className="flex items-center justify-between">
+    <div className="mb-6 overflow-hidden rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-4 py-5 text-white sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         {onBack ? (
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100"
+            className="flex min-h-9 items-center gap-1 rounded-md px-1 text-xs opacity-70 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Indietro
@@ -66,9 +66,9 @@ export function RenderWizardHeader({
         ) : (
           <span />
         )}
-        <Badge variant="secondary" className="gap-1 bg-white/15 text-white hover:bg-white/20">
+        <Badge variant="secondary" className="max-w-full gap-1 bg-white/15 text-white hover:bg-white/20">
           <Zap className="h-3 w-3" />
-          {badgeLabel}
+          <span className="truncate">{badgeLabel}</span>
         </Badge>
       </div>
 
@@ -77,7 +77,7 @@ export function RenderWizardHeader({
           <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
             {eyebrow}
           </div>
-          <div className="text-2xl font-bold leading-tight">{title}</div>
+          <div className="text-2xl font-bold leading-tight break-words">{title}</div>
           {description && (
             <div className="mt-1 max-w-2xl text-sm text-white/70">{description}</div>
           )}
@@ -94,7 +94,7 @@ export function RenderWizardHeader({
           style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
         >
           {stepLabels.map((label, index) => (
-            <div key={`${label}-${index}`} className="text-center">
+            <div key={`${label}-${index}`} className="min-w-0 text-center">
               <div
                 className={cn(
                   "mx-auto mb-1 h-2 w-2 rounded-full transition-colors",
@@ -103,7 +103,7 @@ export function RenderWizardHeader({
               />
               <div
                 className={cn(
-                  "text-[10px] font-semibold leading-tight",
+                  "truncate text-[10px] font-semibold leading-tight",
                   currentStep >= index + 1 ? "text-white" : "text-white/40",
                 )}
               >
