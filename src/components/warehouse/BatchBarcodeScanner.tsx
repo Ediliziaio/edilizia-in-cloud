@@ -15,14 +15,14 @@
  * Mode:
  *   "carico"      → scansioni libere, tutti i lookup proposti
  *   "oda_receive" → scansioni vincolate alle righe dell'ODA passata in props
+ *   "lookup"      → ricerca single-shot articolo, senza accumulo batch
  *
  * Convenzione: il caller raccoglie le entries via `onEntriesChange` e fa il
  * commit (RPC batch_carico_from_scans / receive_from_oda_via_scans) quando
  * l'utente conferma.
  */
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { BrowserMultiFormatReader } from "@zxing/library";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Sheet,
   SheetContent,
@@ -58,17 +58,15 @@ import {
 import {
   successFeedback,
   errorFeedback,
-  impactFeedback,
 } from "@/lib/mobile/native-haptics";
 import { onNetworkChange } from "@/lib/mobile/native-network";
 import { useBarcodeLookup } from "@/hooks/warehouse/useBarcodeLookup";
+import { useBatchScannerCamera } from "@/hooks/warehouse/useBatchScannerCamera";
 import {
-  openScannerStream,
-  pulseFocus,
-  isTorchSupported,
-  setTorch as applyTorch,
-  stopStream,
-} from "@/lib/scanner/cameraStream";
+  newBatchScanClientUuid,
+  useBatchScannerEntries,
+} from "@/hooks/warehouse/useBatchScannerEntries";
+import { useBatchScannerSubmit } from "@/hooks/warehouse/useBatchScannerSubmit";
 import { toast } from "sonner";
 
 // ────────────────────────────────────────────────────────────
@@ -147,17 +145,6 @@ interface BatchBarcodeScannerProps {
   onLookupCreateNew?: (rawCode: string) => void;
 }
 
-const DUPLICATE_THROTTLE_MS = 2000;
-
-// crypto.randomUUID() è disponibile in Safari iOS 15.4+, Chrome 92+.
-// Fallback per browser più vecchi.
-function newClientUuid(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 // ────────────────────────────────────────────────────────────
 // Componente principale
 // ────────────────────────────────────────────────────────────
@@ -180,53 +167,32 @@ export function BatchBarcodeScanner({
   onLookupEdit,
   onLookupCreateNew,
 }: BatchBarcodeScannerProps) {
-  const [entries, setEntries] = useState<BatchScanEntry[]>(initialEntries ?? []);
   const [lookupResult, setLookupResult] = useState<BatchScanEntry | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [manualCode, setManualCode] = useState("");
-  const [torchOn, setTorchOn] = useState(false);
-  const [torchSupported, setTorchSupported] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const lastScanRef = useRef<{ code: string; ts: number } | null>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
 
   const lookup = useBarcodeLookup();
+  const {
+    entries,
+    appendEntry,
+    mergeResolvedEntry,
+    updateEntryQty,
+    removeEntry,
+    promoteNoMatch,
+    trackDuplicate,
+    totalScans,
+    noMatchCount,
+  } = useBatchScannerEntries({ initialEntries, onEntriesChange });
   const scannerPaused = mode === "lookup" && !!lookupResult;
-
-  // Sync iniziale al primo render quando initialEntries cambia.
-  useEffect(() => {
-    if (initialEntries && initialEntries.length > 0) {
-      setEntries(initialEntries);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Network monitor: aggiorna online flag.
   useEffect(() => {
     const off = onNetworkChange((s) => setOnline(s.connected));
     return off;
   }, []);
-
-  // Notifica caller di ogni cambio entries.
-  useEffect(() => {
-    onEntriesChange?.(entries);
-  }, [entries, onEntriesChange]);
-
-  // Avvio/teardown camera quando il sheet si apre/chiude o switch manualMode.
-  useEffect(() => {
-    if (!open || manualMode || scannerPaused) {
-      stopCamera();
-      return;
-    }
-    startCamera();
-    return stopCamera;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, manualMode, scannerPaused]);
 
   // Reset lookup single-shot quando il foglio viene chiuso.
   useEffect(() => {
@@ -245,78 +211,6 @@ export function BatchBarcodeScanner({
     }
   }, [manualMode, open]);
 
-  function stopCamera() {
-    try {
-      readerRef.current?.reset();
-    } catch {
-      /* noop */
-    }
-    readerRef.current = null;
-    stopStream(streamRef.current);
-    streamRef.current = null;
-    setTorchOn(false);
-    setTorchSupported(false);
-  }
-
-  /**
-   * Avvio camera con stream gestito dal helper condiviso (vedi
-   * src/lib/scanner/cameraStream.ts). Garantisce focusMode/exposureMode/
-   * whiteBalanceMode = "continuous" su Chrome Android e usa la smart
-   * camera virtuale su iPhone tramite facingMode invece di deviceId.
-   */
-  async function startCamera() {
-    setCameraError(null);
-    try {
-      const stream = await openScannerStream();
-      streamRef.current = stream;
-
-      const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader;
-
-      const video = videoRef.current;
-      if (!video) {
-        stopStream(stream);
-        return;
-      }
-
-      // Polling torch capability (può essere undefined per i primi 100–500ms
-      // su Chrome Android dopo getUserMedia).
-      let attempts = 0;
-      const torchPoll = setInterval(() => {
-        attempts++;
-        if (isTorchSupported(streamRef.current)) {
-          setTorchSupported(true);
-          clearInterval(torchPoll);
-        } else if (attempts > 25) {
-          clearInterval(torchPoll);
-        }
-      }, 200);
-
-      reader.decodeFromStream(stream, video, (result) => {
-        if (!result) return;
-        handleScan(result.getText(), result.getBarcodeFormat?.()?.toString());
-      });
-    } catch (e) {
-      setCameraError(e instanceof Error ? e.message : "Errore avvio fotocamera");
-    }
-  }
-
-  async function toggleTorch() {
-    const ok = await applyTorch(streamRef.current, !torchOn);
-    if (ok) {
-      setTorchOn((v) => !v);
-      void impactFeedback();
-    } else {
-      toast.error("Torcia non supportata su questo dispositivo");
-      setTorchSupported(false);
-    }
-  }
-
-  /** Tap-to-focus: pulse single-shot focus poi torna a continuous. */
-  function handleTapFocus() {
-    if (streamRef.current) void pulseFocus(streamRef.current);
-  }
-
   // ─── Handler scansione ───────────────────────────────────
   const handleScan = useCallback(
     async (rawCode: string, scanFormat?: string) => {
@@ -326,14 +220,7 @@ export function BatchBarcodeScanner({
 
       // Throttle duplicati: stesso codice in <2s viene ignorato silenziosamente.
       const now = Date.now();
-      if (
-        lastScanRef.current &&
-        lastScanRef.current.code === code &&
-        now - lastScanRef.current.ts < DUPLICATE_THROTTLE_MS
-      ) {
-        return;
-      }
-      lastScanRef.current = { code, ts: now };
+      if (trackDuplicate(code, now)) return;
 
       try {
         const result = await lookup.mutateAsync({
@@ -353,7 +240,7 @@ export function BatchBarcodeScanner({
                 : `${code.slice(0, 32)} — verrà aggiunto come "no match"`,
           });
           const noMatchEntry: BatchScanEntry = {
-            clientUuid: newClientUuid(),
+            clientUuid: newBatchScanClientUuid(),
             rawCode: code,
             scanFormat,
             stockItemId: null,
@@ -369,7 +256,7 @@ export function BatchBarcodeScanner({
           }
           // Aggiungi entry "no match" così il caller può proporre la creazione
           // dopo il batch (mostra in Review step).
-          setEntries((prev) => [...prev, noMatchEntry]);
+          appendEntry(noMatchEntry);
           return;
         }
 
@@ -410,7 +297,7 @@ export function BatchBarcodeScanner({
         if (!resolvedItemId) return;
 
         const nextEntry: BatchScanEntry = {
-          clientUuid: newClientUuid(),
+          clientUuid: newBatchScanClientUuid(),
           rawCode: code,
           scanFormat,
           stockItemId: resolvedItemId,
@@ -443,49 +330,7 @@ export function BatchBarcodeScanner({
           }
         }
 
-        // Auto-aggregation: se entry esistente ha stesso stockItemId E è fungibile,
-        // incrementa quantity invece di duplicare la riga.
-        setEntries((prev) => {
-          if (resolvedTracking === "fungible") {
-            const existingIdx = prev.findIndex(
-              (e) => e.stockItemId === resolvedItemId && e.trackingMode === "fungible",
-            );
-            if (existingIdx >= 0) {
-              const next = [...prev];
-              next[existingIdx] = {
-                ...next[existingIdx],
-                quantity: next[existingIdx].quantity + 1,
-                scannedAt: now,
-              };
-              return next;
-            }
-          }
-
-          // Per serializzato, se entry esistente ha stesso item, append seriale.
-          if (resolvedTracking === "serialized" && resolvedSerial) {
-            const existingIdx = prev.findIndex(
-              (e) => e.stockItemId === resolvedItemId && e.trackingMode === "serialized",
-            );
-            if (existingIdx >= 0) {
-              if (prev[existingIdx].serialNumbers.includes(resolvedSerial)) {
-                // Seriale già presente: ignora silenziosamente
-                return prev;
-              }
-              const next = [...prev];
-              const serials = [...next[existingIdx].serialNumbers, resolvedSerial];
-              next[existingIdx] = {
-                ...next[existingIdx],
-                serialNumbers: serials,
-                quantity: serials.length,
-                scannedAt: now,
-              };
-              return next;
-            }
-          }
-
-          // Nuova entry
-          return [...prev, { ...nextEntry, odaItemId }];
-        });
+        mergeResolvedEntry(nextEntry, odaItemId);
 
         await successFeedback();
       } catch (err) {
@@ -495,8 +340,40 @@ export function BatchBarcodeScanner({
         });
       }
     },
-    [lookup, supplierId, supplierUsesGs1, mode, allowedOdaItems, lookupResult],
+    [
+      allowedOdaItems,
+      appendEntry,
+      lookup,
+      lookupResult,
+      mergeResolvedEntry,
+      mode,
+      supplierId,
+      supplierUsesGs1,
+      trackDuplicate,
+    ],
   );
+
+  const {
+    videoRef,
+    cameraError,
+    torchOn,
+    torchSupported,
+    toggleTorch,
+    handleTapFocus,
+  } = useBatchScannerCamera({
+    open,
+    manualMode,
+    paused: scannerPaused,
+    onScan: handleScan,
+  });
+
+  const { canConfirm, handleConfirm } = useBatchScannerSubmit({
+    mode,
+    entries,
+    noMatchCount,
+    isConfirming,
+    onConfirm,
+  });
 
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -504,20 +381,6 @@ export function BatchBarcodeScanner({
     if (!c) return;
     setManualCode("");
     void handleScan(c);
-  }
-
-  function updateEntryQty(uuid: string, delta: number) {
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.clientUuid === uuid && e.trackingMode === "fungible"
-          ? { ...e, quantity: Math.max(1, e.quantity + delta) }
-          : e,
-      ),
-    );
-  }
-
-  function removeEntry(uuid: string) {
-    setEntries((prev) => prev.filter((e) => e.clientUuid !== uuid));
   }
 
   // ID dell'entry attualmente in corso di creazione (per disabilitare il
@@ -538,25 +401,7 @@ export function BatchBarcodeScanner({
       try {
         const result = await onRequestCreateItem(target.rawCode);
         if (!result) return; // utente ha annullato il dialog
-        setEntries((prev) =>
-          prev.map((e) =>
-            e.clientUuid === uuid
-              ? {
-                  ...e,
-                  stockItemId: result.stockItemId,
-                  itemName: result.itemName,
-                  trackingMode: result.trackingMode,
-                  // Nota: per fungibili manteniamo quantity esistente (1+
-                  // se l'utente ha scansionato lo stesso codice più volte).
-                  // Per serializzati il rawCode diventa il primo seriale.
-                  serialNumbers:
-                    result.trackingMode === "serialized" && e.serialNumbers.length === 0
-                      ? [target.rawCode]
-                      : e.serialNumbers,
-                }
-              : e,
-          ),
-        );
+        promoteNoMatch(uuid, result);
         await successFeedback();
         toast.success("Articolo creato e collegato alla scansione");
       } catch (err) {
@@ -567,17 +412,7 @@ export function BatchBarcodeScanner({
         setCreatingForUuid(null);
       }
     },
-    [entries, onRequestCreateItem],
-  );
-
-  const totalScans = useMemo(
-    () => entries.reduce((sum, e) => sum + e.quantity, 0),
-    [entries],
-  );
-
-  const noMatchCount = useMemo(
-    () => entries.filter((e) => e.stockItemId === null).length,
-    [entries],
+    [entries, onRequestCreateItem, promoteNoMatch],
   );
 
   return (
@@ -770,49 +605,49 @@ export function BatchBarcodeScanner({
 
         {/* Footer with confirm CTA */}
         {mode !== "lookup" && (
-        <div className="border-t p-3 space-y-2 shrink-0 bg-card">
-          {noMatchCount > 0 && (
-            <Alert>
-              <Package className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                {noMatchCount} {noMatchCount === 1 ? "scansione" : "scansioni"} senza match in
-                anagrafica.{" "}
-                {onRequestCreateItem
-                  ? "Tocca \"Crea\" sulla riga per registrare l'articolo, oppure rimuovila."
-                  : "Prima di confermare crea l'articolo o rimuovi la riga."}
-              </AlertDescription>
-            </Alert>
-          )}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="flex-1"
-            >
-              <X className="h-4 w-4 mr-2" />
-              Chiudi
-            </Button>
-            <Button
-              type="button"
-              onClick={onConfirm}
-              disabled={entries.length === 0 || isConfirming || noMatchCount > 0}
-              className="flex-[2]"
-            >
-              {isConfirming ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvataggio...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  {confirmLabel} ({entries.length})
-                </>
-              )}
-            </Button>
+          <div className="border-t p-3 space-y-2 shrink-0 bg-card">
+            {noMatchCount > 0 && (
+              <Alert>
+                <Package className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  {noMatchCount} {noMatchCount === 1 ? "scansione" : "scansioni"} senza match in
+                  anagrafica.{" "}
+                  {onRequestCreateItem
+                    ? "Tocca \"Crea\" sulla riga per registrare l'articolo, oppure rimuovila."
+                    : "Prima di confermare crea l'articolo o rimuovi la riga."}
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="flex-1"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Chiudi
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirm}
+                disabled={!canConfirm}
+                className="flex-[2]"
+              >
+                {isConfirming ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Salvataggio...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    {confirmLabel} ({entries.length})
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
         )}
       </SheetContent>
     </Sheet>

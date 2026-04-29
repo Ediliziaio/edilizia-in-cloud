@@ -84,6 +84,15 @@ import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
+const WAREHOUSE_ORDER_STATUSES: OrderItemStatus[] = [
+  "da_ordinare",
+  "ordinato",
+  "in_arrivo",
+  "in_magazzino",
+  "prenotato",
+  "installato",
+];
+
 export default function Warehouse() {
   const navigate = useNavigate();
   const {
@@ -163,8 +172,6 @@ export default function Warehouse() {
     if (item) setDraggingItem(item);
   }, [filteredItems]);
 
-  const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "prenotato", "installato"];
-
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDraggingItem(null);
     const { active, over } = event;
@@ -186,7 +193,7 @@ export default function Warehouse() {
 
     // Check if dropped on a kanban status column
     const newStatus = over.id as string;
-    if (STATUSES.includes(newStatus as OrderItemStatus)) {
+    if (WAREHOUSE_ORDER_STATUSES.includes(newStatus as OrderItemStatus)) {
       const item = filteredItems.find(i => i.id === itemId);
       if (item && item.status !== newStatus) {
         handleStatusChange(itemId, newStatus as OrderItemStatus);
