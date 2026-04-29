@@ -41,8 +41,13 @@ Il router principale è in `src/App.tsx`.
 | `/` | Pubblico (landing) | `LandingLayout` |
 | `/azienda/*` | Azienda auth | `CompanyLayout` |
 | `/admin/*` | Super admin | `AdminLayout` |
-| `/portal/*` | Clienti / venditori / agenti | `PortalLayout` |
-| `/operaio/*` | Operai (mobile) | `OperaioLayout` |
+| `/cliente/*` | Cliente finale | `CustomerLayout` |
+| `/campo/*` | Operai e subappaltatori (mobile-first) | `CampoLayout` |
+| `/tecnico/*` | Tecnici di servizio | `TecnicoLayout` |
+| `/partner/*` | Referral partner | `PartnerLayout` |
+| `/venditore/*` | Venditori | `SalespersonLayout` |
+
+`/dipendente/*` è deprecato: i deep link storici reindirizzano verso `/campo/*`.
 
 `CompanyLayout` wrappa `<Outlet>` con `<ErrorBoundary>` per proteggere il contenuto senza perdere sidebar/header.
 

@@ -1,73 +1,64 @@
-# Welcome to your Lovable project
+# Edilizia in Cloud
 
-## Project info
+Gestionale cloud per imprese edili italiane. Parte di AEDIX, l'holding di
+verticali SaaS per le PMI italiane.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**Stack:** React 18 · TypeScript · Vite · Supabase · Tailwind · shadcn/ui · Capacitor (iOS/Android)
 
-## How can I edit this code?
+**Documentazione tecnica:** vedi `ARCHITECTURE.md` per stack completo, routing, DB,
+edge functions e moduli principali.
 
-There are several ways of editing your application.
+## Sviluppo locale
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+npm install
+cp .env.example .env.local  # popolare con chiavi Supabase
+npm run dev                  # http://localhost:5173
 ```
 
-**Edit a file directly in GitHub**
+## Test
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+npm run test            # vitest
+npm run test:e2e        # playwright
+npx tsc --noEmit        # type check
+```
 
-**Use GitHub Codespaces**
+## Deploy
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Frontend deployato su Cloudflare Pages. Edge functions Supabase deploy via:
 
-## What technologies are used for this project?
+```bash
+npx supabase functions deploy <nome> --project-ref rsbrguhkodgnqfomrevo
+```
 
-This project is built with:
+Mobile build (Capacitor):
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```bash
+npm run mobile:build && npm run mobile:sync
+npx cap open ios       # o android
+```
 
-## How can I deploy this project?
+## Struttura
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+- `src/pages/azienda/*`       — area aziendale
+- `src/pages/admin/*`         — pannello SuperAdmin
+- `src/pages/campo/*`         — portale operai/cantiere
+- `src/pages/tecnico/*`       — portale tecnici di servizio
+- `src/pages/cliente/*`       — portale cliente finale
+- `src/pages/partner/*`       — portale referral partner
+- `src/pages/venditore/*`     — portale venditori
+- `supabase/functions/*`      — edge functions Deno
+- `supabase/migrations/*`     — DDL versionato
 
-## Can I connect a custom domain to my Lovable project?
+## Convenzioni
 
-Yes, you can!
+- Zero TypeScript `any`
+- Mai `select('*')`
+- RLS obbligatoria su ogni tabella
+- UX in italiano (toast, errori, empty states)
+- Skeleton loaders su tutte le query
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Licenza
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Proprietaria — AEDIX SRL. Tutti i diritti riservati.

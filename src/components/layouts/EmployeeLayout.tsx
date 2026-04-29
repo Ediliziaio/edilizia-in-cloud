@@ -220,7 +220,11 @@ function EmployeeSidebar() {
   );
 }
 
-/* ── Layout principale ─────────────────────────────────── */
+/**
+ * @deprecated L'area `/dipendente` e' stata assorbita da `/campo`.
+ * Manteniamo il layout per storico git e rollback, ma le route pubbliche
+ * reindirizzano sempre al portale campo mobile-first.
+ */
 export function EmployeeLayout() {
   const { user, isLoading: authLoading } = useAuth();
 

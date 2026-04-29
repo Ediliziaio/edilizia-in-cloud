@@ -1,11 +1,11 @@
 import { lazy } from "react";
-import { Route } from "react-router-dom";
+import { Navigate, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CustomerLayout } from "@/components/layouts/CustomerLayout";
-import { EmployeeLayout } from "@/components/layouts/EmployeeLayout";
 import { SalespersonLayout } from "@/components/layouts/SalespersonLayout";
 import { PartnerLayout } from "@/components/layouts/PartnerLayout";
+import { EMPLOYEE_LEGACY_REDIRECTS } from "@/routes/employeeLegacyRedirects";
 
 // Customer pages
 const CustomerOrders = lazy(() => import("@/pages/cliente/CustomerOrders"));
@@ -19,13 +19,6 @@ const CustomerInstallments = lazy(() => import("@/pages/cliente/CustomerInstallm
 const CustomerAppointments = lazy(() => import("@/pages/cliente/CustomerAppointments"));
 const CustomerFirma = lazy(() => import("@/pages/cliente/CustomerFirma"));
 const CustomerMenu = lazy(() => import("@/pages/cliente/CustomerMenu"));
-
-// Employee pages
-const EmployeeDashboard = lazy(() => import("@/pages/dipendente/EmployeeDashboard"));
-const TimeEntry = lazy(() => import("@/pages/dipendente/TimeEntry"));
-const MyWorkLogs = lazy(() => import("@/pages/dipendente/MyWorkLogs"));
-const EmployeeProfile = lazy(() => import("@/pages/dipendente/EmployeeProfile"));
-const LeaveRequests = lazy(() => import("@/pages/dipendente/LeaveRequests"));
 
 // Salesperson pages
 const SalespersonDashboard = lazy(() => import("@/pages/venditore/SalespersonDashboard"));
@@ -70,21 +63,13 @@ export function customerRoutes() {
 
 export function employeeRoutes() {
   return (
-    <Route
-      path="/dipendente"
-      element={
-        <ProtectedRoute allowedRoles={["employee"]}>
-          <ErrorBoundary title="Errore nell'area dipendente">
-            <EmployeeLayout />
-          </ErrorBoundary>
-        </ProtectedRoute>
-      }
-    >
-      <Route index element={<EmployeeDashboard />} />
-      <Route path="ore" element={<TimeEntry />} />
-      <Route path="rapportini" element={<MyWorkLogs />} />
-      <Route path="profilo" element={<EmployeeProfile />} />
-      <Route path="ferie" element={<LeaveRequests />} />
+    <Route path="/dipendente">
+      <Route index element={<Navigate to={EMPLOYEE_LEGACY_REDIRECTS.root} replace />} />
+      <Route path="ore" element={<Navigate to={EMPLOYEE_LEGACY_REDIRECTS.ore} replace />} />
+      <Route path="rapportini" element={<Navigate to={EMPLOYEE_LEGACY_REDIRECTS.rapportini} replace />} />
+      <Route path="profilo" element={<Navigate to={EMPLOYEE_LEGACY_REDIRECTS.profilo} replace />} />
+      <Route path="ferie" element={<Navigate to={EMPLOYEE_LEGACY_REDIRECTS.ferie} replace />} />
+      <Route path="*" element={<Navigate to={EMPLOYEE_LEGACY_REDIRECTS.fallback} replace />} />
     </Route>
   );
 }
