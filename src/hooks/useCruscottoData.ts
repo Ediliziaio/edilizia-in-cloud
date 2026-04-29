@@ -88,6 +88,24 @@ interface InstallmentRow {
   expected_date: string | null;
 }
 
+interface OrderCostRow {
+  total_amount: number | null;
+  order_items?: Array<{ purchase_price: number | null; quantity: number | null }> | null;
+  order_employees?: Array<{ total_cost: number | null }> | null;
+  order_external_teams?: Array<{ total_cost: number | null }> | null;
+}
+
+interface AmountRow {
+  amount: number | null;
+}
+
+type SupabaseQueryError = { message: string } | null | undefined;
+
+function throwIfSupabaseError(...errors: SupabaseQueryError[]) {
+  const error = errors.find(Boolean);
+  if (error) throw error;
+}
+
 export function useCruscottoData() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -124,10 +142,10 @@ export function useCruscottoData() {
   });
 
   // Installments — fires independently, no waterfall
-  const { data: paymentsData } = useQuery({
+  const { data: paymentsData, error: paymentsError } = useQuery({
     queryKey: queryKeys.cruscotto.installments(companyId),
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("order_installments")
         .select("amount, is_paid, expected_date, order:orders!inner(company_id)")
         .eq("order.company_id", companyId!)
@@ -140,7 +158,7 @@ export function useCruscottoData() {
   });
 
   // Operations data — fires immediately, NO dependency on paymentsData
-  const { data: rawOpsData, isLoading: opsLoading } = useQuery({
+  const { data: rawOpsData, isLoading: opsLoading, error: opsError } = useQuery({
     queryKey: queryKeys.cruscotto.operations(companyId, filters.statusId),
     queryFn: async () => {
       const now = new Date();
@@ -159,6 +177,7 @@ export function useCruscottoData() {
         supabase.from("tickets").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!).eq("status", "aperto"),
       ]);
+      throwIfSupabaseError(activeOrdersRes.error, lateOrdersRes.error, openTicketsRes.error);
 
       return {
         activeOrders: activeOrdersRes.count || 0,
@@ -187,7 +206,7 @@ export function useCruscottoData() {
   }, [rawOpsData, paymentsData]);
 
   // Finance data
-  const { data: rawFinanceData, isLoading: financeLoading } = useQuery({
+  const { data: rawFinanceData, isLoading: financeLoading, error: financeError } = useQuery({
     queryKey: queryKeys.cruscotto.finance(companyId, dateRange.from.toISOString(), dateRange.to.toISOString()),
     queryFn: async () => {
       const now = new Date();
@@ -211,19 +230,20 @@ export function useCruscottoData() {
         supabase.from("company_costs").select("amount, due_date, is_paid")
           .eq("company_id", companyId!).eq("is_paid", false),
       ]);
+      throwIfSupabaseError(currentOrdersRes.error, prevOrdersRes.error, costsRes.error);
 
-      const calc = (orders: any[]) => {
+      const calc = (orders: OrderCostRow[]) => {
         let totalRevenue = 0;
         let totalCostAll = 0;
-        orders.forEach((o: any) => {
+        orders.forEach((o) => {
           const revenue = safeNumber(o.total_amount);
           totalRevenue += revenue;
           const articleCost = (o.order_items || []).reduce(
-            (s: number, i: any) => s + (safeNumber(i.purchase_price) * safeNumber(i.quantity, 1)), 0
+            (s, i) => s + (safeNumber(i.purchase_price) * safeNumber(i.quantity, 1)), 0
           );
           const laborCost =
-            (o.order_employees || []).reduce((s: number, e: any) => s + safeNumber(e.total_cost), 0) +
-            (o.order_external_teams || []).reduce((s: number, e: any) => s + safeNumber(e.total_cost), 0);
+            (o.order_employees || []).reduce((s, e) => s + safeNumber(e.total_cost), 0) +
+            (o.order_external_teams || []).reduce((s, e) => s + safeNumber(e.total_cost), 0);
           totalCostAll += articleCost + laborCost;
         });
         const weightedMargin = totalRevenue > 0
@@ -233,8 +253,8 @@ export function useCruscottoData() {
         return { revenue: totalRevenue, margin };
       };
 
-      const curr = calc(currentOrdersRes.data || []);
-      const prev = calc(prevOrdersRes.data || []);
+      const curr = calc((currentOrdersRes.data ?? []) as unknown as OrderCostRow[]);
+      const prev = calc((prevOrdersRes.data ?? []) as unknown as OrderCostRow[]);
 
       let supplierDebt = 0;
       let unpaidCosts = 0;
@@ -287,12 +307,12 @@ export function useCruscottoData() {
   }, [rawFinanceData, paymentsData]);
 
   // Invoice stats from RPC
-  const { data: invoiceStats } = useQuery({
+  const { data: invoiceStats, error: invoiceStatsError } = useQuery({
     queryKey: queryKeys.cruscotto.invoiceStats(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_cruscotto_invoice_stats" as any, {
+      const { data, error } = await supabase.rpc("get_cruscotto_invoice_stats" as never, {
         p_company_id: companyId!,
-      });
+      } as never);
       if (error) throw error;
       return data as {
         total_outstanding: number;
@@ -310,7 +330,7 @@ export function useCruscottoData() {
   });
 
   // Company targets/thresholds
-  const { data: companyTargets } = useQuery({
+  const { data: companyTargets, error: targetsError } = useQuery({
     queryKey: queryKeys.cruscotto.targets(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -326,7 +346,7 @@ export function useCruscottoData() {
   });
 
   // Weekly agenda — fires immediately, NO dependency on paymentsData
-  const { data: rawWeeklyData, isLoading: weeklyLoading } = useQuery({
+  const { data: rawWeeklyData, isLoading: weeklyLoading, error: weeklyError } = useQuery({
     queryKey: queryKeys.cruscotto.weekly(companyId),
     queryFn: async () => {
       const now = new Date();
@@ -347,6 +367,7 @@ export function useCruscottoData() {
           .eq("is_blocked_slot", false)
           .gte("appointment_date", todayStr).lte("appointment_date", weekEndStr),
       ]);
+      throwIfSupabaseError(costsRes.error, deliveriesRes.error, appointmentsRes.error);
 
       let dueCosts = 0;
       costsRes.data?.forEach(c => { dueCosts += safeNumber(c.amount); });
@@ -392,7 +413,7 @@ export function useCruscottoData() {
   }, []);
 
   // Today data — parameterized by todayDateFrom/todayDateTo for leads & appointments
-  const { data: todayData, isLoading: todayLoading } = useQuery<TodayData>({
+  const { data: todayData, isLoading: todayLoading, error: todayError } = useQuery<TodayData>({
     queryKey: queryKeys.cruscotto.today(companyId, todayDateFrom, todayDateTo),
     enabled: !!companyId,
     staleTime: 60_000,
@@ -410,7 +431,7 @@ export function useCruscottoData() {
           .gte("appointment_date", todayDateFrom)
           .lte("appointment_date", todayDateTo)
           .eq("is_blocked_slot", false),
-        (supabase as any).from("order_installments")
+        supabase.from("order_installments")
           .select("id, amount, expected_date, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
           .eq("is_paid", false)
@@ -429,7 +450,7 @@ export function useCruscottoData() {
           .gte("created_at", `${todayDateFrom}T00:00:00`)
           .lte("created_at", `${todayDateTo}T23:59:59`),
         // Collected: installments paid in range
-        (supabase as any).from("order_installments")
+        supabase.from("order_installments")
           .select("amount, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
           .eq("is_paid", true)
@@ -443,15 +464,24 @@ export function useCruscottoData() {
           .gte("paid_date", todayDateFrom)
           .lte("paid_date", todayDateTo),
       ]);
+      throwIfSupabaseError(
+        leadsRes.error,
+        appointmentsRes.error,
+        overdueRes.error,
+        suppliersRes.error,
+        revenueRes.error,
+        collectedRes.error,
+        costsPaidRes.error,
+      );
 
       const overdueCount = overdueRes.data?.length ?? 0;
-      const overdueAmount = (overdueRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.amount), 0);
+      const overdueAmount = ((overdueRes.data ?? []) as AmountRow[]).reduce((s, r) => s + safeNumber(r.amount), 0);
       const suppliersDue = (suppliersRes.data ?? []) as Array<{ id: string; name: string; amount: number; due_date: string; category?: string }>;
       const suppliersDueAmount = suppliersDue.reduce((s, c) => s + safeNumber(c.amount), 0);
 
-      const revenueInRange = (revenueRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.total_amount), 0);
-      const collectedInRange = (collectedRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.amount), 0);
-      const costsPaidInRange = (costsPaidRes.data ?? []).reduce((s: number, r: any) => s + safeNumber(r.amount), 0);
+      const revenueInRange = ((revenueRes.data ?? []) as Array<{ total_amount: number | null }>).reduce((s, r) => s + safeNumber(r.total_amount), 0);
+      const collectedInRange = ((collectedRes.data ?? []) as AmountRow[]).reduce((s, r) => s + safeNumber(r.amount), 0);
+      const costsPaidInRange = ((costsPaidRes.data ?? []) as AmountRow[]).reduce((s, r) => s + safeNumber(r.amount), 0);
 
       return {
         leadsToday: leadsRes.count ?? 0,
@@ -468,7 +498,7 @@ export function useCruscottoData() {
   });
 
   // Cash flow forecast + revenue by period
-  const { data: cashFlowForecast, isLoading: forecastLoading } = useQuery<CashFlowForecastData>({
+  const { data: cashFlowForecast, isLoading: forecastLoading, error: forecastError } = useQuery<CashFlowForecastData>({
     queryKey: queryKeys.cruscotto.cashFlowForecast(companyId),
     enabled: !!companyId,
     staleTime: 300_000,
@@ -479,7 +509,7 @@ export function useCruscottoData() {
       const in60 = format(addDays(now, 60), "yyyy-MM-dd");
       const in90 = format(addDays(now, 90), "yyyy-MM-dd");
 
-      const { data: futureInstallments } = await (supabase as any)
+      const { data: futureInstallments, error: futureInstallmentsError } = await supabase
         .from("order_installments")
         .select("amount, expected_date, order:orders!inner(company_id)")
         .eq("order.company_id", companyId!)
@@ -497,11 +527,14 @@ export function useCruscottoData() {
       const quarter = Math.floor(now.getMonth() / 3);
       const quarterStart = `${now.getFullYear()}-${String(quarter * 3 + 1).padStart(2, "0")}-01T00:00:00`;
 
-      const [{ data: ytdOrders }, { data: monthOrders }, { data: qOrders }] = await Promise.all([
+      throwIfSupabaseError(futureInstallmentsError);
+
+      const [ytdOrdersRes, monthOrdersRes, qOrdersRes] = await Promise.all([
         supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", yearStart),
         supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", monthStart),
         supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", quarterStart),
       ]);
+      throwIfSupabaseError(ytdOrdersRes.error, monthOrdersRes.error, qOrdersRes.error);
 
       const sum = (rows: Array<{ total_amount?: number }> | null) =>
         (rows ?? []).reduce((s, r) => s + safeNumber(r.total_amount), 0);
@@ -510,9 +543,9 @@ export function useCruscottoData() {
         incoming30,
         incoming60,
         incoming90,
-        ytdRevenue: sum(ytdOrders),
-        monthRevenue: sum(monthOrders),
-        quarterRevenue: sum(qOrders),
+        ytdRevenue: sum(ytdOrdersRes.data),
+        monthRevenue: sum(monthOrdersRes.data),
+        quarterRevenue: sum(qOrdersRes.data),
       };
     },
   });
@@ -529,6 +562,18 @@ export function useCruscottoData() {
     });
   }, []);
 
+  const firstError =
+    marketingError ||
+    paymentsError ||
+    opsError ||
+    financeError ||
+    invoiceStatsError ||
+    targetsError ||
+    weeklyError ||
+    todayError ||
+    forecastError ||
+    null;
+
   return {
     marketing: marketingData || null,
     operations: opsData,
@@ -542,7 +587,7 @@ export function useCruscottoData() {
     todayDateTo,
     updateTodayDateRange,
     isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading || todayLoading || forecastLoading,
-    error: marketingError as Error | null,
+    error: firstError as Error | null,
     filters,
     updateFilters,
   };

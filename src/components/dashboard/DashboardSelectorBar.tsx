@@ -86,79 +86,85 @@ function PickerItem({
   isDeletePending: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <div
       className={cn(
-        "group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
+        "group w-full flex items-center rounded-lg text-left transition-colors",
         isActive ? "bg-primary/10 text-foreground" : "hover:bg-muted/60 text-foreground",
       )}
     >
-      <div className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border",
-        isActive ? "bg-primary/10 border-primary/20" : "bg-muted border-border",
-      )}>
-        <LayoutGrid className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
-      </div>
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left"
+      >
+        <div className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border",
+          isActive ? "bg-primary/10 border-primary/20" : "bg-muted border-border",
+        )}>
+          <LayoutGrid className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+        </div>
 
-      <div className="flex-1 min-w-0 text-left">
-        <p className="text-sm font-medium truncate leading-tight">
-          {dash.is_default && (
-            <span className="text-[10px] font-medium text-muted-foreground italic mr-1">
-              (Predefinita)
-            </span>
-          )}
-          {dash.name}
-        </p>
-      </div>
+        <div className="flex-1 min-w-0 text-left">
+          <p className="text-sm font-medium truncate leading-tight">
+            {dash.is_default && (
+              <span className="text-[10px] font-medium text-muted-foreground italic mr-1">
+                (Predefinita)
+              </span>
+            )}
+            {dash.name}
+          </p>
+        </div>
+      </button>
 
       {/* Azioni su hover */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <span
-          role="button"
-          tabIndex={-1}
+      <div className="flex items-center gap-0.5 pr-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          disabled={dash.is_default || isDefaultPending}
           onClick={(e) => { e.stopPropagation(); if (!dash.is_default) onSetDefault(e); }}
           className={cn(
-            "flex h-6 w-6 items-center justify-center rounded hover:bg-background/80 transition-colors",
+            "flex h-9 w-9 items-center justify-center rounded hover:bg-background/80 transition-colors disabled:cursor-default sm:h-8 sm:w-8",
             dash.is_default && "!opacity-100",
           )}
           title={dash.is_default ? "Dashboard predefinita" : "Imposta come predefinita"}
+          aria-label={dash.is_default ? "Dashboard predefinita" : `Imposta ${dash.name} come predefinita`}
         >
           <Star className={cn(
             "h-3.5 w-3.5 transition-all",
             dash.is_default
               ? "fill-amber-400 stroke-amber-400"
               : "stroke-muted-foreground/60 fill-transparent hover:stroke-amber-400 hover:fill-amber-200",
-            isDefaultPending && "animate-pulse pointer-events-none",
+            isDefaultPending && "animate-pulse",
           )} />
-        </span>
+        </button>
 
         {dash.is_owner && (
-          <span
-            role="button"
-            tabIndex={-1}
+          <button
+            type="button"
+            disabled={isDeletePending}
             onClick={(e) => { e.stopPropagation(); onDelete(e); }}
-            className="flex h-6 w-6 items-center justify-center rounded hover:bg-destructive/10 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded hover:bg-destructive/10 transition-colors disabled:cursor-wait disabled:opacity-60 sm:h-8 sm:w-8"
             title="Elimina dashboard"
+            aria-label={`Elimina ${dash.name}`}
           >
             <Trash2 className={cn(
               "h-3.5 w-3.5 stroke-muted-foreground/60 hover:stroke-destructive transition-colors",
-              isDeletePending && "animate-pulse pointer-events-none",
+              isDeletePending && "animate-pulse",
             )} />
-          </span>
+          </button>
         )}
       </div>
 
       {dash.is_default && (
-        <Star className="h-3.5 w-3.5 fill-amber-400 stroke-amber-400 shrink-0 group-hover:hidden" />
+        <Star className="hidden h-3.5 w-3.5 shrink-0 fill-amber-400 stroke-amber-400 sm:block sm:group-hover:hidden" />
       )}
-    </button>
+    </div>
   );
 }
 
 // ── Sezione lista ─────────────────────────────────────────────────────────────
 function PickerSection({
-  title, items, activeDashId, onSelect, onSetDefault, onDelete, isDefaultPending, isDeletePending,
+  title, items, activeDashId, onSelect, onSetDefault, onDelete, defaultPendingId, deletePendingId,
 }: {
   title: string;
   items: DashboardListItem[];
@@ -166,8 +172,8 @@ function PickerSection({
   onSelect: (id: string) => void;
   onSetDefault: (e: React.MouseEvent, id: string) => void;
   onDelete: (e: React.MouseEvent, dash: DashboardListItem) => void;
-  isDefaultPending: boolean;
-  isDeletePending: boolean;
+  defaultPendingId: string | null;
+  deletePendingId: string | null;
 }) {
   if (items.length === 0) return null;
   return (
@@ -183,8 +189,8 @@ function PickerSection({
           onSelect={() => onSelect(d.id)}
           onSetDefault={(e) => onSetDefault(e, d.id)}
           onDelete={(e) => onDelete(e, d)}
-          isDefaultPending={isDefaultPending}
-          isDeletePending={isDeletePending}
+          isDefaultPending={defaultPendingId === d.id}
+          isDeletePending={deletePendingId === d.id}
         />
       ))}
     </div>
@@ -213,7 +219,7 @@ export function DashboardSelectorBar({
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { data: dashboards = [] } = useDashboards();
+  const { data: dashboards = [], isLoading: dashboardsLoading, error: dashboardsError } = useDashboards();
   const setDefault = useSetDefaultDashboard();
   const deleteDash = useDeleteDashboard();
   const permissions = usePermissions();
@@ -221,6 +227,8 @@ export function DashboardSelectorBar({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DashboardListItem | null>(null);
+  const defaultPendingId = setDefault.isPending ? setDefault.variables ?? null : null;
+  const deletePendingId = deleteDash.isPending ? deleteDash.variables ?? null : null;
 
   // Dashboard di sistema filtrate per permessi
   const visibleSystem = useMemo(
@@ -244,7 +252,7 @@ export function DashboardSelectorBar({
     e.stopPropagation();
     setDefault.mutate(dashId, {
       onSuccess: () => toast.success("Dashboard impostata come predefinita"),
-      onError: (err) => toast.error((err as Error).message),
+      onError: () => toast.error("Non sono riuscito a impostare la dashboard predefinita"),
     });
   };
 
@@ -266,9 +274,12 @@ export function DashboardSelectorBar({
       onSuccess: () => {
         toast.success(`"${target.name}" eliminata`);
         setDeleteTarget(null);
+        if (target.id === activeDashId) {
+          navigate("/azienda/cruscotto", { replace: true });
+        }
       },
       onError: (err) => {
-        toast.error((err as Error).message);
+        toast.error((err as Error).message || "Non sono riuscito a eliminare la dashboard");
         setDeleteTarget(null);
       },
     });
@@ -276,7 +287,7 @@ export function DashboardSelectorBar({
 
   return (
     <>
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b bg-background shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 border-b bg-background shrink-0 min-w-0">
         {/* Picker */}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -291,7 +302,7 @@ export function DashboardSelectorBar({
             </Button>
           </PopoverTrigger>
 
-          <PopoverContent align="start" className="w-80 p-2" sideOffset={6}>
+          <PopoverContent align="start" className="w-[calc(100vw-2rem)] sm:w-80 p-2" sideOffset={6}>
             {/* Ricerca */}
             <div className="relative mb-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -318,7 +329,11 @@ export function DashboardSelectorBar({
 
             <div className="space-y-1 max-h-80 overflow-y-auto">
               {/* Dashboard di sistema */}
-              {visibleSystem.length > 0 && (
+              {permissions.isLoading ? (
+                <p className="px-3 py-3 text-sm text-center text-muted-foreground">
+                  Caricamento dashboard…
+                </p>
+              ) : visibleSystem.length > 0 && (
                 <div>
                   <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     Predefinite
@@ -355,7 +370,15 @@ export function DashboardSelectorBar({
               )}
 
               {/* Dashboard personalizzate */}
-              {dashboards.length === 0 ? (
+              {dashboardsError ? (
+                <p className="px-3 py-3 text-sm text-center text-destructive">
+                  Non riesco a caricare le dashboard. Riapri il menu tra qualche secondo.
+                </p>
+              ) : dashboardsLoading ? (
+                <p className="px-3 py-3 text-sm text-center text-muted-foreground">
+                  Caricamento personalizzate…
+                </p>
+              ) : dashboards.length === 0 ? (
                 <p className="px-3 py-3 text-sm text-center text-muted-foreground">
                   Nessuna dashboard personalizzata
                 </p>
@@ -372,8 +395,8 @@ export function DashboardSelectorBar({
                     onSelect={handleSelectCustom}
                     onSetDefault={handleSetDefault}
                     onDelete={(e, d) => { e.stopPropagation(); setDeleteTarget(d); }}
-                    isDefaultPending={setDefault.isPending}
-                    isDeletePending={deleteDash.isPending}
+                    defaultPendingId={defaultPendingId}
+                    deletePendingId={deletePendingId}
                   />
                   <PickerSection
                     title="Condiviso con me"
@@ -382,8 +405,8 @@ export function DashboardSelectorBar({
                     onSelect={handleSelectCustom}
                     onSetDefault={handleSetDefault}
                     onDelete={(e, d) => { e.stopPropagation(); setDeleteTarget(d); }}
-                    isDefaultPending={setDefault.isPending}
-                    isDeletePending={deleteDash.isPending}
+                    defaultPendingId={defaultPendingId}
+                    deletePendingId={deletePendingId}
                   />
                 </>
               )}
@@ -407,7 +430,7 @@ export function DashboardSelectorBar({
         <h1 className="text-base font-semibold truncate flex-1 min-w-0">{title}</h1>
 
         {/* Slot azioni a destra */}
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        {actions && <div className="flex items-center gap-2 shrink-0 max-w-[62vw] overflow-x-auto sm:max-w-none">{actions}</div>}
       </div>
 
       {/* Dialog conferma eliminazione */}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { usePermissions } from "@/hooks/usePermissions";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
@@ -31,17 +32,19 @@ import { SemaforoBar } from "@/components/cruscotto/SemaforoBar";
 import { SaluteAziendale } from "@/components/cruscotto/SaluteAziendale";
 import { AzioniUrgenti } from "@/components/cruscotto/AzioniUrgenti";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
-import { AlertCircle, Download } from "lucide-react";
+import { AlertCircle, Download, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { queryKeys } from "@/lib/queryKeys";
 
 export default function CruscottoAziendale() {
   const perms = usePermissions();
+  const queryClient = useQueryClient();
   const {
-    marketing, operations, finance, weeklyAgenda, invoiceStats, companyTargets,
+    marketing, operations, finance, weeklyAgenda, companyTargets,
     todayData, cashFlowForecast,
     todayDateFrom, todayDateTo, updateTodayDateRange,
     isLoading, error, filters, updateFilters,
@@ -100,7 +103,21 @@ export default function CruscottoAziendale() {
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Errore nel caricamento dei dati. Riprova tra qualche secondo.</AlertDescription>
+          <AlertDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <span>Errore nel caricamento dei dati. Riprova tra qualche secondo.</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start sm:self-auto gap-1.5 border-destructive/30 bg-background text-destructive hover:bg-destructive/10"
+                onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.cruscotto.all })}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Riprova
+              </Button>
+            </div>
+          </AlertDescription>
         </Alert>
       )}
 

@@ -6,9 +6,9 @@
  *
  * URL: /azienda/cruscotto?d=<dashboardId>
  */
-import { useState, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { Plus, Pencil, RefreshCw, LayoutGrid, AlertTriangle } from "lucide-react";
+import { ArrowRight, Plus, Pencil, RefreshCw, LayoutGrid, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -39,16 +39,22 @@ const PERIODS: Array<{ value: PeriodPreset; label: string }> = [
   { value: "last_90_days", label: "Ultimi 90 giorni"  },
 ];
 
+const PERIOD_VALUES = new Set<PeriodPreset>(PERIODS.map((period) => period.value));
+
 export default function CruscottoDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const { data: dashboards = [], isLoading: dashLoading } = useDashboards();
-  const [period, setPeriod] = useState<PeriodPreset | "">("");
 
   // ── Dashboard attiva ──────────────────────────────────────────────────────
   const defaultDash = dashboards.find((d) => d.is_default);
   const paramId = searchParams.get("d");
+  const periodParam = searchParams.get("period");
+  const period =
+    periodParam && PERIOD_VALUES.has(periodParam as PeriodPreset)
+      ? (periodParam as PeriodPreset)
+      : "";
 
   const activeDashId = useMemo(() => {
     if (paramId && dashboards.some((d) => d.id === paramId)) return paramId;
@@ -58,9 +64,40 @@ export default function CruscottoDashboardPage() {
 
   const activeDash = dashboards.find((d) => d.id === activeDashId) ?? null;
 
+  useEffect(() => {
+    if (dashLoading) return;
+
+    const shouldNormalizeDashboard =
+      dashboards.length > 0 && activeDashId && paramId !== activeDashId;
+    const shouldRemoveInvalidPeriod = !!periodParam && !period;
+
+    if (!shouldNormalizeDashboard && !shouldRemoveInvalidPeriod) return;
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (shouldNormalizeDashboard) next.set("d", activeDashId);
+      if (shouldRemoveInvalidPeriod) next.delete("period");
+      return next;
+    }, { replace: true });
+  }, [activeDashId, dashLoading, dashboards.length, paramId, period, periodParam, setSearchParams]);
+
   const selectDash = (id: string) => {
-    setSearchParams((prev) => { prev.set("d", id); return prev; }, { replace: true });
-    setPeriod("");
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("d", id);
+      next.delete("period");
+      return next;
+    }, { replace: true });
+  };
+
+  const selectPeriod = (value: PeriodPreset | "") => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (activeDashId) next.set("d", activeDashId);
+      if (value) next.set("period", value);
+      else next.delete("period");
+      return next;
+    }, { replace: true });
   };
 
   // ── Dati dashboard attiva ─────────────────────────────────────────────────
@@ -93,7 +130,7 @@ export default function CruscottoDashboardPage() {
     <>
       <Select
         value={period || "none"}
-        onValueChange={(v) => setPeriod(v === "none" ? "" : (v as PeriodPreset))}
+        onValueChange={(v) => selectPeriod(v === "none" ? "" : (v as PeriodPreset))}
       >
         <SelectTrigger className="h-8 w-[155px] text-xs">
           <SelectValue placeholder="Periodo" />
@@ -145,15 +182,25 @@ export default function CruscottoDashboardPage() {
               <LayoutGrid className="h-8 w-8 text-muted-foreground/50" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold">Nessuna dashboard</h2>
+              <h2 className="text-lg font-semibold">Cruscotto pronto</h2>
               <p className="text-sm text-muted-foreground max-w-xs">
-                Crea la tua prima dashboard personalizzata per vedere i dati che contano.
+                Non ci sono ancora dashboard personalizzate, ma puoi aprire subito il cruscotto aziendale.
               </p>
             </div>
-            <Button onClick={() => navigate("/azienda/cruscotto/gestisci")} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Aggiungi dashboard
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button onClick={() => navigate("/azienda/cruscotto/aziendale")} className="gap-2">
+                Apri cruscotto aziendale
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/azienda/cruscotto/gestisci")}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Crea dashboard
+              </Button>
+            </div>
           </div>
         ) : !activeDashId ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
@@ -161,11 +208,26 @@ export default function CruscottoDashboardPage() {
             <p className="text-sm text-muted-foreground">Seleziona una dashboard dal menu</p>
           </div>
         ) : dash.error ? (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 flex items-start gap-2 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-            Errore nel caricamento: {(dash.error as Error).message}
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3 text-sm text-destructive">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>Non sono riuscito a caricare questa dashboard. Riprova tra qualche secondo.</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => dash.refetch()} className="self-start sm:self-auto">
+              Riprova
+            </Button>
           </div>
-        ) : dash.isLoading || !layout ? (
+        ) : resolved.error ? (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3 text-sm text-destructive">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>Dashboard caricata, ma alcuni dati non sono disponibili. Riprova per aggiornare i widget.</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => resolved.refetch()} className="self-start sm:self-auto">
+              Riprova
+            </Button>
+          </div>
+        ) : dash.isLoading || !layout || (resolved.isLoading && !resolved.data) ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="h-32 rounded-xl border bg-muted/40 animate-pulse" />

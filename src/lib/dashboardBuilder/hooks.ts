@@ -147,8 +147,12 @@ export function useDeleteDashboard() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dashboardId: string) => deleteDashboard(dashboardId),
-    onSuccess: () => {
+    onSuccess: (_result, dashboardId) => {
       qc.invalidateQueries({ queryKey: KEYS.list });
+      qc.removeQueries({ queryKey: KEYS.one(dashboardId) });
+      qc.removeQueries({ queryKey: ["dashboard-builder", "resolve", dashboardId] });
+      qc.invalidateQueries({ queryKey: ROLE_KEYS.myCruscotto });
+      qc.invalidateQueries({ queryKey: ROLE_KEYS.roleMap });
     },
   });
 }
@@ -160,6 +164,7 @@ export function useSetDefaultDashboard() {
     mutationFn: (dashboardId: string) => setDefaultDashboard(dashboardId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.list });
+      qc.invalidateQueries({ queryKey: ROLE_KEYS.myCruscotto });
     },
   });
 }

@@ -28,7 +28,7 @@ import type {
 export async function fetchMetricCatalog(): Promise<MetricCatalogItem[]> {
   const { data, error } = await supabase
     .from("metric_catalog")
-    .select("*")
+    .select("id, name, description, category, value_type, default_aggregation, allowed_aggregations, allowed_dimensions, requires_role, is_active")
     .eq("is_active", true)
     .order("category")
     .order("name");
@@ -224,7 +224,7 @@ export async function listCompanyMembers(): Promise<CompanyMember[]> {
 
   // 2. Ruoli (il file SECURITY DEFINER è disponibile, ma come fallback usiamo
   //    una query diretta — se l'utente non ha accesso in lettura vedrà role=null)
-  let roleMap: Record<string, AppRole> = {};
+  const roleMap: Record<string, AppRole> = {};
   try {
     const { data: roleRows } = await supabase
       .from("user_roles" as never)
