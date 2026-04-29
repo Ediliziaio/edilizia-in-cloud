@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { ArrowLeft, Building2, CheckCircle2, Download, Image, Loader2, Share2, XCircle, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -94,12 +95,11 @@ export default function RenderFacciataGalleryDetail() {
 
   const handleDownload = async () => {
     if (!resultUrl) return;
-    const response = await fetch(resultUrl);
-    const blob = await response.blob();
-    const anchor = document.createElement("a");
-    anchor.href = URL.createObjectURL(blob);
-    anchor.download = `render_facciata_${id}.png`;
-    anchor.click();
+    try {
+      await downloadRenderImage(resultUrl, `render_facciata_${id ?? "session"}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
   };
 
   const handleShare = async () => {
@@ -168,7 +168,7 @@ export default function RenderFacciataGalleryDetail() {
           </CardHeader>
           <CardContent>
             <BeforeAfterSlider beforeUrl={originalUrl} afterUrl={resultUrl} className="rounded-xl" />
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Button variant="outline" onClick={handleShare}>
                 <Share2 className="mr-2 h-4 w-4" />
                 Condividi

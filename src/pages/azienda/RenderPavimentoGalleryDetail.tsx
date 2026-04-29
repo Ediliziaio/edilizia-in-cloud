@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image,
   CheckCircle2, XCircle, Zap, Clock,
@@ -60,8 +61,10 @@ export default function RenderPavimentoGalleryDetail() {
       } | null;
     },
     enabled: !!id && !!companyId,
-    refetchInterval: (data) =>
-      data?.status === "processing" ? 5_000 : false,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "processing" || status === "pending" ? 5_000 : false;
+    },
   });
 
   // Signed URL for private bucket
@@ -81,12 +84,13 @@ export default function RenderPavimentoGalleryDetail() {
 
   const resultUrl = session?.result_urls?.[0] ?? null;
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!resultUrl) return;
-    const a = document.createElement("a");
-    a.href = resultUrl;
-    a.download = `render_pavimento_${id}.png`;
-    a.click();
+    try {
+      await downloadRenderImage(resultUrl, `render_pavimento_${id}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
   };
 
   const handleShare = async () => {

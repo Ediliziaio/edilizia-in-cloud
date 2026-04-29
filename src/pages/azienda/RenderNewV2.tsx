@@ -28,6 +28,7 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
@@ -509,14 +510,9 @@ export default function RenderNewV2() {
   const downloadResult = useCallback(async () => {
     if (!resultUrl) return;
     try {
-      const resp = await fetch(resultUrl);
-      const blob = await resp.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `render_infissi_${Date.now()}.png`;
-      a.click();
+      await downloadRenderImage(resultUrl, `render_infissi_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito");
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
     }
   }, [resultUrl]);
 

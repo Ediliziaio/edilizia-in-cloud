@@ -28,6 +28,7 @@ import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 import { preloadImage } from "@/lib/render/preloadImage";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
 import { buildBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
@@ -572,16 +573,9 @@ export default function RenderBagnoNew() {
   const downloadResult = useCallback(async () => {
     if (!resultUrl) return;
     try {
-      const resp = await fetch(resultUrl);
-      const blob = await resp.blob();
-      const a = document.createElement("a");
-      const objectUrl = URL.createObjectURL(blob);
-      a.href = objectUrl;
-      a.download = `render_bagno_${Date.now()}.png`;
-      a.click();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      await downloadRenderImage(resultUrl, `render_bagno_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito");
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
     }
   }, [resultUrl]);
 

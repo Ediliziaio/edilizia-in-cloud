@@ -5,41 +5,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { runOpenAIImageEditWithFallback } from "../_shared/openaiImageEdit.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
-
-// ── STYLE GUIDE (mirrored from stanzaPromptBuilder) ──────────────────────────
-const STYLE_GUIDE: Record<string, string> = {
-  moderno: "Modern interior design: clean geometric lines, neutral palette with bold accent color pops, open-plan feel, flush cabinetry, large-format tiles or polished concrete, minimalist furniture, recessed LED lighting.",
-  scandinavo: "Scandinavian interior: warm whites, natural light wood, cozy wool and linen textiles in muted tones, clean simple silhouettes, hygge atmosphere, pendant lights with organic shapes.",
-  industriale: "Industrial interior: exposed brick/concrete, visible metal ductwork, dark metal furniture, Edison-bulb pendants, reclaimed wood, leather seating, muted palette.",
-  classico: "Classic traditional interior: elegant crown moldings, rich warm colors, solid wood furniture with carved details, crystal chandeliers, symmetrical arrangement, Persian rugs.",
-  rustico: "Rustic country interior: exposed ceiling beams, terracotta/stone flooring, solid wood farm furniture, wrought-iron fixtures, earthy warm palette.",
-  minimalista: "Minimalist interior: ultra-clean surfaces, monochromatic palette, hidden storage, single statement pieces, indirect cove lighting, seamless floors.",
-  mediterraneo: "Mediterranean interior: sun-bleached white with blue accents, terracotta tiles, arched doorways, ceramic backsplashes, wrought-iron details, warm golden light.",
-  art_deco: "Art Deco interior: geometric patterns, jewel tones, lacquered surfaces, velvet upholstery, brass/chrome hardware, statement geometric lights.",
-  giapponese: "Japanese-inspired interior (Japandi): natural materials, minimalist decluttered spaces, earth-tone palette, low furniture profiles, indirect warm lighting, wabi-sabi aesthetic.",
-  provenzale: "Provencal French country: soft lavender/sage/butter palette, distressed painted wood, toile de Jouy fabrics, exposed beams, terracotta tiles, linen curtains.",
-  eclettico: "Eclectic interior: curated style mix, bold pattern mixing, rich saturated colors, gallery-wall art, vintage mixed with contemporary, maximalist yet intentional.",
-  luxe_contemporaneo: "Luxury contemporary: premium materials (marble, onyx, brushed brass), neutral sophisticated palette with metallic accents, bespoke furniture, designer lighting.",
-};
-
-const INTENSITY_MAP: Record<string, string> = {
-  leggero: "LIGHT: Only modify explicitly requested elements. Keep ALL existing furniture, layout, architectural features EXACTLY as they are.",
-  medio: "MEDIUM: Modify requested elements AND harmonize surrounding elements. Adjust furniture colors/textures to complement while maintaining same layout.",
-  radicale: "RADICAL: Complete room redesign following target style. Replace all furniture, decor, finishes with new ones while keeping architectural shell intact.",
-};
-
-const TIPO_STANZA_LABEL: Record<string, string> = {
-  cucina: "kitchen", soggiorno: "living room", camera_da_letto: "bedroom",
-  bagno: "bathroom", studio: "home office / study", ingresso: "entrance hallway",
-  taverna: "basement / rec room", sala_da_pranzo: "dining room",
-  corridoio: "corridor / hallway", altro: "interior room",
-};
 
 // ── fetchWithRetry ──────────────────────────────────────────────────────────
 async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
@@ -97,14 +68,21 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let refundableSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let refundableUserId: string | null = null;
+  let creditDeducted = false;
+
   try {
     const auth = await requireAuth(req, corsHeaders);
     const supabase = auth.supabaseAdmin;
     const user = { id: auth.userId };
+    refundableUserId = user.id;
 
     const body = await req.json();
     const { session_id, config, target_width, target_height } = body;
     if (!session_id) throw new Error("session_id required");
+    refundableSessionId = session_id;
 
     // Get session
     const { data: session, error: sessErr } = await supabase
@@ -115,6 +93,7 @@ Deno.serve(async (req: Request) => {
     if (sessErr || !session) throw new Error("Session not found");
 
     const companyId = session.company_id;
+    refundableCompanyId = companyId as string;
 
     // FIX P1.3: ownership check impersonation-aware. In precedenza il file
     // assumeva che chiunque con il session_id potesse avviare il render: una
@@ -157,6 +136,7 @@ Deno.serve(async (req: Request) => {
     if (deductResult.status === "insufficient") {
       throw new Error("insufficient_credits");
     }
+    creditDeducted = true;
 
     // Get default provider
     const { data: provider } = await supabase
@@ -407,6 +387,13 @@ Deno.serve(async (req: Request) => {
     })().catch(async (jobErr: unknown) => {
       const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("generate-room-render background error:", message);
+      await refundRenderCreditSafe(supabase, {
+        companyId: companyId as string,
+        sessionId: session_id,
+        userId: user.id,
+        reasonMeta: { vertical: "stanza", edge_fn: "generate-room-render", error: message.substring(0, 500) },
+        logTag: "generate-room-render",
+      });
       await supabase
         .from("render_stanza_sessions")
         .update({
@@ -431,6 +418,15 @@ Deno.serve(async (req: Request) => {
       const supabase = createClient(supabaseUrl, serviceKey);
       const body = await req.clone().json().catch(() => ({}));
       if (body.session_id) {
+        if (creditDeducted && refundableCompanyId && refundableSessionId) {
+          await refundRenderCreditSafe(supabase, {
+            companyId: refundableCompanyId,
+            sessionId: refundableSessionId,
+            userId: refundableUserId,
+            reasonMeta: { vertical: "stanza", edge_fn: "generate-room-render", error: message.substring(0, 500) },
+            logTag: "generate-room-render",
+          });
+        }
         await supabase
           .from("render_stanza_sessions")
           .update({
@@ -440,7 +436,7 @@ Deno.serve(async (req: Request) => {
           })
           .eq("id", body.session_id);
       }
-    } catch (_) { /* best effort */ }
+    } catch { /* best effort */ }
 
     return new Response(
       JSON.stringify({ error: message }),

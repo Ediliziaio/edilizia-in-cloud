@@ -21,6 +21,7 @@ import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 import { preloadImage } from "@/lib/render/preloadImage";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { buildPiscineRenderConfig } from "@/modules/render-piscine/lib/piscineRenderConfig";
 import type { ConfigurazionePiscine } from "@/modules/render-piscine/lib/types";
 import { getPiscineDb } from "@/modules/render-piscine/lib/dynamicSupabase";
@@ -268,14 +269,9 @@ export default function RenderPiscineNew() {
     const url = resultUrls[0];
     if (!url) return;
     try {
-      const resp = await fetch(url);
-      const blob = await resp.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `render_piscine_${Date.now()}.png`;
-      a.click();
+      await downloadRenderImage(url, `render_piscine_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito");
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
     }
   }, [resultUrls]);
 

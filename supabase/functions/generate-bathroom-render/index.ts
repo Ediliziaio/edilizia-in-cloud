@@ -4,7 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
@@ -819,6 +819,9 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   let user = { id: "" };
+  let refundableSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let creditDeducted = false;
 
   try {
     const auth = await requireAuth(req, CORS);
@@ -884,6 +887,7 @@ Deno.serve(async (req) => {
         400,
       );
     }
+    refundableSessionId = session_id;
 
     const session = await loadBathroomSession(supabase, session_id);
     if (!session) {
@@ -892,6 +896,7 @@ Deno.serve(async (req) => {
         404,
       );
     }
+    refundableCompanyId = session.company_id;
 
     const allowed = await canAccessCompany(supabase, user.id, session.company_id);
     if (!allowed) {
@@ -929,6 +934,7 @@ Deno.serve(async (req) => {
         402,
       );
     }
+    creditDeducted = true;
 
     const { providerConfig, apiKey } = await loadRenderProviderWithKey(supabase);
 
@@ -1071,6 +1077,13 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
     })().catch(async (jobErr: unknown) => {
       const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-bathroom-render] background error:", message);
+      await refundRenderCreditSafe(supabase, {
+        companyId: session.company_id,
+        sessionId: session_id,
+        userId: user.id,
+        reasonMeta: { vertical: "bagno", edge_fn: "generate-bathroom-render", error: message.substring(0, 500) },
+        logTag: "generate-bathroom-render",
+      });
       await supabase
         .from("render_bagno_sessions")
         .update({
@@ -1092,6 +1105,15 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
       const sid = (body as { session_id?: string }).session_id;
 
       if (sid) {
+        if (creditDeducted && refundableCompanyId && refundableSessionId) {
+          await refundRenderCreditSafe(supabase, {
+            companyId: refundableCompanyId,
+            sessionId: refundableSessionId,
+            userId: user.id,
+            reasonMeta: { vertical: "bagno", edge_fn: "generate-bathroom-render", error: message.substring(0, 500) },
+            logTag: "generate-bathroom-render",
+          });
+        }
         await supabase
           .from("render_bagno_sessions")
           .update({

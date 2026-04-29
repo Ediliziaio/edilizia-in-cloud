@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { createRenderOriginalSignedUrl } from "@/lib/render/renderStorage";
 import { renderModuleHubConfigs } from "@/lib/render/renderModuleHubConfigs";
 import {
@@ -31,6 +32,7 @@ import {
   type TechnicalRenderConfig,
   type TechnicalRenderModuleId,
 } from "@/lib/render/technicalRenderModules";
+import { toast } from "sonner";
 
 const STATUS_CONFIG = {
   pending: { label: "In coda", variant: "secondary", icon: Clock },
@@ -60,6 +62,14 @@ type TechnicalDetailRow = {
   opportunity_id: string | null;
 };
 
+type DbError = { message?: string } | null;
+type DbQuery = {
+  select: (columns?: string) => DbQuery;
+  eq: (column: string, value: unknown) => DbQuery;
+  single: () => PromiseLike<{ data: unknown; error: DbError }>;
+};
+type DynamicSupabase = { from: (table: string) => DbQuery };
+
 function label(value?: string | null) {
   return value ? value.replace(/_/g, " ") : "Non specificato";
 }
@@ -74,10 +84,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  // render_technical_sessions is not in the generated supabase types yet,
-  // so we cast the client locally to keep the queries strongly scoped here.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
+  const db = supabase as unknown as DynamicSupabase;
   const spec = getTechnicalRenderModuleSpec(moduleId);
   const hubConfig = renderModuleHubConfigs[moduleId];
   const ModuleIcon = hubConfig.icon;
@@ -97,7 +104,10 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
       return data as TechnicalDetailRow | null;
     },
     enabled: !!id && !!companyId,
-    refetchInterval: (query) => query.state.data?.status === "processing" ? 5000 : false,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "processing" || status === "pending" ? 5000 : false;
+    },
   });
 
   const { data: originalUrl = null } = useQuery({
@@ -147,13 +157,13 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
     { label: "Preservare", value: cfg.preserveNotes },
   ];
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!resultUrl) return;
-    const a = document.createElement("a");
-    a.href = resultUrl;
-    a.download = `render_${moduleId}_${id?.slice(0, 8)}.png`;
-    a.target = "_blank";
-    a.click();
+    try {
+      await downloadRenderImage(resultUrl, `render_${moduleId}_${id ?? "session"}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
   };
 
   const handleShare = () => {

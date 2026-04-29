@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { ensureWindowRenderConfig } from "@/modules/render/lib/configMapper";
 import type { WindowRenderConfig, WindowTechnicalSpecification } from "@/modules/render/lib/types";
 import {
@@ -101,7 +102,7 @@ export default function RenderGalleryDetail() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const { data: session, isLoading } = useQuery({
+  const { data: session, isLoading, isError, refetch } = useQuery({
     queryKey: ["render-session-detail", id],
     queryFn: async () => {
       if (!id || !companyId) return null;
@@ -128,8 +129,10 @@ export default function RenderGalleryDetail() {
       } | null;
     },
     enabled: !!id && !!companyId,
-    refetchInterval: (data) =>
-      data?.status === "processing" ? 5_000 : false,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "processing" || status === "pending" ? 5_000 : false;
+    },
   });
 
   // Build signed URL for private render-originals bucket
@@ -159,13 +162,14 @@ export default function RenderGalleryDetail() {
   }, [rawConfig]);
   const firstSpec = windowRenderPlan?.technical_specification[0] ?? null;
 
-  const handleDownload = () => {
+  const handleDownload = useCallback(async () => {
     if (!resultUrl) return;
-    const a = document.createElement("a");
-    a.href = resultUrl;
-    a.download = `render_${id}.png`;
-    a.click();
-  };
+    try {
+      await downloadRenderImage(resultUrl, `render_${id}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
+  }, [resultUrl, id]);
 
   const handleShare = async () => {
     if (!resultUrl) return;
@@ -183,6 +187,21 @@ export default function RenderGalleryDetail() {
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-96 w-full" />
       </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card className="border-destructive">
+        <CardContent className="py-12 text-center space-y-3">
+          <XCircle className="mx-auto h-10 w-10 text-destructive" />
+          <p className="font-medium">Errore di caricamento</p>
+          <p className="text-sm text-muted-foreground">
+            Non siamo riusciti a leggere il render. Controlla la connessione e riprova.
+          </p>
+          <Button onClick={() => refetch()}>Riprova</Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -263,7 +282,7 @@ export default function RenderGalleryDetail() {
               afterUrl={resultUrl}
               className="aspect-video"
             />
-            <div className="flex gap-2 mt-4 justify-end">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
               <Button
                 variant="outline"
                 size="sm"

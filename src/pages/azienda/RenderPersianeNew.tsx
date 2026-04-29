@@ -28,6 +28,7 @@ import {
   PersianeConfigForm,
 } from "@/components/render-persiane/PersianeConfigForm";
 import { DEFAULT_PERSIANE_CONFIG } from "@/components/render-persiane/defaultPersianeConfig";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
@@ -421,14 +422,9 @@ export default function RenderPersianeNew() {
     const url = resultUrls[0];
     if (!url) return;
     try {
-      const resp = await fetch(url);
-      const blob = await resp.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `render_persiane_${Date.now()}.png`;
-      a.click();
+      await downloadRenderImage(url, `render_persiane_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito");
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
     }
   }, [resultUrls]);
 

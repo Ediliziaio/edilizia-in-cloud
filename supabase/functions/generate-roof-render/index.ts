@@ -5,7 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import {
@@ -424,6 +424,9 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   let user = { id: "" };
+  let refundableSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let creditDeducted = false;
 
   try {
     const auth = await requireAuth(req, CORS);
@@ -445,6 +448,7 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...CORS, "Content-Type": "application/json" } },
       );
     }
+    refundableSessionId = session_id;
 
     // ── Legge la sessione ────────────────────────────────────────────────────
     const { data: session, error: sessionErr } = await supabase
@@ -459,6 +463,7 @@ Deno.serve(async (req) => {
         { status: 404, headers: { ...CORS, "Content-Type": "application/json" } },
       );
     }
+    refundableCompanyId = session.company_id as string;
 
     // Verifica che la sessione appartenga all'utente (impersonation-aware, FIX P1.3)
     const allowed = await canAccessCompany(
@@ -502,6 +507,7 @@ Deno.serve(async (req) => {
         { status: 402, headers: { ...CORS, "Content-Type": "application/json" } },
       );
     }
+    creditDeducted = true;
 
     // ── Aggiorna sessione: processing ────────────────────────────────────────
     await supabase
@@ -707,6 +713,13 @@ Deno.serve(async (req) => {
     })().catch(async (jobErr: unknown) => {
       const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-roof-render] background error:", msg);
+      await refundRenderCreditSafe(supabase, {
+        companyId: session.company_id as string,
+        sessionId: session_id,
+        userId: user.id,
+        reasonMeta: { vertical: "tetto", edge_fn: "generate-roof-render", error: msg.substring(0, 500) },
+        logTag: "generate-roof-render",
+      });
       await supabase
         .from("render_tetto_sessions")
         .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })
@@ -725,6 +738,15 @@ Deno.serve(async (req) => {
       const body2 = await req.clone().json().catch(() => ({}));
       const sid = (body2 as { session_id?: string }).session_id;
       if (sid) {
+        if (creditDeducted && refundableCompanyId && refundableSessionId) {
+          await refundRenderCreditSafe(supabase, {
+            companyId: refundableCompanyId,
+            sessionId: refundableSessionId,
+            userId: user.id,
+            reasonMeta: { vertical: "tetto", edge_fn: "generate-roof-render", error: msg.substring(0, 500) },
+            logTag: "generate-roof-render",
+          });
+        }
         await supabase
           .from("render_tetto_sessions")
           .update({ status: "failed", error_message: msg })

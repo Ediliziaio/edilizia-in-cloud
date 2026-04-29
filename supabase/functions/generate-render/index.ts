@@ -8,7 +8,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage, pickProviderSize } from "../_shared/renderImage.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
 import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder.ts";
 import type { WindowRenderConfig } from "../../../shared/render-window/types.ts";
@@ -247,6 +247,9 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
   let user = { id: "" };
+  let refundableSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let creditDeducted = false;
 
   try {
     const auth = await requireAuth(req, CORS);
@@ -268,6 +271,7 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
+    refundableSessionId = session_id;
 
     // ── Legge la sessione ───────────────────────────────────────────────────
     const { data: session, error: sessionErr } = await supabase
@@ -282,6 +286,7 @@ Deno.serve(async (req) => {
         { status: 404, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
+    refundableCompanyId = session.company_id as string;
 
     // FIX P1.3: verifica tenant access tramite helper impersonation-aware.
     // L'helper considera: (a) super_admin → accesso globale, (b) impersonation
@@ -317,6 +322,7 @@ Deno.serve(async (req) => {
         { status: 402, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
+    creditDeducted = true;
 
     const revenueEur = deductResult.revenue_eur;
     const purchaseId = deductResult.purchase_id;
@@ -671,6 +677,15 @@ Deno.serve(async (req) => {
       const body2 = await req.clone().json().catch(() => ({}));
       const sid = (body2 as { session_id?: string }).session_id;
       if (sid) {
+        if (creditDeducted && refundableCompanyId && refundableSessionId) {
+          await refundRenderCreditSafe(supabase, {
+            companyId: refundableCompanyId,
+            sessionId: refundableSessionId,
+            userId: user.id,
+            reasonMeta: { vertical: "infissi", edge_fn: "generate-render", error: msg.substring(0, 500) },
+            logTag: "generate-render",
+          });
+        }
         await supabase
           .from("render_sessions")
           .update({ status: "failed", error_message: msg })

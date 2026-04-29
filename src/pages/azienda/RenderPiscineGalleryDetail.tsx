@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image, Waves,
   CheckCircle2, XCircle, Zap, Clock,
@@ -16,6 +17,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { getPiscineDb } from "@/modules/render-piscine/lib/dynamicSupabase";
+import { toast } from "sonner";
 
 const STATUS_CONFIG = {
   pending: { label: "In coda", variant: "secondary", icon: Clock },
@@ -73,7 +75,10 @@ export default function RenderPiscineGalleryDetail() {
       return data as PiscineSessionDetail | null;
     },
     enabled: !!id && !!companyId,
-    refetchInterval: (data) => data?.status === "processing" ? 5000 : false,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "processing" || status === "pending" ? 5000 : false;
+    },
   });
 
   const { data: originalUrl = null } = useQuery({
@@ -122,13 +127,13 @@ export default function RenderPiscineGalleryDetail() {
     ? comfort.accessori.filter((item): item is string => typeof item === "string")
     : [];
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!resultUrl) return;
-    const a = document.createElement("a");
-    a.href = resultUrl;
-    a.download = `render_piscine_${id?.slice(0, 8)}.png`;
-    a.target = "_blank";
-    a.click();
+    try {
+      await downloadRenderImage(resultUrl, `render_piscine_${id ?? "session"}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
   };
 
   const handleShare = () => {

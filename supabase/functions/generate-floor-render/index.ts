@@ -5,7 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
@@ -233,6 +233,9 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
   let user = { id: "" };
+  let refundableSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let creditDeducted = false;
 
   try {
     const auth = await requireAuth(req, CORS);
@@ -345,7 +348,7 @@ Use short values. Do not describe a renovation.`;
         try {
           const cleanJson = textPart.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
           analisi = JSON.parse(cleanJson);
-        } catch (_) {
+        } catch {
           analisi = { tipo_stanza: "non identificata", pavimento_attuale: "non identificato", colore_attuale: "non identificato", dimensione_stimata: "non identificata", stato_conservazione: "non identificato", battiscopa_presente: false };
         }
       }
@@ -373,6 +376,7 @@ Use short values. Do not describe a renovation.`;
         { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
+    refundableSessionId = session_id;
 
     // ── Load session ────────────────────────────────────────────────────
     const { data: session, error: sessionErr } = await supabase
@@ -387,6 +391,7 @@ Use short values. Do not describe a renovation.`;
         { status: 404, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
+    refundableCompanyId = session.company_id as string;
 
     // Verify ownership (impersonation-aware, FIX P1.3)
     const allowed = await canAccessCompany(
@@ -416,6 +421,7 @@ Use short values. Do not describe a renovation.`;
         { status: 402, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
+    creditDeducted = true;
 
     // ── Update session: processing ──────────────────────────────────────
     await supabase
@@ -662,6 +668,15 @@ Use short values. Do not describe a renovation.`;
       const body2 = await req.clone().json().catch(() => ({}));
       const sid = (body2 as { session_id?: string }).session_id;
       if (sid) {
+        if (creditDeducted && refundableCompanyId && refundableSessionId) {
+          await refundRenderCreditSafe(supabase, {
+            companyId: refundableCompanyId,
+            sessionId: refundableSessionId,
+            userId: user.id,
+            reasonMeta: { vertical: "pavimento", edge_fn: "generate-floor-render", error: msg.substring(0, 500) },
+            logTag: "generate-floor-render",
+          });
+        }
         await supabase
           .from("render_pavimento_sessions")
           .update({
@@ -671,7 +686,7 @@ Use short values. Do not describe a renovation.`;
           })
           .eq("id", sid);
       }
-    } catch (_) { /* best-effort */ }
+    } catch { /* best-effort */ }
 
     return new Response(
       JSON.stringify({ error: "internal_error", message: msg }),

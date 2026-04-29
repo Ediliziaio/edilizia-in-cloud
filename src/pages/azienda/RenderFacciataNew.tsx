@@ -28,6 +28,7 @@ import { DEFAULT_FACCIATA_CONFIG } from "@/components/render-facciata/defaultFac
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
@@ -411,14 +412,9 @@ export default function RenderFacciataNew() {
     const url = resultUrls[0];
     if (!url) return;
     try {
-      const resp = await fetch(url);
-      const blob = await resp.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `render_facciata_${Date.now()}.png`;
-      a.click();
+      await downloadRenderImage(url, `render_facciata_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito");
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
     }
   }, [resultUrls]);
 

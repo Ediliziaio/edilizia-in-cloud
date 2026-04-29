@@ -28,6 +28,7 @@ import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { preloadImage } from "@/lib/render/preloadImage";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 import { renderModuleHubConfigs } from "@/lib/render/renderModuleHubConfigs";
@@ -306,11 +307,11 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const downloadResult = async () => {
     const url = resultUrls[0];
     if (!url) return;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `render_${moduleId}_${Date.now()}.png`;
-    a.target = "_blank";
-    a.click();
+    try {
+      await downloadRenderImage(url, `render_${moduleId}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
   };
 
   const shareWhatsApp = () => {

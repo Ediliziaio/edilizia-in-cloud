@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
@@ -561,11 +561,15 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   let requestSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let requestUserId: string | null = null;
+  let creditDeducted = false;
 
   try {
     const auth = await requireAuth(req, CORS);
     supabase = auth.supabaseAdmin;
     const userId = auth.userId;
+    requestUserId = userId;
 
     const body = await req.json().catch(() => ({}));
     const {
@@ -600,6 +604,7 @@ Deno.serve(async (req) => {
     }
 
     const typedSession = session as FacciataSessionRow & Record<string, unknown>;
+    refundableCompanyId = typedSession.company_id;
 
     const allowed = await canAccessCompany(supabase, userId, typedSession.company_id);
     if (!allowed) {
@@ -646,6 +651,7 @@ Deno.serve(async (req) => {
     if (deductResult.status === "insufficient") {
       return jsonResponse({ error: "insufficient_credits", message: "Crediti render insufficienti" }, 402);
     }
+    creditDeducted = true;
 
     await supabase
       .from("render_facciata_sessions")
@@ -774,6 +780,15 @@ Deno.serve(async (req) => {
 
     if (requestSessionId) {
       try {
+        if (creditDeducted && refundableCompanyId) {
+          await refundRenderCreditSafe(supabase, {
+            companyId: refundableCompanyId,
+            sessionId: requestSessionId,
+            userId: requestUserId,
+            reasonMeta: { vertical: "facciata", edge_fn: "generate-facade-render", error: message.substring(0, 500) },
+            logTag: "generate-facade-render",
+          });
+        }
         await supabase
           .from("render_facciata_sessions")
           .update({ status: "failed", error_message: message })

@@ -31,6 +31,13 @@ export interface DeductRenderCreditResult {
   version: "v3" | "v2" | "v1";
 }
 
+export interface RefundRenderCreditResult {
+  status: "refunded" | "already_refunded" | "no_consume" | "skipped";
+  balance_after: number | null;
+  ledger_id: string | null;
+  reason?: string;
+}
+
 export async function deductRenderCreditSafe(
   supabase: SupabaseClient,
   params: {
@@ -118,5 +125,49 @@ export async function deductRenderCreditSafe(
     balance_after: null,
     ledger_id:     null,
     version:       "v1",
+  };
+}
+
+export async function refundRenderCreditSafe(
+  supabase: SupabaseClient,
+  params: {
+    companyId: string;
+    sessionId: string;
+    userId?: string | null;
+    reasonMeta?: Record<string, unknown> | null;
+    logTag?: string;
+  },
+): Promise<RefundRenderCreditResult> {
+  const tag = params.logTag ?? "render";
+
+  const rpc = await supabase.rpc("refund_render_credit_v1", {
+    _company_id:  params.companyId,
+    _session_id:  params.sessionId,
+    _user_id:     params.userId ?? null,
+    _reason_meta: params.reasonMeta ?? null,
+  });
+
+  if (rpc.error) {
+    console.warn(`[${tag}] refund_render_credit_v1 failed:`, rpc.error.message);
+    return {
+      status: "skipped",
+      balance_after: null,
+      ledger_id: null,
+      reason: rpc.error.message,
+    };
+  }
+
+  const payload = (rpc.data ?? {}) as {
+    status?: RefundRenderCreditResult["status"];
+    balance_after?: number | string | null;
+    ledger_id?: string | null;
+    reason?: string;
+  };
+
+  return {
+    status: payload.status ?? "skipped",
+    balance_after: payload.balance_after == null ? null : Number(payload.balance_after),
+    ledger_id: payload.ledger_id ?? null,
+    reason: payload.reason,
   };
 }

@@ -9,12 +9,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image, Sun,
   CheckCircle2, XCircle, Zap, Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { toast } from "sonner";
 
 const STATUS_CONFIG = {
   pending: { label: "In coda", variant: "secondary", icon: Clock },
@@ -78,7 +80,10 @@ export default function RenderPergoleGalleryDetail() {
       } | null;
     },
     enabled: !!id && !!companyId,
-    refetchInterval: (data) => data?.status === "processing" ? 5000 : false,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "processing" || status === "pending" ? 5000 : false;
+    },
   });
 
   const { data: originalUrl = null } = useQuery({
@@ -124,13 +129,13 @@ export default function RenderPergoleGalleryDetail() {
   const chiusure = asObject(cfg.chiusure_laterali);
   const installazione = asObject(cfg.installazione);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!resultUrl) return;
-    const a = document.createElement("a");
-    a.href = resultUrl;
-    a.download = `render_pergole_${id?.slice(0, 8)}.png`;
-    a.target = "_blank";
-    a.click();
+    try {
+      await downloadRenderImage(resultUrl, `render_pergole_${id ?? "session"}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
   };
 
   const handleShare = () => {

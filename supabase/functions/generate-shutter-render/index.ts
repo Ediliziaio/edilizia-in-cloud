@@ -4,7 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 import {
@@ -369,6 +369,8 @@ Deno.serve(async (req) => {
   );
   let user = { id: "" };
   let requestSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let creditDeducted = false;
 
   try {
     const auth = await requireAuth(req, CORS);
@@ -437,6 +439,7 @@ Deno.serve(async (req) => {
     if (!session) {
       return jsonResponse({ error: "not_found", message: "Sessione non trovata" }, 404);
     }
+    refundableCompanyId = session.company_id;
 
     const allowed = await canAccessCompany(supabase, user.id, session.company_id);
     if (!allowed) {
@@ -504,6 +507,7 @@ Deno.serve(async (req) => {
         .eq("id", session_id);
       return jsonResponse({ error: "insufficient_credits", message: "Crediti render insufficienti" }, 402);
     }
+    creditDeducted = true;
 
     const { providerConfig, apiKey } = await loadRenderProviderWithKey(supabase);
 
@@ -675,6 +679,15 @@ Deno.serve(async (req) => {
 
     try {
       if (requestSessionId) {
+        if (creditDeducted && refundableCompanyId) {
+          await refundRenderCreditSafe(supabase, {
+            companyId: refundableCompanyId,
+            sessionId: requestSessionId,
+            userId: user.id,
+            reasonMeta: { vertical: "persiane", edge_fn: "generate-shutter-render", error: message.substring(0, 500) },
+            logTag: "generate-shutter-render",
+          });
+        }
         await supabase
           .from("render_persiane_sessions")
           .update({

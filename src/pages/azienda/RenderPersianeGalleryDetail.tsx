@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { ensurePersianeRenderConfig } from "@/modules/render-persiane/lib/persianeRenderConfig";
 import {
   ArrowLeft,
@@ -67,8 +68,10 @@ export default function RenderPersianeGalleryDetail() {
       } | null;
     },
     enabled: !!id && !!companyId,
-    refetchInterval: (query) =>
-      (query.state.data as { status?: string } | undefined)?.status === "processing" ? 5000 : false,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "processing" || status === "pending" ? 5000 : false;
+    },
   });
 
   const { data: originalUrl = null } = useQuery({
@@ -91,13 +94,14 @@ export default function RenderPersianeGalleryDetail() {
     [session?.config],
   );
 
-  const handleDownload = () => {
+  const handleDownload = useCallback(async () => {
     if (!resultUrl) return;
-    const a = document.createElement("a");
-    a.href = resultUrl;
-    a.download = `render_persiane_${id}.png`;
-    a.click();
-  };
+    try {
+      await downloadRenderImage(resultUrl, `render_persiane_${id ?? "session"}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
+  }, [resultUrl, id]);
 
   const handleShare = async () => {
     if (!resultUrl) return;
@@ -203,7 +207,7 @@ export default function RenderPersianeGalleryDetail() {
           </CardHeader>
           <CardContent>
             <BeforeAfterSlider beforeUrl={originalUrl} afterUrl={resultUrl} />
-            <div className="flex gap-2 mt-4 justify-end">
+            <div className="grid grid-cols-2 gap-2 mt-4 sm:grid-cols-4">
               <Button
                 variant="outline"
                 size="sm"
@@ -271,7 +275,7 @@ export default function RenderPersianeGalleryDetail() {
               alt="Render AI Persiane"
               className="w-full max-h-[75vh] object-contain rounded-lg"
             />
-            <div className="flex gap-2 mt-4 justify-end">
+            <div className="grid grid-cols-2 gap-2 mt-4 sm:grid-cols-4">
               <RenderPdfDownloadButton
                 afterUrl={resultUrl}
                 title="Render AI Persiane"

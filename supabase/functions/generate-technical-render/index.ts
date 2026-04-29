@@ -5,7 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
 import {
@@ -220,10 +220,6 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
 function text(value: unknown, fallback = ""): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
@@ -408,11 +404,16 @@ Deno.serve(async (req) => {
 
   let supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   let currentSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let requestUserId: string | null = null;
+  let refundableVertical = "technical";
+  let creditDeducted = false;
 
   try {
     const auth = await requireAuth(req, CORS);
     supabase = auth.supabaseAdmin;
     const userId = auth.userId;
+    requestUserId = userId;
 
     const body = await req.json().catch(() => ({}));
     const { session_id, config, target_width, target_height } = body as {
@@ -436,8 +437,10 @@ Deno.serve(async (req) => {
     if (sessionErr || !session) {
       return jsonResponse({ error: "not_found", message: "Sessione render non trovata" }, 404);
     }
+    refundableCompanyId = session.company_id as string;
 
     const moduleType = session.module_type as TechnicalModuleId;
+    refundableVertical = moduleType;
     if (!MODULE_IDS.includes(moduleType)) {
       return jsonResponse({ error: "validation_error", message: "Modulo render tecnico non supportato" }, 400);
     }
@@ -472,6 +475,7 @@ Deno.serve(async (req) => {
     if (deductResult.status === "insufficient") {
       return jsonResponse({ error: "insufficient_credits", message: "Crediti render insufficienti" }, 402);
     }
+    creditDeducted = true;
 
     await supabase
       .from("render_technical_sessions")
@@ -627,6 +631,13 @@ Deno.serve(async (req) => {
     })().catch(async (jobErr: unknown) => {
       const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-technical-render] background error:", msg);
+      await refundRenderCreditSafe(supabase, {
+        companyId: session.company_id as string,
+        sessionId: session_id,
+        userId,
+        reasonMeta: { vertical: moduleType, edge_fn: "generate-technical-render", error: msg.substring(0, 500) },
+        logTag: "generate-technical-render",
+      });
       await supabase
         .from("render_technical_sessions")
         .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })
@@ -640,6 +651,15 @@ Deno.serve(async (req) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[generate-technical-render] error:", msg);
     if (currentSessionId) {
+      if (creditDeducted && refundableCompanyId) {
+        await refundRenderCreditSafe(supabase, {
+          companyId: refundableCompanyId,
+          sessionId: currentSessionId,
+          userId: requestUserId,
+          reasonMeta: { vertical: refundableVertical, edge_fn: "generate-technical-render", error: msg.substring(0, 500) },
+          logTag: "generate-technical-render",
+        });
+      }
       await supabase
         .from("render_technical_sessions")
         .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })

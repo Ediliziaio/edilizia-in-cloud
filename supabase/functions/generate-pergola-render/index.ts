@@ -5,7 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import {
@@ -299,6 +299,9 @@ Deno.serve(async (req) => {
 
   let supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   let user = { id: "" };
+  let refundableSessionId: string | null = null;
+  let refundableCompanyId: string | null = null;
+  let creditDeducted = false;
 
   try {
     const auth = await requireAuth(req, CORS);
@@ -319,6 +322,7 @@ Deno.serve(async (req) => {
         headers: { ...CORS, "Content-Type": "application/json" },
       });
     }
+    refundableSessionId = session_id;
 
     const { data: session, error: sessionErr } = await supabase
       .from("render_pergole_sessions")
@@ -332,6 +336,7 @@ Deno.serve(async (req) => {
         headers: { ...CORS, "Content-Type": "application/json" },
       });
     }
+    refundableCompanyId = session.company_id as string;
 
     const allowed = await canAccessCompany(supabase, user.id, session.company_id as string);
     if (!allowed) {
@@ -369,6 +374,7 @@ Deno.serve(async (req) => {
         headers: { ...CORS, "Content-Type": "application/json" },
       });
     }
+    creditDeducted = true;
 
     await supabase
       .from("render_pergole_sessions")
@@ -507,6 +513,13 @@ Deno.serve(async (req) => {
     })().catch(async (jobErr: unknown) => {
       const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-pergola-render] background error:", msg);
+      await refundRenderCreditSafe(supabase, {
+        companyId: session.company_id as string,
+        sessionId: session_id,
+        userId: user.id,
+        reasonMeta: { vertical: "pergole", edge_fn: "generate-pergola-render", error: msg.substring(0, 500) },
+        logTag: "generate-pergola-render",
+      });
       await supabase
         .from("render_pergole_sessions")
         .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })
@@ -523,6 +536,15 @@ Deno.serve(async (req) => {
       const body2 = await req.clone().json().catch(() => ({}));
       const sid = (body2 as { session_id?: string }).session_id;
       if (sid) {
+        if (creditDeducted && refundableCompanyId && refundableSessionId) {
+          await refundRenderCreditSafe(supabase, {
+            companyId: refundableCompanyId,
+            sessionId: refundableSessionId,
+            userId: user.id,
+            reasonMeta: { vertical: "pergole", edge_fn: "generate-pergola-render", error: msg.substring(0, 500) },
+            logTag: "generate-pergola-render",
+          });
+        }
         await supabase.from("render_pergole_sessions").update({ status: "failed", error_message: msg }).eq("id", sid);
       }
     } catch { /* ignore */ }

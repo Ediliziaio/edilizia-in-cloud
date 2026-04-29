@@ -12,6 +12,7 @@ import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadBu
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { BathroomSelectionSummary } from "@/components/render-bagno/BathroomSelectionSummary";
 import { ensureBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Image,
   CheckCircle2, XCircle, Zap, Clock, Wand2, Bath,
@@ -114,12 +115,13 @@ export default function RenderBagnoGalleryDetail() {
     ].filter(Boolean);
   }, [renderPlan]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!resultUrl) return;
-    const a = document.createElement("a");
-    a.href = resultUrl;
-    a.download = `render_bagno_${id}.png`;
-    a.click();
+    try {
+      await downloadRenderImage(resultUrl, `render_bagno_${id}_${Date.now()}.png`);
+    } catch {
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    }
   };
 
   const handleShare = async () => {

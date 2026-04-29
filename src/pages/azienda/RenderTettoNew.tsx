@@ -20,6 +20,7 @@ import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 import { preloadImage } from "@/lib/render/preloadImage";
+import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import type { ConfigurazioneTetto } from "@/modules/render-tetto/lib/types";
 import {
   getEdgeFunctionAuthHeaders,
@@ -312,14 +313,9 @@ export default function RenderTettoNew() {
     const url = resultUrls[0];
     if (!url) return;
     try {
-      const resp = await fetch(url);
-      const blob = await resp.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `render_tetto_${Date.now()}.png`;
-      a.click();
+      await downloadRenderImage(url, `render_tetto_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito");
+      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
     }
   }, [resultUrls]);
 
