@@ -40,9 +40,9 @@ import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import InventoryAuditDialog from "./InventoryAuditDialog";
 import type { StockItem } from "@/types/warehouse";
 
-// Quick scan + carico/oda: lazy per non gonfiare il bundle iniziale (@zxing/library ~500KB).
-const WarehouseQuickScanSheet = lazy(() =>
-  import("./WarehouseQuickScanSheet").then((m) => ({ default: m.WarehouseQuickScanSheet })),
+// Scanner QR: lazy per non gonfiare il bundle iniziale (@zxing/library ~500KB).
+const BatchBarcodeScanner = lazy(() =>
+  import("./BatchBarcodeScanner").then((m) => ({ default: m.BatchBarcodeScanner })),
 );
 const CaricoRapidoSheet = lazy(() =>
   import("./CaricoRapidoSheet").then((m) => ({ default: m.CaricoRapidoSheet })),
@@ -814,13 +814,15 @@ export default function WarehouseStockTab() {
           companyId={companyId!}
         />
 
-        {/* Quick Scan — collega QR ↔ giacenze. Lazy per non gonfiare il bundle iniziale. */}
+        {/* Quick Scan — lookup single-shot tramite BatchBarcodeScanner mode='lookup'. */}
         <Suspense fallback={null}>
           {quickScanOpen && (
-            <WarehouseQuickScanSheet
+            <BatchBarcodeScanner
               open={quickScanOpen}
               onOpenChange={setQuickScanOpen}
-              onSelectItem={(id) => {
+              mode="lookup"
+              contextLabel="Cerca articolo in giacenza"
+              onLookupFilter={(id) => {
                 // Filtra la tabella per nome articolo + toast con giacenza.
                 // È sufficiente come feedback visivo: la riga matching diventa
                 // l'unica visibile dopo il filter (no need di highlight extra).
@@ -836,14 +838,14 @@ export default function WarehouseStockTab() {
                   });
                 }
               }}
-              onEditItem={(id) => {
+              onLookupEdit={(id) => {
                 const item = stockItems.find((s) => s.id === id);
                 if (item) {
                   setEditingItem(item);
                   setDialogOpen(true);
                 }
               }}
-              onCreateFromBarcode={(barcode) => {
+              onLookupCreateNew={(barcode) => {
                 // Apri StockItemDialog precompilato (prop prefillBarcode già supportata in MP1 TASK 8).
                 setEditingItem(null);
                 setPrefillBarcodeForDialog(barcode);

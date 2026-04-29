@@ -52,6 +52,8 @@ import {
   Minus,
   Loader2,
   PackagePlus,
+  Filter,
+  Edit,
 } from "lucide-react";
 import {
   successFeedback,
@@ -96,7 +98,7 @@ export interface BatchScanEntry {
   scannedAt: number;
 }
 
-export type BatchScanMode = "carico" | "oda_receive";
+export type BatchScanMode = "carico" | "oda_receive" | "lookup";
 
 interface BatchBarcodeScannerProps {
   open: boolean;
@@ -114,9 +116,9 @@ interface BatchBarcodeScannerProps {
   /** Entries iniziali (per riapertura sheet). */
   initialEntries?: BatchScanEntry[];
   /** Callback ad ogni cambio entries (caller mantiene state). */
-  onEntriesChange: (entries: BatchScanEntry[]) => void;
+  onEntriesChange?: (entries: BatchScanEntry[]) => void;
   /** CTA finale (es. "Conferma carico"). */
-  onConfirm: () => void;
+  onConfirm?: () => void;
   /** Etichetta del CTA finale. */
   confirmLabel?: string;
   /** True quando il commit è in corso. */
@@ -137,6 +139,12 @@ interface BatchBarcodeScannerProps {
     itemName: string;
     trackingMode: "fungible" | "serialized";
   } | null>;
+  /** mode='lookup': filtra la tabella sul risultato trovato. */
+  onLookupFilter?: (stockItemId: string | undefined) => void;
+  /** mode='lookup': apre il dialog modifica articolo. */
+  onLookupEdit?: (stockItemId: string | undefined) => void;
+  /** mode='lookup': apre il dialog crea articolo con barcode precompilato. */
+  onLookupCreateNew?: (rawCode: string) => void;
 }
 
 const DUPLICATE_THROTTLE_MS = 2000;
@@ -168,8 +176,12 @@ export function BatchBarcodeScanner({
   confirmLabel = "Conferma",
   isConfirming = false,
   onRequestCreateItem,
+  onLookupFilter,
+  onLookupEdit,
+  onLookupCreateNew,
 }: BatchBarcodeScannerProps) {
   const [entries, setEntries] = useState<BatchScanEntry[]>(initialEntries ?? []);
+  const [lookupResult, setLookupResult] = useState<BatchScanEntry | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [torchOn, setTorchOn] = useState(false);
@@ -184,6 +196,7 @@ export function BatchBarcodeScanner({
   const manualInputRef = useRef<HTMLInputElement>(null);
 
   const lookup = useBarcodeLookup();
+  const scannerPaused = mode === "lookup" && !!lookupResult;
 
   // Sync iniziale al primo render quando initialEntries cambia.
   useEffect(() => {
@@ -201,19 +214,28 @@ export function BatchBarcodeScanner({
 
   // Notifica caller di ogni cambio entries.
   useEffect(() => {
-    onEntriesChange(entries);
+    onEntriesChange?.(entries);
   }, [entries, onEntriesChange]);
 
   // Avvio/teardown camera quando il sheet si apre/chiude o switch manualMode.
   useEffect(() => {
-    if (!open || manualMode) {
+    if (!open || manualMode || scannerPaused) {
       stopCamera();
       return;
     }
     startCamera();
     return stopCamera;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, manualMode]);
+  }, [open, manualMode, scannerPaused]);
+
+  // Reset lookup single-shot quando il foglio viene chiuso.
+  useEffect(() => {
+    if (!open) {
+      setLookupResult(null);
+      setManualMode(false);
+      setManualCode("");
+    }
+  }, [open]);
 
   // Auto-focus input manuale quando attivato.
   useEffect(() => {
@@ -300,6 +322,7 @@ export function BatchBarcodeScanner({
     async (rawCode: string, scanFormat?: string) => {
       const code = rawCode.trim();
       if (!code) return;
+      if (mode === "lookup" && lookupResult) return;
 
       // Throttle duplicati: stesso codice in <2s viene ignorato silenziosamente.
       const now = Date.now();
@@ -324,24 +347,29 @@ export function BatchBarcodeScanner({
         if (action.kind === "offer_create_new") {
           await errorFeedback();
           toast.warning("Codice non riconosciuto", {
-            description: `${code.slice(0, 32)} — verrà aggiunto come "no match"`,
+            description:
+              mode === "lookup"
+                ? "Puoi creare subito un nuovo articolo con questo codice."
+                : `${code.slice(0, 32)} — verrà aggiunto come "no match"`,
           });
+          const noMatchEntry: BatchScanEntry = {
+            clientUuid: newClientUuid(),
+            rawCode: code,
+            scanFormat,
+            stockItemId: null,
+            itemName: null,
+            trackingMode: null,
+            quantity: 1,
+            serialNumbers: [],
+            scannedAt: now,
+          };
+          if (mode === "lookup") {
+            setLookupResult(noMatchEntry);
+            return;
+          }
           // Aggiungi entry "no match" così il caller può proporre la creazione
           // dopo il batch (mostra in Review step).
-          setEntries((prev) => [
-            ...prev,
-            {
-              clientUuid: newClientUuid(),
-              rawCode: code,
-              scanFormat,
-              stockItemId: null,
-              itemName: null,
-              trackingMode: null,
-              quantity: 1,
-              serialNumbers: [],
-              scannedAt: now,
-            },
-          ]);
+          setEntries((prev) => [...prev, noMatchEntry]);
           return;
         }
 
@@ -380,6 +408,25 @@ export function BatchBarcodeScanner({
         }
 
         if (!resolvedItemId) return;
+
+        const nextEntry: BatchScanEntry = {
+          clientUuid: newClientUuid(),
+          rawCode: code,
+          scanFormat,
+          stockItemId: resolvedItemId,
+          itemName: resolvedItemName,
+          trackingMode: resolvedTracking,
+          quantity: 1,
+          serialNumbers: resolvedSerial ? [resolvedSerial] : [],
+          odaItemId: null,
+          scannedAt: now,
+        };
+
+        if (mode === "lookup") {
+          setLookupResult(nextEntry);
+          await successFeedback();
+          return;
+        }
 
         // Validazione mode='oda_receive': l'articolo deve essere in allowedOdaItems.
         let odaItemId: string | null = null;
@@ -437,21 +484,7 @@ export function BatchBarcodeScanner({
           }
 
           // Nuova entry
-          return [
-            ...prev,
-            {
-              clientUuid: newClientUuid(),
-              rawCode: code,
-              scanFormat,
-              stockItemId: resolvedItemId,
-              itemName: resolvedItemName,
-              trackingMode: resolvedTracking,
-              quantity: resolvedSerial ? 1 : 1,
-              serialNumbers: resolvedSerial ? [resolvedSerial] : [],
-              odaItemId,
-              scannedAt: now,
-            },
-          ];
+          return [...prev, { ...nextEntry, odaItemId }];
         });
 
         await successFeedback();
@@ -462,7 +495,7 @@ export function BatchBarcodeScanner({
         });
       }
     },
-    [lookup, supplierId, supplierUsesGs1, mode, allowedOdaItems],
+    [lookup, supplierId, supplierUsesGs1, mode, allowedOdaItems, lookupResult],
   );
 
   function handleManualSubmit(e: React.FormEvent) {
@@ -555,7 +588,11 @@ export function BatchBarcodeScanner({
             <SheetTitle className="text-base flex items-center gap-2 min-w-0">
               <ScanLine className="h-5 w-5 text-primary shrink-0" />
               <span className="truncate">
-                {mode === "oda_receive" ? "Ricezione da ODA" : "Carico rapido QR"}
+                {mode === "lookup"
+                  ? "Cerca articolo"
+                  : mode === "oda_receive"
+                    ? "Ricezione da ODA"
+                    : "Carico rapido QR"}
               </span>
             </SheetTitle>
             <div className="flex items-center gap-1.5">
@@ -565,9 +602,11 @@ export function BatchBarcodeScanner({
                   Offline
                 </Badge>
               )}
-              <Badge variant="outline" className="font-mono">
-                {entries.length} righe · {totalScans} pz
-              </Badge>
+              {mode !== "lookup" && (
+                <Badge variant="outline" className="font-mono">
+                  {entries.length} righe · {totalScans} pz
+                </Badge>
+              )}
             </div>
           </div>
           {contextLabel && (
@@ -675,13 +714,34 @@ export function BatchBarcodeScanner({
           )}
         </div>
 
-        {/* Entries list */}
+        {/* Risultato lookup single-shot / Entries list batch */}
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-4 space-y-2">
-            {entries.length === 0 ? (
+            {mode === "lookup" && lookupResult ? (
+              <LookupResultPanel
+                result={lookupResult}
+                onFilterInTable={() => {
+                  onLookupFilter?.(lookupResult.stockItemId ?? undefined);
+                  onOpenChange(false);
+                }}
+                onEditItem={() => {
+                  onLookupEdit?.(lookupResult.stockItemId ?? undefined);
+                  onOpenChange(false);
+                }}
+                onCreateNew={() => {
+                  onLookupCreateNew?.(lookupResult.rawCode);
+                  onOpenChange(false);
+                }}
+                onScanAgain={() => setLookupResult(null)}
+              />
+            ) : entries.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <ScanLine className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p className="text-sm">Inquadra il QR / barcode per iniziare.</p>
+                <p className="text-sm">
+                  {mode === "lookup"
+                    ? "Inquadra il QR / barcode per cercare un articolo."
+                    : "Inquadra il QR / barcode per iniziare."}
+                </p>
                 {mode === "oda_receive" && (
                   <p className="text-[11px] mt-1">
                     Solo articoli inclusi nell'ODA verranno accettati direttamente.
@@ -709,6 +769,7 @@ export function BatchBarcodeScanner({
         </ScrollArea>
 
         {/* Footer with confirm CTA */}
+        {mode !== "lookup" && (
         <div className="border-t p-3 space-y-2 shrink-0 bg-card">
           {noMatchCount > 0 && (
             <Alert>
@@ -752,8 +813,87 @@ export function BatchBarcodeScanner({
             </Button>
           </div>
         </div>
+        )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function LookupResultPanel({
+  result,
+  onFilterInTable,
+  onEditItem,
+  onCreateNew,
+  onScanAgain,
+}: {
+  result: BatchScanEntry;
+  onFilterInTable: () => void;
+  onEditItem: () => void;
+  onCreateNew: () => void;
+  onScanAgain: () => void;
+}) {
+  const matched = !!result.stockItemId;
+
+  return (
+    <div className="space-y-3">
+      <div className={`rounded-lg border p-4 ${matched ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
+        <div className="flex items-start gap-3">
+          {matched ? (
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+          ) : (
+            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            {matched ? (
+              <>
+                <div className="font-semibold text-base truncate">{result.itemName}</div>
+                {result.serialNumbers.length > 0 && (
+                  <div className="text-xs text-muted-foreground font-mono">
+                    SN: {result.serialNumbers.join(", ")}
+                  </div>
+                )}
+                {result.trackingMode && (
+                  <Badge variant="outline" className="mt-2 text-[10px]">
+                    {result.trackingMode === "serialized" ? "Serializzato" : "Fungibile"}
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="font-semibold text-base">Articolo non trovato</div>
+                <div className="text-xs text-muted-foreground font-mono break-all mt-1">
+                  Codice scansionato: {result.rawCode}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2">
+        {matched ? (
+          <>
+            <Button onClick={onFilterInTable} className="w-full justify-start">
+              <Filter className="h-4 w-4 mr-2" />
+              Filtra in tabella
+            </Button>
+            <Button onClick={onEditItem} variant="outline" className="w-full justify-start">
+              <Edit className="h-4 w-4 mr-2" />
+              Modifica articolo
+            </Button>
+          </>
+        ) : (
+          <Button onClick={onCreateNew} className="w-full justify-start">
+            <Plus className="h-4 w-4 mr-2" />
+            Crea nuovo articolo con questo codice
+          </Button>
+        )}
+        <Button onClick={onScanAgain} variant="ghost" className="w-full justify-start">
+          <ScanLine className="h-4 w-4 mr-2" />
+          Scansiona di nuovo
+        </Button>
+      </div>
+    </div>
   );
 }
 
