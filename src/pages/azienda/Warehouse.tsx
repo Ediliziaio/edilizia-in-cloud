@@ -66,6 +66,7 @@ import { SlidersHorizontal } from "lucide-react";
 
 import WarehouseStats from "@/components/warehouse/WarehouseStats";
 import WarehouseInventoryStats from "@/components/warehouse/WarehouseInventoryStats";
+import { MobileKpiStrip } from "@/components/warehouse/MobileKpiStrip";
 import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
 import WarehouseListView from "@/components/warehouse/WarehouseListView";
@@ -350,12 +351,20 @@ export default function Warehouse() {
           Click su una KPI workflow da modalità inventario → switch automatico
           a workflow + applica filtro (vedi handleStatsCardClick). */}
       <div className="space-y-3">
-        <WarehouseStats
+        <MobileKpiStrip
           items={items}
+          companyId={effectiveCompany.id}
           activeFilter={activeStatsFilter}
           onCardClick={handleStatsCardClick}
         />
-        <WarehouseInventoryStats companyId={effectiveCompany.id} />
+        <div className="hidden md:block space-y-3">
+          <WarehouseStats
+            items={items}
+            activeFilter={activeStatsFilter}
+            onCardClick={handleStatsCardClick}
+          />
+          <WarehouseInventoryStats companyId={effectiveCompany.id} />
+        </div>
       </div>
 
       {/* View Toggle & Filters */}
