@@ -86,7 +86,7 @@ export function buildInteriorDoorCompatibilityEnvelope(
   const glass = structuralChange && (config.door_type === "vetrata" || config.glass.enabled || config.interventi.includes("add_glazing"));
 
   if (wallSliding && !["sufficiente", "ampio"].includes(config.apertura.spazio_scorrimento_parete)) {
-    warnings.push(`External wall sliding selected but available wall travel area is ${config.apertura.spazio_scorrimento_parete}: not buildable, fall back to a hinged or pocket system.`);
+    warnings.push(`External wall sliding selected: available wall travel area is not sufficient (${config.apertura.spazio_scorrimento_parete}); not buildable, fall back to a hinged or pocket system.`);
   }
   if (doubleLeaf && !["ampia", "molto_ampia"].includes(config.apertura.larghezza_apparente)) {
     warnings.push("Double-leaf door requires a wide apparent doorway.");

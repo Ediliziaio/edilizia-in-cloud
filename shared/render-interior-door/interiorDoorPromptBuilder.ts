@@ -84,7 +84,7 @@ ${bullets(target.nonModifiableElements)}`;
 Plausible opening proportions: ${envelope.plausibleOpeningProportions}
 Swing compatibility: ${envelope.swingCompatibility}
 Pocket sliding compatibility: ${envelope.pocketSlidingCompatibility}
-Wall sliding feasibility: ${envelope.wallSlidingFeasibility}
+Wall sliding feasibility mandatory: ${envelope.wallSlidingFeasibility}
 Double-leaf width plausibility: ${envelope.doubleLeafWidthPlausibility}
 Full-height ceiling relation: ${envelope.fullHeightCeilingRelation}
 Glass context compatibility: ${envelope.glassContextCompatibility}
