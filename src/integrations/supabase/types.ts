@@ -30174,11 +30174,19 @@ export type Database = {
         Row: {
           address: string | null
           bank_name: string | null
+          barcode_prefix: string | null
           city: string | null
           company_id: string
           country: string | null
           created_at: string
           credit_limit: number | null
+          default_qr_format:
+            | "ean13"
+            | "gtin14"
+            | "gs1_128"
+            | "gs1_qr"
+            | "custom"
+            | null
           email: string | null
           fiscal_code: string | null
           iban: string | null
@@ -30196,6 +30204,7 @@ export type Database = {
           province: string | null
           rating: number | null
           updated_at: string
+          uses_gs1: boolean
           vat_number: string | null
           vat_rate: number | null
           website: string | null
@@ -30203,11 +30212,19 @@ export type Database = {
         Insert: {
           address?: string | null
           bank_name?: string | null
+          barcode_prefix?: string | null
           city?: string | null
           company_id: string
           country?: string | null
           created_at?: string
           credit_limit?: number | null
+          default_qr_format?:
+            | "ean13"
+            | "gtin14"
+            | "gs1_128"
+            | "gs1_qr"
+            | "custom"
+            | null
           email?: string | null
           fiscal_code?: string | null
           iban?: string | null
@@ -30225,6 +30242,7 @@ export type Database = {
           province?: string | null
           rating?: number | null
           updated_at?: string
+          uses_gs1?: boolean
           vat_number?: string | null
           vat_rate?: number | null
           website?: string | null
@@ -30232,11 +30250,19 @@ export type Database = {
         Update: {
           address?: string | null
           bank_name?: string | null
+          barcode_prefix?: string | null
           city?: string | null
           company_id?: string
           country?: string | null
           created_at?: string
           credit_limit?: number | null
+          default_qr_format?:
+            | "ean13"
+            | "gtin14"
+            | "gs1_128"
+            | "gs1_qr"
+            | "custom"
+            | null
           email?: string | null
           fiscal_code?: string | null
           iban?: string | null
@@ -30254,6 +30280,7 @@ export type Database = {
           province?: string | null
           rating?: number | null
           updated_at?: string
+          uses_gs1?: boolean
           vat_number?: string | null
           vat_rate?: number | null
           website?: string | null
@@ -33857,10 +33884,13 @@ export type Database = {
       }
       warehouse_stock: {
         Row: {
+          barcode: string | null
           company_id: string
           created_at: string
+          default_warranty_months: number | null
           description: string | null
           id: string
+          internal_code: string | null
           last_delivery_date: string | null
           last_lot_number: string | null
           min_stock_level: number
@@ -33868,19 +33898,25 @@ export type Database = {
           quantity: number
           quantity_available: number | null
           quantity_reserved: number
+          qr_generated_at: string | null
           reorder_quantity: number
+          requires_warranty: boolean
           section_id: string | null
           supplier_id: string | null
+          tracking_mode: "fungible" | "serialized"
           unit_cost: number
           updated_at: string
           vat_rate: number | null
           warehouse_id: string | null
         }
         Insert: {
+          barcode?: string | null
           company_id: string
           created_at?: string
+          default_warranty_months?: number | null
           description?: string | null
           id?: string
+          internal_code?: string | null
           last_delivery_date?: string | null
           last_lot_number?: string | null
           min_stock_level?: number
@@ -33888,19 +33924,25 @@ export type Database = {
           quantity?: number
           quantity_available?: number | null
           quantity_reserved?: number
+          qr_generated_at?: string | null
           reorder_quantity?: number
+          requires_warranty?: boolean
           section_id?: string | null
           supplier_id?: string | null
+          tracking_mode?: "fungible" | "serialized"
           unit_cost?: number
           updated_at?: string
           vat_rate?: number | null
           warehouse_id?: string | null
         }
         Update: {
+          barcode?: string | null
           company_id?: string
           created_at?: string
+          default_warranty_months?: number | null
           description?: string | null
           id?: string
+          internal_code?: string | null
           last_delivery_date?: string | null
           last_lot_number?: string | null
           min_stock_level?: number
@@ -33908,9 +33950,12 @@ export type Database = {
           quantity?: number
           quantity_available?: number | null
           quantity_reserved?: number
+          qr_generated_at?: string | null
           reorder_quantity?: number
+          requires_warranty?: boolean
           section_id?: string | null
           supplier_id?: string | null
+          tracking_mode?: "fungible" | "serialized"
           unit_cost?: number
           updated_at?: string
           vat_rate?: number | null
