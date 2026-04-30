@@ -96,29 +96,9 @@ interface Profile {
   avatar_url?: string | null;
 }
 
-type InternalRole =
-  | "company_admin"
-  | "company_staff"
-  | "salesperson"
-  | "call_center"
-  | "employee"
-  | "subcontractor"
-  | "super_admin";
-
-interface UserRoleRow {
-  user_id: string;
-  role: string;
+interface RawProfile extends Profile {
+  portal_disabled?: boolean | null;
 }
-
-const INTERNAL_CHAT_ROLES = new Set<InternalRole>([
-  "company_admin",
-  "company_staff",
-  "salesperson",
-  "call_center",
-  "employee",
-  "subcontractor",
-  "super_admin",
-]);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function escapeHtml(raw: string): string {
@@ -216,48 +196,66 @@ function useInternalChat(companyIdOverride?: string) {
   });
 
   const { data: profiles = [] } = useQuery({
-    queryKey: ["chat-profiles", companyId],
+    queryKey: ["internal-chat-profiles", companyId, userId],
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles").select("id, first_name, last_name, email, avatar_url")
+      const { data: rpcProfiles, error: rpcError } = await (supabase.rpc as any)(
+        "get_internal_chat_profiles",
+        { p_company_id: companyId! },
+      );
+      const rpcInternalProfiles: Profile[] = !rpcError && Array.isArray(rpcProfiles)
+        ? (rpcProfiles as Profile[])
+        : [];
+
+      const { data: allProfiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, avatar_url, portal_disabled")
         .eq("company_id", companyId!);
-      if (error) throw error;
-      return data as Profile[];
-    },
-  });
+      if (profilesError) throw profilesError;
 
-  const profileIds = useMemo(() => profiles.map((p) => p.id), [profiles]);
+      const profilesList = (allProfiles || []) as RawProfile[];
 
-  const { data: profileRoles = [] } = useQuery({
-    queryKey: ["internal-chat-profile-roles", companyId, profileIds],
-    enabled: !!companyId && profileIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", profileIds);
-      if (error) throw error;
-      return data as UserRoleRow[];
+      const [permissionsRes, employeesRes, subcontractorsRes, ordersRes, ticketsRes, contactsRes] = await Promise.all([
+        supabase.from("staff_permissions").select("user_id").eq("company_id", companyId!),
+        supabase.from("employees").select("user_id").eq("company_id", companyId!).not("user_id", "is", null),
+        supabase.from("subappaltatori").select("user_id").eq("company_id", companyId!).not("user_id", "is", null),
+        supabase.from("orders").select("customer_id").eq("company_id", companyId!),
+        supabase.from("tickets").select("customer_id").eq("company_id", companyId!),
+        supabase.from("marketing_contacts").select("customer_profile_id").eq("company_id", companyId!).not("customer_profile_id", "is", null),
+      ]);
+
+      const internalIds = new Set<string>();
+      const customerIds = new Set<string>();
+      if (userId) internalIds.add(userId);
+
+      (permissionsRes.data || []).forEach((row) => row.user_id && internalIds.add(row.user_id));
+      (employeesRes.data || []).forEach((row) => row.user_id && internalIds.add(row.user_id));
+      (subcontractorsRes.data || []).forEach((row) => row.user_id && internalIds.add(row.user_id));
+      (ordersRes.data || []).forEach((row) => row.customer_id && customerIds.add(row.customer_id));
+      (ticketsRes.data || []).forEach((row) => row.customer_id && customerIds.add(row.customer_id));
+      (contactsRes.data || []).forEach((row) => row.customer_profile_id && customerIds.add(row.customer_profile_id));
+      profilesList.forEach((profile) => {
+        if (profile.portal_disabled === true) customerIds.add(profile.id);
+      });
+
+      const explicitInternalProfiles = profilesList.filter((profile) => internalIds.has(profile.id));
+      const fallbackInternalProfiles = profilesList.filter((profile) => !customerIds.has(profile.id));
+      const fallbackProfiles = explicitInternalProfiles.length > 1 ? explicitInternalProfiles : fallbackInternalProfiles;
+      const resultById = new Map<string, Profile>();
+      rpcInternalProfiles.forEach((profile) => resultById.set(profile.id, profile));
+      fallbackProfiles.forEach(({ portal_disabled: _portalDisabled, ...profile }) => {
+        resultById.set(profile.id, profile);
+      });
+
+      return Array.from(resultById.values());
     },
   });
 
   const internalProfileIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const role of profileRoles) {
-      if (INTERNAL_CHAT_ROLES.has(role.role as InternalRole)) ids.add(role.user_id);
-    }
-    return ids;
-  }, [profileRoles]);
-
-  const internalProfiles = useMemo(
-    () => profiles.filter((p) => internalProfileIds.has(p.id)),
-    [profiles, internalProfileIds],
-  );
+    return new Set(profiles.map((p) => p.id));
+  }, [profiles]);
 
   // Last message per channel for preview — single batch query instead of N+1
   const channelIds = useMemo(() => channels.map((c) => c.id), [channels]);
@@ -331,7 +329,7 @@ function useInternalChat(companyIdOverride?: string) {
     channels: myChannels,
     allChannels: channels,
     members,
-    profiles: internalProfiles,
+    profiles,
     companyId,
     userId,
     queryClient,
