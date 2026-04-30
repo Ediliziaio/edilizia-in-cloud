@@ -302,6 +302,7 @@ const API_CARDS = [
       "Il Verify Token viene usato per la validazione iniziale del webhook Meta/WhatsApp.",
     fields: [
       { key: "whatsapp_verify_token", label: "Verify Token", isSecret: true },
+      { key: "whatsapp_config_id", label: "Embedded Signup Config ID", isSecret: true },
     ],
   },
 ] as const;
@@ -619,7 +620,7 @@ function IntegrationsKPIs({
         keys: ["google_calendar_client_id", "google_calendar_client_secret"],
       },
       { name: "Google Maps", keys: ["google_maps_api_key"] },
-      { name: "WhatsApp", keys: ["whatsapp_verify_token"] },
+      { name: "WhatsApp", keys: ["whatsapp_verify_token", "whatsapp_config_id"] },
     ];
     let configured = 0;
     integrations.forEach((i) => {

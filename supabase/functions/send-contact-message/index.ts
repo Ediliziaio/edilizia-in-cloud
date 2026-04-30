@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { getErrorMessage } from "../_shared/metaAuth.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -214,7 +216,11 @@ Deno.serve(async (req) => {
         metadata:     { contact_id: contact.id },
       });
 
-      if (!result.ok && /no provider configured/i.test(String((result.body as any)?.error ?? ""))) {
+      const providerError =
+        typeof result.body === "object" && result.body && "error" in result.body
+          ? String((result.body as { error?: unknown }).error ?? "")
+          : "";
+      if (!result.ok && /no provider configured/i.test(providerError)) {
         result = await sendEmailUnified({
           companyId:    contact.company_id,
           stream:       "marketing",
@@ -266,9 +272,8 @@ Deno.serve(async (req) => {
       }
 
       // Decrypt access token
-      const { decrypt, getEncryptionKey } = await import("../_shared/encryption.ts");
       const encKey = getEncryptionKey();
-      const decryptedToken = await decrypt(waConfig.access_token_encrypted, encKey);
+      const decryptedToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
 
       const result = await sendWhatsApp(waConfig.phone_number_id, decryptedToken, contact.phone, content);
       if (!result.ok) {
@@ -308,9 +313,9 @@ Deno.serve(async (req) => {
           status = "failed";
           errorDetail = smsResult?.error || `HTTP ${smsRes.status}`;
         }
-      } catch (smsErr: any) {
+      } catch (smsErr: unknown) {
         status = "failed";
-        errorDetail = smsErr.message || "Errore invio SMS";
+        errorDetail = getErrorMessage(smsErr);
       }
     }
 
@@ -348,9 +353,9 @@ Deno.serve(async (req) => {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       }
     );
-  } catch (err) {
+  } catch (err: unknown) {
     return new Response(
-      JSON.stringify({ error: err.message || "Errore interno" }),
+      JSON.stringify({ error: getErrorMessage(err) }),
       { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }

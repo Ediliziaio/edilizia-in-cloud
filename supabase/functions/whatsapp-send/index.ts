@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
 
     // ── Decrypt access token ────────────────────────────────────────────
     const encKey = getEncryptionKey();
-    const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
+    const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
 
     // ── Build Meta Graph API payload ────────────────────────────────────
     const cleanPhone = to.replace(/[^0-9]/g, "");
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    let payload: Record<string, unknown> = {
+    const payload: Record<string, unknown> = {
       messaging_product: "whatsapp",
       to: cleanPhone,
       type,

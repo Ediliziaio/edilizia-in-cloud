@@ -60,3 +60,13 @@ export async function decrypt(encoded: string, key: string): Promise<string> {
   );
   return new TextDecoder().decode(plaintext);
 }
+
+/**
+ * Decrypts current AES-GCM values and tolerates legacy raw tokens that were
+ * saved before server-side encryption was enforced.
+ */
+export async function decryptMaybeEncrypted(encoded: string, key: string): Promise<string> {
+  if (!encoded) return "";
+  if (!encoded.startsWith(AES_PREFIX)) return encoded;
+  return decrypt(encoded, key);
+}

@@ -102,7 +102,7 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
         }
       }}
     >
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Collega nuovo numero WhatsApp — Step {step} di 3</DialogTitle>
           <DialogDescription>
@@ -127,7 +127,7 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
               <AlertDescription className="text-xs">
                 Questi dati si trovano in <b>Meta Business Manager → WhatsApp → API setup</b>.
                 In produzione preferisci il flusso OAuth Embedded Signup (via pagina Impostazioni).
-                Inserimento manuale qui è pensato per staging/test.
+                Il token viene salvato cifrato lato server. Inserimento manuale qui è pensato per staging/test.
               </AlertDescription>
             </Alert>
             <div className="space-y-1">
@@ -201,7 +201,7 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
           </Alert>
         )}
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
           {step > 1 && (
             <Button variant="outline" onClick={() => setStep((s) => ((s - 1) as Step))}>
               <ArrowLeft className="mr-2 h-4 w-4" />

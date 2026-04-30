@@ -1,7 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
+
+type BroadcastContact = {
+  id: string;
+  phone: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -34,7 +43,15 @@ Deno.serve(async (req) => {
     const userId = user.id;
 
     const body = await req.json();
-    const { company_id, segment, segment_config, template_name, message_text } = body;
+    const {
+      company_id,
+      segment,
+      segment_config,
+      template_name,
+      message_text,
+      template_language,
+      template_parameters,
+    } = body;
 
     if (!company_id || !template_name) {
       return new Response(
@@ -48,21 +65,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify user belongs to company
-    const { data: profile } = await adminClient
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-
-    const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
-    const isSuperAdmin = roleData?.role === "super_admin";
-    if (!isSuperAdmin && profile?.company_id !== company_id) {
-      return new Response(
-        JSON.stringify({ error: "Non autorizzato" }),
-        { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-      );
-    }
+    await assertMetaCompanyAdminAccess(adminClient, userId, company_id);
 
     // Check WhatsApp billing
     const waBilling = await getCompanyBillingConfig(adminClient, company_id, "whatsapp");
@@ -90,18 +93,38 @@ Deno.serve(async (req) => {
 
     // Decrypt token
     const encKey = getEncryptionKey();
-    const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
+    const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
 
     // Build contact query based on segment — rispetta opt-out GDPR
     let query = adminClient
       .from("marketing_contacts")
       .select("id, phone, first_name, last_name, email")
       .eq("company_id", company_id)
-      .eq("optout_whatsapp", false)   // GDPR: escludi contatti in opt-out
-      .not("phone", "is", null);
+      .not("phone", "is", null)
+      .or("optout_whatsapp.is.null,optout_whatsapp.eq.false")
+      .or("unsubscribed.is.null,unsubscribed.eq.false");
 
     const seg = segment || "tutti";
     const segCfg = segment_config || {};
+
+    if (seg === "tag" && !segCfg.tag) {
+      return new Response(
+        JSON.stringify({ error: "Seleziona un tag prima di inviare il broadcast" }),
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+    if (seg === "source" && !segCfg.source) {
+      return new Response(
+        JSON.stringify({ error: "Seleziona una fonte prima di inviare il broadcast" }),
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+    if (seg === "pipeline") {
+      return new Response(
+        JSON.stringify({ error: "Il segmento pipeline non è ancora collegato ai contatti marketing" }),
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
 
     if (seg === "tag" && segCfg.tag) {
       query = query.contains("tags", [segCfg.tag]);
@@ -113,7 +136,7 @@ Deno.serve(async (req) => {
       const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       query = query.gte("created_at", sevenDaysAgo);
     }
-    // "tutti" and "pipeline" use all contacts with phone
+    // "tutti" uses all opted-in contacts with phone.
 
     const { data: rawContacts, error: contactsErr } = await query.limit(10000);
 
@@ -172,7 +195,7 @@ Deno.serve(async (req) => {
     let sentCount = 0;
     let failedCount = 0;
 
-    for (const contact of contacts) {
+    for (const contact of contacts as BroadcastContact[]) {
       const cleanPhone = (contact.phone || "").replace(/[^0-9]/g, "");
       if (!cleanPhone) {
         failedCount++;
@@ -180,15 +203,20 @@ Deno.serve(async (req) => {
       }
 
       // Build template payload
-      const components: any[] = [];
-      if (message_text) {
-        const resolvedText = (message_text || "")
-          .replace(/\{\{nome\}\}/g, contact.first_name || "")
-          .replace(/\{\{cognome\}\}/g, contact.last_name || "")
-          .replace(/\{\{email\}\}/g, contact.email || "")
-          .replace(/\{\{telefono\}\}/g, contact.phone || "")
-          .replace(/\{\{azienda\}\}/g, "");
+      const components: Array<Record<string, unknown>> = [];
+      const parameterValues = Array.isArray(template_parameters)
+        ? template_parameters
+            .map((value: unknown) => resolveVariables(String(value || ""), contact))
+            .filter((value) => value.trim().length > 0)
+        : [];
 
+      if (parameterValues.length > 0) {
+        components.push({
+          type: "body",
+          parameters: parameterValues.map((text) => ({ type: "text", text })),
+        });
+      } else if (message_text) {
+        const resolvedText = resolveVariables(message_text || "", contact);
         components.push({
           type: "body",
           parameters: [{ type: "text", text: resolvedText }],
@@ -201,7 +229,7 @@ Deno.serve(async (req) => {
         type: "template",
         template: {
           name: template_name,
-          language: { code: "it" },
+          language: { code: template_language || "it" },
           components: components.length > 0 ? components : undefined,
         },
       };
@@ -241,14 +269,14 @@ Deno.serve(async (req) => {
             error_message: result.error?.message || "Unknown error",
           });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         failedCount++;
         await adminClient.from("whatsapp_broadcast_recipients").insert({
           broadcast_id: broadcast.id,
           contact_id: contact.id,
           phone: cleanPhone,
           status: "failed",
-          error_message: err.message,
+          error_message: getErrorMessage(err),
         });
       }
 
@@ -259,12 +287,14 @@ Deno.serve(async (req) => {
     }
 
     // Update broadcast status
+    const finalStatus =
+      failedCount === contacts.length ? "failed" : failedCount > 0 ? "partial_failed" : "completed";
     await adminClient
       .from("whatsapp_broadcasts")
       .update({
         sent_count: sentCount,
         failed_count: failedCount,
-        status: "completed",
+        status: finalStatus,
         completed_at: new Date().toISOString(),
       })
       .eq("id", broadcast.id);
@@ -321,11 +351,20 @@ Deno.serve(async (req) => {
       }),
       { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[whatsapp-broadcast] Error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Errore interno" }),
-      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      JSON.stringify({ error: getErrorMessage(err) }),
+      { status: getErrorStatus(err), headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });
+
+function resolveVariables(text: string, contact: BroadcastContact): string {
+  return text
+    .replace(/\{\{nome\}\}/g, contact.first_name || "")
+    .replace(/\{\{cognome\}\}/g, contact.last_name || "")
+    .replace(/\{\{email\}\}/g, contact.email || "")
+    .replace(/\{\{telefono\}\}/g, contact.phone || "")
+    .replace(/\{\{azienda\}\}/g, "");
+}

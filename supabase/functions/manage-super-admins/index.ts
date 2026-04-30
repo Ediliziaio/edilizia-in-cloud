@@ -430,7 +430,7 @@ Deno.serve(async (req) => {
     if (action === "get-settings") {
       const allSettingsKeys = [
         "meta_app_id", "meta_app_secret",
-        "google_maps_api_key", "whatsapp_verify_token",
+        "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id",
         "stripe_publishable_key", "stripe_secret_key", "stripe_webhook_secret", "stripe_mode",
         "google_calendar_client_id", "google_calendar_client_secret",
         "google_calendar_allow_two_way", "google_calendar_allow_guest_contact_create", "google_calendar_allow_google_to_crm_import",
@@ -443,7 +443,7 @@ Deno.serve(async (req) => {
 
       const result: Record<string, { value: string; masked?: string; updated_at?: string }> = {};
       const secretKeys = [
-        "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token",
+        "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id",
         "stripe_secret_key", "stripe_webhook_secret",
         "google_calendar_client_secret",
       ];
@@ -472,7 +472,7 @@ Deno.serve(async (req) => {
 
       const allowedKeys = [
         "meta_app_id", "meta_app_secret",
-        "google_maps_api_key", "whatsapp_verify_token",
+        "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id",
         "stripe_publishable_key", "stripe_secret_key", "stripe_webhook_secret", "stripe_mode",
         "google_calendar_client_id", "google_calendar_client_secret",
         "google_calendar_allow_two_way", "google_calendar_allow_guest_contact_create", "google_calendar_allow_google_to_crm_import",

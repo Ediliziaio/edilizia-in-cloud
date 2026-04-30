@@ -4,6 +4,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 
 const META_API_VERSION = "v22.0";
 
@@ -58,9 +59,7 @@ Deno.serve(async (req) => {
 
   for (const n of numbers ?? []) {
     try {
-      // Nota: access_token_encrypted in MP01 è stato stored plaintext temporaneamente
-      // (whatsapp-connect salva accessToken diretto). In MP4 si migrerà a decrypt.
-      const token = n.access_token_encrypted;
+      const token = await decryptMaybeEncrypted(n.access_token_encrypted, getEncryptionKey());
       if (!token) continue;
 
       const url = `https://graph.facebook.com/${META_API_VERSION}/${n.waba_id}/message_templates?fields=name,language,status,category,components&limit=100`;

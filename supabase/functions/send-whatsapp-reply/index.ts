@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { assertCompanyMemberAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -62,21 +63,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Verify user belongs to same company
-    const { data: profile } = await adminClient
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-
-    const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
-    const isSuperAdmin = roleData?.role === "super_admin";
-    if (!isSuperAdmin && profile?.company_id !== conv.company_id) {
-      return new Response(
-        JSON.stringify({ error: "Non autorizzato per questa conversazione" }),
-        { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-      );
-    }
+    await assertCompanyMemberAccess(adminClient, userId, conv.company_id, {
+      requiredPermission: "can_view_marketing_whatsapp",
+    });
 
     // 3. Get WhatsApp config
     const { data: waConfig } = await adminClient
@@ -104,7 +93,7 @@ Deno.serve(async (req) => {
 
     // 4. Decrypt access token
     const encKey = getEncryptionKey();
-    const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
+    const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
 
     // 5. Send via Meta API
     const cleanPhone = (conv.phone_number || "").replace(/[^0-9]/g, "");
@@ -183,7 +172,7 @@ Deno.serve(async (req) => {
       // Get current balance
       const { data: waCredits } = await adminClient
         .from("whatsapp_credits")
-        .select("balance_eur")
+        .select("balance_eur, total_spent_eur")
         .eq("company_id", conv.company_id)
         .maybeSingle();
 
@@ -193,7 +182,11 @@ Deno.serve(async (req) => {
       if (waCredits) {
         await adminClient
           .from("whatsapp_credits")
-          .update({ balance_eur: balanceAfter, total_spent_eur: Number((((waCredits as any).total_spent_eur ?? 0) + pricePerMsg).toFixed(4)), updated_at: new Date().toISOString() })
+          .update({
+            balance_eur: balanceAfter,
+            total_spent_eur: Number(((waCredits.total_spent_eur ?? 0) + pricePerMsg).toFixed(4)),
+            updated_at: new Date().toISOString(),
+          })
           .eq("company_id", conv.company_id);
       } else {
         await adminClient.from("whatsapp_credits").insert({
@@ -220,11 +213,11 @@ Deno.serve(async (req) => {
       }),
       { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[send-whatsapp-reply] Error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Errore interno" }),
-      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      JSON.stringify({ error: getErrorMessage(err) }),
+      { status: getErrorStatus(err), headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });
