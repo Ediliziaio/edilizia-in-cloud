@@ -211,6 +211,11 @@ export default function CampoCalendario() {
 
   const dayItems = useMemo(() => itemsForDay(selectedDay), [itemsForDay, selectedDay]);
 
+  // Conta items per giorno (per dots)
+  const countForDay = useMemo(() => {
+    return (day: Date) => itemsForDay(day).length;
+  }, [itemsForDay]);
+
   const todayItems = useMemo(() => itemsForDay(new Date()), [itemsForDay]);
   const weekItemsCount = useMemo(() => weekDays.reduce((total, day) => total + countForDay(day), 0), [weekDays, countForDay]);
   const selectedAppointments = dayItems.filter((item) => item.type === "appuntamento").length;
@@ -223,11 +228,6 @@ export default function CampoCalendario() {
       if (first) return { day, item: first };
     }
     return null;
-  }, [itemsForDay]);
-
-  // Conta items per giorno (per dots)
-  const countForDay = useMemo(() => {
-    return (day: Date) => itemsForDay(day).length;
   }, [itemsForDay]);
 
   // Geocoding cantieri — risolvi indirizzo → coordinate
