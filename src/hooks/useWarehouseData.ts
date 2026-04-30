@@ -161,6 +161,7 @@ export function useWarehouseData() {
             order_code,
             expected_date,
             work_start_date,
+            work_end_date,
             warehouse_arrival_date,
             company_id,
             current_status_id,

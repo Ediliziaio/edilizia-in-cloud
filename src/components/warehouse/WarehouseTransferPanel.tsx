@@ -32,6 +32,24 @@ interface TransferItem {
   available: number;
 }
 
+interface TransferStockItem {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  warehouse_id: string | null;
+  unit_cost: number | null;
+  vat_rate: number | null;
+  supplier_id: string | null;
+  section_id: string | null;
+  min_stock_level: number | null;
+  barcode?: string | null;
+  internal_code?: string | null;
+  tracking_mode?: "fungible" | "serialized" | null;
+  requires_warranty?: boolean | null;
+  default_warranty_months?: number | null;
+}
+
 interface WarehouseTransferPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -74,13 +92,17 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
       if (!fromWarehouseId) return [];
       const { data, error } = await supabase
         .from("warehouse_stock")
-        .select("id, name, quantity, warehouse_id")
+        .select(`
+          id, name, description, quantity, warehouse_id,
+          unit_cost, vat_rate, supplier_id, section_id, min_stock_level,
+          barcode, internal_code, tracking_mode, requires_warranty, default_warranty_months
+        `)
         .eq("company_id", companyId!)
         .eq("warehouse_id", fromWarehouseId)
         .gt("quantity", 0)
         .order("name");
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as TransferStockItem[];
     },
     enabled: !!fromWarehouseId && !!companyId,
     staleTime: 60000,
@@ -187,6 +209,7 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
             .eq("name", src?.name ?? "")
             .maybeSingle();
 
+          let destinationStockItemId: string | null = destStock?.id ?? null;
           if (destStock) {
             await supabase
               .from("warehouse_stock")
@@ -194,15 +217,29 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
               .eq("id", destStock.id);
           } else if (src) {
             // Articolo non esiste nel magazzino destinazione → crealo
-            await supabase
+            const { data: insertedDest, error: insertDestError } = await supabase
               .from("warehouse_stock")
               .insert({
                 company_id: companyId!,
                 warehouse_id: toWarehouseId,
                 name: src.name,
+                description: src.description,
                 quantity: item.quantity,
-                min_stock_level: 0,
-              } as any);
+                unit_cost: src.unit_cost ?? 0,
+                vat_rate: src.vat_rate ?? 22,
+                supplier_id: src.supplier_id,
+                section_id: src.section_id,
+                min_stock_level: src.min_stock_level ?? 0,
+                barcode: src.barcode ?? null,
+                internal_code: src.internal_code ?? null,
+                tracking_mode: src.tracking_mode ?? "fungible",
+                requires_warranty: !!src.requires_warranty,
+                default_warranty_months: src.default_warranty_months ?? null,
+              } as any)
+              .select("id")
+              .single();
+            if (insertDestError) throw insertDestError;
+            destinationStockItemId = insertedDest.id;
           }
 
           const toWarehouseName = warehouses.find((w) => w.id === toWarehouseId)?.name;
@@ -219,7 +256,7 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
               warehouse_id: fromWarehouseId,
             } as any,
             {
-              stock_item_id: item.stock_item_id,
+              stock_item_id: destinationStockItemId ?? item.stock_item_id,
               movement_type: "carico",
               quantity: item.quantity,
               notes: `Trasferimento da ${fromWarehouseName}`,

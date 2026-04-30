@@ -20,6 +20,7 @@ export interface WarehouseItem {
     order_code: string | null;
     expected_date: string | null;
     work_start_date: string | null;
+    work_end_date?: string | null;
     warehouse_arrival_date?: string | null;
     company_id: string;
     current_status_id: string | null;
@@ -128,6 +129,7 @@ export function isItemOverdue(item: WarehouseItem): boolean {
 export interface StockItem {
   id: string;
   company_id: string;
+  warehouse_id?: string | null;
   name: string;
   description: string | null;
   quantity: number;

@@ -288,7 +288,12 @@ export default function Warehouse() {
               accessibile anche da mobile (prima erano hidden sm:flex → bug). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="order-2 sm:order-none">
+              <Button
+                variant="outline"
+                size="sm"
+                className="order-2 sm:order-none"
+                aria-label="Apri menu gestione magazzino"
+              >
                 <SettingsIcon className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Gestione</span>
               </Button>
@@ -308,7 +313,12 @@ export default function Warehouse() {
           {/* Export */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="order-3 sm:order-none">
+              <Button
+                variant="outline"
+                size="sm"
+                className="order-3 sm:order-none"
+                aria-label="Apri menu esportazione magazzino"
+              >
                 <Download className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Esporta</span>
               </Button>
@@ -421,30 +431,30 @@ export default function Warehouse() {
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
                 {macroMode === "workflow" ? (
                   <TabsList className="flex-wrap h-auto">
-                    <TabsTrigger value="list" className="gap-1.5">
+                    <TabsTrigger value="list" className="gap-1.5" aria-label="Vista lista">
                       <List className="h-4 w-4" />
                       <span className="hidden sm:inline">Lista</span>
                     </TabsTrigger>
-                    <TabsTrigger value="kanban" className="gap-1.5">
+                    <TabsTrigger value="kanban" className="gap-1.5" aria-label="Vista kanban">
                       <LayoutGrid className="h-4 w-4" />
                       <span className="hidden sm:inline">Kanban</span>
                     </TabsTrigger>
-                    <TabsTrigger value="calendar" className="gap-1.5">
+                    <TabsTrigger value="calendar" className="gap-1.5" aria-label="Vista calendario">
                       <CalendarIcon className="h-4 w-4" />
                       <span className="hidden sm:inline">Calendario</span>
                     </TabsTrigger>
                   </TabsList>
                 ) : (
                   <TabsList className="flex-wrap h-auto">
-                    <TabsTrigger value="stock" className="gap-1.5">
+                    <TabsTrigger value="stock" className="gap-1.5" aria-label="Vista giacenze">
                       <PackageOpen className="h-4 w-4" />
                       <span className="hidden sm:inline">Giacenze</span>
                     </TabsTrigger>
-                    <TabsTrigger value="lotti" className="gap-1.5">
+                    <TabsTrigger value="lotti" className="gap-1.5" aria-label="Vista lotti">
                       <Package className="h-4 w-4" />
                       <span className="hidden sm:inline">Lotti</span>
                     </TabsTrigger>
-                    <TabsTrigger value="ddt" className="gap-1.5">
+                    <TabsTrigger value="ddt" className="gap-1.5" aria-label="Vista DDT">
                       <FileText className="h-4 w-4" />
                       <span className="hidden sm:inline">DDT</span>
                     </TabsTrigger>
@@ -701,7 +711,7 @@ export default function Warehouse() {
       ) : viewMode === "lotti" ? (
         <WarehouseLottiTab />
       ) : viewMode === "stock" ? (
-        <WarehouseStockTab />
+        <WarehouseStockTab warehouseFilter={warehouseFilter} />
       ) : isLoading ? (
         <div
           className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground"

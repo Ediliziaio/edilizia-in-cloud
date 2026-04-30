@@ -5,6 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWarehouses } from "@/hooks/useWarehouses";
 import { toast } from "sonner";
 import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck } from "lucide-react";
 import {
@@ -54,10 +55,17 @@ const ScaricoCantiereSheet = lazy(() =>
   import("./ScaricoCantiereSheet").then((m) => ({ default: m.ScaricoCantiereSheet })),
 );
 
-export default function WarehouseStockTab() {
+interface WarehouseStockTabProps {
+  warehouseFilter?: string | null;
+}
+
+export default function WarehouseStockTab({ warehouseFilter = null }: WarehouseStockTabProps) {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
+  const { defaultWarehouse } = useWarehouses(true);
+  const resolveWarehouseId = (item?: StockItem | null) =>
+    item?.warehouse_id ?? warehouseFilter ?? defaultWarehouse?.id ?? null;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
@@ -91,14 +99,18 @@ export default function WarehouseStockTab() {
 
   // Fetch stock items
   const { data: stockItems = [], isLoading } = useQuery({
-    queryKey: queryKeys.warehouse.stock(companyId),
+    queryKey: [...queryKeys.warehouse.stock(companyId), warehouseFilter],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("warehouse_stock")
         .select("*")
         .eq("company_id", companyId)
         .order("name");
+      if (warehouseFilter) {
+        q = q.eq("warehouse_id", warehouseFilter);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data as StockItem[];
     },
@@ -187,12 +199,14 @@ export default function WarehouseStockTab() {
       }
 
       if (data.id) {
+        const currentItem = stockItems.find((i) => i.id === data.id);
         const { error } = await supabase
           .from("warehouse_stock")
           .update({
             name: data.name,
             description: data.description || null,
             quantity: data.quantity,
+            warehouse_id: resolveWarehouseId(currentItem),
             unit_cost: data.unit_cost,
             vat_rate: data.vat_rate,
             supplier_id: data.supplier_id || null,
@@ -206,6 +220,7 @@ export default function WarehouseStockTab() {
       } else {
         const { error } = await supabase.from("warehouse_stock").insert({
           company_id: companyId!,
+          warehouse_id: resolveWarehouseId(),
           name: data.name,
           description: data.description || null,
           quantity: data.quantity,
@@ -254,6 +269,7 @@ export default function WarehouseStockTab() {
         quantity,
         notes: notes || null,
         performed_by: user!.id,
+        warehouse_id: resolveWarehouseId(stockItems.find((i) => i.id === stockItemId)),
       });
       if (movError) throw movError;
 

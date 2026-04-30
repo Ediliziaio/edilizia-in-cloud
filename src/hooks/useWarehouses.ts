@@ -30,7 +30,7 @@ export type WarehouseUpdate = Partial<WarehouseInsert>;
 const QUERY_KEY = "warehouses";
 
 export function useWarehouses(onlyActive = true) {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
   const { isAdmin, isLoading: isLoadingPermissions } = usePermissions();
@@ -39,7 +39,7 @@ export function useWarehouses(onlyActive = true) {
   const { data: warehouses = [], isLoading, error } = useQuery<Warehouse[]>({
     // Include isAdmin e userId nella queryKey: cambiare utente / ruolo → refetch.
     queryKey: [QUERY_KEY, companyId, onlyActive, isAdmin, userId],
-    enabled: !!companyId && !!userId && !isLoadingPermissions,
+    enabled: !!companyId && !!userId && (!isLoadingPermissions || role === "company_admin" || role === "super_admin"),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       // Admin: vede tutti i magazzini della company (comportamento originale).
@@ -99,6 +99,7 @@ export function useWarehouses(onlyActive = true) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
+      queryClient.invalidateQueries({ queryKey: ["my-warehouses", companyId] });
       toast.success("Magazzino creato");
     },
     onError: (err: Error) => toast.error("Errore creazione magazzino: " + err.message),
@@ -118,6 +119,7 @@ export function useWarehouses(onlyActive = true) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
+      queryClient.invalidateQueries({ queryKey: ["my-warehouses", companyId] });
       toast.success("Magazzino aggiornato");
     },
     onError: (err: Error) => toast.error("Errore aggiornamento magazzino: " + err.message),
@@ -136,6 +138,7 @@ export function useWarehouses(onlyActive = true) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
+      queryClient.invalidateQueries({ queryKey: ["my-warehouses", companyId] });
       toast.success("Magazzino predefinito aggiornato");
     },
     onError: (err: Error) => toast.error("Errore: " + err.message),
@@ -152,6 +155,7 @@ export function useWarehouses(onlyActive = true) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
+      queryClient.invalidateQueries({ queryKey: ["my-warehouses", companyId] });
       toast.success("Magazzino disattivato");
     },
     onError: (err: Error) => toast.error("Errore: " + err.message),
