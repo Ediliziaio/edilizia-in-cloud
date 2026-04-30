@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { assertCompanyMemberAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -99,22 +101,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify user belongs to company
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (!profile || profile.company_id !== company_id) {
-      return new Response(
-        JSON.stringify({ error: "Not authorized for this company" }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    await assertCompanyMemberAccess(supabase, userId, company_id, {
+      requiredPermission: "can_view_settings",
+    });
 
     // Get WhatsApp config
     const { data: config, error: configErr } = await supabase
@@ -133,7 +122,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const accessToken = config.access_token_encrypted;
+    const accessToken = await decryptMaybeEncrypted(
+      config.access_token_encrypted,
+      getEncryptionKey()
+    );
     if (!accessToken) {
       return new Response(
         JSON.stringify({ error: "No access token available" }),
@@ -213,9 +205,9 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("whatsapp-status error:", err);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: getErrorMessage(err) }),
       {
-        status: 500,
+        status: getErrorStatus(err),
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );

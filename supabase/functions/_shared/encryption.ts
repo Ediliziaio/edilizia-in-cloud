@@ -63,6 +63,23 @@ export async function decrypt(encoded: string, key: string): Promise<string> {
   return new TextDecoder().decode(decrypted);
 }
 
+/**
+ * Decrypts encrypted values while tolerating legacy raw tokens that were saved
+ * before encryption was enforced.
+ */
+export async function decryptMaybeEncrypted(encoded: string, key: string): Promise<string> {
+  if (!encoded) return "";
+  if (encoded.startsWith(AES_PREFIX)) {
+    return decrypt(encoded, key);
+  }
+
+  try {
+    return await decrypt(encoded, key);
+  } catch {
+    return encoded;
+  }
+}
+
 // Synchronous legacy encrypt for backward compat (XOR) — NOT recommended for new code
 export function encryptSync(text: string, key: string): string {
   const textBytes = new TextEncoder().encode(text);

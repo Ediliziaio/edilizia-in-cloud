@@ -10,9 +10,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loader2, Plus, Unplug, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
-// Public Meta App ID — configure this with your own app
-const META_APP_ID = "YOUR_META_APP_ID";
-
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   verified: { label: "Verificato", variant: "default" },
   pending: { label: "In sospeso", variant: "secondary" },
@@ -38,25 +35,49 @@ const TIER_MAP: Record<string, string> = {
 
 declare global {
   interface Window {
-    FB: any;
+    FB?: {
+      init: (options: Record<string, unknown>) => void;
+      login: (callback: (response: FacebookLoginResponse) => void, options: Record<string, unknown>) => void;
+    };
     fbAsyncInit: () => void;
   }
 }
 
-function useFacebookSDK() {
+type FacebookLoginResponse = {
+  authResponse?: {
+    code?: string;
+  };
+};
+
+function getErrorDescription(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
+function useFacebookSDK(appId: string | null | undefined) {
   const loaded = useRef(false);
-  const [ready, setReady] = useState(!!window.FB);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    setReady(false);
+    if (!appId) return;
+
     if (loaded.current || window.FB) {
-      if (window.FB) setReady(true);
+      if (window.FB) {
+        window.FB.init({
+          appId,
+          cookie: true,
+          xfbml: false,
+          version: "v21.0",
+        });
+        setReady(true);
+      }
       return;
     }
     loaded.current = true;
 
     window.fbAsyncInit = () => {
-      window.FB.init({
-        appId: META_APP_ID,
+      window.FB?.init({
+        appId,
         cookie: true,
         xfbml: false,
         version: "v21.0",
@@ -69,7 +90,7 @@ function useFacebookSDK() {
     script.async = true;
     script.defer = true;
     document.body.appendChild(script);
-  }, []);
+  }, [appId]);
 
   return ready;
 }
@@ -89,7 +110,6 @@ export function MessagingSettingsTab() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const fbReady = useFacebookSDK();
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -112,6 +132,23 @@ export function MessagingSettingsTab() {
   });
 
   const isConnected = config?.is_connected === true;
+
+  const { data: embeddedConfig, isLoading: isEmbeddedConfigLoading } = useQuery({
+    queryKey: ["whatsapp-embedded-config", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data, error } = await supabase.functions.invoke("whatsapp-embedded-config", {
+        body: { company_id: companyId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { meta_app_id: string; whatsapp_config_id: string; is_configured: boolean };
+    },
+    enabled: !!companyId && !isConnected,
+    retry: false,
+  });
+
+  const fbReady = useFacebookSDK(embeddedConfig?.meta_app_id || null);
 
   const pollStatus = useCallback(async () => {
     if (!companyId || !isConnected) return;
@@ -146,6 +183,13 @@ export function MessagingSettingsTab() {
   }, [pollStatus]);
 
   const handleConnectWhatsApp = useCallback(() => {
+    if (!embeddedConfig?.is_configured || !embeddedConfig.whatsapp_config_id) {
+      toast.error("Configurazione WhatsApp incompleta", {
+        description: "Configura Meta App ID e WhatsApp Config ID nelle impostazioni piattaforma.",
+      });
+      return;
+    }
+
     if (!fbReady || !window.FB || !companyId) {
       toast.error("Errore", { description: "SDK Facebook non ancora caricato. Riprova tra un momento." });
       return;
@@ -154,14 +198,13 @@ export function MessagingSettingsTab() {
     setConnecting(true);
 
     window.FB.login(
-      async (response: any) => {
+      async (response: FacebookLoginResponse) => {
         if (response.authResponse?.code) {
           try {
             const { data, error } = await supabase.functions.invoke("whatsapp-connect", {
               body: {
                 code: response.authResponse.code,
                 company_id: companyId,
-                meta_app_id: META_APP_ID,
               },
             });
 
@@ -175,10 +218,10 @@ export function MessagingSettingsTab() {
             });
 
             queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
-          } catch (err: any) {
+          } catch (err: unknown) {
             console.error("Connect error:", err);
             toast.error("Errore collegamento", {
-              description: err?.message || "Impossibile completare il collegamento. Riprova.",
+              description: getErrorDescription(err, "Impossibile completare il collegamento. Riprova."),
             });
           }
         } else {
@@ -187,7 +230,7 @@ export function MessagingSettingsTab() {
         setConnecting(false);
       },
       {
-        config_id: "",
+        config_id: embeddedConfig.whatsapp_config_id,
         response_type: "code",
         override_default_response_type: true,
         extras: {
@@ -197,7 +240,7 @@ export function MessagingSettingsTab() {
         },
       }
     );
-  }, [fbReady, companyId, queryClient]);
+  }, [embeddedConfig, fbReady, companyId, queryClient]);
 
   const handleDisconnect = useCallback(async () => {
     if (!companyId || !config) return;
@@ -220,8 +263,8 @@ export function MessagingSettingsTab() {
       setMessagingLimitTier(null);
       setLastStatusUpdate(null);
       queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
-    } catch (err: any) {
-      toast.error("Errore", { description: err?.message || "Impossibile disconnettere." });
+    } catch (err: unknown) {
+      toast.error("Errore", { description: getErrorDescription(err, "Impossibile disconnettere.") });
     }
     setDisconnecting(false);
   }, [companyId, config, queryClient]);
@@ -249,9 +292,9 @@ export function MessagingSettingsTab() {
     <TooltipProvider>
       <div className="space-y-6 max-w-4xl">
         {/* Verification banner */}
-        {accountStatus !== "verified" && (
+        {isConnected && accountStatus !== "verified" && (
           <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
-            <CardContent className="flex items-start gap-4 p-4">
+            <CardContent className="flex flex-col sm:flex-row sm:items-start gap-4 p-4">
               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-medium text-sm">Verifica di WhatsApp Business in sospeso</p>
@@ -259,10 +302,25 @@ export function MessagingSettingsTab() {
                   Costruisci fiducia con i tuoi clienti mostrando un nome verificato. Completa la verifica del tuo account Meta Business per sbloccare tutte le funzionalità.
                 </p>
               </div>
-              <Button variant="outline" size="sm" className="gap-1.5 flex-shrink-0" onClick={handleVerifyNow}>
+              <Button variant="outline" size="sm" className="gap-1.5 flex-shrink-0 min-h-11 sm:min-h-9" onClick={handleVerifyNow}>
                 Verifica ora
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Account overview */}
+        {!isConnected && embeddedConfig && !embeddedConfig.is_configured && (
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardContent className="flex items-start gap-3 p-4">
+              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Configurazione Meta incompleta</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Imposta Meta App ID e WhatsApp Embedded Signup Config ID dal pannello super admin prima di collegare il numero.
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -319,7 +377,7 @@ export function MessagingSettingsTab() {
             </div>
 
             {/* Stats cards */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
@@ -368,48 +426,50 @@ export function MessagingSettingsTab() {
           </CardHeader>
           <CardContent>
             {isConnected && config?.phone_number ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Numero</TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Limite</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead>Qualità</TableHead>
-                    <TableHead className="text-right">Attività</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">{config.phone_number}</TableCell>
-                    <TableCell>{config.business_name || "—"}</TableCell>
-                    <TableCell>{tierLabel}</TableCell>
-                    <TableCell>
-                      <Badge variant="default">Collegato</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className={qualityInfo.className}>{qualityInfo.label}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          window.open(
-                            "https://business.facebook.com/latest/whatsapp_manager/phone_numbers/",
-                            "_blank",
-                            "noopener,noreferrer"
-                          )
-                        }
-                        className="gap-1"
-                      >
-                        Gestisci
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Numero</TableHead>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Limite</TableHead>
+                      <TableHead>Stato</TableHead>
+                      <TableHead>Qualità</TableHead>
+                      <TableHead className="text-right">Attività</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-medium">{config.phone_number}</TableCell>
+                      <TableCell>{config.business_name || "—"}</TableCell>
+                      <TableCell>{tierLabel}</TableCell>
+                      <TableCell>
+                        <Badge variant="default">Collegato</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className={qualityInfo.className}>{qualityInfo.label}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            window.open(
+                              "https://business.facebook.com/latest/whatsapp_manager/phone_numbers/",
+                              "_blank",
+                              "noopener,noreferrer"
+                            )
+                          }
+                          className="gap-1"
+                        >
+                          Gestisci
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Phone className="h-10 w-10 mx-auto mb-3 opacity-30" />
@@ -419,7 +479,11 @@ export function MessagingSettingsTab() {
 
             {!isConnected && (
               <div className="mt-4 flex justify-center">
-                <Button onClick={handleConnectWhatsApp} disabled={connecting || !fbReady} className="gap-2">
+                <Button
+                  onClick={handleConnectWhatsApp}
+                  disabled={connecting || isEmbeddedConfigLoading || !embeddedConfig?.is_configured || !fbReady}
+                  className="gap-2 min-h-11"
+                >
                   {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   {connecting ? "Collegamento in corso..." : "Collega numero WhatsApp"}
                 </Button>

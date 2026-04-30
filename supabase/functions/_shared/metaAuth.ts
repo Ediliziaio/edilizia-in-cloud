@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export class HttpError extends Error {
   status: number;
   code: string;
@@ -45,6 +47,52 @@ export async function assertMetaCompanyAdminAccess(
       "forbidden_company",
       "Non hai i permessi per gestire questa integrazione Meta",
     );
+  }
+}
+
+type CompanyAccessOptions = {
+  requiredPermission?: string;
+};
+
+export async function assertCompanyMemberAccess(
+  adminClient: any,
+  userId: string,
+  companyId: string,
+  options: CompanyAccessOptions = {},
+): Promise<void> {
+  const [
+    { data: profile, error: profileError },
+    { data: roles, error: rolesError },
+    { data: permissions, error: permissionsError },
+  ] = await Promise.all([
+    adminClient.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
+    adminClient.from("user_roles").select("role").eq("user_id", userId),
+    adminClient
+      .from("staff_permissions")
+      .select(options.requiredPermission || "user_id")
+      .eq("user_id", userId)
+      .eq("company_id", companyId)
+      .maybeSingle(),
+  ]);
+
+  if (profileError || rolesError || permissionsError) {
+    throw new HttpError(403, "access_not_verifiable", "Permessi utente non verificabili");
+  }
+
+  const roleNames = new Set((roles || []).map((role: { role: string }) => role.role));
+  if (roleNames.has("super_admin")) return;
+
+  const isCompanyUser =
+    profile?.company_id === companyId &&
+    ["company_admin", "company_staff", "salesperson", "call_center"].some((role) => roleNames.has(role));
+  if (!isCompanyUser) {
+    throw new HttpError(403, "forbidden_company", "Non hai accesso a questa azienda");
+  }
+
+  if (roleNames.has("company_admin") || !options.requiredPermission) return;
+
+  if (!permissions?.[options.requiredPermission]) {
+    throw new HttpError(403, "missing_permission", "Permesso insufficiente per questa azione");
   }
 }
 

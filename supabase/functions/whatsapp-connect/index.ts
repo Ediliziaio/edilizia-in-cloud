@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
+import { encrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,11 +64,11 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const { code, company_id, meta_app_id } = await req.json();
+    const { code, company_id } = await req.json();
 
-    if (!code || !company_id || !meta_app_id) {
+    if (!code || !company_id) {
       return new Response(
-        JSON.stringify({ error: "Missing code, company_id, or meta_app_id" }),
+        JSON.stringify({ error: "Missing code or company_id" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -74,35 +76,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify user belongs to company
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .maybeSingle();
+    await assertMetaCompanyAdminAccess(supabase, userId, company_id);
 
-    if (!profile || profile.company_id !== company_id) {
+    // 1. Exchange code for access token
+    const { metaAppId, metaAppSecret } = await getMetaCredentials();
+    if (!metaAppId || !metaAppSecret) {
       return new Response(
-        JSON.stringify({ error: "Not authorized for this company" }),
+        JSON.stringify({ error: "Meta App ID o App Secret non configurati" }),
         {
-          status: 403,
+          status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    // 1. Exchange code for access token
-    const { metaAppSecret: APP_SECRET } = await getMetaCredentials();
-    const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${meta_app_id}&client_secret=${APP_SECRET}&code=${code}`;
-    const tokenRes = await fetch(tokenUrl);
+    const tokenParams = new URLSearchParams({
+      client_id: metaAppId,
+      client_secret: metaAppSecret,
+      code,
+    });
+    const tokenRes = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?${tokenParams}`);
     const tokenData = await tokenRes.json();
 
-    if (tokenData.error) {
+    if (!tokenRes.ok || tokenData.error || !tokenData.access_token) {
       console.error("Token exchange error:", tokenData.error);
       return new Response(
         JSON.stringify({
           error: "Token exchange failed",
-          details: tokenData.error.message,
+          details: tokenData.error?.message || "Access token non ricevuto da Meta",
         }),
         {
           status: 400,
@@ -114,9 +115,24 @@ Deno.serve(async (req) => {
     const accessToken = tokenData.access_token;
 
     // 2. Get shared WABA ID using debug_token
-    const debugUrl = `https://graph.facebook.com/v21.0/debug_token?input_token=${accessToken}&access_token=${meta_app_id}|${APP_SECRET}`;
-    const debugRes = await fetch(debugUrl);
+    const debugParams = new URLSearchParams({
+      input_token: accessToken,
+      access_token: `${metaAppId}|${metaAppSecret}`,
+    });
+    const debugRes = await fetch(`https://graph.facebook.com/v21.0/debug_token?${debugParams}`);
     const debugData = await debugRes.json();
+    if (!debugRes.ok || debugData.error) {
+      return new Response(
+        JSON.stringify({
+          error: "Impossibile verificare il token WhatsApp",
+          details: debugData.error?.message || "Risposta non valida da Meta",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     let wabaId: string | null = null;
     const granularScopes = debugData.data?.granular_scopes || [];
@@ -130,33 +146,78 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (!wabaId) {
+      return new Response(
+        JSON.stringify({ error: "Nessun WhatsApp Business Account condiviso da Meta" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // 3. Get phone numbers from WABA
     let phoneNumber: string | null = null;
     let phoneNumberId: string | null = null;
     let businessName: string | null = null;
 
-    if (wabaId) {
-      const phonesUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
-      const phonesRes = await fetch(phonesUrl);
-      const phonesData = await phonesRes.json();
+    const phonesParams = new URLSearchParams({ access_token: accessToken });
+    const phonesRes = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?${phonesParams}`);
+    const phonesData = await phonesRes.json();
 
-      if (phonesData.data?.length) {
-        const phone = phonesData.data[0];
-        phoneNumber = phone.display_phone_number || phone.phone_number;
-        phoneNumberId = phone.id;
-        businessName = phone.verified_name || null;
-      }
+    if (!phonesRes.ok || phonesData.error) {
+      return new Response(
+        JSON.stringify({
+          error: "Impossibile leggere i numeri WhatsApp Business",
+          details: phonesData.error?.message || "Risposta non valida da Meta",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
-      // 4. Subscribe app to WABA webhooks
-      const subscribeUrl = `https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`;
-      await fetch(subscribeUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: accessToken }),
-      });
+    if (phonesData.data?.length) {
+      const phone = phonesData.data[0];
+      phoneNumber = phone.display_phone_number || phone.phone_number;
+      phoneNumberId = phone.id;
+      businessName = phone.verified_name || null;
+    }
+
+    if (!phoneNumberId) {
+      return new Response(
+        JSON.stringify({ error: "Nessun numero WhatsApp disponibile per il WABA selezionato" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // 4. Subscribe app to WABA webhooks
+    const subscribeParams = new URLSearchParams({ access_token: accessToken });
+    const subscribeUrl = `https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps?${subscribeParams}`;
+    const subscribeRes = await fetch(subscribeUrl, {
+      method: "POST",
+    });
+    const subscribeData = await subscribeRes.json().catch(() => ({}));
+    if (!subscribeRes.ok || subscribeData.error) {
+      return new Response(
+        JSON.stringify({
+          error: "Collegamento webhook WhatsApp non riuscito",
+          details: subscribeData.error?.message || "Meta non ha confermato la subscription",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     // 5. Save/update config
+    const encKey = getEncryptionKey();
+    const encryptedAccessToken = await encrypt(accessToken, encKey);
     const { data: existingConfig } = await supabase
       .from("messaging_whatsapp_config")
       .select("id")
@@ -169,19 +230,21 @@ Deno.serve(async (req) => {
       phone_number_id: phoneNumberId,
       waba_id: wabaId,
       business_name: businessName,
-      access_token_encrypted: accessToken,
+      access_token_encrypted: encryptedAccessToken,
       is_connected: true,
       account_status: "pending",
       updated_at: new Date().toISOString(),
     };
 
     if (existingConfig) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("messaging_whatsapp_config")
         .update(configData)
         .eq("id", existingConfig.id);
+      if (updateError) throw updateError;
     } else {
-      await supabase.from("messaging_whatsapp_config").insert(configData);
+      const { error: insertError } = await supabase.from("messaging_whatsapp_config").insert(configData);
+      if (insertError) throw insertError;
     }
 
     return new Response(
@@ -199,9 +262,9 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("whatsapp-connect error:", err);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: getErrorMessage(err) }),
       {
-        status: 500,
+        status: getErrorStatus(err),
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );

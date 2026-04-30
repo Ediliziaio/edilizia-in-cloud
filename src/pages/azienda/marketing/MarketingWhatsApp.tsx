@@ -15,7 +15,7 @@ export default function MarketingWhatsApp() {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const { data: conversations } = useConversations();
 
-  const selectedConversation = conversations?.find((c: any) => c.id === selectedConvId);
+  const selectedConversation = conversations?.find((c) => c.id === selectedConvId);
 
   return (
     <div className="space-y-4">
@@ -26,7 +26,7 @@ export default function MarketingWhatsApp() {
       </div>
 
       <Tabs defaultValue="conversazioni" className="w-full">
-        <TabsList>
+        <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="conversazioni" className="gap-2">
             <MessageCircle className="h-4 w-4" />
             Conversazioni
@@ -46,9 +46,9 @@ export default function MarketingWhatsApp() {
         </TabsList>
 
         <TabsContent value="conversazioni">
-          <div className="border rounded-lg bg-background overflow-hidden" style={{ height: "calc(100vh - 260px)" }}>
-            <div className="flex h-full">
-              <div className="w-80 flex-shrink-0">
+          <div className="border rounded-lg bg-background overflow-hidden h-[calc(100vh-260px)] min-h-[560px]">
+            <div className="flex h-full flex-col lg:flex-row">
+              <div className={`${selectedConvId ? "hidden lg:block" : "block"} w-full lg:w-80 lg:flex-shrink-0 h-full`}>
                 <ConversationList
                   selectedId={selectedConvId}
                   onSelect={(id) => {
@@ -57,15 +57,19 @@ export default function MarketingWhatsApp() {
                   }}
                 />
               </div>
-              <div className="flex-1 flex flex-col border-l">
+              <div className={`${selectedConvId ? "flex" : "hidden lg:flex"} flex-1 flex-col lg:border-l min-w-0 h-full`}>
                 <ChatView
                   conversationId={selectedConvId}
                   selectedMessageId={selectedMessageId}
                   onSelectMessage={setSelectedMessageId}
                   conversation={selectedConversation}
+                  onBack={() => {
+                    setSelectedConvId(null);
+                    setSelectedMessageId(null);
+                  }}
                 />
               </div>
-              <div className="w-80 flex-shrink-0">
+              <div className="hidden xl:block w-80 flex-shrink-0">
                 <AiPanel selectedMessageId={selectedMessageId} />
               </div>
             </div>

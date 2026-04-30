@@ -1,10 +1,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+type TemplateComponent = {
+  type?: string;
+  format?: string;
+  text?: string;
+  example?: unknown;
+  [key: string]: unknown;
 };
 
 Deno.serve(async (req) => {
@@ -52,20 +61,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify user belongs to company
-    const { data: profile } = await adminClient
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-
-    const isSuperAdmin = claimsData.claims.user_role === "super_admin";
-    if (!isSuperAdmin && profile?.company_id !== company_id) {
-      return new Response(
-        JSON.stringify({ error: "Non autorizzato" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    await assertMetaCompanyAdminAccess(adminClient, userId, company_id);
 
     // Get WhatsApp config (need waba_id for template API)
     const { data: waConfig } = await adminClient
@@ -83,7 +79,7 @@ Deno.serve(async (req) => {
     }
 
     const encKey = getEncryptionKey();
-    const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
+    const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
 
     // ── LIST templates ──
     if (action === "list") {
@@ -118,6 +114,7 @@ Deno.serve(async (req) => {
         );
       }
 
+      const components = addTemplateExamples(template.components as TemplateComponent[]);
       const res = await fetch(
         `https://graph.facebook.com/v21.0/${waConfig.waba_id}/message_templates`,
         {
@@ -130,7 +127,7 @@ Deno.serve(async (req) => {
             name: template.name,
             category: template.category,
             language: template.language || "it",
-            components: template.components,
+            components,
           }),
         }
       );
@@ -187,11 +184,40 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: "Azione non valida. Usa: list, create, delete" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[whatsapp-templates] Error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Errore interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: getErrorMessage(err) }),
+      { status: getErrorStatus(err), headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
+
+function addTemplateExamples(components: TemplateComponent[]): TemplateComponent[] {
+  return (components || []).map((component) => {
+    if (component.example || typeof component.text !== "string") return component;
+
+    const placeholders = component.text.match(/\{\{\d+\}\}/g) || [];
+    if (placeholders.length === 0) return component;
+
+    if (component.type === "BODY") {
+      return {
+        ...component,
+        example: {
+          body_text: [placeholders.map((_, index) => `Esempio ${index + 1}`)],
+        },
+      };
+    }
+
+    if (component.type === "HEADER" && component.format === "TEXT") {
+      return {
+        ...component,
+        example: {
+          header_text: ["Esempio"],
+        },
+      };
+    }
+
+    return component;
+  });
+}

@@ -6,7 +6,7 @@ import { MessageBubble } from "./MessageBubble";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Bot, Loader2, MessageSquare, Phone, Star, MoreVertical } from "lucide-react";
+import { Send, Bot, Loader2, MessageSquare, Phone, Star, MoreVertical, ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -34,10 +34,27 @@ interface ChatViewProps {
   conversationId: string | null;
   selectedMessageId: string | null;
   onSelectMessage: (id: string) => void;
-  conversation: any;
+  conversation: {
+    contact_name?: string | null;
+    phone_number?: string | null;
+    contact_type?: string | null;
+  } | null | undefined;
+  onBack?: () => void;
 }
 
-export function ChatView({ conversationId, selectedMessageId, onSelectMessage, conversation }: ChatViewProps) {
+type ChatMessage = {
+  id: string;
+  sender_type: string;
+  sender_name: string | null;
+  message_type: string;
+  content: string | null;
+  transcription: string | null;
+  ai_processed: boolean;
+  created_at: string;
+  delivery_status?: string | null;
+};
+
+export function ChatView({ conversationId, selectedMessageId, onSelectMessage, conversation, onBack }: ChatViewProps) {
   const { data: messages, isLoading } = useMessages(conversationId);
   const analyzeMessage = useAnalyzeMessage();
   const { effectiveCompany } = useAuth();
@@ -70,8 +87,8 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
       } else {
         setReplyText("");
       }
-    } catch (err: any) {
-      toast.error("Errore invio", { description: err.message });
+    } catch (err: unknown) {
+      toast.error("Errore invio", { description: err instanceof Error ? err.message : "Errore durante l'invio" });
     } finally {
       setIsSending(false);
     }
@@ -100,6 +117,11 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
     <div className="flex-1 flex flex-col">
       {/* Header */}
       <div className="h-14 border-b flex items-center px-4 gap-3 bg-background">
+        {onBack && (
+          <Button variant="ghost" size="icon" className="h-9 w-9 lg:hidden -ml-2" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
         <div className={cn(
           "h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0",
           getAvatarColor(conversation?.contact_name)
@@ -136,7 +158,7 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
             Nessun messaggio
           </div>
         ) : (
-          messages.map((msg: any) => (
+          (messages as ChatMessage[]).map((msg) => (
             <div key={msg.id}>
               <MessageBubble
                 message={msg}
@@ -174,9 +196,9 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
           value={replyText}
           onChange={(e) => setReplyText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendReply()}
-          className="bg-muted/50"
+          className="bg-muted/50 min-h-11 text-base sm:text-sm"
         />
-        <Button size="icon" onClick={handleSendReply} disabled={!replyText.trim() || isSending}>
+        <Button size="icon" className="h-11 w-11 shrink-0" onClick={handleSendReply} disabled={!replyText.trim() || isSending}>
           {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -223,9 +224,8 @@ Deno.serve(async (req) => {
       }
 
       // Decrypt access token
-      const { decrypt, getEncryptionKey } = await import("../_shared/encryption.ts");
       const encKey = getEncryptionKey();
-      const decryptedToken = await decrypt(waConfig.access_token_encrypted, encKey);
+      const decryptedToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
 
       const result = await sendWhatsApp(waConfig.phone_number_id, decryptedToken, contact.phone, content);
       if (!result.ok) {

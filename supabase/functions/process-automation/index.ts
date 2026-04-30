@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 const corsHeaders = {
@@ -726,7 +726,7 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
 
   // 3. Decrypt token
   const encKey = getEncryptionKey();
-  const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
+  const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
 
   const cleanPhone = contact.phone.replace(/[^0-9]/g, "");
 

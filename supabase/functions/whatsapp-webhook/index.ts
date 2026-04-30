@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
+import { timingSafeEqualHex } from "../_shared/metaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,6 +10,7 @@ const corsHeaders = {
 };
 
 async function verifyHmac(body: string, signature: string, appSecret: string): Promise<boolean> {
+  if (!appSecret || !signature.startsWith("sha256=")) return false;
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(appSecret),
@@ -26,7 +28,7 @@ async function verifyHmac(body: string, signature: string, appSecret: string): P
     Array.from(new Uint8Array(sig))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-  return expected === signature;
+  return timingSafeEqualHex(expected, signature);
 }
 
 Deno.serve(async (req) => {
@@ -79,6 +81,7 @@ Deno.serve(async (req) => {
           const statuses = value?.statuses || [];
           for (const status of statuses) {
             const metaMessageId = status.id;
+            if (!metaMessageId) continue;
             const newStatus = status.status; // sent, delivered, read, failed
             const timestamp = new Date(parseInt(status.timestamp) * 1000).toISOString();
 
@@ -133,6 +136,7 @@ Deno.serve(async (req) => {
           }
 
           for (const msg of value.messages) {
+            if (!msg.id) continue;
             const senderPhone = msg.from;
             const senderName = contactMap[senderPhone] || senderPhone;
             const content =
@@ -199,6 +203,16 @@ Deno.serve(async (req) => {
               conversationId = newConv.id;
             }
 
+            const { data: duplicateMessage } = await supabase
+              .from("messaging_messages")
+              .select("id")
+              .eq("meta_message_id", msg.id)
+              .maybeSingle();
+
+            if (duplicateMessage) {
+              continue;
+            }
+
             // Insert message
             const mediaUrl =
               msg.image?.id || msg.document?.id || msg.audio?.id || msg.video?.id
@@ -214,6 +228,8 @@ Deno.serve(async (req) => {
                 message_type: messageType,
                 content,
                 media_url: mediaUrl,
+                meta_message_id: msg.id,
+                delivery_status: "received",
               });
 
             if (msgErr) {

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { assertCompanyMemberAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,20 +67,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Verify user belongs to same company
-    const { data: profile } = await adminClient
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-
-    const isSuperAdmin = claimsData.claims.user_role === "super_admin";
-    if (!isSuperAdmin && profile?.company_id !== conv.company_id) {
-      return new Response(
-        JSON.stringify({ error: "Non autorizzato per questa conversazione" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    await assertCompanyMemberAccess(adminClient, userId, conv.company_id, {
+      requiredPermission: "can_view_marketing_whatsapp",
+    });
 
     // 3. Get WhatsApp config
     const { data: waConfig } = await adminClient
@@ -98,7 +88,7 @@ Deno.serve(async (req) => {
 
     // 4. Decrypt access token
     const encKey = getEncryptionKey();
-    const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
+    const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
 
     // 5. Send via Meta API
     const cleanPhone = (conv.phone_number || "").replace(/[^0-9]/g, "");
@@ -137,6 +127,7 @@ Deno.serve(async (req) => {
         sender_name: "Operatore",
         message_type: "text",
         content: content.trim(),
+        delivery_status: "failed",
       });
 
       return new Response(
@@ -177,11 +168,11 @@ Deno.serve(async (req) => {
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[send-whatsapp-reply] Error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Errore interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: getErrorMessage(err) }),
+      { status: getErrorStatus(err), headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

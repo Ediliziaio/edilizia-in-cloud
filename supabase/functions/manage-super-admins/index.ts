@@ -375,10 +375,10 @@ Deno.serve(async (req) => {
       const { data: settings } = await supabaseAdmin
         .from("platform_settings")
         .select("key, value, updated_at")
-        .in("key", ["meta_app_id", "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token"]);
+        .in("key", ["meta_app_id", "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id"]);
 
       const result: Record<string, { value: string; masked?: string; updated_at?: string }> = {};
-      const secretKeys = ["meta_app_secret", "google_maps_api_key", "whatsapp_verify_token"];
+      const secretKeys = ["meta_app_secret", "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id"];
       for (const s of settings || []) {
         if (secretKeys.includes(s.key)) {
           const masked = s.value.length > 4 ? "••••" + s.value.slice(-4) : "••••";
@@ -402,7 +402,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const allowedKeys = ["meta_app_id", "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token"];
+      const allowedKeys = ["meta_app_id", "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id"];
       const updates: { key: string; oldValue?: string }[] = [];
 
       for (const [key, value] of Object.entries(newSettings)) {

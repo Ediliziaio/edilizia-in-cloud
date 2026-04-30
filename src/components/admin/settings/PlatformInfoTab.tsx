@@ -190,6 +190,7 @@ const API_CARDS = [
     tooltipText: "Il Verify Token viene usato per la validazione iniziale del webhook Meta/WhatsApp. Deve corrispondere al token configurato nell'app Meta Business.",
     fields: [
       { key: "whatsapp_verify_token", label: "Verify Token", isSecret: true },
+      { key: "whatsapp_config_id", label: "Embedded Signup Config ID", isSecret: true },
     ],
   },
 ] as const;

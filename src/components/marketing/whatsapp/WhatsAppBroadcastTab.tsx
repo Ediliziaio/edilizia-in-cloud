@@ -15,11 +15,28 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
+type BroadcastRow = {
+  id: string;
+  created_at: string;
+  failed_count: number | null;
+  segment: string;
+  sent_count: number | null;
+  status: string;
+  template_name: string | null;
+  total_contacts: number | null;
+};
+
+function getErrorDescription(err: unknown): string {
+  return err instanceof Error ? err.message : "Errore durante il broadcast";
+}
+
 export function WhatsAppBroadcastTab() {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [segment, setSegment] = useState("tutti");
+  const [segmentValue, setSegmentValue] = useState("");
   const [templateName, setTemplateName] = useState("");
+  const [templateLanguage, setTemplateLanguage] = useState("it");
   const [messageText, setMessageText] = useState("");
   const [showPreview, setShowPreview] = useState(false);
 
@@ -30,26 +47,37 @@ export function WhatsAppBroadcastTab() {
     queryKey: ["whatsapp-broadcasts", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("whatsapp_broadcasts" as any)
+        .from("whatsapp_broadcasts")
         .select("*")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
-      return data as any[];
+      return (data || []) as BroadcastRow[];
     },
     enabled: !!companyId,
   });
 
   const sendMutation = useMutation({
     mutationFn: async () => {
+      const segmentConfig =
+        segment === "tag" ? { tag: segmentValue.trim() } :
+        segment === "source" ? { source: segmentValue.trim() } :
+        {};
+      const templateParameters = messageText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
       const { data, error } = await supabase.functions.invoke("whatsapp-broadcast", {
         body: {
           company_id: companyId,
           segment,
-          segment_config: {},
+          segment_config: segmentConfig,
           template_name: templateName.trim(),
+          template_language: templateLanguage.trim() || "it",
           message_text: messageText.trim(),
+          template_parameters: templateParameters,
         },
       });
       if (error) throw error;
@@ -61,11 +89,13 @@ export function WhatsAppBroadcastTab() {
         description: `${data.sent} inviati, ${data.failed} falliti su ${data.total_contacts} contatti`,
       });
       setTemplateName("");
+      setTemplateLanguage("it");
       setMessageText("");
+      setSegmentValue("");
       queryClient.invalidateQueries({ queryKey: ["whatsapp-broadcasts", companyId] });
     },
-    onError: (err: any) => {
-      toast.error("Errore broadcast", { description: err.message });
+    onError: (err: unknown) => {
+      toast.error("Errore broadcast", { description: getErrorDescription(err) });
     },
   });
 
@@ -74,8 +104,17 @@ export function WhatsAppBroadcastTab() {
       toast.error("Inserisci il nome del template WhatsApp");
       return;
     }
-    if (!messageText.trim()) {
-      toast.error("Inserisci il testo del messaggio");
+    if ((segment === "tag" || segment === "source") && !segmentValue.trim()) {
+      toast.error(segment === "tag" ? "Inserisci il tag da usare come segmento" : "Inserisci la fonte da usare come segmento");
+      return;
+    }
+    if (segment === "pipeline") {
+      toast.error("Segmento pipeline non disponibile", {
+        description: "I contatti marketing non hanno una fase pipeline collegata.",
+      });
+      return;
+    }
+    if (!window.confirm("Confermi l'invio del broadcast WhatsApp ai contatti selezionati e non disiscritti?")) {
       return;
     }
     sendMutation.mutate();
@@ -89,6 +128,8 @@ export function WhatsAppBroadcastTab() {
         return <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-0 gap-1"><CheckCircle className="h-3 w-3" /> Completato</Badge>;
       case "sending":
         return <Badge variant="outline" className="gap-1 text-amber-600"><Loader2 className="h-3 w-3 animate-spin" /> In corso</Badge>;
+      case "partial_failed":
+        return <Badge variant="outline" className="gap-1 text-amber-600"><Clock className="h-3 w-3" /> Parziale</Badge>;
       case "failed":
         return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Fallito</Badge>;
       default:
@@ -110,7 +151,13 @@ export function WhatsAppBroadcastTab() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Segmento contatti</Label>
-              <Select value={segment} onValueChange={setSegment}>
+              <Select
+                value={segment}
+                onValueChange={(value) => {
+                  setSegment(value);
+                  setSegmentValue("");
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -118,40 +165,70 @@ export function WhatsAppBroadcastTab() {
                   <SelectItem value="tutti">Tutti i contatti</SelectItem>
                   <SelectItem value="tag">Per tag</SelectItem>
                   <SelectItem value="source">Per fonte</SelectItem>
-                  <SelectItem value="pipeline">Per fase pipeline</SelectItem>
+                  <SelectItem value="pipeline" disabled>Per fase pipeline (non disponibile)</SelectItem>
                   <SelectItem value="lead_caldi">Lead caldi</SelectItem>
                   <SelectItem value="nuovi">Nuovi contatti (ultimi 7 giorni)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                I contatti disiscritti o con opt-out WhatsApp vengono esclusi automaticamente.
+              </p>
+            </div>
+
+            {(segment === "tag" || segment === "source") && (
+              <div className="space-y-2">
+                <Label>{segment === "tag" ? "Tag segmento" : "Fonte segmento"}</Label>
+                <Input
+                  placeholder={segment === "tag" ? "es. hot" : "es. Meta Ads"}
+                  value={segmentValue}
+                  onChange={(e) => setSegmentValue(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nome Template WhatsApp</Label>
+                <Input
+                  placeholder="es. promo_estate_2025"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Lingua template</Label>
+                <Input
+                  placeholder="it"
+                  value={templateLanguage}
+                  onChange={(e) => setTemplateLanguage(e.target.value.slice(0, 8))}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Nome Template WhatsApp</Label>
-              <Input
-                placeholder="es. promo_estate_2025"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-              />
               <p className="text-xs text-muted-foreground">
                 Il template deve essere pre-approvato da Meta. Vai alla tab "Template" per gestirli.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Testo del messaggio</Label>
+              <Label>Parametri BODY del template</Label>
               <Textarea
-                placeholder="Ciao {{nome}}, abbiamo una promozione speciale per te..."
+                placeholder={"Uno per riga, es.:\n{{nome}}\n{{cognome}}"}
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 rows={5}
               />
+              <p className="text-xs text-muted-foreground">
+                Se il template contiene <code>{"{{1}}"}</code> e <code>{"{{2}}"}</code>, inserisci due righe nello stesso ordine.
+              </p>
               <div className="flex flex-wrap gap-1.5">
                 {variabili.map((v) => (
                   <Badge
                     key={v}
                     variant="outline"
                     className="cursor-pointer hover:bg-accent text-xs"
-                    onClick={() => setMessageText((prev) => prev + " " + v)}
+                    onClick={() => setMessageText((prev) => prev ? `${prev}\n${v}` : v)}
                   >
                     {v}
                   </Badge>
@@ -223,7 +300,7 @@ export function WhatsAppBroadcastTab() {
               </div>
             ) : (
               <div className="space-y-3">
-                {broadcasts.map((b: any) => (
+                {broadcasts.map((b) => (
                   <div key={b.id} className="flex items-center justify-between border rounded-lg p-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">

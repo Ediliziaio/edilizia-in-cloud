@@ -68,7 +68,7 @@ export function MessageBubble({ message, isSelected, onSelect }: MessageBubblePr
     >
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-4 py-2 relative transition-all shadow-sm",
+          "max-w-[86%] sm:max-w-[75%] rounded-2xl px-4 py-2 relative transition-all shadow-sm",
           isContact
             ? "bg-card text-card-foreground border rounded-bl-md"
             : "bg-emerald-100 dark:bg-emerald-900/40 text-foreground rounded-br-md",
@@ -86,7 +86,7 @@ export function MessageBubble({ message, isSelected, onSelect }: MessageBubblePr
           </div>
         )}
 
-        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        <p className="text-sm whitespace-pre-wrap break-words">{message.content || ""}</p>
 
         {message.message_type === "audio" && message.transcription && (
           <div className="mt-2 pt-2 border-t border-current/10">
