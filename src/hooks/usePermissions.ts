@@ -214,8 +214,10 @@ export function usePermissions(): Permissions {
     impersonatedCompanyId, impersonationToken,
     viewAsRole, viewAsUserId,
     multiCompanyAccesses, selectedMultiCompanyId,
+    effectiveCompany,
   } = useAuth();
   const queryClient = useQueryClient();
+  const effectiveCompanyId = effectiveCompany?.id ?? selectedMultiCompanyId ?? impersonatedCompanyId ?? null;
 
   const isStaffRole = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "");
   // I `multi_company_user` hanno una single row in `staff_permissions` che fa
@@ -231,12 +233,13 @@ export function usePermissions(): Permissions {
   }, [role, multiCompanyAccesses, selectedMultiCompanyId]);
 
   const { data: permissions, isLoading } = useQuery({
-    queryKey: ["staff-permissions", user?.id],
+    queryKey: ["staff-permissions", user?.id, effectiveCompanyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_permissions")
         .select("*")
         .eq("user_id", user!.id)
+        .eq("company_id", effectiveCompanyId!)
         .maybeSingle();
 
       if (error) {
@@ -245,7 +248,7 @@ export function usePermissions(): Permissions {
       }
       return data;
     },
-    enabled: needsStaffPermsFetch && !!user?.id,
+    enabled: needsStaffPermsFetch && !!user?.id && !!effectiveCompanyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -260,12 +263,13 @@ export function usePermissions(): Permissions {
     ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(viewAsRole || "");
 
   const { data: viewAsPermsRow, isLoading: viewAsLoading } = useQuery({
-    queryKey: ["staff-permissions", "view-as", viewAsUserId],
+    queryKey: ["staff-permissions", "view-as", viewAsUserId, effectiveCompanyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_permissions")
         .select("*")
         .eq("user_id", viewAsUserId!)
+        .eq("company_id", effectiveCompanyId!)
         .maybeSingle();
       if (error) {
         logger.error("Error fetching view-as permissions:", error);
@@ -273,7 +277,7 @@ export function usePermissions(): Permissions {
       }
       return data;
     },
-    enabled: viewAsNeedsDbFetch,
+    enabled: viewAsNeedsDbFetch && !!effectiveCompanyId,
     staleTime: 60 * 1000,
   });
 
@@ -294,7 +298,7 @@ export function usePermissions(): Permissions {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
         }
       )
       .subscribe();
@@ -302,7 +306,7 @@ export function usePermissions(): Permissions {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, needsStaffPermsFetch, queryClient]);
+  }, [user?.id, effectiveCompanyId, needsStaffPermsFetch, queryClient]);
 
   // ─── View-as mode: il super_admin sta simulando un utente specifico ────
   // NB: valutato PRIMA dello shortcut super_admin → ALL_PERMISSIONS, altrimenti
@@ -347,6 +351,7 @@ export function usePermissions(): Permissions {
     }
     // Staff-like access roles: usa la riga staff_permissions
     if (["company_staff", "salesperson", "call_center"].includes(currentAccessRole)) {
+      if (!effectiveCompanyId) return { ...NO_PERMISSIONS, isLoading: true };
       if (isLoading) return { ...NO_PERMISSIONS, isLoading: true };
       return mapDbRowToPermissions(permissions);
     }
@@ -365,6 +370,7 @@ export function usePermissions(): Permissions {
 
   // Staff: return permissions from database
   if (["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "")) {
+    if (!effectiveCompanyId) return { ...NO_PERMISSIONS, isLoading: true };
     if (isLoading) {
       return { ...NO_PERMISSIONS, isLoading: true };
     }

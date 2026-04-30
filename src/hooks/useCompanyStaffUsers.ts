@@ -20,6 +20,7 @@ export const STAFF_ROLES = [
   "company_admin",
   "company_staff",
   "employee",
+  "worker",
   "subcontractor",
   "salesperson",
   "call_center",
@@ -57,6 +58,11 @@ interface RpcCompanyPerson {
   roles?: StaffRole[] | string[] | null;
 }
 
+type RpcResult = {
+  data: unknown;
+  error: { message?: string } | null;
+};
+
 export const companyStaffUsersKeys = {
   byCompany: (companyId: string | null | undefined, scope: UserScope = "all") =>
     ["company-staff-users", companyId, scope] as const,
@@ -87,24 +93,35 @@ export function useCompanyStaffUsers(
       if (!companyId) return [];
 
       const rolesFilter = new Set<string>(scope === "sales" ? SALES_ROLES : STAFF_ROLES);
-      const { data: rpcUsers, error: rpcError } = await (supabase.rpc as any)(
-        "get_internal_chat_profiles",
-        { p_company_id: companyId },
-      );
+      const rpc = supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, string>
+      ) => Promise<RpcResult>;
+      const { data: rpcUsers, error: rpcError } = await rpc("get_internal_chat_profiles", {
+        p_company_id: companyId,
+      });
 
       if (!rpcError && Array.isArray(rpcUsers) && rpcUsers.length > 0) {
-        return (rpcUsers as RpcCompanyPerson[])
-          .filter((p) => {
-            const roles = Array.isArray(p.roles) ? p.roles : [];
-            return scope === "all" || roles.some((role) => rolesFilter.has(role));
-          })
-          .filter((p) => p.first_name || p.last_name || p.email)
-          .map((p) => ({
-            id: p.id,
-            first_name: p.first_name,
-            last_name: p.last_name,
-            roles: Array.isArray(p.roles) ? (p.roles as StaffRole[]) : undefined,
-          }));
+        const hasRolePayload = (rpcUsers as RpcCompanyPerson[]).some((p) => Array.isArray(p.roles));
+        const filteredUsers = hasRolePayload
+          ? (rpcUsers as RpcCompanyPerson[]).filter((p) => {
+              const roles = Array.isArray(p.roles) ? p.roles : [];
+              return scope === "all" || roles.some((role) => rolesFilter.has(role));
+            })
+          : scope === "all"
+            ? (rpcUsers as RpcCompanyPerson[])
+            : [];
+
+        if (filteredUsers.length > 0 || hasRolePayload) {
+          return filteredUsers
+            .filter((p) => p.first_name || p.last_name || p.email)
+            .map((p) => ({
+              id: p.id,
+              first_name: p.first_name,
+              last_name: p.last_name,
+              roles: Array.isArray(p.roles) ? (p.roles as StaffRole[]) : undefined,
+            }));
+        }
       }
 
       const [permsRes, employeesRes, subcontractorsRes] = await Promise.all([
@@ -121,7 +138,9 @@ export function useCompanyStaffUsers(
         staffRolesMap.set(id, arr);
       };
 
-      (permsRes.data || []).forEach((p) => addRole(p.user_id, "company_staff"));
+      if (scope === "all") {
+        (permsRes.data || []).forEach((p) => addRole(p.user_id, "company_staff"));
+      }
       (employeesRes.data || []).forEach((e) => {
         if (scope === "sales" && e.area !== "commerciale") return;
         addRole(e.user_id, e.area === "commerciale" ? "salesperson" : "employee");

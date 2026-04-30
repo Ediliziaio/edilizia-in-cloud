@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -52,21 +54,7 @@ export function NuovoInterventoDialog({
   const [impiantoId, setImpiantoId] = useState(defaultImpiantoId ?? "");
   const [note, setNote] = useState("");
 
-  // ── Clienti ──────────────────────────────────────────────────────────────────
-  const { data: clienti = [] } = useQuery({
-    queryKey: ["clienti-intervento-dialog", effectiveCompany?.id],
-    queryFn: async () => {
-      if (!effectiveCompany?.id) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        .eq("company_id", effectiveCompany.id)
-        .eq("role", "cliente")
-        .order("last_name");
-      return data ?? [];
-    },
-    enabled: !!effectiveCompany?.id && open,
-  });
+  const { data: clienti = [] } = useCompanyCustomers(effectiveCompany?.id, open);
 
   // ── Ordini del cliente selezionato ───────────────────────────────────────────
   const { data: ordini = [] } = useQuery({
@@ -84,21 +72,7 @@ export function NuovoInterventoDialog({
     enabled: !!customerId && !!effectiveCompany?.id,
   });
 
-  // ── Tecnici ──────────────────────────────────────────────────────────────────
-  const { data: tecnici = [] } = useQuery({
-    queryKey: ["tecnici-dialog", effectiveCompany?.id],
-    queryFn: async () => {
-      if (!effectiveCompany?.id) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("company_id", effectiveCompany.id)
-        .in("role", ["tecnico", "admin", "staff"])
-        .order("last_name");
-      return data ?? [];
-    },
-    enabled: !!effectiveCompany?.id && open,
-  });
+  const { data: tecnici = [] } = useCompanyStaffUsers(open ? effectiveCompany?.id : null, "all");
 
   // ── Impianti del cliente selezionato ─────────────────────────────────────────
   const { data: impianti = [] } = useQuery({
@@ -120,18 +94,19 @@ export function NuovoInterventoDialog({
       if (!customerId) throw new Error("Seleziona un cliente");
       if (!subject.trim()) throw new Error("L'oggetto è obbligatorio");
       if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
+      if (note.trim() && !user?.id) throw new Error("Utente non autenticato");
 
       const { data: ticket, error } = await supabase
         .from("tickets")
         .insert({
-          company_id: effectiveCompany?.id ?? "",
+          company_id: effectiveCompany.id,
           customer_id: customerId,
           order_id: (orderId && orderId !== "none") ? orderId : null,
           subject: subject.trim(),
           tipo,
           priority,
           status: "aperto",
-          assigned_to: (tecnicoId && tecnicoId !== "none") ? tecnicoId : (user?.id || null),
+          assigned_to: (tecnicoId && tecnicoId !== "none") ? tecnicoId : null,
           indirizzo_intervento: indirizzo.trim() || null,
           data_intervento_prevista: dataOra ? new Date(dataOra).toISOString() : null,
           durata_ore: durataOre ? parseFloat(durataOre) : null,
@@ -145,7 +120,7 @@ export function NuovoInterventoDialog({
       if (note.trim()) {
         await supabase.from("ticket_messages").insert({
           ticket_id: ticket.id,
-          sender_id: user?.id ?? "",
+          sender_id: user!.id,
           message: note.trim(),
         });
       }
@@ -262,7 +237,7 @@ export function NuovoInterventoDialog({
                 <SelectValue placeholder="Seleziona tecnico..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Nessuno (assegnato a me)</SelectItem>
+                <SelectItem value="none">Nessuno</SelectItem>
                 {tecnici.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {[t.first_name, t.last_name].filter(Boolean).join(" ")}

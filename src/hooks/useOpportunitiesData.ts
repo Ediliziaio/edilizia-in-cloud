@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { useEffect, useMemo } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 
 export function usePipelines() {
   const { effectiveCompany } = useAuth();
@@ -312,47 +313,18 @@ export function useDeleteOpportunity() {
 export function useCompanyStaff() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const staffQuery = useCompanyStaffUsers(companyId, "all");
 
-  return useQuery({
-    queryKey: queryKeys.staff.roles(companyId),
-    queryFn: async () => {
-      if (!companyId) return [];
-      // Use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
+  const data = useMemo(
+    () => (staffQuery.data || []).map((p) => ({
+      id: p.id,
+      name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+      roles: p.roles || [],
+    })),
+    [staffQuery.data]
+  );
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds);
-
-      return (profiles || [])
-        .filter((p) => p.first_name || p.last_name)
-        .map((p) => ({ id: p.id, name: `${p.first_name || ""} ${p.last_name || ""}`.trim() }));
-    },
-    enabled: !!companyId,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
-}
-
-/**
- * Helper: fetch profiles for a set of user IDs.
- * Returns array of { id, name, source } — source indicates where the match came from.
- */
-async function fetchProfilesByIds(ids: string[], source: string) {
-  if (!ids.length) return [];
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, first_name, last_name")
-    .in("id", ids);
-  return (profiles || [])
-    .filter((p) => p.first_name || p.last_name)
-    .map((p) => ({ id: p.id, name: `${p.first_name || ""} ${p.last_name || ""}`.trim(), source }));
+  return { ...staffQuery, data };
 }
 
 /**
@@ -365,47 +337,18 @@ async function fetchProfilesByIds(ids: string[], source: string) {
 export function useCompanySalespeople() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const staffQuery = useCompanyStaffUsers(companyId, "sales");
 
-  return useQuery({
-    queryKey: queryKeys.staff.salespeople(companyId),
-    queryFn: async () => {
-      if (!companyId) return [];
+  const data = useMemo(
+    () => (staffQuery.data || []).map((p) => ({
+      id: p.id,
+      name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+      source: p.roles?.includes("salesperson") ? "role" : "area",
+    })),
+    [staffQuery.data]
+  );
 
-      // Get all company user IDs
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const companyUserIds = (perms || []).map((p) => p.user_id);
-      if (!companyUserIds.length) return [];
-
-      // Strategy 1: user_roles → salesperson
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .in("user_id", companyUserIds)
-        .eq("role", "salesperson");
-      const salesIds = (roleData || []).map((r) => r.user_id);
-      if (salesIds.length) return fetchProfilesByIds(salesIds, "role");
-
-      // Strategy 2: employees with area='commerciale' and a linked user account
-      const { data: empData } = await supabase
-        .from("employees")
-        .select("user_id")
-        .eq("company_id", companyId)
-        .eq("is_active", true)
-        .eq("area", "commerciale")
-        .not("user_id", "is", null);
-      const empUserIds = (empData || []).map((e: any) => e.user_id as string).filter(Boolean);
-      if (empUserIds.length) return fetchProfilesByIds(empUserIds, "area");
-
-      // Strategy 3: all company staff (never leave dropdown empty)
-      return fetchProfilesByIds(companyUserIds, "all");
-    },
-    enabled: !!companyId,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
+  return { ...staffQuery, data };
 }
 
 /**
@@ -415,35 +358,20 @@ export function useCompanySalespeople() {
 export function useCompanyCallCenterUsers() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const staffQuery = useCompanyStaffUsers(companyId, "sales");
 
-  return useQuery({
-    queryKey: queryKeys.staff.callCenter(companyId),
-    queryFn: async () => {
-      if (!companyId) return [];
+  const data = useMemo(
+    () => (staffQuery.data || [])
+      .filter((p) => !p.roles?.length || p.roles.includes("call_center") || p.roles.includes("company_admin") || p.roles.includes("super_admin"))
+      .map((p) => ({
+        id: p.id,
+        name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+        source: p.roles?.includes("call_center") ? "role" : "area",
+      })),
+    [staffQuery.data]
+  );
 
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-      const companyUserIds = (perms || []).map((p) => p.user_id);
-      if (!companyUserIds.length) return [];
-
-      // Strategy 1: user_roles → call_center
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .in("user_id", companyUserIds)
-        .eq("role", "call_center");
-      const ccIds = (roleData || []).map((r) => r.user_id);
-      if (ccIds.length) return fetchProfilesByIds(ccIds, "role");
-
-      // Strategy 2: all company staff (call center is rarely a separate area)
-      return fetchProfilesByIds(companyUserIds, "all");
-    },
-    enabled: !!companyId,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
+  return { ...staffQuery, data };
 }
 
 /** Returns company staff filtered by area (cantiere, commerciale, amministrazione, tecnico) */

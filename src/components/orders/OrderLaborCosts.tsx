@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { differenceInDays, parseISO } from "date-fns";
@@ -142,18 +143,10 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     enabled: !!orderId,
   });
 
-  const { data: utentiCampo = [] } = useQuery({
-    queryKey: ["utenti-campo-disponibili", effectiveCompanyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("user_id, role, profile:profiles(id, first_name, last_name, email)")
-        .eq("company_id", effectiveCompanyId!)
-        .in("role", ["employee", "subcontractor"]);
-      return data ?? [];
-    },
-    enabled: !!effectiveCompanyId && campoDialogOpen,
-  });
+  const { data: utentiCampoRaw = [] } = useCompanyStaffUsers(campoDialogOpen ? effectiveCompanyId : null, "all");
+  const utentiCampo = utentiCampoRaw.filter((u) =>
+    u.roles?.includes("employee") || u.roles?.includes("worker") || u.roles?.includes("subcontractor")
+  );
 
   // ── Mutations ────────────────────────────────────────────────
   const deleteEmployeeMutation = useMutation({
@@ -575,12 +568,14 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                 <Select value={formUserId} onValueChange={setFormUserId}>
                   <SelectTrigger><SelectValue placeholder="Seleziona operaio o subappaltatore" /></SelectTrigger>
                   <SelectContent>
-                    {utentiCampo.map((u: any) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
-                        {u.profile?.first_name} {u.profile?.last_name}
-                        <span className="ml-2 text-muted-foreground text-xs">({u.role === "employee" ? "Operaio" : "Sub"})</span>
+                    {utentiCampo.map((u) => {
+                      const roleLabel = u.roles?.includes("subcontractor") ? "Sub" : "Operaio";
+                      return (
+                      <SelectItem key={u.id} value={u.id}>
+                        {[u.first_name, u.last_name].filter(Boolean).join(" ")}
+                        <span className="ml-2 text-muted-foreground text-xs">({roleLabel})</span>
                       </SelectItem>
-                    ))}
+                    )})}
                   </SelectContent>
                 </Select>
               </div>

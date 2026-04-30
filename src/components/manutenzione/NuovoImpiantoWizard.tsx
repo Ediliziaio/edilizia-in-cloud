@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,32 +68,8 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
   const [tipoFatturazione, setTipoFatturazione] = useState("annuale");
   const [rinnovoAutomatico, setRinnovoAutomatico] = useState(true);
 
-  const { data: clienti = [] } = useQuery({
-    queryKey: ["clienti-wizard", companyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("company_id", companyId)
-        .eq("role", "cliente")
-        .order("first_name");
-      return data ?? [];
-    },
-    enabled: !!companyId && open,
-  });
-
-  const { data: tecnici = [] } = useQuery({
-    queryKey: ["tecnici-wizard", companyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("company_id", companyId)
-        .order("first_name");
-      return data ?? [];
-    },
-    enabled: !!companyId && open,
-  });
+  const { data: clienti = [] } = useCompanyCustomers(companyId, open);
+  const { data: tecnici = [] } = useCompanyStaffUsers(open ? companyId : null, "all");
 
   const mutation = useMutation({
     mutationFn: async () => {

@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +48,6 @@ import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
-  type OrderCustomer as Customer,
   type OrderStatus,
   type Installment,
   createDefaultInstallments,
@@ -233,32 +233,7 @@ function CreateOrderInner() {
     setOrderItems([]);
   }, [clearDraft, reset]);
 
-  // Fetch customers for the company
-  const { data: customers = [] } = useQuery({
-    queryKey: ["customers", effectiveCompany?.id],
-    queryFn: async () => {
-      if (!effectiveCompany?.id) return [];
-      
-      const { data: customerRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
-
-      const customerIds = (customerRoles || []).map(r => r.user_id);
-      if (customerIds.length === 0) return [];
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        .eq("company_id", effectiveCompany.id)
-        .in("id", customerIds)
-        .order("last_name");
-
-      if (error) throw error;
-      return (data || []) as Customer[];
-    },
-    enabled: !!effectiveCompany?.id,
-  });
+  const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
 
   // Fetch order statuses for the company
   const { data: statuses = [] } = useQuery({
@@ -373,7 +348,11 @@ function CreateOrderInner() {
         expected_date: i.expected_date || null,
       }));
 
-      const { data, error } = await supabase.rpc("create_order_atomic" as any, {
+      const createOrderAtomic = supabase.rpc as unknown as (
+        fn: "create_order_atomic",
+        args: Record<string, unknown>
+      ) => Promise<{ data: { order_id: string } | null; error: { message: string } | null }>;
+      const { data, error } = await createOrderAtomic("create_order_atomic", {
         p_order_data: orderData,
         p_items: itemsPayload,
         p_salesperson: salespersonPayload,

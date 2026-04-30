@@ -2,9 +2,10 @@
  * Lista degli operai (ruolo employee) con gestione documenti e cantieri.
  * Usato nel tab "Operai" di SettingsPeople.tsx.
  */
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { HardHat, ExternalLink, Loader2, UserCheck, UserX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,23 +14,9 @@ import { Card, CardContent } from "@/components/ui/card";
 export function OperaiCampoList() {
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id ?? "";
-  const qc = useQueryClient();
 
-  const { data: operai = [], isLoading } = useQuery({
-    queryKey: ["operai-campo-list", companyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select(`
-          user_id, role,
-          profile:profiles(id, first_name, last_name, email)
-        `)
-        .eq("company_id", companyId)
-        .eq("role", "employee");
-      return data ?? [];
-    },
-    enabled: !!companyId,
-  });
+  const { data: staffUsers = [], isLoading } = useCompanyStaffUsers(companyId, "all");
+  const operai = staffUsers.filter((u) => u.roles?.includes("employee") || u.roles?.includes("worker"));
 
   // Conta cantieri attivi per ogni operaio
   const { data: cantieriCount = {} } = useQuery({
@@ -81,20 +68,18 @@ export function OperaiCampoList() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {operai.map((op: any) => {
-            const p = op.profile;
-            const nrCantieri = cantieriCount[op.user_id] ?? 0;
+          {operai.map((op) => {
+            const nrCantieri = cantieriCount[op.id] ?? 0;
             return (
-              <Card key={op.user_id}>
+              <Card key={op.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-700">
-                        {p?.first_name?.[0]}{p?.last_name?.[0]}
+                        {op.first_name?.[0]}{op.last_name?.[0]}
                       </div>
                       <div>
-                        <p className="font-medium text-sm">{p?.first_name} {p?.last_name}</p>
-                        <p className="text-xs text-muted-foreground">{p?.email}</p>
+                        <p className="font-medium text-sm">{op.first_name} {op.last_name}</p>
                         <div className="flex gap-2 mt-1">
                           <Badge variant="outline" className="text-[10px]">
                             {nrCantieri} cantier{nrCantieri === 1 ? "e" : "i"}
@@ -108,7 +93,7 @@ export function OperaiCampoList() {
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm" variant="ghost"
-                        onClick={() => window.open(`/azienda/ordini?operaio=${op.user_id}`, "_blank")}
+                        onClick={() => window.open(`/azienda/ordini?operaio=${op.id}`, "_blank")}
                         title="Vedi cantieri assegnati"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />

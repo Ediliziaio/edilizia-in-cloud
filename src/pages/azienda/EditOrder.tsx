@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -395,27 +396,7 @@ function EditOrderInner() {
     }
   }, [clearDraft, order, existingItems, dbInstallments]);
 
-  // Fetch customers
-  const { data: customers = [], isLoading: isLoadingCustomers } = useQuery({
-    queryKey: ["customers", effectiveCompany?.id],
-    queryFn: async () => {
-      if (!effectiveCompany?.id) return [];
-      const { data: customerRoles } = await supabase
-        .from("user_roles").select("user_id").eq("role", "customer");
-      const customerIds = (customerRoles || []).map(r => r.user_id);
-      if (customerIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        .eq("company_id", effectiveCompany.id)
-        .in("id", customerIds)
-        .order("last_name");
-      if (error) throw error;
-      return (data || []) as Customer[];
-    },
-    enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: customers = [], isLoading: isLoadingCustomers } = useCompanyCustomers(effectiveCompany?.id);
 
   // Fetch the order's customer directly
   const { data: orderCustomer } = useQuery({

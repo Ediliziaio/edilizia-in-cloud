@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,27 +59,7 @@ export default function CreateCompanyTicket() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Load customers
-  const { data: customers = [] } = useQuery({
-    queryKey: ["company-customers-list", effectiveCompany?.id],
-    queryFn: async () => {
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
-      const customerIds = (roleData || []).map((r) => r.user_id);
-      if (customerIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        .eq("company_id", effectiveCompany?.id ?? "")
-        .in("id", customerIds)
-        .order("last_name");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!effectiveCompany?.id,
-  });
+  const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
 
   // Load orders for selected customer
   const { data: orders = [] } = useQuery({
@@ -96,19 +78,7 @@ export default function CreateCompanyTicket() {
     enabled: !!customerId && !!effectiveCompany?.id,
   });
 
-  // Tecnici (per interventi)
-  const { data: tecnici = [] } = useQuery({
-    queryKey: ["tecnici-create-ticket", effectiveCompany?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("company_id", effectiveCompany!.id)
-        .order("last_name");
-      return data ?? [];
-    },
-    enabled: !!effectiveCompany?.id && isIntervento,
-  });
+  const { data: tecnici = [] } = useCompanyStaffUsers(effectiveCompany?.id, "all");
 
   // Impianti del cliente selezionato (per interventi)
   const { data: impianti = [] } = useQuery({
@@ -126,18 +96,20 @@ export default function CreateCompanyTicket() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
+      if (!user?.id) throw new Error("Utente non autenticato");
       // Create ticket
       const { data: ticket, error: ticketError } = await supabase
         .from("tickets")
         .insert({
-          company_id: effectiveCompany?.id ?? "",
+          company_id: effectiveCompany!.id,
           customer_id: customerId,
           order_id: (orderId && orderId !== "none") ? orderId : null,
           subject,
           priority,
           tipo,
           status: "aperto" as const,
-          assigned_to: tecnicoId || (user?.id ?? ""),
+          assigned_to: tecnicoId || null,
           ...(isIntervento && {
             indirizzo_intervento: indirizzoIntervento.trim() || null,
             data_intervento_prevista: dataInterventoPrevista ? new Date(dataInterventoPrevista).toISOString() : null,
@@ -155,7 +127,7 @@ export default function CreateCompanyTicket() {
           .from("ticket_messages")
           .insert({
             ticket_id: ticket.id,
-            sender_id: user?.id ?? "",
+            sender_id: user!.id,
             message: message.trim(),
           });
         if (msgError) throw msgError;
@@ -175,7 +147,7 @@ export default function CreateCompanyTicket() {
           .from("ticket_messages")
           .insert({
             ticket_id: ticket.id,
-            sender_id: user?.id ?? "",
+            sender_id: user!.id,
             message: `📎 ${file.name}`,
             attachment_url: signedData?.signedUrl || path,
           });
