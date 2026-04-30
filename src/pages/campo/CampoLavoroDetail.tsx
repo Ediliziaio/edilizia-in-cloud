@@ -10,15 +10,18 @@ import { it } from "date-fns/locale";
 import {
   ArrowLeft, MapPin, Phone, Plus, AlertCircle,
   CheckCircle, Clock, Loader2, FileText, PenLine,
-  Send, Eye, Download, ExternalLink, FileCheck,
+  Send, Download, FileCheck,
   ClipboardSignature, ShieldCheck, Package, Wrench,
+  Camera, BookOpenCheck, MessageSquare, Navigation,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { useOrderDiary } from "@/hooks/useOrderDiary";
 
-type Tab = "descrizione" | "rapportini" | "documenti" | "chat";
+type Tab = "descrizione" | "rapportini" | "diario" | "documenti" | "chat";
 
 // Tipi di documento disponibili per firma
 const TIPI_DOCUMENTO = [
@@ -80,6 +83,7 @@ export default function CampoLavoroDetail() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("descrizione");
+  const { timeline } = useOrderDiary(orderId);
 
   // Verifica assegnazione — controlla order_campo_assignments e order_employees
   const { data: assignment, isLoading, isError, error } = useQuery({
@@ -89,6 +93,8 @@ export default function CampoLavoroDetail() {
         id, order_code, description, status,
         indirizzo_lavori,
         percentuale_avanzamento,
+        work_start_date,
+        work_end_date,
         customer:profiles!orders_customer_id_fkey(
           first_name, last_name, phone, email
         )
@@ -223,54 +229,71 @@ export default function CampoLavoroDetail() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "descrizione", label: "Descrizione" },
     { key: "rapportini",  label: "Rapportini" },
+    { key: "diario",      label: "Diario" },
     { key: "documenti",   label: "Documenti" },
     { key: "chat",        label: "Chat" },
   ];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="mx-auto flex h-full max-w-6xl flex-col">
       {/* Header sticky */}
-      <div className="sticky top-0 z-10 bg-muted border-b border-border px-4 py-3">
-        <div className="flex items-center gap-3 mb-1">
+      <div className="sticky top-0 z-10 rounded-b-2xl border-b border-border bg-background px-4 py-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-3">
           <button
             onClick={() => navigate("/campo")}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-muted active:bg-muted shrink-0"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted"
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-foreground truncate">{order?.order_code}</p>
-            <p className="text-xs text-muted-foreground truncate">{order?.description}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lavoro assegnato</p>
+            <p className="truncate text-xl font-black text-foreground">{order?.order_code}</p>
+            <p className="truncate text-sm text-muted-foreground">{order?.description}</p>
           </div>
         </div>
 
-        {/* Indirizzo → Google Maps */}
-        {order?.indirizzo_lavori && (
-          <button
-            onClick={() => window.open(
-              `https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`,
-              "_blank"
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="rounded-2xl bg-muted/60 p-3">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Indirizzo cantiere</p>
+            {order?.indirizzo_lavori ? (
+              <button
+                onClick={() => window.open(
+                  `https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`,
+                  "_blank"
+                )}
+                className="flex w-full items-start gap-2 text-left text-primary"
+              >
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="text-sm font-semibold">{order.indirizzo_lavori}</span>
+              </button>
+            ) : (
+              <p className="text-sm text-muted-foreground">Nessun indirizzo impostato dall'ufficio.</p>
             )}
-            className="flex items-center gap-1.5 text-primary text-xs mt-1"
-          >
-            <MapPin className="w-3.5 h-3.5" />
-            <span>{order.indirizzo_lavori}</span>
-          </button>
-        )}
-
-        {/* Progress bar */}
-        <div className="mt-2">
-          <div className="w-full bg-muted rounded-full h-1.5">
-            <div
-              className="bg-primary h-1.5 rounded-full transition-all"
-              style={{ width: `${order?.percentuale_avanzamento ?? 0}%` }}
-            />
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">{order?.percentuale_avanzamento ?? 0}% completato</p>
+          <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide opacity-75">Avanzamento</p>
+            <div className="flex items-end justify-between gap-3">
+              <span className="text-2xl font-black">{order?.percentuale_avanzamento ?? 0}%</span>
+              <span className="text-xs font-semibold">{order?.status || "In lavorazione"}</span>
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-primary/15">
+              <div
+                className="h-2 rounded-full bg-primary transition-all"
+                style={{ width: `${order?.percentuale_avanzamento ?? 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <QuickAction icon={FileText} label="Rapportino" onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)} />
+          <QuickAction icon={Camera} label="Foto e note" onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)} />
+          <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
+          <QuickAction icon={Navigation} label="Maps" disabled={!order?.indirizzo_lavori} onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`, "_blank")} />
         </div>
 
         {/* Tab selector */}
-        <div className="flex gap-1 mt-3 overflow-x-auto scrollbar-hide">
+        <div className="mt-3 flex gap-1 overflow-x-auto scrollbar-hide">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
@@ -294,9 +317,23 @@ export default function CampoLavoroDetail() {
         {/* ── Tab: Descrizione ── */}
         {activeTab === "descrizione" && (
           <>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <InfoTile label="Stato" value={order?.status || "In lavorazione"} icon={CheckCircle} />
+              <InfoTile
+                label="Inizio"
+                value={order?.work_start_date ? format(new Date(order.work_start_date), "d MMM yyyy", { locale: it }) : "Non impostato"}
+                icon={Clock}
+              />
+              <InfoTile
+                label="Fine prevista"
+                value={order?.work_end_date ? format(new Date(order.work_end_date), "d MMM yyyy", { locale: it }) : "Non impostata"}
+                icon={CheckCircle}
+              />
+            </div>
+
             {/* Card cliente */}
             {customer && (
-              <div className="bg-muted border border-border rounded-2xl p-4">
+              <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
                 <p className="text-xs text-muted-foreground mb-1">Cliente</p>
                 <p className="font-semibold text-foreground">
                   {customer.first_name} {customer.last_name}
@@ -315,8 +352,8 @@ export default function CampoLavoroDetail() {
 
             {/* Materiali da installare */}
             {orderItems.length > 0 && (
-              <div className="bg-muted border border-border rounded-2xl p-4">
-                <p className="text-xs text-muted-foreground mb-2">Materiali / Articoli</p>
+              <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Materiali / Articoli</p>
                 <div className="space-y-2">
                   {orderItems.map((item: any) => (
                     <div key={item.id} className="flex items-center justify-between">
@@ -346,7 +383,10 @@ export default function CampoLavoroDetail() {
             {rapportini.length === 0 ? (
               <div className="flex flex-col items-center py-12 gap-3 text-center">
                 <FileText className="w-10 h-10 text-muted-foreground" />
-                <p className="text-muted-foreground text-sm">Nessun rapportino per questo cantiere</p>
+                <div>
+                  <p className="font-semibold text-foreground">Nessun rapportino per questo cantiere</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Aggiungi foto, ore, avanzamento e note dal cantiere.</p>
+                </div>
               </div>
             ) : (
               rapportini.map((r: any) => (
@@ -373,6 +413,7 @@ export default function CampoLavoroDetail() {
                   <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
                     {r.ore_lavorate != null && <span>{r.ore_lavorate}h lavorate</span>}
                     {r.percentuale_avanzamento != null && <span>{r.percentuale_avanzamento}% avanzamento</span>}
+                    {r.foto_urls?.length > 0 && <span>{r.foto_urls.length} foto</span>}
                   </div>
                   {r.descrizione_lavori && (
                     <p className="text-sm text-foreground mt-1 line-clamp-2">{r.descrizione_lavori}</p>
@@ -391,6 +432,69 @@ export default function CampoLavoroDetail() {
                   )}
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {/* ── Tab: Diario ── */}
+        {activeTab === "diario" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border bg-blue-50 p-4 text-blue-900">
+              <div className="flex items-start gap-3">
+                <BookOpenCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                <div>
+                  <p className="font-bold">Diario lavori sincronizzato</p>
+                  <p className="mt-1 text-sm text-blue-800/80">
+                    Rapportini, foto, note e aggiornamenti dal campo finiscono nello storico principale dell'ordine.
+                  </p>
+                </div>
+              </div>
+            </div>
+            {timeline.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-center">
+                <BookOpenCheck className="h-10 w-10 text-muted-foreground/40" />
+                <p className="mt-3 font-semibold text-foreground">Diario ancora vuoto</p>
+                <p className="mt-1 text-sm text-muted-foreground">Invia il primo rapportino per alimentare il diario del lavoro.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {timeline.slice(0, 20).map((entry) => {
+                  const isEvent = entry.kind === "event";
+                  const data: any = entry.data;
+                  const payload = (data.payload ?? {}) as Record<string, any>;
+                  const title = isEvent
+                    ? diaryEventLabel(data.event_type, payload)
+                    : data.subject || (data.channel === "nota_interna" ? "Nota interna" : "Messaggio");
+                  const body = isEvent
+                    ? payload.descrizione_lavori || payload.note || payload.message
+                    : data.body;
+                  return (
+                    <div key={`${entry.kind}-${data.id}`} className="rounded-2xl border bg-background p-4 shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                          isEvent ? "bg-primary/10 text-primary" : "bg-emerald-50 text-emerald-600"
+                        )}>
+                          {isEvent ? <BookOpenCheck className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-bold text-foreground">{title}</p>
+                            <span className="text-[11px] text-muted-foreground">
+                              {format(new Date(data.created_at), "d MMM HH:mm", { locale: it })}
+                            </span>
+                          </div>
+                          {data.actor_name && <p className="text-xs text-muted-foreground">Da {data.actor_name}</p>}
+                          {body && <p className="mt-2 text-sm leading-relaxed text-foreground">{String(body)}</p>}
+                          {payload.foto_count ? (
+                            <p className="mt-2 text-xs font-semibold text-primary">{payload.foto_count} foto allegate al rapportino</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -426,6 +530,58 @@ export default function CampoLavoroDetail() {
       </div>
     </div>
   );
+}
+
+function QuickAction({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-12 items-center justify-center gap-2 rounded-xl border bg-background px-3 text-xs font-bold text-foreground shadow-sm transition-transform active:scale-[0.98] disabled:opacity-50"
+    >
+      <Icon className="h-4 w-4 text-primary" />
+      {label}
+    </button>
+  );
+}
+
+function InfoTile({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <div className="mb-2 flex items-center gap-2 text-muted-foreground">
+        <Icon className="h-4 w-4" />
+        <p className="text-[10px] font-bold uppercase tracking-wide">{label}</p>
+      </div>
+      <p className="text-sm font-bold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function diaryEventLabel(eventType: string, payload: Record<string, any>) {
+  if (eventType === "reportino_cantiere") return "Rapportino dal campo";
+  if (eventType === "giornale_lavori_inserito") return "Giornale lavori aggiornato";
+  if (eventType === "foto_rilievo_caricata") return "Foto caricata";
+  if (eventType === "stato_cambiato") return "Stato lavoro aggiornato";
+  if (payload?.title) return String(payload.title);
+  return eventType.replaceAll("_", " ");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

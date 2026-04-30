@@ -66,6 +66,8 @@ export default function CampoHome() {
       {/* Timbratura — sempre in cima su mobile */}
       {isOperaio && <TimbraturaCampo />}
 
+      <FocusOperativoCampo />
+
       {/* Azioni rapide — griglia 4 colonne su mobile */}
       <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
 
@@ -84,6 +86,129 @@ export default function CampoHome() {
           <MieAttivitaCampo />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Focus operativo — prima cosa da guardare entrando nell'app campo
+// ─────────────────────────────────────────────────────────────────────────────
+function FocusOperativoCampo() {
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  const companyId = profile?.company_id;
+
+  const { data: tasks = [] } = useQuery({
+    queryKey: ["campo-focus-tasks", user?.id, companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id, title, priority, due_date, status, order_id, order:orders!tasks_order_id_fkey(order_code, indirizzo_lavori)")
+        .eq("company_id", companyId!)
+        .eq("assigned_to", user!.id)
+        .neq("status", "completata")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(6);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!user?.id && !!companyId,
+    staleTime: 60_000,
+  });
+
+  const { data: employeeId } = useQuery({
+    queryKey: ["campo-focus-employee-id", user?.id, companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.id ?? null;
+    },
+    enabled: !!user?.id && !!companyId,
+  });
+
+  const { data: jobs = [] } = useQuery({
+    queryKey: ["campo-focus-jobs", employeeId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_employees")
+        .select("id, order:orders(id, order_code, description, status, indirizzo_lavori)")
+        .eq("employee_id", employeeId!)
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []).filter((row: any) => {
+        const status = row.order?.status?.toLowerCase();
+        return row.order?.id && status !== "annullato" && status !== "chiuso";
+      });
+    },
+    enabled: !!employeeId,
+    staleTime: 60_000,
+  });
+
+  const urgentCount = tasks.filter((task: any) => task.priority === "urgente").length;
+  const nextTask = tasks[0] as any;
+  const nextJob = jobs[0] as any;
+
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+      <div className="rounded-2xl border bg-background p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-primary">
+              <ClipboardCheck className="h-4 w-4" />
+              Focus di oggi
+            </p>
+            {nextTask ? (
+              <>
+                <p className="truncate text-lg font-black text-foreground">{nextTask.title}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  {nextTask.order?.order_code && <span className="rounded-full bg-muted px-2 py-1 font-semibold">{nextTask.order.order_code}</span>}
+                  {nextTask.due_date && <span className="rounded-full bg-muted px-2 py-1 font-semibold">Scade {format(new Date(nextTask.due_date), "d MMM", { locale: it })}</span>}
+                  {urgentCount > 0 && <span className="rounded-full bg-red-50 px-2 py-1 font-semibold text-red-700">{urgentCount} urgenti</span>}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-black text-foreground">Nessuna attività aperta</p>
+                <p className="mt-1 text-sm text-muted-foreground">Controlla lavori assegnati, rapportini e chat cantiere.</p>
+              </>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => navigate("/campo/attivita")}>Attività</Button>
+            {nextTask?.order_id && (
+              <Button size="sm" variant="outline" onClick={() => navigate(`/campo/lavoro/${nextTask.order_id}`)}>
+                Lavoro
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={() => nextJob?.order?.id ? navigate(`/campo/lavoro/${nextJob.order.id}`) : navigate("/campo/calendario")}
+        className="rounded-2xl border bg-primary/10 p-4 text-left text-primary shadow-sm transition-transform active:scale-[0.99]"
+      >
+        <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide">
+          <HardHat className="h-4 w-4" />
+          Cantieri assegnati
+        </p>
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-2xl font-black">{jobs.length}</p>
+            {nextJob?.order ? (
+              <p className="mt-1 truncate text-sm font-semibold text-primary/80">{nextJob.order.order_code} · {nextJob.order.indirizzo_lavori || nextJob.order.description}</p>
+            ) : (
+              <p className="mt-1 text-sm font-semibold text-primary/80">Apri calendario lavori</p>
+            )}
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0" />
+        </div>
+      </button>
     </div>
   );
 }

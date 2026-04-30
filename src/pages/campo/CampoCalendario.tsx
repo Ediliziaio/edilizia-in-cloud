@@ -104,6 +104,14 @@ function formatKm(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
+function formatDriveTime(meters: number): string {
+  const minutes = Math.max(3, Math.round((meters / 1000 / 35) * 60));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
 function itemTitle(item: CalendarItem): string {
   if (item.type === "appuntamento") return item.title;
   return item.order?.description || item.order?.order_code || "Cantiere";
@@ -533,9 +541,19 @@ export default function CampoCalendario() {
                   )}
 
                   {item.type === "appuntamento" ? (
-                    <AppuntamentoCard item={item} navigate={navigate} onShowDetail={setSelectedAppuntamento} />
+                    <AppuntamentoCard
+                      item={item}
+                      navigate={navigate}
+                      distanceFromSede={dist?.fromSede}
+                      onShowDetail={setSelectedAppuntamento}
+                    />
                   ) : (
-                    <CantiereCard item={item} selectedDay={selectedDay} navigate={navigate} />
+                    <CantiereCard
+                      item={item}
+                      selectedDay={selectedDay}
+                      navigate={navigate}
+                      distanceFromSede={dist?.fromSede}
+                    />
                   )}
                 </div>
               );
@@ -713,7 +731,17 @@ function DistanceBadge({ meters }: { meters: number }) {
 }
 
 // ── Card appuntamento/sopralluogo ──
-function AppuntamentoCard({ item, navigate, onShowDetail }: { item: Appuntamento; navigate: any; onShowDetail?: (a: Appuntamento) => void }) {
+function AppuntamentoCard({
+  item,
+  navigate,
+  distanceFromSede,
+  onShowDetail,
+}: {
+  item: Appuntamento;
+  navigate: any;
+  distanceFromSede?: number;
+  onShowDetail?: (a: Appuntamento) => void;
+}) {
   const typeInfo = appointmentTypeLabel(item.appointment_type);
   const timeStr = item.appointment_time
     ? item.appointment_time.slice(0, 5) + (item.appointment_end_time ? ` - ${item.appointment_end_time.slice(0, 5)}` : "")
@@ -759,12 +787,45 @@ function AppuntamentoCard({ item, navigate, onShowDetail }: { item: Appuntamento
           </div>
         )}
       </div>
+
+      {(item.formatted_address || distanceFromSede != null) && (
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {item.formatted_address && (
+            <div className="rounded-xl bg-muted/60 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dove andare</p>
+              <p className="mt-0.5 truncate text-xs font-semibold text-foreground">{item.formatted_address}</p>
+            </div>
+          )}
+          {distanceFromSede != null && (
+            <>
+              <div className="rounded-xl bg-blue-50 px-3 py-2 text-blue-700">
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">Distanza</p>
+                <p className="mt-0.5 text-xs font-black">{formatKm(distanceFromSede)}</p>
+              </div>
+              <div className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">Tempo stimato</p>
+                <p className="mt-0.5 text-xs font-black">{formatDriveTime(distanceFromSede)}</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </button>
   );
 }
 
 // ── Card cantiere ──
-function CantiereCard({ item, selectedDay, navigate }: { item: Cantiere; selectedDay: Date; navigate: any }) {
+function CantiereCard({
+  item,
+  selectedDay,
+  navigate,
+  distanceFromSede,
+}: {
+  item: Cantiere;
+  selectedDay: Date;
+  navigate: any;
+  distanceFromSede?: number;
+}) {
   const order = item.order;
   if (!order) return null;
 
@@ -817,6 +878,29 @@ function CantiereCard({ item, selectedDay, navigate }: { item: Cantiere; selecte
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-3 bg-muted/50 rounded-lg px-2.5 py-1.5">
           <Navigation className="w-3 h-3 shrink-0" />
           <span>{format(parseISO(order.work_start_date!), "d MMM", { locale: it })} → {format(parseISO(order.work_end_date!), "d MMM", { locale: it })}</span>
+        </div>
+      )}
+
+      {(order.indirizzo_lavori || distanceFromSede != null) && (
+        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {order.indirizzo_lavori && (
+            <div className="rounded-xl bg-muted/60 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dove andare</p>
+              <p className="mt-0.5 truncate text-xs font-semibold text-foreground">{order.indirizzo_lavori}</p>
+            </div>
+          )}
+          {distanceFromSede != null && (
+            <>
+              <div className="rounded-xl bg-blue-50 px-3 py-2 text-blue-700">
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">Distanza</p>
+                <p className="mt-0.5 text-xs font-black">{formatKm(distanceFromSede)}</p>
+              </div>
+              <div className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">Tempo stimato</p>
+                <p className="mt-0.5 text-xs font-black">{formatDriveTime(distanceFromSede)}</p>
+              </div>
+            </>
+          )}
         </div>
       )}
 

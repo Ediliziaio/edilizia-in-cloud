@@ -173,6 +173,34 @@ export default function CampoRapportino() {
 
       if (error) throw error;
 
+      if (inserted?.id && profile?.company_id) {
+        const actorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || "Operatore campo";
+        await supabase
+          .from("order_events" as never)
+          .insert({
+            order_id: orderId,
+            company_id: profile.company_id,
+            event_type: "reportino_cantiere",
+            actor_id: user!.id,
+            actor_name: actorName,
+            payload: {
+              rapportino_id: inserted.id,
+              data_lavoro: format(new Date(), "yyyy-MM-dd"),
+              ore_lavorate: oreLavorate,
+              ore_straordinario: oreStraordinario > 0 ? oreStraordinario : 0,
+              percentuale_avanzamento: percentuale,
+              lavoro_completato,
+              meteo: meteo || null,
+              foto_count: fotoUrls.length,
+              descrizione_lavori: descrizione || null,
+              origine: "app_campo",
+            },
+          } as never)
+          .then(({ error: eventError }) => {
+            if (eventError) console.warn("[CampoRapportino] diario ordine non aggiornato:", eventError);
+          });
+      }
+
       // Aggiorna avanzamento sull'ordine se impostato
       if (percentuale > 0) {
         await supabase
@@ -192,6 +220,7 @@ export default function CampoRapportino() {
       navigator.vibrate?.([10, 50, 10]);
       toast.success("Rapportino inviato!");
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-events", orderId] });
       navigate(`/campo/lavoro/${orderId}`);
     },
     onError: () => {

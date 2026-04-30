@@ -10,7 +10,7 @@ import { it } from "date-fns/locale";
 import {
   Plus, CheckCircle, Clock, Circle, Loader2,
   AlertCircle, ChevronDown, Calendar as CalendarIcon,
-  X, ArrowLeft, Filter,
+  X, HardHat, MapPin, CalendarCheck, ListChecks, PlayCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,7 +57,7 @@ export default function CampoAttivita() {
         .select(`
           id, title, notes, priority, due_date, status, category,
           created_at, completed_at, assigned_to, order_id, created_by,
-          order:orders!tasks_order_id_fkey(order_code, description)
+          order:orders!tasks_order_id_fkey(order_code, description, indirizzo_lavori, percentuale_avanzamento)
         `)
         .eq("company_id", companyId!)
         .eq("assigned_to", user!.id)
@@ -71,7 +71,7 @@ export default function CampoAttivita() {
 
   // ── Filter + Sort ──
   const filteredTasks = useMemo(() => {
-    let list = tasks;
+    let list = [...tasks];
     if (statusFilter !== "tutte") {
       list = list.filter((t: any) => t.status === statusFilter);
     }
@@ -92,7 +92,12 @@ export default function CampoAttivita() {
     daFare: tasks.filter((t: any) => t.status === "da_fare").length,
     inCorso: tasks.filter((t: any) => t.status === "in_corso").length,
     completate: tasks.filter((t: any) => t.status === "completata").length,
+    urgenti: tasks.filter((t: any) => t.priority === "urgente" && t.status !== "completata").length,
   }), [tasks]);
+
+  const focusTask = useMemo(() => {
+    return filteredTasks.find((t: any) => t.status !== "completata") ?? null;
+  }, [filteredTasks]);
 
   // ── Change status ──
   const statusMutation = useMutation({
@@ -119,41 +124,83 @@ export default function CampoAttivita() {
   };
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto pb-24 md:pb-6">
+    <div className="mx-auto max-w-6xl space-y-4 pb-24 md:pb-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Le mie attività</h1>
-          <p className="text-xs text-muted-foreground">
-            {kpi.daFare + kpi.inCorso} in corso, {kpi.completate} completate
-          </p>
+      <div className="rounded-2xl border bg-background p-4 shadow-sm md:p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+              <ListChecks className="h-3.5 w-3.5" />
+              Task operative
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Le mie attività</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Priorità, scadenze e cantieri collegati in un unico posto.
+            </p>
+          </div>
+          <button
+            onClick={() => { setEditingTask(null); setShowForm(true); }}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform active:scale-95"
+          >
+            <Plus className="h-4 w-4" />
+            Nuova attività
+          </button>
         </div>
-        <button
-          onClick={() => { setEditingTask(null); setShowForm(true); }}
-          className="bg-primary text-primary-foreground rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 active:scale-95 transition-transform"
-        >
-          <Plus className="w-4 h-4" />
-          Nuova
-        </button>
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         {[
-          { label: "Totale", value: kpi.totale, cls: "bg-muted text-foreground" },
+          { label: "Aperte", value: kpi.daFare + kpi.inCorso, cls: "bg-primary/10 text-primary" },
+          { label: "Urgenti", value: kpi.urgenti, cls: "bg-red-50 text-red-700" },
           { label: "Da fare", value: kpi.daFare, cls: "bg-slate-100 text-slate-700" },
           { label: "In corso", value: kpi.inCorso, cls: "bg-blue-50 text-blue-700" },
           { label: "Fatte", value: kpi.completate, cls: "bg-green-50 text-green-700" },
         ].map((k) => (
-          <div key={k.label} className={cn("rounded-xl p-2.5 text-center border border-border", k.cls)}>
-            <p className="text-xl font-bold">{k.value}</p>
-            <p className="text-[10px] mt-0.5">{k.label}</p>
+          <div key={k.label} className={cn("rounded-xl border border-border p-3 text-center", k.cls)}>
+            <p className="text-2xl font-black tabular-nums">{k.value}</p>
+            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide">{k.label}</p>
           </div>
         ))}
       </div>
 
+      {focusTask && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-blue-900 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-blue-700">
+                <PlayCircle className="h-4 w-4" />
+                Prossima cosa da fare
+              </p>
+              <p className="truncate text-lg font-black">{focusTask.title}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-blue-800/80">
+                {focusTask.order?.order_code && <span className="rounded-full bg-white/70 px-2 py-1 font-semibold">{focusTask.order.order_code}</span>}
+                {focusTask.due_date && <span className="rounded-full bg-white/70 px-2 py-1 font-semibold">Scade {format(new Date(focusTask.due_date), "d MMM", { locale: it })}</span>}
+                {focusTask.order?.indirizzo_lavori && <span className="truncate rounded-full bg-white/70 px-2 py-1 font-semibold">{focusTask.order.indirizzo_lavori}</span>}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {focusTask.order_id && (
+                <button
+                  onClick={() => navigate(`/campo/lavoro/${focusTask.order_id}`)}
+                  className="h-10 rounded-xl bg-white px-3 text-xs font-bold text-blue-700 shadow-sm"
+                >
+                  Apri lavoro
+                </button>
+              )}
+              <button
+                onClick={() => cycleStatus(focusTask)}
+                className="h-10 rounded-xl bg-blue-600 px-3 text-xs font-bold text-white shadow-sm"
+              >
+                Avanza stato
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filter tabs */}
-      <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+      <div className="flex gap-1.5 overflow-x-auto rounded-2xl border bg-background p-2 shadow-sm scrollbar-none">
         {(["tutte", "da_fare", "in_corso", "completata"] as StatusFilter[]).map((f) => {
           const labels: Record<string, string> = {
             tutte: "Tutte", da_fare: "Da fare", in_corso: "In corso", completata: "Completate"
@@ -164,7 +211,7 @@ export default function CampoAttivita() {
               key={f}
               onClick={() => setStatusFilter(f)}
               className={cn(
-                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors",
+                "px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors",
                 isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"
               )}
             >
@@ -192,7 +239,7 @@ export default function CampoAttivita() {
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {filteredTasks.map((task: any) => {
             const pCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.normale;
             const sCfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.da_fare;
@@ -203,7 +250,7 @@ export default function CampoAttivita() {
               <div
                 key={task.id}
                 className={cn(
-                  "bg-background border border-border rounded-2xl p-3.5 transition-all",
+                  "bg-background border border-border rounded-2xl p-4 shadow-sm transition-all",
                   isCompleted && "opacity-60"
                 )}
               >
@@ -219,18 +266,18 @@ export default function CampoAttivita() {
 
                   {/* Content */}
                   <div
-                    className="flex-1 min-w-0 cursor-pointer"
+                    className="min-w-0 flex-1 cursor-pointer"
                     onClick={() => { setEditingTask(task); setShowForm(true); }}
                   >
                     <p className={cn(
-                      "text-sm font-medium",
+                      "text-base font-bold leading-snug",
                       isCompleted && "line-through text-muted-foreground"
                     )}>
                       {task.title}
                     </p>
 
                     {task.notes && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.notes}</p>
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{task.notes}</p>
                     )}
 
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -239,7 +286,8 @@ export default function CampoAttivita() {
                       </Badge>
 
                       {task.order?.order_code && (
-                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          <HardHat className="h-3 w-3" />
                           {task.order.order_code}
                         </span>
                       )}
@@ -255,6 +303,45 @@ export default function CampoAttivita() {
                         </span>
                       )}
                     </div>
+
+                    {task.order && (
+                      <div className="mt-3 rounded-xl bg-muted/50 p-3">
+                        <div className="flex items-start gap-2">
+                          <HardHat className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-semibold text-foreground">{task.order.description || task.order.order_code}</p>
+                            {task.order.indirizzo_lavori && (
+                              <p className="mt-1 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                                <MapPin className="h-3 w-3 shrink-0" />
+                                {task.order.indirizzo_lavori}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/campo/lavoro/${task.order_id}`);
+                            }}
+                            className="h-8 rounded-lg bg-primary/10 px-3 text-xs font-bold text-primary"
+                          >
+                            Apri lavoro
+                          </button>
+                          {task.order.indirizzo_lavori && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(task.order.indirizzo_lavori)}`, "_blank");
+                              }}
+                              className="h-8 rounded-lg border bg-background px-3 text-xs font-bold text-foreground"
+                            >
+                              Maps
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
