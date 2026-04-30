@@ -51,11 +51,11 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-t border-border/50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-t border-border/60 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Navigazione campo"
     >
-      <div className="flex items-stretch h-16">
+      <div className="flex h-[4.35rem] items-stretch px-1">
         {visibleItems.map((item) => {
           const active = isActive(item);
           const Icon = item.icon;
@@ -66,10 +66,10 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
               <Link
                 key="timbra"
                 to="/campo"
-                className="flex-1 flex flex-col items-center justify-center gap-0.5 relative"
+                className="relative flex flex-1 flex-col items-center justify-center gap-0.5"
                 aria-label="Timbratura"
               >
-                <div className="w-12 h-12 -mt-5 rounded-2xl bg-primary shadow-lg shadow-primary/30 flex items-center justify-center">
+                <div className="-mt-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30">
                   <Icon className="h-6 w-6 text-white stroke-[2.5]" />
                 </div>
                 <span className="text-[10px] leading-none text-primary font-semibold mt-0.5">
@@ -83,20 +83,20 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
             <Link
               key={item.href}
               to={item.href}
-              className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
+              className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl"
               aria-label={item.label}
               aria-current={active ? "page" : undefined}
             >
               <div
                 className={cn(
                   "flex items-center justify-center rounded-2xl transition-all duration-200",
-                  active ? "bg-secondary/10 w-12 h-8" : "w-10 h-8"
+                  active ? "bg-primary/10 w-12 h-8" : "w-10 h-8"
                 )}
               >
                 <Icon
                   className={cn(
                     "h-5 w-5 transition-all duration-200",
-                    active ? "text-secondary stroke-[2.5]" : "text-muted-foreground stroke-[1.5]"
+                    active ? "text-primary stroke-[2.5]" : "text-muted-foreground stroke-[1.5]"
                   )}
                 />
                 {/* Chat badge */}
@@ -109,7 +109,7 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
               <span
                 className={cn(
                   "text-[10px] leading-none transition-all duration-200",
-                  active ? "text-secondary font-semibold" : "text-muted-foreground font-medium"
+                  active ? "text-primary font-semibold" : "text-muted-foreground font-medium"
                 )}
               >
                 {item.label}

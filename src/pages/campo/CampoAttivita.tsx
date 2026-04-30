@@ -124,10 +124,10 @@ export default function CampoAttivita() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 pb-24 md:pb-6">
+    <div className="mx-auto max-w-6xl space-y-3 pb-28 md:space-y-4 md:pb-6">
       {/* Header */}
       <div className="rounded-2xl border bg-background p-4 shadow-sm md:p-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
               <ListChecks className="h-3.5 w-3.5" />
@@ -140,7 +140,7 @@ export default function CampoAttivita() {
           </div>
           <button
             onClick={() => { setEditingTask(null); setShowForm(true); }}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform active:scale-95"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform active:scale-95 md:w-auto"
           >
             <Plus className="h-4 w-4" />
             Nuova attività
@@ -149,7 +149,7 @@ export default function CampoAttivita() {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
         {[
           { label: "Aperte", value: kpi.daFare + kpi.inCorso, cls: "bg-primary/10 text-primary" },
           { label: "Urgenti", value: kpi.urgenti, cls: "bg-red-50 text-red-700" },
@@ -157,8 +157,8 @@ export default function CampoAttivita() {
           { label: "In corso", value: kpi.inCorso, cls: "bg-blue-50 text-blue-700" },
           { label: "Fatte", value: kpi.completate, cls: "bg-green-50 text-green-700" },
         ].map((k) => (
-          <div key={k.label} className={cn("rounded-xl border border-border p-3 text-center", k.cls)}>
-            <p className="text-2xl font-black tabular-nums">{k.value}</p>
+          <div key={k.label} className={cn("rounded-xl border border-border p-3 text-center shadow-sm", k.cls)}>
+            <p className="text-2xl font-black tabular-nums leading-none">{k.value}</p>
             <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide">{k.label}</p>
           </div>
         ))}
@@ -179,7 +179,7 @@ export default function CampoAttivita() {
                 {focusTask.order?.indirizzo_lavori && <span className="truncate rounded-full bg-white/70 px-2 py-1 font-semibold">{focusTask.order.indirizzo_lavori}</span>}
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 md:flex">
               {focusTask.order_id && (
                 <button
                   onClick={() => navigate(`/campo/lavoro/${focusTask.order_id}`)}
@@ -200,7 +200,7 @@ export default function CampoAttivita() {
       )}
 
       {/* Filter tabs */}
-      <div className="flex gap-1.5 overflow-x-auto rounded-2xl border bg-background p-2 shadow-sm scrollbar-none">
+      <div className="sticky top-2 z-10 flex gap-1.5 overflow-x-auto rounded-2xl border bg-background/95 p-2 shadow-sm backdrop-blur scrollbar-none md:static">
         {(["tutte", "da_fare", "in_corso", "completata"] as StatusFilter[]).map((f) => {
           const labels: Record<string, string> = {
             tutte: "Tutte", da_fare: "Da fare", in_corso: "In corso", completata: "Completate"
@@ -250,7 +250,7 @@ export default function CampoAttivita() {
               <div
                 key={task.id}
                 className={cn(
-                  "bg-background border border-border rounded-2xl p-4 shadow-sm transition-all",
+                  "rounded-2xl border border-border bg-background p-4 shadow-sm transition-all",
                   isCompleted && "opacity-60"
                 )}
               >

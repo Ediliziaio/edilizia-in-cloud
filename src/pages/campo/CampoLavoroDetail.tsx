@@ -237,8 +237,8 @@ export default function CampoLavoroDetail() {
   return (
     <div className="mx-auto flex h-full max-w-6xl flex-col">
       {/* Header sticky */}
-      <div className="sticky top-0 z-10 rounded-b-2xl border-b border-border bg-background px-4 py-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-3">
+      <div className="sticky top-0 z-10 rounded-b-2xl border-b border-border bg-background px-3 py-3 shadow-sm md:px-4 md:py-4">
+        <div className="mb-2 flex items-center gap-3 md:mb-3">
           <button
             onClick={() => navigate("/campo")}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted"
@@ -246,14 +246,14 @@ export default function CampoLavoroDetail() {
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lavoro assegnato</p>
-            <p className="truncate text-xl font-black text-foreground">{order?.order_code}</p>
-            <p className="truncate text-sm text-muted-foreground">{order?.description}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:text-xs">Lavoro assegnato</p>
+            <p className="truncate text-lg font-black text-foreground md:text-xl">{order?.order_code}</p>
+            <p className="truncate text-xs text-muted-foreground md:text-sm">{order?.description}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
-          <div className="rounded-2xl bg-muted/60 p-3">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_260px] md:gap-3">
+          <div className="rounded-xl bg-muted/60 p-2.5 md:rounded-2xl md:p-3">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Indirizzo cantiere</p>
             {order?.indirizzo_lavori ? (
               <button
@@ -264,13 +264,13 @@ export default function CampoLavoroDetail() {
                 className="flex w-full items-start gap-2 text-left text-primary"
               >
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                <span className="text-sm font-semibold">{order.indirizzo_lavori}</span>
+                <span className="line-clamp-2 text-xs font-semibold md:text-sm">{order.indirizzo_lavori}</span>
               </button>
             ) : (
               <p className="text-sm text-muted-foreground">Nessun indirizzo impostato dall'ufficio.</p>
             )}
           </div>
-          <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary md:rounded-2xl md:p-3">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wide opacity-75">Avanzamento</p>
             <div className="flex items-end justify-between gap-3">
               <span className="text-2xl font-black">{order?.percentuale_avanzamento ?? 0}%</span>
@@ -285,7 +285,7 @@ export default function CampoLavoroDetail() {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="mt-2 grid grid-cols-4 gap-1.5 md:mt-3 md:gap-2">
           <QuickAction icon={FileText} label="Rapportino" onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)} />
           <QuickAction icon={Camera} label="Foto e note" onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)} />
           <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
@@ -293,13 +293,13 @@ export default function CampoLavoroDetail() {
         </div>
 
         {/* Tab selector */}
-        <div className="mt-3 flex gap-1 overflow-x-auto scrollbar-hide">
+        <div className="mt-2 flex gap-1 overflow-x-auto scrollbar-hide md:mt-3">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors",
+                "whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
                 activeTab === key
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground active:bg-muted"
@@ -312,12 +312,12 @@ export default function CampoLavoroDetail() {
       </div>
 
       {/* Contenuto tab */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 pb-28 md:space-y-4 md:px-4 md:py-4 md:pb-4">
 
         {/* ── Tab: Descrizione ── */}
         {activeTab === "descrizione" && (
           <>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2 md:gap-3">
               <InfoTile label="Stato" value={order?.status || "In lavorazione"} icon={CheckCircle} />
               <InfoTile
                 label="Inizio"
@@ -547,9 +547,9 @@ function QuickAction({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex h-12 items-center justify-center gap-2 rounded-xl border bg-background px-3 text-xs font-bold text-foreground shadow-sm transition-transform active:scale-[0.98] disabled:opacity-50"
+      className="flex h-10 flex-col items-center justify-center gap-0.5 rounded-xl border bg-background px-1 text-[10px] font-bold leading-tight text-foreground shadow-sm transition-transform active:scale-[0.98] disabled:opacity-50 md:h-12 md:flex-row md:gap-2 md:px-3 md:text-xs"
     >
-      <Icon className="h-4 w-4 text-primary" />
+      <Icon className="h-4 w-4 shrink-0 text-primary" />
       {label}
     </button>
   );
@@ -565,12 +565,12 @@ function InfoTile({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm">
-      <div className="mb-2 flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-4 w-4" />
-        <p className="text-[10px] font-bold uppercase tracking-wide">{label}</p>
+    <div className="rounded-xl border bg-background p-2.5 shadow-sm md:rounded-2xl md:p-4">
+      <div className="mb-1.5 flex items-center gap-1.5 text-muted-foreground md:mb-2 md:gap-2">
+        <Icon className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
+        <p className="truncate text-[9px] font-bold uppercase tracking-wide md:text-[10px]">{label}</p>
       </div>
-      <p className="text-sm font-bold text-foreground">{value}</p>
+      <p className="truncate text-xs font-bold text-foreground md:text-sm">{value}</p>
     </div>
   );
 }

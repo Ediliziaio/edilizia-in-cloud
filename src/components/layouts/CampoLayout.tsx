@@ -232,7 +232,7 @@ export default function CampoLayout() {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6">
+          <main className="flex-1 px-3 py-3 sm:px-4 md:p-6 pb-28 md:pb-6">
             <PreviewSessionContext.Provider value={previewSession}>
               <Outlet />
             </PreviewSessionContext.Provider>

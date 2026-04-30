@@ -305,9 +305,9 @@ export default function CampoCalendario() {
   const firstDayOfWeek = (getDay(monthStart) + 6) % 7; // Monday = 0
 
   return (
-    <div className="mx-auto flex h-full max-w-7xl flex-col gap-4">
+    <div className="mx-auto flex h-full max-w-7xl flex-col gap-3 md:gap-4">
       <div className="rounded-2xl border bg-background p-4 shadow-sm md:p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
               <HardHat className="h-3.5 w-3.5" />
@@ -319,7 +319,7 @@ export default function CampoCalendario() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[560px]">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 xl:min-w-[560px]">
             <SummaryTile icon={CalendarDays} label="Oggi" value={todayItems.length} tone="blue" />
             <SummaryTile icon={CalendarRange} label="Settimana" value={weekItemsCount} tone="indigo" />
             <SummaryTile icon={Building2} label="Cantieri" value={allCantieri.length} tone="emerald" />
@@ -328,10 +328,10 @@ export default function CampoCalendario() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[430px_minmax(0,1fr)]">
-        <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
-          <div className="rounded-2xl border bg-background p-4 shadow-sm">
-            <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[430px_minmax(0,1fr)]">
+        <aside className="space-y-3 xl:sticky xl:top-20 xl:self-start">
+          <div className="rounded-2xl border bg-background p-3 shadow-sm md:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vista calendario</p>
                 <p className="text-sm font-semibold capitalize">
@@ -380,7 +380,7 @@ export default function CampoCalendario() {
                     <ChevronRight className="h-5 w-5" />
                   </button>
                 </div>
-                <div className="grid grid-cols-7 gap-1.5">
+                <div className="grid grid-cols-7 gap-1">
                   {weekDays.map((day) => {
                     const isSelected = isSameDay(day, selectedDay);
                     const isDayToday = isToday(day);
@@ -388,7 +388,7 @@ export default function CampoCalendario() {
                     return (
                       <button key={day.toISOString()} onClick={() => setSelectedDay(day)}
                         className={cn(
-                          "flex min-h-[76px] flex-col items-center justify-center rounded-2xl border transition-all",
+                          "flex min-h-[62px] flex-col items-center justify-center rounded-xl border transition-all md:min-h-[76px] md:rounded-2xl",
                           isSelected ? "border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/20" :
                           isDayToday ? "border-primary/30 bg-primary/10 text-primary" : "border-transparent bg-muted/50 text-foreground hover:bg-muted"
                         )}>
@@ -439,7 +439,7 @@ export default function CampoCalendario() {
                     return (
                       <button key={day.toISOString()} onClick={() => setSelectedDay(day)}
                         className={cn(
-                          "relative flex h-12 flex-col items-center justify-center rounded-xl border transition-all",
+                          "relative flex h-10 flex-col items-center justify-center rounded-xl border transition-all md:h-12",
                           isSelected ? "border-primary bg-primary text-primary-foreground" :
                           isDayToday ? "border-primary/30 bg-primary/10 text-primary" : "border-transparent hover:bg-muted"
                         )}>
@@ -457,7 +457,7 @@ export default function CampoCalendario() {
             )}
           </div>
 
-          <div className="rounded-2xl border bg-background p-4 shadow-sm">
+          <div className="rounded-2xl border bg-background p-3 shadow-sm md:p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <MapPinned className="h-5 w-5" />
@@ -501,14 +501,14 @@ export default function CampoCalendario() {
             </div>
           </div>
 
-          <div className="min-h-[520px] px-4 py-4 pb-24 md:px-5 md:pb-6">
+          <div className="min-h-[340px] px-3 py-3 pb-28 md:min-h-[520px] md:px-5 md:pb-6">
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : dayItems.length === 0 ? (
-          <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-center">
+          <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 text-center md:min-h-[360px]">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
               <CalendarOff className="h-8 w-8 text-muted-foreground/60" />
             </div>
@@ -698,12 +698,12 @@ function SummaryTile({
   };
 
   return (
-    <div className={cn("rounded-xl border p-3", tones[tone])}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <Icon className="h-4 w-4" />
-        <span className="text-xl font-black tabular-nums">{value}</span>
+    <div className={cn("rounded-xl border p-2.5 md:p-3", tones[tone])}>
+      <div className="mb-1.5 flex items-center justify-between gap-1 md:mb-2">
+        <Icon className="h-3.5 w-3.5 md:h-4 md:w-4" />
+        <span className="text-lg font-black tabular-nums leading-none md:text-xl">{value}</span>
       </div>
-      <p className="text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</p>
+      <p className="truncate text-[9px] font-bold uppercase tracking-wide opacity-80 md:text-[11px]">{label}</p>
     </div>
   );
 }

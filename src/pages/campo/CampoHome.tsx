@@ -44,22 +44,24 @@ export default function CampoHome() {
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl space-y-3 md:space-y-6">
       {/* Header — compatto su mobile */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="rounded-2xl border bg-background p-4 shadow-sm md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
           <p className="text-muted-foreground text-xs md:text-sm capitalize">
             {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
           </p>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+          <h1 className="truncate text-xl font-bold tracking-tight md:text-2xl">
             {saluto}, {profile?.first_name ?? ""}
           </h1>
         </div>
         {/* Company badge mobile */}
-        <div className="md:hidden bg-primary/10 rounded-xl px-3 py-1.5">
+        <div className="shrink-0 rounded-xl bg-primary/10 px-3 py-1.5 md:hidden">
           <p className="text-[10px] text-primary font-semibold">
             {isOperaio ? "Operaio" : "Sub"}
           </p>
+        </div>
         </div>
       </div>
 
@@ -70,16 +72,16 @@ export default function CampoHome() {
       <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
 
       {/* Grid principale — 1 col mobile, 2 col desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
         {/* Cantieri assegnati */}
-        <div className="space-y-4 md:space-y-6">
+        <div className="space-y-3 md:space-y-6">
           {isOperaio && <CantieriAssegnati />}
           {isSubappaltatore && <CantieriSub />}
           {isOperaio && <RapportiniSospesi />}
         </div>
 
         {/* Colonna destra */}
-        <div className="space-y-4 md:space-y-6">
+        <div className="space-y-3 md:space-y-6">
           <MiniCalendarioCampo />
           <MieAttivitaCampo />
         </div>
@@ -836,21 +838,21 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
   ];
 
   return (
-    <div>
-      <p className="text-sm font-semibold text-foreground mb-3">Azioni rapide</p>
-      <div className="grid grid-cols-4 gap-2 md:gap-3">
+    <div className="rounded-2xl border bg-background p-3 shadow-sm md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+      <p className="mb-3 text-sm font-semibold text-foreground">Azioni rapide</p>
+      <div className="grid grid-cols-4 gap-1.5 md:gap-3">
         {items.map((item) => {
           const [textColor, bgColor] = item.color.split(" ");
           return (
             <button
               key={item.url + item.label}
               onClick={() => navigate(item.url)}
-              className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl transition-all active:scale-95 hover:bg-muted/60"
+              className="flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl px-1 py-2 transition-all active:scale-95 hover:bg-muted/60"
             >
-              <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl ${bgColor} flex items-center justify-center`}>
-                <item.icon className={`w-6 h-6 md:w-7 md:h-7 ${textColor}`} />
+              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl md:h-14 md:w-14 ${bgColor}`}>
+                <item.icon className={`h-5 w-5 md:h-7 md:w-7 ${textColor}`} />
               </div>
-              <span className="text-[11px] md:text-xs font-medium text-foreground text-center leading-tight line-clamp-1">
+              <span className="max-w-full text-center text-[10px] font-semibold leading-tight text-foreground md:text-xs">
                 {item.label}
               </span>
             </button>
