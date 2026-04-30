@@ -21,12 +21,12 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Hash, Plus, Send, Search, Users, MessageCircle, CornerDownRight, Bot, Sparkles, Loader2,
-  Smile, X, Pin, PinOff, ArrowLeft, MoreVertical, UserPlus, UsersRound, Check, CheckCheck,
-  Paperclip, Image as ImageIcon, Mic, Phone, Video, CircleDot,
+  Plus, Send, Search, Users, MessageCircle, CornerDownRight, Bot, Sparkles, Loader2,
+  Smile, X, Pin, PinOff, ArrowLeft, MoreVertical, UserPlus, UsersRound, CheckCheck,
+  Paperclip, Mic,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
@@ -100,6 +100,25 @@ interface RawProfile extends Profile {
   portal_disabled?: boolean | null;
 }
 
+type InternalChatProfilesRpc = {
+  data: unknown;
+  error: { message?: string } | null;
+};
+
+interface RpcProfile extends Profile {
+  roles?: string[] | null;
+}
+
+interface FunctionErrorWithContext {
+  message?: string;
+  context?: unknown;
+}
+
+interface FunctionErrorBody {
+  error?: string;
+  message?: string;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function escapeHtml(raw: string): string {
   return raw
@@ -161,8 +180,8 @@ function profileName(p: Profile | undefined) {
  *   normale flusso azienda (effectiveCompany?.id).
  */
 function useInternalChat(companyIdOverride?: string) {
-  const { user, effectiveCompany } = useAuth();
-  const companyId = companyIdOverride ?? effectiveCompany?.id;
+  const { user, profile: authProfile, effectiveCompany } = useAuth();
+  const companyId = companyIdOverride ?? effectiveCompany?.id ?? authProfile?.company_id ?? null;
   const userId = user?.id;
   const queryClient = useQueryClient();
 
@@ -201,13 +220,30 @@ function useInternalChat(companyIdOverride?: string) {
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     queryFn: async () => {
-      const { data: rpcProfiles, error: rpcError } = await (supabase.rpc as any)(
+      const rpc = supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, string>
+      ) => Promise<InternalChatProfilesRpc>;
+      const { data: rpcProfiles, error: rpcError } = await rpc.call(
+        supabase,
         "get_internal_chat_profiles",
         { p_company_id: companyId! },
       );
       const rpcInternalProfiles: Profile[] = !rpcError && Array.isArray(rpcProfiles)
-        ? (rpcProfiles as Profile[])
+        ? (rpcProfiles as RpcProfile[])
+            .filter((profile) => profile.id && (profile.first_name || profile.last_name || profile.email))
+            .map(({ id, first_name, last_name, email, avatar_url }) => ({
+              id,
+              first_name,
+              last_name,
+              email,
+              avatar_url,
+            }))
         : [];
+
+      if (rpcInternalProfiles.length > 0) {
+        return Array.from(new Map(rpcInternalProfiles.map((profile) => [profile.id, profile])).values());
+      }
 
       const { data: allProfiles, error: profilesError } = await supabase
         .from("profiles")
@@ -241,11 +277,9 @@ function useInternalChat(companyIdOverride?: string) {
       });
 
       const explicitInternalProfiles = profilesList.filter((profile) => internalIds.has(profile.id));
-      const fallbackInternalProfiles = profilesList.filter((profile) => !customerIds.has(profile.id));
-      const fallbackProfiles = explicitInternalProfiles.length > 1 ? explicitInternalProfiles : fallbackInternalProfiles;
       const resultById = new Map<string, Profile>();
-      rpcInternalProfiles.forEach((profile) => resultById.set(profile.id, profile));
-      fallbackProfiles.forEach(({ portal_disabled: _portalDisabled, ...profile }) => {
+      explicitInternalProfiles.forEach(({ portal_disabled: _portalDisabled, ...profile }) => {
+        if (customerIds.has(profile.id)) return;
         resultById.set(profile.id, profile);
       });
 
@@ -848,8 +882,13 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
         },
       });
       if (res.error) {
-        let errBody: any = null;
-        try { const ctx = (res.error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        let errBody: FunctionErrorBody | null = null;
+        const ctx = (res.error as FunctionErrorWithContext).context;
+        try {
+          if (ctx instanceof Response) errBody = (await ctx.json()) as FunctionErrorBody;
+        } catch {
+          errBody = null;
+        }
         throw new Error(errBody?.error ?? errBody?.message ?? res.error.message ?? "Errore Lucia");
       }
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
@@ -996,8 +1035,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
       refetchUnread();
       toast.success(`Allegato inviato: ${file.name}`);
-    } catch (err: any) {
-      toast.error("Errore invio allegato", { description: err.message });
+    } catch (err: unknown) {
+      toast.error("Errore invio allegato", { description: err instanceof Error ? err.message : "Errore sconosciuto" });
     } finally {
       setIsAttaching(false);
       if (attachInputRef.current) attachInputRef.current.value = "";

@@ -97,9 +97,11 @@ export function useCompanyStaffUsers(
         fn: string,
         args: Record<string, string>
       ) => Promise<RpcResult>;
-      const { data: rpcUsers, error: rpcError } = await rpc("get_internal_chat_profiles", {
-        p_company_id: companyId,
-      });
+      const { data: rpcUsers, error: rpcError } = await rpc.call(
+        supabase,
+        "get_internal_chat_profiles",
+        { p_company_id: companyId },
+      );
 
       if (!rpcError && Array.isArray(rpcUsers)) {
         if (rpcUsers.length === 0) return [];
