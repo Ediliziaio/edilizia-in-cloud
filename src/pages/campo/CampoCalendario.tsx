@@ -9,15 +9,16 @@ import { useQuery } from "@tanstack/react-query";
 import {
   format, addDays, startOfWeek, startOfMonth, endOfMonth, isSameDay,
   isWithinInterval, addWeeks, subWeeks, addMonths, subMonths,
-  parseISO, isToday, isTomorrow, isYesterday, isSameMonth,
+  parseISO, isToday, isTomorrow, isYesterday,
   differenceInCalendarDays, eachDayOfInterval, getDay,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, MapPin, Loader2, CalendarOff,
   Clock, Navigation, HardHat, CheckCircle2, Route, Building2,
-  Eye, CalendarDays, CalendarRange, ArrowDown,
+  Eye, CalendarDays, CalendarRange, ArrowDown, ClipboardList, MapPinned,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -101,6 +102,11 @@ function appointmentTypeLabel(type: string) {
 function formatKm(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`;
   return `${(meters / 1000).toFixed(1)} km`;
+}
+
+function itemTitle(item: CalendarItem): string {
+  if (item.type === "appuntamento") return item.title;
+  return item.order?.description || item.order?.order_code || "Cantiere";
 }
 
 // Sede demo
@@ -205,6 +211,20 @@ export default function CampoCalendario() {
 
   const dayItems = useMemo(() => itemsForDay(selectedDay), [itemsForDay, selectedDay]);
 
+  const todayItems = useMemo(() => itemsForDay(new Date()), [itemsForDay]);
+  const weekItemsCount = useMemo(() => weekDays.reduce((total, day) => total + countForDay(day), 0), [weekDays, countForDay]);
+  const selectedAppointments = dayItems.filter((item) => item.type === "appuntamento").length;
+  const selectedSites = dayItems.filter((item) => item.type === "cantiere").length;
+
+  const nextCommitment = useMemo(() => {
+    const days = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i));
+    for (const day of days) {
+      const first = itemsForDay(day)[0];
+      if (first) return { day, item: first };
+    }
+    return null;
+  }, [itemsForDay]);
+
   // Conta items per giorno (per dots)
   const countForDay = useMemo(() => {
     return (day: Date) => itemsForDay(day).length;
@@ -277,176 +297,224 @@ export default function CampoCalendario() {
   const firstDayOfWeek = (getDay(monthStart) + 6) % 7; // Monday = 0
 
   return (
-    <div className="flex flex-col h-full max-w-3xl mx-auto">
-      {/* Toggle vista */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <h1 className="text-lg font-bold">I miei lavori</h1>
-        <div className="flex bg-muted rounded-xl p-0.5">
-          <button
-            onClick={() => setViewMode("week")}
-            className={cn(
-              "flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
-              viewMode === "week" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
-            )}
-          >
-            <CalendarRange className="w-3.5 h-3.5" />
-            Settimana
-          </button>
-          <button
-            onClick={() => setViewMode("month")}
-            className={cn(
-              "flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
-              viewMode === "month" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
-            )}
-          >
-            <CalendarDays className="w-3.5 h-3.5" />
-            Mese
-          </button>
+    <div className="mx-auto flex h-full max-w-7xl flex-col gap-4">
+      <div className="rounded-2xl border bg-background p-4 shadow-sm md:p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+              <HardHat className="h-3.5 w-3.5" />
+              Area campo
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">I miei lavori</h1>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Calendario operativo con cantieri, sopralluoghi, indirizzi e avanzamento lavori in una vista unica.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[560px]">
+            <SummaryTile icon={CalendarDays} label="Oggi" value={todayItems.length} tone="blue" />
+            <SummaryTile icon={CalendarRange} label="Settimana" value={weekItemsCount} tone="indigo" />
+            <SummaryTile icon={Building2} label="Cantieri" value={allCantieri.length} tone="emerald" />
+            <SummaryTile icon={Clock} label="Appuntamenti" value={allAppuntamenti.length} tone="amber" />
+          </div>
         </div>
       </div>
 
-      {/* ──── Vista Settimana ──── */}
-      {viewMode === "week" && (
-        <div className="bg-gradient-to-b from-muted/80 to-background border-b border-border/50 px-4 pt-1 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <button onClick={() => setWeekStart(w => subWeeks(w, 1))}
-              className="w-9 h-9 flex items-center justify-center rounded-xl bg-background border active:scale-95 transition-all">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span className="text-sm font-semibold capitalize">
-              {format(weekStart, "MMMM yyyy", { locale: it })}
-            </span>
-            <button onClick={() => setWeekStart(w => addWeeks(w, 1))}
-              className="w-9 h-9 flex items-center justify-center rounded-xl bg-background border active:scale-95 transition-all">
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="flex gap-1">
-            {weekDays.map((day) => {
-              const isSelected = isSameDay(day, selectedDay);
-              const isDayToday = isToday(day);
-              const count = countForDay(day);
-              return (
-                <button key={day.toISOString()} onClick={() => setSelectedDay(day)}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[430px_minmax(0,1fr)]">
+        <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
+          <div className="rounded-2xl border bg-background p-4 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vista calendario</p>
+                <p className="text-sm font-semibold capitalize">
+                  {viewMode === "week" ? format(weekStart, "MMMM yyyy", { locale: it }) : format(currentMonth, "MMMM yyyy", { locale: it })}
+                </p>
+              </div>
+              <div className="flex rounded-xl bg-muted p-0.5">
+                <button
+                  onClick={() => setViewMode("week")}
                   className={cn(
-                    "flex-1 flex flex-col items-center py-2 rounded-2xl transition-all duration-150",
-                    isSelected ? "bg-primary shadow-sm shadow-primary/20" : "active:bg-muted"
-                  )}>
-                  <span className={cn("text-[10px] font-semibold uppercase",
-                    isSelected ? "text-primary-foreground" : "text-muted-foreground")}>
-                    {format(day, "EEE", { locale: it }).slice(0, 2)}
-                  </span>
-                  <span className={cn("text-base font-bold mt-0.5",
-                    isSelected ? "text-primary-foreground" : isDayToday ? "text-primary" : "text-foreground")}>
-                    {format(day, "d")}
-                  </span>
-                  {count > 0 && (
-                    <div className="flex gap-0.5 mt-1">
-                      {Array.from({ length: Math.min(count, 3) }).map((_, i) => (
-                        <div key={i} className={cn("w-1.5 h-1.5 rounded-full",
-                          isSelected ? "bg-primary-foreground/70" : "bg-primary/60")} />
-                      ))}
-                    </div>
+                    "flex h-9 items-center gap-1 rounded-lg px-3 text-xs font-semibold transition-all",
+                    viewMode === "week" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                   )}
+                >
+                  <CalendarRange className="h-3.5 w-3.5" />
+                  Settimana
                 </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ──── Vista Mese ──── */}
-      {viewMode === "month" && (
-        <div className="bg-gradient-to-b from-muted/80 to-background border-b border-border/50 px-4 pt-1 pb-3">
-          <div className="flex items-center justify-between mb-3">
-            <button onClick={() => setCurrentMonth(m => subMonths(m, 1))}
-              className="w-9 h-9 flex items-center justify-center rounded-xl bg-background border active:scale-95 transition-all">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span className="text-sm font-semibold capitalize">
-              {format(currentMonth, "MMMM yyyy", { locale: it })}
-            </span>
-            <button onClick={() => setCurrentMonth(m => addMonths(m, 1))}
-              className="w-9 h-9 flex items-center justify-center rounded-xl bg-background border active:scale-95 transition-all">
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-          {/* Intestazioni giorni */}
-          <div className="grid grid-cols-7 gap-0.5 mb-1">
-            {["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"].map(d => (
-              <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-1">{d}</div>
-            ))}
-          </div>
-          {/* Griglia mese */}
-          <div className="grid grid-cols-7 gap-0.5">
-            {/* Spazi vuoti prima del primo giorno */}
-            {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-              <div key={`empty-${i}`} className="h-10" />
-            ))}
-            {monthDays.map((day) => {
-              const isSelected = isSameDay(day, selectedDay);
-              const isDayToday = isToday(day);
-              const count = countForDay(day);
-              return (
-                <button key={day.toISOString()} onClick={() => setSelectedDay(day)}
+                <button
+                  onClick={() => setViewMode("month")}
                   className={cn(
-                    "h-10 flex flex-col items-center justify-center rounded-xl transition-all relative",
-                    isSelected ? "bg-primary" : isDayToday ? "bg-primary/10" : "active:bg-muted"
-                  )}>
-                  <span className={cn("text-sm font-semibold",
-                    isSelected ? "text-primary-foreground" : isDayToday ? "text-primary" : "text-foreground")}>
-                    {format(day, "d")}
-                  </span>
-                  {count > 0 && (
-                    <div className="flex gap-0.5 absolute bottom-0.5">
-                      {Array.from({ length: Math.min(count, 3) }).map((_, i) => (
-                        <div key={i} className={cn("w-1 h-1 rounded-full",
-                          isSelected ? "bg-primary-foreground/70" : "bg-primary/60")} />
-                      ))}
-                    </div>
+                    "flex h-9 items-center gap-1 rounded-lg px-3 text-xs font-semibold transition-all",
+                    viewMode === "month" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                   )}
+                >
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  Mese
                 </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+              </div>
+            </div>
 
-      {/* ──── Contenuto giorno ──── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 md:pb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold capitalize">{dayLabel(selectedDay)}</h2>
-          {!isToday(selectedDay) && (
-            <button onClick={() => {
-              setSelectedDay(new Date());
-              setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
-              setCurrentMonth(new Date());
-            }}
-              className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 active:bg-primary/20 transition-all">
-              Oggi
-            </button>
-          )}
-        </div>
+            {viewMode === "week" && (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <button onClick={() => setWeekStart(w => subWeeks(w, 1))}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border bg-background transition-all active:scale-95">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <div className="text-center">
+                    <p className="text-sm font-bold">Settimana</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(weekStart, "d MMM", { locale: it })} - {format(addDays(weekStart, 6), "d MMM", { locale: it })}
+                    </p>
+                  </div>
+                  <button onClick={() => setWeekStart(w => addWeeks(w, 1))}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border bg-background transition-all active:scale-95">
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {weekDays.map((day) => {
+                    const isSelected = isSameDay(day, selectedDay);
+                    const isDayToday = isToday(day);
+                    const count = countForDay(day);
+                    return (
+                      <button key={day.toISOString()} onClick={() => setSelectedDay(day)}
+                        className={cn(
+                          "flex min-h-[76px] flex-col items-center justify-center rounded-2xl border transition-all",
+                          isSelected ? "border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/20" :
+                          isDayToday ? "border-primary/30 bg-primary/10 text-primary" : "border-transparent bg-muted/50 text-foreground hover:bg-muted"
+                        )}>
+                        <span className={cn("text-[10px] font-bold uppercase", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                          {format(day, "EEE", { locale: it }).slice(0, 2)}
+                        </span>
+                        <span className="mt-1 text-lg font-black">{format(day, "d")}</span>
+                        <span className={cn("mt-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                          isSelected ? "bg-primary-foreground/15 text-primary-foreground" : count > 0 ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                        )}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {viewMode === "month" && (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <button onClick={() => setCurrentMonth(m => subMonths(m, 1))}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border bg-background transition-all active:scale-95">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <span className="text-sm font-bold capitalize">
+                    {format(currentMonth, "MMMM yyyy", { locale: it })}
+                  </span>
+                  <button onClick={() => setCurrentMonth(m => addMonths(m, 1))}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border bg-background transition-all active:scale-95">
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1 mb-1">
+                  {["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"].map(d => (
+                    <div key={d} className="py-1 text-center text-[10px] font-bold text-muted-foreground">{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                    <div key={`empty-${i}`} className="h-12" />
+                  ))}
+                  {monthDays.map((day) => {
+                    const isSelected = isSameDay(day, selectedDay);
+                    const isDayToday = isToday(day);
+                    const count = countForDay(day);
+                    return (
+                      <button key={day.toISOString()} onClick={() => setSelectedDay(day)}
+                        className={cn(
+                          "relative flex h-12 flex-col items-center justify-center rounded-xl border transition-all",
+                          isSelected ? "border-primary bg-primary text-primary-foreground" :
+                          isDayToday ? "border-primary/30 bg-primary/10 text-primary" : "border-transparent hover:bg-muted"
+                        )}>
+                        <span className="text-sm font-bold">{format(day, "d")}</span>
+                        {count > 0 && (
+                          <span className={cn("absolute bottom-1 h-1.5 w-1.5 rounded-full",
+                            isSelected ? "bg-primary-foreground/75" : "bg-primary"
+                          )} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="rounded-2xl border bg-background p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <MapPinned className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold">Prossimo impegno</p>
+                {nextCommitment ? (
+                  <>
+                    <p className="mt-1 text-sm text-foreground line-clamp-2">{itemTitle(nextCommitment.item)}</p>
+                    <p className="mt-1 text-xs capitalize text-muted-foreground">{dayLabel(nextCommitment.day)}</p>
+                  </>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">Nessun lavoro programmato nei prossimi giorni.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section className="min-w-0 rounded-2xl border bg-background shadow-sm">
+          <div className="border-b p-4 md:p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Agenda giorno</p>
+                <h2 className="text-xl font-bold capitalize md:text-2xl">{dayLabel(selectedDay)}</h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <AgendaPill icon={ClipboardList} label={`${selectedAppointments} appuntamenti`} />
+                <AgendaPill icon={HardHat} label={`${selectedSites} cantieri`} />
+                {!isToday(selectedDay) && (
+                  <button onClick={() => {
+                    setSelectedDay(new Date());
+                    setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+                    setCurrentMonth(new Date());
+                  }}
+                    className="h-9 rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary transition-all active:bg-primary/20">
+                    Torna a oggi
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="min-h-[520px] px-4 py-4 pb-24 md:px-5 md:pb-6">
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : dayItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-            <CalendarOff className="w-12 h-12 text-muted-foreground/40" />
+          <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+              <CalendarOff className="h-8 w-8 text-muted-foreground/60" />
+            </div>
             <div>
-              <p className="font-medium text-muted-foreground">Nessun impegno</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                {isToday(selectedDay) ? "Giornata libera!" : `Niente programmato per ${format(selectedDay, "EEEE d", { locale: it })}`}
+              <p className="font-semibold text-foreground">Nessun impegno programmato</p>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                {isToday(selectedDay) ? "Oggi non risultano cantieri o appuntamenti assegnati." : `Niente programmato per ${format(selectedDay, "EEEE d MMMM", { locale: it })}.`}
               </p>
             </div>
           </div>
         ) : (
-          <div className="space-y-0">
+          <div className="space-y-1">
             {dayItems.map((item, idx) => {
               const dist = distanze[idx];
-              const prevItem = idx > 0 ? dayItems[idx - 1] : null;
 
               return (
                 <div key={item.id}>
@@ -474,6 +542,8 @@ export default function CampoCalendario() {
             })}
           </div>
         )}
+          </div>
+        </section>
       </div>
 
       {/* ──── Detail Sheet per appuntamento ──── */}
@@ -587,6 +657,44 @@ export default function CampoCalendario() {
           })()}
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+function SummaryTile({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  tone: "blue" | "indigo" | "emerald" | "amber";
+}) {
+  const tones = {
+    blue: "bg-blue-50 text-blue-700 border-blue-100",
+    indigo: "bg-indigo-50 text-indigo-700 border-indigo-100",
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    amber: "bg-amber-50 text-amber-700 border-amber-100",
+  };
+
+  return (
+    <div className={cn("rounded-xl border p-3", tones[tone])}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Icon className="h-4 w-4" />
+        <span className="text-xl font-black tabular-nums">{value}</span>
+      </div>
+      <p className="text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</p>
+    </div>
+  );
+}
+
+function AgendaPill({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <div className="inline-flex h-9 items-center gap-2 rounded-lg border bg-muted/40 px-3 text-xs font-semibold text-muted-foreground">
+      <Icon className="h-3.5 w-3.5" />
+      {label}
     </div>
   );
 }
