@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { getCatalogItem, type ConfigFieldSchema } from "@/lib/flow-node-catalog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { X, Trash2, Filter, Save, CheckCircle, RotateCcw } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { VariablePicker } from "./config-panels/VariablePicker";
 import {
   AlertDialog,
@@ -478,21 +477,7 @@ function ConfigField({
 
   const showAutoContact = isAutoFillField && triggerProvidesContact && !overrideAutoFill && value === AUTO_CONTACT_VAR;
 
-  // Fetch company users for user_select fields
-  const { data: companyUsers = [] } = useQuery({
-    queryKey: ["config-users", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        .eq("company_id", companyId)
-        .order("first_name");
-      return data ?? [];
-    },
-    enabled: field.type === "user_select" && !!companyId,
-    staleTime: 60_000,
-  });
+  const { data: companyUsers = [] } = useCompanyStaffUsers(field.type === "user_select" ? companyId : undefined);
 
   // Helper: insert variable into text/textarea
   const insertVariable = (variable: string) => {
@@ -621,7 +606,7 @@ function ConfigField({
             <SelectContent>
               {companyUsers.map((u: any) => (
                 <SelectItem key={u.id} value={u.id}>
-                  {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || u.id}
+                  {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.id}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import type { TriggerFieldDef } from "@/types/automationBuilder";
 import { NO_VALUE_OPERATORS } from "@/types/automationBuilder";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 
 interface Props {
   field: TriggerFieldDef | undefined;
@@ -234,20 +235,7 @@ function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; 
 
 // ── User Select ──
 function UserSelect({ value, onChange, companyId, hasError }: { value: any; onChange: (v: any) => void; companyId?: string; hasError?: boolean }) {
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
-
-  useEffect(() => {
-    if (!companyId) return;
-    supabase
-      .from("profiles")
-      .select("id, first_name, last_name")
-      .eq("company_id", companyId)
-      .then(({ data }) => {
-        if (data) {
-          setUsers(data.map((u) => ({ id: u.id, name: `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.id })));
-        }
-      });
-  }, [companyId]);
+  const { data: users = [] } = useCompanyStaffUsers(companyId);
 
   return (
     <Select value={value || ""} onValueChange={onChange}>
@@ -257,7 +245,7 @@ function UserSelect({ value, onChange, companyId, hasError }: { value: any; onCh
       <SelectContent>
         {users.map((u) => (
           <SelectItem key={u.id} value={u.id} className="text-xs">
-            {u.name}
+            {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.id}
           </SelectItem>
         ))}
       </SelectContent>

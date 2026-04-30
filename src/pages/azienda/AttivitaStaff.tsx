@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -522,26 +523,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     if (initialDueDate) { setFormDueDate(initialDueDate); setDialogOpen(true); }
   }, [initialDueDate]);
 
-  // ── Team members for assignment (admin only) ──
-  const { data: teamMembers = [] } = useQuery({
-    queryKey: ["attivita-team-members", companyId],
-    queryFn: async () => {
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId!);
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds)
-        .order("last_name");
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: !!companyId && isAdmin,
-    staleTime: 10 * 60 * 1000,
-  });
+  const { data: teamMembers = [] } = useCompanyStaffUsers(isAdmin ? companyId : null);
 
   // ── Fetch tasks — admin vede tutto, staff solo le sue ──
   const { data: allTasks = [], isLoading } = useQuery({
@@ -1285,26 +1267,8 @@ function TaskTeam() {
   const companyId = effectiveCompany?.id;
   const [filterUser, setFilterUser] = useState<string>("all");
 
-  // Fetch team members
-  const { data: teamMembers = [] } = useQuery({
-    queryKey: ["team-members-tasks", companyId],
-    queryFn: async () => {
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId!);
-      const validIds = (perms || []).map((p) => p.user_id).filter((id) => id !== user?.id);
-      if (!validIds.length) return [];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds)
-        .order("last_name");
-      return (profiles || []).filter((p) => p.first_name || p.last_name);
-    },
-    enabled: !!companyId && !!user?.id,
-    staleTime: 10 * 60 * 1000,
-  });
+  const { data: rawTeamMembers = [] } = useCompanyStaffUsers(companyId);
+  const teamMembers = rawTeamMembers.filter((member) => member.id !== user?.id);
 
   // Fetch team tasks
   const { data: teamTasks = [], isLoading } = useQuery({

@@ -14,6 +14,7 @@ import { it } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 
 interface Props {
   filters: DashboardFiltersState;
@@ -35,20 +36,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter, compact }:
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  // Fetch team members
-  const { data: teamMembers } = useQuery({
-    queryKey: ["dashboard-team-members", companyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("company_id", companyId!)
-        .order("first_name");
-      return data || [];
-    },
-    enabled: !!companyId && !hideUserFilter,
-    staleTime: 300_000,
-  });
+  const { data: teamMembers = [] } = useCompanyStaffUsers(!hideUserFilter ? companyId : null, "sales");
 
   // Fetch distinct sources
   const { data: availableSources } = useQuery({
@@ -163,7 +151,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter, compact }:
                       checked={filters.assignedUserIds.includes(m.id)}
                       onCheckedChange={() => toggleUser(m.id)}
                     />
-                    {m.first_name} {m.last_name}
+                    {[m.first_name, m.last_name].filter(Boolean).join(" ") || "Senza nome"}
                   </label>
                 ))}
               </div>

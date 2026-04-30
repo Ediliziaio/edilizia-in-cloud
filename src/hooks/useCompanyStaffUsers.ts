@@ -20,6 +20,7 @@ export const STAFF_ROLES = [
   "company_admin",
   "company_staff",
   "employee",
+  "subcontractor",
   "salesperson",
   "call_center",
 ] as const;
@@ -47,6 +48,15 @@ export interface StaffUser {
   roles?: StaffRole[];
 }
 
+interface RpcCompanyPerson {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
+  roles?: StaffRole[] | string[] | null;
+}
+
 export const companyStaffUsersKeys = {
   byCompany: (companyId: string | null | undefined, scope: UserScope = "all") =>
     ["company-staff-users", companyId, scope] as const,
@@ -59,9 +69,10 @@ export const companyStaffUsersKeys = {
  *              commerciali (super_admin/company_admin/salesperson/call_center)
  *
  * Strategy:
- * 1. Prendi user_id da staff_permissions per la company
- * 2. Filtra per user_roles WHERE role IN (ruoli scope)
- * 3. Enrich con profiles.first_name / last_name
+ * 1. RPC SECURITY DEFINER `get_internal_chat_profiles`, che può leggere
+ *    `user_roles` lato database senza esporre ruoli di altri utenti al browser.
+ * 2. Fallback su staff_permissions + employees + subappaltatori, evitando
+ *    `user_roles` dal client perché le RLS lo rendono incompleto.
  */
 export function useCompanyStaffUsers(
   companyId: string | null | undefined,
@@ -75,38 +86,53 @@ export function useCompanyStaffUsers(
     queryFn: async (): Promise<StaffUser[]> => {
       if (!companyId) return [];
 
-      const rolesFilter: readonly string[] =
-        scope === "sales" ? SALES_ROLES : STAFF_ROLES;
-
-      // 1. user_id con staff_permissions per la company
-      const { data: perms } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", companyId);
-
-      const permUserIds = Array.from(
-        new Set((perms || []).map((p) => p.user_id).filter(Boolean))
+      const rolesFilter = new Set<string>(scope === "sales" ? SALES_ROLES : STAFF_ROLES);
+      const { data: rpcUsers, error: rpcError } = await (supabase.rpc as any)(
+        "get_internal_chat_profiles",
+        { p_company_id: companyId },
       );
-      if (permUserIds.length === 0) return [];
 
-      // 2. filtra quelli che hanno ruoli compatibili con lo scope richiesto
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", permUserIds)
-        .in("role", rolesFilter as unknown as string[]);
+      if (!rpcError && Array.isArray(rpcUsers) && rpcUsers.length > 0) {
+        return (rpcUsers as RpcCompanyPerson[])
+          .filter((p) => {
+            const roles = Array.isArray(p.roles) ? p.roles : [];
+            return scope === "all" || roles.some((role) => rolesFilter.has(role));
+          })
+          .filter((p) => p.first_name || p.last_name || p.email)
+          .map((p) => ({
+            id: p.id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            roles: Array.isArray(p.roles) ? (p.roles as StaffRole[]) : undefined,
+          }));
+      }
+
+      const [permsRes, employeesRes, subcontractorsRes] = await Promise.all([
+        supabase.from("staff_permissions").select("user_id").eq("company_id", companyId),
+        supabase.from("employees").select("user_id, area").eq("company_id", companyId).not("user_id", "is", null),
+        supabase.from("subappaltatori").select("user_id").eq("company_id", companyId).not("user_id", "is", null),
+      ]);
 
       const staffRolesMap = new Map<string, StaffRole[]>();
-      (roles || []).forEach((r) => {
-        const arr = staffRolesMap.get(r.user_id) ?? [];
-        arr.push(r.role as StaffRole);
-        staffRolesMap.set(r.user_id, arr);
+      const addRole = (id: string | null | undefined, role: StaffRole) => {
+        if (!id) return;
+        const arr = staffRolesMap.get(id) ?? [];
+        if (!arr.includes(role)) arr.push(role);
+        staffRolesMap.set(id, arr);
+      };
+
+      (permsRes.data || []).forEach((p) => addRole(p.user_id, "company_staff"));
+      (employeesRes.data || []).forEach((e) => {
+        if (scope === "sales" && e.area !== "commerciale") return;
+        addRole(e.user_id, e.area === "commerciale" ? "salesperson" : "employee");
       });
+      if (scope === "all") {
+        (subcontractorsRes.data || []).forEach((s) => addRole(s.user_id, "subcontractor"));
+      }
 
       const staffUserIds = Array.from(staffRolesMap.keys());
       if (staffUserIds.length === 0) return [];
 
-      // 3. profili
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")

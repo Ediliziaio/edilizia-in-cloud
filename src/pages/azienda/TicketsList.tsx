@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/table";
 import type { TicketListItem } from "@/types/tickets";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 
 const TIPO_LABEL: Record<string, string> = {
   supporto: "Supporto",
@@ -149,20 +150,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
 
   const tickets = queryResult?.tickets ?? [];
 
-  // Lista staff per dropdown "Assegnato" (solo chi ha ticket assegnati o può riceverli)
-  const { data: staffList = [] } = useQuery({
-    queryKey: ["tickets-staff-options", effectiveCompany?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("company_id", effectiveCompany?.id ?? "")
-        .order("first_name");
-      return (data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>;
-    },
-    enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: staffList = [] } = useCompanyStaffUsers(effectiveCompany?.id);
 
   // Filtri client-side: fonte, scadenza, assegnato, ricerca testuale
   const filteredTickets = useMemo(() => tickets.filter((ticket) => {

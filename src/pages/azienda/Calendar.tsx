@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useWeatherForecast, useCalendarWeather, type CalendarLocation } from "@/hooks/useWeatherForecast";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
@@ -650,19 +651,7 @@ function CalendarInner() {
     setCurrentDate(new Date());
   };
 
-  // Fetch assignable staff users
-  const { data: assignableUsers = [] } = useQuery({
-    queryKey: ["assignable-users", effectiveCompany?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("company_id", effectiveCompany!.id)
-        .order("last_name");
-      return data || [];
-    },
-    enabled: !!effectiveCompany?.id,
-  });
+  const { data: assignableUsers = [] } = useCompanyStaffUsers(effectiveCompany?.id);
 
   const resetFilters = () => {
     setStatusFilter("all");

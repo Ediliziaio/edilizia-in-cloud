@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,31 +104,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     }));
   };
 
-  // Fetch team members — use staff_permissions (company-level RLS) instead of user_roles (user-level RLS)
-  const { data: teamMembers = [] } = useQuery({
-    queryKey: ["company-team-members", effectiveCompany?.id],
-    queryFn: async () => {
-      const { data: perms, error: permsErr } = await supabase
-        .from("staff_permissions")
-        .select("user_id")
-        .eq("company_id", effectiveCompany!.id);
-      if (permsErr) throw permsErr;
-      const validIds = (perms || []).map((p) => p.user_id);
-      if (!validIds.length) return [];
-
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", validIds);
-      if (error) throw error;
-
-      return (profiles || [])
-        .filter((p) => p.first_name || p.last_name)
-        .map((p) => ({ id: p.id, name: `${p.first_name || ""} ${p.last_name || ""}`.trim() }));
-    },
-    enabled: !!effectiveCompany?.id && open,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: teamMembers = [] } = useCompanyStaffUsers(open ? effectiveCompany?.id : null);
 
   useEffect(() => {
     if (initialData) {
@@ -239,7 +214,9 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
               <SelectContent>
                 <SelectItem value="none">Nessuna assegnazione</SelectItem>
                 {teamMembers.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  <SelectItem key={m.id} value={m.id}>
+                    {[m.first_name, m.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
