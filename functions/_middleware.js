@@ -1090,6 +1090,90 @@ const ROUTES = {
     ],
   },
 
+  "/privacy-policy": {
+    title: "Privacy Policy — Edilizia in Cloud",
+    description:
+      "Privacy Policy di Edilizia in Cloud: trattamento dei dati personali, basi giuridiche, diritti degli interessati e contatti privacy.",
+    h1: "Privacy Policy",
+    intro:
+      "Informativa privacy di Edilizia in Cloud per utenti, clienti, visitatori e interessati. Il documento descrive finalità, basi giuridiche, conservazione dei dati, diritti esercitabili e contatti del titolare.",
+    links: [
+      { href: "/termini-e-condizioni", label: "Termini e Condizioni" },
+      { href: "/cookie-policy", label: "Cookie Policy" },
+      { href: "/dpa", label: "DPA" },
+    ],
+  },
+
+  "/termini-e-condizioni": {
+    title: "Termini e Condizioni — Edilizia in Cloud",
+    description:
+      "Termini e Condizioni di Edilizia in Cloud: regole di utilizzo della piattaforma, abbonamenti, responsabilità e condizioni contrattuali.",
+    h1: "Termini e Condizioni",
+    intro:
+      "Condizioni contrattuali e termini di servizio applicabili all'utilizzo di Edilizia in Cloud, con regole su account, piani, pagamenti, responsabilità, sospensione e recesso.",
+    links: [
+      { href: "/privacy-policy", label: "Privacy Policy" },
+      { href: "/condizioni-utilizzo", label: "Condizioni di Utilizzo" },
+      { href: "/avviso-legale", label: "Avviso Legale" },
+    ],
+  },
+
+  "/avviso-legale": {
+    title: "Avviso Legale — Edilizia in Cloud",
+    description:
+      "Avviso legale di Edilizia in Cloud: dati societari, responsabilità sui contenuti, proprietà intellettuale e comunicazioni ufficiali.",
+    h1: "Avviso Legale",
+    intro:
+      "Avviso legale del sito Edilizia in Cloud con dati societari, informazioni sul titolare, proprietà intellettuale, limiti di responsabilità e riferimenti ufficiali.",
+    links: [
+      { href: "/privacy-policy", label: "Privacy Policy" },
+      { href: "/termini-e-condizioni", label: "Termini e Condizioni" },
+      { href: "/cookie-policy", label: "Cookie Policy" },
+    ],
+  },
+
+  "/condizioni-utilizzo": {
+    title: "Condizioni di Utilizzo del Sito — Edilizia in Cloud",
+    description:
+      "Condizioni di utilizzo del sito Edilizia in Cloud: accesso, contenuti, link, responsabilità e corretto uso delle informazioni pubblicate.",
+    h1: "Condizioni di Utilizzo del Sito",
+    intro:
+      "Regole di utilizzo del sito pubblico Edilizia in Cloud, inclusi accesso, contenuti informativi, link esterni, disponibilità del servizio e responsabilità dell'utente.",
+    links: [
+      { href: "/privacy-policy", label: "Privacy Policy" },
+      { href: "/termini-e-condizioni", label: "Termini e Condizioni" },
+      { href: "/avviso-legale", label: "Avviso Legale" },
+    ],
+  },
+
+  "/cookie-policy": {
+    title: "Cookie Policy — Edilizia in Cloud",
+    description:
+      "Cookie Policy di Edilizia in Cloud: categorie di cookie, finalità, durata, preferenze e gestione del consenso.",
+    h1: "Cookie Policy",
+    intro:
+      "Informativa cookie del sito Edilizia in Cloud: cookie tecnici, preferenze, analytics, marketing, durata dei cookie e modalità per gestire o revocare il consenso.",
+    links: [
+      { href: "/privacy-policy", label: "Privacy Policy" },
+      { href: "/termini-e-condizioni", label: "Termini e Condizioni" },
+      { href: "/dpa", label: "DPA" },
+    ],
+  },
+
+  "/dpa": {
+    title: "Data Processing Agreement — Edilizia in Cloud",
+    description:
+      "DPA di Edilizia in Cloud: accordo sul trattamento dati, ruoli privacy, misure di sicurezza, sub-responsabili e gestione dei dati.",
+    h1: "Data Processing Agreement",
+    intro:
+      "Accordo sul trattamento dei dati personali per Edilizia in Cloud, con ruoli privacy, misure tecniche e organizzative, sub-responsabili, assistenza al titolare e gestione delle richieste.",
+    links: [
+      { href: "/privacy-policy", label: "Privacy Policy" },
+      { href: "/termini-e-condizioni", label: "Termini e Condizioni" },
+      { href: "/cookie-policy", label: "Cookie Policy" },
+    ],
+  },
+
   "/chi-siamo": {
     title: "Chi Siamo — Edilizia in Cloud di Domus Group S.r.l.",
     description:
@@ -1576,6 +1660,48 @@ function escAttr(str) {
     .replace(/"/g, "&quot;");
 }
 
+function buildNoindexHtml(pathname) {
+  const canonical = `${BASE}${pathname}`;
+  return `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="robots" content="noindex,nofollow,noarchive"/>
+  <title>Area riservata | Edilizia in Cloud</title>
+  <meta name="description" content="Questa pagina appartiene a un'area riservata o transazionale di Edilizia in Cloud e non deve essere indicizzata."/>
+  <link rel="canonical" href="${escAttr(canonical)}"/>
+</head>
+<body>
+  <main>
+    <h1>Area riservata</h1>
+    <p>Questa pagina non è destinata ai risultati di ricerca.</p>
+    <a href="/">Torna a Edilizia in Cloud</a>
+  </main>
+</body>
+</html>`;
+}
+
+function buildNotFoundHtml(pathname) {
+  return `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="robots" content="noindex,nofollow,noarchive"/>
+  <title>Pagina non trovata | Edilizia in Cloud</title>
+  <meta name="description" content="La pagina richiesta non esiste su Edilizia in Cloud."/>
+</head>
+<body>
+  <main>
+    <h1>Pagina non trovata</h1>
+    <p>La pagina ${escHtml(pathname)} non esiste o è stata spostata.</p>
+    <a href="/">Torna alla home</a>
+  </main>
+</body>
+</html>`;
+}
+
 // ─── Route resolver ──────────────────────────────────────────────────────────
 
 function resolveRoute(pathname) {
@@ -1596,12 +1722,15 @@ function resolveRoute(pathname) {
   // City hub: /software-gestionale-edilizia (senza città specifica)
   if (pathname === "/software-gestionale-edilizia") {
     return {
-      title: "Software Gestionale Edilizia per Città — Tutta Italia | Edilizia in Cloud",
-      description: "Edilizia in Cloud disponibile in 27 città italiane: Milano, Roma, Napoli, Torino, Bologna, Firenze e molte altre. Supporto locale, onboarding in 48 ore.",
+      title: "Software Gestionale Edilizia — Cantieri, Preventivi e Margini | Edilizia in Cloud",
+      description: "Software gestionale per imprese edili italiane: cantieri, preventivi, fatturazione, magazzino, personale, CRM e margini in un'unica piattaforma cloud.",
       canonical: BASE + "/software-gestionale-edilizia",
-      h1: "Software Gestionale Edilizia nella tua città",
-      intro: "Edilizia in Cloud è il gestionale per imprese edili disponibile in tutta Italia. Con copertura in 22 città e supporto locale, il tuo onboarding è in 48 ore.",
+      h1: "Software gestionale edilizia per imprese edili italiane",
+      intro: "Edilizia in Cloud unisce cantieri, preventivi, fatturazione, magazzino, personale, CRM e controllo margini in una piattaforma cloud mobile-first. La pagina include anche la copertura nelle principali città italiane per supporto e onboarding locale.",
       links: [
+        { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
+        { href: "/funzionalita/preventivi-edilizia", label: "Preventivi Edilizia" },
+        { href: "/funzionalita/magazzino-cantiere", label: "Magazzino Cantiere" },
         { href: "/software-gestionale-edilizia-milano", label: "Milano" },
         { href: "/software-gestionale-edilizia-roma", label: "Roma" },
         { href: "/software-gestionale-edilizia-napoli", label: "Napoli" },
@@ -1619,8 +1748,10 @@ function resolveRoute(pathname) {
   if (cityMatch) {
     const cityKey = cityMatch[1].toLowerCase();
     const cfg = CITY_CONFIGS[cityKey];
-    const cityName = cfg ? cfg.city : cityKey.charAt(0).toUpperCase() + cityKey.slice(1);
-    const region = cfg ? cfg.region : "Italia";
+    if (!cfg) return null;
+
+    const cityName = cfg.city;
+    const region = cfg.region;
     return {
       title: `Software Gestionale Edilizia ${cityName} | Edilizia in Cloud`,
       description: cfg
@@ -1651,15 +1782,15 @@ function resolveRoute(pathname) {
   if (catMatch) {
     const slug = catMatch[1];
     const cat = BLOG_CATEGORIES[slug];
-    const label = cat ? cat.label : slug.replace(/-/g, " ");
+    if (!cat) return null;
+
+    const label = cat.label;
     return {
       title: `${label}: Articoli e Guide | Edilizia in Cloud Blog`,
-      description: cat
-        ? cat.description
-        : `Articoli e guide su ${label} per imprese edili italiane.`,
+      description: cat.description,
       canonical: BASE + pathname,
       h1: `Blog: ${label}`,
-      intro: cat ? cat.description : `Guide pratiche su ${label} per titolari di imprese edili.`,
+      intro: cat.description,
       links: [
         { href: "/blog", label: "Tutti gli Articoli" },
         { href: "/blog/categoria/gestione-cantieri", label: "Gestione Cantieri" },
@@ -1670,7 +1801,7 @@ function resolveRoute(pathname) {
         "@context": "https://schema.org",
         "@type": "CollectionPage",
         name: `Blog Edilizia: ${label}`,
-        description: cat ? cat.description : "",
+        description: cat.description,
         url: BASE + pathname,
         inLanguage: "it",
       },
@@ -1711,13 +1842,37 @@ function resolveRoute(pathname) {
       "software-gestionale-vs-excel": { title: "Software Gestionale vs Excel: Il Vero Costo Nascosto per la Tua Impresa Edile | Blog Edilizia in Cloud", description: "Molte imprese edili usano Excel convinte di risparmiare. Calcoliamo il vero costo nascosto: tempo perso, errori, opportunità mancate e rischio fiscale." },
       "digitalizzare-impresa-edile": { title: "Come Digitalizzare la Tua Impresa Edile in 30 Giorni | Blog Edilizia in Cloud", description: "Una roadmap concreta e testata per trasformare la tua impresa edile dal cartaceo al digitale in soli 30 giorni. Settimana per settimana, cosa fare." },
       "come-organizzare-cantiere-edile": { title: "Come Organizzare un Cantiere Edile: Guida Pratica per Titolari | Blog Edilizia in Cloud", description: "Hai cantieri aperti ma non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso. Scopri il metodo in 5 fasi per organizzare ogni cantiere." },
-      "documentazione-obbligatoria-cantiere-2025": { title: "Documentazione Obbligatoria Cantiere 2026: Lista Completa | Blog Edilizia in Cloud", description: "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2026. POS, DURC, notifica preliminare, DDT e certificazioni finali." },
-      "come-fare-preventivo-edilizia": { title: "Come Fare un Preventivo Edilizia Professionale (Senza Perdere Margine) | Blog Edilizia in Cloud", description: "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili." },
-      "alternativa-excel-cantieri": { title: "Alternativa a Excel per Cantieri: Perché le Imprese Edili Lo Stanno Abbandonando | Blog Edilizia in Cloud", description: "Stai usando Excel per gestire i cantieri? Ti costa molto più di quanto pensi. Confronto diretto: Excel vs gestionale di cantiere nel 2026." },
-    };
-    const meta = POST_META[slug] || {};
-    const articleH1 = meta.h1 || (meta.title ? meta.title.split("|")[0].trim() : "Articolo del Blog");
-    const articleIntro = meta.description || "Guida pratica per titolari di imprese edili.";
+            "documentazione-obbligatoria-cantiere-2025": { title: "Documentazione Obbligatoria Cantiere 2026: Lista Completa | Blog Edilizia in Cloud", description: "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2026. POS, DURC, notifica preliminare, DDT e certificazioni finali." },
+            "come-fare-preventivo-edilizia": { title: "Come Fare un Preventivo Edilizia Professionale (Senza Perdere Margine) | Blog Edilizia in Cloud", description: "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili." },
+            "alternativa-excel-cantieri": { title: "Alternativa a Excel per Cantieri: Perché le Imprese Edili Lo Stanno Abbandonando | Blog Edilizia in Cloud", description: "Stai usando Excel per gestire i cantieri? Ti costa molto più di quanto pensi. Confronto diretto: Excel vs gestionale di cantiere nel 2026." },
+            "cassa-impresa-edile-non-torna": { title: "Ho Fatturato ma Non Ho Soldi: Perché la Cassa dell'Impresa Edile Non Torna | Blog Edilizia in Cloud", description: "Hai cantieri aperti e fatture emesse, ma il conto corrente resta sotto pressione? Ecco perché ricavi e liquidità non sono la stessa cosa e come riprendere il controllo.", publishedAt: "2026-02-23", coverImage: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&q=80", tags: ["cassa impresa edile", "liquidità edilizia", "cash flow cantiere", "SAL cantiere", "margini cantiere"] },
+            "trovare-operai-edili-qualificati": { title: "Come Trovare Operai Edili Qualificati e Capire Chi Rende Davvero in Cantiere | Blog Edilizia in Cloud", description: "La manodopera manca, ma il problema non è solo assumere: è misurare produttività, presenze, formazione, costi reali e affidabilità di ogni operaio.", publishedAt: "2026-02-26", coverImage: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80", tags: ["trovare operai edili", "gestione operai", "presenze cantiere", "produttività operai", "costo operaio edile"] },
+            "passaparola-impresa-edile-non-basta": { title: "Il Passaparola Non Basta Più: Come Creare un Flusso Clienti per l'Impresa Edile | Blog Edilizia in Cloud", description: "Se aspetti che i clienti arrivino solo da conoscenze e raccomandazioni, non hai un sistema commerciale. Ecco come rendere prevedibili contatti, preventivi e follow-up.", publishedAt: "2026-03-01", coverImage: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80", tags: ["clienti impresa edile", "marketing edilizia", "passaparola impresa edile", "lead edilizia", "preventivi edilizia"] },
+            "gestire-piu-cantieri-contemporaneamente": { title: "Come Gestire Più Cantieri Contemporaneamente Senza Perdere il Controllo | Blog Edilizia in Cloud", description: "Tre cantieri aperti, materiali in ritardo, squadre da coordinare e clienti che chiamano: il caos nasce quando tutto vive nella testa del titolare.", publishedAt: "2026-03-04", coverImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80", tags: ["gestire più cantieri", "organizzazione cantieri", "avanzamento lavori", "diario cantiere", "pianificazione cantiere"] },
+            "burocrazia-impresa-edile-scadenze-documenti": { title: "Burocrazia Edile: Come Non Dimenticare DURC, POS, Polizze e Documenti di Cantiere | Blog Edilizia in Cloud", description: "La burocrazia non fa rumore finché blocca un cantiere. Scopri quali scadenze controllare e come trasformarle in un processo automatico.", publishedAt: "2026-03-07", coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80", tags: ["burocrazia edilizia", "documenti cantiere", "DURC scadenza", "POS cantiere", "scadenze impresa edile"] },
+            "delegare-impresa-edile-senza-perdere-controllo": { title: "Come Delegare in un'Impresa Edile Senza Perdere il Controllo dei Cantieri | Blog Edilizia in Cloud", description: "Se ogni decisione passa da te, non hai un'azienda: hai un lavoro molto pesante. La delega funziona solo con procedure, ruoli e numeri visibili.", publishedAt: "2026-03-10", coverImage: "https://images.unsplash.com/photo-1507209696998-3c532be9b2b5?auto=format&fit=crop&w=1200&q=80", tags: ["delegare impresa edile", "organizzare azienda edile", "procedure cantiere", "titolare impresa edile", "gestione team edile"] },
+            "preventivi-edili-non-si-chiudono": { title: "Perché i Preventivi Edili Non Si Chiudono: 7 Errori che Fanno Perdere Lavori | Blog Edilizia in Cloud", description: "Fai sopralluoghi, calcoli, invii preventivi e poi il cliente sparisce? Il problema spesso non è il prezzo, ma processo, valore e follow-up.", publishedAt: "2026-03-13", coverImage: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80", tags: ["preventivi edili", "chiudere preventivi", "preventivo impresa edile", "follow up preventivo", "vendita edilizia"] },
+            "segnali-crisi-impresa-edile": { title: "Segnali di Crisi in un'Impresa Edile: Come Accorgertene 90 Giorni Prima | Blog Edilizia in Cloud", description: "La crisi non arriva all'improvviso: lascia segnali su margini, cassa, clienti, costi fissi e crediti scaduti. Il punto è vederli in tempo.", publishedAt: "2026-03-16", coverImage: "https://images.unsplash.com/photo-1543286386-713bdd548da4?auto=format&fit=crop&w=1200&q=80", tags: ["crisi impresa edile", "segnali crisi aziendale", "margini edilizia", "crediti scaduti edilizia", "salute aziendale"] },
+            "come-trovare-clienti-impresa-edile-marketing": { title: "Come Trovare Clienti per un'Impresa Edile con il Marketing: Metodo Pratico | Blog Edilizia in Cloud", description: "Vuoi più clienti per lavori edili, ristrutturazioni o manutenzioni? Ecco un sistema concreto per generare richieste, gestire contatti e chiudere preventivi.", publishedAt: "2026-03-19", coverImage: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1200&q=80", tags: ["come trovare clienti impresa edile", "marketing impresa edile", "clienti edilizia", "lead edilizia", "acquisire clienti edilizia"] },
+            "aumentare-vendite-impresa-edile": { title: "Come Aumentare le Vendite di un'Impresa Edile Senza Abbassare i Prezzi | Blog Edilizia in Cloud", description: "Più vendite non significa fare più sconti. Scopri come aumentare il tasso di chiusura con preventivi migliori, follow-up e controllo del margine.", publishedAt: "2026-03-22", coverImage: "https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=1200&q=80", tags: ["aumentare vendite impresa edile", "vendere lavori edili", "chiudere preventivi edilizia", "commerciale edilizia", "margine preventivi"] },
+            "lead-serramenti-come-generare-richieste-qualificate": { title: "Lead Serramenti: Come Generare Richieste Qualificate per Infissi, Porte e Finestre | Blog Edilizia in Cloud", description: "Chi vende serramenti ha bisogno di lead con misure, zona, budget e urgenza. Ecco come evitare contatti inutili e trasformare richieste online in preventivi seri.", publishedAt: "2026-03-25", coverImage: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80", tags: ["lead serramenti", "clienti serramenti", "marketing serramenti", "preventivi infissi", "vendere serramenti"] },
+            "richieste-preventivo-ristrutturazione-online": { title: "Richieste di Preventivo Ristrutturazione: Come Trasformare i Contatti Online in Cantieri | Blog Edilizia in Cloud", description: "Le richieste online per ristrutturazioni sono preziose solo se vengono qualificate, seguite e trasformate in sopralluoghi con un processo chiaro.", publishedAt: "2026-03-28", coverImage: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80", tags: ["richieste preventivo ristrutturazione", "lead ristrutturazioni", "clienti ristrutturazione", "preventivo ristrutturazione", "marketing ristrutturazioni"] },
+            "google-ads-impresa-edile-errori-budget": { title: "Google Ads per Imprese Edili: Errori da Evitare e Budget da Controllare | Blog Edilizia in Cloud", description: "Google Ads può portare clienti edili, ma solo se campagne, landing page e CRM lavorano insieme. Ecco cosa controllare prima di bruciare budget.", publishedAt: "2026-03-31", coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80", tags: ["Google Ads impresa edile", "pubblicità edilizia", "campagne Google edilizia", "lead edilizia Google Ads", "budget marketing edilizia"] },
+            "crm-edilizia-gestire-lead-preventivi-follow-up": { title: "CRM per Edilizia: Come Gestire Lead, Preventivi e Follow-up Senza Perdere Clienti | Blog Edilizia in Cloud", description: "Un CRM per edilizia serve a non perdere contatti, sopralluoghi e preventivi. Ecco il flusso che ogni impresa edile dovrebbe avere.", publishedAt: "2026-04-03", coverImage: "https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=1200&q=80", tags: ["CRM edilizia", "gestione lead edilizia", "follow up preventivi", "pipeline commerciale edilizia", "clienti impresa edile"] },
+            "come-trovare-clienti-serramentisti": { title: "Come Trovare Clienti per Serramentisti: SEO, Lead e Preventivi che Si Chiudono | Blog Edilizia in Cloud", description: "Una guida pratica per aziende di serramenti che vogliono più richieste qualificate, meno preventivi persi e una pipeline commerciale misurabile.", publishedAt: "2026-04-06", coverImage: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80", tags: ["come trovare clienti serramentisti", "marketing serramentisti", "clienti serramenti", "lead infissi", "vendere serramenti"] },
+            "come-trovare-clienti-rifacimento-tetti": { title: "Come Trovare Clienti per Aziende di Rifacimento Tetti e Coperture | Blog Edilizia in Cloud", description: "Strategia SEO e commerciale per imprese che fanno tetti, coperture, lattoneria, isolamento e impermeabilizzazioni.", publishedAt: "2026-04-09", coverImage: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80", tags: ["clienti rifacimento tetti", "marketing coperture", "lead tetti", "preventivo rifacimento tetto", "impresa tetti"] },
+            "come-trovare-clienti-fotovoltaico": { title: "Come Trovare Clienti per Aziende Fotovoltaiche: Lead, SEO e Vendita Consultiva | Blog Edilizia in Cloud", description: "Per installatori fotovoltaici: come generare richieste qualificate, spiegare il ritorno economico e trasformare lead in contratti firmati.", publishedAt: "2026-04-12", coverImage: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1200&q=80", tags: ["clienti fotovoltaico", "lead fotovoltaico", "marketing fotovoltaico", "vendere impianti fotovoltaici", "installatori fotovoltaico"] },
+            "sistema-fatturazione-aziende-edili": { title: "Sistema di Fatturazione per Aziende Edili: SAL, Acconti, Varianti e Margini | Blog Edilizia in Cloud", description: "Come scegliere e organizzare un sistema di fatturazione per imprese edili, serramentisti, installatori e aziende di ristrutturazione.", publishedAt: "2026-04-15", coverImage: "https://images.unsplash.com/photo-1554224154-26032fced8bd?auto=format&fit=crop&w=1200&q=80", tags: ["sistema fatturazione aziende edili", "fatturazione edilizia", "SAL fatture", "fattura elettronica edilizia", "gestionale fatture edilizia"] },
+            "fattura-corretta-serramentisti": { title: "Fattura Corretta per Serramentisti: Posa, Materiali, Acconti e IVA | Blog Edilizia in Cloud", description: "Guida pratica per serramentisti: come organizzare fatture, acconti, saldo, posa in opera, varianti e documentazione senza perdere margine.", publishedAt: "2026-04-18", coverImage: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=80", tags: ["fattura corretta serramentisti", "fatturazione serramenti", "fattura infissi", "IVA serramenti", "acconto serramenti"] },
+            "preventivo-rifacimento-tetto-come-farlo": { title: "Preventivo Rifacimento Tetto: Come Farlo Bene e Non Perdere Margine | Blog Edilizia in Cloud", description: "Cosa deve contenere un preventivo per rifacimento tetto: sopralluogo, materiali, sicurezza, ponteggi, varianti e SAL.", publishedAt: "2026-04-21", coverImage: "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=1200&q=80", tags: ["preventivo rifacimento tetto", "costo rifacimento tetto", "preventivo tetto", "azienda coperture", "margine tetti"] },
+            "seo-locale-impresa-edile": { title: "SEO Locale per Imprese Edili: Come Farsi Trovare nella Propria Zona | Blog Edilizia in Cloud", description: "Guida SEO locale per imprese edili, serramentisti, tetti, impiantisti e ristrutturatori che lavorano su province e città specifiche.", publishedAt: "2026-04-24", coverImage: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80", tags: ["SEO locale impresa edile", "farsi trovare su Google edilizia", "marketing locale edilizia", "Google Business edilizia", "clienti edili zona"] },
+            "recupero-crediti-impresa-edile-fatture-scadute": { title: "Recupero Crediti per Imprese Edili: Come Gestire Fatture Scadute e Clienti Lenti | Blog Edilizia in Cloud", description: "Come prevenire e gestire fatture scadute in edilizia: scadenziario, solleciti, SAL, condizioni di pagamento e controllo cassa.", publishedAt: "2026-04-27", coverImage: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1200&q=80", tags: ["recupero crediti impresa edile", "fatture scadute edilizia", "solleciti pagamento edilizia", "crediti clienti edilizia", "cassa impresa edile"] },
+          };
+    const meta = POST_META[slug];
+    if (!meta) return null;
+
+    const articleH1 = meta.h1 || meta.title.split("|")[0].trim();
+    const articleIntro = meta.description;
     const articleContent = ""; // Content rendered client-side by React
     const articleJsonLd = meta.title ? {
       "@context": "https://schema.org",
@@ -1757,15 +1912,26 @@ function resolveRoute(pathname) {
 
 // ─── Private subdomains — block all bots/crawlers ───────────────────────────
 const PRIVATE_SUBDOMAINS = ["app", "lavori", "clienti", "admin"];
+const ASSET_EXT_RE = /\.(js|css|png|jpg|jpeg|webp|gif|svg|ico|woff2?|ttf|eot|map|json|xml|txt|pdf)$/i;
+const PUBLIC_NOINDEX_PATTERNS = [
+  /^\/(admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|app)(\/|$)/,
+  /^\/(login|admin-login|clienti-login|lavori-login|cambia-password|reset-password)(\/|$)/,
+  /^\/(prenota|offerta|firma|firma-odv|firma-fea|preventivo|feedback\/nps)(\/|$)/,
+];
 
 function isPrivateSubdomain(hostname) {
   const sub = hostname.split(".")[0].toLowerCase();
   return PRIVATE_SUBDOMAINS.includes(sub);
 }
 
+function isPublicNoindexPath(pathname) {
+  return PUBLIC_NOINDEX_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
 export async function onRequest({ request, next }) {
   const ua = request.headers.get("user-agent") || "";
   const url = new URL(request.url);
+  const pathname = url.pathname.replace(/\/$/, "") || "/";
 
   // ── Private subdomains: block all bots, serve noindex ──────────────────
   if (isPrivateSubdomain(url.hostname)) {
@@ -1801,22 +1967,48 @@ export async function onRequest({ request, next }) {
     return newResponse;
   }
 
+  // Skip asset requests
+  if (ASSET_EXT_RE.test(pathname)) {
+    return next();
+  }
+
+  // Public host but private/auth/transactional path: always noindex.
+  // Non-bot users can still use the SPA; crawlers receive a lightweight noindex page.
+  if (isPublicNoindexPath(pathname)) {
+    if (isBot(ua)) {
+      return new Response(buildNoindexHtml(pathname), {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "X-Robots-Tag": "noindex, nofollow, noarchive, nosnippet",
+          Vary: "User-Agent",
+        },
+      });
+    }
+
+    const response = await next();
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return newResponse;
+  }
+
   // ── Public site (www / root): serve SEO content to bots ────────────────
   if (!isBot(ua)) {
     return next();
   }
 
-  const pathname = url.pathname.replace(/\/$/, "") || "/";
-
-  // Skip asset requests even for bots
-  if (/\.(js|css|png|jpg|jpeg|webp|gif|svg|ico|woff2?|ttf|eot|map|json|xml|txt)$/i.test(pathname)) {
-    return next();
-  }
-
   const route = resolveRoute(pathname);
   if (!route) {
-    // Unknown route — pass through, let the SPA handle 404
-    return next();
+    return new Response(buildNotFoundHtml(pathname), {
+      status: 404,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=300, s-maxage=300",
+        "X-Robots-Tag": "noindex, nofollow, noarchive",
+        Vary: "User-Agent",
+      },
+    });
   }
 
   const html = buildHtml(route);

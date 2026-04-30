@@ -47,18 +47,76 @@
   Service-Worker-Allowed: /
   Content-Type: application/javascript
 
-# Noindex for legal and internal pages (bots don't execute JS so useSEO is not enough)
-/privacy
+# Noindex for private/auth/transactional routes.
+# Public marketing and legal canonical pages remain indexable.
+/login
   X-Robots-Tag: noindex, nofollow
 
-/termini
+/admin-login
   X-Robots-Tag: noindex, nofollow
 
-/cookie
+/clienti-login
+  X-Robots-Tag: noindex, nofollow
+
+/lavori-login
   X-Robots-Tag: noindex, nofollow
 
 /reset-password
   X-Robots-Tag: noindex, nofollow
 
 /cambia-password
+  X-Robots-Tag: noindex, nofollow
+
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+
+/azienda/*
+  X-Robots-Tag: noindex, nofollow
+
+/cliente/*
+  X-Robots-Tag: noindex, nofollow
+
+/dipendente/*
+  X-Robots-Tag: noindex, nofollow
+
+/venditore/*
+  X-Robots-Tag: noindex, nofollow
+
+/partner/*
+  X-Robots-Tag: noindex, nofollow
+
+/tecnico/*
+  X-Robots-Tag: noindex, nofollow
+
+/campo/*
+  X-Robots-Tag: noindex, nofollow
+
+/portale/*
+  X-Robots-Tag: noindex, nofollow
+
+/portale-cliente/*
+  X-Robots-Tag: noindex, nofollow
+
+/app/*
+  X-Robots-Tag: noindex, nofollow
+
+/preventivo/*
+  X-Robots-Tag: noindex, nofollow
+
+/offerta/*
+  X-Robots-Tag: noindex, nofollow
+
+/firma/*
+  X-Robots-Tag: noindex, nofollow
+
+/firma-odv/*
+  X-Robots-Tag: noindex, nofollow
+
+/firma-fea/*
+  X-Robots-Tag: noindex, nofollow
+
+/prenota/*
+  X-Robots-Tag: noindex, nofollow
+
+/feedback/*
   X-Robots-Tag: noindex, nofollow

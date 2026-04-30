@@ -49,10 +49,10 @@ const baseUrl = "https://www.ediliziaincloud.com";
 
 export default function CityHub() {
   useSEO({
-    title: "Software Gestionale Edilizia per Città — Tutte le Province | Edilizia in Cloud",
-    description: "Scopri Edilizia in Cloud nella tua città: software gestionale per imprese edili disponibile in tutta Italia. 35 città con supporto locale, dalla Lombardia alla Sicilia.",
+    title: "Software Gestionale Edilizia — Cantieri, Preventivi e Margini | Edilizia in Cloud",
+    description: "Software gestionale per imprese edili italiane: cantieri, preventivi, fatturazione, magazzino, personale, CRM e margini in un'unica piattaforma cloud.",
     canonical: "/software-gestionale-edilizia",
-    keywords: "software gestionale edilizia città, gestionale edilizia regioni, software impresa edile Italia, gestionale cantieri province italiane, software edilizia nord sud Italia",
+    keywords: "software gestionale edilizia, gestionale edilizia, software imprese edili, software gestione cantieri, gestionale cantieri, software edilizia cloud, gestionale edilizia Italia",
   });
 
   const itemListElements = CITIES.map((city, i) => ({
@@ -77,7 +77,7 @@ export default function CityHub() {
         "@context": "https://schema.org",
         "@type": "ItemList",
         "name": "Software Gestionale Edilizia — Copertura Geografica",
-        "description": "Edilizia in Cloud disponibile in 22 città italiane con supporto e onboarding locale",
+        "description": "Edilizia in Cloud disponibile in 36 città italiane con supporto e onboarding locale",
         "url": `${baseUrl}/software-gestionale-edilizia`,
         "numberOfItems": CITIES.length,
         "itemListElement": itemListElements,
@@ -104,14 +104,14 @@ export default function CityHub() {
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 bg-[#F97415]/10 text-[#F97415] px-4 py-2 rounded-full text-sm font-semibold mb-6">
             <MapPin className="h-4 w-4" />
-            Copertura nazionale — 35 città
+            Copertura nazionale — 36 città
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-[#111111] mb-6 leading-tight">
             Software Gestionale Edilizia<br />
-            <span className="text-[#F97415]">nella tua città</span>
+            <span className="text-[#F97415]">per imprese edili italiane</span>
           </h1>
           <p className="text-xl text-[#111111]/60 mb-8 max-w-2xl mx-auto">
-            Edilizia in Cloud è disponibile in tutta Italia con onboarding locale, supporto in italiano e configurazione personalizzata per il mercato edile della tua provincia.
+            Edilizia in Cloud unisce cantieri, preventivi, fatturazione, magazzino, personale, CRM e controllo margini in una piattaforma cloud mobile-first, disponibile in tutta Italia con onboarding locale.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
@@ -199,7 +199,7 @@ export default function CityHub() {
             Non trovi la tua città?
           </h2>
           <p className="text-lg text-[#111111]/60 mb-8">
-            Edilizia in Cloud funziona in tutta Italia. Siamo presenti nelle 22 principali città ma serviamo imprese in ogni provincia. Contattaci e ti mostriamo come il software si adatta al tuo mercato locale.
+            Edilizia in Cloud funziona in tutta Italia. Siamo presenti nelle 36 principali città ma serviamo imprese in ogni provincia. Contattaci e ti mostriamo come il software si adatta al tuo mercato locale.
           </p>
           <Link
             to="/demo"
