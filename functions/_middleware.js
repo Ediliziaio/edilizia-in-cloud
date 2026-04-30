@@ -1356,6 +1356,41 @@ const ROUTES = {
     ],
   },
 
+  "/pianifica-migrazione": {
+    title: "Migrazione Gestionale Edilizia in 48 Ore | Edilizia in Cloud",
+    description:
+      "Migra da Primus, EdilNet, TeamSystem, STR Vision, Buildertrend o Excel a Edilizia in Cloud: import assistito di cantieri, fatture, anagrafiche e archivio storico.",
+    h1: "Migrazione gestionale edilizia assistita in 48 ore",
+    intro:
+      "Passa dal vecchio gestionale a Edilizia in Cloud senza fermare l'attività. Il team importa cantieri, fatture elettroniche, anagrafiche, preventivi, DDT, prima nota, foto e documenti in ambiente di test, poi va live solo dopo la tua validazione.",
+    links: [
+      { href: "/demo", label: "Pianifica Audit Gratuito" },
+      { href: "/confronto/vs-primus", label: "Migrare da Primus" },
+      { href: "/confronto/vs-teamsystem", label: "Migrare da TeamSystem" },
+      { href: "/confronto/vs-excel", label: "Migrare da Excel" },
+      { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
+      { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione SDI" },
+    ],
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      name: "Migrazione dati gestionale edilizia",
+      serviceType: "Data migration and onboarding for construction management software",
+      provider: {
+        "@type": "Organization",
+        name: "Edilizia in Cloud",
+        url: "https://www.ediliziaincloud.com",
+      },
+      areaServed: "IT",
+      availableChannel: {
+        "@type": "ServiceChannel",
+        serviceUrl: "https://www.ediliziaincloud.com/pianifica-migrazione",
+      },
+      description:
+        "Servizio di migrazione assistita per imprese edili da Primus, EdilNet, TeamSystem, STR Vision, Buildertrend, Excel e archivi CSV verso Edilizia in Cloud.",
+    },
+  },
+
   // /privacy-policy, /termini-e-condizioni, /avviso-legale, /condizioni-utilizzo, /cookie-policy, /dpa
   // Pagine legali indicizzabili (trasparenza GDPR) — gestite dalla SPA con LegalLayout
 
@@ -1730,7 +1765,10 @@ function resolveRoute(pathname) {
       links: [
         { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
         { href: "/funzionalita/preventivi-edilizia", label: "Preventivi Edilizia" },
+        { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione SDI" },
+        { href: "/funzionalita/app-cantiere-mobile", label: "App Cantiere Mobile" },
         { href: "/funzionalita/magazzino-cantiere", label: "Magazzino Cantiere" },
+        { href: "/funzionalita/margini-cantiere", label: "Margini Cantiere" },
         { href: "/software-gestionale-edilizia-milano", label: "Milano" },
         { href: "/software-gestionale-edilizia-roma", label: "Roma" },
         { href: "/software-gestionale-edilizia-napoli", label: "Napoli" },
@@ -1912,7 +1950,7 @@ function resolveRoute(pathname) {
 
 // ─── Private subdomains — block all bots/crawlers ───────────────────────────
 const PRIVATE_SUBDOMAINS = ["app", "lavori", "clienti", "admin"];
-const ASSET_EXT_RE = /\.(js|css|png|jpg|jpeg|webp|gif|svg|ico|woff2?|ttf|eot|map|json|xml|txt|pdf)$/i;
+const ASSET_EXT_RE = /\.(js|css|png|jpg|jpeg|webp|avif|gif|svg|ico|woff2?|ttf|eot|map|json|xml|txt|pdf|webmanifest)$/i;
 const PUBLIC_NOINDEX_PATTERNS = [
   /^\/(admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|app)(\/|$)/,
   /^\/(login|admin-login|clienti-login|lavori-login|cambia-password|reset-password)(\/|$)/,

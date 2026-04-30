@@ -37,6 +37,12 @@
 /software-ristrutturazioni    /per/ristrutturatori    301
 /software-ristrutturazioni-edilizie    /per/ristrutturatori    301
 /rapportini-cantiere    /funzionalita/app-cantiere-mobile    301
+/migrazione-gestionale-edilizia    /pianifica-migrazione    301
+/migrare-da-primus    /pianifica-migrazione    301
+/passare-da-primus    /pianifica-migrazione    301
+/migrare-da-teamsystem    /pianifica-migrazione    301
+/import-dati-gestionale-edilizia    /pianifica-migrazione    301
+/onboarding-gestionale-edilizia    /pianifica-migrazione    301
 
 # ── SPA fallback routing ──────────────────────────────────────────────────────
 # All routes fall through to index.html so React Router handles them client-side

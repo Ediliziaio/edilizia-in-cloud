@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- Sitemap aggiornata: 2026-04-28 — 180 URL, 54 articoli, 35 città, 6 confronti -->
+  <!-- Sitemap aggiornata: 2026-04-30 — 181 URL, 54 articoli, 36 città, 6 confronti -->
 
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
@@ -53,6 +53,14 @@
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/demo"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/demo"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/pianifica-migrazione</loc>
+    <lastmod>2026-04-30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/pianifica-migrazione"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/pianifica-migrazione"/>
   </url>
 
   <!-- ── Blog index ───────────────────────────────────────────── -->

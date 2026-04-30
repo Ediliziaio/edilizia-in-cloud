@@ -4,7 +4,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import StickyBottomBar from "@/components/landing/StickyBottomBar";
-import { MapPin, ArrowRight, CheckCircle } from "lucide-react";
+import { MapPin, ArrowRight, CheckCircle, HardHat, ClipboardList, Receipt, Smartphone, Warehouse, TrendingUp } from "lucide-react";
 
 const CITIES = [
   { name: "Milano", slug: "milano", region: "Lombardia", desc: "Hub finanziario, massima concentrazione di imprese edili" },
@@ -47,6 +47,45 @@ const CITIES = [
 
 const baseUrl = "https://www.ediliziaincloud.com";
 
+const CORE_MODULES = [
+  {
+    title: "Gestione cantieri",
+    href: "/funzionalita/gestione-cantieri",
+    desc: "Commesse, fasi, squadre, avanzamento lavori e documenti sempre collegati al cantiere.",
+    icon: HardHat,
+  },
+  {
+    title: "Preventivi edilizia",
+    href: "/funzionalita/preventivi-edilizia",
+    desc: "Preventivi, computi, prezziari, firma digitale e accettazione cliente senza doppio inserimento.",
+    icon: ClipboardList,
+  },
+  {
+    title: "Fatturazione SDI",
+    href: "/funzionalita/fatturazione-elettronica",
+    desc: "Fatture elettroniche B2B e PA collegate a cantieri, SAL, scadenze e margini reali.",
+    icon: Receipt,
+  },
+  {
+    title: "App cantiere mobile",
+    href: "/funzionalita/app-cantiere-mobile",
+    desc: "Foto, rapportini, presenze e aggiornamenti lavori da smartphone, anche con connessione instabile.",
+    icon: Smartphone,
+  },
+  {
+    title: "Magazzino cantiere",
+    href: "/funzionalita/magazzino-cantiere",
+    desc: "Materiali, DDT, carichi, scarichi e giacenze tracciati per commessa e fornitore.",
+    icon: Warehouse,
+  },
+  {
+    title: "Margini cantiere",
+    href: "/funzionalita/margini-cantiere",
+    desc: "Preventivo vs consuntivo, costi manodopera, materiali e subappalti sempre sotto controllo.",
+    icon: TrendingUp,
+  },
+];
+
 export default function CityHub() {
   useSEO({
     title: "Software Gestionale Edilizia — Cantieri, Preventivi e Margini | Edilizia in Cloud",
@@ -61,6 +100,14 @@ export default function CityHub() {
     "name": `Software Gestionale Edilizia ${city.name}`,
     "url": `${baseUrl}/software-gestionale-edilizia-${city.slug}`,
     "description": city.desc,
+  }));
+
+  const coreModuleElements = CORE_MODULES.map((module, i) => ({
+    "@type": "ListItem",
+    "position": i + 1,
+    "name": module.title,
+    "url": `${baseUrl}${module.href}`,
+    "description": module.desc,
   }));
 
   return (
@@ -81,6 +128,15 @@ export default function CityHub() {
         "url": `${baseUrl}/software-gestionale-edilizia`,
         "numberOfItems": CITIES.length,
         "itemListElement": itemListElements,
+      }} />
+      <JsonLd id="jsonld-core-modules-cityhub" data={{
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Moduli principali del software gestionale edilizia",
+        "description": "Funzionalità core per gestire cantieri, preventivi, fatturazione, magazzino, app mobile e margini.",
+        "url": `${baseUrl}/software-gestionale-edilizia`,
+        "numberOfItems": CORE_MODULES.length,
+        "itemListElement": coreModuleElements,
       }} />
       <JsonLd id="jsonld-webpage-cityhub" data={{
         "@context": "https://schema.org",
@@ -127,6 +183,43 @@ export default function CityHub() {
             >
               Vedi i Prezzi
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Moduli core */}
+      <section className="py-14 bg-white border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="max-w-3xl mx-auto text-center mb-10">
+            <h2 className="text-3xl font-bold text-[#111111] mb-3">
+              Cosa include il software gestionale edilizia
+            </h2>
+            <p className="text-[#111111]/60 leading-relaxed">
+              Un gestionale unico per seguire il lavoro dall'offerta al cantiere chiuso: preventivi, app mobile, fatturazione elettronica, materiali e controllo margini senza fogli sparsi.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {CORE_MODULES.map((module) => {
+              const Icon = module.icon;
+              return (
+                <Link
+                  key={module.href}
+                  to={module.href}
+                  className="group rounded-lg border border-gray-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-[#F97415] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97415] focus-visible:ring-offset-2"
+                >
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#F97415]/10 text-[#F97415] transition-colors group-hover:bg-[#F97415] group-hover:text-white">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-bold text-[#111111] transition-colors group-hover:text-[#F97415]">
+                      {module.title}
+                    </h3>
+                    <ArrowRight className="mt-1 h-4 w-4 flex-shrink-0 text-gray-300 transition-colors group-hover:text-[#F97415]" />
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-[#111111]/60">{module.desc}</p>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>

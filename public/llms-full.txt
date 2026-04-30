@@ -1,5 +1,5 @@
 # Edilizia in Cloud — llms-full.txt (versione estesa)
-# Ultimo aggiornamento: 2026-04-28 (v10 — 54 articoli, 35 città, 7 confronti)
+# Ultimo aggiornamento: 2026-04-30 (v11 — 54 articoli, 36 città, 7 confronti, SEO P1)
 # Formato: https://llmstxt.org/full
 # Versione sintetica: https://www.ediliziaincloud.com/llms.txt
 
@@ -148,6 +148,14 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
 
 ---
 
+## Migrazione da altri gestionali
+
+Edilizia in Cloud supporta la migrazione assistita da Primus, EdilNet, TeamSystem, STR Vision, Buildertrend, Excel e archivi CSV. Il servizio copre import di cantieri, anagrafiche, preventivi, fatture, DDT, documenti e storico operativo in ambiente di test prima del go-live.
+
+URL: https://www.ediliziaincloud.com/pianifica-migrazione
+
+---
+
 ## Pagine principali
 
 - **Home:** https://www.ediliziaincloud.com
@@ -161,6 +169,7 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
 - **Prezzi:** https://www.ediliziaincloud.com/prezzi
 - **Confronto:** https://www.ediliziaincloud.com/confronto
 - **Integrazioni:** https://www.ediliziaincloud.com/integrazioni
+- **Pianifica migrazione:** https://www.ediliziaincloud.com/pianifica-migrazione
 - **Glossario Edilizia:** https://www.ediliziaincloud.com/glossario-edilizia
 - **Blog (54 articoli):** https://www.ediliziaincloud.com/blog
   - SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona
@@ -203,10 +212,10 @@ Puoi disdire in qualsiasi momento, senza penali e senza preavviso. E ricorda: se
   - Preventivo rifacimento tetto: https://www.ediliziaincloud.com/blog/preventivo-rifacimento-tetto-come-farlo
   - SEO locale impresa edile: https://www.ediliziaincloud.com/blog/seo-locale-impresa-edile
   - Recupero crediti impresa edile: https://www.ediliziaincloud.com/blog/recupero-crediti-impresa-edile-fatture-scadute
-- **Software per città (35 hub):** https://www.ediliziaincloud.com/software-gestionale-edilizia
+- **Software per città (36 hub):** https://www.ediliziaincloud.com/software-gestionale-edilizia
 - **Glossario Edilizia (30+ termini):** https://www.ediliziaincloud.com/glossario-edilizia
 - **Casi Studio:** https://www.ediliziaincloud.com/casi-studio
-- **Copertura geografica (35 città):**
+- **Copertura geografica (36 città):**
   - Milano: https://www.ediliziaincloud.com/software-gestionale-edilizia-milano
   - Roma: https://www.ediliziaincloud.com/software-gestionale-edilizia-roma
   - Napoli: https://www.ediliziaincloud.com/software-gestionale-edilizia-napoli
