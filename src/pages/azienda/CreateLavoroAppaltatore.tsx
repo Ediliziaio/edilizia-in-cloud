@@ -284,7 +284,7 @@ export default function CreateLavoroAppaltatore() {
     return diff > 0 ? diff : null;
   }, [workStartDate, workEndDate, dateError]);
 
-  // ── Guard: feature disattivata → redirect alla lista ordini ────
+  // ── Guard: feature disattivata → redirect alla lista commesse ────
   if (!featureEnabled) {
     return (
       <div className="space-y-4 max-w-xl">
@@ -296,7 +296,7 @@ export default function CreateLavoroAppaltatore() {
         </Alert>
         <Button variant="outline" onClick={() => navigate("/azienda/ordini")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Torna agli ordini
+          Torna alle commesse
         </Button>
       </div>
     );

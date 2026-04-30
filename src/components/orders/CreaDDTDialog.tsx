@@ -214,7 +214,7 @@ export function CreaDDTDialog({
     // P2 FIX: blocca creazione DDT vuoto (non conforme normativo).
     if (previewRighe.length === 0) {
       toast.error("Impossibile creare un DDT senza righe", {
-        description: "Aggiungi almeno un articolo all'ordine prima di generare il DDT.",
+        description: "Aggiungi almeno un articolo alla commessa prima di generare il DDT.",
       });
       return;
     }
@@ -237,7 +237,7 @@ export function CreaDDTDialog({
         }
       : undefined;
 
-    const noteDoc = `DDT per ordine ${orderCode || ""} — ${orderDescription}`.trim();
+    const noteDoc = `DDT per commessa ${orderCode || ""} — ${orderDescription}`.trim();
 
     createMutation.mutate(
       {
@@ -269,7 +269,7 @@ export function CreaDDTDialog({
                 companyId,
               });
             } catch (err) {
-              toast.error("DDT creato ma collegamento ordine fallito", {
+              toast.error("DDT creato ma collegamento commessa fallito", {
                 description:
                   err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
               });
@@ -299,10 +299,10 @@ export function CreaDDTDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5 text-primary" />
-            Crea DDT da ordine {orderCode}
+            Crea DDT da commessa {orderCode}
           </DialogTitle>
           <DialogDescription>
-            Documento di Trasporto — i dati del cliente e gli articoli verranno compilati dall'ordine.
+            Documento di Trasporto — i dati del cliente e gli articoli verranno compilati dalla commessa.
           </DialogDescription>
         </DialogHeader>
 
@@ -413,7 +413,7 @@ export function CreaDDTDialog({
           ) : previewRighe.length === 0 ? (
             <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
               <Info className="h-4 w-4 shrink-0" />
-              <span>Nessun articolo trovato nell'ordine. Il DDT verrà creato vuoto.</span>
+              <span>Nessun articolo trovato nella commessa. Il DDT verrà creato vuoto.</span>
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden">

@@ -1,10 +1,10 @@
 /**
- * OrderTypeChoiceDialog — bivio iniziale "Nuovo Ordine"
+ * OrderTypeChoiceDialog — bivio iniziale "Nuova Commessa"
  * ──────────────────────────────────────────────────────
  * Quando il Modulo Appaltatori è attivo, intercettiamo il click su
- * "Nuovo Ordine" e mostriamo due scelte:
+ * "Nuova Commessa" e mostriamo due scelte:
  *
- *   1. Ordine cliente (default, comportamento esistente)
+ *   1. Commessa cliente (default, comportamento esistente)
  *      → /azienda/ordini/nuovo
  *      Fornitura + posa per cliente finale o impresa committente
  *      "tradizionale".
@@ -34,14 +34,14 @@ export function OrderTypeChoiceDialog({ open, onOpenChange }: OrderTypeChoiceDia
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Che tipo di ordine vuoi creare?</DialogTitle>
+          <DialogTitle>Che tipo di commessa vuoi creare?</DialogTitle>
           <DialogDescription>
             Scegli il flusso più adatto al lavoro che stai gestendo.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3 sm:grid-cols-2 pt-2">
-          {/* Ordine cliente standard — flusso esistente */}
+          {/* Commessa cliente standard — flusso esistente */}
           <Link
             to="/azienda/ordini/nuovo"
             onClick={() => onOpenChange(false)}
@@ -53,7 +53,7 @@ export function OrderTypeChoiceDialog({ open, onOpenChange }: OrderTypeChoiceDia
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="font-semibold text-sm leading-tight">
-                  Ordine cliente
+                  Commessa cliente
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
                   Fornitura + posa per cliente finale (privato o azienda).

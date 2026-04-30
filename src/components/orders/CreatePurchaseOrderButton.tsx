@@ -48,7 +48,7 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
           supplier_id: supplierId,
           order_id: orderId,
           created_by: user?.id,
-          notes: `Generato da ordine ${orderCode || orderId}`,
+          notes: `Generato da commessa ${orderCode || orderId}`,
         } as any)
         .select()
         .single();
@@ -102,7 +102,7 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
           <DialogHeader>
             <DialogTitle>Crea Ordine d'Acquisto</DialogTitle>
             <DialogDescription>
-              Crea un OdA collegato all'ordine {orderCode || ""} con gli articoli selezionati.
+              Crea un OdA collegato alla commessa {orderCode || ""} con gli articoli selezionati.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

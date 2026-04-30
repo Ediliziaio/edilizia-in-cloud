@@ -92,7 +92,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
-      toast.success("Errore registrato", { description: "L'errore è stato aggiunto all'ordine." });
+      toast.success("Errore registrato", { description: "L'errore è stato aggiunto alla commessa." });
       resetForm();
     },
     onError: () => {
@@ -201,7 +201,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Eliminare questo errore?</AlertDialogTitle>
-                          <AlertDialogDescription>L'errore verrà rimosso dall'ordine.</AlertDialogDescription>
+                          <AlertDialogDescription>L'errore verrà rimosso dalla commessa.</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Annulla</AlertDialogCancel>

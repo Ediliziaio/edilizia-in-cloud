@@ -249,11 +249,6 @@ export function useWarehouseData() {
       const [activeRes, urgentRes, overdueRes] = await Promise.all([
         // Active: not installato, not last status
         (() => {
-          const q = supabase
-            .from("order_items")
-            .select("id", { count: "exact", head: true })
-            .eq("order.company_id", companyId)
-            .neq("status", "installato");
           // Note: can't filter on joined table in head query easily, so we use a simpler approach
           return supabase
             .from("order_items")
@@ -445,7 +440,7 @@ export function useWarehouseData() {
     mutationFn: async ({ itemIds, sectionId }: { itemIds: string[]; sectionId: string | null }) => {
       const { error } = await supabase
         .from("order_items")
-        .update({ section_id: sectionId, updated_at: new Date().toISOString() } as any)
+        .update({ section_id: sectionId, updated_at: new Date().toISOString() })
         .in("id", itemIds);
       if (error) throw error;
     },

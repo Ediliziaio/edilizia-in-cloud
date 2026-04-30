@@ -412,9 +412,9 @@ function CreateOrderInner() {
         }
         setPendingFiles([]);
         queryClient.invalidateQueries({ queryKey: ["order-attachments", order.id] });
-        toast.success("Ordine creato", { description: `Ordine creato con ${uploaded} document${uploaded > 1 ? 'i' : 'o'}.` });
+        toast.success("Commessa creata", { description: `Commessa creata con ${uploaded} document${uploaded > 1 ? 'i' : 'o'}.` });
       } else {
-        toast.success("Ordine creato", { description: "L'ordine è stato creato con successo." });
+        toast.success("Commessa creata", { description: "La commessa è stata creata con successo." });
       }
 
       // Auto-navigate to the new order detail
@@ -422,7 +422,7 @@ function CreateOrderInner() {
     },
     onError: (error) => {
       toast.error("Errore", {
-        description: error instanceof Error ? error.message : "Si è verificato un errore durante la creazione dell'ordine.",
+        description: error instanceof Error ? error.message : "Si è verificato un errore durante la creazione della commessa.",
       });
       logger.error("Create order error:", error);
     },
@@ -512,8 +512,8 @@ function CreateOrderInner() {
       {/* Header */}
       <QuotePageHeader
         icon={<ClipboardList className="h-5 w-5" />}
-        title="Nuovo Ordine"
-        subtitle="Crea un nuovo ordine per un cliente"
+        title="Nuova Commessa"
+        subtitle="Crea una nuova commessa per un cliente"
         actions={
           <Button
             variant="outline"
@@ -552,7 +552,7 @@ function CreateOrderInner() {
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
-          <QuoteCard title="Dettagli Ordine" icon={<ClipboardList className="h-4 w-4" />}>
+          <QuoteCard title="Dettagli Commessa" icon={<ClipboardList className="h-4 w-4" />}>
             <div className="space-y-4">
               {/* Order Code */}
               <Controller
@@ -560,7 +560,7 @@ function CreateOrderInner() {
                 name="order_code"
                 render={({ field }) => (
                   <div className="space-y-2">
-                    <Label htmlFor="orderCode">Codice Ordine</Label>
+                    <Label htmlFor="orderCode">Codice Commessa</Label>
                     <Input
                       id="orderCode"
                       {...field}
@@ -753,7 +753,7 @@ function CreateOrderInner() {
         <div className="flex justify-end gap-3 sticky bottom-0 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent pt-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
           {createdOrderId ? (
             <QuotePrimaryButton onClick={() => navigate(`/azienda/ordini/${createdOrderId}`)}>
-              Vai all'Ordine
+              Vai alla Commessa
             </QuotePrimaryButton>
           ) : (
             <>
@@ -765,7 +765,7 @@ function CreateOrderInner() {
                 Annulla
               </Button>
               <QuotePrimaryButton type="submit" disabled={createOrderMutation.isPending}>
-                {createOrderMutation.isPending ? "Creazione..." : "Crea Ordine"}
+                {createOrderMutation.isPending ? "Creazione..." : "Crea Commessa"}
               </QuotePrimaryButton>
             </>
           )}
@@ -784,7 +784,7 @@ function CreateOrderInner() {
 
 export default function CreateOrder() {
   return (
-    <ErrorBoundary title="Errore nella creazione ordine">
+    <ErrorBoundary title="Errore nella creazione commessa">
       <CreateOrderInner />
     </ErrorBoundary>
   );

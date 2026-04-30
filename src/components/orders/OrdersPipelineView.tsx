@@ -21,6 +21,18 @@ interface OrdersPipelineViewProps {
   onStatusChange?: (orderId: string, newStatusId: string) => Promise<void>;
 }
 
+function getExpectedTimestamp(order: OrderWithDetails) {
+  if (!order.expected_date) return Number.MAX_SAFE_INTEGER;
+  const timestamp = new Date(order.expected_date).getTime();
+  return Number.isNaN(timestamp) ? Number.MAX_SAFE_INTEGER : timestamp;
+}
+
+function sortOperationally(a: OrderWithDetails, b: OrderWithDetails) {
+  const dateDiff = getExpectedTimestamp(a) - getExpectedTimestamp(b);
+  if (dateDiff !== 0) return dateDiff;
+  return (b.total_amount || 0) - (a.total_amount || 0);
+}
+
 export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersPipelineViewProps) {
   const [activeOrder, setActiveOrder] = useState<OrderWithDetails | null>(null);
 
@@ -58,6 +70,10 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
       } else {
         grouped["no-status"].push(order);
       }
+    });
+
+    Object.values(grouped).forEach((statusOrders) => {
+      statusOrders.sort(sortOperationally);
     });
     
     return grouped;

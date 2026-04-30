@@ -190,9 +190,9 @@ const COMMISSION_TYPE: Record<string, string> = {
 };
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
-  ordine_creato: "Ordine creato",
-  ordine_aggiornato: "Ordine aggiornato",
-  ordine_duplicato: "Ordine duplicato",
+  ordine_creato: "Commessa creata",
+  ordine_aggiornato: "Commessa aggiornata",
+  ordine_duplicato: "Commessa duplicata",
   stato_cambiato: "Stato cambiato",
   articolo_aggiunto: "Articolo aggiunto",
   articolo_aggiornato: "Articolo aggiornato",
@@ -331,14 +331,14 @@ export function OrdinePDF({
   const itemsPagati = items.filter((i: any) => i.is_paid).length;
 
   return (
-    <Document title={`Ordine ${orderCode}`} author={companyName ?? "Edilizia in Cloud"}>
+    <Document title={`Commessa ${orderCode}`} author={companyName ?? "Edilizia in Cloud"}>
       <Page size="A4" style={styles.page} wrap>
 
         {/* ─── HEADER ─── */}
         <View style={styles.header} fixed>
           <View>
             <Text style={styles.companyName}>{companyName ?? "Edilizia in Cloud"}</Text>
-            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 3 }}>Scheda Ordine Completa</Text>
+            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 3 }}>Scheda Commessa Completa</Text>
           </View>
           <View>
             <Text style={styles.orderCode}>{orderCode}</Text>
@@ -350,7 +350,7 @@ export function OrdinePDF({
         {/* ─── TITOLO ─── */}
         <View style={{ marginBottom: 12 }}>
           <Text style={{ fontSize: 13, fontFamily: "Helvetica-Bold", color: C.gray900 }}>
-            {order?.description ?? "Ordine senza descrizione"}
+            {order?.description ?? "Commessa senza descrizione"}
           </Text>
           <View style={{ flexDirection: "row", gap: 6, marginTop: 4, alignItems: "center" }}>
             <View style={{ backgroundColor: C.orange, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
@@ -363,7 +363,7 @@ export function OrdinePDF({
         <View style={styles.kpiRow}>
           <View style={[styles.kpiBox, { backgroundColor: C.orangeBg }]}>
             <Text style={[styles.kpiValue, { color: C.orange }]}>{fmt(totaleIva)}</Text>
-            <Text style={styles.kpiLabel}>Totale Ordine (IVA incl.)</Text>
+            <Text style={styles.kpiLabel}>Totale Commessa (IVA incl.)</Text>
           </View>
           <View style={[styles.kpiBox, { backgroundColor: margine >= 0 ? C.greenBg : C.redBg }]}>
             <Text style={[styles.kpiValue, { color: margine >= 0 ? C.green : C.red }]}>{fmtPerc(marginePerc)}</Text>
@@ -459,7 +459,7 @@ export function OrdinePDF({
         {/* ─── ARTICOLI ─── */}
         {items.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Articoli dell'Ordine ({items.length})</Text>
+            <Text style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -952,11 +952,11 @@ export function OrdinePDF({
           </>
         )}
 
-        {/* ─── DIARIO ORDINE (Eventi + Comunicazioni) ─── */}
+        {/* ─── DIARIO COMMESSA (Eventi + Comunicazioni) ─── */}
         {(diaryEvents.length > 0 || diaryMessages.length > 0) && (
           <>
             <Text style={styles.sectionTitle} break>
-              Diario Ordine ({diaryEvents.length + diaryMessages.length} registrazioni)
+              Diario Commessa ({diaryEvents.length + diaryMessages.length} registrazioni)
             </Text>
             <View style={styles.sectionLine} />
 

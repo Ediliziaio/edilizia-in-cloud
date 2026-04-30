@@ -297,7 +297,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
         id: `odv-${v.id}`,
         type: 'variante' as EventType,
         date: (v.firmato_il ?? v.richiesto_il) as string,
-        title: v.titolo ?? 'Variante ordine',
+        title: v.titolo ?? 'Variante commessa',
         badge: v.status === 'approvata' ? 'Approvata' : 'Rifiutata',
         badgeColor: v.status === 'approvata' ? '#16A34A' : '#DC2626',
         amount: v.status === 'approvata' ? (v.impatto_economico ?? undefined) : undefined,
@@ -336,7 +336,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
   if (events.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground text-sm">
-        Nessun aggiornamento disponibile per questo ordine.
+        Nessun aggiornamento disponibile per questa commessa.
       </div>
     );
   }

@@ -152,7 +152,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <CardTitle className="text-base flex items-center gap-2">
               <GitBranch className="h-4 w-4 text-primary" aria-hidden="true" />
-              Varianti d'ordine
+              Varianti di commessa
               <Badge variant="secondary">{varianti.length}</Badge>
             </CardTitle>
             <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Nuova variante d'ordine</DialogTitle>
+              <DialogTitle>Nuova variante di commessa</DialogTitle>
             </DialogHeader>
             <div className="space-y-3 py-2">
               <div className="space-y-1">

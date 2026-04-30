@@ -4,7 +4,7 @@
  *
  * Le 2 tab dinamiche cambiano in base alla sezione corrente:
  *   - Marketing (/azienda/marketing/*) → Opportunità + Calendario
- *   - Gestione (/azienda, /azienda/ordini, ecc.) → Ordini + secondo item per permessi
+ *   - Gestione (/azienda, /azienda/ordini, ecc.) → Commesse + secondo item per permessi
  *   - Cruscotto (/azienda/cruscotto/*) → rilevamento profilo automatico
  *
  * Chat e App sono sempre presenti.
@@ -50,7 +50,7 @@ const MARKETING_ITEMS: BottomNavItem[] = [
 
 /** Gestione operativa — ordine di priorità, prende i primi 2 accessibili */
 const GESTIONE_ITEMS: BottomNavItem[] = [
-  { label: "Ordini", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
+  { label: "Commesse", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
   { label: "Magazzino", icon: Package, href: "/azienda/magazzino", permissionKey: "canViewWarehouse" },
   { label: "Finanza", icon: Euro, href: "/azienda/documenti", permissionKey: "canViewBilling" },
   { label: "Cantieri", icon: HardHat, href: "/azienda/ordini", permissionKey: "canViewOrders" },
@@ -65,7 +65,7 @@ const CRUSCOTTO_COMMERCIAL: BottomNavItem[] = [
 ];
 
 const CRUSCOTTO_OFFICE: BottomNavItem[] = [
-  { label: "Ordini", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
+  { label: "Commesse", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
   { label: "Finanza", icon: Euro, href: "/azienda/documenti", permissionKey: "canViewBilling" },
 ];
 
@@ -75,7 +75,7 @@ const CRUSCOTTO_OPERATIONS: BottomNavItem[] = [
 ];
 
 const CRUSCOTTO_GENERIC: BottomNavItem[] = [
-  { label: "Ordini", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
+  { label: "Commesse", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
   { label: "Clienti", icon: Users, href: "/azienda/clienti", permissionKey: "canViewCustomers" },
 ];
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo, lazy, Suspense } from "react";
+import { useEffect, useState, useMemo, useCallback, memo, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
@@ -57,9 +57,13 @@ const ScaricoCantiereSheet = lazy(() =>
 
 interface WarehouseStockTabProps {
   warehouseFilter?: string | null;
+  actionRequest?: {
+    type: "receive" | "ship";
+    nonce: number;
+  } | null;
 }
 
-export default function WarehouseStockTab({ warehouseFilter = null }: WarehouseStockTabProps) {
+export default function WarehouseStockTab({ warehouseFilter = null, actionRequest = null }: WarehouseStockTabProps) {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -91,6 +95,12 @@ export default function WarehouseStockTab({ warehouseFilter = null }: WarehouseS
   const [caricoOpen, setCaricoOpen] = useState(false);
   const [odaReceiveOpen, setOdaReceiveOpen] = useState(false);
   const [scaricoOpen, setScaricoOpen] = useState(false);
+
+  useEffect(() => {
+    if (!actionRequest) return;
+    if (actionRequest.type === "receive") setCaricoOpen(true);
+    if (actionRequest.type === "ship") setScaricoOpen(true);
+  }, [actionRequest]);
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(

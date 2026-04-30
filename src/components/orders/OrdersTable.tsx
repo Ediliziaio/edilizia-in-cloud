@@ -353,7 +353,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => toggleOne(order.id)}
-                      aria-label={`Seleziona ordine ${order.order_code || order.description}`}
+                      aria-label={`Seleziona commessa ${order.order_code || order.description}`}
                     />
                   </TableCell>
                   <TableCell className="font-medium">
@@ -529,9 +529,9 @@ export const OrdersTable = React.memo(function OrdersTable({
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Elimina Ordine</AlertDialogTitle>
+                            <AlertDialogTitle>Elimina Commessa</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Sei sicuro di voler eliminare l'ordine{" "}
+                              Sei sicuro di voler eliminare la commessa{" "}
                               <strong>{order.order_code || order.description}</strong>?
                               <br />
                               Verranno eliminati anche tutti i dati collegati (articoli, allegati, storico stati, ecc.).

@@ -409,9 +409,9 @@ function SidebarContent({
           />
         </CollapsibleSection>
 
-        {/* ── Stato ordine ─────────────────────────────────── */}
+        {/* ── Stato commessa ───────────────────────────────── */}
         {statuses.length > 0 && (
-          <CollapsibleSection title="Stato ordine">
+          <CollapsibleSection title="Stato commessa">
             <div className="space-y-2">
               {statuses.map((status) => (
                 <div key={status.id} className="flex items-center gap-2">
@@ -449,7 +449,7 @@ function SidebarContent({
         {statuses.length > 0 && (
           <CollapsibleSection title="Escludi stati" defaultOpen={false}>
             <p className="text-xs text-amber-600 mb-2 bg-amber-50 px-2 py-1 rounded">
-              Nascondi ordini con questi stati
+              Nascondi commesse con questi stati
             </p>
             <div className="space-y-2">
               {statuses.map((status) => (
@@ -475,8 +475,8 @@ function SidebarContent({
           </CollapsibleSection>
         )}
 
-        {/* ── Data ordine ──────────────────────────────────── */}
-        <CollapsibleSection title="Data ordine">
+        {/* ── Data commessa ────────────────────────────────── */}
+        <CollapsibleSection title="Data commessa">
           <div className="space-y-2">
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">Dal</Label>

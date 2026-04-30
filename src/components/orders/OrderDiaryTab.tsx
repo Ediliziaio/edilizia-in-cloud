@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils";
 
 // ── Configurazione icone e colori per event_type ──────────────────────────────
 const EVENT_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-  ordine_creato:              { label: "Ordine creato",        color: "bg-blue-100 text-blue-800",    icon: "📋" },
-  ordine_aggiornato:          { label: "Ordine aggiornato",    color: "bg-blue-100 text-blue-700",    icon: "✏️" },
+  ordine_creato:              { label: "Commessa creata",      color: "bg-blue-100 text-blue-800",    icon: "📋" },
+  ordine_aggiornato:          { label: "Commessa aggiornata",  color: "bg-blue-100 text-blue-700",    icon: "✏️" },
   stato_cambiato:             { label: "Stato cambiato",       color: "bg-purple-100 text-purple-800",icon: "🔄" },
   articolo_aggiunto:          { label: "Articolo aggiunto",    color: "bg-slate-100 text-slate-700",  icon: "➕" },
   articolo_aggiornato:        { label: "Articolo aggiornato",  color: "bg-slate-100 text-slate-700",  icon: "✏️" },
@@ -227,7 +227,7 @@ export function OrderDiaryTab({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `diario-ordine-${orderId.slice(0, 8)}.csv`;
+    a.download = `diario-commessa-${orderId.slice(0, 8)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }, [timeline, orderId, customerName]);

@@ -8,10 +8,6 @@ import {
   Warehouse,
   CalendarDays,
   CheckSquare,
-  ClipboardCheck,
-  Clock,
-  Palmtree,
-  User,
   MessageSquare,
   MessageCircle,
   Zap,
@@ -47,7 +43,6 @@ import {
   ShieldAlert,
   NotebookPen,
   Image,
-  Wrench,
   Settings,
   Calculator,
   ShieldCheck,
@@ -96,7 +91,7 @@ export const macroAreas: MacroArea[] = [
     icon: HardHat,
     items: [
       // ─── Operativo ───
-      { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
+      { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori" },
@@ -194,7 +189,7 @@ export const macroAreas: MacroArea[] = [
 /** @deprecated Use macroAreas instead */
 export const internalNavItems: NavItem[] = [
   { title: "Dashboard", url: "/azienda", icon: LayoutDashboard, permissionKey: "canViewDashboard", category: "internal", subcategory: "gi_operazioni" },
-  { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
+  { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
   { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse", category: "internal", subcategory: "gi_operazioni" },
   { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar", category: "internal", subcategory: "gi_operazioni" },
   { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers", category: "internal", subcategory: "gi_supporto" },

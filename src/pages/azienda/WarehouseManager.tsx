@@ -8,6 +8,7 @@ import {
   PowerOff,
   Star,
   ArrowLeft,
+  Trash2,
   Truck,
   Building2,
   MapPin,
@@ -110,8 +111,10 @@ export default function WarehouseManager() {
     updateWarehouse,
     setDefaultWarehouse,
     deactivateWarehouse,
+    deleteWarehouse,
     isCreating,
     isUpdating,
+    isDeleting,
   } = useWarehouses(false); // mostra anche disattivati
 
   // Mappa referenti per tutti i magazzini (popola le card)
@@ -125,6 +128,7 @@ export default function WarehouseManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<WarehouseInsert>(emptyForm());
   const [deactivateTarget, setDeactivateTarget] = useState<Warehouse | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Warehouse | null>(null);
   const [assignTarget, setAssignTarget] = useState<Warehouse | null>(null);
 
   // Referenti del magazzino in edit
@@ -469,10 +473,22 @@ export default function WarehouseManager() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-destructive hover:text-destructive ml-auto"
+                      className="text-destructive hover:text-destructive"
                       onClick={() => setDeactivateTarget(w)}
+                      title="Disattiva senza eliminare lo storico"
                     >
                       <PowerOff className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {!w.is_default && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive ml-auto"
+                      onClick={() => setDeleteTarget(w)}
+                      title="Elimina definitivamente il magazzino"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </div>
@@ -652,6 +668,39 @@ export default function WarehouseManager() {
               }}
             >
               Disattiva
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete confirm */}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare definitivamente {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione rimuove il magazzino dall&apos;azienda. I dati collegati
+              che il database conserva per storico resteranno senza magazzino
+              associato; se esistono vincoli bloccanti, l&apos;eliminazione verrà
+              annullata automaticamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (deleteTarget) {
+                  await deleteWarehouse(deleteTarget.id);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              {isDeleting ? "Eliminazione..." : "Elimina definitivamente"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -181,7 +181,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
       }
 
       // 2. Fetch ordini in un unico colpo solo per i customer IDs selezionati
-      setProgress({ done: 0, total: customers.length, phase: "Caricamento ordini…" });
+      setProgress({ done: 0, total: customers.length, phase: "Caricamento commesse…" });
       const customerIds = customers.map((c) => c.id);
       const ordersByCustomer = new Map<string, OrderRow[]>();
 
@@ -306,7 +306,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
         y += 16;
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
-        doc.text(`Ordini (${orders.length})`, 40, y);
+        doc.text(`Commesse (${orders.length})`, 40, y);
         y += 4;
         doc.line(40, y, 555, y);
         y += 14;
@@ -315,7 +315,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
 
         if (orders.length === 0) {
           doc.setTextColor(120);
-          doc.text("Nessun ordine registrato.", 40, y);
+          doc.text("Nessuna commessa registrata.", 40, y);
           doc.setTextColor(0);
         } else {
           doc.setFont("helvetica", "bold");
@@ -384,7 +384,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
             <div>
               <DialogTitle>Esporta schede clienti in PDF</DialogTitle>
               <DialogDescription>
-                Un unico PDF con una pagina dedicata per ogni cliente (anagrafica + ordini).
+                Un unico PDF con una pagina dedicata per ogni cliente (anagrafica + commesse).
               </DialogDescription>
             </div>
           </div>

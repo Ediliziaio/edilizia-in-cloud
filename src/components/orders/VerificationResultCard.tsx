@@ -173,7 +173,7 @@ export function VerificationResultCard({
             <p className="text-sm font-medium mb-2">Analisi Prezzi</p>
             <div className="grid grid-cols-3 gap-3 text-center text-sm">
               <div>
-                <p className="text-muted-foreground text-xs">Ordine Cliente</p>
+                <p className="text-muted-foreground text-xs">Commessa Cliente</p>
                 <p className="font-medium">{data.price_analysis.client_total.toFixed(2)}</p>
               </div>
               <div>

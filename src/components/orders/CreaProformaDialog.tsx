@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Sparkles, Check, User, Package, Loader2, Info } from "lucide-react";
+import { FileText, Sparkles, Check, User, Loader2, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -102,7 +102,7 @@ export function CreaProformaDialog({
   orderId,
   orderCode,
   orderDescription,
-  totalAmount,
+  totalAmount: _totalAmount,
   vatRate,
   customerId,
   customerName,
@@ -190,7 +190,7 @@ export function CreaProformaDialog({
         }
       : undefined;
 
-    const noteDoc = `Proforma per ordine ${orderCode || ""} — ${orderDescription}`.trim();
+    const noteDoc = `Proforma per commessa ${orderCode || ""} — ${orderDescription}`.trim();
 
     createMutation.mutate(
       {
@@ -228,7 +228,7 @@ export function CreaProformaDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            Crea proforma da ordine {orderCode}
+            Crea proforma da commessa {orderCode}
           </DialogTitle>
           <DialogDescription>
             Documento proforma non fiscale. Potrai poi convertirlo in fattura quando necessario.
@@ -272,7 +272,7 @@ export function CreaProformaDialog({
           ) : previewRighe.length === 0 ? (
             <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
               <Info className="h-4 w-4 shrink-0" />
-              <span>Nessun articolo trovato nell'ordine. La proforma verrà creata vuota.</span>
+              <span>Nessun articolo trovato nella commessa. La proforma verrà creata vuota.</span>
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden">

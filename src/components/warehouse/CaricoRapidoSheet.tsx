@@ -13,19 +13,21 @@
  */
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { StockItemDialog } from "./StockItemDialog";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,15 +42,19 @@ import {
   ArrowDownToLine,
   ArrowRight,
   ArrowLeft,
+  ClipboardList,
+  FileText,
   Info,
   Loader2,
   ExternalLink,
+  Camera,
+  X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWarehouses } from "@/hooks/useWarehouses";
-import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { useBatchCarico } from "@/hooks/warehouse/useBatchCarico";
+import { uploadWarehouseDDTToOrders, uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
 
 const BatchBarcodeScanner = lazy(() =>
@@ -61,19 +67,81 @@ interface CaricoRapidoSheetProps {
 }
 
 type Step = "context" | "scan";
+type ReceiveMode = "scan" | "ddt";
+
+interface SupplierOption {
+  id: string;
+  name: string;
+  uses_gs1?: boolean | null;
+}
+
+interface RelatedOrderOption {
+  id: string;
+  order_code: string;
+  customer_name: string | null;
+}
 
 export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
+  const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const { data: warehouses = [], isLoading: warehousesLoading } = useWarehouses(true);
-  const { data: suppliers = [], isLoading: suppliersLoading } = useOperationalSuppliers();
+  const { data: suppliers = [], isLoading: suppliersLoading } = useQuery<SupplierOption[]>({
+    queryKey: queryKeys.suppliers.list(companyId),
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("id, name, uses_gs1")
+        .eq("company_id", companyId)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as SupplierOption[];
+    },
+    enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+  });
+  const { data: relatedOrders = [], isLoading: relatedOrdersLoading } = useQuery<RelatedOrderOption[]>({
+    queryKey: ["warehouse-arrival-related-orders", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, order_code, customer:customer_id(first_name, last_name)")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(80);
+      if (error) throw error;
+      type RawOrder = {
+        id: string;
+        order_code: string | null;
+        customer?: { first_name?: string | null; last_name?: string | null } | null;
+      };
+      return ((data ?? []) as unknown as RawOrder[]).map((order) => ({
+        id: order.id,
+        order_code: order.order_code ?? "—",
+        customer_name:
+          order.customer?.first_name || order.customer?.last_name
+            ? `${order.customer?.first_name ?? ""} ${order.customer?.last_name ?? ""}`.trim()
+            : null,
+      }));
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
   const batchCarico = useBatchCarico();
 
   const [step, setStep] = useState<Step>("context");
+  const [receiveMode, setReceiveMode] = useState<ReceiveMode>("scan");
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
+  const [relatedOrderIds, setRelatedOrderIds] = useState<string[]>([]);
+  const [ddtFile, setDdtFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
+  const [productPhotos, setProductPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
+  const [insertedAt, setInsertedAt] = useState(() => new Date());
+  const insertedBy = user?.email ?? "utente corrente";
 
   // ── Inline create-from-no-match ─────────────────────────────────
   // Quando lo scanner trova un codice non riconosciuto, chiama
@@ -97,10 +165,17 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
 
   // Reset state quando si chiude lo sheet.
   useEffect(() => {
+    if (open) {
+      setInsertedAt(new Date());
+    }
     if (!open) {
       setStep("context");
+      setReceiveMode("scan");
       setSupplierId(undefined);
+      setRelatedOrderIds([]);
+      setDdtFile(null);
       setNotes("");
+      setProductPhotos([]);
       setEntries([]);
       batchCarico.reset();
     }
@@ -119,10 +194,17 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   const supplierUsesGs1 = useMemo(() => {
     // Cast difensivo: useOperationalSuppliers potrebbe non includere uses_gs1
     // (dipende dalla rigenerazione dei types). Lo prendiamo via cast safe.
-    return Boolean((supplierObj as { uses_gs1?: boolean } | undefined)?.uses_gs1);
+    return Boolean(supplierObj?.uses_gs1);
   }, [supplierObj]);
 
   const canProceedToScan = !!supplierId && !!warehouseId;
+  const toggleRelatedOrder = (orderId: string) => {
+    setRelatedOrderIds((current) =>
+      current.includes(orderId)
+        ? current.filter((id) => id !== orderId)
+        : [...current, orderId],
+    );
+  };
 
   /**
    * Apre StockItemDialog precompilato con il barcode no-match e resta in
@@ -213,12 +295,61 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
 
   async function handleConfirm() {
     if (!warehouseId || !supplierId) return;
+    let uploadedPhotoPaths: string[] = [];
+    if (productPhotos.length > 0 && effectiveCompany?.id && user?.id) {
+      const targets = relatedOrderIds.length > 0 ? relatedOrderIds : [null];
+      for (const targetOrderId of targets) {
+        const uploadResult = await uploadWarehousePhotos({
+          files: productPhotos,
+          companyId: effectiveCompany.id,
+          userId: user.id,
+          orderId: targetOrderId,
+          context: "arrival_product",
+          description: `Foto prodotti ricevuti da ${supplierObj?.name ?? "fornitore"} per ${warehouseObj?.name ?? "magazzino"}`,
+        });
+        uploadedPhotoPaths = [...uploadedPhotoPaths, ...uploadResult.uploaded];
+        if (uploadResult.failed.length > 0) {
+          toast.warning("Alcune foto prodotto non sono state salvate", {
+            description: uploadResult.failed.join(", "),
+          });
+        }
+      }
+    }
+    if (ddtFile && relatedOrderIds.length > 0 && user?.id) {
+      const ddtUpload = await uploadWarehouseDDTToOrders({
+        file: ddtFile,
+        orderIds: relatedOrderIds,
+        userId: user.id,
+        supplierName: supplierObj?.name,
+        insertedAt: insertedAt.toISOString(),
+      });
+      if (ddtUpload.failed.length > 0) {
+        toast.warning("DDT non collegato a tutti gli ordini", {
+          description: `${ddtUpload.failed.length} collegamenti falliti.`,
+        });
+      }
+    }
+    const linkedOrdersNote =
+      relatedOrderIds.length > 0
+        ? `Ordini collegati al DDT: ${relatedOrders
+            .filter((order) => relatedOrderIds.includes(order.id))
+            .map((order) => `${order.order_code}${order.customer_name ? ` ${order.customer_name}` : ""}`)
+            .join(", ")}`
+        : "";
+    const ddtNote = ddtFile
+      ? `DDT arrivo caricato: ${ddtFile.name} alle ${insertedAt.toLocaleString("it-IT")} da ${insertedBy}`
+      : "";
+    const photoNote =
+      productPhotos.length > 0
+        ? `Foto prodotti arrivo: ${productPhotos.map((file) => file.name).join(", ")}${uploadedPhotoPaths.length > 0 ? ` (${uploadedPhotoPaths.length} salvate)` : ""}`
+        : "";
+    const mergedNotes = [notes.trim(), ddtNote, linkedOrdersNote, photoNote].filter(Boolean).join("\n");
     try {
       await batchCarico.mutateAsync({
         warehouseId,
         supplierId,
         entries,
-        notes: notes.trim() || undefined,
+        notes: mergedNotes || undefined,
       });
       // success → close sheet (tutto in sequenza già gestito dal hook con toast)
       onOpenChange(false);
@@ -271,19 +402,50 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-auto max-h-[80svh] flex flex-col p-0">
-        <SheetHeader className="px-4 py-3 border-b shrink-0">
-          <SheetTitle className="flex items-center gap-2 text-base">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90svh] overflow-hidden p-0">
+        <DialogHeader className="px-5 py-4 border-b">
+          <DialogTitle className="flex items-center gap-2 text-base">
             <ArrowDownToLine className="h-5 w-5 text-primary" />
-            Carico rapido
-          </SheetTitle>
-          <SheetDescription className="text-xs">
-            Scegli fornitore e magazzino, poi scansiona i QR per caricare la merce.
-          </SheetDescription>
-        </SheetHeader>
+            Registra arrivo merce
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Carica DDT, collega gli ordini interessati e poi scannerizza QR/lotti o inserisci prodotti.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="max-h-[calc(90svh-150px)] overflow-y-auto px-5 py-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-medium uppercase text-muted-foreground">Inserimento</p>
+              <p className="text-sm font-semibold">{insertedAt.toLocaleString("it-IT")}</p>
+              <p className="text-xs text-muted-foreground">Da: {insertedBy}</p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-medium uppercase text-muted-foreground">Modalità</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={receiveMode === "scan" ? "default" : "outline"}
+                  onClick={() => setReceiveMode("scan")}
+                  className="justify-start"
+                >
+                  <ClipboardList className="mr-2 h-4 w-4" />
+                  Scannerizza
+                </Button>
+                <Button
+                  type="button"
+                  variant={receiveMode === "ddt" ? "default" : "outline"}
+                  onClick={() => setReceiveMode("ddt")}
+                  className="justify-start"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Carica DDT
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {/* Fornitore */}
           <div className="space-y-2">
             <Label htmlFor="cr-supplier">Fornitore *</Label>
@@ -322,6 +484,76 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 Aggiungi un fornitore prima di continuare
               </Link>
             )}
+          </div>
+
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+            <div className="flex items-start gap-2">
+              <FileText className="h-4 w-4 mt-0.5 text-primary" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-medium">DDT arrivo e ordini collegati</p>
+                <p className="text-xs text-muted-foreground">
+                  Se un camion consegna materiale per più clienti, seleziona tutti gli ordini coinvolti.
+                </p>
+              </div>
+            </div>
+            <Input
+              id="cr-ddt-file"
+              type="file"
+              accept="image/*,.pdf"
+              capture="environment"
+              onChange={(event) => {
+                setDdtFile(event.target.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+            />
+            {ddtFile && (
+              <div className="flex items-center justify-between gap-2 rounded-md bg-background px-3 py-2 text-xs">
+                <span className="truncate">{ddtFile.name}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => setDdtFile(null)}
+                  aria-label={`Rimuovi DDT ${ddtFile.name}`}
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              </div>
+            )}
+            <div className="rounded-md border bg-background">
+              <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+                Ordini da collegare {relatedOrderIds.length > 0 && `(${relatedOrderIds.length})`}
+              </div>
+              <div className="max-h-44 overflow-y-auto p-2 space-y-1">
+                {relatedOrdersLoading ? (
+                  <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Caricamento ordini...
+                  </div>
+                ) : relatedOrders.length === 0 ? (
+                  <p className="px-2 py-3 text-xs text-muted-foreground">Nessun ordine disponibile.</p>
+                ) : (
+                  relatedOrders.map((order) => (
+                    <label
+                      key={order.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                    >
+                      <Checkbox
+                        checked={relatedOrderIds.includes(order.id)}
+                        onCheckedChange={() => toggleRelatedOrder(order.id)}
+                      />
+                      <span className="min-w-0">
+                        <span className="font-medium">{order.order_code}</span>
+                        {order.customer_name && (
+                          <span className="text-muted-foreground"> · {order.customer_name}</span>
+                        )}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Magazzino */}
@@ -369,6 +601,51 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             />
           </div>
 
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+            <div className="flex items-start gap-2">
+              <Camera className="h-4 w-4 mt-0.5 text-primary" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-medium">Foto prodotti ricevuti</p>
+                <p className="text-xs text-muted-foreground">
+                  Scatta foto a bancali, colli, prodotti danneggiati o etichette prima della scansione.
+                </p>
+              </div>
+            </div>
+            <Input
+              id="cr-product-photos"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                if (files.length > 0) {
+                  setProductPhotos((current) => [...current, ...files]);
+                }
+                event.currentTarget.value = "";
+              }}
+            />
+            {productPhotos.length > 0 && (
+              <div className="space-y-2">
+                {productPhotos.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 rounded-md bg-background px-3 py-2 text-xs">
+                    <span className="truncate">{file.name}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => setProductPhotos((current) => current.filter((_, i) => i !== index))}
+                      aria-label={`Rimuovi foto ${file.name}`}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {supplierUsesGs1 && (
             <Alert>
               <Info className="h-4 w-4" />
@@ -380,7 +657,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           )}
         </div>
 
-        <div className="border-t p-3 flex gap-2 shrink-0 bg-card">
+        <DialogFooter className="border-t p-3 flex-row gap-2 bg-card">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Annulla
@@ -393,8 +670,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             Inizia scansione
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

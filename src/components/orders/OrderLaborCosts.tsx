@@ -335,7 +335,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Rimuovere assegnazione?</AlertDialogTitle>
-                              <AlertDialogDescription>Il dipendente verrà rimosso da questo ordine.</AlertDialogDescription>
+                              <AlertDialogDescription>Il dipendente verrà rimosso da questa commessa.</AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Annulla</AlertDialogCancel>
@@ -434,7 +434,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Rimuovere subappaltatore?</AlertDialogTitle>
-                                <AlertDialogDescription>Il subappaltatore verrà rimosso da questo ordine.</AlertDialogDescription>
+                                <AlertDialogDescription>Il subappaltatore verrà rimosso da questa commessa.</AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Annulla</AlertDialogCancel>

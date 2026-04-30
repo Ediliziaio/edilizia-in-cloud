@@ -323,7 +323,7 @@ export function OrderCommissions({
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">Nessun commerciale assegnato a questo ordine.</p>
+            <p className="text-sm text-muted-foreground">Nessun commerciale assegnato a questa commessa.</p>
           </CardContent>
         </Card>
         {renderAddDialog()}
@@ -571,7 +571,7 @@ export function OrderCommissions({
           </DialogHeader>
           <div className="space-y-4 py-4">
             {unassigned.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Tutti i commerciali sono già assegnati a questo ordine.</p>
+              <p className="text-sm text-muted-foreground">Tutti i commerciali sono già assegnati a questa commessa.</p>
             ) : (
               <Select value={selectedSalespersonId} onValueChange={setSelectedSalespersonId}>
                 <SelectTrigger>

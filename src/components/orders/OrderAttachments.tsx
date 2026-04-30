@@ -213,7 +213,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     if (attachments.length >= MAX_FILES_PER_ORDER) {
       toast({
         title: "Limite file raggiunto",
-        description: `Massimo ${MAX_FILES_PER_ORDER} file per ordine.`,
+        description: `Massimo ${MAX_FILES_PER_ORDER} file per commessa.`,
         variant: "destructive",
       });
       return;
@@ -284,7 +284,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
 
     const remaining = MAX_FILES_PER_ORDER - attachments.length;
     if (remaining <= 0) {
-      toast({ title: "Limite file raggiunto", description: `Massimo ${MAX_FILES_PER_ORDER} file per ordine.`, variant: "destructive" });
+      toast({ title: "Limite file raggiunto", description: `Massimo ${MAX_FILES_PER_ORDER} file per commessa.`, variant: "destructive" });
       return;
     }
 
@@ -357,7 +357,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Paperclip className="h-5 w-5" />
-            Documenti Ordine
+            Documenti Commessa
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -382,7 +382,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
         <CardTitle className="flex items-center gap-2 min-w-0">
           <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-          <span className="truncate">Documenti Ordine</span>
+          <span className="truncate">Documenti Commessa</span>
         </CardTitle>
         {editable && (
           <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
@@ -396,7 +396,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
               <DialogHeader>
                 <DialogTitle>Carica Documento</DialogTitle>
                 <DialogDescription>
-                  Carica un documento per questo ordine. Per impostazione predefinita,
+                  Carica un documento per questa commessa. Per impostazione predefinita,
                   il documento sarà visibile solo all'azienda.
                 </DialogDescription>
               </DialogHeader>

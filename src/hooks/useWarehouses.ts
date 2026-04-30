@@ -161,6 +161,30 @@ export function useWarehouses(onlyActive = true) {
     onError: (err: Error) => toast.error("Errore: " + err.message),
   });
 
+  // DELETE (hard delete) — rimuove il magazzino quando non è protetto da vincoli DB.
+  const deleteMutation = useMutation({
+    mutationFn: async (warehouseId: string) => {
+      const { error } = await supabase
+        .from("warehouses")
+        .delete()
+        .eq("id", warehouseId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, companyId] });
+      queryClient.invalidateQueries({ queryKey: ["my-warehouses", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
+      toast.success("Magazzino eliminato");
+    },
+    onError: (err: Error) => {
+      toast.error("Impossibile eliminare il magazzino", {
+        description:
+          err.message ||
+          "Il magazzino potrebbe essere collegato a ordini, DDT, giacenze o movimenti.",
+      });
+    },
+  });
+
   return {
     warehouses,
     defaultWarehouse,
@@ -170,7 +194,9 @@ export function useWarehouses(onlyActive = true) {
     updateWarehouse: updateMutation.mutateAsync,
     setDefaultWarehouse: setDefaultMutation.mutateAsync,
     deactivateWarehouse: deactivateMutation.mutateAsync,
+    deleteWarehouse: deleteMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
   };
 }

@@ -82,7 +82,7 @@ export function OrdersStatsCards({
         <StatCard
           icon={<ShoppingBag className={iconSize} />}
           value={stats.totalOrders}
-          label="Ordini Totali"
+          label="Commesse Totali"
           iconBg="bg-primary/10"
           iconColor="text-primary"
         />

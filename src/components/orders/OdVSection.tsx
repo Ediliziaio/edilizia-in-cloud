@@ -154,7 +154,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
           <CardTitle className="flex items-center gap-2 min-w-0 text-base">
             <GitBranch className="h-4 w-4 shrink-0 text-primary" />
-            <span className="truncate">Ordini di Variazione</span>
+            <span className="truncate">Varianti di Commessa</span>
             {odvList.length > 0 && (
               <Badge variant="secondary" className="shrink-0 text-xs">{odvList.length}</Badge>
             )}
@@ -173,7 +173,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
             </div>
           ) : odvList.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Nessun ordine di variazione. I lavori extra richiedono un OdV firmato dal cliente.
+              Nessuna variante registrata. I lavori extra richiedono un OdV firmato dal cliente.
             </p>
           ) : (
             <div className="space-y-2">
@@ -298,7 +298,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GitBranch className="h-5 w-5 text-primary" />
-              Nuovo Ordine di Variazione
+              Nuova Variante di Commessa
             </DialogTitle>
           </DialogHeader>
 

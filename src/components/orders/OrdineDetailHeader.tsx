@@ -45,7 +45,7 @@ export function OrdineDetailHeader({
           className="cursor-pointer hover:text-orange-500 font-medium"
           onClick={() => navigate("/azienda/ordini")}
         >
-          Ordini
+          Commesse
         </span>
         <ChevronRight className="h-3 w-3" />
         <span className="font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px]">
@@ -66,7 +66,7 @@ export function OrdineDetailHeader({
           </div>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              {descrizione || "Ordine senza descrizione"}
+              {descrizione || "Commessa senza descrizione"}
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
               Creato il{" "}
@@ -83,7 +83,7 @@ export function OrdineDetailHeader({
             className="text-xs text-orange-600 border-orange-200 hover:bg-orange-50 hover:text-orange-700"
           >
             <BookOpen className="h-3.5 w-3.5 mr-1" />
-            Diario Ordine
+            Diario Commessa
           </Button>
           {onDownloadPDF && (
             <Button

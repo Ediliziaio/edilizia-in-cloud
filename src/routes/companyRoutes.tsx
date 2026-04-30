@@ -291,11 +291,11 @@ export function companyRoutes() {
         <Route path="dashboards/nuova" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
         <Route path="dashboards/:id" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>} />
         <Route path="dashboards/:id/modifica" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
-        <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento ordini"><OrdersList /></ErrorBoundary>} />
-        <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione ordine"><CreateOrder /></ErrorBoundary>} />
+        <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>} />
+        <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary>} />
         <Route path="ordini/nuovo-lavoro-appaltatore" element={<FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute>} />
-        <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio ordine"><OrderDetail /></ErrorBoundary>} />
-        <Route path="ordini/:id/diario" element={<ErrorBoundary title="Errore nel diario ordine"><OrderDiaryPage /></ErrorBoundary>} />
+        <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>} />
+        <Route path="ordini/:id/diario" element={<ErrorBoundary title="Errore nel diario commessa"><OrderDiaryPage /></ErrorBoundary>} />
         <Route path="ordini/:id/modifica" element={<EditOrder />} />
         <Route path="magazzino" element={<Warehouse />} />
         <Route path="magazzino/gestione" element={<WarehouseManager />} />

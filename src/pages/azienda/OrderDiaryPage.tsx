@@ -88,13 +88,13 @@ export default function OrderDiaryPage() {
             className="text-gray-500 hover:text-gray-800 shrink-0"
           >
             <ArrowLeft className="h-4 w-4 mr-1.5" />
-            Torna all'ordine
+            Torna alla commessa
           </Button>
           <div className="h-4 w-px bg-gray-200 shrink-0" />
           <div className="flex items-center gap-2 min-w-0">
             <BookOpen className="h-4 w-4 text-primary shrink-0" />
             <span className="text-sm font-medium text-gray-900 shrink-0">
-              Diario dell'Ordine
+              Diario della Commessa
             </span>
             {order && (
               <span className="text-sm text-gray-400 truncate hidden sm:block">
@@ -126,7 +126,7 @@ export default function OrderDiaryPage() {
           </div>
         ) : !order ? (
           <div className="text-center py-16 text-gray-400 text-sm">
-            Ordine non trovato.
+            Commessa non trovata.
           </div>
         ) : (
           <>

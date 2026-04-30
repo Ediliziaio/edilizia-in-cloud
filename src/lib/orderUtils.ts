@@ -193,7 +193,10 @@ export interface OrderWithDetails {
   balance_amount: number;
   balance_paid: boolean | null;
   expected_date: string | null;
+  work_start_date?: string | null;
+  work_end_date?: string | null;
   warehouse_arrival_date: string | null;
+  indirizzo_lavori?: string | null;
   created_at: string;
   current_status_id: string | null;
   financing_amount?: number | null;
@@ -215,6 +218,24 @@ export interface OrderWithDetails {
     name: string;
     color: string;
   } | null;
+  order_items?: Array<{
+    id: string;
+    status: string | null;
+    quantity: number | null;
+  }> | null;
+  order_employees?: Array<{
+    employee?: {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+    } | null;
+  }> | null;
+  order_external_teams?: Array<{
+    external_team?: {
+      id: string;
+      name: string | null;
+    } | null;
+  }> | null;
 }
 
 export interface OrderStatus {

@@ -652,7 +652,7 @@ export function OrderItemsList({
         <div className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 min-w-0">
             <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-            <span className="truncate">Articoli dell'Ordine</span>
+            <span className="truncate">Articoli della Commessa</span>
           </CardTitle>
           {editable && (
             <Button type="button" size="sm" onClick={openAddDialog} className="shrink-0">
@@ -873,7 +873,7 @@ export function OrderItemsList({
               <DialogDescription>
                 {editingIndex !== null
                   ? "Modifica i dettagli dell'articolo"
-                  : "Aggiungi un articolo all'ordine"}
+                  : "Aggiungi un articolo alla commessa"}
               </DialogDescription>
             </DialogHeader>
 

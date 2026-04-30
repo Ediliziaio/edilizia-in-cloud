@@ -571,13 +571,13 @@ function EditOrderInner() {
           if (delta > 0) {
             await supabase.from("warehouse_movements").insert({
               stock_item_id, movement_type: "scarico", quantity: delta,
-              notes: `Scarico aggiuntivo per modifica ordine ${order?.order_code || id!.slice(0, 8)}`,
+              notes: `Scarico aggiuntivo per modifica commessa ${order?.order_code || id!.slice(0, 8)}`,
               performed_by: user!.id,
             });
           } else {
             await supabase.from("warehouse_movements").insert({
               stock_item_id, movement_type: "carico", quantity: Math.abs(delta),
-              notes: `Ripristino automatico per modifica ordine ${order?.order_code || id!.slice(0, 8)}`,
+              notes: `Ripristino automatico per modifica commessa ${order?.order_code || id!.slice(0, 8)}`,
               performed_by: user!.id,
             });
           }
@@ -623,12 +623,12 @@ function EditOrderInner() {
       queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["cashflow"] });
-      toast.success("Ordine aggiornato", { description: "L'ordine è stato aggiornato con successo." });
+      toast.success("Commessa aggiornata", { description: "La commessa è stata aggiornata con successo." });
       navigate(`/azienda/ordini/${id}`);
     },
     onError: (error) => {
       toast.error("Errore", {
-        description: error instanceof Error ? error.message : "Si è verificato un errore durante l'aggiornamento dell'ordine.",
+        description: error instanceof Error ? error.message : "Si è verificato un errore durante l'aggiornamento della commessa.",
       });
       logger.error("Update order error:", error);
     },
@@ -677,7 +677,7 @@ function EditOrderInner() {
   if (orderLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Caricamento ordine...</p>
+        <p className="text-muted-foreground">Caricamento commessa...</p>
       </div>
     );
   }
@@ -685,9 +685,9 @@ function EditOrderInner() {
   if (!order) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Ordine non trovato</p>
+        <p className="text-muted-foreground">Commessa non trovata</p>
         <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>
-          Torna agli ordini
+          Torna alle commesse
         </Button>
       </div>
     );
@@ -698,8 +698,8 @@ function EditOrderInner() {
       {/* Header */}
       <QuotePageHeader
         icon={<ClipboardList className="h-5 w-5" />}
-        title="Modifica Ordine"
-        subtitle="Aggiorna i dettagli dell'ordine"
+        title="Modifica Commessa"
+        subtitle="Aggiorna i dettagli della commessa"
         actions={
           <Button
             variant="outline"
@@ -732,10 +732,10 @@ function EditOrderInner() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
-          <QuoteCard title="Dettagli Ordine" icon={<ClipboardList className="h-4 w-4" />}>
+          <QuoteCard title="Dettagli Commessa" icon={<ClipboardList className="h-4 w-4" />}>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="orderCode">Codice Ordine</Label>
+                <Label htmlFor="orderCode">Codice Commessa</Label>
                 <Input id="orderCode" value={orderCode} onChange={(e) => setOrderCode(e.target.value)} placeholder="es. ORD-2026-001" />
               </div>
 
@@ -954,7 +954,7 @@ function EditOrderInner() {
 
 export default function EditOrder() {
   return (
-    <ErrorBoundary title="Errore nella modifica ordine">
+    <ErrorBoundary title="Errore nella modifica commessa">
       <EditOrderInner />
     </ErrorBoundary>
   );

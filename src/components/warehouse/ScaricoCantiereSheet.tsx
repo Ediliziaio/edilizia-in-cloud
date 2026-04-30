@@ -21,13 +21,15 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,10 +47,14 @@ import {
   ArrowLeft,
   Loader2,
   FileText,
+  Truck,
+  Camera,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useCreateShipment } from "@/hooks/warehouse/useCreateShipment";
+import { uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
 import { supabase } from "@/integrations/supabase/client";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
 
@@ -71,7 +77,7 @@ interface OrderRow {
 type Step = "context" | "scan";
 
 export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereSheetProps) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const { data: warehouses = [], isLoading: warehousesLoading } = useWarehouses(true);
@@ -81,7 +87,16 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   const [orderId, setOrderId] = useState<string | undefined>();
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [notes, setNotes] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [carrier, setCarrier] = useState("");
+  const [transportVehicle, setTransportVehicle] = useState("");
+  const [goodsAppearance, setGoodsAppearance] = useState("");
+  const [packages, setPackages] = useState("");
+  const [transportReason, setTransportReason] = useState("Trasferimento a cantiere");
+  const [loadedGoodsPhotos, setLoadedGoodsPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
+  const [insertedAt, setInsertedAt] = useState(() => new Date());
+  const insertedBy = user?.email ?? "utente corrente";
 
   // Lista ordini "aperti" — quelli per cui ha senso fare scarico cantiere.
   // Filtro semplice: status NOT IN cancellati/completati. L'utente in fase
@@ -149,11 +164,21 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
 
   // Reset on close.
   useEffect(() => {
+    if (open) {
+      setInsertedAt(new Date());
+    }
     if (!open) {
       setStep("context");
       setOrderId(undefined);
       setWarehouseId(undefined);
       setNotes("");
+      setDeliveryAddress("");
+      setCarrier("");
+      setTransportVehicle("");
+      setGoodsAppearance("");
+      setPackages("");
+      setTransportReason("Trasferimento a cantiere");
+      setLoadedGoodsPhotos([]);
       setEntries([]);
       shipment.reset();
     }
@@ -170,12 +195,44 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
 
   async function handleConfirm() {
     if (!orderId || !warehouseId) return;
+    const packageCount = Number.parseInt(packages, 10);
+    let uploadedPhotoPaths: string[] = [];
+    if (loadedGoodsPhotos.length > 0 && companyId && user?.id) {
+      const uploadResult = await uploadWarehousePhotos({
+        files: loadedGoodsPhotos,
+        companyId,
+        userId: user.id,
+        orderId,
+        context: "loaded_goods",
+        description: `Foto merce caricata per ${orderObj?.order_code ?? "ordine"}${orderObj?.customer_name ? ` - ${orderObj.customer_name}` : ""}`,
+      });
+      uploadedPhotoPaths = uploadResult.uploaded;
+      if (uploadResult.failed.length > 0) {
+        toast.warning("Alcune foto del carico non sono state salvate", {
+          description: uploadResult.failed.join(", "),
+        });
+      }
+    }
+    const photoNote =
+      loadedGoodsPhotos.length > 0
+        ? `Foto merce caricata: ${loadedGoodsPhotos.map((file) => file.name).join(", ")}${uploadedPhotoPaths.length > 0 ? ` (${uploadedPhotoPaths.length} salvate)` : ""}`
+        : "";
+    const mergedNotes = [notes.trim(), photoNote].filter(Boolean).join("\n");
+    const ddtExtra = {
+      causale_trasporto: transportReason.trim() || undefined,
+      aspetto_beni: goodsAppearance.trim() || undefined,
+      numero_colli: Number.isFinite(packageCount) && packageCount > 0 ? packageCount : undefined,
+      mezzo_trasporto: transportVehicle.trim() || undefined,
+      vettore: carrier.trim() || undefined,
+      indirizzo_consegna: deliveryAddress.trim() || undefined,
+      note_documento: mergedNotes || undefined,
+    };
     try {
       const res = await shipment.mutateAsync({
         orderId,
         warehouseId,
         entries,
-        ddtExtra: notes.trim() ? { note_documento: notes.trim() } : undefined,
+        ddtExtra,
       });
       onOpenChange(false);
       // Naviga all'editor documento (sistema fatturazione esistente)
@@ -214,19 +271,34 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-auto max-h-[80svh] flex flex-col p-0">
-        <SheetHeader className="px-4 py-3 border-b shrink-0">
-          <SheetTitle className="flex items-center gap-2 text-base">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90svh] overflow-hidden p-0">
+        <DialogHeader className="px-5 py-4 border-b">
+          <DialogTitle className="flex items-center gap-2 text-base">
             <ArrowUpFromLine className="h-5 w-5 text-primary" />
-            Scarico cantiere
-          </SheetTitle>
-          <SheetDescription className="text-xs">
+            Uscita merce e DDT
+          </DialogTitle>
+          <DialogDescription className="text-xs">
             Scarica merce verso un cantiere e genera automaticamente un DDT in bozza.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="max-h-[calc(90svh-150px)] overflow-y-auto px-5 py-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-medium uppercase text-muted-foreground">Preparazione</p>
+              <p className="text-sm font-semibold">{insertedAt.toLocaleString("it-IT")}</p>
+              <p className="text-xs text-muted-foreground">Da: {insertedBy}</p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <p className="text-xs font-medium uppercase text-muted-foreground">Flusso</p>
+              <p className="mt-1 text-sm font-semibold">Seleziona ordine → scansiona merce → genera DDT</p>
+              <p className="text-xs text-muted-foreground">
+                Le foto del carico restano collegate all'ordine selezionato.
+              </p>
+            </div>
+          </div>
+
           {/* Ordine destinazione */}
           <div className="space-y-2">
             <Label htmlFor="sc-order">Ordine destinazione *</Label>
@@ -296,6 +368,106 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
             )}
           </div>
 
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+            <div className="flex items-start gap-2">
+              <Truck className="h-4 w-4 mt-0.5 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Dati DDT uscita</p>
+                <p className="text-xs text-muted-foreground">
+                  Il documento prende intestazione azienda e cliente dall'ordine. Qui prepari destinazione,
+                  trasportatore e colli prima della scansione.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="sc-delivery-address" className="text-xs">
+                  Destinazione merce
+                </Label>
+                <Input
+                  id="sc-delivery-address"
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  placeholder="Es. Cantiere cliente, via Roma 5, Milano"
+                  maxLength={180}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sc-carrier" className="text-xs">
+                  Chi trasporta
+                </Label>
+                <Input
+                  id="sc-carrier"
+                  value={carrier}
+                  onChange={(e) => setCarrier(e.target.value)}
+                  placeholder="Azienda, operaio o subappaltatore"
+                  maxLength={120}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sc-vehicle" className="text-xs">
+                  Mezzo
+                </Label>
+                <Input
+                  id="sc-vehicle"
+                  value={transportVehicle}
+                  onChange={(e) => setTransportVehicle(e.target.value)}
+                  placeholder="Es. Furgone aziendale"
+                  maxLength={80}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sc-reason" className="text-xs">
+                  Causale trasporto
+                </Label>
+                <Select value={transportReason} onValueChange={setTransportReason}>
+                  <SelectTrigger id="sc-reason">
+                    <SelectValue placeholder="Causale" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Trasferimento a cantiere">Trasferimento a cantiere</SelectItem>
+                    <SelectItem value="Vendita">Vendita</SelectItem>
+                    <SelectItem value="Conto lavorazione">Conto lavorazione</SelectItem>
+                    <SelectItem value="Reso">Reso</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-[1fr_96px] gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="sc-goods-appearance" className="text-xs">
+                    Aspetto beni
+                  </Label>
+                  <Input
+                    id="sc-goods-appearance"
+                    value={goodsAppearance}
+                    onChange={(e) => setGoodsAppearance(e.target.value)}
+                    placeholder="Es. Bancali, colli, sfuso"
+                    maxLength={80}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sc-packages" className="text-xs">
+                    Colli
+                  </Label>
+                  <Input
+                    id="sc-packages"
+                    type="number"
+                    min="1"
+                    inputMode="numeric"
+                    value={packages}
+                    onChange={(e) => setPackages(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Note opzionali → finiranno in note_documento del DDT */}
           <div className="space-y-2">
             <Label htmlFor="sc-notes" className="text-xs">
@@ -310,16 +482,61 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
             />
           </div>
 
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+            <div className="flex items-start gap-2">
+              <Camera className="h-4 w-4 mt-0.5 text-primary" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-medium">Foto merce caricata</p>
+                <p className="text-xs text-muted-foreground">
+                  Scatta foto del carico sul furgone, dei colli o del materiale pronto prima di generare il DDT.
+                </p>
+              </div>
+            </div>
+            <Input
+              id="sc-loaded-goods-photos"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                if (files.length > 0) {
+                  setLoadedGoodsPhotos((current) => [...current, ...files]);
+                }
+                event.currentTarget.value = "";
+              }}
+            />
+            {loadedGoodsPhotos.length > 0 && (
+              <div className="space-y-2">
+                {loadedGoodsPhotos.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 rounded-md bg-background px-3 py-2 text-xs">
+                    <span className="truncate">{file.name}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => setLoadedGoodsPhotos((current) => current.filter((_, i) => i !== index))}
+                      aria-label={`Rimuovi foto ${file.name}`}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <Alert>
             <FileText className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Alla conferma genereremo un DDT in <strong>bozza</strong> nel sistema fatturazione,
-              pronto per essere completato (cliente, dati trasporto, stampa).
+              Alla conferma genereremo un DDT in <strong>bozza</strong> con le righe scansionate,
+              pronto da controllare, completare e stampare nel sistema fatturazione.
             </AlertDescription>
           </Alert>
         </div>
 
-        <div className="border-t p-3 flex gap-2 shrink-0 bg-card">
+        <DialogFooter className="border-t p-3 flex-row gap-2 bg-card">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Annulla
@@ -332,8 +549,8 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
             Inizia scansione
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

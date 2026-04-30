@@ -33,19 +33,19 @@ const CHANNEL_LABELS: Record<Channel, string> = {
 
 const EMAIL_TEMPLATES = [
   {
-    label: "Conferma ordine",
-    subject: "Conferma ordine",
-    body: "Gentile {{CLIENTE}},\n\nCon la presente Le confermiamo il suo ordine.\n\nRimaniamo a disposizione per qualsiasi chiarimento.\n\nCordiali saluti",
+    label: "Conferma commessa",
+    subject: "Conferma commessa",
+    body: "Gentile {{CLIENTE}},\n\nCon la presente Le confermiamo la sua commessa.\n\nRimaniamo a disposizione per qualsiasi chiarimento.\n\nCordiali saluti",
   },
   {
     label: "Richiesta informazioni",
     subject: "Richiesta informazioni",
-    body: "Gentile {{CLIENTE}},\n\nLa contatto per richiedere alcune informazioni riguardo al suo ordine.\n\nLa preghiamo di contattarci al più presto.\n\nCordiali saluti",
+    body: "Gentile {{CLIENTE}},\n\nLa contatto per richiedere alcune informazioni riguardo alla sua commessa.\n\nLa preghiamo di contattarci al più presto.\n\nCordiali saluti",
   },
   {
     label: "Avanzamento lavori",
     subject: "Aggiornamento stato lavori",
-    body: "Gentile {{CLIENTE}},\n\nLa informiamo che i lavori relativi al suo ordine stanno procedendo regolarmente.\n\nRimaniamo a disposizione.\n\nCordiali saluti",
+    body: "Gentile {{CLIENTE}},\n\nLa informiamo che i lavori relativi alla sua commessa stanno procedendo regolarmente.\n\nRimaniamo a disposizione.\n\nCordiali saluti",
   },
   {
     label: "Appuntamento",
@@ -55,7 +55,7 @@ const EMAIL_TEMPLATES = [
 ];
 
 const SMS_TEMPLATES = [
-  { label: "Conferma", body: "Salve {{CLIENTE}}, confermiamo il Suo ordine. Per info: {TELEFONO}" },
+  { label: "Conferma", body: "Salve {{CLIENTE}}, confermiamo la Sua commessa. Per info: {TELEFONO}" },
   { label: "Appuntamento", body: "Salve {{CLIENTE}}, ricordiamo l'appuntamento. Per info: {TELEFONO}" },
 ];
 
@@ -184,7 +184,7 @@ export function DiaryComposer({
                 type="text"
                 value={subject}
                 onChange={(e) => { setSubject(e.target.value); setError(null); }}
-                placeholder="Es. Conferma ordine ORD-2026-007"
+                placeholder="Es. Conferma commessa ORD-2026-007"
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>

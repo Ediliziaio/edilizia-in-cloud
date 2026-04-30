@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { OrderItemStatus } from "@/types/warehouse";
@@ -32,7 +31,10 @@ import {
   Settings as SettingsIcon,
   ArrowLeftRight,
   Boxes,
-  ClipboardCheck,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  BarChart3,
+  Star,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,7 +80,7 @@ import { STATUS_CONFIG } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
-import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
+import { useWarehouses } from "@/hooks/useWarehouses";
 import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransferPanel";
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -92,6 +94,18 @@ const WAREHOUSE_ORDER_STATUSES: OrderItemStatus[] = [
   "prenotato",
   "installato",
 ];
+
+const WAREHOUSE_TYPE_LABEL: Record<string, string> = {
+  main: "Principale",
+  secondary: "Secondario",
+  site: "Cantiere",
+  vehicle: "Veicolo",
+};
+
+type StockActionRequest = {
+  type: "receive" | "ship";
+  nonce: number;
+} | null;
 
 export default function Warehouse() {
   const navigate = useNavigate();
@@ -143,10 +157,16 @@ export default function Warehouse() {
   } = useWarehouseData();
 
   const { sections } = useWarehouseSections();
+  const {
+    warehouses,
+    isLoading: warehousesLoading,
+  } = useWarehouses(true);
   const { isScopriPlan } = useSubscriptionLimits();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+  const [stockActionRequest, setStockActionRequest] = useState<StockActionRequest>(null);
+  const [showMetrics, setShowMetrics] = useState(false);
 
   // Multi-selection state for order items DnD
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -216,16 +236,8 @@ export default function Warehouse() {
     );
   }
 
-  // ─── Modalità macro: separa concettualmente "Tracking ordini" da "Inventario" ───
-  //   • workflow: Lista, Kanban, Calendario (cosa devo gestire per i cantieri)
-  //   • inventario: Giacenze, Lotti, DDT (gestione magazzino fisico)
-  // Toggle macro al top → l'utente sceglie il mental model PRIMA di scegliere la vista.
   const isInventario = viewMode === "stock" || viewMode === "lotti" || viewMode === "ddt";
-  const macroMode: "workflow" | "inventario" = isInventario ? "inventario" : "workflow";
-  const switchMacroMode = (next: "workflow" | "inventario") => {
-    if (next === macroMode) return;
-    setViewMode(next === "workflow" ? "list" : "stock");
-  };
+  const isOrderView = !isInventario;
 
   // ─── Filtro attivo per WarehouseStats cards cliccabili ───
   // Le KPI cards sono cliccabili e applicano filtro: status (in_magazzino/ordinato/da_ordinare)
@@ -258,6 +270,26 @@ export default function Warehouse() {
     }
   };
 
+  const inventoryCount = stockItems.length;
+
+  const activeWarehouse = warehouseFilter
+    ? warehouses.find((warehouse) => warehouse.id === warehouseFilter) ?? null
+    : null;
+  const activeWarehouseAddress = activeWarehouse
+    ? [activeWarehouse.address, activeWarehouse.city, activeWarehouse.province]
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  const warehouseScopeTitle = activeWarehouse?.name ?? "Tutti i magazzini";
+  const warehouseScopeDescription = activeWarehouse
+    ? activeWarehouseAddress || "Vista filtrata sul singolo deposito."
+    : `${warehouses.length} magazzini attivi in vista consolidata. Se devi caricare, scaricare o trasferire merce scegli prima il magazzino corretto.`;
+
+  const openStockAction = (type: "receive" | "ship") => {
+    setViewMode("stock");
+    setStockActionRequest({ type, nonce: Date.now() });
+  };
+
   return (
     <div className="space-y-6 print:space-y-4">
       {/* Header */}
@@ -273,50 +305,11 @@ export default function Warehouse() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Selettore magazzino — visibile anche su mobile (full-width sm:w-48) */}
-          <div className="w-full sm:w-48 order-1 sm:order-none">
-            <WarehouseSelect
-              value={warehouseFilter}
-              onChange={setWarehouseFilter}
-              allowAll
-              allLabel="Tutti i magazzini"
-              className="h-9 text-sm"
-            />
-          </div>
-
-          {/* Gestione magazzino — dropdown unico (Trasferisci + Magazzini)
-              accessibile anche da mobile (prima erano hidden sm:flex → bug). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
-                className="order-2 sm:order-none"
-                aria-label="Apri menu gestione magazzino"
-              >
-                <SettingsIcon className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Gestione</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTransferOpen(true)}>
-                <ArrowLeftRight className="h-4 w-4 mr-2" />
-                Trasferisci merce
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/azienda/magazzino/gestione")}>
-                <Boxes className="h-4 w-4 mr-2" />
-                Gestione magazzini
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Export */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="order-3 sm:order-none"
                 aria-label="Apri menu esportazione magazzino"
               >
                 <Download className="h-4 w-4 sm:mr-2" />
@@ -360,106 +353,152 @@ export default function Warehouse() {
         </Alert>
       )}
 
+      <section className="rounded-lg border bg-card px-3 py-3 print:hidden" aria-label="Selezione magazzino attivo">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <span className="text-sm font-semibold text-muted-foreground">Magazzino</span>
+            <Select
+              value={warehouseFilter ?? "__all__"}
+              onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
+              disabled={warehousesLoading}
+            >
+              <SelectTrigger className="w-full sm:w-[320px]">
+                <SelectValue placeholder="Scegli magazzino" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">
+                  Tutti i magazzini · vista consolidata
+                </SelectItem>
+                {warehouses.map((warehouse) => (
+                  <SelectItem key={warehouse.id} value={warehouse.id}>
+                    {warehouse.name}
+                    {warehouse.is_default ? " · default" : ""}
+                    {" · "}
+                    {WAREHOUSE_TYPE_LABEL[warehouse.type] ?? warehouse.type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Badge variant="outline" className="w-fit bg-background">
+              {warehouseScopeTitle}
+            </Badge>
+            {activeWarehouse?.is_default && (
+              <Badge variant="outline" className="w-fit gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                <Star className="h-3 w-3 fill-amber-500 text-amber-500" aria-hidden="true" />
+                Predefinito
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)}>
+              <ArrowLeftRight className="h-4 w-4 mr-2" aria-hidden="true" />
+              Trasferisci
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")}>
+              <SettingsIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+              Gestisci magazzini
+            </Button>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {warehouseScopeDescription}
+        </p>
+      </section>
+
+      <section className="rounded-lg border bg-card p-4 print:hidden" aria-label="Azioni rapide magazzino">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Operazioni magazzino</h2>
+            <p className="text-sm text-muted-foreground">
+              Registra arrivi, genera DDT di uscita e controlla inventario senza cambiare flusso mentale.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:items-center">
+            <Button onClick={() => openStockAction("receive")} className="justify-start gap-2">
+              <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
+              Registra arrivo merce
+            </Button>
+            <Button variant="outline" onClick={() => openStockAction("ship")} className="justify-start gap-2">
+              <ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />
+              Uscita merce
+            </Button>
+            <Button variant="outline" onClick={() => setViewMode("stock")} className="justify-start gap-2">
+              <Boxes className="h-4 w-4" aria-hidden="true" />
+              Inventario
+              <Badge variant="secondary" className="ml-auto">
+                {inventoryCount}
+              </Badge>
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Banner avvisi RIMOSSI completamente — riducono il rumore visivo
           e duplicano informazioni già presenti nelle KPI cliccabili sotto. */}
 
-      {/* KPI sempre visibili su 2 righe fisse — workflow (5) + inventario (4) = 9.
-          Layout invariato al toggle macro: l'utente vede sempre tutte le metriche.
-          Click su una KPI workflow da modalità inventario → switch automatico
-          a workflow + applica filtro (vedi handleStatsCardClick). */}
-      <div className="space-y-3">
-        <MobileKpiStrip
-          items={items}
-          companyId={effectiveCompany.id}
-          activeFilter={activeStatsFilter}
-          onCardClick={handleStatsCardClick}
-        />
-        <div className="hidden md:block space-y-3">
-          <WarehouseStats
-            items={items}
-            activeFilter={activeStatsFilter}
-            onCardClick={handleStatsCardClick}
-          />
-          <WarehouseInventoryStats companyId={effectiveCompany.id} />
-        </div>
-      </div>
-
-      {/* View Toggle & Filters */}
-      {/* ─── Toggle macro: 2 mondi separati invece di 6 tab piatti ───
-           Workflow = Tracking ordini per cantieri (Lista/Kanban/Calendario).
-           Inventario = Gestione magazzino fisico (Giacenze/Lotti/DDT).
-           Ogni modalità ha i suoi KPI, alert, filtri, tab — niente leak. */}
-      <div className="flex justify-center print:hidden">
-        <div className="inline-flex rounded-lg border bg-card p-1 shadow-sm">
-          <button
-            type="button"
-            onClick={() => switchMacroMode("workflow")}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
-              macroMode === "workflow"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:bg-muted",
-            )}
-            aria-pressed={macroMode === "workflow"}
-          >
-            <ClipboardCheck className="h-4 w-4" />
-            <span>Tracking ordini</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMacroMode("inventario")}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
-              macroMode === "inventario"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:bg-muted",
-            )}
-            aria-pressed={macroMode === "inventario"}
-          >
-            <Boxes className="h-4 w-4" />
-            <span>Inventario</span>
-          </button>
-        </div>
+      <div className="print:hidden">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="gap-2 text-muted-foreground"
+          onClick={() => setShowMetrics((open) => !open)}
+        >
+          <BarChart3 className="h-4 w-4" aria-hidden="true" />
+          {showMetrics ? "Nascondi metriche avanzate" : "Mostra metriche avanzate"}
+        </Button>
+        {showMetrics && (
+          <div className="mt-3 space-y-3">
+            <MobileKpiStrip
+              items={items}
+              companyId={effectiveCompany.id}
+              activeFilter={activeStatsFilter}
+              onCardClick={handleStatsCardClick}
+            />
+            <div className="hidden md:block space-y-3">
+              <WarehouseStats
+                items={items}
+                activeFilter={activeStatsFilter}
+                onCardClick={handleStatsCardClick}
+              />
+              <WarehouseInventoryStats companyId={effectiveCompany.id} />
+            </div>
+          </div>
+        )}
       </div>
 
       <Card className="print:hidden">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
-            {/* View mode tabs — set diverso a seconda della modalità macro.
-                Su workflow: Lista/Kanban/Calendario. Su inventario: Giacenze/Lotti/DDT. */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-                {macroMode === "workflow" ? (
-                  <TabsList className="flex-wrap h-auto">
-                    <TabsTrigger value="list" className="gap-1.5" aria-label="Vista lista">
-                      <List className="h-4 w-4" />
-                      <span className="hidden sm:inline">Lista</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="kanban" className="gap-1.5" aria-label="Vista kanban">
-                      <LayoutGrid className="h-4 w-4" />
-                      <span className="hidden sm:inline">Kanban</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="calendar" className="gap-1.5" aria-label="Vista calendario">
-                      <CalendarIcon className="h-4 w-4" />
-                      <span className="hidden sm:inline">Calendario</span>
-                    </TabsTrigger>
-                  </TabsList>
-                ) : (
-                  <TabsList className="flex-wrap h-auto">
-                    <TabsTrigger value="stock" className="gap-1.5" aria-label="Vista giacenze">
-                      <PackageOpen className="h-4 w-4" />
-                      <span className="hidden sm:inline">Giacenze</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="lotti" className="gap-1.5" aria-label="Vista lotti">
-                      <Package className="h-4 w-4" />
-                      <span className="hidden sm:inline">Lotti</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="ddt" className="gap-1.5" aria-label="Vista DDT">
-                      <FileText className="h-4 w-4" />
-                      <span className="hidden sm:inline">DDT</span>
-                    </TabsTrigger>
-                  </TabsList>
-                )}
+                <TabsList className="flex-wrap h-auto">
+                  <TabsTrigger value="list" className="gap-1.5" aria-label="Vista lista ordini">
+                    <List className="h-4 w-4" />
+                    <span className="hidden sm:inline">Lista ordini</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="stock" className="gap-1.5" aria-label="Vista inventario">
+                    <PackageOpen className="h-4 w-4" />
+                    <span className="hidden sm:inline">Inventario</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="kanban" className="gap-1.5" aria-label="Vista kanban">
+                    <LayoutGrid className="h-4 w-4" />
+                    <span className="hidden sm:inline">Kanban</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="calendar" className="gap-1.5" aria-label="Vista calendario">
+                    <CalendarIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Calendario</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="lotti" className="gap-1.5" aria-label="Vista lotti">
+                    <Package className="h-4 w-4" />
+                    <span className="hidden sm:inline">Lotti</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="ddt" className="gap-1.5" aria-label="Vista DDT">
+                    <FileText className="h-4 w-4" />
+                    <span className="hidden sm:inline">DDT</span>
+                  </TabsTrigger>
+                </TabsList>
               </Tabs>
 
               {viewMode === "list" && (
@@ -480,7 +519,7 @@ export default function Warehouse() {
             {/* Quick filters — solo workflow ordini (sono filtri ordini-related:
                 Da Lavorare, Urgenti, In Ritardo, Questa/Prox. sett. di posa). Su
                 Inventario sono inerti e occupano spazio inutilmente. */}
-            {macroMode === "workflow" && (
+            {isOrderView && (
             <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:pb-0">
               <Button
                 variant={quickFilter === "all" ? "default" : "outline"}
@@ -546,7 +585,7 @@ export default function Warehouse() {
                 In Inventario (Giacenze/Lotti/DDT) ogni sub-tab ha i suoi filtri
                 propri (vedi WarehouseStockTab toolbar QR), evitiamo doppione confondente.
                 I Select (Stato/Ordine/Fornitore/Zona) sono dentro lo Sheet sidebar. */}
-            {macroMode === "workflow" && (
+            {isOrderView && (
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -707,11 +746,11 @@ export default function Warehouse() {
 
       {/* Content based on view mode */}
       {viewMode === "ddt" ? (
-        <WarehouseDDTTab warehouseFilter={warehouseFilter} />
+        <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={() => openStockAction("receive")} />
       ) : viewMode === "lotti" ? (
         <WarehouseLottiTab />
       ) : viewMode === "stock" ? (
-        <WarehouseStockTab warehouseFilter={warehouseFilter} />
+        <WarehouseStockTab warehouseFilter={warehouseFilter} actionRequest={stockActionRequest} />
       ) : isLoading ? (
         <div
           className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground"

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Receipt, Sparkles, Check, Calendar, User, Package, Loader2, Info } from "lucide-react";
+import { Receipt, Sparkles, Check, User, Package, Loader2, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import type { Installment } from "@/lib/orderUtils";
-import type { ClienteSnapshot, RigaDocumento, DocumentoFiscale } from "@/types/fatturazione";
+import type { ClienteSnapshot, RigaDocumento } from "@/types/fatturazione";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -128,7 +127,7 @@ function buildRigaAcconto(
   return {
     id: crypto.randomUUID(),
     numero_linea: 1,
-    descrizione: `${tipoRata} ordine${codeStr} — ${descShort}`,
+    descrizione: `${tipoRata} commessa${codeStr} — ${descShort}`,
     quantita: 1,
     unita_misura: "pz",
     prezzo_unitario: imponibile,
@@ -149,7 +148,7 @@ export function CreaFatturaDialog({
   orderId,
   orderCode,
   orderDescription,
-  totalAmount,
+  totalAmount: _totalAmount,
   vatRate,
   customerId,
   customerName,
@@ -271,7 +270,7 @@ export function CreaFatturaDialog({
     const rataLabel = selectedInstallment
       ? `${selectedInstallment.label || LABEL_MAP[selectedInstallment.type] || "Pagamento"} — `
       : "";
-    const noteDoc = `${rataLabel}Rif. ordine ${orderCode || ""} — ${orderDescription}`.trim();
+    const noteDoc = `${rataLabel}Rif. commessa ${orderCode || ""} — ${orderDescription}`.trim();
 
     createMutation.mutate(
       {
@@ -311,10 +310,10 @@ export function CreaFatturaDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
-            Crea fattura da ordine {orderCode}
+            Crea fattura da commessa {orderCode}
           </DialogTitle>
           <DialogDescription>
-            I dati del cliente, gli articoli e l'IVA verranno compilati automaticamente dall'ordine.
+            I dati del cliente, gli articoli e l'IVA verranno compilati automaticamente dalla commessa.
           </DialogDescription>
         </DialogHeader>
 
@@ -423,7 +422,7 @@ export function CreaFatturaDialog({
           ) : previewRighe.length === 0 ? (
             <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
               <Info className="h-4 w-4 shrink-0" />
-              <span>Nessun articolo trovato nell'ordine. La fattura verrà creata vuota.</span>
+              <span>Nessun articolo trovato nella commessa. La fattura verrà creata vuota.</span>
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden">

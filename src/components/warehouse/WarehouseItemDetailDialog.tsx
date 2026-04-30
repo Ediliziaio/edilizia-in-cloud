@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/formatters";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { ReceiveGoodsModal } from "@/components/warehouse/ReceiveGoodsModal";
 import { InstallationPhotoCaptureModal } from "@/components/warehouse/InstallationPhotoCaptureModal";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -70,6 +72,16 @@ const WORKFLOW_STEPS: { phase: WorkflowPhase; label: string; icon: typeof Packag
   { phase: "delivered", label: "Consegnato", icon: PackageCheck },
   { phase: "installed", label: "Installato", icon: CheckCircle2 },
 ];
+
+function resolveWorkflowPhase(item: WarehouseItem): WorkflowPhase {
+  if (item.status === "installato") return "installed";
+  if (item.status === "in_magazzino" || item.status === "prenotato") return "received";
+  if (item.status === "in_arrivo") return "shipped";
+  if (item.fulfillment_status && item.fulfillment_status !== "not_started") {
+    return item.fulfillment_status as WorkflowPhase;
+  }
+  return "not_started";
+}
 
 function WorkflowStepper({ currentPhase }: { currentPhase: WorkflowPhase }) {
   const currentIdx = WORKFLOW_STEPS.findIndex((s) => s.phase === currentPhase);
@@ -135,6 +147,52 @@ export default function WarehouseItemDetailDialog({
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
 
+  type ReceiptRow = {
+    id: string;
+    quantity_received: number;
+    receipt_date: string | null;
+    ddt_number: string | null;
+    ddt_photo_url: string | null;
+    quality_check_status: string | null;
+    ddt_ricezione_id: string | null;
+    warehouse: { name: string } | null;
+    ddt: {
+      id: string;
+      numero_ddt: string;
+      data_ricezione: string;
+      stato: string;
+      ddt_file_url: string | null;
+      ddt_file_name: string | null;
+      corriere: string | null;
+      targa_mezzo: string | null;
+    } | null;
+  };
+
+  const { data: receipts = [], isLoading: receiptsLoading } = useQuery<ReceiptRow[]>({
+    queryKey: ["warehouse-item-receipts", item?.id],
+    enabled: open && !!item?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("goods_receipts")
+        .select(`
+          id,
+          quantity_received,
+          receipt_date,
+          ddt_number,
+          ddt_photo_url,
+          quality_check_status,
+          ddt_ricezione_id,
+          warehouse:warehouses(name),
+          ddt:ddt_ricezione(id, numero_ddt, data_ricezione, stato, ddt_file_url, ddt_file_name, corriere, targa_mezzo)
+        `)
+        .eq("order_item_id", item!.id)
+        .order("receipt_date", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ReceiptRow[];
+    },
+  });
+
   if (!item) return null;
 
   const supplierName = getSupplierName(item.supplier_id);
@@ -143,11 +201,11 @@ export default function WarehouseItemDetailDialog({
   const critical = isItemCritical(item);
   const overdue = isItemOverdue(item);
   const expectedDate = item.order.expected_date || item.order.work_start_date;
-  const currentPhase: WorkflowPhase = (item.fulfillment_status || "not_started") as WorkflowPhase;
+  const currentPhase = resolveWorkflowPhase(item);
   const totalPrice = (item.purchase_price ?? 0) * (item.quantity ?? 1);
   const hasPrice = item.purchase_price != null;
 
-  const canReceive = currentPhase === "not_started";
+  const canReceive = currentPhase === "not_started" && item.status !== "in_magazzino" && item.status !== "prenotato";
   const isReceived = currentPhase === "received";
   const isInTransit = currentPhase === "shipped";
   const canInstall = currentPhase === "delivered";
@@ -341,6 +399,106 @@ export default function WarehouseItemDetailDialog({
               </div>
             )}
 
+            <div className="rounded-md border bg-card p-3">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" />
+                  DDT e ricezioni merce
+                </span>
+                <div className="flex items-center gap-2">
+                  {receipts.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {receipts.length} moviment{receipts.length === 1 ? "o" : "i"}
+                    </Badge>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setReceiveOpen(true)}
+                    disabled={isUpdating}
+                  >
+                    <FileText className="h-3 w-3 mr-1" />
+                    Carica DDT
+                  </Button>
+                </div>
+              </div>
+
+              {receiptsLoading ? (
+                <p className="text-sm text-muted-foreground">Caricamento ricezioni...</p>
+              ) : receipts.length === 0 ? (
+                <div className="rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground space-y-3">
+                  <p>
+                    Nessun DDT collegato a questo articolo. Carica qui il DDT di arrivo merce,
+                    collega il documento all'ordine e registra quantità, magazzino e allegati.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    onClick={() => setReceiveOpen(true)}
+                    disabled={isUpdating}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Carica DDT ricezione
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {receipts.map((receipt) => {
+                    const ddtNumber = receipt.ddt?.numero_ddt || receipt.ddt_number || "DDT non indicato";
+                    const receiptDate = receipt.ddt?.data_ricezione || receipt.receipt_date;
+                    const fileUrl = receipt.ddt?.ddt_file_url || receipt.ddt_photo_url;
+                    return (
+                      <div key={receipt.id} className="rounded-md border bg-muted/20 p-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{ddtNumber}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {receiptDate
+                                ? format(new Date(receiptDate), "dd MMM yyyy", { locale: it })
+                                : "Data non indicata"}
+                              {" · "}
+                              {receipt.quantity_received} pz ricevuti
+                              {receipt.warehouse?.name ? ` · ${receipt.warehouse.name}` : ""}
+                            </p>
+                            {(receipt.ddt?.corriere || receipt.ddt?.targa_mezzo) && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Trasporto: {[receipt.ddt.corriere, receipt.ddt.targa_mezzo].filter(Boolean).join(" · ")}
+                              </p>
+                            )}
+                          </div>
+                          <Badge variant={receipt.quality_check_status === "damaged" ? "destructive" : "outline"} className="shrink-0">
+                            {receipt.quality_check_status || receipt.ddt?.stato || "ricevuto"}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {receipt.ddt_ricezione_id && (
+                            <Button variant="outline" size="sm" asChild className="h-7 px-2 text-xs">
+                              <Link to={`/azienda/ddt/${receipt.ddt_ricezione_id}`}>
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                Apri DDT
+                              </Link>
+                            </Button>
+                          )}
+                          {fileUrl && (
+                            <Button variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
+                              <a href={fileUrl} target="_blank" rel="noreferrer">
+                                <FileText className="h-3 w-3 mr-1" />
+                                Allegato
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Order + Date */}
             <div className="rounded-md border divide-y overflow-hidden">
               <div className="flex items-center justify-between p-2.5 gap-2">
@@ -476,7 +634,7 @@ export default function WarehouseItemDetailDialog({
               <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-success/10 border border-success/30 text-success text-sm font-medium">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span className="text-center">
-                  Merce ricevuta — spedisci dalla pagina Ordine
+                  Merce gia in magazzino. Gestisci DDT e allegati nella sezione sopra.
                 </span>
               </div>
             )}

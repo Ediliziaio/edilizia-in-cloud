@@ -10,11 +10,10 @@ import { useState, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ShieldCheck, Upload, FileText, Image as ImageIcon, Loader2,
-  CheckCircle2, AlertTriangle, XCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -159,11 +158,11 @@ export function VerifyPurchaseOrderDialog({
               >
                 <FileText className="h-5 w-5 mt-0.5 text-primary shrink-0" />
                 <div>
-                  <p className="font-medium text-sm">Confronta con Ordine Cliente</p>
+                  <p className="font-medium text-sm">Confronta con Commessa Cliente</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {orderId
-                      ? `Confronto automatico degli articoli dell'OdA con l'ordine ${orderCode || ""}`
-                      : "Non disponibile — OdA non collegato a un ordine"}
+                      ? `Confronto automatico degli articoli dell'OdA con la commessa ${orderCode || ""}`
+                      : "Non disponibile — OdA non collegato a una commessa"}
                   </p>
                 </div>
               </button>
@@ -219,7 +218,7 @@ export function VerifyPurchaseOrderDialog({
                 <p className="text-sm font-medium">Riepilogo confronto</p>
                 <p className="text-xs text-muted-foreground">
                   L'AI confronterà gli articoli dell'OdA <strong>{odaNumber}</strong> con
-                  quelli dell'ordine cliente <strong>{orderCode || ""}</strong>.
+                  quelli della commessa cliente <strong>{orderCode || ""}</strong>.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Verranno verificati: quantità, prezzi, descrizioni e specifiche tecniche.

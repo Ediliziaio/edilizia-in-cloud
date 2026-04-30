@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileWarning, Sparkles, Check, User, Package, Loader2, Info } from "lucide-react";
+import { FileWarning, Sparkles, Check, User, Loader2, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -102,7 +102,7 @@ export function CreaNotaCreditoDialog({
   orderId,
   orderCode,
   orderDescription,
-  totalAmount,
+  totalAmount: _totalAmount,
   vatRate,
   customerId,
   customerName,
@@ -190,7 +190,7 @@ export function CreaNotaCreditoDialog({
         }
       : undefined;
 
-    const noteDoc = `Nota di credito per ordine ${orderCode || ""} — ${orderDescription}`.trim();
+    const noteDoc = `Nota di credito per commessa ${orderCode || ""} — ${orderDescription}`.trim();
 
     createMutation.mutate(
       {
@@ -228,10 +228,10 @@ export function CreaNotaCreditoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileWarning className="h-5 w-5 text-destructive" />
-            Crea nota di credito da ordine {orderCode}
+            Crea nota di credito da commessa {orderCode}
           </DialogTitle>
           <DialogDescription>
-            La nota di credito verrà creata con gli stessi articoli dell'ordine. Potrai modificarla nell'editor prima di emetterla.
+            La nota di credito verrà creata con gli stessi articoli della commessa. Potrai modificarla nell'editor prima di emetterla.
           </DialogDescription>
         </DialogHeader>
 
@@ -272,7 +272,7 @@ export function CreaNotaCreditoDialog({
           ) : previewRighe.length === 0 ? (
             <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-700">
               <Info className="h-4 w-4 shrink-0" />
-              <span>Nessun articolo trovato nell'ordine. La nota di credito verrà creata vuota.</span>
+              <span>Nessun articolo trovato nella commessa. La nota di credito verrà creata vuota.</span>
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden">

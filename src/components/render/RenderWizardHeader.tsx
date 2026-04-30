@@ -47,8 +47,11 @@ export function RenderWizardHeader({
   accent = "orange",
 }: RenderWizardHeaderProps) {
   const dotClass = ACCENT_DOT[accent];
-  const progressValue = stepLabels.length > 1
-    ? ((currentStep - 1) / (stepLabels.length - 1)) * 100
+  const totalSteps = Math.max(stepLabels.length, 1);
+  const safeCurrentStep = Math.min(Math.max(currentStep, 1), totalSteps);
+  const visibleStepLabels = stepLabels.length > 0 ? stepLabels : ["Step"];
+  const progressValue = visibleStepLabels.length > 1
+    ? ((safeCurrentStep - 1) / (visibleStepLabels.length - 1)) * 100
     : 0;
 
   return (
@@ -83,7 +86,7 @@ export function RenderWizardHeader({
           )}
         </div>
         <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80 shrink-0">
-          Step {currentStep} / {stepLabels.length}
+          Step {safeCurrentStep} / {totalSteps}
         </div>
       </div>
 
@@ -91,20 +94,20 @@ export function RenderWizardHeader({
         <Progress value={progressValue} className="h-1.5 bg-white/20" />
         <div
           className="mt-2 grid gap-2"
-          style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${visibleStepLabels.length}, minmax(0, 1fr))` }}
         >
-          {stepLabels.map((label, index) => (
+          {visibleStepLabels.map((label, index) => (
             <div key={`${label}-${index}`} className="min-w-0 text-center">
               <div
                 className={cn(
                   "mx-auto mb-1 h-2 w-2 rounded-full transition-colors",
-                  currentStep >= index + 1 ? dotClass : "bg-white/30",
+                  safeCurrentStep >= index + 1 ? dotClass : "bg-white/30",
                 )}
               />
               <div
                 className={cn(
                   "truncate text-[10px] font-semibold leading-tight",
-                  currentStep >= index + 1 ? "text-white" : "text-white/40",
+                  safeCurrentStep >= index + 1 ? "text-white" : "text-white/40",
                 )}
               >
                 {label}

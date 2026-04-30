@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g;
-const PHONE_ALLOWED = /^[0-9+\-\s()\.]+$/;
+const PHONE_ALLOWED = /^[0-9+\-\s().]+$/;
 
 interface CreateCustomerDialogProps {
   open: boolean;
@@ -206,7 +206,7 @@ export function CreateCustomerDialog({
         onCustomerCreated(newCustomerId, customerName);
         handleClose();
         toast.success("Cliente creato", {
-          description: `${customerName} (solo anagrafica) è stato selezionato per l'ordine.`,
+          description: `${customerName} (solo anagrafica) è stato selezionato per la commessa.`,
         });
         return;
       }
@@ -238,7 +238,7 @@ export function CreateCustomerDialog({
     onCustomerCreated(createdCustomerId, customerName);
     handleClose();
     toast.success("Cliente creato", {
-      description: `${customerName} è stato selezionato per l'ordine.`,
+      description: `${customerName} è stato selezionato per la commessa.`,
     });
   };
 
@@ -260,7 +260,7 @@ export function CreateCustomerDialog({
                 <div className="min-w-0">
                   <DialogTitle>Nuovo Cliente</DialogTitle>
                   <DialogDescription>
-                    Crea un nuovo cliente e selezionalo per l'ordine
+                    Crea un nuovo cliente e selezionalo per la commessa
                   </DialogDescription>
                 </div>
               </div>

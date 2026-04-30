@@ -45,7 +45,7 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
 
     if (remaining <= 0) {
       toast.error("Limite file raggiunto", {
-        description: `Massimo ${MAX_FILES_PER_ORDER} file per ordine.`,
+        description: `Massimo ${MAX_FILES_PER_ORDER} file per commessa.`,
       });
       return;
     }
@@ -133,7 +133,7 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <Paperclip className="h-5 w-5" />
-          Documenti Ordine
+          Documenti Commessa
         </CardTitle>
         <div>
           <input

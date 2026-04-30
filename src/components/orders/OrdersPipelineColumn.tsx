@@ -21,6 +21,16 @@ export function OrdersPipelineColumn({ status, orders, isDragEnabled = true }: O
     () => orders.reduce((sum, o) => sum + (o.total_amount || 0), 0),
     [orders]
   );
+  const urgentCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return orders.filter((order) => {
+      if (!order.expected_date) return false;
+      const expectedDate = new Date(order.expected_date);
+      expectedDate.setHours(0, 0, 0, 0);
+      return expectedDate < today;
+    }).length;
+  }, [orders]);
 
   return (
     <div
@@ -44,9 +54,16 @@ export function OrdersPipelineColumn({ status, orders, isDragEnabled = true }: O
           </span>
         </div>
         {orders.length > 0 && (
-          <p className="text-[11px] text-muted-foreground mt-1 pl-[18px]">
-            {formatCurrency(totalAmount)}
-          </p>
+          <div className="mt-1 flex items-center gap-2 pl-[18px]">
+            <p className="text-[11px] text-muted-foreground">
+              {formatCurrency(totalAmount)}
+            </p>
+            {urgentCount > 0 && (
+              <span className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 ring-1 ring-orange-200">
+                {urgentCount} urgenti
+              </span>
+            )}
+          </div>
         )}
       </div>
 

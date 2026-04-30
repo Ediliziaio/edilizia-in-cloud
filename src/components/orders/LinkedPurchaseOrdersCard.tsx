@@ -73,7 +73,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["unlinked-purchase-orders", companyId] });
-      toast.success("OdA scollegato dall'ordine");
+      toast.success("OdA scollegato dalla commessa");
       setUnlinkTarget(null);
     },
     onError: (e: Error) => {
@@ -200,8 +200,8 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
             <AlertDialogTitle>Scollega OdA</AlertDialogTitle>
             <AlertDialogDescription>
               Sei sicuro di voler scollegare l'ordine d'acquisto{" "}
-              <strong>{unlinkTarget?.oda_number}</strong> da questo ordine?
-              L'OdA non verrà eliminato, ma non sarà più associato a questo ordine.
+              <strong>{unlinkTarget?.oda_number}</strong> da questa commessa?
+              L'OdA non verrà eliminato, ma non sarà più associato a questa commessa.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link2, Search, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -97,7 +96,7 @@ export function LinkExistingPurchaseOrderDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["unlinked-purchase-orders", companyId] });
-      toast.success("OdA collegato all'ordine");
+      toast.success("OdA collegato alla commessa");
       onOpenChange(false);
     },
     onError: (e: Error) => {
@@ -114,8 +113,8 @@ export function LinkExistingPurchaseOrderDialog({
             Collega OdA Esistente
           </DialogTitle>
           <DialogDescription>
-            Seleziona un ordine d'acquisto da collegare all'ordine {orderCode || ""}.
-            Sono mostrati solo gli OdA non ancora collegati ad altri ordini.
+            Seleziona un ordine d'acquisto da collegare alla commessa {orderCode || ""}.
+            Sono mostrati solo gli OdA non ancora collegati ad altre commesse.
           </DialogDescription>
         </DialogHeader>
 

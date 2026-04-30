@@ -11,6 +11,7 @@ import { it } from "date-fns/locale";
 interface Props {
   /** id magazzino selezionato in UI; null = tutti i magazzini visibili via RLS. */
   warehouseFilter: string | null;
+  onRegisterArrival?: () => void;
 }
 
 interface DDTRow {
@@ -23,7 +24,7 @@ interface DDTRow {
   purchase_order_id: string;
   note: string | null;
   warehouse: { name: string } | null;
-  purchase_order: { order_number: string | null; supplier_id: string | null } | null;
+  purchase_order: { oda_number: string | null; supplier_id: string | null } | null;
 }
 
 const STATO_BADGE: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
@@ -42,7 +43,7 @@ const STATO_BADGE: Record<string, "default" | "secondary" | "outline" | "destruc
  *
  * Il filtro `warehouseFilter` è solo UI (restrizione locale sopra quello RLS).
  */
-export function WarehouseDDTTab({ warehouseFilter }: Props) {
+export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -63,7 +64,7 @@ export function WarehouseDDTTab({ warehouseFilter }: Props) {
           id, numero_ddt, data_ricezione, stato, quantita_ricevuta,
           warehouse_id, purchase_order_id, note,
           warehouse:warehouses (name),
-          purchase_order:purchase_orders (order_number, supplier_id)
+          purchase_order:purchase_orders (oda_number, supplier_id)
         `)
         .eq("company_id", companyId!)
         .order("data_ricezione", { ascending: false });
@@ -134,6 +135,11 @@ export function WarehouseDDTTab({ warehouseFilter }: Props) {
           <p className="text-xs text-muted-foreground">
             I DDT compaiono qui quando ricevi merce su un ordine di acquisto.
           </p>
+          {onRegisterArrival && (
+            <Button className="mt-3" onClick={onRegisterArrival}>
+              Registra arrivo merce
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -159,8 +165,8 @@ export function WarehouseDDTTab({ warehouseFilter }: Props) {
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {format(new Date(d.data_ricezione), "dd MMM yyyy", { locale: it })}
-                  {d.purchase_order?.order_number &&
-                    ` · ODA ${d.purchase_order.order_number}`}
+                  {d.purchase_order?.oda_number &&
+                    ` · ODA ${d.purchase_order.oda_number}`}
                   {qta > 0 && ` · Qtà ${qta}`}
                 </div>
                 {d.note && (

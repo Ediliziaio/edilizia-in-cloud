@@ -46,7 +46,7 @@ interface DateRange {
 }
 
 const ORDER_IMPORT_FIELDS: ImportField[] = [
-  { key: "order_code", label: "Codice Ordine", required: false },
+  { key: "order_code", label: "Codice Commessa", required: false },
   { key: "customer_email", label: "Email Cliente", required: true, type: "email" },
   { key: "description", label: "Descrizione", required: true },
   { key: "total_amount", label: "Importo Totale", required: true, type: "number" },
@@ -301,12 +301,15 @@ function OrdersListInner() {
         .select(`
           id, order_code, description, total_amount, deposit_amount, balance_amount,
           vat_rate, created_at, expected_date, work_start_date, work_end_date,
-          warehouse_arrival_date, customer_id, current_status_id, payment_type,
+          warehouse_arrival_date, indirizzo_lavori, customer_id, current_status_id, payment_type,
           financing_amount, deposit_2_amount, has_building_bonus,
           deposit_paid, deposit_2_paid, balance_paid, financing_paid,
           order_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
-          status:order_statuses!orders_current_status_id_fkey(name, color)
+          status:order_statuses!orders_current_status_id_fkey(name, color),
+          order_items(id, status, quantity),
+          order_employees(employee:employees(id, first_name, last_name)),
+          order_external_teams(external_team:external_teams(id, name))
         `)
         .eq("company_id", effectiveCompany.id)
         .order("created_at", { ascending: false });
@@ -589,7 +592,7 @@ function OrdersListInner() {
 
   // Column visibility state
   const OPTIONAL_COLUMNS = [
-    { key: "date", label: "Data Ordine" },
+    { key: "date", label: "Data Commessa" },
     { key: "customer", label: "Cliente" },
     { key: "totalIvato", label: "Tot. Ivato" },
     { key: "imponibile", label: "Imponibile" },
@@ -700,10 +703,10 @@ function OrdersListInner() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      toast({ title: "Stato aggiornato", description: "L'ordine è stato spostato al nuovo stato" });
+      toast({ title: "Stato aggiornato", description: "La commessa è stata spostata al nuovo stato" });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile aggiornare lo stato dell'ordine", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile aggiornare lo stato della commessa", variant: "destructive" });
     },
   });
 
@@ -712,10 +715,10 @@ function OrdersListInner() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      toast({ title: "Ordine eliminato", description: "L'ordine è stato eliminato con successo" });
+      toast({ title: "Commessa eliminata", description: "La commessa è stata eliminata con successo" });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile eliminare l'ordine", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile eliminare la commessa", variant: "destructive" });
     },
   });
 
@@ -732,7 +735,7 @@ function OrdersListInner() {
         description: `${orderIds.length} ordin${orderIds.length === 1 ? "e aggiornato" : "i aggiornati"}`,
       });
     } catch {
-      toast({ title: "Errore", description: "Impossibile aggiornare alcuni ordini", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile aggiornare alcune commesse", variant: "destructive" });
     } finally {
       setIsBulkUpdating(false);
     }
@@ -745,11 +748,11 @@ function OrdersListInner() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({
-        title: "Ordini eliminati",
+        title: "Commesse eliminate",
         description: `${orderIds.length} ordin${orderIds.length === 1 ? "e eliminato" : "i eliminati"} con successo`,
       });
     } catch {
-      toast({ title: "Errore", description: "Impossibile eliminare alcuni ordini", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile eliminare alcune commesse", variant: "destructive" });
     } finally {
       setIsBulkUpdating(false);
     }
@@ -847,7 +850,7 @@ function OrdersListInner() {
     if (salespersonFilter !== "all") {
       const { data: r } = await supabase.from("order_salespeople").select("order_id").eq("salesperson_id", salespersonFilter);
       const ids = (r || []).map(x => x.order_id);
-      if (!ids.length) { toast({ title: "Nessun ordine da esportare" }); return null; }
+      if (!ids.length) { toast({ title: "Nessuna commessa da esportare" }); return null; }
       allowedExportIds = ids;
     }
     if (laborFilter !== "all") {
@@ -858,13 +861,13 @@ function OrdersListInner() {
         .select("order_id")
         .eq(isTeam ? "external_team_id" : "employee_id", realId);
       const ids = (r || []).map(x => x.order_id);
-      if (!ids.length) { toast({ title: "Nessun ordine da esportare" }); return null; }
+      if (!ids.length) { toast({ title: "Nessuna commessa da esportare" }); return null; }
       allowedExportIds = allowedExportIds ? allowedExportIds.filter(id => ids.includes(id)) : ids;
     }
     if (supplierFilter !== "all") {
       const { data: r } = await supabase.from("order_items").select("order_id").eq("supplier_id", supplierFilter);
       const ids = [...new Set((r || []).map(x => x.order_id))];
-      if (!ids.length) { toast({ title: "Nessun ordine da esportare" }); return null; }
+      if (!ids.length) { toast({ title: "Nessuna commessa da esportare" }); return null; }
       allowedExportIds = allowedExportIds ? allowedExportIds.filter(id => ids.includes(id)) : ids;
     }
 
@@ -907,7 +910,7 @@ function OrdersListInner() {
     if (error) { toast({ title: "Errore export", variant: "destructive" }); return null; }
 
     const columns: { key: string; label: string }[] = [
-      { key: "order_code", label: "Codice Ordine" },
+      { key: "order_code", label: "Codice Commessa" },
       { key: "customer", label: "Cliente" },
       { key: "description", label: "Descrizione" },
       { key: "total_amount", label: "Importo Totale" },
@@ -945,22 +948,22 @@ function OrdersListInner() {
   const exportOrdersCSV = useCallback(async () => {
     const result = await prepareExportData();
     if (!result) return;
-    exportToCSV(result.rows, result.columns, `ordini-${format(new Date(), "yyyy-MM-dd")}.csv`);
-    toast({ title: `CSV esportato — ${result.count} ordini` });
+    exportToCSV(result.rows, result.columns, `commesse-${format(new Date(), "yyyy-MM-dd")}.csv`);
+    toast({ title: `CSV esportato — ${result.count} commesse` });
   }, [prepareExportData, toast]);
 
   const exportOrdersXLSX = useCallback(async () => {
     const result = await prepareExportData();
     if (!result) return;
-    await exportToXLSX(result.rows, result.columns, `ordini-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    toast({ title: `Excel esportato — ${result.count} ordini` });
+    await exportToXLSX(result.rows, result.columns, `commesse-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast({ title: `Excel esportato — ${result.count} commesse` });
   }, [prepareExportData, toast]);
 
   // Export PDF: tabella ordini landscape
   const exportOrdersPDF = useCallback(async () => {
     const result = await prepareExportData();
     if (!result || result.count === 0) {
-      toast({ title: "Nessun ordine", description: "Non ci sono ordini da esportare.", variant: "destructive" });
+      toast({ title: "Nessuna commessa", description: "Non ci sono commesse da esportare.", variant: "destructive" });
       return;
     }
     try {
@@ -968,9 +971,9 @@ function OrdersListInner() {
       const jsPDF = jsPDFModule.default ?? (jsPDFModule as any).jsPDF;
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       doc.setFontSize(14);
-      doc.text(`${effectiveCompany?.name ?? "Azienda"} — Ordini`, 40, 40);
+      doc.text(`${effectiveCompany?.name ?? "Azienda"} — Commesse`, 40, 40);
       doc.setFontSize(9);
-      doc.text(`Esportato il ${format(new Date(), "dd/MM/yyyy HH:mm")} — ${result.count} ordini`, 40, 56);
+      doc.text(`Esportato il ${format(new Date(), "dd/MM/yyyy HH:mm")} — ${result.count} commesse`, 40, 56);
 
       const cols = [
         { key: "order_code", label: "Codice", w: 60 },
@@ -1023,8 +1026,8 @@ function OrdersListInner() {
         y += 13;
       });
 
-      doc.save(`ordini-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      toast({ title: `PDF esportato — ${result.count} ordini` });
+      doc.save(`commesse-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast({ title: `PDF esportato — ${result.count} commesse` });
     } catch (e) {
       toast({
         title: "Errore export PDF",
@@ -1084,7 +1087,7 @@ function OrdersListInner() {
         if (row.order_code?.trim()) {
           const normalizedCode = row.order_code.trim().toLowerCase();
           if (existingCodeSet.has(normalizedCode)) {
-            errors.push(`Riga ${i + 1}: Codice ordine "${row.order_code}" già esistente`);
+            errors.push(`Riga ${i + 1}: Codice commessa "${row.order_code}" già esistente`);
             continue;
           }
         }
@@ -1132,7 +1135,7 @@ function OrdersListInner() {
             <Package className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Ordini</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Commesse</h1>
             <p className="text-sm text-slate-500 mt-0.5">
               Cantieri, ODA, DDT, anomalie e marginalità in un'unica vista.
             </p>
@@ -1217,7 +1220,7 @@ function OrdersListInner() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel className="text-[11px]">Ordini filtrati</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-[11px]">Commesse filtrate</DropdownMenuLabel>
               <DropdownMenuItem onClick={exportOrdersCSV}>
                 <FileText className="h-4 w-4 mr-2" /> Esporta CSV
               </DropdownMenuItem>
@@ -1256,14 +1259,14 @@ function OrdersListInner() {
           {appaltatoreEnabled ? (
             <Button onClick={() => setShowOrderTypeDialog(true)}>
               <Plus className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Nuovo Ordine</span>
+              <span className="hidden sm:inline">Nuova Commessa</span>
               <span className="sm:hidden">Nuovo</span>
             </Button>
           ) : (
             <Button asChild>
               <Link to="/azienda/ordini/nuovo">
                 <Plus className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Nuovo Ordine</span>
+                <span className="hidden sm:inline">Nuova Commessa</span>
                 <span className="sm:hidden">Nuovo</span>
               </Link>
             </Button>
@@ -1357,23 +1360,23 @@ function OrdersListInner() {
             <Card>
               <CardContent className="p-12 text-center">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Nessun ordine trovato</h3>
+                <h3 className="text-lg font-medium mb-2">Nessuna commessa trovata</h3>
                 <p className="text-muted-foreground mb-4">
                   {totalCount === 0
-                    ? "Non hai ancora creato nessun ordine."
-                    : "Nessun ordine corrisponde ai filtri selezionati."}
+                    ? "Non hai ancora creato nessuna commessa."
+                    : "Nessuna commessa corrisponde ai filtri selezionati."}
                 </p>
                 {totalCount === 0 && (
                   appaltatoreEnabled ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />
-                      Crea il primo ordine
+                      Crea la prima commessa
                     </Button>
                   ) : (
                     <Button asChild>
                       <Link to="/azienda/ordini/nuovo">
                         <Plus className="h-4 w-4 mr-2" />
-                        Crea il primo ordine
+                        Crea la prima commessa
                       </Link>
                     </Button>
                   )
@@ -1405,7 +1408,7 @@ function OrdersListInner() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-2">
                   <p className="text-sm text-muted-foreground hidden sm:block">
-                    Mostrando {showingFrom}–{showingTo} di {totalCount} ordini
+                    Mostrando {showingFrom}–{showingTo} di {totalCount} commesse
                   </p>
                   <p className="text-xs text-muted-foreground sm:hidden">
                     {showingFrom}–{showingTo} / {totalCount}
@@ -1432,7 +1435,7 @@ function OrdersListInner() {
       <CSVImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        title="Importa Ordini"
+        title="Importa Commesse"
         fields={ORDER_IMPORT_FIELDS}
         onImport={handleOrdersImport}
       />
@@ -1442,7 +1445,7 @@ function OrdersListInner() {
         onOpenChange={setCustomerSheetsOpen}
       />
 
-      {/* Bivio iniziale "Nuovo Ordine" — solo se Modulo Appaltatori attivo. */}
+      {/* Bivio iniziale "Nuova Commessa" — solo se Modulo Appaltatori attivo. */}
       <OrderTypeChoiceDialog
         open={showOrderTypeDialog}
         onOpenChange={setShowOrderTypeDialog}
@@ -1460,7 +1463,7 @@ export default function OrdersList() {
   };
 
   const tabs = [
-    { id: "ordini", label: "Ordini", icon: ClipboardList, show: true },
+    { id: "ordini", label: "Commesse", icon: ClipboardList, show: true },
     { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewForecast },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewForecast },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewOrders },
@@ -1472,7 +1475,7 @@ export default function OrdersList() {
     <div className="space-y-6">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="border-b border-slate-200 bg-white rounded-t-2xl">
-        <nav className="-mb-px flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-3" role="tablist" aria-label="Sezioni ordini">
+        <nav className="-mb-px flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-3" role="tablist" aria-label="Sezioni commesse">
           {tabs.map((t) => {
             const isActive = activeTab === t.id;
             return (
@@ -1500,7 +1503,7 @@ export default function OrdersList() {
       </div>
 
       {activeTab === "ordini" && (
-        <ErrorBoundary title="Errore nella lista ordini">
+        <ErrorBoundary title="Errore nella lista commesse">
           <OrdersListInner />
         </ErrorBoundary>
       )}

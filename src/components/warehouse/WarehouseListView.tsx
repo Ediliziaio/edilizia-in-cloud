@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -34,9 +34,10 @@ interface WarehouseListViewProps {
 
 function getStatusIndicators(items: WarehouseItem[]) {
   return {
-    ready: items.filter(i => i.status === "in_magazzino" || i.status === "installato").length,
-    ordered: items.filter(i => i.status === "ordinato").length,
+    ready: items.filter(i => i.status === "in_magazzino" || i.status === "prenotato").length,
+    ordered: items.filter(i => i.status === "ordinato" || i.status === "in_arrivo").length,
     toOrder: items.filter(i => i.status === "da_ordinare").length,
+    installed: items.filter(i => i.status === "installato").length,
   };
 }
 
@@ -73,6 +74,11 @@ function WarehouseListView({
   const isSupplierGroup = groupBy === "supplier";
 
   const formatDate = (dateStr: string) => format(new Date(dateStr), "dd MMM", { locale: it });
+
+  useEffect(() => {
+    if (isSupplierGroup || orderGroups.length === 0 || expandedOrders.size > 0) return;
+    setExpandedOrders(new Set(orderGroups.slice(0, 6).map((group) => group.orderId)));
+  }, [expandedOrders.size, isSupplierGroup, orderGroups]);
 
   const toggleOrder = useCallback((orderId: string) => {
     setExpandedOrders(prev => {
@@ -120,8 +126,9 @@ function WarehouseListView({
     estimateSize: (index) => {
       const group = orderGroups[index];
       const isExpanded = expandedOrders.has(group.orderId);
-      // Header ~56px, each item ~44px, footer ~40px
-      return isExpanded ? 56 + group.items.length * 44 + 40 : 56;
+      // Header + item rows. Rows need enough room on narrow/mobile layouts
+      // because status and item copy stack instead of being squeezed.
+      return isExpanded ? 72 + group.items.length * 86 + 48 : 72;
     },
     overscan: 5,
   });
@@ -176,6 +183,15 @@ function WarehouseListView({
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const group = orderGroups[virtualRow.index];
             const indicators = getStatusIndicators(group.items);
+            const totalActiveItems = Math.max(group.items.length - indicators.installed, 0);
+            const readyLabel =
+              indicators.toOrder > 0
+                ? "Materiali da ordinare"
+                : indicators.ordered > 0
+                  ? "Merce in arrivo"
+                  : indicators.ready >= totalActiveItems
+                    ? "Pronto per uscita"
+                    : "Da controllare";
             const isExpanded = expandedOrders.has(group.orderId);
             const urgent = group.items.some(isItemUrgent);
             const critical = group.items.some(isItemCritical);
@@ -207,19 +223,32 @@ function WarehouseListView({
                   {/* Group header */}
                   <div
                     className={cn(
-                      "flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 transition-colors",
+                      "flex flex-col gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors sm:flex-row sm:items-center sm:justify-between",
                       isExpanded && "border-b"
                     )}
                     onClick={() => toggleOrder(group.orderId)}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold truncate">
                             {isSupplierGroup
                               ? group.orderCode
                               : `${group.orderCode || "Ordine"} - ${group.customerName}`}
                           </span>
+                          {!isSupplierGroup && (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-xs shrink-0",
+                                indicators.toOrder > 0 && "border-amber-300 bg-amber-50 text-amber-700",
+                                indicators.toOrder === 0 && indicators.ordered > 0 && "border-blue-300 bg-blue-50 text-blue-700",
+                                indicators.toOrder === 0 && indicators.ordered === 0 && "border-emerald-300 bg-emerald-50 text-emerald-700",
+                              )}
+                            >
+                              {readyLabel}
+                            </Badge>
+                          )}
                           {!isSupplierGroup && (urgent || critical) && daysUntil !== null && (
                             <Badge
                               variant="destructive"
@@ -238,23 +267,26 @@ function WarehouseListView({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-between gap-3 sm:justify-end">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {indicators.ready > 0 && (
                           <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs">
-                            {indicators.ready}
+                            {indicators.ready} pronti
                           </Badge>
                         )}
                         {indicators.ordered > 0 && (
                           <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs">
-                            {indicators.ordered}
+                            {indicators.ordered} in arrivo
                           </Badge>
                         )}
                         {indicators.toOrder > 0 && (
                           <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
-                            {indicators.toOrder}
+                            {indicators.toOrder} da ordinare
                           </Badge>
                         )}
+                        <Badge variant="secondary" className="text-xs">
+                          {indicators.ready}/{totalActiveItems || group.items.length} pronti
+                        </Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">{group.items.length} art.</span>
                       <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />

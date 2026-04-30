@@ -8,7 +8,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   Popover,
@@ -96,10 +95,12 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
   sections = [],
   onSectionChange,
 }: WarehouseItemRowProps) {
+  const statusConfig = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare;
+
   return (
     <div
       className={cn(
-        "flex items-center justify-between p-2 rounded bg-background border cursor-pointer hover:bg-muted/40 transition-colors",
+        "flex flex-col gap-2 p-2.5 rounded bg-background border cursor-pointer hover:bg-muted/40 transition-colors sm:flex-row sm:items-center sm:justify-between",
         isSelected && "ring-1 ring-primary"
       )}
       onClick={(e) => {
@@ -108,17 +109,20 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
         onSelectItem(item);
       }}
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-start gap-2 min-w-0 flex-1 sm:items-center sm:gap-3">
         <Checkbox
           checked={isSelected}
           onCheckedChange={() => onToggleSelection(item.id)}
+          className="mt-0.5 sm:mt-0"
         />
         <Badge variant="secondary" className="font-mono text-xs shrink-0">
           {item.quantity || 1}x
         </Badge>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="font-medium text-sm truncate">{item.name}</p>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground">
+              {item.name}
+            </p>
             {stockMatch && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -149,7 +153,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
                 onValueChange={(val) => onSectionChange(item.id, val === "__none__" ? null : val)}
               >
                 <SelectTrigger className="h-6 text-xs flex-1 border-dashed">
-                  <SelectValue placeholder="Zona..." />
+                  <span className="truncate">Zona...</span>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nessuna zona</SelectItem>
@@ -163,15 +167,21 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex w-full items-center justify-between gap-2 pl-8 sm:w-auto sm:justify-end sm:pl-0 sm:shrink-0" onClick={(e) => e.stopPropagation()}>
         <ItemNotePopover item={item} onUpdateNotes={onUpdateNotes} />
         <Select
           value={item.status}
           onValueChange={(value) => onStatusChange(item.id, value as OrderItemStatus)}
           disabled={isUpdating}
         >
-          <SelectTrigger className={cn("w-32 h-8 text-xs border-0 font-medium", (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).bgColor, (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).color)}>
-            <SelectValue />
+          <SelectTrigger
+            className={cn(
+              "h-8 min-w-[150px] flex-1 border text-xs font-semibold sm:w-[156px] sm:flex-none [&>span]:line-clamp-1",
+              statusConfig.bgColor,
+              statusConfig.color
+            )}
+          >
+            <span className="truncate">{statusConfig.label}</span>
           </SelectTrigger>
           <SelectContent>
             {Object.entries(STATUS_CONFIG).map(([status, config]) => (

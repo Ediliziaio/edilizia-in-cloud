@@ -531,10 +531,10 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.cruscotto.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
-      toast.success("Ordine eliminato");
+      toast.success("Commessa eliminata");
       navigate("/azienda/ordini");
     },
-    onError: () => { toast.error("Errore nell'eliminazione dell'ordine."); },
+    onError: () => { toast.error("Errore nell'eliminazione della commessa."); },
   });
 
   // Duplicate order mutation
@@ -554,11 +554,11 @@ function OrderDetailInner() {
     onSuccess: (data) => {
       setDuplicateDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
-      toast.success(`Ordine duplicato con codice ${data.order_code}`);
+      toast.success(`Commessa duplicata con codice ${data.order_code}`);
       navigate(`/azienda/ordini/${data.id}`);
     },
     onError: () => {
-      toast.error("Errore nella duplicazione dell'ordine.");
+      toast.error("Errore nella duplicazione della commessa.");
     },
   });
 
@@ -788,8 +788,8 @@ function OrderDetailInner() {
   if (!order) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Ordine non trovato</p>
-        <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>Torna agli ordini</Button>
+        <p className="text-muted-foreground">Commessa non trovata</p>
+        <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>Torna alle commesse</Button>
       </div>
     );
   }
@@ -1448,7 +1448,7 @@ function OrderDetailInner() {
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare l'ordine?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare la commessa?</AlertDialogTitle>
             <AlertDialogDescription>Questa azione è irreversibile.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1472,7 +1472,7 @@ function OrderDetailInner() {
           <DialogHeader>
             <DialogTitle>Conferma cambio stato</DialogTitle>
             <DialogDescription>
-              Vuoi cambiare lo stato dell'ordine a "{statusChangeDialog.targetStatusName}"?
+              Vuoi cambiare lo stato della commessa a "{statusChangeDialog.targetStatusName}"?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1495,10 +1495,10 @@ function OrderDetailInner() {
       <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Duplica ordine</DialogTitle>
+            <DialogTitle>Duplica commessa</DialogTitle>
             <DialogDescription>
-              Duplicare l'ordine {order.order_code ? `#${order.order_code}` : ""}? Il nuovo ordine
-              verrà creato come bozza senza pagamenti incassati.
+              Duplicare la commessa {order.order_code ? `#${order.order_code}` : ""}? La nuova commessa
+              verrà creata come bozza senza pagamenti incassati.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1589,7 +1589,7 @@ function OrderDetailInner() {
 
 export default function OrderDetail() {
   return (
-    <ErrorBoundary title="Errore nel dettaglio ordine">
+    <ErrorBoundary title="Errore nel dettaglio commessa">
       <OrderDetailInner />
     </ErrorBoundary>
   );

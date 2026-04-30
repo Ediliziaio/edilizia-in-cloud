@@ -55,7 +55,7 @@ export function DiaryEmptyState({ onSelectChannel }: DiaryEmptyStateProps) {
         Nessun messaggio ancora
       </h2>
       <p className="text-sm text-gray-500 text-center mb-10 max-w-sm">
-        Inizia a comunicare con il cliente su questo ordine. Scegli il canale che preferisci.
+        Inizia a comunicare con il cliente su questa commessa. Scegli il canale che preferisci.
       </p>
 
       {/* Card canali */}
