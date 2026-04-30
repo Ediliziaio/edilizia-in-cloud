@@ -101,7 +101,9 @@ export function useCompanyStaffUsers(
         p_company_id: companyId,
       });
 
-      if (!rpcError && Array.isArray(rpcUsers) && rpcUsers.length > 0) {
+      if (!rpcError && Array.isArray(rpcUsers)) {
+        if (rpcUsers.length === 0) return [];
+
         const hasRolePayload = (rpcUsers as RpcCompanyPerson[]).some((p) => Array.isArray(p.roles));
         const filteredUsers = hasRolePayload
           ? (rpcUsers as RpcCompanyPerson[]).filter((p) => {

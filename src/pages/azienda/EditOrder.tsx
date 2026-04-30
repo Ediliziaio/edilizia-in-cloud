@@ -199,7 +199,7 @@ function EditOrderInner() {
   const { data: dbInstallments = [] } = useQuery({
     queryKey: ["order-installments", id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("order_installments")
         .select("*")
         .eq("order_id", id!)
@@ -359,7 +359,7 @@ function EditOrderInner() {
       paymentType, totalAmount, vatRate,
       installments, financingCost,
       hasBuildingBonus,
-      orderItems, dataLoaded, saveDraft, dateToIso]);
+      orderItems, dataLoaded, saveDraft, dateToIso, order?.customer_id]);
 
   const handleClearDraft = useCallback(() => {
     clearDraft();

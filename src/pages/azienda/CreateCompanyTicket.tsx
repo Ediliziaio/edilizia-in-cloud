@@ -22,6 +22,13 @@ const MAX_FILES = 5;
 const ACCEPTED_TYPES = ["image/jpeg","image/png","image/gif","image/webp","application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 const ACCEPTED_FORMATS = ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx";
 
+interface ImpiantoOption {
+  id: string;
+  tipo_impianto: string | null;
+  marca: string | null;
+  modello: string | null;
+}
+
 export default function CreateCompanyTicket() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -81,7 +88,7 @@ export default function CreateCompanyTicket() {
   const { data: tecnici = [] } = useCompanyStaffUsers(effectiveCompany?.id, "all");
 
   // Impianti del cliente selezionato (per interventi)
-  const { data: impianti = [] } = useQuery({
+  const { data: impianti = [] } = useQuery<ImpiantoOption[]>({
     queryKey: ["impianti-customer-ticket", customerId],
     queryFn: async () => {
       const { data } = await supabase
@@ -89,7 +96,7 @@ export default function CreateCompanyTicket() {
         .select("id, tipo_impianto, marca, modello")
         .eq("customer_id", customerId)
         .order("tipo_impianto");
-      return data ?? [];
+      return (data ?? []) as ImpiantoOption[];
     },
     enabled: !!customerId && isIntervento,
   });
@@ -328,7 +335,7 @@ export default function CreateCompanyTicket() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Nessun impianto</SelectItem>
-                      {impianti.map((im: any) => (
+                      {impianti.map((im) => (
                         <SelectItem key={im.id} value={im.id}>
                           {im.tipo_impianto?.replace("_", " ")}{im.marca ? ` — ${im.marca}` : ""}{im.modello ? ` ${im.modello}` : ""}
                         </SelectItem>

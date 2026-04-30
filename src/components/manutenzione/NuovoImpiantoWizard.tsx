@@ -174,7 +174,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                 <Select value={customerId} onValueChange={setCustomerId}>
                   <SelectTrigger><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
                   <SelectContent>
-                    {clienti.map((c: any) => <SelectItem key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}</SelectItem>)}
+                    {clienti.map((c) => <SelectItem key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -248,7 +248,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                       <SelectTrigger><SelectValue placeholder="Qualsiasi tecnico" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">Qualsiasi tecnico</SelectItem>
-                        {tecnici.map((t: any) => <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>)}
+                        {tecnici.map((t) => <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>

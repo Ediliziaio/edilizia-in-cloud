@@ -31,6 +31,13 @@ interface Props {
   noNavigate?: boolean;
 }
 
+interface ImpiantoOption {
+  id: string;
+  tipo_impianto: string | null;
+  marca: string | null;
+  modello: string | null;
+}
+
 export function NuovoInterventoDialog({
   open,
   onClose,
@@ -75,7 +82,7 @@ export function NuovoInterventoDialog({
   const { data: tecnici = [] } = useCompanyStaffUsers(open ? effectiveCompany?.id : null, "all");
 
   // ── Impianti del cliente selezionato ─────────────────────────────────────────
-  const { data: impianti = [] } = useQuery({
+  const { data: impianti = [] } = useQuery<ImpiantoOption[]>({
     queryKey: ["impianti-cliente-dialog", customerId],
     queryFn: async () => {
       const { data } = await supabase
@@ -83,7 +90,7 @@ export function NuovoInterventoDialog({
         .select("id, tipo_impianto, marca, modello")
         .eq("customer_id", customerId)
         .order("tipo_impianto");
-      return data ?? [];
+      return (data ?? []) as ImpiantoOption[];
     },
     enabled: !!customerId,
   });
@@ -297,7 +304,7 @@ export function NuovoInterventoDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nessun impianto</SelectItem>
-                  {impianti.map((im: any) => (
+                  {impianti.map((im) => (
                     <SelectItem key={im.id} value={im.id}>
                       {im.tipo_impianto?.replace("_", " ")}
                       {im.marca ? ` — ${im.marca}` : ""}

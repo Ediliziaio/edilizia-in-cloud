@@ -46,15 +46,9 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
         return data as CompanyCustomer[];
       }
 
-      // Fallback compatibile finché la migration RPC non è applicata.
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email")
-        .eq("company_id", companyId)
-        .order("last_name");
-
-      if (profilesError) throw profilesError;
-      return (profiles ?? []) as CompanyCustomer[];
+      // Fail closed: senza RPC server-side non possiamo distinguere in modo
+      // affidabile clienti e staff dal browser, perché user_roles è protetto da RLS.
+      throw new Error("Directory clienti non disponibile: applicare la migration get_company_customers.");
     },
   });
 }

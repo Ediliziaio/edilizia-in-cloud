@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export function OperaiCampoList() {
   const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id ?? "";
+  const companyId = effectiveCompany?.id ?? "";
 
   const { data: staffUsers = [], isLoading } = useCompanyStaffUsers(companyId, "all");
   const operai = staffUsers.filter((u) => u.roles?.includes("employee") || u.roles?.includes("worker"));
@@ -27,7 +27,8 @@ export function OperaiCampoList() {
         .select("user_id")
         .eq("company_id", companyId);
       const counts: Record<string, number> = {};
-      (data ?? []).forEach((a: any) => {
+      (data ?? []).forEach((a: { user_id: string | null }) => {
+        if (!a.user_id) return;
         counts[a.user_id] = (counts[a.user_id] ?? 0) + 1;
       });
       return counts;

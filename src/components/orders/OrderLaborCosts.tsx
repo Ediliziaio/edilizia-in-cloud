@@ -57,6 +57,21 @@ interface OrderExternalTeam {
   external_team: { name: string };
 }
 
+interface CampoAssignment {
+  id: string;
+  user_id: string;
+  role_type: "employee" | "subcontractor" | string;
+  data_inizio: string | null;
+  data_fine_prevista: string | null;
+  is_capocantiere: boolean | null;
+  profile: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  } | null;
+}
+
 function DurcBadge({ scadenza }: { scadenza: string | null }) {
   if (!scadenza) return <Badge variant="outline" className="text-xs">DURC mancante</Badge>;
   const daysLeft = differenceInDays(parseISO(scadenza), new Date());
@@ -118,7 +133,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
   const { data: subappaltatori = [] } = useQuery({
     queryKey: ["subappaltatori-order", orderId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("v_subappaltatori_dashboard")
         .select("*")
         .eq("order_id", orderId)
@@ -130,7 +145,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: assegnazioni = [], isLoading: loadingAssegnazioni } = useQuery({
+  const { data: assegnazioni = [], isLoading: loadingAssegnazioni } = useQuery<CampoAssignment[]>({
     queryKey: ["order-campo-assignments", orderId],
     queryFn: async () => {
       const { data } = await supabase
@@ -138,7 +153,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
         .select("*, profile:profiles(id, first_name, last_name, email)")
         .eq("order_id", orderId)
         .order("created_at", { ascending: true });
-      return data ?? [];
+      return (data ?? []) as CampoAssignment[];
     },
     enabled: !!orderId,
   });
@@ -199,7 +214,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
       setFormUserId(""); setFormDataInizio(""); setFormDataFine("");
       setFormCapocantiere(false); setFormNote("");
     },
-    onError: (e: any) => toast.error(e.message ?? "Errore assegnazione"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore assegnazione"),
   });
 
   const rimuoviCampoMutation = useMutation({
@@ -217,9 +232,9 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
   const totalSubappCost = subappaltatori.reduce((s, sub) => s + (sub.totale_sal_lordo ?? 0), 0);
   const totalLaborCost = totalEmployeeCost + totalTeamCost + totalSubappCost;
 
-  const capocantiere = (assegnazioni as any[]).find((a: any) => a.is_capocantiere);
-  const assegnazioniOperai = (assegnazioni as any[]).filter((a: any) => a.role_type === "employee");
-  const assegnazioniSub = (assegnazioni as any[]).filter((a: any) => a.role_type === "subcontractor");
+  const capocantiere = assegnazioni.find((a) => a.is_capocantiere);
+  const assegnazioniOperai = assegnazioni.filter((a) => a.role_type === "employee");
+  const assegnazioniSub = assegnazioni.filter((a) => a.role_type === "subcontractor");
 
   return (
     <Card>
@@ -458,15 +473,15 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
 
             {loadingAssegnazioni ? (
               <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5 text-muted-foreground" /></div>
-            ) : (assegnazioni as any[]).filter((a: any) => !a.is_capocantiere).length === 0 ? (
+            ) : assegnazioni.filter((a) => !a.is_capocantiere).length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">Nessun operaio assegnato al cantiere</p>
             ) : (
               <div className="space-y-2">
                 {/* Operai */}
-                {assegnazioniOperai.filter((a: any) => !a.is_capocantiere).length > 0 && (
+                {assegnazioniOperai.filter((a) => !a.is_capocantiere).length > 0 && (
                   <>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Operai</p>
-                    {assegnazioniOperai.filter((a: any) => !a.is_capocantiere).map((a: any) => (
+                    {assegnazioniOperai.filter((a) => !a.is_capocantiere).map((a) => (
                       <div key={a.id} className="flex items-center justify-between p-2.5 bg-muted/40 rounded-lg border">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
@@ -493,10 +508,10 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                 )}
 
                 {/* Subappaltatori campo */}
-                {assegnazioniSub.filter((a: any) => !a.is_capocantiere).length > 0 && (
+                {assegnazioniSub.filter((a) => !a.is_capocantiere).length > 0 && (
                   <>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-2">Subappaltatori</p>
-                    {assegnazioniSub.filter((a: any) => !a.is_capocantiere).map((a: any) => (
+                    {assegnazioniSub.filter((a) => !a.is_capocantiere).map((a) => (
                       <div key={a.id} className="flex items-center justify-between p-2.5 bg-muted/40 rounded-lg border">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-orange-100 dark:bg-orange-900 flex items-center justify-center text-[10px] font-bold text-orange-700 dark:text-orange-300">
