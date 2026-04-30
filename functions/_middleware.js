@@ -1954,7 +1954,7 @@ const ASSET_EXT_RE = /\.(js|css|png|jpg|jpeg|webp|avif|gif|svg|ico|woff2?|ttf|eo
 const PUBLIC_NOINDEX_PATTERNS = [
   /^\/(admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|app)(\/|$)/,
   /^\/(login|admin-login|clienti-login|lavori-login|cambia-password|reset-password)(\/|$)/,
-  /^\/(prenota|offerta|firma|firma-odv|firma-fea|preventivo|feedback\/nps)(\/|$)/,
+  /^\/(prenota|offerta|firma|firma-odv|firma-fea|preventivo|ref|feedback\/nps)(\/|$)/,
 ];
 
 function isPrivateSubdomain(hostname) {

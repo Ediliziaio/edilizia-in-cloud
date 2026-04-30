@@ -129,7 +129,7 @@
     <script>
       (function () {
         var path = window.location.pathname || '/';
-        var APP_PREFIXES = /^\/(azienda|admin|salesperson|partner|customer|employee|tecnico|campo|portale-cliente|login|auth-callback|reset-password)(\/|$)/;
+        var APP_PREFIXES = /^\/(azienda|admin|cliente|dipendente|venditore|partner|salesperson|customer|employee|tecnico|campo|portale|portale-cliente|login|auth-callback|reset-password)(\/|$)/;
         if (APP_PREFIXES.test(path)) return; // no-op su route applicative
         var head = document.head;
         function add(rel, href, extra) {

@@ -7,6 +7,18 @@
   Content-Type: text/plain; charset=utf-8
   Cache-Control: public, max-age=3600
 
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=3600
+
+/llms-full.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=3600
+
+/62ac6a799ade356135bf527565c13e17.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=86400
+
 # Security headers for all pages
 /*
   X-Frame-Options: SAMEORIGIN
@@ -119,4 +131,7 @@
   X-Robots-Tag: noindex, nofollow
 
 /feedback/*
+  X-Robots-Tag: noindex, nofollow
+
+/ref/*
   X-Robots-Tag: noindex, nofollow
