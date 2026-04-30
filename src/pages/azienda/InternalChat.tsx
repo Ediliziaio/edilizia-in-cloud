@@ -96,6 +96,30 @@ interface Profile {
   avatar_url?: string | null;
 }
 
+type InternalRole =
+  | "company_admin"
+  | "company_staff"
+  | "salesperson"
+  | "call_center"
+  | "employee"
+  | "subcontractor"
+  | "super_admin";
+
+interface UserRoleRow {
+  user_id: string;
+  role: string;
+}
+
+const INTERNAL_CHAT_ROLES = new Set<InternalRole>([
+  "company_admin",
+  "company_staff",
+  "salesperson",
+  "call_center",
+  "employee",
+  "subcontractor",
+  "super_admin",
+]);
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function escapeHtml(raw: string): string {
   return raw
@@ -205,6 +229,36 @@ function useInternalChat(companyIdOverride?: string) {
     },
   });
 
+  const profileIds = useMemo(() => profiles.map((p) => p.id), [profiles]);
+
+  const { data: profileRoles = [] } = useQuery({
+    queryKey: ["internal-chat-profile-roles", companyId, profileIds],
+    enabled: !!companyId && profileIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", profileIds);
+      if (error) throw error;
+      return data as UserRoleRow[];
+    },
+  });
+
+  const internalProfileIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const role of profileRoles) {
+      if (INTERNAL_CHAT_ROLES.has(role.role as InternalRole)) ids.add(role.user_id);
+    }
+    return ids;
+  }, [profileRoles]);
+
+  const internalProfiles = useMemo(
+    () => profiles.filter((p) => internalProfileIds.has(p.id)),
+    [profiles, internalProfileIds],
+  );
+
   // Last message per channel for preview — single batch query instead of N+1
   const channelIds = useMemo(() => channels.map((c) => c.id), [channels]);
   const { data: lastMessages = {} } = useQuery({
@@ -228,9 +282,16 @@ function useInternalChat(companyIdOverride?: string) {
     staleTime: 30_000,
   });
 
-  const myChannels = channels.filter((ch) =>
-    members.some((m) => m.channel_id === ch.id && m.user_id === userId)
-  );
+  const myChannels = channels.filter((ch) => {
+    if (!members.some((m) => m.channel_id === ch.id && m.user_id === userId)) return false;
+    if (ch.is_system || ch.name.toLowerCase().includes("lucia")) return true;
+
+    const channelMemberIds = members
+      .filter((m) => m.channel_id === ch.id)
+      .map((m) => m.user_id);
+
+    return channelMemberIds.length === 0 || channelMemberIds.every((id) => internalProfileIds.has(id));
+  });
 
   const { data: unreadCounts = {}, refetch: refetchUnread } = useQuery({
     queryKey: ["internal-chat-unread", companyId, userId],
@@ -266,7 +327,20 @@ function useInternalChat(companyIdOverride?: string) {
     refetchUnread();
   }, [userId, refetchUnread]);
 
-  return { channels: myChannels, allChannels: channels, members, profiles, companyId, userId, queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages };
+  return {
+    channels: myChannels,
+    allChannels: channels,
+    members,
+    profiles: internalProfiles,
+    companyId,
+    userId,
+    queryClient,
+    unreadCounts,
+    markChannelRead,
+    refetchUnread,
+    lastMessages,
+    internalProfileIds,
+  };
 }
 
 function useChannelMessages(channelId: string | null, onNewMessage?: () => void) {
@@ -619,8 +693,8 @@ interface InternalChatProps {
 
 export default function InternalChat({ companyIdOverride }: InternalChatProps = {}) {
   const {
-    channels, allChannels, members, profiles, companyId, userId,
-    queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages,
+    channels, members, profiles, companyId, userId,
+    queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages, internalProfileIds,
   } = useInternalChat(companyIdOverride);
   const permissions = usePermissions();
 
@@ -798,12 +872,13 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const createChannelMutation = useMutation({
     mutationFn: async () => {
       if (!companyId || !userId) return;
+      const safeSelectedMembers = selectedMembers.filter((id) => internalProfileIds.has(id));
       const { data: ch, error } = await supabase.from("internal_chat_channels").insert({
         company_id: companyId, name: channelName.trim(),
         description: channelDesc.trim() || null, type: "group", created_by: userId,
       }).select().single();
       if (error) throw error;
-      const allMemberIds = [userId, ...selectedMembers.filter((id) => id !== userId)];
+      const allMemberIds = [userId, ...safeSelectedMembers.filter((id) => id !== userId)];
       const { error: mErr } = await supabase.from("internal_chat_members").insert(
         allMemberIds.map((uid) => ({
           channel_id: ch.id, user_id: uid, company_id: companyId,
@@ -826,6 +901,10 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   // Create DM
   const createDm = useCallback(async (targetUserId: string) => {
     if (!companyId || !userId) return;
+    if (!internalProfileIds.has(targetUserId)) {
+      toast.error("Puoi avviare chat solo con persone interne all'azienda.");
+      return;
+    }
     // Check if DM already exists
     const existing = channels.find((ch) =>
       ch.is_dm && ch.dm_user_ids &&
@@ -853,7 +932,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     handleSelectChannel(ch.id);
     setCreateDmOpen(false);
     toast.success("Chat creata!");
-  }, [companyId, userId, channels, profileMap, queryClient, handleSelectChannel]);
+  }, [companyId, userId, channels, profileMap, queryClient, handleSelectChannel, internalProfileIds]);
 
   const handleSend = useCallback(() => {
     if (!newMsg.trim()) return;
@@ -1009,7 +1088,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400"
-              onClick={() => setCreateDmOpen(true)} title="Nuovo messaggio">
+              onClick={() => setCreateDmOpen(true)} title="Nuovo messaggio interno">
               <UserPlus className="h-5 w-5" />
             </Button>
             <DropdownMenu>
@@ -1020,7 +1099,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setCreateDmOpen(true)}>
-                  <MessageCircle className="h-4 w-4 mr-2" /> Nuovo messaggio
+                  <MessageCircle className="h-4 w-4 mr-2" /> Nuovo messaggio interno
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setCreateOpen(true)}>
                   <UsersRound className="h-4 w-4 mr-2" /> Nuovo gruppo
@@ -1035,7 +1114,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#54656f] dark:text-gray-500" />
             <Input
-              placeholder="Cerca o inizia una nuova chat"
+              placeholder="Cerca nella chat interna"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 h-9 rounded-lg bg-[#f0f2f5] dark:bg-[#202c33] border-0 text-sm placeholder:text-[#667781]"
@@ -1070,7 +1149,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
                 {searchQuery ? "Nessun risultato" : "Nessuna chat"}
               </p>
               <p className="text-[13px] text-muted-foreground mt-1">
-                Inizia una conversazione con un collega
+                Inizia una conversazione con una persona dell'azienda
               </p>
               <div className="flex gap-2 mt-4">
                 <Button size="sm" variant="outline" className="rounded-full" onClick={() => setCreateDmOpen(true)}>
@@ -1482,13 +1561,17 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-[#00a884]" /> Nuovo Messaggio
+              <MessageCircle className="h-5 w-5 text-[#00a884]" /> Nuovo messaggio interno
             </DialogTitle>
           </DialogHeader>
           <div>
-            <Label>Seleziona contatto</Label>
+            <Label>Seleziona persona aziendale</Label>
             <ScrollArea className="h-[300px] border rounded-lg p-1 mt-2">
-              {profiles.filter((p) => p.id !== userId).map((p) => (
+              {profiles.filter((p) => p.id !== userId).length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  Nessuna persona interna disponibile. I clienti non vengono mostrati nella chat aziendale.
+                </div>
+              ) : profiles.filter((p) => p.id !== userId).map((p) => (
                 <button
                   key={p.id}
                   onClick={() => createDm(p.id)}
