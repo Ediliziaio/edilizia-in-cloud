@@ -1,15 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import {
+  assertMetaCompanyAdminAccess,
+  assertOwnedMetaIntegration,
+  getErrorMessage,
+  getErrorStatus,
+} from "../_shared/metaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
   try {
@@ -49,14 +59,18 @@ serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const userId = claimsData.claims.sub;
+    await assertMetaCompanyAdminAccess(adminClient, userId, company_id);
+    await assertOwnedMetaIntegration(adminClient, integration_id, company_id);
 
     // Get access token and page tokens
-    const { data: creds } = await adminClient
+    const { data: creds, error: credsError } = await adminClient
       .from("integration_credentials")
       .select("access_token_encrypted, meta_user_id, meta_page_tokens")
       .eq("integration_id", integration_id)
-      .single();
+      .maybeSingle();
 
+    if (credsError) throw credsError;
     if (!creds) {
       return new Response(JSON.stringify({ error: "No credentials found" }), {
         status: 404,
@@ -66,15 +80,59 @@ serve(async (req) => {
 
     const encKey = getEncryptionKey();
     const accessToken = await decrypt(creds.access_token_encrypted, encKey);
+    const pageTokens = (creds.meta_page_tokens || {}) as Record<string, string>;
+
+    const getPageAccessTokenForAsset = async (pageAssetId: string): Promise<string> => {
+      const { data: pageAsset, error: pageAssetError } = await adminClient
+        .from("meta_assets")
+        .select("id, asset_id")
+        .eq("id", pageAssetId)
+        .eq("company_id", company_id)
+        .eq("integration_id", integration_id)
+        .eq("asset_type", "page")
+        .maybeSingle();
+
+      if (pageAssetError) throw pageAssetError;
+      if (!pageAsset) throw new Error("Pagina Meta non trovata o non autorizzata");
+
+      const encryptedPageToken = pageTokens[pageAsset.asset_id];
+      return encryptedPageToken ? await decrypt(encryptedPageToken, encKey) : accessToken;
+    };
+
+    const getPageAccessTokenForForm = async (
+      formId: string,
+      fallbackPageAssetId?: string | null,
+    ): Promise<string> => {
+      let pageAssetId = fallbackPageAssetId || null;
+
+      if (!pageAssetId) {
+        const { data: formRecord, error: formRecordError } = await adminClient
+          .from("meta_lead_forms")
+          .select("page_asset_id")
+          .eq("company_id", company_id)
+          .eq("integration_id", integration_id)
+          .eq("form_id", formId)
+          .maybeSingle();
+
+        if (formRecordError) throw formRecordError;
+        pageAssetId = formRecord?.page_asset_id || null;
+      }
+
+      return pageAssetId ? await getPageAccessTokenForAsset(pageAssetId) : accessToken;
+    };
 
     let result: any;
 
     switch (action) {
       case "get-assets": {
-        const pagesRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
+        const params = new URLSearchParams({
+          fields: "id,name,instagram_business_account{id,name,username}",
+          limit: "100",
+          access_token: accessToken,
+        });
+        const pagesData = await fetchGraphJson(
+          `https://graph.facebook.com/v21.0/me/accounts?${params.toString()}`,
         );
-        const pagesData = await pagesRes.json();
         
         const { data: dbAssets } = await adminClient
           .from("meta_assets")
@@ -97,12 +155,16 @@ serve(async (req) => {
           });
         }
 
-        const { data: pageAsset } = await adminClient
+        const { data: pageAsset, error: pageAssetError } = await adminClient
           .from("meta_assets")
           .select("*")
           .eq("id", page_asset_id)
-          .single();
+          .eq("company_id", company_id)
+          .eq("integration_id", integration_id)
+          .eq("asset_type", "page")
+          .maybeSingle();
 
+        if (pageAssetError) throw pageAssetError;
         if (!pageAsset) {
           return new Response(JSON.stringify({ error: "Page asset not found" }), {
             status: 404,
@@ -110,16 +172,14 @@ serve(async (req) => {
           });
         }
 
-        // Get page access token from credentials (secure storage), not from meta_assets
-        const pageTokens = (creds as any).meta_page_tokens || {};
-        const pageAccessToken = pageTokens[pageAsset.asset_id]
-          ? await decrypt(pageTokens[pageAsset.asset_id], encKey)
-          : accessToken;
-
-        const formsRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/${pageAsset.asset_id}/leadgen_forms?fields=id,name,status,questions&access_token=${pageAccessToken}`
+        const pageAccessToken = await getPageAccessTokenForAsset(page_asset_id);
+        const params = new URLSearchParams({
+          fields: "id,name,status,questions",
+          access_token: pageAccessToken,
+        });
+        const formsData = await fetchGraphJson(
+          `https://graph.facebook.com/v21.0/${pageAsset.asset_id}/leadgen_forms?${params.toString()}`,
         );
-        const formsData = await formsRes.json();
 
         const { data: dbForms } = await adminClient
           .from("meta_lead_forms")
@@ -135,6 +195,7 @@ serve(async (req) => {
       }
 
       case "get-form-fields": {
+        const pageAssetIdForForm = body.page_asset_id as string | undefined;
         if (!form_id) {
           return new Response(JSON.stringify({ error: "form_id required" }), {
             status: 400,
@@ -142,10 +203,14 @@ serve(async (req) => {
           });
         }
 
-        const formRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/${form_id}?fields=id,name,questions,status&access_token=${accessToken}`
+        const formAccessToken = await getPageAccessTokenForForm(form_id, pageAssetIdForForm);
+        const params = new URLSearchParams({
+          fields: "id,name,questions,status",
+          access_token: formAccessToken,
+        });
+        const formData = await fetchGraphJson(
+          `https://graph.facebook.com/v21.0/${form_id}?${params.toString()}`,
         );
-        const formData = await formRes.json();
 
         result = { form: formData };
         break;
@@ -160,17 +225,20 @@ serve(async (req) => {
           });
         }
 
-        const leadRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/${lead_id}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
+        const params = new URLSearchParams({
+          fields: "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id",
+          access_token: accessToken,
+        });
+        const leadData = await fetchGraphJson(
+          `https://graph.facebook.com/v21.0/${lead_id}?${params.toString()}`,
         );
-        const leadData = await leadRes.json();
 
         result = { lead: leadData };
         break;
       }
 
       case "backfill-leads": {
-        const { form_id: bfFormId, mode, since_date } = body;
+        const { form_id: bfFormId, mode, since_date, page_asset_id: bfPageAssetId } = body;
         if (!bfFormId) {
           return new Response(JSON.stringify({ error: "form_id required" }), {
             status: 400,
@@ -179,42 +247,40 @@ serve(async (req) => {
         }
 
         // Find the page asset that owns this form to get the correct page token
-        const { data: formRecord } = await adminClient
+        const { data: formRecord, error: formRecordError } = await adminClient
           .from("meta_lead_forms")
-          .select("page_id")
+          .select("page_asset_id")
           .eq("form_id", bfFormId)
+          .eq("company_id", company_id)
           .eq("integration_id", integration_id)
-          .single();
+          .maybeSingle();
+        if (formRecordError) throw formRecordError;
 
-        const pageTokens = (creds as any).meta_page_tokens || {};
-        let bfToken = accessToken;
-        if (formRecord?.page_id) {
-          const { data: pageAsset } = await adminClient
-            .from("meta_assets")
-            .select("asset_id")
-            .eq("id", formRecord.page_id)
-            .single();
-          if (pageAsset && pageTokens[pageAsset.asset_id]) {
-            bfToken = await decrypt(pageTokens[pageAsset.asset_id], encKey);
-          }
-        }
-
-        let url = `https://graph.facebook.com/v21.0/${bfFormId}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name&limit=50&access_token=${bfToken}`;
+        const pageAssetId = bfPageAssetId || formRecord?.page_asset_id || null;
+        const bfToken = await getPageAccessTokenForForm(bfFormId, pageAssetId);
+        const params = new URLSearchParams({
+          fields: "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id",
+          limit: "50",
+          access_token: bfToken,
+        });
         if (mode === "since_date" && since_date) {
           const sinceTs = Math.floor(new Date(since_date).getTime() / 1000);
-          url += `&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${sinceTs}}]`;
+          params.set(
+            "filtering",
+            JSON.stringify([{ field: "time_created", operator: "GREATER_THAN", value: sinceTs }]),
+          );
         }
 
         let imported = 0;
-        let nextUrl: string | null = url;
+        let nextUrl: string | null =
+          `https://graph.facebook.com/v21.0/${bfFormId}/leads?${params.toString()}`;
 
         while (nextUrl) {
-          const res = await fetchWithRetry(nextUrl);
-          const data = await res.json();
+          const data = await fetchGraphJson(nextUrl);
           const leads = data.data || [];
 
           for (const lead of leads) {
-            await adminClient
+            const { error: eventError } = await adminClient
               .from("integration_webhook_events")
               .upsert({
                 company_id,
@@ -222,11 +288,18 @@ serve(async (req) => {
                 provider: "meta",
                 event_type: "leadgen",
                 event_id: lead.id,
-                payload: lead,
+                payload: {
+                  ...lead,
+                  leadgen_id: lead.id,
+                  form_id: lead.form_id || bfFormId,
+                  page_asset_id: pageAssetId,
+                  raw: lead,
+                },
                 received_at: new Date().toISOString(),
                 status: "pending",
                 fail_count: 0,
-              }, { onConflict: "company_id,event_id" });
+              }, { onConflict: "company_id,provider,event_id", ignoreDuplicates: true });
+            if (eventError) throw eventError;
             imported++;
           }
 
@@ -235,7 +308,7 @@ serve(async (req) => {
 
         await adminClient.from("integration_audit_log").insert({
           company_id,
-          actor_user_id: claimsData.claims.sub,
+          actor_user_id: userId,
           action: "backfill_started",
           entity_type: "form",
           entity_id: bfFormId,
@@ -248,7 +321,8 @@ serve(async (req) => {
 
       case "disconnect": {
         try {
-          await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${accessToken}`, {
+          const revokeParams = new URLSearchParams({ access_token: accessToken });
+          await fetch(`https://graph.facebook.com/v21.0/me/permissions?${revokeParams.toString()}`, {
             method: "DELETE",
           });
         } catch (e) {
@@ -278,7 +352,7 @@ serve(async (req) => {
 
         await adminClient.from("integration_audit_log").insert({
           company_id,
-          actor_user_id: claimsData.claims.sub,
+          actor_user_id: userId,
           action: "integration_disconnected",
           entity_type: "integration",
           entity_id: integration_id,
@@ -290,10 +364,14 @@ serve(async (req) => {
       }
 
       case "get-ad-accounts": {
-        const accountsRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`
+        const params = new URLSearchParams({
+          fields: "id,name,account_status,currency",
+          limit: "100",
+          access_token: accessToken,
+        });
+        const accountsData = await fetchGraphJson(
+          `https://graph.facebook.com/v21.0/me/adaccounts?${params.toString()}`,
         );
-        const accountsData = await accountsRes.json();
         const accounts = accountsData.data || [];
 
         // Upsert into meta_ad_accounts
@@ -345,19 +423,22 @@ serve(async (req) => {
         }
 
         const fields = "campaign_name,campaign_id,adset_name,adset_id,ad_name,ad_id,impressions,clicks,spend,ctr,cpc,actions,action_values,objective,reach";
-        let insightsUrl = `https://graph.facebook.com/v21.0/${ad_account_id}/insights?fields=${fields}&time_range={"since":"${date_start}","until":"${date_end}"}&level=${lvl}&limit=500&access_token=${accessToken}`;
+        const insightParams = new URLSearchParams({
+          fields,
+          time_range: JSON.stringify({ since: date_start, until: date_end }),
+          level: lvl,
+          limit: "500",
+          access_token: accessToken,
+        });
         if (increment === "1") {
-          insightsUrl += `&time_increment=1`;
+          insightParams.set("time_increment", "1");
         }
 
         const allInsights: any[] = [];
-        let nextUrl: string | null = insightsUrl;
+        let nextUrl: string | null =
+          `https://graph.facebook.com/v21.0/${ad_account_id}/insights?${insightParams.toString()}`;
         while (nextUrl) {
-          const insRes = await fetchWithRetry(nextUrl);
-          const insData = await insRes.json();
-          if (insData.error) {
-            throw new Error(insData.error.message || JSON.stringify(insData.error));
-          }
+          const insData = await fetchGraphJson(nextUrl);
           allInsights.push(...(insData.data || []));
           nextUrl = insData.paging?.next || null;
         }
@@ -389,10 +470,14 @@ serve(async (req) => {
           });
         }
 
-        const statusRes = await fetchWithRetry(
-          `https://graph.facebook.com/v21.0/${statusAccId}/campaigns?fields=id,name,status,objective&limit=500&access_token=${accessToken}`
+        const params = new URLSearchParams({
+          fields: "id,name,status,objective",
+          limit: "500",
+          access_token: accessToken,
+        });
+        const statusData = await fetchGraphJson(
+          `https://graph.facebook.com/v21.0/${statusAccId}/campaigns?${params.toString()}`,
         );
-        const statusData = await statusRes.json();
 
         result = { campaigns: statusData.data || [] };
         break;
@@ -411,12 +496,29 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("meta-api-proxy error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: getErrorMessage(error) }), {
+      status: getErrorStatus(error),
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
+
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function fetchGraphJson(url: string, options?: RequestInit): Promise<any> {
+  const res = await fetchWithRetry(url, options);
+  const data = await res.json().catch(() => null);
+  if (!res.ok || data?.error) {
+    const message = data?.error?.message || data?.error || res.statusText;
+    throw new Error(`Meta API: ${message}`);
+  }
+  return data;
+}
 
 async function fetchWithRetry(url: string, options?: RequestInit, maxRetries = 3): Promise<Response> {
   for (let i = 0; i < maxRetries; i++) {

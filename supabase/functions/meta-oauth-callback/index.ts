@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 import { encrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import {
+  assertMetaCompanyAdminAccess,
+  getErrorMessage,
+  timingSafeEqualHex,
+} from "../_shared/metaAuth.ts";
 
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -30,6 +35,12 @@ serve(async (req) => {
 
     try {
       const { metaAppId, metaAppSecret } = await getMetaCredentials();
+      if (!metaAppId || !metaAppSecret) {
+        return new Response(buildRedirectHtml("error", "meta_not_configured"), {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
 
       // Validate HMAC-signed state
       const dotIndex = signedState.lastIndexOf(".");
@@ -51,7 +62,7 @@ serve(async (req) => {
       const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(stateB64));
       const expectedHmac = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
 
-      if (receivedHmac !== expectedHmac) {
+      if (!timingSafeEqualHex(receivedHmac, expectedHmac)) {
         console.error("State HMAC validation failed");
         return new Response(buildRedirectHtml("error", "invalid_state_signature"), {
           status: 200,
@@ -81,35 +92,47 @@ serve(async (req) => {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const adminClient = createClient(supabaseUrl, serviceRoleKey);
+      await assertMetaCompanyAdminAccess(adminClient, user_id, company_id);
 
       // Exchange code for short-lived token
       const callbackUrl = `${supabaseUrl}/functions/v1/meta-oauth-callback`;
-      const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&client_secret=${metaAppSecret}&code=${code}`;
+      const tokenParams = new URLSearchParams({
+        client_id: metaAppId,
+        redirect_uri: callbackUrl,
+        client_secret: metaAppSecret,
+        code,
+      });
+      const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?${tokenParams.toString()}`;
 
-      const tokenRes = await fetch(tokenUrl);
-      const tokenData = await tokenRes.json();
+      const tokenData = await fetchMetaJson(tokenUrl, "token_exchange");
 
-      if (tokenData.error) {
-        console.error("Meta token exchange error:", tokenData.error);
+      const shortLivedToken = tokenData.access_token as string | undefined;
+      if (!shortLivedToken) {
         return new Response(buildRedirectHtml("error", "token_exchange_failed"), {
           status: 200,
           headers: { "Content-Type": "text/html" },
         });
       }
 
-      const shortLivedToken = tokenData.access_token;
-
       // Exchange for long-lived token (60 days)
-      const longLivedUrl = `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${metaAppId}&client_secret=${metaAppSecret}&fb_exchange_token=${shortLivedToken}`;
-      const longLivedRes = await fetch(longLivedUrl);
-      const longLivedData = await longLivedRes.json();
+      const longLivedParams = new URLSearchParams({
+        grant_type: "fb_exchange_token",
+        client_id: metaAppId,
+        client_secret: metaAppSecret,
+        fb_exchange_token: shortLivedToken,
+      });
+      const longLivedUrl = `https://graph.facebook.com/v21.0/oauth/access_token?${longLivedParams.toString()}`;
+      const longLivedData = await fetchMetaJson(longLivedUrl, "long_lived_token");
 
-      const accessToken = longLivedData.access_token || shortLivedToken;
-      const expiresIn = longLivedData.expires_in || 5184000; // default 60 days
+      const accessToken = (longLivedData.access_token as string | undefined) || shortLivedToken;
+      const expiresIn = (longLivedData.expires_in as number | undefined) || 5184000; // default 60 days
 
       // Get Meta user info
-      const meRes = await fetch(`https://graph.facebook.com/v21.0/me?access_token=${accessToken}`);
-      const meData = await meRes.json();
+      const meParams = new URLSearchParams({ fields: "id,name", access_token: accessToken });
+      const meData = await fetchMetaJson(
+        `https://graph.facebook.com/v21.0/me?${meParams.toString()}`,
+        "me",
+      );
 
       // Upsert integration
       const { data: integration, error: integErr } = await adminClient
@@ -149,65 +172,99 @@ serve(async (req) => {
         .delete()
         .eq("integration_id", integration.id);
 
-      await adminClient.from("integration_credentials").insert({
+      const { error: credentialError } = await adminClient.from("integration_credentials").insert({
         integration_id: integration.id,
         access_token_encrypted: tokenEncrypted,
         token_type: "bearer",
         expires_at: expiresAt,
-        granted_scopes: tokenData.scope ? tokenData.scope.split(",") : [],
+        granted_scopes: tokenData.scope ? String(tokenData.scope).split(",") : [],
         meta_user_id: meData.id || null,
         meta_user_name: meData.name || null,
       });
+      if (credentialError) {
+        console.error("Credential insert error:", credentialError);
+        return new Response(buildRedirectHtml("error", "credential_store_failed"), {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
 
       // Fetch pages and save as assets (WITHOUT page access token in metadata)
-      const pagesRes = await fetch(
-        `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
-      );
-      const pagesData = await pagesRes.json();
+      const pages: any[] = [];
+      const firstPagesParams = new URLSearchParams({
+        fields: "id,name,access_token,instagram_business_account{id,name,username}",
+        limit: "100",
+        access_token: accessToken,
+      });
+      let nextPagesUrl: string | null =
+        `https://graph.facebook.com/v21.0/me/accounts?${firstPagesParams.toString()}`;
 
-      if (pagesData.data && Array.isArray(pagesData.data)) {
-        // Clear old page assets for this integration
-        await adminClient
+      while (nextPagesUrl) {
+        const pagesData = await fetchMetaJson(nextPagesUrl, "pages");
+        pages.push(...(Array.isArray(pagesData.data) ? pagesData.data : []));
+        nextPagesUrl = pagesData.paging?.next || null;
+      }
+
+      if (pages.length > 0) {
+        const { data: existingAssets } = await adminClient
           .from("meta_assets")
-          .delete()
+          .select("asset_id, selected")
           .eq("integration_id", integration.id)
           .eq("asset_type", "page");
+        const selectedByAssetId = new Map(
+          (existingAssets || []).map((asset: { asset_id: string; selected: boolean }) => [
+            asset.asset_id,
+            asset.selected,
+          ]),
+        );
 
-        // Store page access tokens separately in integration_credentials-like storage
-        // NOT in meta_assets.metadata (which is client-readable via RLS)
-        const pageAssets = pagesData.data.map((page: any) => ({
+        const pageAssets = pages.map((page: any) => ({
           integration_id: integration.id,
           company_id,
           asset_type: "page",
           asset_id: page.id,
           asset_name: page.name,
-          selected: false,
+          selected: selectedByAssetId.get(page.id) || false,
           metadata: {
             instagram_business_account: page.instagram_business_account || null,
             // page_access_token intentionally NOT stored here (security: RLS-readable)
           },
         }));
 
-        if (pageAssets.length > 0) {
-          await adminClient.from("meta_assets").insert(pageAssets);
+        const { error: assetsError } = await adminClient
+          .from("meta_assets")
+          .upsert(pageAssets, { onConflict: "integration_id,asset_type,asset_id" });
+        if (assetsError) {
+          console.error("Meta assets upsert error:", assetsError);
+          return new Response(buildRedirectHtml("error", "assets_store_failed"), {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          });
         }
 
         // Store page tokens in a secure way: save them in integration_credentials metadata
         // keyed by page_id for retrieval by the proxy
         const pageTokenMap: Record<string, string> = {};
-        for (const page of pagesData.data) {
+        for (const page of pages) {
           if (page.access_token) {
             pageTokenMap[page.id] = await encrypt(page.access_token, encKey);
           }
         }
         // Update the integration credential with page tokens
-        await adminClient
+        const { error: pageTokenError } = await adminClient
           .from("integration_credentials")
           .update({
             meta_page_tokens: pageTokenMap,
             updated_at: new Date().toISOString(),
           })
           .eq("integration_id", integration.id);
+        if (pageTokenError) {
+          console.error("Meta page tokens update error:", pageTokenError);
+          return new Response(buildRedirectHtml("error", "page_tokens_store_failed"), {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          });
+        }
       }
 
       // Audit log
@@ -221,7 +278,7 @@ serve(async (req) => {
           provider: "meta",
           meta_user_id: meData.id,
           meta_user_name: meData.name,
-          pages_found: pagesData.data?.length || 0,
+          pages_found: pages.length,
         },
       });
 
@@ -231,7 +288,7 @@ serve(async (req) => {
       });
     } catch (error) {
       console.error("meta-oauth-callback error:", error);
-      return new Response(buildRedirectHtml("error", error.message), {
+      return new Response(buildRedirectHtml("error", getErrorMessage(error)), {
         status: 200,
         headers: { "Content-Type": "text/html" },
       });
@@ -241,20 +298,54 @@ serve(async (req) => {
   return new Response("Method not allowed", { status: 405 });
 });
 
+async function fetchMetaJson(url: string, context: string): Promise<any> {
+  const response = await fetch(url);
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || data?.error) {
+    const message = data?.error?.message || data?.error || response.statusText;
+    console.error(`Meta ${context} error:`, data?.error || message);
+    throw new Error(`Meta ${context}: ${message}`);
+  }
+
+  return data;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function buildRedirectHtml(status: string, detail: string): string {
+  const safeStatus = status === "success" ? "success" : "error";
+  const safeDetail = String(detail || "").slice(0, 500);
+  const payload = JSON.stringify({
+    type: "META_OAUTH_RESULT",
+    status: safeStatus,
+    detail: safeDetail,
+  });
+  const fallbackText =
+    safeStatus === "success"
+      ? "Autenticazione completata. Puoi chiudere questa finestra."
+      : "Autenticazione fallita. Puoi chiudere questa finestra e riprovare.";
+
   return `<!DOCTYPE html>
 <html>
 <head><title>Meta OAuth</title></head>
 <body>
 <script>
   if (window.opener) {
-    window.opener.postMessage({ type: "META_OAUTH_RESULT", status: "${status}", detail: "${detail}" }, "*");
+    window.opener.postMessage(${payload}, "*");
     window.close();
   } else {
-    document.body.innerHTML = '<p>Autenticazione ${status === "success" ? "completata" : "fallita"}. Puoi chiudere questa finestra.</p>';
+    document.body.textContent = ${JSON.stringify(fallbackText)};
   }
 </script>
-<p>Elaborazione in corso...</p>
+<p>${escapeHtml(fallbackText)}</p>
 </body>
 </html>`;
 }

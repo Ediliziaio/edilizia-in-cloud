@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { getErrorMessage } from "../_shared/metaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,7 +88,7 @@ serve(async (req) => {
           .from("integration_webhook_events")
           .update({
             fail_count: newFailCount,
-            last_fail_reason: error.message?.slice(0, 500),
+            last_fail_reason: getErrorMessage(error).slice(0, 500),
             status: newStatus,
             locked_by: null,
             locked_at: null,
@@ -111,7 +113,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("meta-process-leads error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: getErrorMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -120,7 +122,7 @@ serve(async (req) => {
 
 async function processLeadEvent(adminClient: any, event: any) {
   const { company_id, integration_id, payload } = event;
-  const leadgenId = payload.leadgen_id;
+  const leadgenId = payload.leadgen_id || payload.id || payload.raw?.id;
   const formId = payload.form_id;
 
   if (!leadgenId || !integration_id) {
@@ -129,22 +131,30 @@ async function processLeadEvent(adminClient: any, event: any) {
 
   const { data: creds } = await adminClient
     .from("integration_credentials")
-    .select("access_token_encrypted")
+    .select("access_token_encrypted, meta_page_tokens")
     .eq("integration_id", integration_id)
     .single();
 
   if (!creds) throw new Error("No credentials found for integration");
 
-  const accessToken = atob(creds.access_token_encrypted);
-
-  const leadRes = await fetch(
-    `https://graph.facebook.com/v21.0/${leadgenId}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
-  );
-  const lead = await leadRes.json();
-
-  if (lead.error) {
-    throw new Error(`Meta API error: ${lead.error.message}`);
-  }
+  const encKey = getEncryptionKey();
+  const accessToken = await decrypt(creds.access_token_encrypted, encKey);
+  const embeddedLead = payload.raw?.field_data ? payload.raw : payload.field_data ? payload : null;
+  const lead =
+    embeddedLead ||
+    await fetchLeadFromMeta(
+      adminClient,
+      {
+        companyId: company_id,
+        integrationId: integration_id,
+        payload,
+        formId,
+        leadgenId,
+      },
+      creds,
+      encKey,
+      accessToken,
+    );
 
   const actualFormId = lead.form_id || formId;
   const { data: mapping } = await adminClient
@@ -157,7 +167,8 @@ async function processLeadEvent(adminClient: any, event: any) {
 
   const fieldData: Record<string, string> = {};
   for (const field of lead.field_data || []) {
-    fieldData[field.name] = Array.isArray(field.values) ? field.values[0] : field.values;
+    const value = Array.isArray(field.values) ? field.values[0] : field.values;
+    fieldData[field.name] = value == null ? "" : String(value);
   }
 
   const rules = mapping?.rules || {};
@@ -191,6 +202,7 @@ async function processLeadEvent(adminClient: any, event: any) {
 
   const email = (mappedData.email || defaultValues.email || "").toLowerCase().trim();
   const phone = normalizePhone(mappedData.phone || defaultValues.phone || "");
+  const companyName = mappedData.company_name || defaultValues.company_name || null;
   const city = mappedData.city || defaultValues.city || null;
   const address = mappedData.address || defaultValues.address || null;
   const postalCode = mappedData.postal_code || defaultValues.postal_code || null;
@@ -237,9 +249,9 @@ async function processLeadEvent(adminClient: any, event: any) {
     }
   }
 
-  const source = `Meta Lead Ads`;
-  const tags = rules.tags_to_apply || [];
   const pipelineSettings = rules.pipeline_settings || {};
+  const source = pipelineSettings.source || "Meta Lead Ads";
+  const tags = rules.tags_to_apply || [];
   const notes = buildNotesFromFieldData(fieldData, lead);
 
   let contactId: string;
@@ -250,16 +262,19 @@ async function processLeadEvent(adminClient: any, event: any) {
       if (firstName) updateData.first_name = firstName;
       if (lastName) updateData.last_name = lastName;
       if (phone) updateData.phone = phone;
+      if (companyName) updateData.company_name = companyName;
       if (city) updateData.city = city;
       if (address) updateData.address = address;
       if (postalCode) updateData.postal_code = postalCode;
+      if (province) updateData.province = province;
     }
     updateData.updated_at = new Date().toISOString();
 
-    await adminClient
+    const { error: updateErr } = await adminClient
       .from("marketing_contacts")
       .update(updateData)
       .eq("id", existingContact.id);
+    if (updateErr) throw new Error(`Failed to update contact: ${updateErr.message}`);
 
     contactId = existingContact.id;
   } else if (!existingContact) {
@@ -271,6 +286,7 @@ async function processLeadEvent(adminClient: any, event: any) {
         last_name: lastName || "",
         email: email || null,
         phone: phone || null,
+        company_name: companyName,
         city: city,
         address: address,
         postal_code: postalCode,
@@ -278,7 +294,6 @@ async function processLeadEvent(adminClient: any, event: any) {
         source,
         notes,
         tags,
-        status: "new",
         assigned_to: pipelineSettings.owner_user_id || null,
       })
       .select("id")
@@ -290,6 +305,8 @@ async function processLeadEvent(adminClient: any, event: any) {
     contactId = existingContact.id;
   }
 
+  await upsertCustomFieldValues(adminClient, contactId, mappedData);
+
   if (pipelineSettings.pipeline_id && pipelineSettings.stage_id) {
     const { data: existingOpp } = await adminClient
       .from("marketing_opportunities")
@@ -300,17 +317,19 @@ async function processLeadEvent(adminClient: any, event: any) {
       .limit(1);
 
     if (!existingOpp || existingOpp.length === 0) {
-      await adminClient.from("marketing_opportunities").insert({
+      const opportunityName = `Lead Ads - ${firstName || companyName || email || "Nuovo lead"} ${lastName}`.trim();
+      const { error: opportunityErr } = await adminClient.from("marketing_opportunities").insert({
         company_id,
         contact_id: contactId,
         pipeline_id: pipelineSettings.pipeline_id,
         stage_id: pipelineSettings.stage_id,
-        name: `Lead Ads - ${firstName} ${lastName}`.trim(),
+        name: opportunityName,
         value: 0,
         status: "open",
         source: `meta_lead_${leadgenId}`,
         assigned_to: pipelineSettings.owner_user_id || null,
       });
+      if (opportunityErr) throw new Error(`Failed to create opportunity: ${opportunityErr.message}`);
     }
   }
 
@@ -330,9 +349,114 @@ async function processLeadEvent(adminClient: any, event: any) {
   });
 }
 
+async function fetchLeadFromMeta(
+  adminClient: any,
+  context: {
+    companyId: string;
+    integrationId: string;
+    payload: any;
+    formId?: string;
+    leadgenId: string;
+  },
+  creds: any,
+  encKey: string,
+  fallbackAccessToken: string,
+) {
+  const pageToken = await getPageAccessTokenForLead(
+    adminClient,
+    context,
+    creds,
+    encKey,
+    fallbackAccessToken,
+  );
+  const params = new URLSearchParams({
+    fields: "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id",
+    access_token: pageToken,
+  });
+
+  const leadRes = await fetch(
+    `https://graph.facebook.com/v21.0/${context.leadgenId}?${params.toString()}`,
+  );
+  const lead = await leadRes.json().catch(() => null);
+
+  if (!leadRes.ok || lead?.error) {
+    throw new Error(`Meta API error: ${lead?.error?.message || leadRes.statusText}`);
+  }
+
+  return lead;
+}
+
+async function getPageAccessTokenForLead(
+  adminClient: any,
+  context: {
+    companyId: string;
+    integrationId: string;
+    payload: any;
+    formId?: string;
+  },
+  creds: any,
+  encKey: string,
+  fallbackAccessToken: string,
+): Promise<string> {
+  const pageTokens = (creds.meta_page_tokens || {}) as Record<string, string>;
+  const directPageId = context.payload.page_id || context.payload.raw?.page_id;
+  if (directPageId && pageTokens[String(directPageId)]) {
+    return decrypt(pageTokens[String(directPageId)], encKey);
+  }
+
+  let pageAssetId = context.payload.page_asset_id || null;
+  if (!pageAssetId && context.formId) {
+    const { data: formRecord } = await adminClient
+      .from("meta_lead_forms")
+      .select("page_asset_id")
+      .eq("company_id", context.companyId)
+      .eq("integration_id", context.integrationId)
+      .eq("form_id", context.formId)
+      .maybeSingle();
+    pageAssetId = formRecord?.page_asset_id || null;
+  }
+
+  if (pageAssetId) {
+    const { data: pageAsset } = await adminClient
+      .from("meta_assets")
+      .select("asset_id")
+      .eq("id", pageAssetId)
+      .eq("company_id", context.companyId)
+      .eq("integration_id", context.integrationId)
+      .maybeSingle();
+
+    if (pageAsset?.asset_id && pageTokens[pageAsset.asset_id]) {
+      return decrypt(pageTokens[pageAsset.asset_id], encKey);
+    }
+  }
+
+  return fallbackAccessToken;
+}
+
+async function upsertCustomFieldValues(
+  adminClient: any,
+  contactId: string,
+  mappedData: Record<string, string>,
+) {
+  const fieldValues = Object.entries(mappedData)
+    .filter(([crmKey, value]) => crmKey.startsWith("custom_") && value !== undefined && value !== "")
+    .map(([crmKey, value]) => ({
+      contact_id: contactId,
+      field_id: crmKey.replace("custom_", ""),
+      value: String(value),
+    }));
+
+  if (fieldValues.length === 0) return;
+
+  const { error } = await adminClient
+    .from("marketing_contact_field_values")
+    .upsert(fieldValues, { onConflict: "contact_id,field_id" });
+  if (error) throw new Error(`Failed to save custom field values: ${error.message}`);
+}
+
 function normalizePhone(phone: string): string {
   if (!phone) return "";
-  let normalized = phone.replace(/[^\\d+]/g, "");
+  let normalized = phone.replace(/[^\d+]/g, "");
   if (normalized.startsWith("00")) {
     normalized = "+" + normalized.slice(2);
   }

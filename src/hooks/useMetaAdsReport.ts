@@ -1,8 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import {
   normalizeInsights,
   computeKPIs,
@@ -12,8 +11,6 @@ import {
   type DailyPoint,
 } from "@/lib/metaInsightsNormalizer";
 import { format, subDays } from "date-fns";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://guqgszwelffntrgtsycm.supabase.co";
 
 export type ReportLevel = "campaign" | "adset" | "ad";
 export type SortDirection = "asc" | "desc";
@@ -55,10 +52,8 @@ const DEFAULT_COLUMNS = [
 
 export function useMetaAdsReport() {
   const { effectiveCompany, user } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = effectiveCompany?.id;
   const userId = user?.id;
-  const queryClient = useQueryClient();
-
   // State
   const [dateRange, setDateRange] = useState<DateRange>({
     from: subDays(new Date(), 14),
@@ -94,27 +89,17 @@ export function useMetaAdsReport() {
   const callProxy = useCallback(
     async (action: string, params: Record<string, any> = {}) => {
       if (!companyId || !integrationId) throw new Error("Non connesso a Meta");
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/meta-api-proxy`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            action,
-            company_id: companyId,
-            integration_id: integrationId,
-            ...params,
-          }),
-        }
-      );
-      const result = await res.json();
-      if (result.error) throw new Error(result.error);
-      return result;
+      const { data, error } = await supabase.functions.invoke<Record<string, any>>("meta-api-proxy", {
+        body: {
+          action,
+          company_id: companyId,
+          integration_id: integrationId,
+          ...params,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+      return data || {};
     },
     [companyId, integrationId]
   );
@@ -320,7 +305,7 @@ export function useMetaAdsReport() {
     return () => clearTimeout(saveTimerRef.current);
   }, [visibleColumns, selectedAccountId, dateRange, sortColumn, companyId, userId]);
 
-  const companyName = (effectiveCompany as any)?.name || "";
+  const companyName = effectiveCompany?.name || "";
 
   return {
     // Connection

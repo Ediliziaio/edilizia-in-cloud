@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 interface OAuthStepProps {
   onSuccess: () => void;
@@ -14,9 +15,12 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      if (event.data?.type === "META_OAUTH_RESULT") {
+      if (typeof event.data === "object" && event.data?.type === "META_OAUTH_RESULT") {
         if (event.data.status === "success") {
+          toast.success("Account Meta collegato");
           onSuccess();
+        } else {
+          toast.error("Collegamento Meta non completato. Riprova quando vuoi.");
         }
         setLoading(false);
         popupRef.current = null;
@@ -38,6 +42,11 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
       const left = (screen.width - w) / 2;
       const top = (screen.height - h) / 2;
       const popup = window.open(oauthUrl, "meta_oauth", `width=${w},height=${h},left=${left},top=${top}`);
+      if (!popup) {
+        toast.error("Popup bloccato dal browser. Abilita i popup per collegare Meta.");
+        setLoading(false);
+        return;
+      }
       popupRef.current = popup;
 
       // Poll for popup closed without completing OAuth

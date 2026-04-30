@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface FieldMappingStepProps {
   hook: any;
   formId: string;
+  pageAssetId?: string;
 }
 
 interface MetaQuestion {
@@ -48,10 +49,13 @@ const EXAMPLE_VALUES: Record<string, string> = {
   company_name: "Rossi Srl",
 };
 
-export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
+const NO_PIPELINE_VALUE = "__none_pipeline__";
+const NO_STAGE_VALUE = "__none_stage__";
+
+export function FieldMappingStep({ hook, formId, pageAssetId }: FieldMappingStepProps) {
   const { callProxy, mappings, saveMapping } = hook;
   const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = effectiveCompany?.id;
 
   const [questions, setQuestions] = useState<MetaQuestion[]>([]);
   const [fieldMap, setFieldMap] = useState<Record<string, string>>({});
@@ -103,10 +107,10 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
       if (!companyId) return [];
       const { data } = await supabase
         .from("marketing_custom_fields")
-        .select("id, field_name, field_label, field_type")
+        .select("id, name, field_type")
         .eq("company_id", companyId)
         .eq("object_type", "contact")
-        .order("field_label");
+        .order("name");
       return data || [];
     },
     enabled: !!companyId,
@@ -114,7 +118,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
 
   useEffect(() => {
     loadFormFields();
-  }, [formId]);
+  }, [formId, pageAssetId]);
 
   useEffect(() => {
     const existing = mappings.find((m: any) => m.form_id === formId);
@@ -134,7 +138,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
   const loadFormFields = async () => {
     try {
       setLoading(true);
-      const result = await callProxy("get-form-fields", { form_id: formId });
+      const result = await callProxy("get-form-fields", { form_id: formId, page_asset_id: pageAssetId });
       const qs = (result.form?.questions || []).map((q: any) => ({
         key: q.key,
         label: q.label || q.key,
@@ -161,7 +165,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
 
   const allCrmFields = [
     ...CRM_STANDARD_FIELDS.map((f) => ({ key: f.key, label: f.label })),
-    ...customFields.map((f: any) => ({ key: `custom_${f.id}`, label: `✦ ${f.field_label}` })),
+    ...customFields.map((f: any) => ({ key: `custom_${f.id}`, label: `✦ ${f.name}` })),
   ];
 
   const handleSave = () => {
@@ -228,12 +232,12 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
 
       {/* Field mapping table */}
       <div className="border rounded-lg divide-y max-h-[250px] overflow-y-auto">
-        <div className="grid grid-cols-2 gap-4 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground sticky top-0">
+        <div className="grid gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground sticky top-0 sm:grid-cols-2 sm:gap-4">
           <span>Campo modulo (Meta)</span>
           <span>Campo CRM</span>
         </div>
         {questions.map((q) => (
-          <div key={q.key} className="grid grid-cols-2 gap-4 px-4 py-2 items-center">
+          <div key={q.key} className="grid gap-2 px-4 py-3 sm:grid-cols-2 sm:gap-4 sm:items-center">
             <div>
               <p className="text-sm">{q.label}</p>
               <p className="text-xs text-muted-foreground">{q.key}</p>
@@ -281,7 +285,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
             <div className="border rounded-lg p-3 bg-muted/30 space-y-3 text-sm">
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Contatto risultante:</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
                   {Object.entries(preview.contact).map(([key, val]) => (
                     <div key={key} className="contents">
                       <span className="text-xs text-muted-foreground">{key}</span>
@@ -316,15 +320,21 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-3 pt-2">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label className="text-xs">Pipeline</Label>
-              <Select value={pipelineId} onValueChange={setPipelineId}>
+              <Select
+                value={pipelineId || NO_PIPELINE_VALUE}
+                onValueChange={(value) => {
+                  setPipelineId(value === NO_PIPELINE_VALUE ? "" : value);
+                  setStageId("");
+                }}
+              >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Nessuna" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessuna</SelectItem>
+                  <SelectItem value={NO_PIPELINE_VALUE}>Nessuna</SelectItem>
                   {pipelines.map((p: any) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -333,11 +343,16 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Fase</Label>
-              <Select value={stageId} onValueChange={setStageId} disabled={!pipelineId}>
+              <Select
+                value={stageId || NO_STAGE_VALUE}
+                onValueChange={(value) => setStageId(value === NO_STAGE_VALUE ? "" : value)}
+                disabled={!pipelineId}
+              >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Seleziona" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NO_STAGE_VALUE}>Nessuna</SelectItem>
                   {stages.map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                   ))}
@@ -346,7 +361,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label className="text-xs">Deduplica per</Label>
               <Select value={dedupePolicy} onValueChange={setDedupePolicy}>

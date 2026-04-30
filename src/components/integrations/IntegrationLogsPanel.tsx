@@ -27,7 +27,7 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
 
 export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps) {
   const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -78,24 +78,6 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
       toast.success("Evento rimesso in coda");
     },
     onError: (err: Error) => toast.error(err.message),
-  });
-
-  // Sync jobs
-  const { data: syncJobs = [] } = useQuery({
-    queryKey: ["integration-sync-jobs", companyId, integration.id],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("integration_sync_jobs")
-        .select("*")
-        .eq("company_id", companyId)
-        .eq("integration_id", integration.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!companyId,
   });
 
   return (
@@ -162,7 +144,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
       </div>
 
       {/* Events table */}
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

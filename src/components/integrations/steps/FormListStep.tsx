@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, FileText, Settings2, Download, Calendar as CalendarIcon } from "lucide-react";
@@ -12,12 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface FormListStepProps {
   hook: any;
-  onMapFields: (formId: string) => void;
+  onMapFields: (formId: string, pageAssetId?: string) => void;
 }
 
 export function FormListStep({ hook, onMapFields }: FormListStepProps) {
   const { selectedPages, callProxy, forms, updateFormStatus } = hook;
   const [metaForms, setMetaForms] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [backfillFormId, setBackfillFormId] = useState<string | null>(null);
   const [backfillMode, setBackfillMode] = useState<"all" | "since_date">("all");
@@ -25,17 +26,16 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
   const [backfillProgress, setBackfillProgress] = useState<{ running: boolean; imported: number; total: number } | null>(null);
 
   const selectedPageIds = selectedPages.map((p: any) => p.id).sort().join(",");
+  const pagesToLoad = useMemo(() => selectedPages, [selectedPageIds]);
 
-  useEffect(() => {
-    loadForms();
-  }, [selectedPageIds]);
-
-  const loadForms = async () => {
-    if (selectedPages.length === 0) return;
+  const loadForms = useCallback(async () => {
+    if (pagesToLoad.length === 0) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const allForms: any[] = [];
-      for (const page of selectedPages) {
+      const failedPages: string[] = [];
+      for (const page of pagesToLoad) {
         try {
           const result = await callProxy("get-forms", { page_asset_id: page.id });
           const pageForms = (result.forms || []).map((f: any) => ({
@@ -45,25 +45,35 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
           }));
           allForms.push(...pageForms);
         } catch (e: any) {
-          console.error(`Error loading forms for page ${page.asset_name}:`, e);
+          failedPages.push(page.asset_name);
         }
       }
       setMetaForms(allForms);
+      if (failedPages.length > 0) {
+        setLoadError(`Non sono riuscito a leggere i moduli per: ${failedPages.join(", ")}.`);
+      }
     } catch (error: any) {
       toast.error(`Errore caricamento moduli: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [callProxy, pagesToLoad]);
+
+  useEffect(() => {
+    loadForms();
+  }, [loadForms]);
 
   const isFormActive = (formId: string) => {
     return forms.some((f: any) => f.form_id === formId && f.status === "active");
   };
 
-  const handleToggle = (formId: string) => {
+  const handleToggle = (form: any) => {
+    const formId = form.id;
     const currentActive = isFormActive(formId);
     updateFormStatus.mutate({
       formId,
+      formName: form.name || formId,
+      pageAssetId: form.page_asset_id,
       status: currentActive ? "inactive" : "active",
       syncMode: "new_only",
     });
@@ -72,7 +82,8 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
   const handleBackfill = useCallback(async (formId: string) => {
     setBackfillProgress({ running: true, imported: 0, total: 0 });
     try {
-      const params: any = { form_id: formId, mode: backfillMode };
+      const form = metaForms.find((item) => item.id === formId);
+      const params: any = { form_id: formId, mode: backfillMode, page_asset_id: form?.page_asset_id };
       if (backfillMode === "since_date" && backfillDate) {
         params.since_date = format(backfillDate, "yyyy-MM-dd");
       }
@@ -86,7 +97,7 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
     } finally {
       setBackfillFormId(null);
     }
-  }, [backfillMode, backfillDate, callProxy]);
+  }, [backfillMode, backfillDate, callProxy, metaForms]);
 
   if (loading) {
     return (
@@ -121,6 +132,12 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
         Attiva i moduli da cui vuoi importare i lead e configura la mappatura dei campi.
       </p>
 
+      {loadError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+          {loadError}
+        </div>
+      )}
+
       {/* Backfill progress */}
       {backfillProgress?.running && (
         <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
@@ -145,17 +162,17 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
           const isBackfillTarget = backfillFormId === form.id;
           return (
             <div key={form.id} className="px-4 py-3 space-y-2">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Switch
                   checked={active}
-                  onCheckedChange={() => handleToggle(form.id)}
+                  onCheckedChange={() => handleToggle(form)}
                   disabled={updateFormStatus.isPending}
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{form.name}</p>
                   <p className="text-xs text-muted-foreground">{form.page_name}</p>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   {form.questions && (
                     <span className="text-xs text-muted-foreground">
                       {form.questions.length} campi
@@ -173,7 +190,7 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onMapFields(form.id)}
+                    onClick={() => onMapFields(form.id, form.page_asset_id)}
                     className="h-7 px-2 text-xs"
                   >
                     <Settings2 className="h-3 w-3 mr-1" />
@@ -184,7 +201,7 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
 
               {/* Backfill panel */}
               {isBackfillTarget && (
-                <div className="border rounded-lg p-3 bg-muted/30 space-y-3 ml-8">
+                <div className="border rounded-lg p-3 bg-muted/30 space-y-3 sm:ml-8">
                   <p className="text-xs font-medium">Importa lead storici</p>
                   <div className="flex items-center gap-2">
                     <Select value={backfillMode} onValueChange={(v) => setBackfillMode(v as any)}>

@@ -19,7 +19,7 @@ export function ConnectionConfirmStep({ hook }: ConnectionConfirmStepProps) {
           {selectedPages.map((page: any) => (
             <div key={page.id} className="flex items-center gap-3 px-4 py-3">
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                {page.asset_name.charAt(0)}
+                {(page.asset_name || "P").charAt(0)}
               </div>
               <div>
                 <p className="text-sm font-medium">{page.asset_name}</p>

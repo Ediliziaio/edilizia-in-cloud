@@ -11,7 +11,7 @@ import type { Integration, IntegrationStatus, IntegrationHealth } from "@/types/
 
 export default function SettingsIntegrations() {
   const { effectiveCompany, user } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = effectiveCompany?.id;
   const userId = user?.id;
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -69,6 +69,8 @@ export default function SettingsIntegrations() {
           .eq("integration_id", metaIntegration.id)
           .eq("status", "active"),
       ]);
+      if (pagesRes.error) throw pagesRes.error;
+      if (formsRes.error) throw formsRes.error;
       return {
         pages: pagesRes.count || 0,
         forms: formsRes.count || 0,
@@ -176,9 +178,11 @@ export default function SettingsIntegrations() {
         open={wizardOpen}
         onOpenChange={setWizardOpen}
         integration={metaIntegration || null}
-        onComplete={() => {
+        onComplete={(options) => {
           refetch();
-          setWizardOpen(false);
+          if (options?.close !== false) {
+            setWizardOpen(false);
+          }
         }}
       />
     </div>

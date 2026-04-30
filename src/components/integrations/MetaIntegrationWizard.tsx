@@ -26,7 +26,7 @@ interface MetaIntegrationWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   integration: Integration | null;
-  onComplete: () => void;
+  onComplete: (options?: { close?: boolean }) => void;
 }
 
 const STEP_TITLES: Record<MetaWizardStep, string> = {
@@ -44,6 +44,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   const isConnected = integration?.status === "connected";
   const [step, setStep] = useState<MetaWizardStep>(isConnected ? "pages" : "oauth");
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [selectedFormPageAssetId, setSelectedFormPageAssetId] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<"config" | "logs">("config");
   const [dirty, setDirty] = useState(false);
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
@@ -55,6 +56,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
     if (open) {
       setStep(isConnected ? "pages" : "oauth");
       setSelectedFormId(null);
+      setSelectedFormPageAssetId(undefined);
       setActiveTab("config");
       setDirty(false);
     }
@@ -79,6 +81,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
     if (step === "mapping") {
       setStep("forms");
       setSelectedFormId(null);
+      setSelectedFormPageAssetId(undefined);
       return;
     }
     if (currentIndex > 0) {
@@ -98,6 +101,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   const doClose = () => {
     setStep(isConnected ? "pages" : "oauth");
     setSelectedFormId(null);
+    setSelectedFormPageAssetId(undefined);
     setDirty(false);
     onOpenChange(false);
   };
@@ -111,24 +115,25 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   };
 
   const handleOAuthSuccess = useCallback(() => {
-    onComplete();
+    onComplete({ close: false });
     setStep("pages");
   }, [onComplete]);
 
-  const handleFormMapping = useCallback((formId: string) => {
+  const handleFormMapping = useCallback((formId: string, pageAssetId?: string) => {
     setSelectedFormId(formId);
+    setSelectedFormPageAssetId(pageAssetId);
     setStep("mapping");
   }, []);
 
   const handleComplete = () => {
     setDirty(false);
-    onComplete();
+    onComplete({ close: true });
   };
 
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>
               {activeTab === "logs" ? "Log eventi" : STEP_TITLES[step]}
@@ -160,16 +165,20 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                   {step === "confirm" && <ConnectionConfirmStep hook={hook} />}
                   {step === "forms" && <FormListStep hook={hook} onMapFields={handleFormMapping} />}
                   {step === "mapping" && selectedFormId && (
-                    <FieldMappingStep hook={hook} formId={selectedFormId} />
+                    <FieldMappingStep
+                      hook={hook}
+                      formId={selectedFormId}
+                      pageAssetId={selectedFormPageAssetId}
+                    />
                   )}
                   {step === "activation" && <ActivationStep hook={hook} integration={integration} />}
                 </div>
 
-                <div className="flex justify-between pt-2 border-t mt-4">
+                <div className="flex flex-col-reverse gap-2 pt-2 border-t mt-4 sm:flex-row sm:justify-between">
                   <Button variant="ghost" onClick={attemptClose}>
                     Annulla
                   </Button>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     {currentIndex > 0 && (
                       <Button variant="outline" onClick={goBack}>Indietro</Button>
                     )}

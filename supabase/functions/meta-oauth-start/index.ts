@@ -1,15 +1,27 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
+import {
+  assertMetaCompanyAdminAccess,
+  getErrorMessage,
+  getErrorStatus,
+} from "../_shared/metaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -23,9 +35,11 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const token = authHeader.replace("Bearer ", "");
     const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
@@ -44,6 +58,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    await assertMetaCompanyAdminAccess(adminClient, userId, company_id);
 
     const { metaAppId, metaAppSecret } = await getMetaCredentials();
     if (!metaAppId || !metaAppSecret) {
@@ -81,7 +96,14 @@ serve(async (req) => {
       "business_management",
     ].join(",");
 
-    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(signedState)}&scope=${encodeURIComponent(scopes)}&response_type=code`;
+    const oauthParams = new URLSearchParams({
+      client_id: metaAppId,
+      redirect_uri: callbackUrl,
+      state: signedState,
+      scope: scopes,
+      response_type: "code",
+    });
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?${oauthParams.toString()}`;
 
     return new Response(JSON.stringify({ oauth_url: oauthUrl, state: signedState }), {
       status: 200,
@@ -89,8 +111,8 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("meta-oauth-start error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: getErrorMessage(error) }), {
+      status: getErrorStatus(error),
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

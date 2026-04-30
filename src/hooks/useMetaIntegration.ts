@@ -1,15 +1,28 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Integration, MetaAsset, MetaLeadForm, IntegrationFieldMapping } from "@/types/integrations";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://guqgszwelffntrgtsycm.supabase.co";
+type MetaProxyParams = Record<string, unknown>;
+type MetaProxyResponse = Record<string, any>;
+
+interface UpdateFormStatusInput {
+  formId: string;
+  formName: string;
+  pageAssetId: string;
+  status: MetaLeadForm["status"];
+  syncMode?: MetaLeadForm["sync_mode"];
+}
+
+function getFunctionErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Errore imprevisto durante la chiamata Meta";
+}
 
 export function useMetaIntegration(integration: Integration | null) {
   const { effectiveCompany } = useAuth();
-  const companyId = (effectiveCompany as any)?.id;
+  const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
   // Fetch assets (pages)
@@ -65,67 +78,48 @@ export function useMetaIntegration(integration: Integration | null) {
   // Start OAuth
   const startOAuth = useCallback(async () => {
     if (!companyId) {
-      toast.error("Company not found");
-      return;
+      toast.error("Azienda non trovata");
+      return null;
     }
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const { data, error } = await supabase.functions.invoke<{
+        oauth_url?: string;
+        error?: string;
+      }>("meta-oauth-start", {
+        body: { company_id: companyId },
+      });
 
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/meta-oauth-start`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ company_id: companyId }),
-        }
-      );
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.oauth_url) throw new Error("URL OAuth Meta non ricevuto");
 
-      const result = await res.json();
-      if (result.error) {
-        toast.error(result.error);
-        return null;
-      }
-
-      return result.oauth_url as string;
-    } catch (error: any) {
-      toast.error(`Errore avvio OAuth: ${error.message}`);
+      return data.oauth_url;
+    } catch (error) {
+      toast.error(`Errore avvio OAuth: ${getFunctionErrorMessage(error)}`);
       return null;
     }
   }, [companyId]);
 
   // Call meta-api-proxy
   const callProxy = useCallback(
-    async (action: string, params: Record<string, any> = {}) => {
-      if (!companyId || !integration?.id) throw new Error("Missing context");
+    async (action: string, params: MetaProxyParams = {}): Promise<MetaProxyResponse> => {
+      if (!companyId || !integration?.id) {
+        throw new Error("Contesto azienda o integrazione mancante");
+      }
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const { data, error } = await supabase.functions.invoke<MetaProxyResponse>("meta-api-proxy", {
+        body: {
+          action,
+          company_id: companyId,
+          integration_id: integration.id,
+          ...params,
+        },
+      });
 
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/meta-api-proxy`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            action,
-            company_id: companyId,
-            integration_id: integration.id,
-            ...params,
-          }),
-        }
-      );
-
-      const result = await res.json();
-      if (result.error) throw new Error(result.error);
-      return result;
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+      return data || {};
     },
     [companyId, integration?.id]
   );
@@ -142,12 +136,17 @@ export function useMetaIntegration(integration: Integration | null) {
     },
     onSuccess: () => {
       refetchAssets();
+      queryClient.invalidateQueries({ queryKey: ["integration-meta-stats"] });
+      toast.success("Selezione pagina aggiornata");
+    },
+    onError: (err: Error) => {
+      toast.error(`Errore aggiornamento pagina: ${err.message}`);
     },
   });
 
   // Save form status
   const updateFormStatus = useMutation({
-    mutationFn: async ({ formId, status, syncMode }: { formId: string; status: string; syncMode?: string }) => {
+    mutationFn: async ({ formId, formName, pageAssetId, status, syncMode }: UpdateFormStatusInput) => {
       if (!companyId || !integration?.id) throw new Error("Missing context");
 
       // Upsert form record
@@ -157,8 +156,9 @@ export function useMetaIntegration(integration: Integration | null) {
           {
             company_id: companyId,
             integration_id: integration.id,
+            page_asset_id: pageAssetId,
             form_id: formId,
-            form_name: formId, // will be updated with actual name
+            form_name: formName || formId,
             status,
             sync_mode: syncMode || "new_only",
             updated_at: new Date().toISOString(),
@@ -169,7 +169,11 @@ export function useMetaIntegration(integration: Integration | null) {
     },
     onSuccess: () => {
       refetchForms();
+      queryClient.invalidateQueries({ queryKey: ["integration-meta-stats"] });
       toast.success("Modulo aggiornato");
+    },
+    onError: (err: Error) => {
+      toast.error(`Errore aggiornamento modulo: ${err.message}`);
     },
   });
 
@@ -212,6 +216,8 @@ export function useMetaIntegration(integration: Integration | null) {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
       queryClient.invalidateQueries({ queryKey: ["meta-assets"] });
       queryClient.invalidateQueries({ queryKey: ["meta-forms"] });
+      queryClient.invalidateQueries({ queryKey: ["meta-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["integration-meta-stats"] });
       toast.success("Integrazione disconnessa");
     },
     onError: (err: Error) => {

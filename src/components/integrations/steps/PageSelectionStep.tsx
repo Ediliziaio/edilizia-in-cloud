@@ -46,7 +46,7 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
               disabled={togglePageSelection.isPending}
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{page.asset_name}</p>
+              <p className="text-sm font-medium truncate">{page.asset_name || "Pagina senza nome"}</p>
               <p className="text-xs text-muted-foreground">ID: {page.asset_id}</p>
             </div>
             {page.metadata?.instagram_business_account && (
