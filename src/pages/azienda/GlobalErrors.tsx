@@ -366,16 +366,16 @@ export default function GlobalErrors() {
   return (
     <div className="space-y-6">
       {/* ── Header con bottone Filtri ─────────────────────── */}
-      <div className="rounded-lg border bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-red-50 p-2 text-red-600">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <AlertTriangle className="h-5 w-5" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Anomalie operative</h1>
-              <p className="text-sm text-muted-foreground">
-                Errori merce e manodopera che impattano costi, marginalita e qualita delle commesse.
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Anomalie operative</h1>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Errori merce e manodopera che impattano costi, marginalità e qualità delle commesse.
               </p>
             </div>
           </div>

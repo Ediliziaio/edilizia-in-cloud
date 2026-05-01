@@ -601,15 +601,19 @@ export default function Warehouse() {
   return (
     <div className="space-y-6 print:space-y-4">
       {/* Header */}
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between print:hidden">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-            <WarehouseIcon className="h-6 w-6 sm:h-8 sm:w-8" />
-            Magazzino
-          </h1>
-          <p className="text-muted-foreground">
-            Gestione materiali e tracking articoli
-          </p>
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between print:hidden">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <WarehouseIcon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
+              Magazzino
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Materiali, acquisti, DDT, lotti e inventario in un'unica vista operativa.
+            </p>
+          </div>
         </div>
 
         <div className="flex w-full flex-col gap-2 xl:w-auto xl:items-end">

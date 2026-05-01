@@ -343,14 +343,14 @@ export default function MarginalitaCantieri() {
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
-      <div className="rounded-lg border bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <BarChart3 className="h-5 w-5" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Marginalità Cantieri</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Marginalità Cantieri</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
               Controlla preventivo, acquisti, errori e overhead per capire quali commesse stanno erodendo margine.
             </p>
           </div>
