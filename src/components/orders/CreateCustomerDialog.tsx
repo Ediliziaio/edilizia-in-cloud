@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { User, Copy, Check, ShieldCheck, ShieldOff } from "lucide-react";
+import { User, Copy, Check, ShieldCheck, ShieldOff, Upload, X, FileCheck2, FileWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,17 @@ import {
 
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g;
 const PHONE_ALLOWED = /^[0-9+\-\s().]+$/;
+const CUSTOMER_DOCUMENT_BUCKET = "customer-documents";
+type CustomerDocumentType = "contract" | "identity" | "fiscal_code";
+const CUSTOMER_DOCUMENTS: Array<{ type: CustomerDocumentType; label: string }> = [
+  { type: "contract", label: "Contratto" },
+  { type: "identity", label: "Documento identità" },
+  { type: "fiscal_code", label: "Codice fiscale" },
+];
+
+function sanitizeFileName(fileName: string) {
+  return fileName.replace(/[^\w.-]+/g, "_");
+}
 
 interface CreateCustomerDialogProps {
   open: boolean;
@@ -39,7 +51,7 @@ export function CreateCustomerDialog({
   onOpenChange,
   onCustomerCreated,
 }: CreateCustomerDialogProps) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
 
   const companyPortalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
@@ -53,6 +65,7 @@ export function CreateCustomerDialog({
   const [fiscalCode, setFiscalCode] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
   const [createPortalAccount, setCreatePortalAccount] = useState(companyPortalEnabled);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,6 +77,45 @@ export function CreateCustomerDialog({
   const [createdCustomerId, setCreatedCustomerId] = useState("");
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const selectedDocumentCount = Object.values(customerDocuments).filter(Boolean).length;
+
+  const handleDocumentChange = (type: CustomerDocumentType, file: File | null) => {
+    setCustomerDocuments((prev) => {
+      const next = { ...prev };
+      if (file) next[type] = file;
+      else delete next[type];
+      return next;
+    });
+  };
+
+  const uploadCustomerDocuments = async (customerId: string) => {
+    if (!effectiveCompany?.id || !user?.id) return;
+    const entries = Object.entries(customerDocuments) as Array<[CustomerDocumentType, File | undefined]>;
+    for (const [documentType, file] of entries) {
+      if (!file) continue;
+      const filePath = `${effectiveCompany.id}/${customerId}/${documentType}/${Date.now()}-${sanitizeFileName(file.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from(CUSTOMER_DOCUMENT_BUCKET)
+        .upload(filePath, file, { contentType: file.type || undefined, upsert: false });
+      if (uploadError) throw uploadError;
+      const customerDocumentsClient = supabase as unknown as {
+        from: (table: "customer_documents") => {
+          insert: (payload: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>;
+        };
+      };
+      const { error: insertError } = await customerDocumentsClient.from("customer_documents").insert({
+        company_id: effectiveCompany.id,
+        customer_id: customerId,
+        document_type: documentType,
+        file_name: file.name,
+        file_path: filePath,
+        file_type: file.type || null,
+        file_size: file.size,
+        uploaded_by: user.id,
+      });
+      if (insertError) throw insertError;
+    }
+  };
 
   const phoneError = useMemo(() => {
     if (!phone.trim()) return null;
@@ -94,6 +146,7 @@ export function CreateCustomerDialog({
     setFiscalCode("");
     setSiteAddress("");
     setNotes("");
+    setCustomerDocuments({});
     setCreatePortalAccount(companyPortalEnabled);
     setSendWelcomeEmail(true);
     setShowSuccessStep(false);
@@ -108,7 +161,8 @@ export function CreateCustomerDialog({
     !showSuccessStep &&
     (firstName.trim() !== "" || lastName.trim() !== "" || email.trim() !== "" ||
      phone.trim() !== "" || address.trim() !== "" || fiscalCode.trim() !== "" ||
-     siteAddress.trim() !== "" || notes.trim() !== "");
+     siteAddress.trim() !== "" || notes.trim() !== "" || selectedDocumentCount > 0);
+  const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
 
   const handleClose = () => {
     resetForm();
@@ -139,8 +193,9 @@ export function CreateCustomerDialog({
       toast.error("Campo obbligatorio", { description: "Inserisci il cognome del cliente." });
       return;
     }
-    if (!email.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci l'email del cliente." });
+    const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
+    if (shouldCreatePortal && !email.trim()) {
+      toast.error("Campo obbligatorio", { description: "Inserisci l'email per creare l'accesso al portale." });
       return;
     }
     if (emailError) {
@@ -160,13 +215,12 @@ export function CreateCustomerDialog({
 
     try {
       const cleanPhone = phone.replace(PHONE_CLEAN_REGEX, "").replace(/\s+/g, " ").trim() || null;
-      const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
 
       const { data, error } = await supabase.functions.invoke("create-customer", {
         body: {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
-          email: email.trim().toLowerCase(),
+          email: email.trim().toLowerCase() || null,
           phone: cleanPhone,
           address: address.trim() || null,
           fiscal_code: fiscalCode.trim() || null,
@@ -194,6 +248,19 @@ export function CreateCustomerDialog({
       const newCustomerId = data?.customer?.id ?? data?.user_id ?? data?.customer_id;
       if (!newCustomerId) {
         throw new Error("Risposta non valida dal server (ID cliente mancante).");
+      }
+      if (selectedDocumentCount > 0) {
+        try {
+          await uploadCustomerDocuments(newCustomerId);
+          toast.success("Documenti cliente caricati", {
+            description: `${selectedDocumentCount} documento/i salvati nel fascicolo cliente.`,
+          });
+        } catch (uploadError) {
+          logger.error("Customer documents upload error:", uploadError);
+          toast.error("Cliente creato, documenti non caricati", {
+            description: uploadError instanceof Error ? uploadError.message : "Carica i documenti dalla scheda cliente.",
+          });
+        }
       }
       setCreatedCustomerId(newCustomerId);
       setGeneratedPassword(data.password ?? null);
@@ -293,7 +360,7 @@ export function CreateCustomerDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dialog-email">Email *</Label>
+                <Label htmlFor="dialog-email">Email {shouldRequireEmail ? "*" : ""}</Label>
                 <Input
                   id="dialog-email"
                   type="email"
@@ -301,10 +368,15 @@ export function CreateCustomerDialog({
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="mario.rossi@email.com"
                   autoComplete="email"
-                  required
+                  required={shouldRequireEmail}
                   aria-invalid={!!emailError}
                 />
                 {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+                {!shouldRequireEmail && (
+                  <p className="text-xs text-muted-foreground">
+                    Opzionale se crei solo l'anagrafica. Obbligatoria per il portale clienti.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -342,6 +414,70 @@ export function CreateCustomerDialog({
                   placeholder="RSSMRA80A01H501U"
                   maxLength={16}
                 />
+              </div>
+
+              <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
+                <div className="flex items-start gap-2">
+                  <FileCheck2 className="h-4 w-4 text-emerald-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">Documenti cliente</p>
+                    <p className="text-xs text-muted-foreground">
+                      Opzionali, ma tracciati come presenti o mancanti nel fascicolo.
+                    </p>
+                  </div>
+                </div>
+                <Alert className="py-2 bg-amber-50/60 border-amber-200">
+                  <FileWarning className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-xs text-amber-900">
+                    Se non li carichi ora, il cliente viene creato comunque.
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-2">
+                  {CUSTOMER_DOCUMENTS.map((doc) => {
+                    const file = customerDocuments[doc.type];
+                    return (
+                      <div key={doc.type} className="flex items-center justify-between gap-2 rounded-md border bg-background p-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium">{doc.label}</p>
+                            <Badge variant={file ? "default" : "outline"} className="text-[10px]">
+                              {file ? "presente" : "mancante"}
+                            </Badge>
+                          </div>
+                          {file && <p className="truncate text-[11px] text-muted-foreground">{file.name}</p>}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Label
+                            htmlFor={`dialog-customer-doc-${doc.type}`}
+                            className="inline-flex h-8 cursor-pointer items-center justify-center rounded-md border bg-background px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+                          >
+                            <Upload className="mr-1 h-3.5 w-3.5" />
+                            {file ? "Cambia" : "Carica"}
+                          </Label>
+                          <Input
+                            id={`dialog-customer-doc-${doc.type}`}
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/*"
+                            onChange={(event) => handleDocumentChange(doc.type, event.target.files?.[0] ?? null)}
+                          />
+                          {file && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleDocumentChange(doc.type, null)}
+                              aria-label={`Rimuovi ${doc.label}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="space-y-2">

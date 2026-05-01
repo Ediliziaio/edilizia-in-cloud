@@ -1,13 +1,12 @@
 import { useState, useCallback, useMemo } from "react";
 import {
-  Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2, FileText,
-  Sparkles, File as FileIcon, X, Info, ArrowRight, ArrowLeft,
+  Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2,
+  Sparkles, File as FileIcon, Info, ArrowRight, ArrowLeft,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -69,13 +68,20 @@ function autoMatch(fileHeaders: string[], fields: CustomerImportField[]): Record
     const norm = normalizeHeader(header);
     // Hardcoded synonyms IT/EN for better auto-match
     const syn: Record<string, string[]> = {
+      business_name: ["ragionesociale", "nomeazienda", "azienda", "societa", "società", "denominazione"],
       first_name: ["nome", "firstname", "nomecliente", "given", "nomepersona"],
-      last_name: ["cognome", "lastname", "cognomecliente", "surname", "family", "ragionesociale", "nomeazienda"],
+      last_name: ["cognome", "lastname", "cognomecliente", "surname", "family"],
       email: ["email", "mail", "posta", "emailaddress", "pec"],
       phone: ["telefono", "cellulare", "cell", "mobile", "phone", "tel", "numero"],
       fiscal_code: ["codicefiscale", "cf", "piva", "partitaiva", "vat", "fiscalcode"],
       address: ["indirizzo", "residenza", "sede", "address", "via", "location"],
+      postal_code: ["cap", "zipcode", "postalcode", "codicepostale"],
+      city: ["citta", "città", "comune", "city"],
+      province: ["provincia", "prov", "pr", "province"],
       site_address: ["cantiere", "indirizzocantiere", "worksite", "site"],
+      site_postal_code: ["capcantiere", "capdelcantiere", "worksitezip", "sitepostalcode"],
+      site_city: ["cittacantiere", "cittàcantiere", "comunecantiere", "worksitecity", "sitecity"],
+      site_province: ["provinciacantiere", "provinciaalavori", "worksiteprovince", "siteprovince"],
       notes: ["note", "notes", "annotazioni", "descrizione"],
     };
     for (const field of fields) {
@@ -178,6 +184,15 @@ export function CustomerImportDialog({
   const [createPortal, setCreatePortal] = useState<boolean>(portalEnabled);
   const [sendWelcome, setSendWelcome] = useState<boolean>(false);
   const [skipDuplicates, setSkipDuplicates] = useState<boolean>(true);
+  const shouldCreatePortal = createPortal && portalEnabled;
+  const effectiveFields = useMemo(
+    () => fields.map((field) => (
+      field.key === "email"
+        ? { ...field, required: shouldCreatePortal }
+        : field
+    )),
+    [fields, shouldCreatePortal],
+  );
 
   const reset = useCallback(() => {
     setMode("file");
@@ -204,47 +219,8 @@ export function CustomerImportDialog({
     onOpenChange(v);
   };
 
-  /* ─── File handling ───────────────────────────────────── */
-  const handleFile = useCallback(async (file: File) => {
-    setFileError(null);
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      setFileError(`File troppo grande. Massimo ${MAX_FILE_SIZE_BYTES / 1024 / 1024} MB.`);
-      return;
-    }
-    setFileName(file.name);
-    const lower = file.name.toLowerCase();
-
-    try {
-      if (lower.endsWith(".csv")) {
-        const text = await file.text();
-        const { headers, rows } = parseCsv(text);
-        if (!headers.length) throw new Error("Il CSV non contiene intestazioni valide.");
-        setFileHeaders(headers);
-        setFileRows(rows);
-        setMapping(autoMatch(headers, fields));
-        setStep("preview");
-      } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
-        const { headers, rows } = await parseExcel(file);
-        if (!headers.length) throw new Error("Il file Excel non contiene intestazioni.");
-        setFileHeaders(headers);
-        setFileRows(rows);
-        setMapping(autoMatch(headers, fields));
-        setStep("preview");
-      } else if (lower.endsWith(".pdf") || file.type.startsWith("image/")) {
-        // PDF / immagini → pipeline AI
-        await runAiExtraction(file);
-      } else {
-        setFileError(`Formato non supportato: ${file.name}. Accettati: CSV, XLSX, PDF, PNG, JPG.`);
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Errore lettura file";
-      setFileError(msg);
-      logger.error("Import file error:", e);
-    }
-  }, [fields]);
-
   /* ─── AI Extraction pipeline ─────────────────────────── */
-  const runAiExtraction = async (file: File) => {
+  const runAiExtraction = useCallback(async (file: File) => {
     if (!user?.id) {
       setFileError("Utente non autenticato");
       return;
@@ -309,7 +285,45 @@ export function CustomerImportDialog({
       setAiBusy(false);
       setAiProgress("");
     }
-  };
+  }, [user?.id]);
+
+  /* ─── File handling ───────────────────────────────────── */
+  const handleFile = useCallback(async (file: File) => {
+    setFileError(null);
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setFileError(`File troppo grande. Massimo ${MAX_FILE_SIZE_BYTES / 1024 / 1024} MB.`);
+      return;
+    }
+    setFileName(file.name);
+    const lower = file.name.toLowerCase();
+
+    try {
+      if (lower.endsWith(".csv")) {
+        const text = await file.text();
+        const { headers, rows } = parseCsv(text);
+        if (!headers.length) throw new Error("Il CSV non contiene intestazioni valide.");
+        setFileHeaders(headers);
+        setFileRows(rows);
+        setMapping(autoMatch(headers, fields));
+        setStep("preview");
+      } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+        const { headers, rows } = await parseExcel(file);
+        if (!headers.length) throw new Error("Il file Excel non contiene intestazioni.");
+        setFileHeaders(headers);
+        setFileRows(rows);
+        setMapping(autoMatch(headers, fields));
+        setStep("preview");
+      } else if (lower.endsWith(".pdf") || file.type.startsWith("image/")) {
+        await runAiExtraction(file);
+      } else {
+        setFileError(`Formato non supportato: ${file.name}. Accettati: CSV, XLSX, PDF, PNG, JPG.`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Errore lettura file";
+      setFileError(msg);
+      logger.error("Import file error:", e);
+    }
+  }, [fields, runAiExtraction]);
 
   /* ─── Drop handlers ──────────────────────────────────── */
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -329,8 +343,8 @@ export function CustomerImportDialog({
   /* ─── Validations ────────────────────────────────────── */
   const missingRequired = useMemo(() => {
     const mappedKeys = new Set(Object.values(mapping).filter(Boolean));
-    return fields.filter((f) => f.required && !mappedKeys.has(f.key));
-  }, [mapping, fields]);
+    return effectiveFields.filter((f) => f.required && !mappedKeys.has(f.key));
+  }, [mapping, effectiveFields]);
 
   const mappedRows = useMemo(() => {
     return fileRows.map((row) => {
@@ -351,29 +365,38 @@ export function CustomerImportDialog({
     return mappedRows.map((raw) => {
       // Applica sanitize → permette preview dei fix automatici
       const sanitized = sanitizeCustomerInput(raw);
+      const businessName = cleanCell(raw.business_name);
       const errors: string[] = [];
-      if (!sanitized.first_name?.trim() && !sanitized.last_name?.trim()) {
-        errors.push("Nome e cognome entrambi mancanti");
+      if (!businessName && !sanitized.first_name?.trim() && !sanitized.last_name?.trim()) {
+        errors.push("Nome/cognome o ragione sociale mancanti");
       }
-      if (!sanitized.email?.trim()) {
+      const hasEmail = !!sanitized.email?.trim();
+      if (shouldCreatePortal && !hasEmail) {
         errors.push("Email mancante");
-      } else if (!EMAIL_RE.test(sanitized.email.trim())) {
+      } else if (hasEmail && !EMAIL_RE.test(sanitized.email.trim())) {
         errors.push("Email non valida");
       }
       // Converte sanitized di nuovo in Record<string,string> per l'import
       const rowFixed: Record<string, string> = {
+        business_name: businessName,
         first_name: sanitized.first_name,
         last_name: sanitized.last_name,
         email: sanitized.email,
         phone: sanitized.phone ?? "",
         fiscal_code: sanitized.fiscal_code ?? "",
         address: sanitized.address ?? "",
+        postal_code: cleanCell(raw.postal_code),
+        city: cleanCell(raw.city),
+        province: cleanCell(raw.province).toUpperCase(),
         site_address: sanitized.site_address ?? "",
+        site_postal_code: cleanCell(raw.site_postal_code),
+        site_city: cleanCell(raw.site_city),
+        site_province: cleanCell(raw.site_province).toUpperCase(),
         notes: sanitized.notes ?? "",
       };
       return { row: rowFixed, originalRow: raw, errors, fixes: sanitized.fixes_applied };
     });
-  }, [mappedRows]);
+  }, [mappedRows, shouldCreatePortal]);
 
   const totalFixes = useMemo(
     () => rowValidations.reduce((sum, v) => sum + v.fixes.length, 0),
@@ -438,7 +461,7 @@ export function CustomerImportDialog({
               mappate automaticamente ai campi (nome, email, telefono, CF, indirizzo…).
             </p>
             <div className="flex flex-wrap gap-1">
-              {fields.map((f) => (
+              {effectiveFields.map((f) => (
                 <Badge key={f.key} variant="outline" className="text-[10px]">
                   {f.label}{f.required ? " *" : ""}
                 </Badge>
@@ -616,7 +639,7 @@ export function CustomerImportDialog({
                     {h}
                     {mapping[h] && (
                       <div className="text-[10px] text-muted-foreground font-normal normal-case">
-                        → {fields.find((f) => f.key === mapping[h])?.label ?? mapping[h]}
+                        → {effectiveFields.find((f) => f.key === mapping[h])?.label ?? mapping[h]}
                       </div>
                     )}
                   </TableHead>
@@ -689,7 +712,7 @@ export function CustomerImportDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— non importare —</SelectItem>
-                  {fields.map((f) => (
+                  {effectiveFields.map((f) => (
                     <SelectItem key={f.key} value={f.key}>
                       {f.label}{f.required ? " *" : ""}
                     </SelectItem>

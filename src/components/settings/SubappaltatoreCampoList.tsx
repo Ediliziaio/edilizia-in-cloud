@@ -1,6 +1,6 @@
 /**
- * Lista dei subappaltatori con gestione account campo.
- * Permette di collegare/revocare l'accesso all'area campo.
+ * Lista dei subappaltatori con gestione account app cantiere.
+ * Permette di collegare/revocare l'account app cantiere.
  * Usato nel tab "Subappaltatori campo" di SettingsPeople.tsx.
  */
 import { useState } from "react";
@@ -84,7 +84,7 @@ export function SubappaltatoreCampoList() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Accesso campo revocato");
+      toast.success("Account app cantiere revocato");
       qc.invalidateQueries({ queryKey: ["sub-campo-list", companyId] });
     },
     onError: () => toast.error("Errore revoca accesso"),
@@ -102,7 +102,7 @@ export function SubappaltatoreCampoList() {
         <div>
           <p className="font-medium">Area Campo Subappaltatori</p>
           <p className="text-amber-700 text-xs mt-0.5">
-            Collega un account email a ogni subappaltatore per dargli accesso a{" "}
+            Collega un account email a ogni subappaltatore per dargli accesso all'app cantiere{" "}
             <a href="https://lavori.ediliziaincloud.com" target="_blank" rel="noreferrer" className="underline font-medium">
               lavori.ediliziaincloud.com
             </a>
@@ -139,7 +139,7 @@ export function SubappaltatoreCampoList() {
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                            <Link2Off className="h-2.5 w-2.5 mr-1" />Nessun accesso campo
+                            <Link2Off className="h-2.5 w-2.5 mr-1" />Nessun account app
                           </Badge>
                         )}
                       </div>
@@ -175,7 +175,7 @@ export function SubappaltatoreCampoList() {
       <Dialog open={!!collegaDialogId} onOpenChange={() => { setCollegaDialogId(null); setCollegaEmail(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Collega account campo</DialogTitle>
+            <DialogTitle>Collega account app cantiere</DialogTitle>
             <DialogDescription>
               Inserisci l&apos;email del subappaltatore. Se l&apos;utente esiste già verrà collegato automaticamente.
             </DialogDescription>

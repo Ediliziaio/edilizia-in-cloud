@@ -5,6 +5,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { sanitizeCustomerInput } from "../_shared/customerDataSanitizer.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INTERNAL_NO_EMAIL_DOMAIN = "no-email.ediliziaincloud.local";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -75,16 +76,8 @@ Deno.serve(async (req) => {
 
     const trimmedFirstName = sanitized.first_name;
     const trimmedLastName = sanitized.last_name;
-    const trimmedEmail = (sanitized.email || "").slice(0, 255);
+    const rawEmail = (sanitized.email || "").slice(0, 255);
     const trimmedPhone = sanitized.phone;
-
-    // Validation (post-sanitize)
-    if (!trimmedEmail) {
-      return errorResponse("Email è obbligatoria");
-    }
-    if (!EMAIL_REGEX.test(trimmedEmail)) {
-      return errorResponse("Indirizzo email non valido");
-    }
     // Dopo il sanitize, se mancano ancora sia nome che cognome E non è
     // un'azienda → rifiutiamo: nessuna identità ricostruibile.
     if (!isBusiness && !trimmedFirstName && !trimmedLastName) {
@@ -127,6 +120,19 @@ Deno.serve(async (req) => {
     const clientWantsPortal = create_portal_account !== false; // default true
     const shouldCreatePortal = companyPortalEnabled && clientWantsPortal;
     const shouldSendWelcomeEmail = shouldCreatePortal && send_welcome_email !== false;
+
+    // Validation (post-sanitize)
+    // L'email resta obbligatoria solo quando il cliente deve accedere al portale.
+    // Per anagrafiche operative senza portale generiamo una mail tecnica interna:
+    // serve solo per rispettare il vincolo auth/profiles, resta bloccata e non va
+    // mostrata come contatto reale nell'interfaccia.
+    if (shouldCreatePortal && !rawEmail) {
+      return errorResponse("Email è obbligatoria per creare l'accesso al portale");
+    }
+    if (rawEmail && !EMAIL_REGEX.test(rawEmail)) {
+      return errorResponse("Indirizzo email non valido");
+    }
+    const trimmedEmail = rawEmail || `cliente-${crypto.randomUUID()}@${INTERNAL_NO_EMAIL_DOMAIN}`;
 
     // --- Password generation ---
     // Anche quando il portale è disabilitato creiamo un account auth shadow

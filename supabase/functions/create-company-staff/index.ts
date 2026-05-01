@@ -193,18 +193,50 @@ Deno.serve(async (req) => {
     }
 
     if (effectiveRoleType === "subcontractor" && userId && targetCompanyId) {
-      const { error: subError } = await supabaseAdmin.from("subappaltatori").insert({
-        company_id: targetCompanyId,
-        ragione_sociale: `${first_name} ${last_name}`,
-        responsabile: `${first_name} ${last_name}`,
-        user_id: userId,
-        user_email: email,
-      });
+      const { data: existingSub, error: findSubError } = await supabaseAdmin
+        .from("subappaltatori")
+        .select("id")
+        .eq("company_id", targetCompanyId)
+        .or(`user_email.eq.${email},email.eq.${email}`)
+        .maybeSingle();
 
-      if (subError) {
-        console.error("Error creating subcontractor record:", subError);
+      if (findSubError) {
+        console.error("Error finding subcontractor record:", findSubError);
         await cleanup();
         return errorResponse("Errore durante la creazione del profilo subappaltatore", 500);
+      }
+
+      if (existingSub?.id) {
+        const { error: subUpdateError } = await supabaseAdmin
+          .from("subappaltatori")
+          .update({
+            user_id: userId,
+            user_email: email,
+            email,
+            responsabile: `${first_name} ${last_name}`,
+            is_active: true,
+          })
+          .eq("id", existingSub.id);
+        if (subUpdateError) {
+          console.error("Error linking subcontractor record:", subUpdateError);
+          await cleanup();
+          return errorResponse("Errore durante il collegamento del profilo subappaltatore", 500);
+        }
+      } else {
+        const { error: subError } = await supabaseAdmin.from("subappaltatori").insert({
+          company_id: targetCompanyId,
+          ragione_sociale: `${first_name} ${last_name}`,
+          responsabile: `${first_name} ${last_name}`,
+          email,
+          user_id: userId,
+          user_email: email,
+        });
+
+        if (subError) {
+          console.error("Error creating subcontractor record:", subError);
+          await cleanup();
+          return errorResponse("Errore durante la creazione del profilo subappaltatore", 500);
+        }
       }
     }
 

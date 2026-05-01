@@ -5,13 +5,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Camera, Columns, FileCheck, FileText, FileSpreadsheet, Sparkles, ChevronDown, Users as UsersIcon } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, Sparkles, ChevronDown, Users as UsersIcon } from "lucide-react";
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
-import FotoCantiere from "@/pages/azienda/FotoCantiere";
 import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -1456,7 +1455,7 @@ function OrdersListInner() {
 
 export default function OrdersList() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "ordini";
+  const requestedTab = searchParams.get("tab") || "ordini";
   const permissions = usePermissions();
   const handleTabChange = (tab: string) => {
     setSearchParams(tab === "ordini" ? {} : { tab });
@@ -1468,8 +1467,14 @@ export default function OrdersList() {
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewForecast },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewOrders },
     { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewOrders },
-    { id: "foto", label: "Foto Cantiere", icon: Camera, show: permissions.canViewOrders },
   ].filter((t) => t.show);
+  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : "ordini";
+
+  useEffect(() => {
+    if (requestedTab !== activeTab) {
+      setSearchParams({});
+    }
+  }, [activeTab, requestedTab, setSearchParams]);
 
   return (
     <div className="space-y-6">
@@ -1530,9 +1535,6 @@ export default function OrdersList() {
         <MarginalitaCantieri />
       )}
 
-      {activeTab === "foto" && (
-        <FotoCantiere />
-      )}
     </div>
   );
 }

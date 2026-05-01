@@ -38,7 +38,10 @@ interface OrderErrorsProps {
 
 const ERROR_TYPES = [
   { value: "merce", label: "Merce", icon: Package, description: "Errore ordinazione materiale" },
+  { value: "fornitura", label: "Fornitura", icon: Truck, description: "Problema fornitore o materiale ricevuto" },
+  { value: "logistica", label: "Logistica", icon: Truck, description: "Ritardo, trasporto o danno in consegna" },
   { value: "manodopera", label: "Manodopera", icon: Wrench, description: "Errore lavorazione" },
+  { value: "esecuzione", label: "Esecuzione", icon: Wrench, description: "Errore operativo in cantiere" },
 ];
 
 const ERROR_CATEGORIES = [
@@ -47,8 +50,60 @@ const ERROR_CATEGORIES = [
   { value: "quantita", label: "Errore quantità", icon: Hash, color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300" },
   { value: "lavorazione", label: "Errore lavorazione", icon: Wrench, color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
   { value: "comunicazione", label: "Errore comunicazione", icon: MessageSquare, color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  { value: "difetto_prodotto", label: "Difetto prodotto", icon: Package, color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  { value: "difetto_materiale", label: "Difetto materiale", icon: Package, color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
+  { value: "danno_materiale", label: "Danno materiale", icon: Package, color: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300" },
+  { value: "ritardo", label: "Ritardo", icon: Truck, color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" },
   { value: "altro", label: "Altro", icon: HelpCircle, color: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300" },
 ];
+
+const TYPE_ALIASES: Record<string, string> = {
+  merce: "merce",
+  materiale: "merce",
+  fornitura: "fornitura",
+  fornitore: "fornitura",
+  logistica: "logistica",
+  trasporto: "logistica",
+  manodopera: "manodopera",
+  esecuzione: "esecuzione",
+  lavorazione: "esecuzione",
+};
+
+const CATEGORY_ALIASES: Record<string, string> = {
+  fornitore: "fornitore",
+  errore_fornitore: "fornitore",
+  misura: "misura",
+  misure: "misura",
+  errore_misura: "misura",
+  errore_misure: "misura",
+  quantita: "quantita",
+  errore_quantita: "quantita",
+  lavorazione: "lavorazione",
+  errore_lavorazione: "lavorazione",
+  comunicazione: "comunicazione",
+  errore_comunicazione: "comunicazione",
+  difetto_prodotto: "difetto_prodotto",
+  prodotto_difettoso: "difetto_prodotto",
+  difetto_materiale: "difetto_materiale",
+  materiale_difettoso: "difetto_materiale",
+  danno_materiale: "danno_materiale",
+  danni_materiale: "danno_materiale",
+  danni: "danno_materiale",
+  ritardo: "ritardo",
+  ritardi: "ritardo",
+};
+
+function normalizeKey(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase().replace(/[ -]+/g, "_");
+}
+
+function normalizeType(value: string | null | undefined) {
+  return TYPE_ALIASES[normalizeKey(value)] ?? "merce";
+}
+
+function normalizeCategory(value: string | null | undefined) {
+  return CATEGORY_ALIASES[normalizeKey(value)] ?? "altro";
+}
 
 export function OrderErrors({ orderId }: OrderErrorsProps) {
   const { user, effectiveCompany } = useAuth();
@@ -136,13 +191,17 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
   };
 
   const totalErrors = errors.reduce((sum, e) => sum + e.amount, 0);
-  const totalMerce = errors.filter(e => e.error_type === "merce").reduce((sum, e) => sum + e.amount, 0);
-  const totalManodopera = errors.filter(e => e.error_type === "manodopera").reduce((sum, e) => sum + e.amount, 0);
+  const totalFornitura = errors
+    .filter((e) => ["merce", "fornitura", "logistica"].includes(normalizeType(e.error_type)))
+    .reduce((sum, e) => sum + e.amount, 0);
+  const totalEsecuzione = errors
+    .filter((e) => ["manodopera", "esecuzione"].includes(normalizeType(e.error_type)))
+    .reduce((sum, e) => sum + e.amount, 0);
 
   // Category breakdown sorted by frequency
   const categoryBreakdown = ERROR_CATEGORIES
     .map(cat => {
-      const catErrors = errors.filter(e => e.error_category === cat.value);
+      const catErrors = errors.filter(e => normalizeCategory(e.error_category) === cat.value);
       return { ...cat, count: catErrors.length, total: catErrors.reduce((s, e) => s + e.amount, 0) };
     })
     .filter(c => c.count > 0)
@@ -166,8 +225,8 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
         ) : (
           <>
             {errors.map((err) => {
-              const typeConfig = ERROR_TYPES.find(t => t.value === err.error_type);
-              const catConfig = ERROR_CATEGORIES.find(c => c.value === err.error_category);
+              const typeConfig = ERROR_TYPES.find(t => t.value === normalizeType(err.error_type));
+              const catConfig = ERROR_CATEGORIES.find(c => c.value === normalizeCategory(err.error_category));
               const Icon = typeConfig?.icon || Package;
               return (
                 <div key={err.id} className="flex items-start justify-between gap-2 p-3 rounded-lg border bg-muted/30">
@@ -218,16 +277,16 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
 
             {/* Summary by type */}
             <div className="pt-2 border-t space-y-1">
-              {totalMerce > 0 && (
+              {totalFornitura > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Errori Merce</span>
-                  <span className="text-destructive">{formatCurrency(totalMerce)}</span>
+                  <span className="text-muted-foreground">Fornitura / logistica</span>
+                  <span className="text-destructive">{formatCurrency(totalFornitura)}</span>
                 </div>
               )}
-              {totalManodopera > 0 && (
+              {totalEsecuzione > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Errori Manodopera</span>
-                  <span className="text-destructive">{formatCurrency(totalManodopera)}</span>
+                  <span className="text-muted-foreground">Esecuzione / manodopera</span>
+                  <span className="text-destructive">{formatCurrency(totalEsecuzione)}</span>
                 </div>
               )}
               <div className="flex justify-between font-semibold">

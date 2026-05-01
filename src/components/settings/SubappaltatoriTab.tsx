@@ -1,7 +1,7 @@
 /**
  * Tab unificato Subappaltatori:
  *  – Squadre esterne (external_teams) con CRUD
- *  – Accesso campo subappaltatori (subappaltatori table) con collegamento account
+ *  – Account app cantiere subappaltatori (subappaltatori table) con collegamento account
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -149,7 +149,7 @@ export function SubappaltatoriTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Accesso campo revocato");
+      toast.success("Account app cantiere revocato");
       queryClient.invalidateQueries({ queryKey: ["sub-campo-list", companyId] });
     },
     onError: () => toast.error("Errore revoca accesso"),
@@ -267,23 +267,30 @@ export function SubappaltatoriTab() {
         </CardContent>
       </Card>
 
-      {/* ── Accesso Campo ────────────────────────────────────────────── */}
-      {subCampo.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <HardHat className="h-5 w-5" />
-              Accesso Campo
-            </CardTitle>
-            <CardDescription>
-              Collega un account a ogni subappaltatore per dargli accesso all'app cantiere.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {loadingSub ? (
-              <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5" /></div>
-            ) : (
-              subCampo.map((sub: any) => (
+      {/* ── Account app cantiere ─────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <HardHat className="h-5 w-5" />
+            Account app cantiere
+          </CardTitle>
+          <CardDescription>
+            Collega un account a ogni subappaltatore per dargli accesso all'app cantiere. Le anagrafiche create dal modulo Subappaltatori vengono agganciate qui.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {loadingSub ? (
+            <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5" /></div>
+          ) : subCampo.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-6 text-center">
+              <HardHat className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+              <p className="text-sm font-medium">Nessuna anagrafica app cantiere collegata</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Crea o collega un subappaltatore dalla sezione operativa per abilitarne poi l'account.
+              </p>
+            </div>
+          ) : (
+            subCampo.map((sub: any) => (
                 <div key={sub.id} className="flex items-center justify-between p-3 rounded-lg border">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
@@ -317,11 +324,10 @@ export function SubappaltatoriTab() {
                     </Button>
                   )}
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      )}
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Dialogs ──────────────────────────────────────────────────── */}
       <ExternalTeamDialog
@@ -343,7 +349,7 @@ export function SubappaltatoriTab() {
       <Dialog open={!!collegaDialogId} onOpenChange={() => { setCollegaDialogId(null); setCollegaEmail(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Collega account campo</DialogTitle>
+            <DialogTitle>Collega account app cantiere</DialogTitle>
             <DialogDescription>
               Inserisci l&apos;email del subappaltatore. Se esiste verrà collegato automaticamente.
             </DialogDescription>

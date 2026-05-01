@@ -24,6 +24,7 @@ import {
 import { useState } from "react";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
 import { CustomerDiaryPanel } from "@/components/clients/CustomerDiaryPanel";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   CustomerBusinessTabs,
   type OrderRow,
@@ -61,6 +62,14 @@ interface CustomerProfile {
   site_province: string | null;
 }
 
+const INTERNAL_NO_EMAIL_DOMAIN = "@no-email.ediliziaincloud.local";
+
+function formatCustomerEmail(email: string | null | undefined): string | null {
+  const value = (email ?? "").trim();
+  if (!value || value.endsWith(INTERNAL_NO_EMAIL_DOMAIN)) return null;
+  return value;
+}
+
 export default function CompanyCustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -71,17 +80,19 @@ export default function CompanyCustomerDetail() {
 
   // ── Core customer data ──────────────────────────────────────────────────────
   const { data: customer, isLoading, refetch: refetchCustomer } = useQuery({
-    queryKey: ["company-customer-detail", id],
+    queryKey: ["company-customer-detail", id, effectiveCompany?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
+      const query = supabase
         .from("profiles")
         .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at, salesperson_id, is_business, business_name, city, postal_code, province, country, site_city, site_postal_code, site_province")
         .eq("id", id!)
-        .single();
+        .eq("company_id", effectiveCompany.id);
+      const { data, error } = await query.single();
       if (error) throw error;
       return data as unknown as CustomerProfile;
     },
-    enabled: !!id,
+    enabled: !!id && !!effectiveCompany?.id,
   });
 
   // ── Orders ──────────────────────────────────────────────────────────────────
@@ -101,59 +112,71 @@ export default function CompanyCustomerDetail() {
   });
 
   // ── Anagrafica fiscale collegata ────────────────────────────────────────────
-  const { data: anagraficaCollegata } = useQuery({
+  const { data: anagraficaCollegata, error: anagraficaError } = useQuery({
     queryKey: ["anagrafica-by-cliente", id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("anagrafiche_native" as never)
         .select("id, ragione_sociale, partita_iva")
         .eq("cliente_id", id!)
         .maybeSingle();
+      if (error) throw new Error("Impossibile verificare l'anagrafica fiscale collegata.");
       return data as { id: string; ragione_sociale: string | null; partita_iva: string | null } | null;
     },
     enabled: !!id,
   });
 
   // ── Fatture ─────────────────────────────────────────────────────────────────
-  const { data: fattureCliente = [] } = useQuery({
+  const { data: fattureCliente = [], error: fattureError } = useQuery({
     queryKey: ["fatture-cliente", id, anagraficaCollegata?.id],
     enabled: !!anagraficaCollegata?.id,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("documenti_fiscali" as never)
         .select("id, tipo, numero, data_emissione, stato, totale_documento")
         .eq("anagrafica_id", anagraficaCollegata?.id ?? "")
         .is("deleted_at", null)
         .order("data_emissione", { ascending: false })
         .limit(20);
+      if (error) throw new Error("Impossibile caricare i documenti fiscali del cliente.");
       return (data ?? []) as unknown as FatturaRow[];
     },
   });
 
   // ── Preventivi ──────────────────────────────────────────────────────────────
-  // NOTA: quotes.contact_id punta a marketing_contacts.id — il link arriva con Sprint 2.
-  // Ritorna [] finché il link non esiste.
-  const { data: preventivi = [] } = useQuery({
-    queryKey: ["customer-preventivi", id, effectiveCompany?.id],
+  // quotes.contact_id punta a marketing_contacts.id; quando manca quel link
+  // usiamo l'email reale del cliente come fallback operativo.
+  const customerEmailForLinks = formatCustomerEmail(customer?.email);
+  const { data: preventivi = [], error: preventiviError } = useQuery({
+    queryKey: ["customer-preventivi", id, effectiveCompany?.id, customer?.marketing_contact_id, customerEmailForLinks],
     queryFn: async () => {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from("quotes")
           .select("id, quote_number, title, total, status, created_at")
-          .eq("contact_id", id!)
           .eq("company_id", effectiveCompany!.id)
           .order("created_at", { ascending: false });
-        if (error) return [];
+
+        if (customer?.marketing_contact_id) {
+          query = query.eq("contact_id", customer.marketing_contact_id);
+        } else if (customerEmailForLinks) {
+          query = query.eq("client_email", customerEmailForLinks);
+        } else {
+          return [];
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
         return (data ?? []) as PreventivoRow[];
       } catch {
-        return [];
+        throw new Error("Impossibile caricare i preventivi collegati al cliente.");
       }
     },
-    enabled: !!id && !!effectiveCompany?.id,
+    enabled: !!id && !!effectiveCompany?.id && (!!customer?.marketing_contact_id || !!customerEmailForLinks),
   });
 
   // ── Tickets ─────────────────────────────────────────────────────────────────
-  const { data: tickets = [] } = useQuery({
+  const { data: tickets = [], error: ticketsError } = useQuery({
     queryKey: ["customer-tickets", id, effectiveCompany?.id],
     queryFn: async () => {
       try {
@@ -163,10 +186,10 @@ export default function CompanyCustomerDetail() {
           .eq("customer_id", id!)
           .eq("company_id", effectiveCompany!.id)
           .order("created_at", { ascending: false });
-        if (error) return [];
+        if (error) throw error;
         return (data ?? []) as TicketRow[];
       } catch {
-        return [];
+        throw new Error("Impossibile caricare le richieste di assistenza del cliente.");
       }
     },
     enabled: !!id && !!effectiveCompany?.id,
@@ -178,7 +201,7 @@ export default function CompanyCustomerDetail() {
 
   // ── Rapportini Intervento ────────────────────────────────────────────────────
   // TODO: verificare il nome corretto della colonna customer_id in rapportini_intervento
-  const { data: rapportini = [] } = useQuery({
+  const { data: rapportini = [], error: rapportiniError } = useQuery({
     queryKey: ["customer-rapportini", id, effectiveCompany?.id],
     queryFn: async () => {
       try {
@@ -189,17 +212,17 @@ export default function CompanyCustomerDetail() {
           .eq("company_id", effectiveCompany!.id)
           .order("created_at", { ascending: false })
           .limit(20);
-        if (error) return [];
+        if (error) throw error;
         return (data ?? []) as unknown as RapportinoRow[];
       } catch {
-        return [];
+        throw new Error("Impossibile caricare i rapportini/interventi collegati al cliente.");
       }
     },
     enabled: !!id && !!effectiveCompany?.id,
   });
 
   // ── Appuntamenti ─────────────────────────────────────────────────────────────
-  const { data: appuntamenti = [] } = useQuery({
+  const { data: appuntamenti = [], error: appuntamentiError } = useQuery({
     queryKey: ["customer-appuntamenti", id, effectiveCompany?.id],
     queryFn: async () => {
       try {
@@ -210,10 +233,10 @@ export default function CompanyCustomerDetail() {
           .eq("company_id", effectiveCompany!.id)
           .order("start_at", { ascending: false })
           .limit(20);
-        if (error) return [];
+        if (error) throw error;
         return (data ?? []) as unknown as AppuntamentoRow[];
       } catch {
-        return [];
+        throw new Error("Impossibile caricare gli appuntamenti collegati al cliente.");
       }
     },
     enabled: !!id && !!effectiveCompany?.id,
@@ -221,7 +244,7 @@ export default function CompanyCustomerDetail() {
 
   // ── Rate / Scadenzario ───────────────────────────────────────────────────────
   const orderIds = orders.map((o) => o.id);
-  const { data: rate = [] } = useQuery({
+  const { data: rate = [], error: rateError } = useQuery({
     queryKey: ["customer-rate", id, orderIds],
     queryFn: async () => {
       if (orderIds.length === 0) return [];
@@ -231,10 +254,10 @@ export default function CompanyCustomerDetail() {
           .select("id, amount, due_date, paid_at, order_id")
           .in("order_id", orderIds)
           .order("due_date", { ascending: true });
-        if (error) return [];
+        if (error) throw error;
         return (data ?? []) as unknown as RataRow[];
       } catch {
-        return [];
+        throw new Error("Impossibile caricare rate e scadenze collegate al cliente.");
       }
     },
     enabled: orderIds.length > 0,
@@ -332,7 +355,7 @@ export default function CompanyCustomerDetail() {
       });
       if (customerId) {
         queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customerId] });
-        queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       }
       refetchCustomer();
     },
@@ -376,7 +399,7 @@ export default function CompanyCustomerDetail() {
       }
       if (res.data?.error) throw new Error(res.data.error);
 
-      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo." });
       navigate("/azienda/clienti");
     } catch (error: unknown) {
@@ -447,13 +470,13 @@ export default function CompanyCustomerDetail() {
 
           {/* Chip cliccabili email / telefono / indirizzo */}
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            {customer.email && (
+            {formatCustomerEmail(customer.email) && (
               <a
-                href={`mailto:${customer.email}`}
+                href={`mailto:${formatCustomerEmail(customer.email)}`}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs text-muted-foreground hover:bg-muted/70 transition-colors"
               >
                 <Mail className="h-3 w-3" />
-                {customer.email}
+                {formatCustomerEmail(customer.email)}
               </a>
             )}
             {customer.phone && (
@@ -554,7 +577,7 @@ export default function CompanyCustomerDetail() {
           <CustomerDiaryPanel
             customerId={customer.id}
             customerName={fullName}
-            customerEmail={customer.email}
+            customerEmail={formatCustomerEmail(customer.email)}
           />
         </div>
 
@@ -574,6 +597,15 @@ export default function CompanyCustomerDetail() {
             anagraficaCollegata={anagraficaCollegata ?? null}
             totalOrderValue={totalOrderValue}
             openTicketsCount={openTicketsCount}
+            dataWarnings={{
+              anagrafica: anagraficaError instanceof Error ? anagraficaError.message : null,
+              fatture: fattureError instanceof Error ? fattureError.message : null,
+              preventivi: preventiviError instanceof Error ? preventiviError.message : null,
+              tickets: ticketsError instanceof Error ? ticketsError.message : null,
+              rapportini: rapportiniError instanceof Error ? rapportiniError.message : null,
+              appuntamenti: appuntamentiError instanceof Error ? appuntamentiError.message : null,
+              rate: rateError instanceof Error ? rateError.message : null,
+            }}
           />
         </div>
       </div>

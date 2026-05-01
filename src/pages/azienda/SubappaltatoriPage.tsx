@@ -19,7 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  HardHat, Plus, Search, Euro, AlertTriangle, Phone, ExternalLink, Loader2,
+  HardHat, Plus, Search, Euro, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off,
 } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { SubappaltatoreConDashboard, StatoContratto } from '@/types/subappaltatori';
@@ -45,6 +45,15 @@ function StatoBadge({ stato }: { stato: StatoContratto | null }) {
   return <Badge className={`text-xs ${cfg.className}`}>{cfg.label}</Badge>;
 }
 
+function isMissingCampoLinkColumn(error: unknown) {
+  const message = String((error as { message?: string })?.message ?? error ?? '').toLowerCase();
+  return message.includes('campo_subappaltatore_id') && (
+    message.includes('column') ||
+    message.includes('schema cache') ||
+    message.includes('could not find')
+  );
+}
+
 export default function SubappaltatoriPage() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? '';
@@ -62,9 +71,57 @@ export default function SubappaltatoriPage() {
     tipo_lavori: '',
     responsabile: '',
     telefono: '',
+    piva: '',
+    email: '',
+    pec: '',
+    indirizzo: '',
     durc_scadenza: '',
     ordine_id: '',
+    note: '',
   });
+
+  const findOrCreateCampoSubappaltatore = async () => {
+    const ragioneSociale = form.ragione_sociale.trim();
+    const piva = form.piva.trim();
+    const email = form.email.trim() || form.pec.trim();
+
+    let query = (supabase as any)
+      .from('subappaltatori')
+      .select('id')
+      .eq('company_id', companyId)
+      .limit(1);
+
+    if (piva) {
+      query = query.eq('piva', piva);
+    } else if (email) {
+      query = query.or(`email.eq.${email},user_email.eq.${email}`);
+    } else {
+      query = query.ilike('ragione_sociale', ragioneSociale);
+    }
+
+    const { data: existing, error: findError } = await query.maybeSingle();
+    if (findError) throw findError;
+    if (existing?.id) return existing.id as string;
+
+    const { data: created, error: createError } = await (supabase as any)
+      .from('subappaltatori')
+      .insert({
+        company_id: companyId,
+        ragione_sociale: ragioneSociale,
+        responsabile: form.responsabile.trim() || null,
+        telefono: form.telefono.trim() || null,
+        email: form.email.trim() || null,
+        piva: piva || null,
+        indirizzo: form.indirizzo.trim() || null,
+        user_email: email || null,
+        notes: form.note.trim() || null,
+        is_active: true,
+      })
+      .select('id')
+      .single();
+    if (createError) throw createError;
+    return created.id as string;
+  };
 
   // ── Fetch view dashboard ──────────────────────────────────────────────────
   const { data: subappaltatori = [], isLoading } = useQuery({
@@ -111,8 +168,11 @@ export default function SubappaltatoriPage() {
   // ── Filtro locale ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     return subappaltatori.filter(s => {
-      if (search && !s.ragione_sociale.toLowerCase().includes(search.toLowerCase()) &&
-          !(s.tipo_lavori ?? '').toLowerCase().includes(search.toLowerCase())) return false;
+      const term = search.toLowerCase();
+      if (search && !s.ragione_sociale.toLowerCase().includes(term) &&
+          !(s.tipo_lavori ?? '').toLowerCase().includes(term) &&
+          !(s.piva ?? '').toLowerCase().includes(term) &&
+          !(s.email ?? '').toLowerCase().includes(term)) return false;
       if (filtroOrdine !== '__all__' && s.order_id !== filtroOrdine) return false;
       if (filtroStato !== '__all__' && s.stato_contratto !== filtroStato) return false;
       return true;
@@ -123,24 +183,52 @@ export default function SubappaltatoriPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!form.ragione_sociale.trim()) throw new Error('Ragione sociale obbligatoria');
-      const { error } = await (supabase as any)
-        .from('subappaltatori_sicurezza')
-        .insert({
+      const campoSubappaltatoreId = await findOrCreateCampoSubappaltatore();
+      const payload: Record<string, unknown> = {
           company_id: companyId,
+          campo_subappaltatore_id: campoSubappaltatoreId,
           order_id: (form.ordine_id && form.ordine_id !== 'none') ? form.ordine_id : null,
           ragione_sociale: form.ragione_sociale.trim(),
           tipo_lavori: form.tipo_lavori.trim() || null,
           responsabile: form.responsabile.trim() || null,
           telefono: form.telefono.trim() || null,
+          piva: form.piva.trim() || null,
+          email: form.email.trim() || null,
+          pec: form.pec.trim() || null,
+          indirizzo: form.indirizzo.trim() || null,
           durc_scadenza: form.durc_scadenza || null,
-        });
+          note: form.note.trim() || null,
+      };
+      const { error } = await (supabase as any)
+        .from('subappaltatori_sicurezza')
+        .insert(payload);
+      if (error && isMissingCampoLinkColumn(error)) {
+        delete payload.campo_subappaltatore_id;
+        const { error: retryError } = await (supabase as any)
+          .from('subappaltatori_sicurezza')
+          .insert(payload);
+        if (retryError) throw new Error(retryError.message || retryError.details || retryError.hint || "Errore");
+        return;
+      }
       if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => {
       toast.success('Subappaltatore aggiunto con successo');
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
       setDialogOpen(false);
-      setForm({ ragione_sociale: '', tipo_lavori: '', responsabile: '', telefono: '', durc_scadenza: '', ordine_id: '' });
+      setForm({
+        ragione_sociale: '',
+        tipo_lavori: '',
+        responsabile: '',
+        telefono: '',
+        piva: '',
+        email: '',
+        pec: '',
+        indirizzo: '',
+        durc_scadenza: '',
+        ordine_id: '',
+        note: '',
+      });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -208,7 +296,7 @@ export default function SubappaltatoriPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Cerca per ragione sociale o tipo lavori..."
+            placeholder="Cerca per ragione sociale, P.IVA, email o tipo lavori..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -284,6 +372,17 @@ export default function SubappaltatoriPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {sub.campo_subappaltatore_id ? (
+                            <Badge variant="outline" className="text-xs border-green-200 bg-green-50 text-green-700">
+                              <Link2 className="mr-1 h-3 w-3" />
+                              {sub.campo_user_id ? 'Account app cantiere attivo' : 'Anagrafica app cantiere collegata'}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-700">
+                              <Link2Off className="mr-1 h-3 w-3" />
+                              Account app cantiere da collegare
+                            </Badge>
+                          )}
                           <DurcBadge scadenza={sub.durc_scadenza} />
                           <StatoBadge stato={sub.stato_contratto} />
                         </div>
@@ -291,6 +390,7 @@ export default function SubappaltatoriPage() {
 
                       <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
                         {sub.responsabile && <span>{sub.responsabile}</span>}
+                        {sub.piva && <span>P.IVA {sub.piva}</span>}
                         {(sub as any).telefono && (
                           <a
                             href={`tel:${(sub as any).telefono}`}
@@ -299,6 +399,21 @@ export default function SubappaltatoriPage() {
                             <Phone className="h-3 w-3" />
                             {(sub as any).telefono}
                           </a>
+                        )}
+                        {sub.email && (
+                          <a
+                            href={`mailto:${sub.email}`}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            <Mail className="h-3 w-3" />
+                            {sub.email}
+                          </a>
+                        )}
+                        {sub.indirizzo && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {sub.indirizzo}
+                          </span>
                         )}
                         {(sub.ritenute_in_corso ?? 0) > 0 && (
                           <span className="text-amber-600 font-medium">
@@ -346,7 +461,7 @@ export default function SubappaltatoriPage() {
 
       {/* Dialog nuovo subappaltatore */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <HardHat className="h-5 w-5 text-orange-500" />
@@ -355,21 +470,31 @@ export default function SubappaltatoriPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="space-y-1.5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
               <Label>Ragione sociale <span className="text-destructive">*</span></Label>
               <Input
                 value={form.ragione_sociale}
                 onChange={(e) => setForm(f => ({ ...f, ragione_sociale: e.target.value }))}
                 placeholder="Es. Rossi Costruzioni S.r.l."
               />
-            </div>
-            <div className="space-y-1.5">
+              </div>
+              <div className="space-y-1.5">
+                <Label>P.IVA / Codice fiscale</Label>
+                <Input
+                  value={form.piva}
+                  onChange={(e) => setForm(f => ({ ...f, piva: e.target.value }))}
+                  placeholder="Es. 01234567890"
+                />
+              </div>
+              <div className="space-y-1.5">
               <Label>Tipo lavori</Label>
               <Input
                 value={form.tipo_lavori}
                 onChange={(e) => setForm(f => ({ ...f, tipo_lavori: e.target.value }))}
                 placeholder="Es. Impianto elettrico, muratura..."
               />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -388,6 +513,34 @@ export default function SubappaltatoriPage() {
                   placeholder="+39 ..."
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="amministrazione@azienda.it"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>PEC</Label>
+                <Input
+                  type="email"
+                  value={form.pec}
+                  onChange={(e) => setForm(f => ({ ...f, pec: e.target.value }))}
+                  placeholder="azienda@pec.it"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Indirizzo sede</Label>
+              <Input
+                value={form.indirizzo}
+                onChange={(e) => setForm(f => ({ ...f, indirizzo: e.target.value }))}
+                placeholder="Via, CAP, città, provincia"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Scadenza DURC</Label>
@@ -413,6 +566,14 @@ export default function SubappaltatoriPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Note</Label>
+              <Input
+                value={form.note}
+                onChange={(e) => setForm(f => ({ ...f, note: e.target.value }))}
+                placeholder="Note operative, condizioni, referente amministrativo..."
+              />
             </div>
           </div>
 

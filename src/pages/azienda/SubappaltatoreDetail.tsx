@@ -24,7 +24,8 @@ import {
   Alert, AlertDescription,
 } from '@/components/ui/alert';
 import {
-  ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, CheckCircle2, ExternalLink, Check,
+  ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, CheckCircle2, ExternalLink,
+  Check, Upload, Trash2, BriefcaseBusiness, CreditCard, Mail, MapPin, Phone, Link2, Link2Off,
 } from 'lucide-react';
 import type {
   ContrattoSubappalto, SALSubappaltatore, RitenutaGaranzia,
@@ -61,6 +62,17 @@ const TIPO_DOC_LABELS: Record<TipoDocumentoSub, string> = {
   iso_certificazione:   'Certificazione ISO',
   altro:                'Altro',
 };
+
+const DOCUMENT_BUCKET = 'subappaltatori-documenti';
+
+function isMissingCampoLinkColumn(error: unknown) {
+  const message = String((error as { message?: string })?.message ?? error ?? '').toLowerCase();
+  return message.includes('campo_subappaltatore_id') && (
+    message.includes('column') ||
+    message.includes('schema cache') ||
+    message.includes('could not find')
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -147,7 +159,301 @@ export default function SubappaltatoreDetail() {
     enabled: !!id,
   });
 
+  const { data: campoAccess } = useQuery({
+    queryKey: ['subappaltatore-campo-access', sub?.campo_subappaltatore_id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subappaltatori')
+        .select('id, user_id, user_email, is_active')
+        .eq('id', sub!.campo_subappaltatore_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; user_id: string | null; user_email: string | null; is_active: boolean | null } | null;
+    },
+    enabled: !!sub?.campo_subappaltatore_id,
+  });
+
+  const { data: inferredCampoAccess } = useQuery({
+    queryKey: ['subappaltatore-campo-access-inferred', companyId, sub?.piva, sub?.email, sub?.pec, sub?.ragione_sociale],
+    queryFn: async () => {
+      let query = (supabase as any)
+        .from('subappaltatori')
+        .select('id, user_id, user_email, is_active')
+        .eq('company_id', companyId)
+        .limit(1);
+      if (sub?.piva) {
+        query = query.eq('piva', sub.piva);
+      } else if (sub?.email || sub?.pec) {
+        const email = sub.email || sub.pec;
+        query = query.or(`email.eq.${email},user_email.eq.${email}`);
+      } else {
+        query = query.ilike('ragione_sociale', sub!.ragione_sociale);
+      }
+      const { data, error } = await query.maybeSingle();
+      if (error) throw error;
+      return data as { id: string; user_id: string | null; user_email: string | null; is_active: boolean | null } | null;
+    },
+    enabled: !!companyId && !!sub && !sub.campo_subappaltatore_id,
+  });
+
+  // ── Fetch lavoro/commessa collegata ──────────────────────────────────────
+  const { data: lavoroCollegato } = useQuery({
+    queryKey: ['subappaltatore-lavoro', sub?.order_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, order_code, description, client_name, client_company, total_amount, status, work_start_date, work_end_date, created_at')
+        .eq('id', sub!.order_id)
+        .maybeSingle();
+      return data as any;
+    },
+    enabled: !!sub?.order_id,
+  });
+
   // ═══════════════════════════ MUTATIONS ═══════════════════════════════════
+
+  // ── Anagrafica subappaltatore ────────────────────────────────────────────
+  const [anagraficaDialog, setAnagraficaDialog] = useState(false);
+  const [anagraficaForm, setAnagraficaForm] = useState({
+    ragione_sociale: '',
+    piva: '',
+    indirizzo: '',
+    email: '',
+    pec: '',
+    responsabile: '',
+    telefono: '',
+    tipo_lavori: '',
+    durc_scadenza: '',
+    note: '',
+  });
+
+  const openAnagraficaDialog = () => {
+    setAnagraficaForm({
+      ragione_sociale: sub?.ragione_sociale ?? '',
+      piva: sub?.piva ?? '',
+      indirizzo: sub?.indirizzo ?? '',
+      email: sub?.email ?? '',
+      pec: sub?.pec ?? '',
+      responsabile: sub?.responsabile ?? '',
+      telefono: sub?.telefono ?? '',
+      tipo_lavori: sub?.tipo_lavori ?? '',
+      durc_scadenza: sub?.durc_scadenza ?? '',
+      note: sub?.note ?? '',
+    });
+    setAnagraficaDialog(true);
+  };
+
+  const findOrCreateCampoSubappaltatore = async (source: typeof anagraficaForm) => {
+    const ragioneSociale = source.ragione_sociale.trim();
+    const piva = source.piva.trim();
+    const email = source.email.trim() || source.pec.trim();
+
+    let query = (supabase as any)
+      .from('subappaltatori')
+      .select('id')
+      .eq('company_id', companyId)
+      .limit(1);
+
+    if (piva) {
+      query = query.eq('piva', piva);
+    } else if (email) {
+      query = query.or(`email.eq.${email},user_email.eq.${email}`);
+    } else {
+      query = query.ilike('ragione_sociale', ragioneSociale);
+    }
+
+    const { data: existing, error: findError } = await query.maybeSingle();
+    if (findError) throw findError;
+    if (existing?.id) return existing.id as string;
+
+    const { data: created, error: createError } = await (supabase as any)
+      .from('subappaltatori')
+      .insert({
+        company_id: companyId,
+        ragione_sociale: ragioneSociale,
+        responsabile: source.responsabile.trim() || null,
+        telefono: source.telefono.trim() || null,
+        email: source.email.trim() || null,
+        piva: piva || null,
+        indirizzo: source.indirizzo.trim() || null,
+        user_email: email || null,
+        notes: source.note.trim() || null,
+        is_active: true,
+      })
+      .select('id')
+      .single();
+    if (createError) throw createError;
+    return created.id as string;
+  };
+
+  const upsertCampoSubappaltatore = async (campoId: string, source: typeof anagraficaForm) => {
+    const { error } = await (supabase as any)
+      .from('subappaltatori')
+      .update({
+        ragione_sociale: source.ragione_sociale.trim(),
+        responsabile: source.responsabile.trim() || null,
+        telefono: source.telefono.trim() || null,
+        email: source.email.trim() || null,
+        piva: source.piva.trim() || null,
+        indirizzo: source.indirizzo.trim() || null,
+        user_email: source.email.trim() || source.pec.trim() || null,
+        notes: source.note.trim() || null,
+      })
+      .eq('id', campoId);
+    if (error) throw error;
+  };
+
+  const saveAnagraficaMutation = useMutation({
+    mutationFn: async () => {
+      if (!anagraficaForm.ragione_sociale.trim()) throw new Error('Ragione sociale obbligatoria');
+      const campoId = sub?.campo_subappaltatore_id
+        ? sub.campo_subappaltatore_id
+        : await findOrCreateCampoSubappaltatore(anagraficaForm);
+      await upsertCampoSubappaltatore(campoId, anagraficaForm);
+      const payload: Record<string, unknown> = {
+        ragione_sociale: anagraficaForm.ragione_sociale.trim(),
+        campo_subappaltatore_id: campoId,
+        piva: anagraficaForm.piva.trim() || null,
+        indirizzo: anagraficaForm.indirizzo.trim() || null,
+        email: anagraficaForm.email.trim() || null,
+        pec: anagraficaForm.pec.trim() || null,
+        responsabile: anagraficaForm.responsabile.trim() || null,
+        telefono: anagraficaForm.telefono.trim() || null,
+        tipo_lavori: anagraficaForm.tipo_lavori.trim() || null,
+        durc_scadenza: anagraficaForm.durc_scadenza || null,
+        note: anagraficaForm.note.trim() || null,
+      };
+      const { error } = await (supabase as any)
+        .from('subappaltatori_sicurezza')
+        .update(payload)
+        .eq('id', id!);
+      if (error && isMissingCampoLinkColumn(error)) {
+        delete payload.campo_subappaltatore_id;
+        const { error: retryError } = await (supabase as any)
+          .from('subappaltatori_sicurezza')
+          .update(payload)
+          .eq('id', id!);
+        if (retryError) throw new Error(retryError.message || retryError.details || retryError.hint || 'Errore');
+        return;
+      }
+      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+    },
+    onSuccess: () => {
+      toast.success('Anagrafica aggiornata');
+      queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatore-campo-access'] });
+      queryClient.invalidateQueries({ queryKey: ['sub-campo-list', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+      setAnagraficaDialog(false);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const collegaCampoMutation = useMutation({
+    mutationFn: async () => {
+      if (!sub) throw new Error('Subappaltatore non trovato');
+      const source = {
+        ragione_sociale: sub.ragione_sociale ?? '',
+        piva: sub.piva ?? '',
+        indirizzo: sub.indirizzo ?? '',
+        email: sub.email ?? '',
+        pec: sub.pec ?? '',
+        responsabile: sub.responsabile ?? '',
+        telefono: sub.telefono ?? '',
+        tipo_lavori: sub.tipo_lavori ?? '',
+        durc_scadenza: sub.durc_scadenza ?? '',
+        note: sub.note ?? '',
+      };
+      const campoId = await findOrCreateCampoSubappaltatore(source);
+      await upsertCampoSubappaltatore(campoId, source);
+      const { error } = await (supabase as any)
+        .from('subappaltatori_sicurezza')
+        .update({ campo_subappaltatore_id: campoId })
+        .eq('id', id!);
+      if (error && isMissingCampoLinkColumn(error)) return;
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Anagrafica app cantiere collegata');
+      queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatore-campo-access'] });
+      queryClient.invalidateQueries({ queryKey: ['sub-campo-list', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // ── Documenti ────────────────────────────────────────────────────────────
+  const [docDialog, setDocDialog] = useState(false);
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docForm, setDocForm] = useState({
+    tipo: 'durc' as TipoDocumentoSub,
+    data_rilascio: '',
+    data_scadenza: '',
+    note: '',
+  });
+
+  const uploadDocumentMutation = useMutation({
+    mutationFn: async () => {
+      if (!docFile) throw new Error('Seleziona un file');
+      const safeName = docFile.name.replace(/[^\w.\-]+/g, '_');
+      const filePath = `${companyId}/${id}/${Date.now()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage
+        .from(DOCUMENT_BUCKET)
+        .upload(filePath, docFile, { contentType: docFile.type, upsert: false });
+      if (uploadError) throw uploadError;
+      const { error } = await (supabase as any).from('documenti_subappaltatore').insert({
+        company_id: companyId,
+        subappaltatore_id: id!,
+        tipo: docForm.tipo,
+        nome_file: docFile.name,
+        url: filePath,
+        data_rilascio: docForm.data_rilascio || null,
+        data_scadenza: docForm.data_scadenza || null,
+        note: docForm.note.trim() || null,
+      });
+      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+    },
+    onSuccess: () => {
+      toast.success('Documento caricato');
+      queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
+      setDocDialog(false);
+      setDocFile(null);
+      setDocForm({ tipo: 'durc', data_rilascio: '', data_scadenza: '', note: '' });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const openDocument = async (doc: DocumentoSubappaltatore) => {
+    if (doc.url.startsWith('http')) {
+      window.open(doc.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    const { data, error } = await supabase.storage.from(DOCUMENT_BUCKET).createSignedUrl(doc.url, 60 * 5);
+    if (error || !data?.signedUrl) {
+      toast.error('Impossibile aprire il documento');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (doc: DocumentoSubappaltatore) => {
+      const { error } = await (supabase as any)
+        .from('documenti_subappaltatore')
+        .delete()
+        .eq('id', doc.id);
+      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+      if (doc.url && !doc.url.startsWith('http')) {
+        await supabase.storage.from(DOCUMENT_BUCKET).remove([doc.url]);
+      }
+    },
+    onSuccess: () => {
+      toast.success('Documento eliminato');
+      queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   // ── Crea contratto ───────────────────────────────────────────────────────
   const [contrattoDialog, setContrattoDialog] = useState(false);
@@ -288,7 +594,8 @@ export default function SubappaltatoreDetail() {
     },
     onSuccess: () => {
       toast.success("SAL approvato");
-      queryClient.invalidateQueries({ queryKey: ["subappaltatore-detail"] });
+      queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => toast.error(err.message || "Errore durante l'approvazione"),
   });
@@ -305,9 +612,42 @@ export default function SubappaltatoreDetail() {
       toast.success("SAL contestato");
       setContestaId(null);
       setContestaNote("");
-      queryClient.invalidateQueries({ queryKey: ["subappaltatore-detail"] });
+      queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => toast.error(err.message || "Errore durante la contestazione"),
+  });
+
+  // ── Registra pagamento SAL ───────────────────────────────────────────────
+  const [paymentSAL, setPaymentSAL] = useState<SALSubappaltatore | null>(null);
+  const [paymentForm, setPaymentForm] = useState({
+    data_pagamento: format(new Date(), 'yyyy-MM-dd'),
+    payment_method: 'bonifico',
+    payment_reference: '',
+  });
+
+  const registraPagamentoMutation = useMutation({
+    mutationFn: async () => {
+      if (!paymentSAL) throw new Error('SAL non selezionato');
+      const { error } = await (supabase as any)
+        .from('sal_subappaltatori')
+        .update({
+          stato: 'pagato',
+          data_pagamento: paymentForm.data_pagamento || format(new Date(), 'yyyy-MM-dd'),
+          payment_method: paymentForm.payment_method || null,
+          payment_reference: paymentForm.payment_reference.trim() || null,
+        })
+        .eq('id', paymentSAL.id);
+      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+    },
+    onSuccess: () => {
+      toast.success('Pagamento registrato');
+      queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+      setPaymentSAL(null);
+      setPaymentForm({ data_pagamento: format(new Date(), 'yyyy-MM-dd'), payment_method: 'bonifico', payment_reference: '' });
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -333,31 +673,76 @@ export default function SubappaltatoreDetail() {
   const totaleLordo = salList.reduce((a, s) => a + s.importo_lordo, 0);
   const totaleRitenute = salList.reduce((a, s) => a + s.ritenuta_importo, 0);
   const totaleNetto = salList.reduce((a, s) => a + s.importo_netto, 0);
+  const totalePagato = salList.filter((s) => s.stato === 'pagato').reduce((a, s) => a + s.importo_netto, 0);
+  const totaleDaPagare = salList.filter((s) => s.stato !== 'pagato' && s.stato !== 'contestato').reduce((a, s) => a + s.importo_netto, 0);
   const ritenuteTrattenute = ritenute.filter(r => r.stato === 'trattenuta');
   const pct = contratto && contratto.importo_contrattuale > 0
     ? Math.min(100, Math.round((totaleLordo / contratto.importo_contrattuale) * 100))
     : 0;
+  const appCantiere = campoAccess ?? inferredCampoAccess ?? null;
+  const hasAppCantiere = Boolean(sub.campo_subappaltatore_id || appCantiere?.id);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/azienda/subappaltatori')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold truncate">{sub.ragione_sociale}</h1>
-          <p className="text-sm text-muted-foreground">{sub.tipo_lavori ?? 'Subappaltatore'}</p>
+              <h1 className="text-xl sm:text-2xl font-bold truncate">{sub.ragione_sociale}</h1>
+              <p className="text-sm text-muted-foreground">{sub.tipo_lavori ?? 'Subappaltatore'}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                {sub.piva && <span>P.IVA {sub.piva}</span>}
+                {sub.indirizzo && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{sub.indirizzo}</span>}
+                {sub.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{sub.email}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {hasAppCantiere ? (
+              <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                <Link2 className="mr-1 h-3 w-3" />
+                {appCantiere?.user_id ? 'Account app cantiere attivo' : 'Anagrafica app cantiere collegata'}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                <Link2Off className="mr-1 h-3 w-3" />
+                App cantiere non collegata
+              </Badge>
+            )}
+            <DurcBadge scadenza={sub.durc_scadenza} />
+            {!hasAppCantiere && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => collegaCampoMutation.mutate()}
+                disabled={collegaCampoMutation.isPending}
+              >
+                {collegaCampoMutation.isPending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Link2 className="mr-1.5 h-4 w-4" />
+                )}
+                Collega app cantiere
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={openAnagraficaDialog}>
+              Modifica
+            </Button>
+          </div>
         </div>
-        <DurcBadge scadenza={sub.durc_scadenza} />
       </div>
 
       <Tabs defaultValue="anagrafica">
-        <TabsList className="w-full grid grid-cols-4 h-auto">
+        <TabsList className="w-full grid grid-cols-5 h-auto">
           <TabsTrigger value="anagrafica" className="text-xs py-2">
             <span className="hidden sm:inline">Anagrafica</span>
             <span className="sm:hidden">Dati</span>
           </TabsTrigger>
+          <TabsTrigger value="lavori" className="text-xs py-2">Lavori</TabsTrigger>
           <TabsTrigger value="contratto" className="text-xs py-2">Contratto</TabsTrigger>
           <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
           <TabsTrigger value="ritenute" className="text-xs py-2">
@@ -375,11 +760,43 @@ export default function SubappaltatoreDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div className="rounded-lg border bg-slate-50 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Account app cantiere</p>
+                    <p className="text-xs text-muted-foreground">
+                      {hasAppCantiere
+                        ? appCantiere?.user_id
+                          ? `Account attivo: ${appCantiere.user_email ?? 'email non indicata'}`
+                          : appCantiere?.user_email
+                            ? `Email pronta per invito: ${appCantiere.user_email}`
+                            : 'Scheda collegata, account non ancora invitato'
+                        : 'Collega questa anagrafica agli account app cantiere per evitare doppioni.'}
+                    </p>
+                  </div>
+                  {!hasAppCantiere && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => collegaCampoMutation.mutate()}
+                      disabled={collegaCampoMutation.isPending}
+                    >
+                      <Link2 className="mr-1.5 h-4 w-4" />
+                      Collega app cantiere
+                    </Button>
+                  )}
+                </div>
+              </div>
               {[
                 { label: 'Ragione sociale', value: sub.ragione_sociale },
+                { label: 'P.IVA / C.F.', value: sub.piva },
+                { label: 'Indirizzo', value: sub.indirizzo },
                 { label: 'Responsabile', value: sub.responsabile },
                 { label: 'Telefono', value: sub.telefono },
+                { label: 'Email', value: sub.email },
+                { label: 'PEC', value: sub.pec },
                 { label: 'Tipo lavori', value: sub.tipo_lavori },
+                { label: 'Note', value: sub.note },
               ].map(({ label, value }) => value ? (
                 <div key={label} className="flex gap-3">
                   <span className="text-sm text-muted-foreground w-32 shrink-0">{label}</span>
@@ -400,6 +817,10 @@ export default function SubappaltatoreDetail() {
                 <span className="flex items-center gap-2">
                   <FileText className="h-4 w-4" /> Documenti idoneità
                 </span>
+                <Button size="sm" onClick={() => setDocDialog(true)}>
+                  <Upload className="h-4 w-4 mr-1.5" />
+                  Carica documento
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -425,14 +846,86 @@ export default function SubappaltatoreDetail() {
                             </p>
                           )}
                         </div>
-                        <Button asChild variant="ghost" size="sm">
-                          <a href={doc.url} target="_blank" rel="noreferrer">
+                        <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openDocument(doc)}>
                             <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
                         </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteDocumentMutation.mutate(doc)}
+                            disabled={deleteDocumentMutation.isPending}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── Tab 2: Lavori svolti ──────────────────────────────────────────── */}
+        <TabsContent value="lavori" className="space-y-4 mt-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">SAL eseguiti</p>
+                <p className="text-xl font-bold">€{totaleLordo.toLocaleString('it-IT')}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Pagato</p>
+                <p className="text-xl font-bold text-green-600">€{totalePagato.toLocaleString('it-IT')}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Da pagare</p>
+                <p className="text-xl font-bold text-amber-600">€{totaleDaPagare.toLocaleString('it-IT')}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BriefcaseBusiness className="h-4 w-4" />
+                Commessa collegata
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!lavoroCollegato ? (
+                <p className="text-sm text-muted-foreground">Nessuna commessa collegata. Associa il subappaltatore a una commessa per tracciare lavori e costi.</p>
+              ) : (
+                <div className="rounded-lg border p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-semibold">
+                        {lavoroCollegato.order_code ? `${lavoroCollegato.order_code} · ` : ''}
+                        {lavoroCollegato.description}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {lavoroCollegato.client_company || lavoroCollegato.client_name || 'Cliente non indicato'}
+                      </p>
+                      {(lavoroCollegato.work_start_date || lavoroCollegato.work_end_date) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {lavoroCollegato.work_start_date ? `Inizio ${format(parseISO(lavoroCollegato.work_start_date), 'dd/MM/yyyy')}` : 'Inizio non impostato'}
+                          {' · '}
+                          {lavoroCollegato.work_end_date ? `Fine ${format(parseISO(lavoroCollegato.work_end_date), 'dd/MM/yyyy')}` : 'Fine non impostata'}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <Badge variant="outline">{lavoroCollegato.status || 'stato non indicato'}</Badge>
+                      <p className="mt-2 text-sm font-semibold">€{Number(lavoroCollegato.total_amount ?? 0).toLocaleString('it-IT')}</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -591,6 +1084,20 @@ export default function SubappaltatoreDetail() {
                         <p className="text-sm font-bold text-green-600">€{sal.importo_netto.toLocaleString('it-IT')}</p>
                       </div>
                     </div>
+                    {sal.stato === 'pagato' && (
+                      <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-800">
+                        <p className="font-medium flex items-center gap-1">
+                          <CreditCard className="h-3.5 w-3.5" />
+                          Pagato {sal.data_pagamento ? `il ${format(parseISO(sal.data_pagamento), 'dd/MM/yyyy')}` : ''}
+                        </p>
+                        {(sal.payment_method || sal.payment_reference) && (
+                          <p className="mt-1">
+                            {sal.payment_method ? `Metodo: ${sal.payment_method}` : ''}
+                            {sal.payment_reference ? ` · Rif: ${sal.payment_reference}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     {sal.note && <p className="text-xs text-muted-foreground mt-2 border-t pt-2">{sal.note}</p>}
                     {sal.stato === "ricevuto" && (
                       <div className="flex gap-2 mt-2">
@@ -608,6 +1115,25 @@ export default function SubappaltatoreDetail() {
                           onClick={() => setContestaId(sal.id)}
                         >
                           Contesta
+                        </Button>
+                      </div>
+                    )}
+                    {(sal.stato === 'ricevuto' || sal.stato === 'verificato') && (
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => {
+                            setPaymentSAL(sal);
+                            setPaymentForm({
+                              data_pagamento: format(new Date(), 'yyyy-MM-dd'),
+                              payment_method: sal.payment_method || 'bonifico',
+                              payment_reference: sal.payment_reference || '',
+                            });
+                          }}
+                        >
+                          <CreditCard className="h-3 w-3 mr-1" />
+                          Registra pagamento
                         </Button>
                       </div>
                     )}
@@ -739,6 +1265,158 @@ export default function SubappaltatoreDetail() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* ── Dialog Anagrafica ─────────────────────────────────────────────── */}
+      <Dialog open={anagraficaDialog} onOpenChange={setAnagraficaDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifica anagrafica subappaltatore</DialogTitle>
+            <DialogDescription>Completa i dati fiscali, operativi e di contatto.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Ragione sociale *</Label>
+                <Input value={anagraficaForm.ragione_sociale} onChange={(e) => setAnagraficaForm(f => ({ ...f, ragione_sociale: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>P.IVA / C.F.</Label>
+                <Input value={anagraficaForm.piva} onChange={(e) => setAnagraficaForm(f => ({ ...f, piva: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tipo lavori</Label>
+                <Input value={anagraficaForm.tipo_lavori} onChange={(e) => setAnagraficaForm(f => ({ ...f, tipo_lavori: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Responsabile</Label>
+                <Input value={anagraficaForm.responsabile} onChange={(e) => setAnagraficaForm(f => ({ ...f, responsabile: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Telefono</Label>
+                <Input value={anagraficaForm.telefono} onChange={(e) => setAnagraficaForm(f => ({ ...f, telefono: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input type="email" value={anagraficaForm.email} onChange={(e) => setAnagraficaForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>PEC</Label>
+                <Input type="email" value={anagraficaForm.pec} onChange={(e) => setAnagraficaForm(f => ({ ...f, pec: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Scadenza DURC</Label>
+                <Input type="date" value={anagraficaForm.durc_scadenza} onChange={(e) => setAnagraficaForm(f => ({ ...f, durc_scadenza: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Indirizzo sede</Label>
+                <Input value={anagraficaForm.indirizzo} onChange={(e) => setAnagraficaForm(f => ({ ...f, indirizzo: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Note</Label>
+                <Textarea value={anagraficaForm.note} onChange={(e) => setAnagraficaForm(f => ({ ...f, note: e.target.value }))} rows={3} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnagraficaDialog(false)} disabled={saveAnagraficaMutation.isPending}>Annulla</Button>
+            <Button onClick={() => saveAnagraficaMutation.mutate()} disabled={saveAnagraficaMutation.isPending || !anagraficaForm.ragione_sociale.trim()}>
+              {saveAnagraficaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salva anagrafica
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog Documento ──────────────────────────────────────────────── */}
+      <Dialog open={docDialog} onOpenChange={setDocDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Carica documento</DialogTitle>
+            <DialogDescription>DURC, visura, DVR, polizze, attestazioni o altri documenti del subappaltatore.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Tipo documento</Label>
+              <Select value={docForm.tipo} onValueChange={(v) => setDocForm(f => ({ ...f, tipo: v as TipoDocumentoSub }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TIPO_DOC_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>File *</Label>
+              <Input type="file" onChange={(e) => setDocFile(e.target.files?.[0] ?? null)} />
+              {docFile && <p className="text-xs text-muted-foreground">{docFile.name}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Data rilascio</Label>
+                <Input type="date" value={docForm.data_rilascio} onChange={(e) => setDocForm(f => ({ ...f, data_rilascio: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Scadenza</Label>
+                <Input type="date" value={docForm.data_scadenza} onChange={(e) => setDocForm(f => ({ ...f, data_scadenza: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Note</Label>
+              <Textarea value={docForm.note} onChange={(e) => setDocForm(f => ({ ...f, note: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDocDialog(false)} disabled={uploadDocumentMutation.isPending}>Annulla</Button>
+            <Button onClick={() => uploadDocumentMutation.mutate()} disabled={uploadDocumentMutation.isPending || !docFile}>
+              {uploadDocumentMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Carica
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog Pagamento SAL ──────────────────────────────────────────── */}
+      <Dialog open={!!paymentSAL} onOpenChange={() => setPaymentSAL(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Registra pagamento SAL</DialogTitle>
+            <DialogDescription>
+              {paymentSAL ? `Netto da pagare: €${paymentSAL.importo_netto.toLocaleString('it-IT')}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Data pagamento</Label>
+              <Input type="date" value={paymentForm.data_pagamento} onChange={(e) => setPaymentForm(f => ({ ...f, data_pagamento: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Modalità pagamento</Label>
+              <Select value={paymentForm.payment_method} onValueChange={(v) => setPaymentForm(f => ({ ...f, payment_method: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bonifico">Bonifico</SelectItem>
+                  <SelectItem value="assegno">Assegno</SelectItem>
+                  <SelectItem value="contanti">Contanti</SelectItem>
+                  <SelectItem value="rimessa_diretta">Rimessa diretta</SelectItem>
+                  <SelectItem value="altro">Altro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Riferimento pagamento</Label>
+              <Input value={paymentForm.payment_reference} onChange={(e) => setPaymentForm(f => ({ ...f, payment_reference: e.target.value }))} placeholder="CRO, distinta, note pagamento..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentSAL(null)} disabled={registraPagamentoMutation.isPending}>Annulla</Button>
+            <Button onClick={() => registraPagamentoMutation.mutate()} disabled={registraPagamentoMutation.isPending}>
+              {registraPagamentoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Segna pagato
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Dialog Contratto ──────────────────────────────────────────────── */}
       <Dialog open={contrattoDialog} onOpenChange={setContrattoDialog}>

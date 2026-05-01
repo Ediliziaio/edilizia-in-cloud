@@ -1,15 +1,18 @@
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ClipboardList, Euro, Ticket, FileText, ExternalLink,
   CalendarDays, CreditCard, FileSignature, Wrench, Link2, Plus,
+  AlertTriangle, FileCheck2, FileWarning,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { KpiMini } from "./KpiMini";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 // ── Row types ────────────────────────────────────────────────────────────────
 
@@ -72,6 +75,38 @@ export interface RataRow {
   order_id: string | null;
 }
 
+interface CustomerDocumentRow {
+  id: string;
+  document_type: "contract" | "identity" | "fiscal_code" | "other";
+  file_name: string;
+  file_path: string;
+  file_type: string | null;
+  file_size: number | null;
+  created_at: string;
+}
+
+const CUSTOMER_DOCUMENT_BUCKET = "customer-documents";
+const CUSTOMER_DOCUMENT_LABELS: Record<CustomerDocumentRow["document_type"], string> = {
+  contract: "Contratto",
+  identity: "Documento identità",
+  fiscal_code: "Codice fiscale",
+  other: "Altro",
+};
+const EXPECTED_CUSTOMER_DOCUMENTS: Array<CustomerDocumentRow["document_type"]> = ["contract", "identity", "fiscal_code"];
+
+type CustomerDocumentsQueryClient = {
+  from: (table: "customer_documents") => {
+    select: (columns: string) => {
+      eq: (column: "customer_id", value: string) => {
+        order: (
+          column: "created_at",
+          options: { ascending: boolean },
+        ) => Promise<{ data: CustomerDocumentRow[] | null; error: Error | null }>;
+      };
+    };
+  };
+};
+
 // ── Props ────────────────────────────────────────────────────────────────────
 
 interface CustomerBusinessTabsProps {
@@ -88,6 +123,15 @@ interface CustomerBusinessTabsProps {
   anagraficaCollegata: { id: string; ragione_sociale: string | null } | null;
   totalOrderValue: number;
   openTicketsCount: number;
+  dataWarnings?: {
+    anagrafica?: string | null;
+    fatture?: string | null;
+    preventivi?: string | null;
+    tickets?: string | null;
+    rapportini?: string | null;
+    appuntamenti?: string | null;
+    rate?: string | null;
+  };
 }
 
 // Helper: costruisce URL di creazione entità con cliente pre-selezionato
@@ -291,14 +335,27 @@ function InterventiTab({ items }: { items: RapportinoRow[] }) {
 
 function DocumentiTab({
   fatture,
+  customerDocuments,
   anagraficaCollegata,
 }: {
   fatture: FatturaRow[];
+  customerDocuments: CustomerDocumentRow[];
   anagraficaCollegata: { id: string; ragione_sociale: string | null } | null;
 }) {
   const navigate = useNavigate();
+  const uploadedTypes = new Set(customerDocuments.map((doc) => doc.document_type));
+  const missingTypes = EXPECTED_CUSTOMER_DOCUMENTS.filter((type) => !uploadedTypes.has(type));
 
-  if (!anagraficaCollegata) {
+  const openCustomerDocument = async (doc: CustomerDocumentRow) => {
+    const { data, error } = await supabase.storage
+      .from(CUSTOMER_DOCUMENT_BUCKET)
+      .createSignedUrl(doc.file_path, 60 * 5);
+    if (!error && data?.signedUrl) {
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  if (!anagraficaCollegata && customerDocuments.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
         <FileText className="h-10 w-10 text-muted-foreground/30" />
@@ -316,42 +373,78 @@ function DocumentiTab({
     );
   }
 
-  if (fatture.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <FileText className="h-10 w-10 text-muted-foreground/30 mb-3" />
-        <p className="text-xs text-muted-foreground mb-1">
-          Collegata a: {anagraficaCollegata.ragione_sociale}
-        </p>
-        <p className="text-sm font-medium text-muted-foreground">Nessun documento trovato</p>
-        <p className="text-xs text-muted-foreground mt-1">Apparirà qui quando sarà disponibile</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-1">
-      {fatture.map((f) => (
-        <div
-          key={f.id}
-          className="flex items-center justify-between gap-2 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
-          onClick={() => navigate(`/azienda/documenti/${f.id}`)}
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate">{f.numero || "—"}</p>
-            <p className="text-xs text-muted-foreground">{f.data_emissione?.substring(0, 10) ?? "—"}</p>
+    <div className="space-y-4">
+      <div className="rounded-lg border p-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Fascicolo cliente</p>
+            <p className="text-xs text-muted-foreground">Contratto, identità e CF: presenti o da recuperare.</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {f.stato && <Badge variant="outline" className="text-xs">{f.stato}</Badge>}
-            {f.totale_documento != null && (
-              <span className="text-sm font-medium whitespace-nowrap">
-                € {Number(f.totale_documento).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-              </span>
-            )}
-            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
+          <Badge variant={missingTypes.length ? "outline" : "default"} className="text-xs">
+            {customerDocuments.length}/{EXPECTED_CUSTOMER_DOCUMENTS.length} caricati
+          </Badge>
         </div>
-      ))}
+        <div className="grid gap-2 sm:grid-cols-3">
+          {EXPECTED_CUSTOMER_DOCUMENTS.map((type) => {
+            const doc = customerDocuments.find((item) => item.document_type === type);
+            return (
+              <button
+                key={type}
+                type="button"
+                disabled={!doc}
+                onClick={() => doc && openCustomerDocument(doc)}
+                className="rounded-md border p-2 text-left transition-colors enabled:hover:bg-muted/50 disabled:cursor-default"
+              >
+                <div className="flex items-center gap-2">
+                  {doc ? <FileCheck2 className="h-4 w-4 text-emerald-600" /> : <FileWarning className="h-4 w-4 text-amber-600" />}
+                  <span className="text-xs font-medium">{CUSTOMER_DOCUMENT_LABELS[type]}</span>
+                </div>
+                <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                  {doc ? doc.file_name : "Mancante"}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {fatture.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <FileText className="h-10 w-10 text-muted-foreground/30 mb-3" />
+          {anagraficaCollegata && (
+            <p className="text-xs text-muted-foreground mb-1">
+              Collegata a: {anagraficaCollegata.ragione_sociale}
+            </p>
+          )}
+          <p className="text-sm font-medium text-muted-foreground">Nessun documento fiscale trovato</p>
+          <p className="text-xs text-muted-foreground mt-1">Fatture e note appariranno qui quando disponibili</p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {fatture.map((f) => (
+            <div
+              key={f.id}
+              className="flex items-center justify-between gap-2 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
+              onClick={() => navigate(`/azienda/documenti/${f.id}`)}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{f.numero || "—"}</p>
+                <p className="text-xs text-muted-foreground">{f.data_emissione?.substring(0, 10) ?? "—"}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {f.stato && <Badge variant="outline" className="text-xs">{f.stato}</Badge>}
+                {f.totale_documento != null && (
+                  <span className="text-sm font-medium whitespace-nowrap">
+                    € {Number(f.totale_documento).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                  </span>
+                )}
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -434,9 +527,24 @@ export function CustomerBusinessTabs({
   anagraficaCollegata,
   totalOrderValue,
   openTicketsCount,
+  dataWarnings,
 }: CustomerBusinessTabsProps) {
   useAuth();
   const navigate = useNavigate();
+  const { data: customerDocuments = [] } = useQuery({
+    queryKey: ["customer-documents", customerId],
+    queryFn: async () => {
+      const customerDocumentsClient = supabase as unknown as CustomerDocumentsQueryClient;
+      const { data, error } = await customerDocumentsClient
+        .from("customer_documents")
+        .select("id, document_type, file_name, file_path, file_type, file_size, created_at")
+        .eq("customer_id", customerId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as CustomerDocumentRow[];
+    },
+    enabled: !!customerId,
+  });
 
   // Quick actions bar
   const quickActions: Array<{ label: string; href: string; icon: React.ComponentType<{ className?: string }> }> = [
@@ -463,7 +571,7 @@ export function CustomerBusinessTabs({
           value={openTicketsCount}
           color={openTicketsCount > 0 ? "orange" : "green"}
         />
-        <KpiMini icon={FileText} label="Documenti" value={fatture.length} color="purple" />
+        <KpiMini icon={FileText} label="Documenti" value={fatture.length + customerDocuments.length} color="purple" />
       </div>
 
       {/* Quick actions */}
@@ -484,7 +592,23 @@ export function CustomerBusinessTabs({
         ))}
       </div>
 
-      <TabsList className="grid grid-cols-4 lg:grid-cols-7 h-auto mb-2">
+      {dataWarnings && Object.values(dataWarnings).some(Boolean) && (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-semibold">Alcuni collegamenti cliente non sono stati caricati.</p>
+              {Object.entries(dataWarnings)
+                .filter(([, message]) => Boolean(message))
+                .map(([key, message]) => (
+                  <p key={key}>{message}</p>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 h-auto mb-2">
         <TabsTrigger value="ordini" className="text-xs px-1">
           Ordini ({orders.length})
         </TabsTrigger>
@@ -498,7 +622,7 @@ export function CustomerBusinessTabs({
           Interventi ({rapportini.length})
         </TabsTrigger>
         <TabsTrigger value="documenti" className="text-xs px-1">
-          Documenti ({fatture.length})
+          Documenti ({fatture.length + customerDocuments.length})
         </TabsTrigger>
         <TabsTrigger value="appuntamenti" className="text-xs px-1">
           Appuntamenti ({appuntamenti.length})
@@ -521,7 +645,11 @@ export function CustomerBusinessTabs({
         <InterventiTab items={rapportini} />
       </TabsContent>
       <TabsContent value="documenti">
-        <DocumentiTab fatture={fatture} anagraficaCollegata={anagraficaCollegata} />
+        <DocumentiTab
+          fatture={fatture}
+          customerDocuments={customerDocuments}
+          anagraficaCollegata={anagraficaCollegata}
+        />
       </TabsContent>
       <TabsContent value="appuntamenti">
         <AppuntamentiTab items={appuntamenti} customerId={customerId} customerFullName={customerFullName} />

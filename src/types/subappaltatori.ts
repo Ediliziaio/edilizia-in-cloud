@@ -41,6 +41,8 @@ export interface SALSubappaltatore {
   importo_netto: number;
   stato: StatoSALSub;
   data_pagamento: string | null;
+  payment_method: string | null;
+  payment_reference: string | null;
   note: string | null;
   attachment_url: string | null;
   created_at: string;
@@ -80,6 +82,15 @@ export interface SubappaltatoreBase {
   tipo_lavori: string | null;
   responsabile: string | null;
   telefono: string | null;
+  piva: string | null;
+  email: string | null;
+  pec: string | null;
+  indirizzo: string | null;
+  note: string | null;
+  campo_subappaltatore_id: string | null;
+  campo_user_id: string | null;
+  campo_user_email: string | null;
+  campo_is_active: boolean | null;
   durc_scadenza: string | null;
 }
 

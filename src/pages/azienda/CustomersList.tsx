@@ -34,8 +34,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Popover, PopoverTrigger, PopoverContent,
-} from "@/components/ui/popover";
+  Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -113,6 +113,14 @@ type SortField = "name" | "created_at" | "orders";
 type SortDir = "asc" | "desc";
 type YesNoAll = "all" | "yes" | "no";
 type PortalState = "all" | "active" | "disabled";
+type CustomerAnomalySeverity = "high" | "medium" | "low";
+
+interface CustomerAnomaly {
+  severity: CustomerAnomalySeverity;
+  label: string;
+  action: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
 
 const PAGE_SIZES = [25, 50, 100, 200];
 
@@ -142,6 +150,7 @@ const CUSTOMER_IMPORT_FIELDS: CustomerImportField[] = [
 const ALL_COLUMNS = [
   { key: "avatar", label: "Avatar", defaultVisible: true, required: true },
   { key: "name", label: "Nome", defaultVisible: true, required: true },
+  { key: "health", label: "Salute", defaultVisible: true },
   { key: "email", label: "Email", defaultVisible: true },
   { key: "phone", label: "Telefono", defaultVisible: true },
   { key: "fiscal_code", label: "CF / P.IVA", defaultVisible: false },
@@ -162,6 +171,7 @@ const DEFAULT_VISIBLE: Record<ColumnKey, boolean> = ALL_COLUMNS.reduce((acc, c) 
 }, {} as Record<ColumnKey, boolean>);
 
 const COLUMN_STORAGE_KEY = "customers-list-columns-v1";
+const INTERNAL_NO_EMAIL_DOMAIN = "@no-email.ediliziaincloud.local";
 
 function useColumnVisibility() {
   const [visible, setVisible] = useState<Record<ColumnKey, boolean>>(() => {
@@ -228,9 +238,86 @@ function formatPhone(phone: string | null | undefined): string | null {
   return clean || null;
 }
 
+function formatCustomerEmail(email: string | null | undefined): string | null {
+  const value = (email ?? "").trim();
+  if (!value || value.endsWith(INTERNAL_NO_EMAIL_DOMAIN)) return null;
+  return value;
+}
+
 function truncate(s: string | null | undefined, n: number): string {
   if (!s) return "";
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+function getCustomerAnomalies(customer: CustomerWithOrders): CustomerAnomaly[] {
+  const anomalies: CustomerAnomaly[] = [];
+  const cleanEmail = formatCustomerEmail(customer.email);
+  const cleanPhone = formatPhone(customer.phone);
+  const first = (customer.first_name ?? "").trim();
+  const last = (customer.last_name ?? "").trim();
+  const hasPlaceholderName = !customer.is_business && (
+    !first || !last || first === "—" || last === "—" || first === "-" || last === "-"
+  );
+
+  if (hasPlaceholderName) {
+    anomalies.push({
+      severity: "high",
+      label: "Nome incompleto",
+      action: "Completa l'anagrafica prima di creare documenti o comunicazioni.",
+      icon: AlertTriangle,
+    });
+  }
+  if (!cleanEmail) {
+    anomalies.push({
+      severity: customer.portal_disabled ? "medium" : "high",
+      label: "Email mancante",
+      action: customer.portal_disabled
+        ? "Aggiungi email se vuoi inviare comunicazioni o preventivi."
+        : "Aggiungi email o disattiva il portale per evitare un accesso non operativo.",
+      icon: Mail,
+    });
+  }
+  if (!cleanPhone) {
+    anomalies.push({
+      severity: "medium",
+      label: "Telefono mancante",
+      action: "Aggiungi un numero per follow-up, urgenze e appuntamenti.",
+      icon: Phone,
+    });
+  }
+  if (!customer.fiscal_code?.trim()) {
+    anomalies.push({
+      severity: customer.is_business ? "high" : "low",
+      label: customer.is_business ? "P.IVA mancante" : "CF/P.IVA mancante",
+      action: "Completa il dato fiscale per fatture, contratti e controlli.",
+      icon: CreditCard,
+    });
+  }
+  if (customer.order_count > 0 && !customer.salesperson_id) {
+    anomalies.push({
+      severity: "medium",
+      label: "Venditore non assegnato",
+      action: "Assegna un referente commerciale per non perdere follow-up.",
+      icon: UserCheck,
+    });
+  }
+  if (customer.order_count > 0 && !customer.site_address?.trim()) {
+    anomalies.push({
+      severity: "low",
+      label: "Cantiere non indicato",
+      action: "Inserisci l'indirizzo cantiere per logistica e appuntamenti.",
+      icon: HardHat,
+    });
+  }
+
+  return anomalies;
+}
+
+function getWorstSeverity(anomalies: CustomerAnomaly[]): CustomerAnomalySeverity | "ok" {
+  if (anomalies.some((a) => a.severity === "high")) return "high";
+  if (anomalies.some((a) => a.severity === "medium")) return "medium";
+  if (anomalies.some((a) => a.severity === "low")) return "low";
+  return "ok";
 }
 
 /* ─── KPI Card ──────────────────────────────────────────────────── */
@@ -379,7 +466,7 @@ function CustomersListInner() {
   const wrapSet = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); resetPage(); };
 
   // ── RPC params ─────────────────────────────────────────
-  const rpcParams = {
+  const rpcParams = useMemo(() => ({
     p_company_id: effectiveCompany?.id ?? "",
     p_search: searchQuery || null,
     p_salesperson_id: filterSalesperson !== "all" && filterSalesperson !== "none" ? filterSalesperson : null,
@@ -395,7 +482,22 @@ function CustomersListInner() {
     p_has_fiscal_code: filterHasFC,
     p_has_site_address: filterHasSite,
     p_portal_state: filterPortal,
-  };
+  }), [
+    effectiveCompany?.id,
+    searchQuery,
+    filterSalesperson,
+    filterOrders,
+    sortField,
+    sortDir,
+    page,
+    pageSize,
+    filterDateFrom,
+    filterDateTo,
+    filterHasPhone,
+    filterHasFC,
+    filterHasSite,
+    filterPortal,
+  ]);
 
   const { data: paginatedData, isLoading, isError, error: listError } = useQuery({
     queryKey: queryKeys.customersList.list(
@@ -415,7 +517,7 @@ function CustomersListInner() {
     placeholderData: (prev: PaginatedResult | undefined) => prev,
   });
 
-  const customers = paginatedData?.rows ?? [];
+  const customers = useMemo(() => paginatedData?.rows ?? [], [paginatedData?.rows]);
   const totalCount = paginatedData?.total_count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -665,7 +767,7 @@ function CustomersListInner() {
         c.business_name ?? "",
         (firstClean === "—" || firstClean === "-") ? "" : firstClean,
         (lastClean === "—" || lastClean === "-") ? "" : lastClean,
-        c.email,
+        formatCustomerEmail(c.email) ?? "",
         formatPhone(c.phone) ?? "",
         c.fiscal_code || "",
         c.address || "",
@@ -758,7 +860,7 @@ function CustomersListInner() {
       x = 40;
       const line = [
         truncate(formatDisplayName(c), 30),
-        truncate(c.email, 35),
+        truncate(formatCustomerEmail(c.email) ?? "", 35),
         truncate(formatPhone(c.phone) ?? "", 20),
         truncate(c.fiscal_code ?? "", 20),
         String(c.order_count),
@@ -839,10 +941,13 @@ function CustomersListInner() {
             if (!row.first_name?.trim()) { errors.push(`Riga ${i + 1}: Nome mancante (per aziende usa "Ragione Sociale")`); continue; }
             if (!row.last_name?.trim()) { errors.push(`Riga ${i + 1}: Cognome mancante`); continue; }
           }
-          if (!row.email?.trim()) { errors.push(`Riga ${i + 1}: Email mancante`); continue; }
 
-          const emailLower = row.email.trim().toLowerCase();
-          if (options.skip_duplicates_by_email && existingEmails.has(emailLower)) {
+          const emailLower = row.email?.trim().toLowerCase() || "";
+          if (options.create_portal_account && !emailLower) {
+            errors.push(`Riga ${i + 1}: Email mancante per creare l'accesso al portale`);
+            continue;
+          }
+          if (emailLower && options.skip_duplicates_by_email && existingEmails.has(emailLower)) {
             continue;
           }
 
@@ -857,7 +962,7 @@ function CustomersListInner() {
               business_name: businessName || null,
               first_name: row.first_name?.trim() || "",
               last_name: row.last_name?.trim() || "",
-              email: emailLower,
+              email: emailLower || null,
               phone: cleanPhone,
               fiscal_code: row.fiscal_code?.trim() || null,
               address: row.address?.trim() || null,
@@ -883,7 +988,7 @@ function CustomersListInner() {
             throw new Error(errBody?.error ?? errBody?.message ?? fnError.message ?? "Errore");
           }
           if (data?.error) throw new Error(data.error);
-          existingEmails.add(emailLower);
+          if (emailLower) existingEmails.add(emailLower);
           success++;
         } catch (err) {
           errors.push(`Riga ${i + 1} (${row.email || ""}): ${err instanceof Error ? err.message : "Errore"}`);
@@ -938,6 +1043,31 @@ function CustomersListInner() {
 
   const rangeStart = totalCount === 0 ? 0 : page * pageSize + 1;
   const rangeEnd = Math.min((page + 1) * pageSize, totalCount);
+  const anomalyRows = useMemo(() => (
+    customers
+      .map((customer) => {
+        const anomalies = getCustomerAnomalies(customer);
+        return {
+          customer,
+          fullName: formatDisplayName(customer),
+          anomalies,
+          severity: getWorstSeverity(anomalies),
+        };
+      })
+      .filter((row) => row.anomalies.length > 0)
+  ), [customers]);
+  const anomalyTotals = useMemo(() => ({
+    total: anomalyRows.length,
+    high: anomalyRows.filter((row) => row.severity === "high").length,
+    medium: anomalyRows.filter((row) => row.severity === "medium").length,
+    low: anomalyRows.filter((row) => row.severity === "low").length,
+  }), [anomalyRows]);
+  const topAnomalyRows = useMemo(() => {
+    const weight: Record<CustomerAnomalySeverity | "ok", number> = { high: 0, medium: 1, low: 2, ok: 3 };
+    return [...anomalyRows]
+      .sort((a, b) => weight[a.severity] - weight[b.severity] || b.anomalies.length - a.anomalies.length)
+      .slice(0, 3);
+  }, [anomalyRows]);
 
   // ── Render ─────────────────────────────────────────────
   return (
@@ -1170,90 +1300,20 @@ function CustomersListInner() {
               </SelectContent>
             </Select>
 
-            <Popover open={advOpen} onOpenChange={setAdvOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="default" className="relative">
-                  <Filter className="h-4 w-4 mr-1.5" />
-                  Filtri avanzati
-                  {activeFiltersCount > 0 && (
-                    <Badge className="ml-2 h-5 px-1.5 text-[10px] bg-primary">
-                      {activeFiltersCount}
-                    </Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[340px] p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">Filtri avanzati</p>
-                    {activeFiltersCount > 0 && (
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearAllFilters}>
-                        Azzera
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Data dal</Label>
-                      <Input type="date" value={filterDateFrom} onChange={(e) => wrapSet(setFilterDateFrom)(e.target.value)} className="h-9 text-xs" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Data al</Label>
-                      <Input type="date" value={filterDateTo} onChange={(e) => wrapSet(setFilterDateTo)(e.target.value)} className="h-9 text-xs" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">Telefono</Label>
-                    <Select value={filterHasPhone} onValueChange={wrapSet((v: string) => setFilterHasPhone(v as YesNoAll))}>
-                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutti</SelectItem>
-                        <SelectItem value="yes">Con telefono</SelectItem>
-                        <SelectItem value="no">Senza telefono</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">Codice Fiscale / P.IVA</Label>
-                    <Select value={filterHasFC} onValueChange={wrapSet((v: string) => setFilterHasFC(v as YesNoAll))}>
-                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutti</SelectItem>
-                        <SelectItem value="yes">Con CF/P.IVA</SelectItem>
-                        <SelectItem value="no">Senza CF/P.IVA</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">Indirizzo cantiere</Label>
-                    <Select value={filterHasSite} onValueChange={wrapSet((v: string) => setFilterHasSite(v as YesNoAll))}>
-                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutti</SelectItem>
-                        <SelectItem value="yes">Con cantiere</SelectItem>
-                        <SelectItem value="no">Senza cantiere</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">Stato portale</Label>
-                    <Select value={filterPortal} onValueChange={wrapSet((v: string) => setFilterPortal(v as PortalState))}>
-                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutti</SelectItem>
-                        <SelectItem value="active">Con accesso portale</SelectItem>
-                        <SelectItem value="disabled">Solo anagrafica</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <Button
+              variant="outline"
+              size="default"
+              className="relative"
+              onClick={() => setAdvOpen(true)}
+            >
+              <Filter className="h-4 w-4 mr-1.5" />
+              Filtri avanzati
+              {activeFiltersCount > 0 && (
+                <Badge className="ml-2 h-5 px-1.5 text-[10px] bg-primary">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </Button>
 
             {activeFiltersCount > 0 && (
               <Button variant="ghost" size="default" onClick={clearAllFilters} className="text-muted-foreground">
@@ -1264,6 +1324,155 @@ function CustomersListInner() {
           </div>
         </div>
       </div>
+
+      <Sheet open={advOpen} onOpenChange={setAdvOpen}>
+        <SheetContent side="right" className="flex h-full w-full flex-col gap-0 p-0 sm:max-w-md">
+          <SheetHeader className="border-b px-5 py-4 pr-12 text-left">
+            <SheetTitle>Filtri avanzati</SheetTitle>
+            <SheetDescription>
+              Affina l'anagrafica clienti per dati di contatto, cantiere, portale e date di inserimento.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase text-muted-foreground">Data dal</Label>
+                  <Input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={(e) => wrapSet(setFilterDateFrom)(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase text-muted-foreground">Data al</Label>
+                  <Input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={(e) => wrapSet(setFilterDateTo)(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">Telefono</Label>
+                <Select value={filterHasPhone} onValueChange={wrapSet((v: string) => setFilterHasPhone(v as YesNoAll))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti</SelectItem>
+                    <SelectItem value="yes">Con telefono</SelectItem>
+                    <SelectItem value="no">Senza telefono</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">Codice Fiscale / P.IVA</Label>
+                <Select value={filterHasFC} onValueChange={wrapSet((v: string) => setFilterHasFC(v as YesNoAll))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti</SelectItem>
+                    <SelectItem value="yes">Con CF/P.IVA</SelectItem>
+                    <SelectItem value="no">Senza CF/P.IVA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">Indirizzo cantiere</Label>
+                <Select value={filterHasSite} onValueChange={wrapSet((v: string) => setFilterHasSite(v as YesNoAll))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti</SelectItem>
+                    <SelectItem value="yes">Con cantiere</SelectItem>
+                    <SelectItem value="no">Senza cantiere</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase text-muted-foreground">Stato portale</Label>
+                <Select value={filterPortal} onValueChange={wrapSet((v: string) => setFilterPortal(v as PortalState))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti</SelectItem>
+                    <SelectItem value="active">Con accesso portale</SelectItem>
+                    <SelectItem value="disabled">Solo anagrafica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <SheetFooter className="border-t px-5 py-4 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={clearAllFilters}
+              disabled={activeFiltersCount === 0 && !searchQuery}
+            >
+              Azzera filtri
+            </Button>
+            <Button onClick={() => setAdvOpen(false)}>
+              Applica
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {customers.length > 0 && anomalyTotals.total > 0 && (
+        <Card className="border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/10">
+          <CardContent className="py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Anomalie clienti</h2>
+                  <Badge variant="outline" className="border-red-300 bg-white text-red-700">
+                    {anomalyTotals.high} critiche
+                  </Badge>
+                  <Badge variant="outline" className="border-amber-300 bg-white text-amber-700">
+                    {anomalyTotals.medium} da gestire
+                  </Badge>
+                  <Badge variant="outline" className="border-slate-300 bg-white text-slate-700">
+                    {anomalyTotals.low} leggere
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Controllo operativo sui clienti visibili: dati mancanti, portale, venditore e cantiere.
+                </p>
+              </div>
+
+              <div className="grid min-w-0 flex-1 gap-2 md:grid-cols-3">
+                {topAnomalyRows.map((row) => {
+                  const main = row.anomalies[0];
+                  const Icon = main.icon;
+                  const colorClass = row.severity === "high"
+                    ? "border-red-200 bg-red-50 text-red-800"
+                    : row.severity === "medium"
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "border-slate-200 bg-white text-slate-800";
+                  return (
+                    <button
+                      key={row.customer.id}
+                      type="button"
+                      onClick={() => navigate(`/azienda/clienti/${row.customer.id}`)}
+                      className={`rounded-lg border px-3 py-2 text-left transition hover:shadow-sm ${colorClass}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate text-xs font-semibold">{row.fullName}</span>
+                      </div>
+                      <p className="mt-1 truncate text-[11px] opacity-80">
+                        {main.label}{row.anomalies.length > 1 ? ` +${row.anomalies.length - 1}` : ""}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
@@ -1368,6 +1577,9 @@ function CustomersListInner() {
               const initials = formatInitials(customer);
               const fullName = formatDisplayName(customer);
               const cleanPhone = formatPhone(customer.phone);
+              const cleanEmail = formatCustomerEmail(customer.email);
+              const anomalies = getCustomerAnomalies(customer);
+              const severity = getWorstSeverity(anomalies);
               const avatarColor = getAvatarColor(fullName);
               const isSelected = selectedIds.has(customer.id);
               return (
@@ -1397,9 +1609,27 @@ function CustomersListInner() {
                             Anagrafica
                           </Badge>
                         )}
+                        {severity !== "ok" && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] h-4 px-1 ${
+                              severity === "high"
+                                ? "border-red-500/40 text-red-700"
+                                : severity === "medium"
+                                  ? "border-amber-500/40 text-amber-700"
+                                  : "border-slate-400 text-slate-600"
+                            }`}
+                          >
+                            {anomalies.length} anomalie
+                          </Badge>
+                        )}
                       </div>
                       {cleanPhone && <p className="text-xs text-muted-foreground">{cleanPhone}</p>}
-                      {customer.email && <p className="text-xs text-muted-foreground truncate">{customer.email}</p>}
+                      {cleanEmail ? (
+                        <p className="text-xs text-muted-foreground truncate">{cleanEmail}</p>
+                      ) : (
+                        <p className="text-xs text-amber-700">Email non inserita</p>
+                      )}
                       {customer.city && <p className="text-[11px] text-muted-foreground">{formatLocality(customer.city, customer.postal_code, customer.province)}</p>}
                     </div>
                     {customer.order_count > 0 && (
@@ -1434,6 +1664,7 @@ function CustomersListInner() {
                     </button>
                   </TableHead>
                 )}
+                {visible.health && <TableHead>Salute</TableHead>}
                 {visible.email && <TableHead>Email</TableHead>}
                 {visible.phone && <TableHead>Telefono</TableHead>}
                 {visible.fiscal_code && <TableHead>CF / P.IVA</TableHead>}
@@ -1461,12 +1692,14 @@ function CustomersListInner() {
             </TableHeader>
             <TableBody>
               {customers.map((customer) => {
-                const sp = customer.salesperson_id ? salespersonMap.get(customer.salesperson_id) : null;
                 const initials = formatInitials(customer);
                 const fullName = formatDisplayName(customer);
                 const avatarColor = getAvatarColor(fullName);
                 const cleanPhone = formatPhone(customer.phone);
+                const cleanEmail = formatCustomerEmail(customer.email);
                 const locality = formatLocality(customer.city, customer.postal_code, customer.province);
+                const anomalies = getCustomerAnomalies(customer);
+                const severity = getWorstSeverity(anomalies);
                 const isSelected = selectedIds.has(customer.id);
                 return (
                   <TableRow
@@ -1525,16 +1758,57 @@ function CustomersListInner() {
                         </div>
                       </TableCell>
                     )}
+                    {visible.health && (
+                      <TableCell>
+                        {severity === "ok" ? (
+                          <Badge variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
+                            OK
+                          </Badge>
+                        ) : (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    severity === "high"
+                                      ? "border-red-500/40 bg-red-50 text-red-700"
+                                      : severity === "medium"
+                                        ? "border-amber-500/40 bg-amber-50 text-amber-700"
+                                        : "border-slate-300 text-slate-700"
+                                  }
+                                >
+                                  {severity === "high" ? "Critico" : severity === "medium" ? "Da gestire" : "Da completare"}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="max-w-[260px] space-y-1 text-xs">
+                                  {anomalies.map((anomaly, index) => (
+                                    <p key={`${anomaly.label}-${index}`}>
+                                      <span className="font-semibold">{anomaly.label}:</span> {anomaly.action}
+                                    </p>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </TableCell>
+                    )}
                     {visible.email && (
                       <TableCell>
-                        <a
-                          href={`mailto:${customer.email}`}
-                          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Mail className="h-4 w-4 shrink-0" />
-                          <span className="truncate max-w-[200px]">{customer.email}</span>
-                        </a>
+                        {cleanEmail ? (
+                          <a
+                            href={`mailto:${cleanEmail}`}
+                            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Mail className="h-4 w-4 shrink-0" />
+                            <span className="truncate max-w-[200px]">{cleanEmail}</span>
+                          </a>
+                        ) : (
+                          <span className="text-xs text-amber-700">Email non inserita</span>
+                        )}
                       </TableCell>
                     )}
                     {visible.phone && (
@@ -1656,66 +1930,98 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link to={`/azienda/clienti/${customer.id}`} aria-label={`Modifica ${fullName}`}>
-                            <Pencil className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        {!customer.portal_disabled && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="icon" className="h-8 w-8" aria-label={`Azioni ${fullName}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuLabel>Azioni cliente</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => navigate(`/azienda/clienti/${customer.id}`)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Apri scheda
+                          </DropdownMenuItem>
+                          {cleanEmail && (
+                            <DropdownMenuItem onClick={() => window.location.href = `mailto:${cleanEmail}`}>
+                              <Mail className="h-4 w-4 mr-2" />
+                              Scrivi email
+                            </DropdownMenuItem>
+                          )}
+                          {cleanPhone && (
+                            <DropdownMenuItem onClick={() => window.location.href = `tel:${cleanPhone}`}>
+                              <Phone className="h-4 w-4 mr-2" />
+                              Chiama
+                            </DropdownMenuItem>
+                          )}
+                          {!customer.portal_disabled && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <DropdownMenuItem
+                                    onSelect={(e) => e.preventDefault()}
+                                    disabled={resetPasswordMutation.isPending}
+                                  >
+                                    <KeyRound className="h-4 w-4 mr-2" />
+                                    Reset password
+                                  </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Reset Password</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Vuoi resettare la password per {fullName}?
+                                      <br />
+                                      <span className="text-muted-foreground">Verrà generata una nuova password da comunicare al cliente.</span>
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => resetPasswordMutation.mutate(customer.id)}>Conferma</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
+                          <DropdownMenuSeparator />
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" disabled={resetPasswordMutation.isPending} aria-label={`Reset password ${fullName}`}>
-                                <KeyRound className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenuItem
+                                onSelect={(e) => e.preventDefault()}
+                                disabled={deleteCustomerMutation.isPending}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Elimina
+                              </DropdownMenuItem>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Reset Password</AlertDialogTitle>
+                                <AlertDialogTitle>Elimina Cliente</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Vuoi resettare la password per {fullName}?
-                                  <br />
-                                  <span className="text-muted-foreground">Verrà generata una nuova password da comunicare al cliente.</span>
+                                  {customer.order_count > 0 ? (
+                                    <>Impossibile eliminare {fullName} perché ha <strong>{customer.order_count} ordini</strong> associati.</>
+                                  ) : (
+                                    <>Sei sicuro di voler eliminare {fullName}? Questa azione non può essere annullata.</>
+                                  )}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => resetPasswordMutation.mutate(customer.id)}>Conferma</AlertDialogAction>
+                                {customer.order_count === 0 && (
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => deleteCustomerMutation.mutate(customer.id)}
+                                  >
+                                    Elimina
+                                  </AlertDialogAction>
+                                )}
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                        )}
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm" disabled={deleteCustomerMutation.isPending} aria-label={`Elimina ${fullName}`}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Elimina Cliente</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {customer.order_count > 0 ? (
-                                  <>Impossibile eliminare {fullName} perché ha <strong>{customer.order_count} ordini</strong> associati.</>
-                                ) : (
-                                  <>Sei sicuro di voler eliminare {fullName}? Questa azione non può essere annullata.</>
-                                )}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
-                              {customer.order_count === 0 && (
-                                <AlertDialogAction
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  onClick={() => deleteCustomerMutation.mutate(customer.id)}
-                                >
-                                  Elimina
-                                </AlertDialogAction>
-                              )}
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 );

@@ -64,6 +64,14 @@ interface CustomerProfileCardProps {
   onSaved?: () => void;
 }
 
+const INTERNAL_NO_EMAIL_DOMAIN = "@no-email.ediliziaincloud.local";
+
+function formatCustomerEmail(email: string | null | undefined): string | null {
+  const value = (email ?? "").trim();
+  if (!value || value.endsWith(INTERNAL_NO_EMAIL_DOMAIN)) return null;
+  return value;
+}
+
 function InfoRow({ icon: Icon, value, placeholder }: {
   icon: LucideIcon;
   value: string | null;
@@ -118,6 +126,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
   // iniziale dell'avatar (es. "—A" quando first_name è "—"). I placeholder
   // sono trattati come vuoti per il calcolo delle iniziali.
   const displayName = getDisplayName(customer);
+  const displayEmail = formatCustomerEmail(customer.email);
   const initialOf = (s: string | null | undefined) => {
     const t = (s ?? "").trim();
     if (!t || t === "—" || t === "-") return "";
@@ -540,7 +549,9 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                     Referente: {stripPlaceholder(customer.first_name)} {stripPlaceholder(customer.last_name)}
                   </p>
                 )}
-                <p className="text-sm text-muted-foreground">{customer.email}</p>
+                <p className={displayEmail ? "text-sm text-muted-foreground" : "text-sm text-amber-700"}>
+                  {displayEmail ?? "Email non inserita"}
+                </p>
               </div>
               <Badge variant="outline" className="text-xs gap-1">
                 <Calendar className="h-3 w-3" />

@@ -607,7 +607,7 @@ export function companyRoutes() {
         </Route>
 
         <Route path="ritenute-garanzia" element={<ErrorBoundary title="Errore nel caricamento ritenute"><RitenuteGaranzia /></ErrorBoundary>} />
-        <Route path="foto-cantiere" element={<Navigate to="/azienda/ordini?tab=foto" replace />} />
+        <Route path="foto-cantiere" element={<Navigate to="/azienda/ordini" replace />} />
         <Route path="gantt-ordini" element={<Navigate to="/azienda/calendario?view=gantt" replace />} />
         <Route path="contabilita-fiscale" element={<ErrorBoundary title="Errore nella contabilità fiscale"><ContabilitaFiscale /></ErrorBoundary>} />
         <Route path="archivio-sostitutivo" element={<ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary>} />

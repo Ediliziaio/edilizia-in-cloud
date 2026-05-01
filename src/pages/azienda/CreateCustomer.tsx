@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, UserPlus, Copy, Check, ShieldCheck, ShieldOff, Mail, Phone, MapPin,
   CreditCard, HardHat, FileText, Loader2, Building2, User as UserIcon,
+  Upload, X, FileCheck2, FileWarning,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,10 +29,38 @@ import {
 // Regex client-side (resta comunque validato server-side)
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g; // caratteri invisibili
 const PHONE_ALLOWED = /^[0-9+\-\s().]+$/;
+const CUSTOMER_DOCUMENT_BUCKET = "customer-documents";
+type CustomerDocumentType = "contract" | "identity" | "fiscal_code";
+
+const CUSTOMER_DOCUMENTS: Array<{
+  type: CustomerDocumentType;
+  label: string;
+  description: string;
+}> = [
+  {
+    type: "contract",
+    label: "Contratto",
+    description: "Contratto, proposta firmata o accordo già disponibile.",
+  },
+  {
+    type: "identity",
+    label: "Documento identità",
+    description: "CI, patente, passaporto o documento del referente.",
+  },
+  {
+    type: "fiscal_code",
+    label: "Codice fiscale",
+    description: "Tessera sanitaria/CF o documento fiscale utile.",
+  },
+];
+
+function sanitizeFileName(fileName: string) {
+  return fileName.replace(/[^\w.-]+/g, "_");
+}
 
 export default function CreateCustomer() {
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -67,12 +96,56 @@ export default function CreateCustomer() {
   const [sitePostalCode, setSitePostalCode] = useState("");
   const [siteProvince, setSiteProvince] = useState("");
   const [notes, setNotes] = useState("");
+  const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
 
   // Portale: default segue setting company, ma admin può disattivare per singolo cliente
   const [createPortalAccount, setCreatePortalAccount] = useState(companyPortalEnabled);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const selectedDocumentCount = Object.values(customerDocuments).filter(Boolean).length;
+  const missingDocumentLabels = CUSTOMER_DOCUMENTS
+    .filter((doc) => !customerDocuments[doc.type])
+    .map((doc) => doc.label);
+
+  const handleDocumentChange = (type: CustomerDocumentType, file: File | null) => {
+    setCustomerDocuments((prev) => {
+      const next = { ...prev };
+      if (file) next[type] = file;
+      else delete next[type];
+      return next;
+    });
+  };
+
+  const uploadCustomerDocuments = async (customerId: string) => {
+    if (!effectiveCompany?.id || !user?.id) return;
+    const entries = Object.entries(customerDocuments) as Array<[CustomerDocumentType, File | undefined]>;
+    for (const [documentType, file] of entries) {
+      if (!file) continue;
+      const filePath = `${effectiveCompany.id}/${customerId}/${documentType}/${Date.now()}-${sanitizeFileName(file.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from(CUSTOMER_DOCUMENT_BUCKET)
+        .upload(filePath, file, { contentType: file.type || undefined, upsert: false });
+      if (uploadError) throw uploadError;
+      const customerDocumentsClient = supabase as unknown as {
+        from: (table: "customer_documents") => {
+          insert: (payload: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>;
+        };
+      };
+      const { error: insertError } = await customerDocumentsClient.from("customer_documents").insert({
+        company_id: effectiveCompany.id,
+        customer_id: customerId,
+        document_type: documentType,
+        file_name: file.name,
+        file_path: filePath,
+        file_type: file.type || null,
+        file_size: file.size,
+        uploaded_by: user.id,
+      });
+      if (insertError) throw insertError;
+    }
+  };
 
   // Appaltatore = sempre azienda (P.IVA + ragione sociale obbligatorie).
   // Forziamo isBusiness=true ogni volta che si passa a quel tipo.
@@ -108,9 +181,11 @@ export default function CreateCustomer() {
     return null;
   }, [email]);
 
+  const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
+
   const canSubmit =
     (isBusiness ? businessName.trim().length > 0 : (firstName.trim().length > 0 && lastName.trim().length > 0)) &&
-    email.trim().length > 0 &&
+    (!shouldRequireEmail || email.trim().length > 0) &&
     !emailError &&
     !phoneError &&
     !!effectiveCompany?.id &&
@@ -134,8 +209,9 @@ export default function CreateCustomer() {
         return;
       }
     }
-    if (!email.trim()) {
-      toast({ title: "Campo obbligatorio", description: "Inserisci l'email del cliente.", variant: "destructive" });
+    const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
+    if (shouldCreatePortal && !email.trim()) {
+      toast({ title: "Campo obbligatorio", description: "Inserisci l'email per creare l'accesso al portale.", variant: "destructive" });
       return;
     }
     if (emailError) {
@@ -155,7 +231,6 @@ export default function CreateCustomer() {
 
     try {
       const cleanPhone = phone.replace(PHONE_CLEAN_REGEX, "").replace(/\s+/g, " ").trim() || null;
-      const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
 
       const { data, error } = await supabase.functions.invoke("create-customer", {
         body: {
@@ -166,7 +241,7 @@ export default function CreateCustomer() {
           customer_type: customerType,
           first_name: firstName.trim(),
           last_name: lastName.trim(),
-          email: email.trim().toLowerCase(),
+          email: email.trim().toLowerCase() || null,
           phone: cleanPhone,
           address: address.trim() || null,
           city: city.trim() || null,
@@ -197,6 +272,32 @@ export default function CreateCustomer() {
       if (data.error) throw new Error(data.error);
 
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
+
+      const newCustomerId = data?.customer?.id ?? data?.customer_id ?? data?.user_id;
+      if (selectedDocumentCount > 0) {
+        if (!newCustomerId) {
+          toast({
+            title: "Cliente creato, documenti non caricati",
+            description: "Il server non ha restituito l'ID cliente. Carica i documenti dalla scheda cliente.",
+            variant: "destructive",
+          });
+        } else {
+          try {
+            await uploadCustomerDocuments(newCustomerId);
+            toast({
+              title: "Documenti cliente caricati",
+              description: `${selectedDocumentCount} documento/i salvati nel fascicolo cliente.`,
+            });
+          } catch (uploadError) {
+            logger.error("Customer documents upload error:", uploadError);
+            toast({
+              title: "Cliente creato, documenti non caricati",
+              description: uploadError instanceof Error ? uploadError.message : "Carica i documenti dalla scheda cliente.",
+              variant: "destructive",
+            });
+          }
+        }
+      }
 
       setGeneratedPassword(data.password ?? null);
       setPortalWasCreated(!!data.portal_account_created);
@@ -369,7 +470,7 @@ export default function CreateCustomer() {
                 <div className="space-y-2">
                   <Label htmlFor="email" className="flex items-center gap-1.5">
                     <Mail className="h-3.5 w-3.5" />
-                    Email *
+                    Email {shouldRequireEmail ? "*" : ""}
                   </Label>
                   <Input
                     id="email"
@@ -378,9 +479,14 @@ export default function CreateCustomer() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={isBusiness ? "info@azienda.it" : "mario.rossi@email.com"}
                     autoComplete="email"
-                    required
+                    required={shouldRequireEmail}
                     aria-invalid={!!emailError}
                   />
+                  {!shouldRequireEmail && (
+                    <p className="text-xs text-muted-foreground">
+                      Opzionale se crei solo l'anagrafica. Diventa obbligatoria se abiliti il portale clienti.
+                    </p>
+                  )}
                   {emailError && <p className="text-xs text-destructive">{emailError}</p>}
                 </div>
 
@@ -413,6 +519,81 @@ export default function CreateCustomer() {
                     placeholder={isBusiness ? "IT01234567890" : "RSSMRA80A01H501U"}
                     maxLength={16}
                   />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Fascicolo documentale */}
+            <Card className="border-l-4 border-l-emerald-500">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileCheck2 className="h-4 w-4 text-emerald-500" />
+                  Documenti cliente
+                </CardTitle>
+                <CardDescription>
+                  Contratto, documento identità e codice fiscale non sono obbligatori, ma il sistema segnala cosa manca.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Alert className="bg-amber-50/60 border-amber-200">
+                  <FileWarning className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-xs text-amber-900">
+                    Puoi creare il cliente anche senza allegati. Se mancano, rimarranno evidenziati come documenti da recuperare.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="grid gap-3">
+                  {CUSTOMER_DOCUMENTS.map((doc) => {
+                    const file = customerDocuments[doc.type];
+                    return (
+                      <div key={doc.type} className="rounded-lg border p-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">{doc.label}</p>
+                              <Badge variant={file ? "default" : "outline"} className="text-[10px]">
+                                {file ? "presente" : "mancante"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{doc.description}</p>
+                            {file && (
+                              <p className="mt-1 truncate text-xs font-medium text-emerald-700">
+                                {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Label
+                              htmlFor={`customer-doc-${doc.type}`}
+                              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border bg-background px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <Upload className="mr-1.5 h-3.5 w-3.5" />
+                              {file ? "Cambia" : "Carica"}
+                            </Label>
+                            <Input
+                              id={`customer-doc-${doc.type}`}
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/*"
+                              onChange={(event) => handleDocumentChange(doc.type, event.target.files?.[0] ?? null)}
+                            />
+                            {file && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9"
+                                onClick={() => handleDocumentChange(doc.type, null)}
+                                aria-label={`Rimuovi ${doc.label}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -583,6 +764,18 @@ export default function CreateCustomer() {
                   <div className="flex items-start justify-between gap-3">
                     <span className="text-muted-foreground shrink-0">{isBusiness ? "P.IVA/CF" : "CF"}</span>
                     <span className="font-medium text-right truncate font-mono text-[11px]">{fiscalCode.trim()}</span>
+                  </div>
+                )}
+                <Separator className="my-2" />
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-muted-foreground shrink-0">Documenti</span>
+                  <span className="font-medium text-right">
+                    {selectedDocumentCount}/{CUSTOMER_DOCUMENTS.length} presenti
+                  </span>
+                </div>
+                {missingDocumentLabels.length > 0 && (
+                  <div className="rounded-md bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
+                    Mancano: {missingDocumentLabels.join(", ")}
                   </div>
                 )}
               </CardContent>
