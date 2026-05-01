@@ -8,9 +8,11 @@ import {
   MapPin,
   MousePointer2,
   Pencil,
+  PenLine,
   Plus,
   Ruler,
   Trash2,
+  Undo2,
   Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,18 @@ type DraftRect = {
   startY: number;
   currentX: number;
   currentY: number;
+};
+
+type PlanPoint = {
+  x: number;
+  y: number;
+};
+
+type PlanStroke = {
+  id: string;
+  points: PlanPoint[];
+  color: string;
+  width: number;
 };
 
 type WarehouseSectionsManagerProps = {
@@ -124,7 +138,10 @@ export function WarehouseSectionsManager({
   const [planMeta, setPlanMeta] = useState<PlanMeta>(DEFAULT_PLAN_META);
   const [planImage, setPlanImage] = useState<string | null>(null);
   const [drawMode, setDrawMode] = useState(false);
+  const [freehandMode, setFreehandMode] = useState(false);
   const [draftRect, setDraftRect] = useState<DraftRect | null>(null);
+  const [strokes, setStrokes] = useState<PlanStroke[]>([]);
+  const [activeStroke, setActiveStroke] = useState<PlanStroke | null>(null);
   const [pendingLayout, setPendingLayout] = useState<ZoneLayout | null>(null);
   const [pendingZoneName, setPendingZoneName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -138,6 +155,9 @@ export function WarehouseSectionsManager({
     : null;
   const imageStorageKey = effectiveCompany?.id
     ? `warehouse-zone-plan-image:${effectiveCompany.id}:${storageScope}`
+    : null;
+  const strokesStorageKey = effectiveCompany?.id
+    ? `warehouse-zone-plan-strokes:${effectiveCompany.id}:${storageScope}`
     : null;
 
   useEffect(() => {
@@ -198,10 +218,26 @@ export function WarehouseSectionsManager({
   }, [imageStorageKey, planImage]);
 
   useEffect(() => {
-    if (drawMode) return;
+    if (!strokesStorageKey) return;
+    try {
+      const stored = window.localStorage.getItem(strokesStorageKey);
+      const parsed = stored ? JSON.parse(stored) : [];
+      setStrokes(Array.isArray(parsed) ? parsed.filter((stroke) => Array.isArray(stroke?.points)) as PlanStroke[] : []);
+    } catch {
+      setStrokes([]);
+    }
+  }, [strokesStorageKey]);
+
+  useEffect(() => {
+    if (!strokesStorageKey) return;
+    window.localStorage.setItem(strokesStorageKey, JSON.stringify(strokes));
+  }, [strokes, strokesStorageKey]);
+
+  useEffect(() => {
+    if (drawMode || freehandMode) return;
     if (selectedZoneId && sections.some((section) => section.id === selectedZoneId)) return;
     setSelectedZoneId(sections[0]?.id ?? null);
-  }, [drawMode, sections, selectedZoneId]);
+  }, [drawMode, freehandMode, sections, selectedZoneId]);
 
   useEffect(() => {
     if (!pendingZoneName || !pendingLayout) return;
@@ -302,6 +338,14 @@ export function WarehouseSectionsManager({
     };
   };
 
+  const getPointFromPointer = (event: React.PointerEvent<HTMLDivElement>): PlanPoint => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+      x: clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100),
+      y: clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100),
+    };
+  };
+
   const layoutFromDraft = (draft: DraftRect): ZoneLayout => {
     const minX = Math.min(draft.startX, draft.currentX);
     const minY = Math.min(draft.startY, draft.currentY);
@@ -320,7 +364,7 @@ export function WarehouseSectionsManager({
   };
 
   const handlePlanClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (drawMode) return;
+    if (drawMode || freehandMode) return;
     if (!selectedZoneId || !selectedLayout) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const cellW = rect.width / GRID_COLS;
@@ -334,19 +378,42 @@ export function WarehouseSectionsManager({
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!drawMode) return;
+    if (!drawMode && !freehandMode) return;
+    if (freehandMode) {
+      const point = getPointFromPointer(event);
+      setActiveStroke({
+        id: globalThis.crypto?.randomUUID?.() ?? `stroke-${Date.now()}`,
+        points: [point],
+        color: "#0f172a",
+        width: 3,
+      });
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
     const cell = getCellFromPointer(event);
     setDraftRect({ startX: cell.x, startY: cell.y, currentX: cell.x, currentY: cell.y });
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (freehandMode && activeStroke) {
+      const point = getPointFromPointer(event);
+      setActiveStroke((current) => current ? { ...current, points: [...current.points, point] } : current);
+      return;
+    }
     if (!drawMode || !draftRect) return;
     const cell = getCellFromPointer(event);
     setDraftRect((current) => current ? { ...current, currentX: cell.x, currentY: cell.y } : current);
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (freehandMode && activeStroke) {
+      if (activeStroke.points.length > 1) {
+        setStrokes((current) => [...current, activeStroke]);
+      }
+      setActiveStroke(null);
+      return;
+    }
     if (!drawMode || !draftRect) return;
     const finalLayout = layoutFromDraft(draftRect);
     setDraftRect(null);
@@ -369,6 +436,7 @@ export function WarehouseSectionsManager({
   };
 
   const draftLayout = draftRect ? layoutFromDraft(draftRect) : null;
+  const visibleStrokes = activeStroke ? [...strokes, activeStroke] : strokes;
 
   const managerCard = (
     <Card className={variant === "dialog" ? "border-0 shadow-none" : undefined}>
@@ -465,12 +533,50 @@ export function WarehouseSectionsManager({
               className="gap-2"
               onClick={() => {
                 setSelectedZoneId(null);
+                setFreehandMode(false);
                 setDrawMode((current) => !current);
               }}
             >
               <MousePointer2 className="h-3.5 w-3.5" />
               {drawMode ? "Disegno attivo" : "Disegna zona"}
             </Button>
+            <Button
+              type="button"
+              variant={freehandMode ? "default" : "outline"}
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                setDrawMode(false);
+                setFreehandMode((current) => !current);
+              }}
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              {freehandMode ? "Linea attiva" : "Disegno libero"}
+            </Button>
+            {strokes.length > 0 && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setStrokes((current) => current.slice(0, -1))}
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                  Annulla linea
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setStrokes([])}
+                >
+                  <Eraser className="h-3.5 w-3.5" />
+                  Pulisci linee
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -512,6 +618,8 @@ export function WarehouseSectionsManager({
                   <p className="text-xs text-muted-foreground">
                     {drawMode
                       ? "Trascina sulla piantina per disegnare una nuova zona."
+                      : freehandMode
+                        ? "Disegna linee libere per muri, contorni, porte o percorsi interni."
                       : "Clicca una zona per selezionarla, poi clicca sulla griglia per spostarla."}
                   </p>
                 </div>
@@ -524,6 +632,7 @@ export function WarehouseSectionsManager({
                 className={cn(
                   "relative min-h-[320px] overflow-hidden rounded-lg border bg-muted/20",
                   drawMode && "cursor-crosshair ring-1 ring-primary/40",
+                  freehandMode && "cursor-crosshair ring-1 ring-slate-700/40",
                 )}
                 onClick={handlePlanClick}
                 onPointerDown={handlePointerDown}
@@ -544,6 +653,22 @@ export function WarehouseSectionsManager({
                 aria-label="Piantina zone magazzino"
               >
                 {planImage && <div className="absolute inset-0 bg-background/35" aria-hidden="true" />}
+                {visibleStrokes.length > 0 && (
+                  <svg className="pointer-events-none absolute inset-0 z-10 h-full w-full" aria-hidden="true" preserveAspectRatio="none">
+                    {visibleStrokes.map((stroke) => (
+                      <polyline
+                        key={stroke.id}
+                        points={stroke.points.map((point) => `${point.x},${point.y}`).join(" ")}
+                        fill="none"
+                        stroke={stroke.color}
+                        strokeWidth={stroke.width}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ))}
+                  </svg>
+                )}
                 {sections.map((section, index) => {
                   const layout = normalizedLayouts[section.id] ?? defaultLayout(index);
                   const selected = selectedZoneId === section.id;
@@ -552,7 +677,7 @@ export function WarehouseSectionsManager({
                       key={section.id}
                       type="button"
                       className={cn(
-                        "absolute overflow-hidden rounded-md border bg-background/95 p-2 text-left shadow-sm transition-all hover:shadow-md",
+                        "absolute z-20 overflow-hidden rounded-md border bg-background/95 p-2 text-left shadow-sm transition-all hover:shadow-md",
                         selected && "ring-2 ring-primary ring-offset-2",
                       )}
                       style={{

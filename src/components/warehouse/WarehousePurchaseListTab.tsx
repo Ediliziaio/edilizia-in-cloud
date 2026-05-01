@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -242,6 +243,7 @@ export default function WarehousePurchaseListTab({
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseStatus>("all");
   const [paymentFilter, setPaymentFilter] = useState<"all" | PaymentState>("all");
   const [dismissedRowIds, setDismissedRowIds] = useState<Set<string>>(new Set());
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
 
   const storageKey = `warehouse-purchase-list:${companyId}`;
   const dismissedStorageKey = `warehouse-purchase-dismissed:${companyId}`;
@@ -557,6 +559,50 @@ export default function WarehousePurchaseListTab({
       toPay,
     };
   }, [rows]);
+
+  useEffect(() => {
+    setSelectedRowIds((current) => {
+      const visibleIds = new Set(filteredRows.map((row) => row.id));
+      const next = new Set(Array.from(current).filter((id) => visibleIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [filteredRows]);
+
+  const selectedRows = useMemo(
+    () => filteredRows.filter((row) => selectedRowIds.has(row.id)),
+    [filteredRows, selectedRowIds],
+  );
+
+  const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedRowIds.has(row.id));
+  const hasPartialSelection = selectedRowIds.size > 0 && !allFilteredSelected;
+
+  const toggleRowSelection = (rowId: string) => {
+    setSelectedRowIds((current) => {
+      const next = new Set(current);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
+  };
+
+  const toggleAllFiltered = () => {
+    setSelectedRowIds((current) => {
+      if (allFilteredSelected) return new Set();
+      const next = new Set(current);
+      filteredRows.forEach((row) => next.add(row.id));
+      return next;
+    });
+  };
+
+  const updateSelectedRowsStatus = (status: PurchaseStatus) => {
+    selectedRows.forEach((row) => updateRowStatus(row, status));
+    setSelectedRowIds(new Set());
+  };
+
+  const removeSelectedRows = () => {
+    selectedRows.forEach(removePurchaseRow);
+    setSelectedRowIds(new Set());
+  };
 
   const addManualItem = () => {
     const name = form.name.trim();
@@ -1451,6 +1497,38 @@ export default function WarehousePurchaseListTab({
         </Select>
       </div>
 
+      {selectedRowIds.size > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-blue-950">
+                {selectedRowIds.size} rig{selectedRowIds.size === 1 ? "a" : "he"} selezionat{selectedRowIds.size === 1 ? "a" : "e"}
+              </p>
+              <p className="text-xs text-blue-800">
+                Applica un'azione comune agli acquisti selezionati.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => updateSelectedRowsStatus("ordinato")}>
+                Segna ordinato
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => updateSelectedRowsStatus("in_arrivo")}>
+                In arrivo
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => updateSelectedRowsStatus("in_magazzino")}>
+                Arrivato
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setSelectedRowIds(new Set())}>
+                Annulla selezione
+              </Button>
+              <Button type="button" size="sm" variant="destructive" onClick={removeSelectedRows}>
+                Elimina
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {filteredRows.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
@@ -1465,7 +1543,12 @@ export default function WarehousePurchaseListTab({
         </Card>
       ) : (
         <div className="overflow-hidden rounded-lg border bg-background">
-          <div className="hidden border-b bg-muted/50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground xl:grid xl:grid-cols-[minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px_72px] xl:items-center xl:gap-4">
+          <div className="hidden border-b bg-muted/50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground xl:grid xl:grid-cols-[36px_minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px_72px] xl:items-center xl:gap-4">
+            <Checkbox
+              checked={allFilteredSelected ? true : hasPartialSelection ? "indeterminate" : false}
+              onCheckedChange={toggleAllFiltered}
+              aria-label="Seleziona tutti gli acquisti visibili"
+            />
             <span>Articolo</span>
             <span>Stato</span>
             <span>Q.tà</span>
@@ -1479,6 +1562,7 @@ export default function WarehousePurchaseListTab({
             const daysUntil = getDaysUntil(row.dueDate);
             const isOverdue = daysUntil !== null && daysUntil < 0;
             const canEditRow = row.source === "manual";
+            const selected = selectedRowIds.has(row.id);
             return (
               <Card key={row.id} className="rounded-none border-0 border-b shadow-none last:border-b-0">
                 <CardContent className="p-0">
@@ -1494,10 +1578,18 @@ export default function WarehousePurchaseListTab({
                       }
                     }}
                     className={cn(
-                      "grid gap-4 border-l-4 border-l-slate-200 p-4 transition-colors hover:border-l-blue-500 hover:bg-slate-50/50 xl:grid-cols-[minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px_72px] xl:items-center",
+                      "grid gap-4 border-l-4 border-l-slate-200 p-4 transition-colors hover:border-l-blue-500 hover:bg-slate-50/50 xl:grid-cols-[36px_minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px_72px] xl:items-center",
                       canEditRow && "cursor-pointer",
+                      selected && "border-l-blue-600 bg-blue-50/60 hover:bg-blue-50",
                     )}
                   >
+                    <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={() => toggleRowSelection(row.id)}
+                        aria-label={`Seleziona ${row.name}`}
+                      />
+                    </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate text-sm font-semibold" title={row.name}>
