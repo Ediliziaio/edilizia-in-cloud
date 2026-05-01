@@ -212,15 +212,22 @@ export default function AssistenzaLavoriHub() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Assistenza & Lavori</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Panoramica ticket, interventi e manutenzioni</p>
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <LifeBuoy className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Assistenza & Lavori</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Panoramica ticket, interventi e manutenzioni operative.</p>
+            </div>
+          </div>
+          <Button onClick={() => setDialogOpen(true)} className="self-start gap-2 sm:self-auto">
+            <Plus className="h-4 w-4" />
+            Nuovo Intervento
+          </Button>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nuovo Intervento
-        </Button>
       </div>
 
       {/* KPI Cards */}

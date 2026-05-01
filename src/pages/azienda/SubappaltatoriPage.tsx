@@ -150,19 +150,23 @@ export default function SubappaltatoriPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <HardHat className="h-6 w-6 sm:h-7 sm:w-7 text-orange-500 shrink-0" />
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Subappaltatori</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">Gestione contratti, SAL e ritenute</p>
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <HardHat className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Subappaltatori</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Gestione contratti, SAL, DURC e ritenute operative.</p>
+            </div>
           </div>
+          <Button size="sm" onClick={() => setDialogOpen(true)} className="self-start gap-1.5 sm:self-auto">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Nuovo Subappaltatore</span>
+            <span className="sm:hidden">Nuovo</span>
+          </Button>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          <span className="hidden sm:inline">Nuovo Subappaltatore</span>
-          <span className="sm:hidden">Nuovo</span>
-        </Button>
       </div>
 
       {/* Stats */}

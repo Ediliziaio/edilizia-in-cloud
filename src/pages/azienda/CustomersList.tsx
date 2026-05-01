@@ -943,19 +943,20 @@ function CustomersListInner() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Users className="h-5 w-5 text-primary" />
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <Users className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Clienti</h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Gestisci anagrafica, ordini, accessi al portale e import da file o AI.
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Clienti</h1>
-            <p className="text-sm text-muted-foreground">
-              Gestisci anagrafica, ordini, accessi al portale e import da file o AI.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
           {/* Export */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1049,6 +1050,7 @@ function CustomersListInner() {
               <span className="hidden sm:inline">Nuovo Cliente</span>
             </Link>
           </Button>
+          </div>
         </div>
       </div>
 

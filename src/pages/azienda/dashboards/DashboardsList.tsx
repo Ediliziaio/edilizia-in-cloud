@@ -67,24 +67,29 @@ export default function DashboardsList() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <LayoutDashboard className="h-6 w-6 text-primary" />
-            Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Le tue dashboard personalizzate con KPI, grafici e tabelle.
-          </p>
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <LayoutDashboard className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-2xl">Dashboard</h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Le tue dashboard personalizzate con KPI, grafici e tabelle operative.
+              </p>
+            </div>
+          </div>
+          <Button
+            onMouseEnter={prefetchBuilder}
+            onFocus={prefetchBuilder}
+            onClick={openNewDialog}
+            className="self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nuova dashboard
+          </Button>
         </div>
-        <Button
-          onMouseEnter={prefetchBuilder}
-          onFocus={prefetchBuilder}
-          onClick={openNewDialog}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Nuova dashboard
-        </Button>
       </div>
 
       {isLoading ? (

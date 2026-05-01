@@ -1492,20 +1492,27 @@ export default function CruscottoHub() {
   return (
     <div className="space-y-6 max-w-6xl">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {dashboards.length === 0
-              ? "Crea la tua prima dashboard personalizzata"
-              : `${dashboards.length} dashboard ${dashboards.length === 1 ? "personalizzata" : "personalizzate"}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button size="sm" className="gap-1.5" onClick={() => setCreate(true)}>
-            <Plus className="h-4 w-4" />
-            Aggiungi dashboard
-          </Button>
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <LayoutGrid className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Dashboard</h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                {dashboards.length === 0
+                  ? "Crea la tua prima dashboard personalizzata con KPI, grafici e viste operative."
+                  : `${dashboards.length} dashboard ${dashboards.length === 1 ? "personalizzata" : "personalizzate"} tra viste private e aziendali.`}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" className="gap-1.5" onClick={() => setCreate(true)}>
+              <Plus className="h-4 w-4" />
+              Aggiungi dashboard
+            </Button>
+          </div>
         </div>
       </div>
 

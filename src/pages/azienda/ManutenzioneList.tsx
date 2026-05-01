@@ -152,35 +152,39 @@ export default function ManutenzioneList() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Settings className="h-6 w-6 text-blue-600" />
-            Manutenzione Programmata
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Impianti, contratti e piani manutenzione clienti</p>
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <Settings className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Manutenzione Programmata</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Impianti, contratti e piani manutenzione clienti.</p>
+            </div>
+          </div>
+          <Button onClick={() => setWizardOpen(true)} className="self-start gap-2 sm:self-auto">
+            <Plus className="h-4 w-4" />
+            Nuovo Impianto
+          </Button>
         </div>
-        <Button onClick={() => setWizardOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nuovo Impianto
-        </Button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
           <div className="text-sm text-gray-500 flex items-center gap-1"><Settings className="h-4 w-4 text-blue-500" />Impianti</div>
           <div className="text-2xl font-bold text-blue-600 mt-1">{impianti.length}</div>
         </div>
-        <div className="bg-white rounded-lg border p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
           <div className="text-sm text-gray-500 flex items-center gap-1"><AlertCircle className="h-4 w-4 text-orange-500" />In scadenza</div>
           <div className="text-2xl font-bold text-orange-600 mt-1">{pianiInScadenza.length}</div>
         </div>
-        <div className="bg-white rounded-lg border p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
           <div className="text-sm text-gray-500 flex items-center gap-1"><CheckCircle2 className="h-4 w-4 text-green-500" />Contratti attivi</div>
           <div className="text-2xl font-bold text-green-600 mt-1">{contratti.filter((c) => c.stato === "attivo").length}</div>
         </div>
-        <div className="bg-white rounded-lg border p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
           <div className="text-sm text-gray-500 flex items-center gap-1"><TrendingUp className="h-4 w-4 text-purple-500" />MRR</div>
           <div className="text-2xl font-bold text-purple-600 mt-1">€{mrr.toFixed(0)}</div>
         </div>

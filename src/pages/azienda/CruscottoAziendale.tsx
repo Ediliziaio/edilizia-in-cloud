@@ -32,7 +32,7 @@ import { SemaforoBar } from "@/components/cruscotto/SemaforoBar";
 import { SaluteAziendale } from "@/components/cruscotto/SaluteAziendale";
 import { AzioniUrgenti } from "@/components/cruscotto/AzioniUrgenti";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
-import { AlertCircle, Download, RefreshCw } from "lucide-react";
+import { AlertCircle, Download, LayoutDashboard, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
@@ -80,22 +80,29 @@ export default function CruscottoAziendale() {
       <DashboardSelectorBar title="Cruscotto Aziendale" />
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 print:mb-4">
-        <div>
-          <h1 className="text-lg sm:text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">Centro di comando — {todayCap}</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap print:hidden">
-          <CruscottoFilters filters={filters} onUpdate={updateFilters} />
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => window.print()}
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Stampa / PDF</span>
-          </Button>
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6 print:border-0 print:shadow-none print:mb-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <LayoutDashboard className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Cruscotto Aziendale</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Centro di comando operativo, economico e commerciale — {todayCap}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <CruscottoFilters filters={filters} onUpdate={updateFilters} />
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => window.print()}
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Stampa / PDF</span>
+            </Button>
+          </div>
         </div>
       </div>
 
