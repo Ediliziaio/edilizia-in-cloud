@@ -60,6 +60,7 @@ import {
   WarehouseReferentiPicker,
   type PickerReferente,
 } from "@/components/warehouse/WarehouseReferentiPicker";
+import { WarehouseSectionsManager } from "@/components/warehouse/WarehouseSectionsManager";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   main: <Building2 className="h-4 w-4" />,
@@ -130,6 +131,7 @@ export default function WarehouseManager() {
   const [deactivateTarget, setDeactivateTarget] = useState<Warehouse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Warehouse | null>(null);
   const [assignTarget, setAssignTarget] = useState<Warehouse | null>(null);
+  const [zoneTarget, setZoneTarget] = useState<Warehouse | null>(null);
 
   // Referenti del magazzino in edit
   const {
@@ -452,6 +454,15 @@ export default function WarehouseManager() {
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => setZoneTarget(w)}
+                    title="Carica planimetria e gestisci zone operative"
+                  >
+                    <MapPin className="h-3.5 w-3.5 mr-1" />
+                    Planimetria
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setAssignTarget(w)}
                     title="Gestisci magazzinieri assegnati a questo magazzino"
                   >
@@ -610,6 +621,35 @@ export default function WarehouseManager() {
                 placeholder="Note interne…"
               />
             </div>
+
+            {editingId && (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Planimetria e zone operative</p>
+                    <p className="text-xs text-muted-foreground">
+                      Carica la piantina del magazzino e disegna aree come mobili, attrezzature, scorte o baie di carico.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      const warehouse = warehouses.find((item) => item.id === editingId);
+                      if (warehouse) {
+                        setDialogOpen(false);
+                        setZoneTarget(warehouse);
+                      }
+                    }}
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    Apri planimetria
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -642,6 +682,17 @@ export default function WarehouseManager() {
           onOpenChange={(v) => !v && setAssignTarget(null)}
         />
       )}
+
+      <WarehouseSectionsManager
+        context="manager"
+        variant="dialog"
+        open={!!zoneTarget}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setZoneTarget(null);
+        }}
+        warehouseId={zoneTarget?.id ?? null}
+        warehouseName={zoneTarget?.name ?? null}
+      />
 
       {/* Deactivate confirm */}
       <AlertDialog

@@ -233,14 +233,14 @@ export default function WarehouseItemDetailDialog({
           wrapper: "bg-destructive/10 border-destructive/30",
           text: "text-destructive",
           Icon: AlertCircle,
-          label: `Critico — posa tra ${daysUntil} giorni`,
+          label: `Critico - lavori tra ${daysUntil} giorni`,
         }
       : urgent
         ? {
             wrapper: "bg-warning/10 border-warning/30",
             text: "text-warning",
             Icon: AlertTriangle,
-            label: `Urgente — posa tra ${daysUntil} giorni`,
+            label: `Urgente - lavori tra ${daysUntil} giorni`,
           }
         : null;
 
@@ -527,7 +527,7 @@ export default function WarehouseItemDetailDialog({
                   <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground leading-none">
-                      Data posa prevista
+                      Data lavori prevista
                     </p>
                     <p className="text-sm font-medium mt-0.5">
                       {format(new Date(expectedDate), "dd MMMM yyyy", { locale: it })}

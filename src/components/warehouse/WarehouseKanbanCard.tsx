@@ -1,7 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { GripVertical, User, FileText, Building2, Calendar, StickyNote } from "lucide-react";
+import { Building2, Calendar, FileText, GripVertical, Package, StickyNote, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,7 +43,7 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
       ref={setNodeRef}
       onClick={() => onSelect?.(item)}
       className={cn(
-        "cursor-pointer transition-all hover:shadow-md border-l-4",
+        "cursor-pointer border-l-4 transition-all hover:border-primary/40 hover:bg-slate-50 hover:shadow-sm",
         isDragging && "opacity-50 shadow-lg rotate-1",
         isSelected && "ring-2 ring-primary bg-primary/5",
         isCritical && "border-l-destructive",
@@ -56,9 +56,8 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
         !isUrgent && !isCritical && config.color === "text-muted-foreground" && "border-l-muted-foreground/40",
       )}
     >
-      <CardContent className="p-2.5 space-y-1.5">
-        {/* Row 1: Checkbox + Grip + Name + Urgency */}
-        <div className="flex items-center gap-1.5">
+      <CardContent className="space-y-2.5 p-3">
+        <div className="flex items-start gap-2">
           {onToggleSelection && (
             <Checkbox
               checked={isSelected}
@@ -70,58 +69,67 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground shrink-0"
+            className="mt-0.5 shrink-0 cursor-grab text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
             onClick={(e) => e.stopPropagation()}
           >
             <GripVertical className="h-4 w-4" />
           </div>
-          <span className="flex-1 font-medium text-sm truncate">{item.name}</span>
-          {(isUrgent || isCritical || overdue) && daysUntil !== null && (
-            <Badge
-              variant={overdue || isCritical ? "destructive" : "default"}
-              className={cn(
-                "text-[10px] px-1.5 py-0 shrink-0",
-                !isCritical && !overdue && "bg-amber-500 hover:bg-amber-600 text-white"
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <p className="line-clamp-2 text-sm font-semibold leading-snug">{item.name}</p>
+              <Badge variant="outline" className="shrink-0 gap-1 text-[11px] tabular-nums">
+                <Package className="h-3 w-3" aria-hidden="true" />
+                {item.quantity || 1}x
+              </Badge>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {(isUrgent || isCritical || overdue) && daysUntil !== null && (
+                <Badge
+                  variant={overdue || isCritical ? "destructive" : "default"}
+                  className={cn(
+                    "shrink-0 px-1.5 py-0 text-[10px]",
+                    !isCritical && !overdue && "bg-amber-500 text-white hover:bg-amber-600"
+                  )}
+                >
+                  {overdue ? `${Math.abs(daysUntil)}g ritardo` : getUrgencyLabel(daysUntil)}
+                </Badge>
               )}
-            >
-              {overdue ? `${Math.abs(daysUntil)}g ritardo` : getUrgencyLabel(daysUntil)}
-            </Badge>
-          )}
-          {item.notes && (
-            <StickyNote className="h-3 w-3 text-amber-500 shrink-0" />
-          )}
+              {item.notes && (
+                <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px] text-amber-700">
+                  <StickyNote className="h-3 w-3" aria-hidden="true" />
+                  note
+                </Badge>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Row 2: Quantity + Customer + Order code */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
-          <span className="font-mono shrink-0">{item.quantity || 1}x</span>
+        <div className="space-y-1.5 rounded-md bg-muted/35 p-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1 truncate">
             <User className="h-3 w-3 shrink-0" />
             <span className="truncate">{customerName}</span>
           </span>
           {item.order.order_code && (
-            <span className="flex items-center gap-1 shrink-0">
+            <span className="flex items-center gap-1 truncate">
               <FileText className="h-3 w-3" />
-              {item.order.order_code}
+              <span className="truncate">{item.order.order_code}</span>
+            </span>
+          )}
+          {supplierName && (
+            <span className="flex items-center gap-1 truncate">
+              <Building2 className="h-3 w-3 shrink-0" />
+              <span className="truncate">{supplierName}</span>
             </span>
           )}
         </div>
 
-        {/* Row 3: Supplier + Date (optional) */}
-        {(supplierName || formattedDate) && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
-            {supplierName && (
-              <span className="flex items-center gap-1 truncate">
-                <Building2 className="h-3 w-3 shrink-0" />
-                <span className="truncate">{supplierName}</span>
-              </span>
-            )}
-            {formattedDate && (
-              <span className="flex items-center gap-1 shrink-0 ml-auto">
-                <Calendar className="h-3 w-3" />
-                {formattedDate}
-              </span>
-            )}
+        {formattedDate && (
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">Lavori</span>
+            <span className="flex items-center gap-1 font-medium">
+              <Calendar className="h-3 w-3" />
+              {formattedDate}
+            </span>
           </div>
         )}
       </CardContent>

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, Clock, PackageCheck } from "lucide-react";
 import WarehouseKanbanColumn from "./WarehouseKanbanColumn";
 import WarehouseItemDetailDialog from "./WarehouseItemDetailDialog";
+import { getDaysUntilPosa } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseKanbanViewProps {
@@ -41,22 +43,71 @@ export default function WarehouseKanbanView({
     return grouped;
   }, [items]);
 
+  const summary = useMemo(() => {
+    const urgent = items.filter((item) => {
+      const days = getDaysUntilPosa(item);
+      return days !== null && days <= 7 && item.status !== "installato";
+    }).length;
+
+    return {
+      total: items.length,
+      urgent,
+      active: items.filter((item) => item.status !== "installato").length,
+      installed: itemsByStatus.installato.length,
+    };
+  }, [items, itemsByStatus.installato.length]);
+
   const handleSelectItem = (item: WarehouseItem) => setSelectedItemId(item.id);
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {STATUSES.map((status) => (
-          <WarehouseKanbanColumn
-            key={status}
-            status={status}
-            items={itemsByStatus[status]}
-            getSupplierName={getSupplierName}
-            onSelectItem={handleSelectItem}
-            selectedIds={selectedIds}
-            onToggleSelection={onToggleSelection}
-          />
-        ))}
+      <div className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-4">
+          <div className="rounded-md border bg-background p-3">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <PackageCheck className="h-4 w-4" aria-hidden="true" />
+              Totale
+            </div>
+            <p className="mt-1 text-xl font-bold">{summary.total}</p>
+          </div>
+          <div className="rounded-md border bg-background p-3">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Clock className="h-4 w-4" aria-hidden="true" />
+              Attivi
+            </div>
+            <p className="mt-1 text-xl font-bold">{summary.active}</p>
+          </div>
+          <div className="rounded-md border bg-background p-3">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+              Urgenti
+            </div>
+            <p className="mt-1 text-xl font-bold text-amber-700">{summary.urgent}</p>
+          </div>
+          <div className="rounded-md border bg-background p-3">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+              Installati
+            </div>
+            <p className="mt-1 text-xl font-bold text-emerald-700">{summary.installed}</p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto pb-2">
+          <div className="grid min-w-[1480px] grid-cols-6 gap-3">
+            {STATUSES.map((status) => (
+              <WarehouseKanbanColumn
+                key={status}
+                status={status}
+                items={itemsByStatus[status]}
+                getSupplierName={getSupplierName}
+                onSelectItem={handleSelectItem}
+                selectedIds={selectedIds}
+                onToggleSelection={onToggleSelection}
+              />
+            ))}
+          </div>
+        </div>
       </div>
 
       <WarehouseItemDetailDialog

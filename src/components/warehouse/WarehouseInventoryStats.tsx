@@ -4,113 +4,178 @@
  * Mostrati su tab Giacenze/Lotti/DDT. Dimensione coerente con
  * WarehouseStats (workflow) per evitare layout shift al toggle macro.
  *
- * 4 KPI:
- *   - Articoli totali
+ * KPI essenziali:
+ *   - Valore inventario (sum qty * unit_cost)
+ *   - Articoli a stock
+ *   - Quantità totale
  *   - Sottoscorta (qty < min_stock_level)
- *   - Valore magazzino (sum qty * unit_cost)
- *   - Movimenti 7gg (carico + scarico)
  */
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Package, AlertTriangle, Euro, TrendingUp } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Boxes,
+  CalendarClock,
+  Euro,
+  Package,
+  TrendingDown,
+  type LucideIcon,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import type { WarehouseItem } from "@/types/warehouse";
+
+export type WarehouseInventoryMetricKey =
+  | "inventory_value"
+  | "stock_items"
+  | "total_quantity"
+  | "low_stock"
+  | "critical_materials"
+  | "near_low_stock"
+  | "incoming_7d"
+  | "missing_cost";
 
 interface Props {
-  companyId: string;
+  companyId?: string;
+  stockItems?: StockItem[];
+  orderItems?: WarehouseItem[];
+  visibleCards?: WarehouseInventoryMetricKey[];
 }
 
-interface InventoryStat {
-  totalArticoli: number;
-  sottoscorta: number;
-  valoreTotale: number;
-  movimenti7gg: number;
+interface StockItem {
+  id: string;
+  name?: string | null;
+  quantity: number | null;
+  unit_cost?: number | null;
+  min_stock_level?: number | null;
 }
 
-export default function WarehouseInventoryStats({ companyId }: Props) {
-  const { data, isLoading } = useQuery<InventoryStat>({
-    queryKey: ["warehouse", "inventory-stats", companyId],
-    queryFn: async () => {
-      // 1) Articoli totali — count head:true (no payload) per performance
-      const { count: totalArticoli } = await supabase
-        .from("warehouse_stock")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId);
+export default function WarehouseInventoryStats({ stockItems = [], orderItems = [], visibleCards }: Props) {
+  const stats = useMemo(() => {
+    const sottoscorta = stockItems.filter(
+      (item) => Number(item.quantity ?? 0) < Number(item.min_stock_level ?? 0),
+    ).length;
+    const materialiCritici = stockItems.filter((item) => {
+      const quantity = Number(item.quantity ?? 0);
+      const minStock = Number(item.min_stock_level ?? 0);
+      return quantity <= 0 || (minStock > 0 && quantity < minStock);
+    }).length;
+    const inEsaurimento = stockItems.filter((item) => {
+      const quantity = Number(item.quantity ?? 0);
+      const minStock = Number(item.min_stock_level ?? 0);
+      return minStock > 0 && quantity >= minStock && quantity <= minStock * 1.2;
+    }).length;
+    const senzaCosto = stockItems.filter((item) => Number(item.unit_cost ?? 0) <= 0).length;
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const inArrivo7gg = orderItems.filter((item) => {
+      if (item.status !== "ordinato" && item.status !== "in_arrivo") return false;
+      const arrivalDate = item.order.warehouse_arrival_date;
+      if (!arrivalDate) return false;
+      const date = new Date(arrivalDate);
+      return date >= now && date <= sevenDaysFromNow;
+    }).length;
+    const valoreTotale = stockItems.reduce(
+      (sum, item) => sum + Number(item.quantity ?? 0) * Number(item.unit_cost ?? 0),
+      0,
+    );
+    const quantitaTotale = stockItems.reduce(
+      (sum, item) => sum + Number(item.quantity ?? 0),
+      0,
+    );
 
-      // 2) Articoli con quantity < min_stock_level — fetch quantity+min e filtro client-side
-      //    (Postgrest non supporta filtri inter-colonne in modo nativo)
-      const { data: stockRows } = await supabase
-        .from("warehouse_stock")
-        .select("quantity, unit_cost, min_stock_level")
-        .eq("company_id", companyId);
-      const sottoscorta = (stockRows ?? []).filter(
-        (r) => Number(r.quantity ?? 0) < Number(r.min_stock_level ?? 0),
-      ).length;
-      const valoreTotale = (stockRows ?? []).reduce(
-        (sum, r) => sum + Number(r.quantity ?? 0) * Number(r.unit_cost ?? 0),
-        0,
-      );
-
-      // 3) Movimenti 7gg
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const { count: movimenti7gg } = await supabase
-        .from("warehouse_movements")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .gte("created_at", sevenDaysAgo);
-
-      return {
-        totalArticoli: totalArticoli ?? 0,
-        sottoscorta,
-        valoreTotale,
-        movimenti7gg: movimenti7gg ?? 0,
-      };
-    },
-    enabled: !!companyId,
-    staleTime: 60 * 1000,
-  });
+    return {
+      totalArticoli: stockItems.length,
+      quantitaTotale,
+      sottoscorta,
+      materialiCritici,
+      inEsaurimento,
+      inArrivo7gg,
+      senzaCosto,
+      valoreTotale,
+    };
+  }, [orderItems, stockItems]);
 
   const cards = useMemo(
     () => [
       {
-        label: "Articoli totali",
-        value: isLoading ? "…" : String(data?.totalArticoli ?? 0),
-        hint: "in anagrafica magazzino",
-        icon: Package,
-        accent: "primary" as const,
-      },
-      {
-        label: "Sottoscorta",
-        value: isLoading ? "…" : String(data?.sottoscorta ?? 0),
-        hint: "qty < soglia minima",
-        icon: AlertTriangle,
-        accent: (data?.sottoscorta ?? 0) > 0 ? ("amber" as const) : ("emerald" as const),
-      },
-      {
-        label: "Valore magazzino",
-        value: isLoading ? "…" : formatCurrency(data?.valoreTotale ?? 0),
-        hint: "qty × costo unitario",
+        key: "inventory_value" as const,
+        label: "Valore inventario",
+        value: formatCurrency(stats.valoreTotale),
+        hint: `${stats.totalArticoli} articoli a stock`,
         icon: Euro,
         accent: "blue" as const,
       },
       {
-        label: "Movimenti 7gg",
-        value: isLoading ? "…" : String(data?.movimenti7gg ?? 0),
-        hint: "carico + scarico",
-        icon: TrendingUp,
+        key: "stock_items" as const,
+        label: "Articoli a stock",
+        value: String(stats.totalArticoli),
+        hint: "schede con giacenza",
+        icon: Package,
         accent: "primary" as const,
       },
+      {
+        key: "total_quantity" as const,
+        label: "Quantità totale",
+        value: String(stats.quantitaTotale),
+        hint: "pezzi disponibili",
+        icon: Boxes,
+        accent: "primary" as const,
+      },
+      {
+        key: "low_stock" as const,
+        label: "Sottoscorta",
+        value: String(stats.sottoscorta),
+        hint: "sotto soglia minima",
+        icon: AlertTriangle,
+        accent: stats.sottoscorta > 0 ? ("amber" as const) : ("emerald" as const),
+      },
+      {
+        key: "critical_materials" as const,
+        label: "Materiali critici",
+        value: String(stats.materialiCritici),
+        hint: "zero o sotto soglia",
+        icon: AlertCircle,
+        accent: stats.materialiCritici > 0 ? ("red" as const) : ("emerald" as const),
+      },
+      {
+        key: "near_low_stock" as const,
+        label: "In esaurimento",
+        value: String(stats.inEsaurimento),
+        hint: "entro +20% dalla soglia",
+        icon: TrendingDown,
+        accent: stats.inEsaurimento > 0 ? ("amber" as const) : ("emerald" as const),
+      },
+      {
+        key: "incoming_7d" as const,
+        label: "In arrivo 7gg",
+        value: String(stats.inArrivo7gg),
+        hint: "con arrivo magazzino previsto",
+        icon: CalendarClock,
+        accent: "blue" as const,
+      },
+      {
+        key: "missing_cost" as const,
+        label: "Senza costo",
+        value: String(stats.senzaCosto),
+        hint: "falsano il valore inventario",
+        icon: Euro,
+        accent: stats.senzaCosto > 0 ? ("red" as const) : ("emerald" as const),
+      },
     ],
-    [data, isLoading],
+    [stats],
+  );
+
+  const visible = new Set<WarehouseInventoryMetricKey>(
+    visibleCards ?? ["inventory_value", "stock_items", "total_quantity", "low_stock"],
   );
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {cards.map((c) => (
-        <KpiCard key={c.label} {...c} />
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {cards.filter((card) => visible.has(card.key)).map(({ key, ...card }) => (
+        <KpiCard key={key} {...card} />
       ))}
     </div>
   );
@@ -121,6 +186,7 @@ const accentMap = {
   emerald: "border-l-emerald-500",
   amber: "border-l-amber-500",
   blue: "border-l-blue-500",
+  red: "border-l-red-500",
 } as const;
 
 function KpiCard({
@@ -133,7 +199,7 @@ function KpiCard({
   label: string;
   value: string;
   hint: string;
-  icon: typeof Package;
+  icon: LucideIcon;
   accent: keyof typeof accentMap;
 }) {
   return (

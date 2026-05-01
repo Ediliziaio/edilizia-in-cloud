@@ -10,7 +10,7 @@ import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 import { useWarehouses } from "@/hooks/useWarehouses";
 
-export type ViewMode = "list" | "kanban" | "calendar" | "stock" | "lotti" | "ddt";
+export type ViewMode = "list" | "purchase_list" | "kanban" | "calendar" | "stock" | "lotti" | "ddt";
 export type GroupBy = "order" | "date" | "status" | "supplier";
 export type QuickFilter = "all" | "active" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
 
@@ -63,7 +63,7 @@ export function useWarehouseData() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("suppliers")
-        .select("id, name")
+        .select("id, name, payment_method")
         .eq("company_id", companyId)
         .order("name");
       if (error) throw error;
@@ -86,9 +86,9 @@ export function useWarehouseData() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("warehouse_stock")
-        .select("id, name, quantity")
+        .select("id, name, quantity, unit_cost, min_stock_level, supplier_id, warehouse_id")
         .eq("company_id", companyId)
-        .gt("quantity", 0);
+        .order("name");
       if (error) throw error;
       return data || [];
     },
@@ -239,6 +239,55 @@ export function useWarehouseData() {
   const items = queryResult?.items ?? [];
   const totalCount = queryResult?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  const { data: purchaseItems = [] } = useQuery({
+    queryKey: ["warehouse-purchase-items", companyId, warehouseFilter],
+    queryFn: async () => {
+      if (!companyId) return [] as WarehouseItem[];
+
+      let query = supabase
+        .from("order_items")
+        .select(`
+          id,
+          name,
+          description,
+          quantity,
+          status,
+          supplier_id,
+          purchase_price,
+          notes,
+          updated_at,
+          section_id,
+          destination_warehouse_id,
+          fulfillment_status,
+          order:orders!inner(
+            id,
+            order_code,
+            expected_date,
+            work_start_date,
+            work_end_date,
+            warehouse_arrival_date,
+            company_id,
+            current_status_id,
+            customer:profiles!orders_customer_id_fkey(first_name, last_name)
+          )
+        `)
+        .eq("order.company_id", companyId)
+        .eq("status", "da_ordinare")
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      if (warehouseFilter) {
+        query = query.eq("destination_warehouse_id", warehouseFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []) as unknown as WarehouseItem[];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Badge counts - lightweight COUNT queries
   const { data: badgeCounts } = useQuery({
@@ -394,6 +443,7 @@ export function useWarehouseData() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-purchase-items"] });
       toast.success("Stato aggiornato", { description: "Lo stato dell'articolo è stato aggiornato." });
     },
     onError: () => {
@@ -412,6 +462,7 @@ export function useWarehouseData() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-purchase-items"] });
       toast.success("Articoli aggiornati", { description: `${variables.itemIds.length} articoli sono stati aggiornati.` });
     },
     onError: () => {
@@ -490,9 +541,9 @@ export function useWarehouseData() {
       { key: "quantita", label: "Quantità" },
       { key: "stato", label: "Stato" },
       { key: "fornitore", label: "Fornitore" },
-      { key: "ordine", label: "Ordine" },
+      { key: "ordine", label: "Commessa" },
       { key: "cliente", label: "Cliente" },
-      { key: "data_posa", label: "Data Posa" },
+      { key: "data_posa", label: "Data Lavori" },
     ];
     const rows = filteredItems.map((item) => ({
       articolo: item.name,
@@ -519,6 +570,7 @@ export function useWarehouseData() {
         debounceTimer = setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
           queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.badgeCountsAll });
+          queryClient.invalidateQueries({ queryKey: ["warehouse-purchase-items"] });
         }, 500);
       })
       .subscribe();
@@ -539,6 +591,7 @@ export function useWarehouseData() {
     items,
     filteredItems,
     filteredGroups,
+    purchaseItems,
     suppliers,
     stockItems,
     uniqueOrders,

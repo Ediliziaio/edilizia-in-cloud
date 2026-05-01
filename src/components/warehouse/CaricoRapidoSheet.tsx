@@ -198,6 +198,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   }, [supplierObj]);
 
   const canProceedToScan = !!supplierId && !!warehouseId;
+  const canContinueReceipt = canProceedToScan && (receiveMode === "scan" || !!ddtFile);
+  const continueLabel = receiveMode === "ddt" ? "Carica DDT e registra prodotti" : "Inizia scansione";
   const toggleRelatedOrder = (orderId: string) => {
     setRelatedOrderIds((current) =>
       current.includes(orderId)
@@ -410,7 +412,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             Registra arrivo merce
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Carica DDT, collega gli ordini interessati e poi scannerizza QR/lotti o inserisci prodotti.
+            Scegli se partire dalla scansione o dal DDT: il flusso resta collegato a fornitore, magazzino, ordini e foto di arrivo.
           </DialogDescription>
         </DialogHeader>
 
@@ -506,6 +508,14 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 event.currentTarget.value = "";
               }}
             />
+            {receiveMode === "ddt" && !ddtFile && (
+              <Alert className="border-amber-200 bg-amber-50/70 text-amber-900">
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Hai scelto “Carica DDT”: allega il DDT prima di continuare, poi registrerai i prodotti ricevuti.
+                </AlertDescription>
+              </Alert>
+            )}
             {ddtFile && (
               <div className="flex items-center justify-between gap-2 rounded-md bg-background px-3 py-2 text-xs">
                 <span className="truncate">{ddtFile.name}</span>
@@ -664,10 +674,10 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           </Button>
           <Button
             onClick={() => setStep("scan")}
-            disabled={!canProceedToScan}
+            disabled={!canContinueReceipt}
             className="flex-[2]"
           >
-            Inizia scansione
+            {continueLabel}
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </DialogFooter>

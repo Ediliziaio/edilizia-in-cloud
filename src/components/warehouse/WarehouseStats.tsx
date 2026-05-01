@@ -4,12 +4,11 @@
  * Cards CLICCABILI: ognuna applica il filtro corrispondente (toggle on/off).
  * Elimina la duplicazione tra KPI cards e pill quick filter sotto.
  *
- * Cards: Completamento (non-cliccabile, info ring) · In Ritardo · In Magazzino
- *        · In Transito · Da Ordinare.
+ * Cards: In Ritardo · In Magazzino · In Transito · Da Ordinare.
  */
 
 import { useMemo } from "react";
-import { Package, ShoppingCart, Truck, CheckCircle2, AlertOctagon } from "lucide-react";
+import { Package, ShoppingCart, Truck, AlertOctagon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
@@ -21,39 +20,15 @@ export type WarehouseStatsFilter =
   | { kind: "quick"; value: "overdue" }
   | { kind: "status"; value: OrderItemStatus };
 
+export type WarehouseOrderMetricKey = "overdue" | "in_magazzino" | "ordinato" | "da_ordinare";
+
 interface WarehouseStatsProps {
   items: WarehouseItem[];
   /** Stato corrente del filter (da Warehouse.tsx: status o quick filter). */
   activeFilter: WarehouseStatsFilter;
   /** Click su una KPI card → applica filtro (o lo rimuove se già attivo). */
   onCardClick: (next: WarehouseStatsFilter) => void;
-}
-
-function ProgressRing({ percentage, size = 80, strokeWidth = 8 }: {
-  percentage: number;
-  size?: number;
-  strokeWidth?: number;
-}) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (percentage / 100) * circumference;
-
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-          stroke="currentColor" strokeWidth={strokeWidth} className="text-muted/20" />
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-          stroke="currentColor" strokeWidth={strokeWidth}
-          strokeDasharray={circumference} strokeDashoffset={offset}
-          strokeLinecap="round"
-          className="text-primary transition-all duration-500" />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-lg font-bold">{Math.round(percentage)}%</span>
-      </div>
-    </div>
-  );
+  visibleCards?: WarehouseOrderMetricKey[];
 }
 
 /** Determina se un certo filtro è attualmente attivo (per highlight visivo). */
@@ -64,9 +39,8 @@ function isFilterActive(active: WarehouseStatsFilter, candidate: WarehouseStatsF
   return false;
 }
 
-export default function WarehouseStats({ items, activeFilter, onCardClick }: WarehouseStatsProps) {
+export default function WarehouseStats({ items, activeFilter, onCardClick, visibleCards }: WarehouseStatsProps) {
   const stats = useMemo(() => {
-    const installed = items.filter((i) => i.status === "installato");
     const inMagazzino = items.filter((i) => i.status === "in_magazzino");
     const ordinati = items.filter((i) => i.status === "ordinato");
     const daOrdinare = items.filter((i) => i.status === "da_ordinare");
@@ -77,11 +51,6 @@ export default function WarehouseStats({ items, activeFilter, onCardClick }: War
       arr.reduce((sum, item) => sum + (item.purchase_price || 0) * (item.quantity || 1), 0);
 
     return {
-      completion: {
-        percentage: items.length > 0 ? (installed.length / items.length) * 100 : 0,
-        completed: installed.length,
-        total: items.length,
-      },
       overdue: { count: overdue.length, orders: uniqueOrders(overdue) },
       inMagazzino: { count: inMagazzino.length, orders: uniqueOrders(inMagazzino), value: calculateValue(inMagazzino) },
       ordinati: { count: ordinati.length, orders: uniqueOrders(ordinati), value: calculateValue(ordinati) },
@@ -94,69 +63,67 @@ export default function WarehouseStats({ items, activeFilter, onCardClick }: War
     onCardClick(isFilterActive(activeFilter, candidate) ? { kind: "all" } : candidate);
   };
 
-  return (
-    <div className="grid gap-3 md:grid-cols-5">
-      {/* Completion — non cliccabile (info aggregata) */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium">Completamento</CardTitle>
-          <CheckCircle2 className="h-4 w-4 text-primary" />
-        </CardHeader>
-        <CardContent className="flex flex-col items-center">
-          <ProgressRing percentage={stats.completion.percentage} />
-          <p className="text-xs text-muted-foreground mt-2">
-            {stats.completion.completed}/{stats.completion.total} installati
-          </p>
-        </CardContent>
-      </Card>
+  const visible = new Set<WarehouseOrderMetricKey>(
+    visibleCards ?? ["overdue", "in_magazzino", "ordinato", "da_ordinare"],
+  );
 
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {/* In Ritardo */}
-      <ClickableCard
-        active={isFilterActive(activeFilter, { kind: "quick", value: "overdue" })}
-        onClick={() => handleClick({ kind: "quick", value: "overdue" })}
-        accent={stats.overdue.count > 0 ? "destructive" : "muted"}
-        title="In Ritardo"
-        icon={AlertOctagon}
-        value={stats.overdue.count}
-        primaryHint={`in ${stats.overdue.orders} ordini`}
-        secondaryHint="posa scaduta, non pronti"
-      />
+      {visible.has("overdue") && (
+        <ClickableCard
+          active={isFilterActive(activeFilter, { kind: "quick", value: "overdue" })}
+          onClick={() => handleClick({ kind: "quick", value: "overdue" })}
+          accent={stats.overdue.count > 0 ? "destructive" : "muted"}
+          title="In Ritardo"
+          icon={AlertOctagon}
+          value={stats.overdue.count}
+          primaryHint={`in ${stats.overdue.orders} ordini`}
+          secondaryHint="lavori scaduti, non pronti"
+        />
+      )}
 
       {/* In Magazzino */}
-      <ClickableCard
-        active={isFilterActive(activeFilter, { kind: "status", value: "in_magazzino" })}
-        onClick={() => handleClick({ kind: "status", value: "in_magazzino" })}
-        accent="emerald"
-        title="In Magazzino"
-        icon={Package}
-        value={stats.inMagazzino.count}
-        primaryHint={`in ${stats.inMagazzino.orders} ordini`}
-        secondaryHint={`${formatCurrency(stats.inMagazzino.value)} valore`}
-      />
+      {visible.has("in_magazzino") && (
+        <ClickableCard
+          active={isFilterActive(activeFilter, { kind: "status", value: "in_magazzino" })}
+          onClick={() => handleClick({ kind: "status", value: "in_magazzino" })}
+          accent="emerald"
+          title="In Magazzino"
+          icon={Package}
+          value={stats.inMagazzino.count}
+          primaryHint={`in ${stats.inMagazzino.orders} ordini`}
+          secondaryHint={`${formatCurrency(stats.inMagazzino.value)} valore`}
+        />
+      )}
 
       {/* In Transito */}
-      <ClickableCard
-        active={isFilterActive(activeFilter, { kind: "status", value: "ordinato" })}
-        onClick={() => handleClick({ kind: "status", value: "ordinato" })}
-        accent="blue"
-        title="In Transito"
-        icon={Truck}
-        value={stats.ordinati.count}
-        primaryHint={`in ${stats.ordinati.orders} ordini`}
-        secondaryHint={`${formatCurrency(stats.ordinati.value)} in arrivo`}
-      />
+      {visible.has("ordinato") && (
+        <ClickableCard
+          active={isFilterActive(activeFilter, { kind: "status", value: "ordinato" })}
+          onClick={() => handleClick({ kind: "status", value: "ordinato" })}
+          accent="blue"
+          title="In Transito"
+          icon={Truck}
+          value={stats.ordinati.count}
+          primaryHint={`in ${stats.ordinati.orders} ordini`}
+          secondaryHint={`${formatCurrency(stats.ordinati.value)} in arrivo`}
+        />
+      )}
 
       {/* Da Ordinare */}
-      <ClickableCard
-        active={isFilterActive(activeFilter, { kind: "status", value: "da_ordinare" })}
-        onClick={() => handleClick({ kind: "status", value: "da_ordinare" })}
-        accent="amber"
-        title="Da Ordinare"
-        icon={ShoppingCart}
-        value={stats.daOrdinare.count}
-        primaryHint={`in ${stats.daOrdinare.orders} ordini`}
-        secondaryHint={`${formatCurrency(stats.daOrdinare.value)} da spendere`}
-      />
+      {visible.has("da_ordinare") && (
+        <ClickableCard
+          active={isFilterActive(activeFilter, { kind: "status", value: "da_ordinare" })}
+          onClick={() => handleClick({ kind: "status", value: "da_ordinare" })}
+          accent="amber"
+          title="Da Ordinare"
+          icon={ShoppingCart}
+          value={stats.daOrdinare.count}
+          primaryHint={`in ${stats.daOrdinare.orders} ordini`}
+          secondaryHint={`${formatCurrency(stats.daOrdinare.value)} da spendere`}
+        />
+      )}
     </div>
   );
 }

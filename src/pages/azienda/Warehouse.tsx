@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -29,18 +29,29 @@ import {
   FileText,
   Loader2,
   Settings as SettingsIcon,
+  Settings2,
   ArrowLeftRight,
-  Boxes,
   ArrowDownToLine,
   ArrowUpFromLine,
-  BarChart3,
   Star,
+  Trash2,
+  ShoppingCart,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -53,6 +64,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -66,15 +79,15 @@ import {
 } from "@/components/ui/sheet";
 import { SlidersHorizontal } from "lucide-react";
 
-import WarehouseStats from "@/components/warehouse/WarehouseStats";
-import WarehouseInventoryStats from "@/components/warehouse/WarehouseInventoryStats";
-import { MobileKpiStrip } from "@/components/warehouse/MobileKpiStrip";
+import WarehouseStats, { type WarehouseOrderMetricKey } from "@/components/warehouse/WarehouseStats";
+import WarehouseInventoryStats, { type WarehouseInventoryMetricKey } from "@/components/warehouse/WarehouseInventoryStats";
 import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
 import WarehouseListView from "@/components/warehouse/WarehouseListView";
 import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
 import WarehouseLottiTab from "@/components/warehouse/WarehouseLottiTab";
 import { WarehouseDDTTab } from "@/components/warehouse/WarehouseDDTTab";
+import WarehousePurchaseListTab from "@/components/warehouse/WarehousePurchaseListTab";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
@@ -85,6 +98,8 @@ import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransfer
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
+import { formatCurrency } from "@/lib/formatters";
+import { downloadFile, exportToCSV as exportCsvFile, type CsvColumn } from "@/lib/csvExport";
 
 const WAREHOUSE_ORDER_STATUSES: OrderItemStatus[] = [
   "da_ordinare",
@@ -107,12 +122,71 @@ type StockActionRequest = {
   nonce: number;
 } | null;
 
+type MaterialMetricCard = {
+  id: string;
+  stockItemId: string;
+  label?: string;
+};
+
+type MetricPreferences = {
+  order: WarehouseOrderMetricKey[];
+  inventory: WarehouseInventoryMetricKey[];
+  materialCards: MaterialMetricCard[];
+};
+
+const DEFAULT_ORDER_METRICS: WarehouseOrderMetricKey[] = [
+  "overdue",
+  "in_magazzino",
+  "ordinato",
+  "da_ordinare",
+];
+
+const DEFAULT_INVENTORY_METRICS: WarehouseInventoryMetricKey[] = [
+  "inventory_value",
+  "stock_items",
+  "total_quantity",
+  "low_stock",
+];
+
+const ALL_INVENTORY_METRICS: WarehouseInventoryMetricKey[] = [
+  ...DEFAULT_INVENTORY_METRICS,
+  "critical_materials",
+  "near_low_stock",
+  "incoming_7d",
+  "missing_cost",
+];
+
+const DEFAULT_METRIC_PREFERENCES: MetricPreferences = {
+  order: DEFAULT_ORDER_METRICS,
+  inventory: DEFAULT_INVENTORY_METRICS,
+  materialCards: [],
+};
+
+const ORDER_METRIC_LABELS: Record<WarehouseOrderMetricKey, string> = {
+  overdue: "In Ritardo",
+  in_magazzino: "In Magazzino",
+  ordinato: "In Transito",
+  da_ordinare: "Da Ordinare",
+};
+
+const INVENTORY_METRIC_LABELS: Record<WarehouseInventoryMetricKey, string> = {
+  inventory_value: "Valore inventario",
+  stock_items: "Articoli a stock",
+  total_quantity: "Quantità totale",
+  low_stock: "Sottoscorta",
+  critical_materials: "Materiali critici",
+  near_low_stock: "In esaurimento",
+  incoming_7d: "In arrivo 7gg",
+  missing_cost: "Senza costo",
+};
+
 export default function Warehouse() {
   const navigate = useNavigate();
   const {
     items,
     filteredItems,
     filteredGroups,
+    purchaseItems,
     suppliers,
     stockItems,
     uniqueOrders,
@@ -166,7 +240,59 @@ export default function Warehouse() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [stockActionRequest, setStockActionRequest] = useState<StockActionRequest>(null);
-  const [showMetrics, setShowMetrics] = useState(false);
+  const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
+  const [metricPreferences, setMetricPreferences] = useState<MetricPreferences>(DEFAULT_METRIC_PREFERENCES);
+  const [metricPreferencesLoaded, setMetricPreferencesLoaded] = useState(false);
+  const [selectedMaterialMetricId, setSelectedMaterialMetricId] = useState<string>("");
+
+  const metricStorageKey = effectiveCompany?.id
+    ? `warehouse-metric-preferences:${effectiveCompany.id}`
+    : null;
+
+  useEffect(() => {
+    setMetricPreferencesLoaded(false);
+    if (!metricStorageKey) return;
+
+    try {
+      const stored = window.localStorage.getItem(metricStorageKey);
+      if (!stored) {
+        setMetricPreferences(DEFAULT_METRIC_PREFERENCES);
+        setMetricPreferencesLoaded(true);
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as Partial<MetricPreferences>;
+      setMetricPreferences({
+        order: parsed.order?.filter((key): key is WarehouseOrderMetricKey =>
+          DEFAULT_ORDER_METRICS.includes(key as WarehouseOrderMetricKey),
+        ) ?? DEFAULT_ORDER_METRICS,
+        inventory: parsed.inventory?.filter((key): key is WarehouseInventoryMetricKey =>
+          ALL_INVENTORY_METRICS.includes(key as WarehouseInventoryMetricKey),
+        ) ?? DEFAULT_INVENTORY_METRICS,
+        materialCards: Array.isArray(parsed.materialCards) ? parsed.materialCards : [],
+      });
+      setMetricPreferencesLoaded(true);
+    } catch {
+      setMetricPreferences(DEFAULT_METRIC_PREFERENCES);
+      setMetricPreferencesLoaded(true);
+    }
+  }, [metricStorageKey]);
+
+  useEffect(() => {
+    if (!metricStorageKey || !metricPreferencesLoaded) return;
+    window.localStorage.setItem(metricStorageKey, JSON.stringify(metricPreferences));
+  }, [metricPreferences, metricPreferencesLoaded, metricStorageKey]);
+
+  const materialMetricCards = useMemo(
+    () =>
+      metricPreferences.materialCards
+        .map((card) => {
+          const item = stockItems.find((stockItem) => stockItem.id === card.stockItemId);
+          return item ? { ...card, item } : null;
+        })
+        .filter((card): card is MaterialMetricCard & { item: NonNullable<typeof stockItems[number]> } => Boolean(card)),
+    [metricPreferences.materialCards, stockItems],
+  );
 
   // Multi-selection state for order items DnD
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -237,7 +363,8 @@ export default function Warehouse() {
   }
 
   const isInventario = viewMode === "stock" || viewMode === "lotti" || viewMode === "ddt";
-  const isOrderView = !isInventario;
+  const isWorkflowView = viewMode === "list" || viewMode === "kanban" || viewMode === "calendar";
+  const isOrderView = isWorkflowView;
 
   // ─── Filtro attivo per WarehouseStats cards cliccabili ───
   // Le KPI cards sono cliccabili e applicano filtro: status (in_magazzino/ordinato/da_ordinare)
@@ -253,7 +380,7 @@ export default function Warehouse() {
     // Le KPI workflow sono sempre visibili anche in modalità inventario.
     // Se l'utente clicca da inventario → forziamo lo switch a workflow,
     // altrimenti il filtro non avrebbe nessun effetto visibile.
-    if (isInventario) setViewMode("list");
+    if (!isWorkflowView) setViewMode("list");
     if (next.kind === "all") {
       setQuickFilter("all");
       setStatusFilter("all");
@@ -270,30 +397,211 @@ export default function Warehouse() {
     }
   };
 
-  const inventoryCount = stockItems.length;
-
   const activeWarehouse = warehouseFilter
     ? warehouses.find((warehouse) => warehouse.id === warehouseFilter) ?? null
     : null;
-  const activeWarehouseAddress = activeWarehouse
-    ? [activeWarehouse.address, activeWarehouse.city, activeWarehouse.province]
-        .filter(Boolean)
-        .join(", ")
-    : "";
-  const warehouseScopeTitle = activeWarehouse?.name ?? "Tutti i magazzini";
-  const warehouseScopeDescription = activeWarehouse
-    ? activeWarehouseAddress || "Vista filtrata sul singolo deposito."
-    : `${warehouses.length} magazzini attivi in vista consolidata. Se devi caricare, scaricare o trasferire merce scegli prima il magazzino corretto.`;
 
   const openStockAction = (type: "receive" | "ship") => {
     setViewMode("stock");
     setStockActionRequest({ type, nonce: Date.now() });
   };
 
+  const handleViewModeChange = (value: string) => {
+    const nextViewMode = value as ViewMode;
+    setViewMode(nextViewMode);
+    if (nextViewMode === "stock") {
+      setStockActionRequest(null);
+    }
+  };
+
+  const toggleOrderMetric = (key: WarehouseOrderMetricKey) => {
+    setMetricPreferences((current) => {
+      const next = current.order.includes(key)
+        ? current.order.filter((item) => item !== key)
+        : [...current.order, key];
+      return { ...current, order: next };
+    });
+  };
+
+  const toggleInventoryMetric = (key: WarehouseInventoryMetricKey) => {
+    setMetricPreferences((current) => {
+      const next = current.inventory.includes(key)
+        ? current.inventory.filter((item) => item !== key)
+        : [...current.inventory, key];
+      return { ...current, inventory: next };
+    });
+  };
+
+  const addMaterialMetricCard = () => {
+    if (!selectedMaterialMetricId) return;
+    setMetricPreferences((current) => {
+      if (current.materialCards.some((card) => card.stockItemId === selectedMaterialMetricId)) return current;
+      const id = globalThis.crypto?.randomUUID?.() ?? `${selectedMaterialMetricId}-${Date.now()}`;
+      return {
+        ...current,
+        materialCards: [...current.materialCards, { id, stockItemId: selectedMaterialMetricId }],
+      };
+    });
+    setSelectedMaterialMetricId("");
+  };
+
+  const removeMaterialMetricCard = (cardId: string) => {
+    setMetricPreferences((current) => ({
+      ...current,
+      materialCards: current.materialCards.filter((card) => card.id !== cardId),
+    }));
+  };
+
+  const resetMetricPreferences = () => {
+    setMetricPreferences(DEFAULT_METRIC_PREFERENCES);
+    setSelectedMaterialMetricId("");
+  };
+
+  const exportDate = format(new Date(), "yyyy-MM-dd");
+  const exportCsv = (filename: string, columns: CsvColumn[], rows: Record<string, string>[]) => {
+    exportCsvFile(rows, columns, filename);
+  };
+  const exportJson = (filename: string, payload: unknown) => {
+    downloadFile(JSON.stringify(payload, null, 2), filename, "application/json");
+  };
+  const warehouseNameById = new Map(warehouses.map((warehouse) => [warehouse.id, warehouse.name]));
+  const sectionNameById = new Map(sections.map((section) => [section.id, section.name]));
+  const formatItemCustomer = (item: { order?: { customer?: { first_name?: string | null; last_name?: string | null } | null } }) =>
+    `${item.order?.customer?.first_name ?? ""} ${item.order?.customer?.last_name ?? ""}`.trim();
+  const orderItemColumns: CsvColumn[] = [
+    { key: "articolo", label: "Articolo" },
+    { key: "quantita", label: "Quantità" },
+    { key: "stato", label: "Stato" },
+    { key: "fornitore", label: "Fornitore" },
+    { key: "commessa", label: "Commessa" },
+    { key: "cliente", label: "Cliente" },
+    { key: "magazzino_arrivo", label: "Magazzino arrivo" },
+    { key: "zona", label: "Zona" },
+    { key: "costo", label: "Costo" },
+    { key: "data_lavori", label: "Data lavori" },
+    { key: "note", label: "Note" },
+  ];
+  const mapOrderItemForExport = (item: typeof items[number]) => ({
+    articolo: item.name,
+    quantita: String(item.quantity ?? 1),
+    stato: STATUS_CONFIG[item.status]?.label ?? item.status,
+    fornitore: getSupplierName(item.supplier_id) ?? "",
+    commessa: item.order.order_code ?? "",
+    cliente: formatItemCustomer(item),
+    magazzino_arrivo: item.destination_warehouse_id ? warehouseNameById.get(item.destination_warehouse_id) ?? "" : "",
+    zona: item.section_id ? sectionNameById.get(item.section_id) ?? "" : "",
+    costo: item.purchase_price != null ? String(item.purchase_price) : "",
+    data_lavori: item.order.expected_date ?? item.order.work_start_date ?? "",
+    note: item.notes ?? "",
+  });
+  const exportWorkflowCsv = () => {
+    exportCsv(`magazzino_commesse_${exportDate}.csv`, orderItemColumns, filteredItems.map(mapOrderItemForExport));
+  };
+  const exportPurchasesCsv = () => {
+    exportCsv(`magazzino_lista_acquisti_${exportDate}.csv`, orderItemColumns, purchaseItems.map(mapOrderItemForExport));
+  };
+  const exportInventoryCsv = () => {
+    exportCsv(
+      `magazzino_inventario_${exportDate}.csv`,
+      [
+        { key: "articolo", label: "Articolo" },
+        { key: "quantita", label: "Quantità" },
+        { key: "costo_unitario", label: "Costo unitario" },
+        { key: "iva", label: "IVA" },
+        { key: "valore", label: "Valore" },
+        { key: "fornitore", label: "Fornitore" },
+        { key: "magazzino", label: "Magazzino" },
+        { key: "zona", label: "Zona" },
+        { key: "soglia", label: "Soglia minima" },
+        { key: "barcode", label: "Barcode" },
+        { key: "codice_interno", label: "Codice interno" },
+      ],
+      stockItems.map((item) => ({
+        articolo: item.name,
+        quantita: String(item.quantity ?? 0),
+        costo_unitario: String(item.unit_cost ?? 0),
+        iva: item.vat_rate != null ? `${item.vat_rate}%` : "",
+        valore: String((item.quantity ?? 0) * (item.unit_cost ?? 0)),
+        fornitore: getSupplierName(item.supplier_id) ?? "",
+        magazzino: item.warehouse_id ? warehouseNameById.get(item.warehouse_id) ?? "" : "",
+        zona: item.section_id ? sectionNameById.get(item.section_id) ?? "" : "",
+        soglia: String(item.min_stock_level ?? 0),
+        barcode: item.barcode ?? "",
+        codice_interno: item.internal_code ?? "",
+      })),
+    );
+  };
+  const exportWarehousesCsv = () => {
+    exportCsv(
+      `magazzino_depositi_zone_${exportDate}.csv`,
+      [
+        { key: "tipo", label: "Tipo record" },
+        { key: "nome", label: "Nome" },
+        { key: "categoria", label: "Categoria" },
+        { key: "indirizzo", label: "Indirizzo" },
+        { key: "descrizione", label: "Descrizione" },
+        { key: "stato", label: "Stato" },
+      ],
+      [
+        ...warehouses.map((warehouse) => ({
+          tipo: "Magazzino",
+          nome: warehouse.name,
+          categoria: WAREHOUSE_TYPE_LABEL[warehouse.type] ?? warehouse.type,
+          indirizzo: [warehouse.address, warehouse.city, warehouse.province].filter(Boolean).join(", "),
+          descrizione: warehouse.notes ?? "",
+          stato: warehouse.is_active ? "Attivo" : "Disattivato",
+        })),
+        ...sections.map((section) => ({
+          tipo: "Zona",
+          nome: section.name,
+          categoria: "Zona operativa",
+          indirizzo: "",
+          descrizione: section.description ?? "",
+          stato: "Attiva",
+        })),
+      ],
+    );
+  };
+  const exportDocumentsManifest = () => {
+    exportJson(`magazzino_documenti_ddt_manifest_${exportDate}.json`, {
+      generated_at: new Date().toISOString(),
+      scope: warehouseFilter ? warehouseNameById.get(warehouseFilter) : "Tutti i magazzini",
+      note: "Manifest per documenti di magazzino: DDT, foto ricezione, allegati commessa e riferimenti ordine.",
+      linked_orders: uniqueOrders,
+      ddt_related_items: items
+        .filter((item) => item.status === "in_arrivo" || item.status === "in_magazzino")
+        .map(mapOrderItemForExport),
+    });
+  };
+  const exportCompletePackage = () => {
+    exportJson(`magazzino_export_completo_${exportDate}.json`, {
+      generated_at: new Date().toISOString(),
+      company: effectiveCompany?.name,
+      filters: {
+        warehouse: warehouseFilter ? warehouseNameById.get(warehouseFilter) : "Tutti",
+        searchQuery,
+        statusFilter,
+        orderFilter,
+        supplierFilter,
+        sectionFilter,
+        quickFilter,
+      },
+      commesse: filteredItems.map(mapOrderItemForExport),
+      lista_acquisti: purchaseItems.map(mapOrderItemForExport),
+      inventario: stockItems,
+      magazzini: warehouses,
+      zone: sections,
+      documenti_manifest: {
+        linked_orders: uniqueOrders,
+        ddt_related_count: items.filter((item) => item.status === "in_arrivo" || item.status === "in_magazzino").length,
+      },
+    });
+  };
+
   return (
     <div className="space-y-6 print:space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between print:hidden">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
             <WarehouseIcon className="h-6 w-6 sm:h-8 sm:w-8" />
@@ -304,29 +612,102 @@ export default function Warehouse() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label="Apri menu esportazione magazzino"
+        <div className="flex w-full flex-col gap-2 xl:w-auto xl:items-end">
+          <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end">
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
+              <span className="text-sm font-semibold text-muted-foreground sm:hidden">
+                Magazzino
+              </span>
+              <Select
+                value={warehouseFilter ?? "__all__"}
+                onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
+                disabled={warehousesLoading}
               >
-                <Download className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Esporta</span>
+                <SelectTrigger className="h-9 w-full sm:w-[300px] xl:w-[320px]">
+                  <SelectValue placeholder="Scegli magazzino" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">
+                    Tutti i magazzini · vista consolidata
+                  </SelectItem>
+                  {warehouses.map((warehouse) => (
+                    <SelectItem key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}
+                      {warehouse.is_default ? " · default" : ""}
+                      {" · "}
+                      {WAREHOUSE_TYPE_LABEL[warehouse.type] ?? warehouse.type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {activeWarehouse?.is_default && (
+                <Badge variant="outline" className="h-9 gap-1 bg-amber-50 px-3 text-amber-700 border-amber-200">
+                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" aria-hidden="true" />
+                  Predefinito
+                </Badge>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)}>
+                <ArrowLeftRight className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                <span className="hidden sm:inline">Trasferisci</span>
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={exportToCSV}>
-                <Download className="h-4 w-4 mr-2" />
-                Esporta CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.print()}>
-                <Printer className="h-4 w-4 mr-2" />
-                Stampa lista
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")}>
+                <SettingsIcon className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                <span className="hidden sm:inline">Gestisci magazzini</span>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Apri menu esportazione magazzino"
+                  >
+                    <Download className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Esporta</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuLabel>Esporta dati magazzino</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={exportToCSV}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Vista corrente CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportWorkflowCsv}>
+                    <List className="h-4 w-4 mr-2" />
+                    Lista commesse CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportPurchasesCsv}>
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    Lista acquisti CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportInventoryCsv}>
+                    <Package className="h-4 w-4 mr-2" />
+                    Inventario CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportWarehousesCsv}>
+                    <WarehouseIcon className="h-4 w-4 mr-2" />
+                    Magazzini e zone CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={exportDocumentsManifest}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Documenti e DDT JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportCompletePackage}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Pacchetto completo JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => window.print()}>
+                    <Printer className="h-4 w-4 mr-2" />
+                    Stampa lista
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -353,59 +734,6 @@ export default function Warehouse() {
         </Alert>
       )}
 
-      <section className="rounded-lg border bg-card px-3 py-3 print:hidden" aria-label="Selezione magazzino attivo">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <span className="text-sm font-semibold text-muted-foreground">Magazzino</span>
-            <Select
-              value={warehouseFilter ?? "__all__"}
-              onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
-              disabled={warehousesLoading}
-            >
-              <SelectTrigger className="w-full sm:w-[320px]">
-                <SelectValue placeholder="Scegli magazzino" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">
-                  Tutti i magazzini · vista consolidata
-                </SelectItem>
-                {warehouses.map((warehouse) => (
-                  <SelectItem key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name}
-                    {warehouse.is_default ? " · default" : ""}
-                    {" · "}
-                    {WAREHOUSE_TYPE_LABEL[warehouse.type] ?? warehouse.type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Badge variant="outline" className="w-fit bg-background">
-              {warehouseScopeTitle}
-            </Badge>
-            {activeWarehouse?.is_default && (
-              <Badge variant="outline" className="w-fit gap-1 bg-amber-50 text-amber-700 border-amber-200">
-                <Star className="h-3 w-3 fill-amber-500 text-amber-500" aria-hidden="true" />
-                Predefinito
-              </Badge>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2 shrink-0">
-            <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)}>
-              <ArrowLeftRight className="h-4 w-4 mr-2" aria-hidden="true" />
-              Trasferisci
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")}>
-              <SettingsIcon className="h-4 w-4 mr-2" aria-hidden="true" />
-              Gestisci magazzini
-            </Button>
-          </div>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          {warehouseScopeDescription}
-        </p>
-      </section>
-
       <section className="rounded-lg border bg-card p-4 print:hidden" aria-label="Azioni rapide magazzino">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -414,7 +742,7 @@ export default function Warehouse() {
               Registra arrivi, genera DDT di uscita e controlla inventario senza cambiare flusso mentale.
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:items-center">
+          <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
             <Button onClick={() => openStockAction("receive")} className="justify-start gap-2">
               <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
               Registra arrivo merce
@@ -423,13 +751,6 @@ export default function Warehouse() {
               <ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />
               Uscita merce
             </Button>
-            <Button variant="outline" onClick={() => setViewMode("stock")} className="justify-start gap-2">
-              <Boxes className="h-4 w-4" aria-hidden="true" />
-              Inventario
-              <Badge variant="secondary" className="ml-auto">
-                {inventoryCount}
-              </Badge>
-            </Button>
           </div>
         </div>
       </section>
@@ -437,54 +758,211 @@ export default function Warehouse() {
       {/* Banner avvisi RIMOSSI completamente — riducono il rumore visivo
           e duplicano informazioni già presenti nelle KPI cliccabili sotto. */}
 
-      <div className="print:hidden">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="gap-2 text-muted-foreground"
-          onClick={() => setShowMetrics((open) => !open)}
-        >
-          <BarChart3 className="h-4 w-4" aria-hidden="true" />
-          {showMetrics ? "Nascondi metriche avanzate" : "Mostra metriche avanzate"}
-        </Button>
-        {showMetrics && (
-          <div className="mt-3 space-y-3">
-            <MobileKpiStrip
-              items={items}
-              companyId={effectiveCompany.id}
-              activeFilter={activeStatsFilter}
-              onCardClick={handleStatsCardClick}
-            />
-            <div className="hidden md:block space-y-3">
-              <WarehouseStats
-                items={items}
-                activeFilter={activeStatsFilter}
-                onCardClick={handleStatsCardClick}
-              />
-              <WarehouseInventoryStats companyId={effectiveCompany.id} />
-            </div>
+      <div className="space-y-3 print:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Metriche magazzino</h2>
+            <p className="text-xs text-muted-foreground">
+              Scegli le card operative, inventario e materiali da tenere sott'occhio.
+            </p>
           </div>
-        )}
+          <Button variant="outline" size="sm" onClick={() => setMetricsDialogOpen(true)} className="shrink-0 gap-2">
+            <Settings2 className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Personalizza card</span>
+          </Button>
+        </div>
+        <div className="space-y-3">
+          <WarehouseStats
+            items={items}
+            activeFilter={activeStatsFilter}
+            onCardClick={handleStatsCardClick}
+            visibleCards={metricPreferences.order}
+          />
+          <WarehouseInventoryStats
+            stockItems={stockItems}
+            orderItems={items}
+            visibleCards={metricPreferences.inventory}
+          />
+          {materialMetricCards.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {materialMetricCards.map((card) => {
+                const quantity = Number(card.item.quantity ?? 0);
+                const unitCost = Number(card.item.unit_cost ?? 0);
+                return (
+                  <Card key={card.id} className="border-l-4 border-l-emerald-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+                            Giacenza materiale
+                          </p>
+                          <p className="truncate text-sm font-medium" title={card.item.name}>
+                            {card.label || card.item.name}
+                          </p>
+                        </div>
+                        <Package className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+                      </div>
+                      <p className="mt-2 text-2xl font-bold leading-tight text-emerald-600">
+                        {quantity}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {unitCost > 0 ? `${formatCurrency(quantity * unitCost)} valore` : "giacenza disponibile"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
+
+      <Dialog open={metricsDialogOpen} onOpenChange={setMetricsDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Personalizza card magazzino</DialogTitle>
+            <DialogDescription>
+              Mostra solo le metriche utili e aggiungi card dedicate alla giacenza dei singoli materiali.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-5 py-2 lg:grid-cols-2">
+            <section className="space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold">Workflow commesse</h3>
+                <p className="text-xs text-muted-foreground">Card cliccabili che filtrano le commesse.</p>
+              </div>
+              <div className="space-y-2">
+                {DEFAULT_ORDER_METRICS.map((metric) => (
+                  <Label key={metric} className="flex items-center gap-3 rounded-md border p-3 text-sm">
+                    <Checkbox
+                      checked={metricPreferences.order.includes(metric)}
+                      onCheckedChange={() => toggleOrderMetric(metric)}
+                    />
+                    <span>{ORDER_METRIC_LABELS[metric]}</span>
+                  </Label>
+                ))}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold">Inventario</h3>
+                <p className="text-xs text-muted-foreground">Metriche sintetiche su giacenze e valore.</p>
+              </div>
+              <div className="space-y-2">
+                {ALL_INVENTORY_METRICS.map((metric) => (
+                  <Label key={metric} className="flex items-center gap-3 rounded-md border p-3 text-sm">
+                    <Checkbox
+                      checked={metricPreferences.inventory.includes(metric)}
+                      onCheckedChange={() => toggleInventoryMetric(metric)}
+                    />
+                    <span>{INVENTORY_METRIC_LABELS[metric]}</span>
+                  </Label>
+                ))}
+              </div>
+            </section>
+
+            <section className="space-y-3 lg:col-span-2">
+              <div>
+                <h3 className="text-sm font-semibold">Card materiali</h3>
+                <p className="text-xs text-muted-foreground">Aggiungi una card per controllare la giacenza di un materiale preciso.</p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Select
+                  value={selectedMaterialMetricId}
+                  onValueChange={setSelectedMaterialMetricId}
+                  disabled={stockItems.length === 0}
+                >
+                  <SelectTrigger className="min-w-0 flex-1">
+                    <SelectValue placeholder="Scegli materiale" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stockItems.map((item) => (
+                      <SelectItem
+                        key={item.id}
+                        value={item.id}
+                        disabled={metricPreferences.materialCards.some((card) => card.stockItemId === item.id)}
+                      >
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  onClick={addMaterialMetricCard}
+                  disabled={!selectedMaterialMetricId}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Aggiungi card
+                </Button>
+              </div>
+
+              {materialMetricCards.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {materialMetricCards.map((card) => (
+                    <div key={card.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{card.item.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Giacenza: {Number(card.item.quantity ?? 0)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeMaterialMetricCard(card.id)}
+                        aria-label={`Rimuovi card ${card.item.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  Nessuna card materiale aggiunta.
+                </div>
+              )}
+            </section>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button type="button" variant="ghost" onClick={resetMetricPreferences}>
+              Ripristina 8 card base
+            </Button>
+            <Button type="button" onClick={() => setMetricsDialogOpen(false)}>
+              Fine
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card className="print:hidden">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+              <Tabs value={viewMode} onValueChange={handleViewModeChange}>
                 <TabsList className="flex-wrap h-auto">
-                  <TabsTrigger value="list" className="gap-1.5" aria-label="Vista lista ordini">
+                  <TabsTrigger value="list" className="gap-1.5" aria-label="Vista lista commesse">
                     <List className="h-4 w-4" />
-                    <span className="hidden sm:inline">Lista ordini</span>
+                    <span className="hidden sm:inline">Lista commesse</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="purchase_list" className="gap-1.5" aria-label="Vista lista acquisti">
+                    <ShoppingCart className="h-4 w-4" />
+                    <span className="hidden sm:inline">Lista acquisti</span>
                   </TabsTrigger>
                   <TabsTrigger value="stock" className="gap-1.5" aria-label="Vista inventario">
                     <PackageOpen className="h-4 w-4" />
                     <span className="hidden sm:inline">Inventario</span>
                   </TabsTrigger>
-                  <TabsTrigger value="kanban" className="gap-1.5" aria-label="Vista kanban">
+                  <TabsTrigger value="kanban" className="gap-1.5" aria-label="Vista pipeline">
                     <LayoutGrid className="h-4 w-4" />
-                    <span className="hidden sm:inline">Kanban</span>
+                    <span className="hidden sm:inline">Pipeline</span>
                   </TabsTrigger>
                   <TabsTrigger value="calendar" className="gap-1.5" aria-label="Vista calendario">
                     <CalendarIcon className="h-4 w-4" />
@@ -507,8 +985,8 @@ export default function Warehouse() {
                     <SelectValue placeholder="Raggruppa per" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="order">Per ordine</SelectItem>
-                    <SelectItem value="date">Per data posa</SelectItem>
+                    <SelectItem value="order">Per commessa</SelectItem>
+                    <SelectItem value="date">Per data lavori</SelectItem>
                     <SelectItem value="status">Per stato</SelectItem>
                     <SelectItem value="supplier">Per fornitore</SelectItem>
                   </SelectContent>
@@ -516,8 +994,8 @@ export default function Warehouse() {
               )}
             </div>
 
-            {/* Quick filters — solo workflow ordini (sono filtri ordini-related:
-                Da Lavorare, Urgenti, In Ritardo, Questa/Prox. sett. di posa). Su
+            {/* Quick filters — solo workflow commesse (sono filtri commessa-related:
+                Da Lavorare, Urgenti, In Ritardo, Questa/Prox. sett. di lavori). Su
                 Inventario sono inerti e occupano spazio inutilmente. */}
             {isOrderView && (
             <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:pb-0">
@@ -563,25 +1041,25 @@ export default function Warehouse() {
                 size="sm"
                 onClick={() => setQuickFilter("thisWeek")}
                 className="gap-1 shrink-0"
-                title="Articoli con posa entro 7 giorni"
+                title="Articoli con lavori entro 7 giorni"
               >
                 <Clock className="h-4 w-4" />
-                Posa 7gg
+                Lavori 7gg
               </Button>
               <Button
                 variant={quickFilter === "nextWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("nextWeek")}
                 className="gap-1 shrink-0"
-                title="Articoli con posa entro 14 giorni"
+                title="Articoli con lavori entro 14 giorni"
               >
                 <Clock className="h-4 w-4" />
-                Posa 14gg
+                Lavori 14gg
               </Button>
             </div>
             )}
 
-            {/* Filtri compatti — solo workflow ordini.
+            {/* Filtri compatti — solo workflow commesse.
                 In Inventario (Giacenze/Lotti/DDT) ogni sub-tab ha i suoi filtri
                 propri (vedi WarehouseStockTab toolbar QR), evitiamo doppione confondente.
                 I Select (Stato/Ordine/Fornitore/Zona) sono dentro lo Sheet sidebar. */}
@@ -745,7 +1223,17 @@ export default function Warehouse() {
       </Sheet>
 
       {/* Content based on view mode */}
-      {viewMode === "ddt" ? (
+      {viewMode === "purchase_list" ? (
+        <WarehousePurchaseListTab
+          companyId={effectiveCompany.id}
+          items={purchaseItems}
+          stockItems={stockItems}
+          suppliers={suppliers}
+          warehouseFilter={warehouseFilter}
+          onStatusChange={handleStatusChange}
+          onRegisterArrival={() => openStockAction("receive")}
+        />
+      ) : viewMode === "ddt" ? (
         <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={() => openStockAction("receive")} />
       ) : viewMode === "lotti" ? (
         <WarehouseLottiTab />
@@ -864,7 +1352,7 @@ export default function Warehouse() {
       )}
 
       {/* Pagination */}
-      {viewMode !== "stock" && viewMode !== "lotti" && totalPages > 1 && (
+      {viewMode !== "stock" && viewMode !== "lotti" && viewMode !== "purchase_list" && totalPages > 1 && (
         <div className="flex items-center justify-between print:hidden">
           <p className="text-sm text-muted-foreground">
             {totalCount} articol{totalCount === 1 ? "o" : "i"} totali — Pagina {page + 1} di {totalPages}

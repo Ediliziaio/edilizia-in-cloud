@@ -261,7 +261,7 @@ function WarehouseListView({
                         {!isSupplierGroup && group.expectedDate && (
                           <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                             <Calendar className="h-3 w-3" />
-                            Posa: {formatDate(group.expectedDate)}
+                            Lavori: {formatDate(group.expectedDate)}
                           </span>
                         )}
                       </div>

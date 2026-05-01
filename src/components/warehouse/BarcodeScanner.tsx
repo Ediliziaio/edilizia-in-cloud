@@ -32,12 +32,14 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scannerRunRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
 
   const stopScanner = useCallback(() => {
+    scannerRunRef.current += 1;
     try {
       readerRef.current?.reset();
     } catch {
@@ -58,6 +60,8 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
     }
 
     let active = true;
+    const runId = scannerRunRef.current + 1;
+    scannerRunRef.current = runId;
     setError(null);
     setScanning(true);
 
@@ -67,21 +71,24 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
     (async () => {
       try {
         const stream = await openScannerStream();
-        if (!active) {
+        if (!active || scannerRunRef.current !== runId) {
           stopStream(stream);
           return;
         }
         streamRef.current = stream;
 
         const video = videoRef.current;
-        if (!video) return;
+        if (!video) {
+          stopStream(stream);
+          return;
+        }
 
         // Torch capability può richiedere un po' di tempo per popolarsi.
         // Polling 200ms × 5s.
         let attempts = 0;
         const torchPoll = setInterval(() => {
           attempts++;
-          if (!active || isTorchSupported(streamRef.current) || attempts > 25) {
+          if (!active || scannerRunRef.current !== runId || isTorchSupported(streamRef.current) || attempts > 25) {
             if (isTorchSupported(streamRef.current)) setTorchAvailable(true);
             clearInterval(torchPoll);
           }
@@ -89,7 +96,7 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
 
         // decodeFromStream attacca il MediaStream al video element e fa play().
         await reader.decodeFromStream(stream, video, (result, err) => {
-          if (!active) return;
+          if (!active || scannerRunRef.current !== runId) return;
           if (result) {
             const text = result.getText();
             stopScanner();
@@ -101,7 +108,7 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
           }
         });
       } catch (e: unknown) {
-        if (active) {
+        if (active && scannerRunRef.current === runId) {
           setError(
             (e instanceof Error ? e.message : null) ||
               "Impossibile accedere alla fotocamera.",

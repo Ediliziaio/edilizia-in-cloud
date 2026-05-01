@@ -28,6 +28,7 @@ export function useBatchScannerCamera({
   const streamRef = useRef<MediaStream | null>(null);
   const torchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onScanRef = useRef(onScan);
+  const cameraRunRef = useRef(0);
 
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
@@ -38,6 +39,7 @@ export function useBatchScannerCamera({
   }, [onScan]);
 
   const stopCamera = useCallback(() => {
+    cameraRunRef.current += 1;
     if (torchPollRef.current) {
       clearInterval(torchPollRef.current);
       torchPollRef.current = null;
@@ -55,9 +57,15 @@ export function useBatchScannerCamera({
   }, []);
 
   const startCamera = useCallback(async () => {
+    const runId = cameraRunRef.current + 1;
+    cameraRunRef.current = runId;
     setCameraError(null);
     try {
       const stream = await openScannerStream();
+      if (cameraRunRef.current !== runId) {
+        stopStream(stream);
+        return;
+      }
       streamRef.current = stream;
 
       const reader = new BrowserMultiFormatReader();
@@ -72,6 +80,13 @@ export function useBatchScannerCamera({
       // Alcuni browser espongono la torcia solo qualche frame dopo getUserMedia.
       let attempts = 0;
       torchPollRef.current = setInterval(() => {
+        if (cameraRunRef.current !== runId) {
+          if (torchPollRef.current) {
+            clearInterval(torchPollRef.current);
+            torchPollRef.current = null;
+          }
+          return;
+        }
         attempts++;
         if (isTorchSupported(streamRef.current)) {
           setTorchSupported(true);
@@ -86,11 +101,14 @@ export function useBatchScannerCamera({
       }, 200);
 
       reader.decodeFromStream(stream, video, (result) => {
+        if (cameraRunRef.current !== runId) return;
         if (!result) return;
         onScanRef.current(result.getText(), result.getBarcodeFormat?.()?.toString());
       });
     } catch (e) {
-      setCameraError(e instanceof Error ? e.message : "Errore avvio fotocamera");
+      if (cameraRunRef.current === runId) {
+        setCameraError(e instanceof Error ? e.message : "Errore avvio fotocamera");
+      }
     }
   }, []);
 

@@ -22,7 +22,7 @@
  * l'utente conferma.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Sheet,
   SheetContent,
@@ -173,6 +173,7 @@ export function BatchBarcodeScanner({
   const [online, setOnline] = useState(navigator.onLine);
 
   const manualInputRef = useRef<HTMLInputElement>(null);
+  const lookupInFlightRef = useRef(false);
 
   const lookup = useBarcodeLookup();
   const {
@@ -187,6 +188,16 @@ export function BatchBarcodeScanner({
     noMatchCount,
   } = useBatchScannerEntries({ initialEntries, onEntriesChange });
   const scannerPaused = mode === "lookup" && !!lookupResult;
+  const invalidSerializedCount = useMemo(
+    () =>
+      entries.filter(
+        (entry) =>
+          entry.stockItemId !== null &&
+          entry.trackingMode === "serialized" &&
+          entry.serialNumbers.length === 0,
+      ).length,
+    [entries],
+  );
 
   // Network monitor: aggiorna online flag.
   useEffect(() => {
@@ -217,11 +228,13 @@ export function BatchBarcodeScanner({
       const code = rawCode.trim();
       if (!code) return;
       if (mode === "lookup" && lookupResult) return;
+      if (lookupInFlightRef.current) return;
 
       // Throttle duplicati: stesso codice in <2s viene ignorato silenziosamente.
       const now = Date.now();
       if (trackDuplicate(code, now)) return;
 
+      lookupInFlightRef.current = true;
       try {
         const result = await lookup.mutateAsync({
           rawScan: code,
@@ -327,6 +340,16 @@ export function BatchBarcodeScanner({
             // proseguiamo comunque ma con odaItemId=null (extra)
           } else {
             odaItemId = allowed.odaItemId;
+            const alreadyScanned = entries
+              .filter((entry) => entry.odaItemId === allowed.odaItemId)
+              .reduce((sum, entry) => sum + entry.quantity, 0);
+            if (alreadyScanned >= allowed.qtyPending) {
+              await errorFeedback();
+              toast.warning("Quantità ODA già completa", {
+                description: "Questa riga ha già raggiunto il residuo da ricevere.",
+              });
+              return;
+            }
           }
         }
 
@@ -338,11 +361,14 @@ export function BatchBarcodeScanner({
         toast.error("Errore lookup", {
           description: (err as Error)?.message ?? "Riprova",
         });
+      } finally {
+        lookupInFlightRef.current = false;
       }
     },
     [
       allowedOdaItems,
       appendEntry,
+      entries,
       lookup,
       lookupResult,
       mergeResolvedEntry,
@@ -371,6 +397,7 @@ export function BatchBarcodeScanner({
     mode,
     entries,
     noMatchCount,
+    invalidSerializedCount,
     isConfirming,
     onConfirm,
   });
@@ -590,6 +617,12 @@ export function BatchBarcodeScanner({
                   entry={entry}
                   onIncrement={() => updateEntryQty(entry.clientUuid, +1)}
                   onDecrement={() => updateEntryQty(entry.clientUuid, -1)}
+                  canIncrement={
+                    mode !== "oda_receive" ||
+                    !entry.odaItemId ||
+                    entry.quantity <
+                      (allowedOdaItems?.find((item) => item.odaItemId === entry.odaItemId)?.qtyPending ?? Infinity)
+                  }
                   onRemove={() => removeEntry(entry.clientUuid)}
                   onCreateFromNoMatch={
                     onRequestCreateItem
@@ -615,6 +648,15 @@ export function BatchBarcodeScanner({
                   {onRequestCreateItem
                     ? "Tocca \"Crea\" sulla riga per registrare l'articolo, oppure rimuovila."
                     : "Prima di confermare crea l'articolo o rimuovi la riga."}
+                </AlertDescription>
+              </Alert>
+            )}
+            {invalidSerializedCount > 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  {invalidSerializedCount} articolo serializzato senza seriale. Scansiona il QR/seriale
+                  dell'unità oppure rimuovi la riga prima di confermare.
                 </AlertDescription>
               </Alert>
             )}
@@ -740,6 +782,7 @@ function EntryRow({
   entry,
   onIncrement,
   onDecrement,
+  canIncrement = true,
   onRemove,
   onCreateFromNoMatch,
   creating,
@@ -747,6 +790,7 @@ function EntryRow({
   entry: BatchScanEntry;
   onIncrement: () => void;
   onDecrement: () => void;
+  canIncrement?: boolean;
   onRemove: () => void;
   onCreateFromNoMatch?: () => void;
   creating?: boolean;
@@ -817,6 +861,7 @@ function EntryRow({
               variant="outline"
               size="icon"
               onClick={onIncrement}
+              disabled={!canIncrement}
               className="h-8 w-8"
               aria-label="Incrementa"
             >

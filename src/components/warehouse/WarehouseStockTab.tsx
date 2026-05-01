@@ -7,7 +7,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck, MapPin } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,6 +95,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [caricoOpen, setCaricoOpen] = useState(false);
   const [odaReceiveOpen, setOdaReceiveOpen] = useState(false);
   const [scaricoOpen, setScaricoOpen] = useState(false);
+  const [zonesDialogOpen, setZonesDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!actionRequest) return;
@@ -443,19 +444,51 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           </Card>
         )}
 
-        {/* Sections Manager */}
-        <WarehouseSectionsManager />
+        {/* Compact zones entry point */}
+        <Card>
+          <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <p className="text-sm font-semibold">Zone e planimetria</p>
+                <Badge variant="secondary" className="h-5">{sections.length} zone</Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Gestisci piantina, aree operative e posizioni senza occupare la vista inventario.
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={() => setZonesDialogOpen(true)}>
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+              Apri zone
+            </Button>
+          </CardContent>
+        </Card>
 
-        {/* Droppable Map (inside stock tab for DnD) */}
-        {sections.length > 0 && (
-          <WarehouseMapView
-            stockItems={stockItems}
-            sections={sections}
-            activeSectionFilter={sectionFilter}
-            onFilterSection={setSectionFilterWithReset}
-            droppable
-          />
-        )}
+        <Dialog open={zonesDialogOpen} onOpenChange={setZonesDialogOpen}>
+          <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto p-0">
+            <DialogHeader className="border-b px-6 py-4">
+              <DialogTitle>Zone e planimetria magazzino</DialogTitle>
+              <DialogDescription>
+                Disegna la piantina, gestisci le aree operative e sposta gli articoli nelle zone corrette.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 p-4">
+              <WarehouseSectionsManager
+                warehouseId={warehouseFilter ?? defaultWarehouse?.id ?? null}
+                warehouseName={defaultWarehouse?.name ?? null}
+              />
+              {sections.length > 0 && (
+                <WarehouseMapView
+                  stockItems={stockItems}
+                  sections={sections}
+                  activeSectionFilter={sectionFilter}
+                  onFilterSection={setSectionFilterWithReset}
+                  droppable
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Header with search, filter and add — responsive mobile-first */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 sm:flex-wrap">

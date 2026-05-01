@@ -64,7 +64,10 @@ export function useBatchScannerEntries({
 
       if (resolvedTracking === "fungible") {
         const existingIdx = prev.findIndex(
-          (e) => e.stockItemId === resolvedItemId && e.trackingMode === "fungible",
+          (e) =>
+            e.stockItemId === resolvedItemId &&
+            e.trackingMode === "fungible" &&
+            (odaItemId ? e.odaItemId === odaItemId : !e.odaItemId),
         );
         if (existingIdx >= 0) {
           const next = [...prev];
@@ -79,7 +82,10 @@ export function useBatchScannerEntries({
 
       if (resolvedTracking === "serialized" && resolvedSerial) {
         const existingIdx = prev.findIndex(
-          (e) => e.stockItemId === resolvedItemId && e.trackingMode === "serialized",
+          (e) =>
+            e.stockItemId === resolvedItemId &&
+            e.trackingMode === "serialized" &&
+            (odaItemId ? e.odaItemId === odaItemId : !e.odaItemId),
         );
         if (existingIdx >= 0) {
           if (prev[existingIdx].serialNumbers.includes(resolvedSerial)) {
