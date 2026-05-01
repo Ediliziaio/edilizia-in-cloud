@@ -75,7 +75,9 @@ CREATE POLICY "subappaltatori_documenti_company_delete"
     )
   );
 
-CREATE OR REPLACE VIEW public.v_subappaltatori_dashboard AS
+DROP VIEW IF EXISTS public.v_subappaltatori_dashboard;
+
+CREATE VIEW public.v_subappaltatori_dashboard AS
 SELECT
   ss.id,
   ss.company_id,
