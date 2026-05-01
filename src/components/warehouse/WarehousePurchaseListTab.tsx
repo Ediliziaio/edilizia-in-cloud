@@ -103,6 +103,8 @@ type PurchaseRow = {
   completed?: boolean;
   meta: string;
   orderItemId?: string;
+  orderCode?: string | null;
+  customerName?: string | null;
 };
 
 type ProductSuggestion = {
@@ -459,12 +461,15 @@ export default function WarehousePurchaseListTab({
       });
 
     const commessaRows = items
-      .filter((item) => item.status === "da_ordinare")
+      .filter((item) => PURCHASE_STATUSES.includes(item.status as PurchaseStatus))
       .map((item): PurchaseRow => {
         const dueDate = item.order.expected_date ?? item.order.work_start_date ?? null;
         const daysUntil = getDaysUntil(dueDate);
         const quantity = Number(item.quantity ?? 1);
         const unitCost = Number(item.purchase_price ?? 0);
+        const customerName = item.order.customer
+          ? `${item.order.customer.first_name ?? ""} ${item.order.customer.last_name ?? ""}`.trim()
+          : "";
         return {
           id: `commessa-${item.id}`,
           source: "commessa",
@@ -475,14 +480,16 @@ export default function WarehousePurchaseListTab({
           status: PURCHASE_STATUSES.includes(item.status as PurchaseStatus) ? item.status as PurchaseStatus : "da_ordinare",
           priority: daysUntil !== null && daysUntil <= 7 ? "alta" : "media",
           dueDate,
-          notes: `${item.order.order_code ?? "Commessa"}${item.order.customer ? ` · ${item.order.customer.first_name} ${item.order.customer.last_name}` : ""}`,
+          notes: [item.order.order_code ?? "Commessa", customerName].filter(Boolean).join(" · "),
           estimatedCost: unitCost > 0 ? unitCost * quantity : null,
           isPaid: false,
           paymentState: "unknown",
           paymentLabel: "pagamento da gestire",
           paymentDetail: "Gestito nella commessa/ordine fornitore",
-          meta: "necessario per lavori",
+          meta: "fabbisogno collegato a commessa",
           orderItemId: item.id,
+          orderCode: item.order.order_code ?? null,
+          customerName: customerName || null,
         };
       });
 
@@ -595,8 +602,9 @@ export default function WarehousePurchaseListTab({
   };
 
   const updateSelectedRowsStatus = (status: PurchaseStatus) => {
-    selectedRows.forEach((row) => updateRowStatus(row, status));
+    selectedRows.forEach((row) => updateRowStatus(row, status, { openArrival: false }));
     setSelectedRowIds(new Set());
+    if (status === "in_magazzino") onRegisterArrival?.();
   };
 
   const removeSelectedRows = () => {
@@ -657,7 +665,11 @@ export default function WarehousePurchaseListTab({
     setAddDialogOpen(true);
   };
 
-  const updateRowStatus = (row: PurchaseRow, status: PurchaseStatus) => {
+  const updateRowStatus = (
+    row: PurchaseRow,
+    status: PurchaseStatus,
+    options: { openArrival?: boolean } = {},
+  ) => {
     if (row.source === "manual") {
       const currentItem = manualItems.find((item) => item.id === row.id);
       updateManualItem(row.id, {
@@ -666,10 +678,12 @@ export default function WarehousePurchaseListTab({
         arrivalDate: status === "in_magazzino" ? currentItem?.arrivalDate || todayIso() : currentItem?.arrivalDate ?? "",
         completed: status === "in_magazzino",
       });
+      if (status === "in_magazzino" && options.openArrival !== false) onRegisterArrival?.();
       return;
     }
     if (row.source === "commessa" && row.orderItemId) {
       onStatusChange?.(row.orderItemId, status);
+      if (status === "in_magazzino" && options.openArrival !== false) onRegisterArrival?.();
     }
   };
 
@@ -1602,6 +1616,14 @@ export default function WarehousePurchaseListTab({
                         {row.priority === "alta" && <AlertTriangle className="h-4 w-4 text-red-600" aria-hidden="true" />}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">{row.meta}</p>
+                      {row.source === "commessa" && (
+                        <p className="mt-1 inline-flex max-w-full items-center rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                          <span className="truncate">
+                            Commessa collegata: {row.orderCode ?? "senza codice"}
+                            {row.customerName ? ` · ${row.customerName}` : ""}
+                          </span>
+                        </p>
+                      )}
                       {row.notes && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{row.notes}</p>}
                     </div>
 

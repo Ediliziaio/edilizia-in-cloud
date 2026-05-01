@@ -273,7 +273,7 @@ export function useWarehouseData() {
           )
         `)
         .eq("order.company_id", companyId)
-        .eq("status", "da_ordinare")
+        .in("status", ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino"])
         .order("created_at", { ascending: false })
         .limit(500);
 

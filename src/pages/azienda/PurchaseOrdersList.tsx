@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ShoppingCart, Plus, Loader2, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
-  FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Activity,
+  FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Activity, Warehouse, Link2,
 } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
@@ -151,6 +151,7 @@ export default function PurchaseOrdersList() {
       oda_number: o.oda_number,
       supplier: o.suppliers?.name ?? "",
       order_code: o.orders?.order_code ?? "",
+      destination: o.warehouses?.name ?? (o.delivery_warehouse_id ? "Magazzino selezionato" : ""),
       issue_date: format(new Date(o.issue_date), "dd/MM/yyyy"),
       expected_delivery: o.expected_delivery_date ? format(new Date(o.expected_delivery_date), "dd/MM/yyyy") : "",
       status: STATUS_LABELS[o.status] ?? o.status,
@@ -162,7 +163,8 @@ export default function PurchaseOrdersList() {
   const exportColumns = useMemo(() => ([
     { key: "oda_number", label: "N° OdA" },
     { key: "supplier", label: "Fornitore" },
-    { key: "order_code", label: "Ordine Cliente" },
+    { key: "order_code", label: "Commessa collegata" },
+    { key: "destination", label: "Magazzino destinazione" },
     { key: "issue_date", label: "Data Emissione" },
     { key: "expected_delivery", label: "Consegna Prevista" },
     { key: "status", label: "Stato" },
@@ -274,6 +276,7 @@ export default function PurchaseOrdersList() {
       activeCount: active.length,
       activeTotal: active.reduce((s, o) => s + Number(o.total), 0),
       totalAll: orders.reduce((s, o) => s + Number(o.total), 0),
+      linkedCount: orders.filter((o) => Boolean(o.order_id || o.orders?.order_code)).length,
     };
   }, [orders]);
 
@@ -304,7 +307,7 @@ export default function PurchaseOrdersList() {
     <div className="space-y-6">
       <QuotePageHeader
         title="Ordini d'Acquisto"
-        subtitle="OdA ai fornitori: stato, verifica DDT, consegne previste."
+        subtitle="Documenti fornitore collegati a commesse, DDT, magazzino di arrivo e inventario."
         icon={<ShoppingCart className="h-5 w-5" />}
         actions={
           <>
@@ -396,7 +399,7 @@ export default function PurchaseOrdersList() {
       />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <QuoteKpi
           label="OdA attivi"
           value={kpis.activeCount}
@@ -416,6 +419,37 @@ export default function PurchaseOrdersList() {
           variant="green"
           icon={<Wallet className="h-4 w-4" />}
         />
+        <QuoteKpi
+          label="Collegati commesse"
+          value={kpis.linkedCount}
+          variant="blue"
+          icon={<Link2 className="h-4 w-4" />}
+          hint="origine lavori"
+        />
+      </div>
+
+      <div className="grid gap-3 rounded-lg border bg-slate-50/70 p-3 text-sm lg:grid-cols-3">
+        <div className="flex gap-3">
+          <ShoppingCart className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+          <div>
+            <p className="font-semibold">Lista acquisti magazzino</p>
+            <p className="text-xs text-muted-foreground">Raccoglie fabbisogni da scorte e commesse: cosa serve comprare.</p>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div>
+            <p className="font-semibold">Ordine d'acquisto</p>
+            <p className="text-xs text-muted-foreground">E' il documento al fornitore con importi, allegati, consegna e verifica DDT.</p>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <Warehouse className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+          <div>
+            <p className="font-semibold">Arrivo in inventario</p>
+            <p className="text-xs text-muted-foreground">Quando l'OdA risulta ricevuto, la merce viene caricata nel magazzino indicato.</p>
+          </div>
+        </div>
       </div>
 
       {/* Tabs + Search */}
@@ -474,9 +508,13 @@ export default function PurchaseOrdersList() {
                   {o.expected_delivery_date && <span>· consegna {format(new Date(o.expected_delivery_date), "dd/MM/yyyy", { locale: it })}</span>}
                   {o.orders?.order_code && (
                     <span className="inline-flex items-center gap-0.5 text-primary">
-                      <FileText className="h-3 w-3" /> {o.orders.order_code}
+                      <Link2 className="h-3 w-3" /> Commessa {o.orders.order_code}
                     </span>
                   )}
+                  <span className="inline-flex items-center gap-0.5">
+                    <Warehouse className="h-3 w-3" />
+                    {o.warehouses?.name ?? (o.delivery_warehouse_id ? "Magazzino selezionato" : "Destinazione da decidere")}
+                  </span>
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -491,7 +529,8 @@ export default function PurchaseOrdersList() {
             <thead><tr className="border-b bg-muted/50">
               <th className="text-left p-3 font-medium">N° OdA</th>
               <th className="text-left p-3 font-medium">Fornitore</th>
-              <th className="text-left p-3 font-medium">Ordine</th>
+              <th className="text-left p-3 font-medium">Commessa</th>
+              <th className="text-left p-3 font-medium">Destinazione</th>
               <th className="text-left p-3 font-medium">Data</th>
               <th className="text-left p-3 font-medium">Stato</th>
               <th className="text-right p-3 font-medium">Totale</th>
@@ -514,12 +553,18 @@ export default function PurchaseOrdersList() {
                   <td className="p-3 text-xs">
                     {o.orders?.order_code ? (
                       <span className="inline-flex items-center gap-1 text-primary font-medium">
-                        <FileText className="h-3 w-3" />
+                        <Link2 className="h-3 w-3" />
                         {o.orders.order_code}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </td>
+                  <td className="p-3 text-xs">
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      <Warehouse className="h-3 w-3" />
+                      {o.warehouses?.name ?? (o.delivery_warehouse_id ? "Magazzino selezionato" : "Da decidere")}
+                    </span>
                   </td>
                   <td className="p-3 text-muted-foreground">{format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}</td>
                   <td className="p-3">
