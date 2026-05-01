@@ -88,6 +88,19 @@ function MargineBadge({ perc }: { perc: number }) {
   );
 }
 
+function MarginHealthBadge({ perc }: { perc: number }) {
+  if (perc < 0) {
+    return <Badge className="border border-red-200 bg-red-100 text-red-800">In perdita</Badge>;
+  }
+  if (perc < 10) {
+    return <Badge className="border border-orange-200 bg-orange-100 text-orange-800">Sotto target</Badge>;
+  }
+  if (perc < 25) {
+    return <Badge className="border border-amber-200 bg-amber-100 text-amber-800">Da monitorare</Badge>;
+  }
+  return <Badge className="border border-green-200 bg-green-100 text-green-800">Sano</Badge>;
+}
+
 function KPICard({
   label,
   value,
@@ -137,6 +150,7 @@ export default function MarginalitaCantieri() {
   const companyId = useEffectiveCompanyId();
   const [search, setSearch] = useState("");
   const [annoFilter, setAnnoFilter] = useState<string>("tutti");
+  const [healthFilter, setHealthFilter] = useState<"tutti" | "critici" | "sotto_target" | "sani">("tutti");
   const [overheadPct, setOverheadPct] = useState(20);
   const [drillRow, setDrillRow] = useState<MarginalitaRow | null>(null);
 
@@ -179,8 +193,15 @@ export default function MarginalitaCantieri() {
           r.cliente_nome?.toLowerCase().includes(s),
       );
     }
-    return result;
-  }, [rows, annoFilter, search]);
+    result = result.filter((r) => {
+      const netto = r.margine_perc - overheadPct;
+      if (healthFilter === "critici") return netto < 0;
+      if (healthFilter === "sotto_target") return netto >= 0 && netto < 10;
+      if (healthFilter === "sani") return netto >= 25;
+      return true;
+    });
+    return [...result].sort((a, b) => (a.margine_perc - overheadPct) - (b.margine_perc - overheadPct));
+  }, [rows, annoFilter, search, healthFilter, overheadPct]);
 
   // ── KPI aggregati (su filtered) ──────────────────────────────
   const kpi = useMemo(() => {
@@ -190,7 +211,10 @@ export default function MarginalitaCantieri() {
     const avgMarginePerc = totPreventivo > 0 ? (totMargine / totPreventivo) * 100 : 0;
     const cantierInRosso = filtered.filter((r) => r.margine_perc < 0).length;
     const avgMargineNettoPerc = avgMarginePerc - overheadPct;
-    return { totPreventivo, totConsuntivo, totMargine, avgMarginePerc, cantierInRosso, avgMargineNettoPerc };
+    const riskCount = filtered.filter((r) => r.margine_perc - overheadPct < 10).length;
+    const errorCost = filtered.reduce((s, r) => s + r.costo_errori, 0);
+    const purchaseCost = filtered.reduce((s, r) => s + r.costo_acquisti, 0);
+    return { totPreventivo, totConsuntivo, totMargine, avgMarginePerc, cantierInRosso, avgMargineNettoPerc, riskCount, errorCost, purchaseCost };
   }, [filtered, overheadPct]);
 
   const { sediSelezionate, periodo } = useSedeFilter();
@@ -205,11 +229,18 @@ export default function MarginalitaCantieri() {
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Marginalità Cantieri</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Confronto preventivo vs consuntivo in tempo reale. I costi includono ordini d'acquisto ed errori registrati.
-        </p>
+      <div className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Marginalità Cantieri</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Controlla preventivo, acquisti, errori e overhead per capire quali commesse stanno erodendo margine.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* ── Performance per Sede ───────────────────────────── */}
@@ -239,7 +270,7 @@ export default function MarginalitaCantieri() {
       )}
 
       {/* ── KPI Strip ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <KPICard
           label="Preventivo Totale"
           value={formatCurrency(kpi.totPreventivo)}
@@ -277,6 +308,33 @@ export default function MarginalitaCantieri() {
           colorClass={kpi.avgMargineNettoPerc >= 10 ? "text-green-600" : kpi.avgMargineNettoPerc >= 0 ? "text-amber-600" : "text-red-600"}
           isLoading={isLoading}
         />
+        <KPICard
+          label="A rischio"
+          value={String(kpi.riskCount)}
+          sub="netto sotto 10%"
+          icon={AlertTriangle}
+          colorClass={kpi.riskCount > 0 ? "text-red-600" : "text-green-600"}
+          isLoading={isLoading}
+        />
+      </div>
+
+      <div className="grid gap-3 rounded-lg border bg-slate-50/70 p-3 text-sm lg:grid-cols-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Acquisti registrati</p>
+          <p className="text-lg font-bold">{formatCurrency(kpi.purchaseCost)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Errori / anomalie</p>
+          <p className={cn("text-lg font-bold", kpi.errorCost > 0 ? "text-red-600" : "text-green-600")}>{formatCurrency(kpi.errorCost)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Priorità operativa</p>
+          <p className="text-sm font-medium">
+            {kpi.riskCount > 0
+              ? `${kpi.riskCount} commesse richiedono controllo costi e acquisti.`
+              : "Nessuna commessa sotto soglia nella vista corrente."}
+          </p>
+        </div>
       </div>
 
       {/* ── Filtri ─────────────────────────────────────────── */}
@@ -309,6 +367,27 @@ export default function MarginalitaCantieri() {
               <p className="text-xs max-w-[200px]">Percentuale di costi fissi aziendali da allocare su ogni commessa per calcolare il margine netto reale.</p>
             </TooltipContent>
           </Tooltip>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { key: "tutti", label: "Tutti" },
+            { key: "critici", label: "In perdita" },
+            { key: "sotto_target", label: "Sotto target" },
+            { key: "sani", label: "Sani" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setHealthFilter(item.key as typeof healthFilter)}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm border transition-colors",
+                healthFilter === item.key
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "border-border text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
         <div className="flex gap-2 flex-wrap">
           {anniDisponibili.map((anno) => (
@@ -370,6 +449,7 @@ export default function MarginalitaCantieri() {
                 <TableRow>
                   <TableHead>Ordine</TableHead>
                   <TableHead>Cliente</TableHead>
+                  <TableHead>Stato</TableHead>
                   <TableHead className="text-right">Preventivo</TableHead>
                   <TableHead className="text-right">Consuntivo</TableHead>
                   <TableHead className="text-right">Margine €</TableHead>
@@ -399,6 +479,9 @@ export default function MarginalitaCantieri() {
                         <p className="text-xs text-muted-foreground truncate max-w-[180px]">{row.description}</p>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{row.cliente_nome || "–"}</TableCell>
+                      <TableCell>
+                        <MarginHealthBadge perc={margineNetto} />
+                      </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(row.preventivo_totale)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(row.consuntivo)}</TableCell>
                       <TableCell className={cn("text-right font-semibold", MargineColorClass(row.margine_perc))}>
@@ -473,6 +556,7 @@ export default function MarginalitaCantieri() {
                   </div>
                   <MargineBadge perc={row.margine_perc} />
                 </div>
+                <MarginHealthBadge perc={row.margine_perc - overheadPct} />
 
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ShoppingCart, Plus, Loader2, Search, Truck, ShieldCheck, FileText, Download, ChevronDown,
-  FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Activity, Warehouse, Link2,
+  FileSpreadsheet, Filter, X, Calendar as CalendarIcon, Package, Wallet, Activity, Warehouse, Link2, ArrowRight,
 } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
@@ -277,6 +277,7 @@ export default function PurchaseOrdersList() {
       activeTotal: active.reduce((s, o) => s + Number(o.total), 0),
       totalAll: orders.reduce((s, o) => s + Number(o.total), 0),
       linkedCount: orders.filter((o) => Boolean(o.order_id || o.orders?.order_code)).length,
+      toReceiveCount: active.filter((o) => ["inviato", "confermato", "parziale"].includes(o.status)).length,
     };
   }, [orders]);
 
@@ -408,10 +409,11 @@ export default function PurchaseOrdersList() {
           hint={formatCurrency(kpis.activeTotal)}
         />
         <QuoteKpi
-          label="Totale OdA"
-          value={orders.length}
-          variant="blue"
-          icon={<ShoppingCart className="h-4 w-4" />}
+          label="Da ricevere"
+          value={kpis.toReceiveCount}
+          variant="orange"
+          icon={<Truck className="h-4 w-4" />}
+          hint="monitor DDT"
         />
         <QuoteKpi
           label="Valore totale"
@@ -434,6 +436,11 @@ export default function PurchaseOrdersList() {
           <div>
             <p className="font-semibold">Lista acquisti magazzino</p>
             <p className="text-xs text-muted-foreground">Raccoglie fabbisogni da scorte e commesse: cosa serve comprare.</p>
+            <Button asChild variant="link" className="mt-1 h-auto p-0 text-xs">
+              <Link to="/azienda/magazzino">
+                Apri lista acquisti <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </Button>
           </div>
         </div>
         <div className="flex gap-3">

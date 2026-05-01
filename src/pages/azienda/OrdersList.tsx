@@ -1523,15 +1523,11 @@ export default function OrdersList() {
       )}
 
       {activeTab === "anomalie" && (
-        <div className="[&>div:first-child>div:first-child>div:first-child]:hidden">
-          <GlobalErrors />
-        </div>
+        <GlobalErrors />
       )}
 
       {activeTab === "marginalita" && (
-        <div className="[&>div:first-child>div:first-child]:hidden">
-          <MarginalitaCantieri />
-        </div>
+        <MarginalitaCantieri />
       )}
 
       {activeTab === "foto" && (

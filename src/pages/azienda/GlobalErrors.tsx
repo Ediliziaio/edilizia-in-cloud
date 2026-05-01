@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { format, subMonths, startOfMonth, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
@@ -14,6 +14,8 @@ import {
   RotateCcw,
   ChevronDown,
   ChevronRight,
+  AlertTriangle,
+  Search,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -134,13 +136,13 @@ function FilterSection({
 }
 
 export default function GlobalErrors() {
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
+  const companyId = useEffectiveCompanyId();
 
   // ── Filtri ────────────────────────────────────────────────
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [localFilters, setLocalFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [search, setSearch] = useState("");
 
   const activeFilterCount = countActiveFilters(filters);
 
@@ -161,7 +163,7 @@ export default function GlobalErrors() {
   };
 
   // ── Data ─────────────────────────────────────────────────
-  const { data: errors = [], isLoading } = useQuery({
+  const { data: errors = [], isLoading, error } = useQuery({
     queryKey: ["global-errors", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -177,6 +179,7 @@ export default function GlobalErrors() {
   });
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return errors.filter((e) => {
       if (filters.category !== "all" && e.error_category !== filters.category) return false;
       if (filters.type !== "all" && e.error_type !== filters.type) return false;
@@ -185,9 +188,19 @@ export default function GlobalErrors() {
         if (filters.dateFrom && d < filters.dateFrom) return false;
         if (filters.dateTo && d > filters.dateTo) return false;
       }
+      if (q) {
+        const haystack = [
+          e.description,
+          e.orders?.order_code,
+          e.orders?.description,
+          CATEGORY_LABELS[e.error_category] || e.error_category,
+          TYPE_LABELS[e.error_type] || e.error_type,
+        ].filter(Boolean).join(" ").toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [errors, filters]);
+  }, [errors, filters, search]);
 
   // ── Stats ────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -251,10 +264,10 @@ export default function GlobalErrors() {
     });
   }, [errors]);
 
-  if (isLoading) {
+  if (error) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        Caricamento errori...
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        Impossibile caricare le anomalie. Riprova tra qualche secondo o verifica i permessi aziendali.
       </div>
     );
   }
@@ -262,27 +275,45 @@ export default function GlobalErrors() {
   return (
     <div className="space-y-6">
       {/* ── Header con bottone Filtri ─────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Errori Globali</h1>
-          <p className="text-muted-foreground">
-            Panoramica di tutti gli errori registrati sugli ordini
-          </p>
+      <div className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-red-50 p-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Anomalie operative</h1>
+              <p className="text-sm text-muted-foreground">
+                Errori merce e manodopera che impattano costi, marginalita e qualita delle commesse.
+              </p>
+            </div>
+          </div>
+          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+            <div className="relative min-w-[260px] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cerca commessa, descrizione, categoria..."
+                className="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-xs shrink-0 relative"
+              onClick={handleOpenFilters}
+            >
+              <Filter className="mr-1.5 h-3.5 w-3.5" />
+              Filtri
+              {activeFilterCount > 0 && (
+                <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs shrink-0 relative"
-          onClick={handleOpenFilters}
-        >
-          <Filter className="mr-1.5 h-3.5 w-3.5" />
-          Filtri
-          {activeFilterCount > 0 && (
-            <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
-              {activeFilterCount}
-            </span>
-          )}
-        </Button>
       </div>
 
       {/* ── Stat Cards ───────────────────────────────────── */}
@@ -430,7 +461,16 @@ export default function GlobalErrors() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-muted-foreground py-8"
+                    >
+                      Caricamento anomalie...
+                    </TableCell>
+                  </TableRow>
+                ) : filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={6}
