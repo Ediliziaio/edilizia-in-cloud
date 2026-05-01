@@ -33,6 +33,7 @@ import {
   FileText, ShoppingCart, ArrowRight, AlertTriangle, Paperclip,
   ShieldCheck, Image as ImageIcon, ChevronRight, Clock,
   Download, ChevronDown, FileSpreadsheet, Filter, X, Calendar as CalendarIcon,
+  ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDDTRicezioneList, type DDTStato } from "@/hooks/useDDTRicezione";
@@ -44,6 +45,16 @@ import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
 
 type FilterKey = "tutti" | DDTStato;
+type SortDirection = "asc" | "desc";
+type DDTSortKey =
+  | "numero"
+  | "data"
+  | "fornitore"
+  | "corriere"
+  | "magazzino"
+  | "allegati"
+  | "quantita"
+  | "stato";
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "tutti", label: "Tutti" },
@@ -53,6 +64,55 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "verificato", label: "Verificati" },
   { key: "non_conforme", label: "Non conformi" },
 ];
+
+function compareSortValues(
+  a: string | number | null | undefined,
+  b: string | number | null | undefined,
+) {
+  const normalizedA = typeof a === "number" ? a : String(a ?? "").toLowerCase();
+  const normalizedB = typeof b === "number" ? b : String(b ?? "").toLowerCase();
+  if (normalizedA < normalizedB) return -1;
+  if (normalizedA > normalizedB) return 1;
+  return 0;
+}
+
+function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
+  if (!active) return <ArrowUpDown className="h-3.5 w-3.5 opacity-45" />;
+  return direction === "asc"
+    ? <ArrowUp className="h-3.5 w-3.5" />
+    : <ArrowDown className="h-3.5 w-3.5" />;
+}
+
+function SortableTh({
+  label,
+  active,
+  direction,
+  onClick,
+  align = "left",
+}: {
+  label: string;
+  active: boolean;
+  direction: SortDirection;
+  onClick: () => void;
+  align?: "left" | "center" | "right";
+}) {
+  return (
+    <th className={cn("p-3 font-medium", align === "left" && "text-left", align === "center" && "text-center", align === "right" && "text-right")}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground",
+          align === "center" && "justify-center",
+          align === "right" && "justify-end",
+        )}
+      >
+        {label}
+        <SortIcon active={active} direction={direction} />
+      </button>
+    </th>
+  );
+}
 
 export default function DDTRicezioneList() {
   const navigate = useNavigate();
@@ -68,6 +128,10 @@ export default function DDTRicezioneList() {
   const [filterHasDamages, setFilterHasDamages] = useState<"all" | "yes" | "no">("all");
   const [filterHasAttachments, setFilterHasAttachments] = useState<"all" | "yes" | "no">("all");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [sort, setSort] = useState<{ key: DDTSortKey; direction: SortDirection }>({
+    key: "data",
+    direction: "desc",
+  });
 
   const { data: ddtList = [], isLoading } = useDDTRicezioneList();
   const { orders } = usePurchaseOrders();
@@ -94,6 +158,13 @@ export default function DDTRicezioneList() {
     setFilterDateTo("");
     setFilterHasDamages("all");
     setFilterHasAttachments("all");
+  };
+
+  const handleSort = (key: DDTSortKey) => {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
   };
 
   const filtered = useMemo(() => {
@@ -141,8 +212,35 @@ export default function DDTRicezioneList() {
       });
     }
 
-    return list;
-  }, [ddtList, tab, search, filterSupplier, filterDateFrom, filterDateTo, filterHasDamages, filterHasAttachments]);
+    const getSortValue = (d: (typeof ddtList)[number], key: DDTSortKey) => {
+      const po = d.purchase_orders;
+      switch (key) {
+        case "numero":
+          return d.numero_ddt;
+        case "data":
+          return new Date(d.data_ricezione ?? d.data_ddt ?? 0).getTime();
+        case "fornitore":
+          return po?.suppliers?.name ?? po?.oda_number ?? "";
+        case "corriere":
+          return d.corriere ?? "";
+        case "magazzino":
+          return d.warehouses?.name ?? "";
+        case "allegati":
+          return (d.attachments?.length ?? 0) + (d.ddt_file_url ? 1 : 0);
+        case "quantita":
+          return Number(d.quantita_ricevuta ?? 0);
+        case "stato":
+          return DDT_STATO_META[d.stato as keyof typeof DDT_STATO_META]?.label ?? d.stato;
+        default:
+          return "";
+      }
+    };
+
+    return [...list].sort((a, b) => {
+      const result = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
+      return sort.direction === "asc" ? result : -result;
+    });
+  }, [ddtList, tab, search, filterSupplier, filterDateFrom, filterDateTo, filterHasDamages, filterHasAttachments, sort]);
 
   // Export
   const buildExportRows = useCallback(() => {
@@ -514,14 +612,14 @@ export default function DDTRicezioneList() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 font-medium">N° DDT</th>
-                    <th className="text-left p-3 font-medium">Data</th>
-                    <th className="text-left p-3 font-medium">Fornitore / ODA</th>
-                    <th className="text-left p-3 font-medium">Corriere</th>
-                    <th className="text-left p-3 font-medium">Magazzino</th>
-                    <th className="text-center p-3 font-medium">Allegati</th>
-                    <th className="text-right p-3 font-medium">Q.tà</th>
-                    <th className="text-left p-3 font-medium">Stato</th>
+                    <SortableTh label="N° DDT" active={sort.key === "numero"} direction={sort.direction} onClick={() => handleSort("numero")} />
+                    <SortableTh label="Data" active={sort.key === "data"} direction={sort.direction} onClick={() => handleSort("data")} />
+                    <SortableTh label="Fornitore / ODA" active={sort.key === "fornitore"} direction={sort.direction} onClick={() => handleSort("fornitore")} />
+                    <SortableTh label="Corriere" active={sort.key === "corriere"} direction={sort.direction} onClick={() => handleSort("corriere")} />
+                    <SortableTh label="Magazzino" active={sort.key === "magazzino"} direction={sort.direction} onClick={() => handleSort("magazzino")} />
+                    <SortableTh label="Allegati" active={sort.key === "allegati"} direction={sort.direction} onClick={() => handleSort("allegati")} align="center" />
+                    <SortableTh label="Q.tà" active={sort.key === "quantita"} direction={sort.direction} onClick={() => handleSort("quantita")} align="right" />
+                    <SortableTh label="Stato" active={sort.key === "stato"} direction={sort.direction} onClick={() => handleSort("stato")} />
                     <th className="p-3"></th>
                   </tr>
                 </thead>

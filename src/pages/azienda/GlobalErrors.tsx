@@ -16,6 +16,9 @@ import {
   ChevronRight,
   AlertTriangle,
   Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +90,9 @@ type OrderError = {
   orders: { order_code: string | null; description: string };
 };
 
+type SortDirection = "asc" | "desc";
+type ErrorSortKey = "date" | "order" | "type" | "category" | "amount" | "description";
+
 interface FilterState {
   category: string;
   type: string;
@@ -108,6 +114,56 @@ function countActiveFilters(f: FilterState): number {
   if (f.dateFrom) n++;
   if (f.dateTo) n++;
   return n;
+}
+
+function compareSortValues(
+  a: string | number | null | undefined,
+  b: string | number | null | undefined,
+) {
+  const normalizedA = typeof a === "number" ? a : String(a ?? "").toLowerCase();
+  const normalizedB = typeof b === "number" ? b : String(b ?? "").toLowerCase();
+  if (normalizedA < normalizedB) return -1;
+  if (normalizedA > normalizedB) return 1;
+  return 0;
+}
+
+function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
+  if (!active) return <ArrowUpDown className="h-3.5 w-3.5 opacity-45" />;
+  return direction === "asc"
+    ? <ArrowUp className="h-3.5 w-3.5" />
+    : <ArrowDown className="h-3.5 w-3.5" />;
+}
+
+function SortableTableHead({
+  children,
+  active,
+  direction,
+  onClick,
+  className,
+  align = "left",
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  direction: SortDirection;
+  onClick: () => void;
+  className?: string;
+  align?: "left" | "right";
+}) {
+  return (
+    <TableHead className={className}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+          align === "right" && "ml-auto justify-end",
+        )}
+      >
+        {children}
+        <SortIcon active={active} direction={direction} />
+      </button>
+    </TableHead>
+  );
 }
 
 function FilterSection({
@@ -143,6 +199,10 @@ export default function GlobalErrors() {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [localFilters, setLocalFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<{ key: ErrorSortKey; direction: SortDirection }>({
+    key: "date",
+    direction: "desc",
+  });
 
   const activeFilterCount = countActiveFilters(filters);
 
@@ -160,6 +220,13 @@ export default function GlobalErrors() {
     setLocalFilters(EMPTY_FILTERS);
     setFilters(EMPTY_FILTERS);
     setFiltersOpen(false);
+  };
+
+  const handleSort = (key: ErrorSortKey) => {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
   };
 
   // ── Data ─────────────────────────────────────────────────
@@ -180,7 +247,7 @@ export default function GlobalErrors() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return errors.filter((e) => {
+    const result = errors.filter((e) => {
       if (filters.category !== "all" && e.error_category !== filters.category) return false;
       if (filters.type !== "all" && e.error_type !== filters.type) return false;
       if (filters.dateFrom || filters.dateTo) {
@@ -200,7 +267,31 @@ export default function GlobalErrors() {
       }
       return true;
     });
-  }, [errors, filters, search]);
+
+    const getSortValue = (e: OrderError, key: ErrorSortKey) => {
+      switch (key) {
+        case "date":
+          return parseISO(e.error_date).getTime();
+        case "order":
+          return e.orders?.order_code ?? e.orders?.description ?? "";
+        case "type":
+          return TYPE_LABELS[e.error_type] || e.error_type;
+        case "category":
+          return CATEGORY_LABELS[e.error_category] || e.error_category;
+        case "amount":
+          return Number(e.amount ?? 0);
+        case "description":
+          return e.description ?? "";
+        default:
+          return "";
+      }
+    };
+
+    return [...result].sort((a, b) => {
+      const order = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
+      return sort.direction === "asc" ? order : -order;
+    });
+  }, [errors, filters, search, sort]);
 
   // ── Stats ────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -452,12 +543,12 @@ export default function GlobalErrors() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Ordine</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead className="text-right">Importo</TableHead>
-                  <TableHead>Descrizione</TableHead>
+                  <SortableTableHead active={sort.key === "date"} direction={sort.direction} onClick={() => handleSort("date")}>Data</SortableTableHead>
+                  <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
+                  <SortableTableHead active={sort.key === "type"} direction={sort.direction} onClick={() => handleSort("type")}>Tipo</SortableTableHead>
+                  <SortableTableHead active={sort.key === "category"} direction={sort.direction} onClick={() => handleSort("category")}>Categoria</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "amount"} direction={sort.direction} onClick={() => handleSort("amount")}>Importo</SortableTableHead>
+                  <SortableTableHead active={sort.key === "description"} direction={sort.direction} onClick={() => handleSort("description")}>Descrizione</SortableTableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

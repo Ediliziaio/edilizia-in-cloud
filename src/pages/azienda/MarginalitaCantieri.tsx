@@ -38,6 +38,9 @@ import {
   ArrowUpRight,
   Info,
   HardHat,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +61,71 @@ interface MarginalitaRow {
   work_start_date: string | null;
   work_end_date: string | null;
   created_at: string;
+}
+
+type SortDirection = "asc" | "desc";
+type MarginalitaSortKey =
+  | "order"
+  | "cliente"
+  | "stato"
+  | "preventivo"
+  | "consuntivo"
+  | "margine"
+  | "marginePerc"
+  | "overhead"
+  | "margineNetto"
+  | "acquisti"
+  | "errori";
+
+function compareSortValues(
+  a: string | number | null | undefined,
+  b: string | number | null | undefined,
+) {
+  const normalizedA = typeof a === "number" ? a : String(a ?? "").toLowerCase();
+  const normalizedB = typeof b === "number" ? b : String(b ?? "").toLowerCase();
+  if (normalizedA < normalizedB) return -1;
+  if (normalizedA > normalizedB) return 1;
+  return 0;
+}
+
+function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
+  if (!active) return <ArrowUpDown className="h-3.5 w-3.5 opacity-45" />;
+  return direction === "asc"
+    ? <ArrowUp className="h-3.5 w-3.5" />
+    : <ArrowDown className="h-3.5 w-3.5" />;
+}
+
+function SortableTableHead({
+  children,
+  active,
+  direction,
+  onClick,
+  className,
+  align = "left",
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  direction: SortDirection;
+  onClick: () => void;
+  className?: string;
+  align?: "left" | "center" | "right";
+}) {
+  return (
+    <TableHead className={className}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+          align === "center" && "mx-auto justify-center",
+          align === "right" && "ml-auto justify-end",
+        )}
+      >
+        {children}
+        <SortIcon active={active} direction={direction} />
+      </button>
+    </TableHead>
+  );
 }
 
 function MargineColorClass(perc: number): string {
@@ -153,6 +221,10 @@ export default function MarginalitaCantieri() {
   const [healthFilter, setHealthFilter] = useState<"tutti" | "critici" | "sotto_target" | "sani">("tutti");
   const [overheadPct, setOverheadPct] = useState(20);
   const [drillRow, setDrillRow] = useState<MarginalitaRow | null>(null);
+  const [sort, setSort] = useState<{ key: MarginalitaSortKey; direction: SortDirection }>({
+    key: "margineNetto",
+    direction: "asc",
+  });
 
   const { data: rows = [], isLoading, error } = useQuery({
     queryKey: ["marginalita-cantieri", companyId],
@@ -200,8 +272,50 @@ export default function MarginalitaCantieri() {
       if (healthFilter === "sani") return netto >= 25;
       return true;
     });
-    return [...result].sort((a, b) => (a.margine_perc - overheadPct) - (b.margine_perc - overheadPct));
-  }, [rows, annoFilter, search, healthFilter, overheadPct]);
+    const getSortValue = (row: MarginalitaRow, key: MarginalitaSortKey) => {
+      const margineNetto = row.margine_perc - overheadPct;
+      const overheadAllocato = row.preventivo_totale * (overheadPct / 100);
+      const margineNettoAbs = row.preventivo_totale * (margineNetto / 100);
+      switch (key) {
+        case "order":
+          return row.order_code ?? row.description ?? "";
+        case "cliente":
+          return row.cliente_nome ?? "";
+        case "stato":
+          return margineNetto;
+        case "preventivo":
+          return Number(row.preventivo_totale ?? 0);
+        case "consuntivo":
+          return Number(row.consuntivo ?? 0);
+        case "margine":
+          return Number(row.margine ?? 0);
+        case "marginePerc":
+          return Number(row.margine_perc ?? 0);
+        case "overhead":
+          return overheadAllocato;
+        case "margineNetto":
+          return margineNettoAbs;
+        case "acquisti":
+          return Number(row.costo_acquisti ?? 0);
+        case "errori":
+          return Number(row.costo_errori ?? 0);
+        default:
+          return "";
+      }
+    };
+
+    return [...result].sort((a, b) => {
+      const order = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
+      return sort.direction === "asc" ? order : -order;
+    });
+  }, [rows, annoFilter, search, healthFilter, overheadPct, sort]);
+
+  const handleSort = (key: MarginalitaSortKey) => {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
 
   // ── KPI aggregati (su filtered) ──────────────────────────────
   const kpi = useMemo(() => {
@@ -447,17 +561,17 @@ export default function MarginalitaCantieri() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ordine</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Preventivo</TableHead>
-                  <TableHead className="text-right">Consuntivo</TableHead>
-                  <TableHead className="text-right">Margine €</TableHead>
-                  <TableHead className="text-center w-32">Margine %</TableHead>
-                  <TableHead className="text-right">Overhead alloc.</TableHead>
-                  <TableHead className="text-right">Margine netto</TableHead>
-                  <TableHead className="text-right">Acquisti</TableHead>
-                  <TableHead className="text-right">Errori</TableHead>
+                  <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
+                  <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>Cliente</SortableTableHead>
+                  <SortableTableHead active={sort.key === "stato"} direction={sort.direction} onClick={() => handleSort("stato")}>Stato</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "preventivo"} direction={sort.direction} onClick={() => handleSort("preventivo")}>Preventivo</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "consuntivo"} direction={sort.direction} onClick={() => handleSort("consuntivo")}>Consuntivo</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "margine"} direction={sort.direction} onClick={() => handleSort("margine")}>Margine €</SortableTableHead>
+                  <SortableTableHead className="text-center w-32" align="center" active={sort.key === "marginePerc"} direction={sort.direction} onClick={() => handleSort("marginePerc")}>Margine %</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "overhead"} direction={sort.direction} onClick={() => handleSort("overhead")}>Overhead alloc.</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "margineNetto"} direction={sort.direction} onClick={() => handleSort("margineNetto")}>Margine netto</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "acquisti"} direction={sort.direction} onClick={() => handleSort("acquisti")}>Acquisti</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "errori"} direction={sort.direction} onClick={() => handleSort("errori")}>Errori</SortableTableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
