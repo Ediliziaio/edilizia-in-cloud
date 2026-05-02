@@ -3,7 +3,7 @@
 
 ALTER TABLE public.referrers ADD COLUMN IF NOT EXISTS referral_link text;
 ALTER TABLE public.referrers ADD COLUMN IF NOT EXISTS dashboard_slug text;
-ALTER TABLE public.referrers ADD COLUMN IF NOT EXISTS tracking_token text DEFAULT encode(gen_random_bytes(24), 'hex');
+ALTER TABLE public.referrers ADD COLUMN IF NOT EXISTS tracking_token text DEFAULT substr(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 1, 48);
 ALTER TABLE public.referrers ADD COLUMN IF NOT EXISTS created_by uuid;
 ALTER TABLE public.referrers ADD COLUMN IF NOT EXISTS last_event_at timestamptz;
 
@@ -39,7 +39,7 @@ UPDATE public.referrers
 SET
   referral_link = COALESCE(referral_link, 'https://app.ediliziaincloud.com/login?ref=' || referral_code),
   dashboard_slug = COALESCE(dashboard_slug, lower(referral_code)),
-  tracking_token = COALESCE(tracking_token, encode(gen_random_bytes(24), 'hex'))
+  tracking_token = COALESCE(tracking_token, substr(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 1, 48))
 WHERE referral_code IS NOT NULL;
 
 ALTER TABLE public.referral_links ENABLE ROW LEVEL SECURITY;
@@ -158,10 +158,10 @@ DECLARE
   v_code text;
 BEGIN
   FOR i IN 1..20 LOOP
-    v_code := upper(substr(encode(gen_random_bytes(9), 'base64'), 1, 10));
+    v_code := upper(substr(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 1, 10));
     v_code := regexp_replace(v_code, '[^A-Z0-9]', '', 'g');
     v_code := replace(replace(v_code, 'O', 'X'), '0', '9');
-    v_code := substr(v_code || upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6)), 1, 10);
+    v_code := substr(v_code || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6)), 1, 10);
 
     IF NOT EXISTS (SELECT 1 FROM public.referrers WHERE referral_code = v_code) THEN
       RETURN v_code;
@@ -204,7 +204,7 @@ BEGIN
   SET
     referral_link = v_link,
     dashboard_slug = COALESCE(dashboard_slug, lower(v_code)),
-    tracking_token = COALESCE(tracking_token, encode(gen_random_bytes(24), 'hex'))
+    tracking_token = COALESCE(tracking_token, substr(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 1, 48))
   WHERE id = p_referrer_id;
 
   RETURN v_link;
