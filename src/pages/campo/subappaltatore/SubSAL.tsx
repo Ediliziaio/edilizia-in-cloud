@@ -38,62 +38,83 @@ export default function SubSAL() {
 
   // Lista SAL
   const { data: salList = [], isLoading } = useQuery({
-    queryKey: ["sub-sal-list", user?.id],
+    queryKey: ["sub-sal-list", companyId, user?.id],
     queryFn: async () => {
       // Get subappaltatore record
-      const { data: sub } = await supabase
+      if (!companyId) return [];
+      const { data: sub, error: subError } = await supabase
         .from("subappaltatori")
         .select("id")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId)
         .maybeSingle();
+      if (subError) throw subError;
 
       if (!sub) return [];
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("sal_subappaltatori")
         .select(`
           *,
           order:orders(id, order_code, description)
         `)
         .eq("subappaltatore_id", sub.id)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
   });
 
   // Cantieri assegnati
   const { data: cantieri = [] } = useQuery({
-    queryKey: ["campo-cantieri-sal", user?.id],
+    queryKey: ["campo-cantieri-sal", companyId, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!companyId) return [];
+      const { data, error } = await supabase
         .from("order_campo_assignments")
         .select("order_id, order:orders(id, order_code, description)")
-        .eq("user_id", user!.id);
+        .eq("user_id", user!.id)
+        .eq("company_id", companyId);
+      if (error) throw error;
       return (data ?? []).map((a: any) => a.order).filter(Boolean);
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
   });
 
   const submitMutation = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
       if (!selectedOrderId) throw new Error("Seleziona un cantiere");
-      if (!importo || isNaN(parseFloat(importo))) throw new Error("Inserisci un importo valido");
+      const parsedImporto = Number.parseFloat(importo);
+      const parsedPercentuale = Number.parseInt(percentuale, 10);
+      if (!Number.isFinite(parsedImporto) || parsedImporto <= 0) throw new Error("Inserisci un importo positivo");
+      if (!Number.isInteger(parsedPercentuale) || parsedPercentuale < 0 || parsedPercentuale > 100) {
+        throw new Error("La percentuale deve essere compresa tra 0 e 100");
+      }
+
+      const assigned = cantieri.some((c: any) => c?.id === selectedOrderId);
+      if (!assigned) throw new Error("Cantiere non assegnato al tuo account");
 
       // Get subappaltatore ID
-      const { data: sub } = await supabase
+      const { data: sub, error: subError } = await supabase
         .from("subappaltatori")
         .select("id")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId)
         .maybeSingle();
+      if (subError) throw subError;
       if (!sub) throw new Error("Account subappaltatore non trovato");
 
       // Get next numero_sal
-      const { count } = await supabase
+      const { count, error: countError } = await supabase
         .from("sal_subappaltatori")
         .select("*", { count: "exact", head: true })
         .eq("subappaltatore_id", sub.id)
-        .eq("order_id", selectedOrderId);
+        .eq("order_id", selectedOrderId)
+        .eq("company_id", companyId);
+      if (countError) throw countError;
       const nextNum = (count ?? 0) + 1;
 
       const { error } = await supabase.from("sal_subappaltatori").insert({
@@ -101,8 +122,8 @@ export default function SubSAL() {
         order_id: selectedOrderId,
         company_id: companyId,
         numero_sal: nextNum,
-        importo: parseFloat(importo),
-        percentuale_avanzamento: parseInt(percentuale),
+        importo: parsedImporto,
+        percentuale_avanzamento: parsedPercentuale,
         descrizione: descrizione.trim() || null,
         status: "inviato",
         data_invio: new Date().toISOString(),
@@ -116,7 +137,7 @@ export default function SubSAL() {
       setImporto("");
       setPercentuale("0");
       setDescrizione("");
-      qc.invalidateQueries({ queryKey: ["sub-sal-list"] });
+      qc.invalidateQueries({ queryKey: ["sub-sal-list", companyId, user?.id] });
     },
     onError: (err: any) => toast.error(err.message ?? "Errore nell'invio del SAL"),
   });

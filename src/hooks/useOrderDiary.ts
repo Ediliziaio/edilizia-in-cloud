@@ -78,17 +78,18 @@ export function useOrderDiary(orderId: string | undefined) {
     isLoading: eventsLoading,
     isError: eventsError,
   } = useQuery({
-    queryKey: ["order-events", orderId],
+    queryKey: ["order-events", effectiveCompany?.id, orderId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_events" as never)
         .select("*")
         .eq("order_id" as never, orderId as never)
+        .eq("company_id" as never, effectiveCompany!.id as never)
         .order("created_at" as never, { ascending: false });
       if (error) throw error;
       return (data ?? []) as OrderEvent[];
     },
-    enabled: !!orderId,
+    enabled: !!orderId && !!effectiveCompany?.id,
     staleTime: 30_000,
   });
 
@@ -98,17 +99,18 @@ export function useOrderDiary(orderId: string | undefined) {
     isLoading: messagesLoading,
     isError: messagesError,
   } = useQuery({
-    queryKey: ["order-messages", orderId],
+    queryKey: ["order-messages", effectiveCompany?.id, orderId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_messages" as never)
         .select("*")
         .eq("order_id" as never, orderId as never)
+        .eq("company_id" as never, effectiveCompany!.id as never)
         .order("created_at" as never, { ascending: false });
       if (error) throw error;
       return (data ?? []) as OrderMessage[];
     },
-    enabled: !!orderId,
+    enabled: !!orderId && !!effectiveCompany?.id,
     staleTime: 30_000,
   });
 
@@ -146,6 +148,7 @@ export function useOrderDiary(orderId: string | undefined) {
           .from("order_attachments")
           .select("id, file_name, file_type, file_size, uploaded_by, visible_to_customer, created_at")
           .eq("order_id", orderId!)
+          .eq("company_id", effectiveCompany!.id)
           .order("created_at", { ascending: false }),
         supabase
           .from("foto_cantiere")

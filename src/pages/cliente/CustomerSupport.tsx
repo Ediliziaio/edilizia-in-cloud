@@ -28,21 +28,24 @@ import {
 import type { CustomerTicketListItem, TicketStatus } from "@/types/tickets";
 
 export default function CustomerSupport() {
-  const { user } = useAuth();
+  const { user, profile, company } = useAuth();
+  const companyId = profile?.company_id ?? company?.id ?? null;
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const { data: tickets = [], isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.customerSupport.list(user?.id),
+    queryKey: [...queryKeys.customerSupport.list(user?.id), companyId],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("tickets")
         .select(`id, subject, status, priority, created_at, updated_at, order_id, order:orders(description)`)
+        .eq("company_id", companyId)
         .eq("customer_id", user!.id)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data as unknown as CustomerTicketListItem[];
     },
-    enabled: !!user,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 

@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, type ReactNode } from "react";
 import { Route, Navigate, useParams } from "react-router-dom";
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
@@ -14,6 +14,10 @@ function InterventoChiusuraRedirect() {
 }
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
+import {
+  RequireCompanyPermission,
+  type CompanyPermissionKey,
+} from "@/components/auth/RequireCompanyPermission";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
@@ -242,6 +246,10 @@ const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostituti
 
 const COMPANY_ROLES = ["company_admin", "company_staff", "super_admin", "salesperson", "call_center", "multi_company_user"] as const;
 
+function withCompanyPermission(permission: CompanyPermissionKey, element: ReactNode) {
+  return <RequireCompanyPermission permission={permission}>{element}</RequireCompanyPermission>;
+}
+
 export function companyRoutes() {
   return (
     <>
@@ -251,7 +259,7 @@ export function companyRoutes() {
         element={
           <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
-              <MarketingAutomationBuilder />
+              {withCompanyPermission("canViewMarketingAutomations", <MarketingAutomationBuilder />)}
             </ErrorBoundary>
           </ProtectedRoute>
         }
@@ -261,7 +269,7 @@ export function companyRoutes() {
         element={
           <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
-              <MarketingAutomationBuilder />
+              {withCompanyPermission("canViewMarketingAutomations", <MarketingAutomationBuilder />)}
             </ErrorBoundary>
           </ProtectedRoute>
         }
@@ -278,12 +286,12 @@ export function companyRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<CompanyDashboard />} />
+        <Route index element={withCompanyPermission("canViewDashboard", <CompanyDashboard />)} />
         <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="onboarding/vertical" element={<ErrorBoundary title="Errore nel caricamento onboarding settore"><OnboardingVertical /></ErrorBoundary>} />
-        <Route path="cruscotto" element={<CruscottoDashboardPage />} />
-        <Route path="cruscotto/gestisci" element={<CruscottoHub />} />
-        <Route path="cruscotto/aziendale" element={<CruscottoAziendale />} />
+        <Route path="cruscotto" element={withCompanyPermission("canViewCruscotto", <CruscottoDashboardPage />)} />
+        <Route path="cruscotto/gestisci" element={withCompanyPermission("canViewCruscotto", <CruscottoHub />)} />
+        <Route path="cruscotto/aziendale" element={withCompanyPermission("canViewCruscotto", <CruscottoAziendale />)} />
         {/* Upgrade fallback — mostrata da FeatureRoute quando una feature è negata */}
         <Route path="upgrade" element={<UpgradePage />} />
         {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1) */}
@@ -291,34 +299,34 @@ export function companyRoutes() {
         <Route path="dashboards/nuova" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
         <Route path="dashboards/:id" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>} />
         <Route path="dashboards/:id/modifica" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
-        <Route path="ordini" element={<ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>} />
-        <Route path="ordini/nuovo" element={<ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary>} />
-        <Route path="ordini/nuovo-lavoro-appaltatore" element={<FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute>} />
-        <Route path="ordini/:id" element={<ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>} />
-        <Route path="ordini/:id/diario" element={<ErrorBoundary title="Errore nel diario commessa"><OrderDiaryPage /></ErrorBoundary>} />
-        <Route path="ordini/:id/modifica" element={<EditOrder />} />
-        <Route path="magazzino" element={<Warehouse />} />
-        <Route path="magazzino/gestione" element={<WarehouseManager />} />
-        <Route path="calendario" element={<ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>} />
-        <Route path="clienti" element={<CustomersList />} />
-        <Route path="clienti/nuovo" element={<CreateCustomer />} />
-        <Route path="clienti/:id" element={<CompanyCustomerDetail />} />
+        <Route path="ordini" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>)} />
+        <Route path="ordini/nuovo" element={withCompanyPermission("canEditOrders", <ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary>)} />
+        <Route path="ordini/nuovo-lavoro-appaltatore" element={withCompanyPermission("canEditOrders", <FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="ordini/:id" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>)} />
+        <Route path="ordini/:id/diario" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel diario commessa"><OrderDiaryPage /></ErrorBoundary>)} />
+        <Route path="ordini/:id/modifica" element={withCompanyPermission("canEditOrders", <EditOrder />)} />
+        <Route path="magazzino" element={withCompanyPermission("canViewWarehouse", <Warehouse />)} />
+        <Route path="magazzino/gestione" element={withCompanyPermission("canEditWarehouse", <WarehouseManager />)} />
+        <Route path="calendario" element={withCompanyPermission("canViewCalendar", <ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>)} />
+        <Route path="clienti" element={withCompanyPermission("canViewCustomers", <CustomersList />)} />
+        <Route path="clienti/nuovo" element={withCompanyPermission("canEditCustomers", <CreateCustomer />)} />
+        <Route path="clienti/:id" element={withCompanyPermission("canViewCustomers", <CompanyCustomerDetail />)} />
         
-        <Route path="assistenza-lavori" element={<ErrorBoundary title="Errore nel caricamento assistenza lavori"><AssistenzaLavoriHub /></ErrorBoundary>} />
-        <Route path="assistenza" element={<ErrorBoundary title="Errore nel caricamento assistenza"><TicketsList /></ErrorBoundary>} />
-        <Route path="assistenza/nuovo" element={<ErrorBoundary title="Errore nella creazione ticket"><CreateCompanyTicket /></ErrorBoundary>} />
-        <Route path="assistenza/:id" element={<ErrorBoundary title="Errore nel dettaglio ticket"><TicketDetail /></ErrorBoundary>} />
-        <Route path="assistenza/:id/chiudi" element={<FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>} />
+        <Route path="assistenza-lavori" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza lavori"><AssistenzaLavoriHub /></ErrorBoundary>)} />
+        <Route path="assistenza" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza"><TicketsList /></ErrorBoundary>)} />
+        <Route path="assistenza/nuovo" element={withCompanyPermission("canEditTickets", <ErrorBoundary title="Errore nella creazione ticket"><CreateCompanyTicket /></ErrorBoundary>)} />
+        <Route path="assistenza/:id" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel dettaglio ticket"><TicketDetail /></ErrorBoundary>)} />
+        <Route path="assistenza/:id/chiudi" element={withCompanyPermission("canEditTickets", <FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>)} />
         {/* Interventi unificati dentro Assistenza — redirect retrocompat: */}
         <Route path="interventi" element={<Navigate to="/azienda/assistenza?tipo=intervento" replace />} />
         <Route path="interventi/nuovo" element={<Navigate to="/azienda/assistenza/nuovo?tipo=intervento" replace />} />
         <Route path="interventi/:id" element={<InterventoDetailRedirect />} />
         <Route path="interventi/:id/chiudi" element={<InterventoChiusuraRedirect />} />
-        <Route path="manutenzione" element={<FeatureRoute featureKey="cantieri_avanzati"><ManutenzioneList /></FeatureRoute>} />
-        <Route path="manutenzione/impianto/:id" element={<FeatureRoute featureKey="cantieri_avanzati"><ImpiantoDetail /></FeatureRoute>} />
-        <Route path="impianti/:impiantoId/storico" element={<FeatureRoute featureKey="cantieri_avanzati"><StoricoImpianto /></FeatureRoute>} />
-        <Route path="previsionale" element={<CashFlowForecast />} />
-        <Route path="costi" element={<CompanyCosts />} />
+        <Route path="manutenzione" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><ManutenzioneList /></FeatureRoute>)} />
+        <Route path="manutenzione/impianto/:id" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><ImpiantoDetail /></FeatureRoute>)} />
+        <Route path="impianti/:impiantoId/storico" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><StoricoImpianto /></FeatureRoute>)} />
+        <Route path="previsionale" element={withCompanyPermission("canViewForecast", <CashFlowForecast />)} />
+        <Route path="costi" element={withCompanyPermission("canViewCosts", <CompanyCosts />)} />
         
         <Route path="attivita" element={<AttivitaRouter />} />
         {/* Le pagine timbrature-personali, ferie-personali, cedolini-personali
@@ -328,167 +336,167 @@ export function companyRoutes() {
         <Route path="cedolini-personali" element={<Navigate to="/azienda/attivita?tab=cedolini" replace />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
-        <Route path="chat" element={<InternalChat />} />
+        <Route path="chat" element={withCompanyPermission("canViewPersone", <InternalChat />)} />
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
-        <Route path="personale" element={<FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>} />
-        <Route path="personale/timbratura" element={<FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>} />
+        <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />
+        <Route path="personale/timbratura" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>)} />
         {/* Tesoreria — gated: tesoreria (core, default abilitato su tutti i piani) */}
-        <Route path="tesoreria" element={<FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>} />
+        <Route path="tesoreria" element={withCompanyPermission("canViewTesoreria", <FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>)} />
         {/* Fatturazione esterna — doppio guard: feature-level + billing mode */}
-        <Route path="fatturazione" element={<FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard></FeatureRoute>} />
-        <Route path="fatturazione/:id" element={<FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard></FeatureRoute>} />
-        <Route path="scadenzario" element={<ErrorBoundary title="Errore nel caricamento scadenzario"><FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard></FeatureRoute></ErrorBoundary>} />
+        <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoicesList /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="fatturazione/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><InvoiceDetail /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="scadenzario" element={withCompanyPermission("canViewScadenzario", <ErrorBoundary title="Errore nel caricamento scadenzario"><FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard></FeatureRoute></ErrorBoundary>)} />
 
         {/* Native billing routes — gated: documenti (core) + billing mode native */}
-        <Route path="documenti" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>} />
-        <Route path="documenti/nuovo" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>} />
-        <Route path="documenti/cassetto-sdi" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><CassettoSDI /></BillingModeGuard></FeatureRoute>} />
-        <Route path="documenti/fatture-ricevute" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/nuovo" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/cassetto-sdi" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><CassettoSDI /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/fatture-ricevute" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
-        <Route path="documenti/incassi" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard></FeatureRoute>} />
-        <Route path="documenti/registro-iva" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>} />
-        <Route path="documenti/anagrafiche" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard></FeatureRoute>} />
-        <Route path="documenti/anagrafiche/:id" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/incassi" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/registro-iva" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/anagrafiche" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/anagrafiche/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/proforma" element={<Navigate to="/azienda/documenti?tipo=proforma" replace />} />
         <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti?tipo=preventivo" replace />} />
         <Route path="documenti/note-credito" element={<Navigate to="/azienda/documenti?tipo=nota_credito" replace />} />
-        <Route path="documenti/report" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard></FeatureRoute>} />
-        <Route path="documenti/:id/dettaglio" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard></FeatureRoute>} />
-        <Route path="documenti/:id" element={<FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>} />
+        <Route path="documenti/report" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/:id/dettaglio" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>)} />
 
         {/* Prima nota — gated: tesoreria (stesso dominio finanziario) */}
-        <Route path="prima-nota" element={<ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>} />
+        <Route path="prima-nota" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>)} />
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
-        <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
+        <Route path="ordini-acquisto/:odaId" element={withCompanyPermission("canViewOrders", <PurchaseOrderDetail />)} />
         <Route path="ddt" element={<Navigate to="/azienda/ordini?tab=ddt" replace />} />
-        <Route path="ddt/:ddtId" element={<ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>} />
+        <Route path="ddt/:ddtId" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>)} />
         {/* Cantieri avanzati — gated: cantieri_avanzati (core, default su tutti i piani) */}
-        <Route path="sicurezza-cantiere" element={<FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>} />
-        <Route path="giornale-lavori" element={<FeatureRoute featureKey="cantieri_avanzati"><GiornaleLavori /></FeatureRoute>} />
-        <Route path="subappaltatori" element={<FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoriPage /></FeatureRoute>} />
-        <Route path="subappaltatori/:id" element={<FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoreDetail /></FeatureRoute>} />
+        <Route path="sicurezza-cantiere" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>)} />
+        <Route path="giornale-lavori" element={withCompanyPermission("canViewGiornaleLavori", <FeatureRoute featureKey="cantieri_avanzati"><GiornaleLavori /></FeatureRoute>)} />
+        <Route path="subappaltatori" element={withCompanyPermission("canViewSubappaltatori", <FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoriPage /></FeatureRoute>)} />
+        <Route path="subappaltatori/:id" element={withCompanyPermission("canViewSubappaltatori", <FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoreDetail /></FeatureRoute>)} />
         <Route path="marginalita" element={<Navigate to="/azienda/ordini?tab=marginalita" replace />} />
         {/* Unified Automazioni page — flow builder visuale + template gallery */}
-        <Route path="automazioni" element={<AutomazioniUnified />} />
+        <Route path="automazioni" element={withCompanyPermission("canViewAutomazioni", <AutomazioniUnified />)} />
 
         {/* Backward-compatible redirects */}
         <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni" replace />} />
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) — gated: ai_agents */}
-        <Route path="agenti-ai" element={<FeatureRoute featureKey="ai_agents"><AgentiAIPage /></FeatureRoute>} />
-        <Route path="agenti-ai/:agentId" element={<FeatureRoute featureKey="ai_agents"><AgentDetailPage /></FeatureRoute>} />
+        <Route path="agenti-ai" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentiAIPage /></FeatureRoute>)} />
+        <Route path="agenti-ai/:agentId" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentDetailPage /></FeatureRoute>)} />
 
         {/* Render AI Routes — gated: render_ai */}
-        <Route path="render" element={<FeatureRoute featureKey="render_ai"><RenderCategoryHub /></FeatureRoute>} />
+        <Route path="render" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderCategoryHub /></FeatureRoute>)} />
         {/* Render Infissi */}
-        <Route path="render/infissi" element={<FeatureRoute featureKey="render_ai"><RenderHub /></FeatureRoute>} />
-        <Route path="render/infissi/new" element={<FeatureRoute featureKey="render_ai"><RenderNew /></FeatureRoute>} />
-        <Route path="render/infissi/gallery" element={<FeatureRoute featureKey="render_ai"><RenderGallery /></FeatureRoute>} />
-        <Route path="render/infissi/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderGalleryDetail /></FeatureRoute>} />
+        <Route path="render/infissi" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderHub /></FeatureRoute>)} />
+        <Route path="render/infissi/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderNew /></FeatureRoute>)} />
+        <Route path="render/infissi/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderGallery /></FeatureRoute>)} />
+        <Route path="render/infissi/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderGalleryDetail /></FeatureRoute>)} />
         {/* Render Bagno */}
-        <Route path="render/bagno" element={<FeatureRoute featureKey="render_ai"><RenderBagnoHub /></FeatureRoute>} />
-        <Route path="render/bagno/new" element={<FeatureRoute featureKey="render_ai"><RenderBagnoNew /></FeatureRoute>} />
-        <Route path="render/bagno/gallery" element={<FeatureRoute featureKey="render_ai"><RenderBagnoGallery /></FeatureRoute>} />
-        <Route path="render/bagno/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderBagnoGalleryDetail /></FeatureRoute>} />
+        <Route path="render/bagno" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderBagnoHub /></FeatureRoute>)} />
+        <Route path="render/bagno/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderBagnoNew /></FeatureRoute>)} />
+        <Route path="render/bagno/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderBagnoGallery /></FeatureRoute>)} />
+        <Route path="render/bagno/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderBagnoGalleryDetail /></FeatureRoute>)} />
         {/* Render Pavimento */}
-        <Route path="render/pavimento" element={<FeatureRoute featureKey="render_ai"><RenderPavimentoHub /></FeatureRoute>} />
-        <Route path="render/pavimento/new" element={<FeatureRoute featureKey="render_ai"><RenderPavimentoNew /></FeatureRoute>} />
-        <Route path="render/pavimento/gallery" element={<FeatureRoute featureKey="render_ai"><RenderPavimentoGallery /></FeatureRoute>} />
-        <Route path="render/pavimento/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderPavimentoGalleryDetail /></FeatureRoute>} />
-        <Route path="render/facciata" element={<FeatureRoute featureKey="render_ai"><RenderFacciataHub /></FeatureRoute>} />
-        <Route path="render/facciata/new" element={<FeatureRoute featureKey="render_ai"><RenderFacciataNew /></FeatureRoute>} />
-        <Route path="render/facciata/gallery" element={<FeatureRoute featureKey="render_ai"><RenderFacciataGallery /></FeatureRoute>} />
-        <Route path="render/facciata/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderFacciataGalleryDetail /></FeatureRoute>} />
+        <Route path="render/pavimento" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPavimentoHub /></FeatureRoute>)} />
+        <Route path="render/pavimento/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPavimentoNew /></FeatureRoute>)} />
+        <Route path="render/pavimento/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPavimentoGallery /></FeatureRoute>)} />
+        <Route path="render/pavimento/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPavimentoGalleryDetail /></FeatureRoute>)} />
+        <Route path="render/facciata" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderFacciataHub /></FeatureRoute>)} />
+        <Route path="render/facciata/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderFacciataNew /></FeatureRoute>)} />
+        <Route path="render/facciata/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderFacciataGallery /></FeatureRoute>)} />
+        <Route path="render/facciata/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderFacciataGalleryDetail /></FeatureRoute>)} />
         {/* Render Persiane */}
-        <Route path="render/persiane" element={<FeatureRoute featureKey="render_ai"><RenderPersianeHub /></FeatureRoute>} />
-        <Route path="render/persiane/new" element={<FeatureRoute featureKey="render_ai"><RenderPersianeNew /></FeatureRoute>} />
-        <Route path="render/persiane/gallery" element={<FeatureRoute featureKey="render_ai"><RenderPersianeGallery /></FeatureRoute>} />
-        <Route path="render/persiane/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderPersianeGalleryDetail /></FeatureRoute>} />
+        <Route path="render/persiane" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPersianeHub /></FeatureRoute>)} />
+        <Route path="render/persiane/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPersianeNew /></FeatureRoute>)} />
+        <Route path="render/persiane/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPersianeGallery /></FeatureRoute>)} />
+        <Route path="render/persiane/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPersianeGalleryDetail /></FeatureRoute>)} />
         {/* Render Tetto */}
-        <Route path="render/tetto" element={<FeatureRoute featureKey="render_ai"><RenderTettoHub /></FeatureRoute>} />
-        <Route path="render/tetto/new" element={<FeatureRoute featureKey="render_ai"><RenderTettoNew /></FeatureRoute>} />
-        <Route path="render/tetto/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTettoGallery /></FeatureRoute>} />
-        <Route path="render/tetto/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTettoGalleryDetail /></FeatureRoute>} />
+        <Route path="render/tetto" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTettoHub /></FeatureRoute>)} />
+        <Route path="render/tetto/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTettoNew /></FeatureRoute>)} />
+        <Route path="render/tetto/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTettoGallery /></FeatureRoute>)} />
+        <Route path="render/tetto/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTettoGalleryDetail /></FeatureRoute>)} />
         {/* Render Pergole */}
-        <Route path="render/pergole" element={<FeatureRoute featureKey="render_ai"><RenderPergoleHub /></FeatureRoute>} />
-        <Route path="render/pergole/new" element={<FeatureRoute featureKey="render_ai"><RenderPergoleNew /></FeatureRoute>} />
-        <Route path="render/pergole/gallery" element={<FeatureRoute featureKey="render_ai"><RenderPergoleGallery /></FeatureRoute>} />
-        <Route path="render/pergole/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderPergoleGalleryDetail /></FeatureRoute>} />
+        <Route path="render/pergole" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPergoleHub /></FeatureRoute>)} />
+        <Route path="render/pergole/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPergoleNew /></FeatureRoute>)} />
+        <Route path="render/pergole/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPergoleGallery /></FeatureRoute>)} />
+        <Route path="render/pergole/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPergoleGalleryDetail /></FeatureRoute>)} />
         {/* Render Piscine */}
-        <Route path="render/piscine" element={<FeatureRoute featureKey="render_ai"><RenderPiscineHub /></FeatureRoute>} />
-        <Route path="render/piscine/new" element={<FeatureRoute featureKey="render_ai"><RenderPiscineNew /></FeatureRoute>} />
-        <Route path="render/piscine/gallery" element={<FeatureRoute featureKey="render_ai"><RenderPiscineGallery /></FeatureRoute>} />
-        <Route path="render/piscine/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderPiscineGalleryDetail /></FeatureRoute>} />
+        <Route path="render/piscine" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPiscineHub /></FeatureRoute>)} />
+        <Route path="render/piscine/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPiscineNew /></FeatureRoute>)} />
+        <Route path="render/piscine/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPiscineGallery /></FeatureRoute>)} />
+        <Route path="render/piscine/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPiscineGalleryDetail /></FeatureRoute>)} />
         {/* Render Stanza */}
-        <Route path="render/stanza" element={<FeatureRoute featureKey="render_ai"><RenderStanzaHub /></FeatureRoute>} />
-        <Route path="render/stanza/new" element={<FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>} />
-        <Route path="render/stanza/gallery" element={<FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>} />
-        <Route path="render/stanza/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderStanzaGalleryDetail /></FeatureRoute>} />
-        <Route path="render/ristrutturazioni" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="ristrutturazioni" /></FeatureRoute>} />
-        <Route path="render/ristrutturazioni/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="ristrutturazioni" /></FeatureRoute>} />
-        <Route path="render/ristrutturazioni/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="ristrutturazioni" /></FeatureRoute>} />
-        <Route path="render/ristrutturazioni/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="ristrutturazioni" /></FeatureRoute>} />
-        <Route path="render/pavimenti-esterni" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="pavimenti-esterni" /></FeatureRoute>} />
-        <Route path="render/pavimenti-esterni/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="pavimenti-esterni" /></FeatureRoute>} />
-        <Route path="render/pavimenti-esterni/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="pavimenti-esterni" /></FeatureRoute>} />
-        <Route path="render/pavimenti-esterni/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="pavimenti-esterni" /></FeatureRoute>} />
-        <Route path="render/giardini" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="giardini" /></FeatureRoute>} />
-        <Route path="render/giardini/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="giardini" /></FeatureRoute>} />
-        <Route path="render/giardini/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="giardini" /></FeatureRoute>} />
-        <Route path="render/giardini/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="giardini" /></FeatureRoute>} />
-        <Route path="render/porte-blindate" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="porte-blindate" /></FeatureRoute>} />
-        <Route path="render/porte-blindate/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="porte-blindate" /></FeatureRoute>} />
-        <Route path="render/porte-blindate/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="porte-blindate" /></FeatureRoute>} />
-        <Route path="render/porte-blindate/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="porte-blindate" /></FeatureRoute>} />
-        <Route path="render/porte-interne" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="porte-interne" /></FeatureRoute>} />
-        <Route path="render/porte-interne/new" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="porte-interne" /></FeatureRoute>} />
-        <Route path="render/porte-interne/gallery" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="porte-interne" /></FeatureRoute>} />
-        <Route path="render/porte-interne/gallery/:id" element={<FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="porte-interne" /></FeatureRoute>} />
+        <Route path="render/stanza" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaHub /></FeatureRoute>)} />
+        <Route path="render/stanza/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>)} />
+        <Route path="render/stanza/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>)} />
+        <Route path="render/stanza/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGalleryDetail /></FeatureRoute>)} />
+        <Route path="render/ristrutturazioni" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="ristrutturazioni" /></FeatureRoute>)} />
+        <Route path="render/ristrutturazioni/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="ristrutturazioni" /></FeatureRoute>)} />
+        <Route path="render/ristrutturazioni/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="ristrutturazioni" /></FeatureRoute>)} />
+        <Route path="render/ristrutturazioni/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="ristrutturazioni" /></FeatureRoute>)} />
+        <Route path="render/pavimenti-esterni" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="pavimenti-esterni" /></FeatureRoute>)} />
+        <Route path="render/pavimenti-esterni/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="pavimenti-esterni" /></FeatureRoute>)} />
+        <Route path="render/pavimenti-esterni/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="pavimenti-esterni" /></FeatureRoute>)} />
+        <Route path="render/pavimenti-esterni/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="pavimenti-esterni" /></FeatureRoute>)} />
+        <Route path="render/giardini" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="giardini" /></FeatureRoute>)} />
+        <Route path="render/giardini/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="giardini" /></FeatureRoute>)} />
+        <Route path="render/giardini/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="giardini" /></FeatureRoute>)} />
+        <Route path="render/giardini/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="giardini" /></FeatureRoute>)} />
+        <Route path="render/porte-blindate" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="porte-blindate" /></FeatureRoute>)} />
+        <Route path="render/porte-blindate/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="porte-blindate" /></FeatureRoute>)} />
+        <Route path="render/porte-blindate/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="porte-blindate" /></FeatureRoute>)} />
+        <Route path="render/porte-blindate/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="porte-blindate" /></FeatureRoute>)} />
+        <Route path="render/porte-interne" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="porte-interne" /></FeatureRoute>)} />
+        <Route path="render/porte-interne/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="porte-interne" /></FeatureRoute>)} />
+        <Route path="render/porte-interne/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="porte-interne" /></FeatureRoute>)} />
+        <Route path="render/porte-interne/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="porte-interne" /></FeatureRoute>)} />
 
         {/* Marketing Routes */}
-        <Route path="marketing" element={<MarketingDashboard />} />
-        <Route path="marketing/contatti" element={<MarketingContacts />} />
-        <Route path="marketing/contatti/:id" element={<MarketingContactDetail />} />
-        <Route path="marketing/opportunita" element={<MarketingOpportunities />} />
+        <Route path="marketing" element={withCompanyPermission("canViewMarketingDashboard", <MarketingDashboard />)} />
+        <Route path="marketing/contatti" element={withCompanyPermission("canViewMarketingContacts", <MarketingContacts />)} />
+        <Route path="marketing/contatti/:id" element={withCompanyPermission("canViewMarketingContacts", <MarketingContactDetail />)} />
+        <Route path="marketing/opportunita" element={withCompanyPermission("canViewMarketingOpportunities", <MarketingOpportunities />)} />
         <Route path="marketing/attivita" element={<Navigate to="/azienda/attivita?fonte=marketing" replace />} />
-        <Route path="marketing/calendario" element={<MarketingCalendar />} />
+        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <MarketingCalendar />)} />
         
         {/* Backward-compatible redirects for old marketing automation/agent routes */}
         <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />
         <Route path="marketing/agente-ai/*" element={<Navigate to="/azienda/agenti-ai" replace />} />
         <Route path="agente-interno/*" element={<Navigate to="/azienda/agenti-ai" replace />} />
-        <Route path="marketing/email" element={<FeatureRoute featureKey="email_marketing"><EmailMarketing /></FeatureRoute>} />
-        <Route path="marketing/email/campagna/:id/editor" element={<FeatureRoute featureKey="email_marketing"><CampaignEditor /></FeatureRoute>} />
-        <Route path="marketing/email/campagna/:id/builder" element={<FeatureRoute featureKey="email_marketing"><DragDropEmailBuilder /></FeatureRoute>} />
-        <Route path="marketing/email/campagna/:id/impostazioni" element={<FeatureRoute featureKey="email_marketing"><CampaignSendSettings /></FeatureRoute>} />
+        <Route path="marketing/email" element={withCompanyPermission("canViewMarketingEmail", <FeatureRoute featureKey="email_marketing"><EmailMarketing /></FeatureRoute>)} />
+        <Route path="marketing/email/campagna/:id/editor" element={withCompanyPermission("canViewMarketingEmail", <FeatureRoute featureKey="email_marketing"><CampaignEditor /></FeatureRoute>)} />
+        <Route path="marketing/email/campagna/:id/builder" element={withCompanyPermission("canViewMarketingEmail", <FeatureRoute featureKey="email_marketing"><DragDropEmailBuilder /></FeatureRoute>)} />
+        <Route path="marketing/email/campagna/:id/impostazioni" element={withCompanyPermission("canViewMarketingEmail", <FeatureRoute featureKey="email_marketing"><CampaignSendSettings /></FeatureRoute>)} />
         {/* MP04 — redirect legacy marketing/whatsapp → nuovo Hub */}
         <Route path="marketing/whatsapp" element={<Navigate to="/azienda/whatsapp" replace />} />
         {/* MP04 — Hub WhatsApp multi-numero */}
-        <Route path="whatsapp" element={<FeatureRoute featureKey="whatsapp"><WhatsAppHubPage /></FeatureRoute>} />
+        <Route path="whatsapp" element={withCompanyPermission("canViewMarketingWhatsapp", <FeatureRoute featureKey="whatsapp"><WhatsAppHubPage /></FeatureRoute>)} />
         {/* MP-FINAL — Routing granulare */}
-        <Route path="whatsapp/numeri/:id" element={<FeatureRoute featureKey="whatsapp"><WANumberDetailPage /></FeatureRoute>} />
-        <Route path="whatsapp/broadcast" element={<FeatureRoute featureKey="whatsapp"><BroadcastListPage /></FeatureRoute>} />
-        <Route path="whatsapp/broadcast/nuovo" element={<FeatureRoute featureKey="whatsapp"><BroadcastCreatePage /></FeatureRoute>} />
-        <Route path="whatsapp/broadcast/:id" element={<FeatureRoute featureKey="whatsapp"><BroadcastDetailPage /></FeatureRoute>} />
+        <Route path="whatsapp/numeri/:id" element={withCompanyPermission("canViewMarketingWhatsapp", <FeatureRoute featureKey="whatsapp"><WANumberDetailPage /></FeatureRoute>)} />
+        <Route path="whatsapp/broadcast" element={withCompanyPermission("canViewMarketingWhatsapp", <FeatureRoute featureKey="whatsapp"><BroadcastListPage /></FeatureRoute>)} />
+        <Route path="whatsapp/broadcast/nuovo" element={withCompanyPermission("canViewMarketingWhatsapp", <FeatureRoute featureKey="whatsapp"><BroadcastCreatePage /></FeatureRoute>)} />
+        <Route path="whatsapp/broadcast/:id" element={withCompanyPermission("canViewMarketingWhatsapp", <FeatureRoute featureKey="whatsapp"><BroadcastDetailPage /></FeatureRoute>)} />
         {/* MP05-FIX — rotta azienda /ai-modelli RIMOSSA (config ora SuperAdmin-only) */}
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
-        <Route path="marketing/reportistica" element={<ReportisticaPage />} />
+        <Route path="marketing/reportistica" element={withCompanyPermission("canViewMarketingReports", <ReportisticaPage />)} />
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
         <Route path="marketing/sms" element={<Navigate to="/azienda/sms-marketing" replace />} />
         {/* Portale SMS Marketing — route principale con sub-path (gated: sms_marketing) */}
-        <Route path="sms-marketing" element={<FeatureRoute featureKey="sms_marketing"><SmsMarketingPage /></FeatureRoute>} />
-        <Route path="sms-marketing/campagne" element={<FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="campagne" /></FeatureRoute>} />
-        <Route path="sms-marketing/contatti" element={<FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="contatti" /></FeatureRoute>} />
-        <Route path="sms-marketing/template" element={<FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="template" /></FeatureRoute>} />
+        <Route path="sms-marketing" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage /></FeatureRoute>)} />
+        <Route path="sms-marketing/campagne" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="campagne" /></FeatureRoute>)} />
+        <Route path="sms-marketing/contatti" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="contatti" /></FeatureRoute>)} />
+        <Route path="sms-marketing/template" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="template" /></FeatureRoute>)} />
         {/* SMS Transazionale — messaggi individuali + automazioni */}
-        <Route path="sms" element={<SmsPage />} />
-        <Route path="sms/invio" element={<SmsPage defaultTab="invio" />} />
-        <Route path="sms/storico" element={<SmsPage defaultTab="storico" />} />
-        <Route path="sms/automazioni" element={<SmsPage defaultTab="automazioni" />} />
+        <Route path="sms" element={withCompanyPermission("canViewSmsMarketing", <SmsPage />)} />
+        <Route path="sms/invio" element={withCompanyPermission("canViewSmsMarketing", <SmsPage defaultTab="invio" />)} />
+        <Route path="sms/storico" element={withCompanyPermission("canViewSmsMarketing", <SmsPage defaultTab="storico" />)} />
+        <Route path="sms/automazioni" element={withCompanyPermission("canViewSmsMarketing", <SmsPage defaultTab="automazioni" />)} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
-        <Route path="marketing/sales-os" element={<SalesOSDashboard />} />
+        <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <SalesOSDashboard />)} />
         {/* Modulo Fotovoltaico — gated da feature flag modulo_fotovoltaico_attivo */}
         <Route path="marketing/fotovoltaico" element={
           <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
@@ -510,111 +518,111 @@ export function companyRoutes() {
             <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
           </FeatureRoute>
         } />
-        <Route path="marketing/preventivi" element={<Preventivi />} />
+        <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <Preventivi />)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
-        <Route path="marketing/preventivi/nuovo" element={<QuoteBuilder />} />
-        <Route path="marketing/preventivi/:id" element={<QuoteDetail />} />
-        <Route path="marketing/preventivi/:id/modifica" element={<QuoteBuilder />} />
+        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditMarketingOpportunities", <QuoteBuilder />)} />
+        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewMarketingOpportunities", <QuoteDetail />)} />
+        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditMarketingOpportunities", <QuoteBuilder />)} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
-        <Route path="marketing/preventivi/:id/margini" element={<QuoteMargini />} />
+        <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
         
         <Route path="impostazioni" element={<SettingsLayout />}>
           <Route index element={<Navigate to="mio-profilo" replace />} />
           {/* ── Il mio account (accessibile a tutti) ── */}
           <Route path="mio-profilo" element={<MioProfilo />} />
           {/* ── Impostazioni azienda (solo admin/permessi) ── */}
-          <Route path="profilo" element={<SettingsProfile />} />
+          <Route path="profilo" element={withCompanyPermission("canViewSettingsProfile", <SettingsProfile />)} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />
-          <Route path="listino" element={<SettingsCatalog />} />
-          <Route path="listino/import" element={<SettingsCatalogImport />} />
+          <Route path="listino" element={withCompanyPermission("canViewSettingsCustomization", <SettingsCatalog />)} />
+          <Route path="listino/import" element={withCompanyPermission("canEditSettingsCustomization", <SettingsCatalogImport />)} />
           <Route path="catalogo/import" element={<Navigate to="../listino/import" replace />} />
           <Route path="listino/famiglie" element={<Navigate to="../listino?tab=famiglie" replace />} />
-          <Route path="listino/famiglie/nuova" element={<SettingsFamilyEditor />} />
-          <Route path="listino/famiglie/:id" element={<SettingsFamilyEditor />} />
-          <Route path="bundle-serramentista" element={<SettingsBundle />} />
-          <Route path="bundle" element={<SettingsBundle />} />
-          <Route path="tariffe" element={<SettingsTariffe />} />
-          <Route path="listino-manutenzione" element={<ListinoManutenzione />} />
+          <Route path="listino/famiglie/nuova" element={withCompanyPermission("canEditSettingsCustomization", <SettingsFamilyEditor />)} />
+          <Route path="listino/famiglie/:id" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFamilyEditor />)} />
+          <Route path="bundle-serramentista" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBundle />)} />
+          <Route path="bundle" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBundle />)} />
+          <Route path="tariffe" element={withCompanyPermission("canViewSettingsCustomization", <SettingsTariffe />)} />
+          <Route path="listino-manutenzione" element={withCompanyPermission("canViewSettingsCustomization", <ListinoManutenzione />)} />
           {/* Finanziamenti — tabelle finanziarie + calcolatore (Phase A MVP) */}
-          <Route path="finanziamenti" element={<SettingsFinanziamenti />} />
-          <Route path="finanziamenti/nuova" element={<SettingsFinanziamentiNuova />} />
-          <Route path="finanziamenti/calcolatore" element={<SettingsFinanziamentiCalcolatore />} />
-          <Route path="finanziamenti/:id" element={<SettingsFinanziamentiDetail />} />
+          <Route path="finanziamenti" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFinanziamenti />)} />
+          <Route path="finanziamenti/nuova" element={withCompanyPermission("canEditSettingsCustomization", <SettingsFinanziamentiNuova />)} />
+          <Route path="finanziamenti/calcolatore" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFinanziamentiCalcolatore />)} />
+          <Route path="finanziamenti/:id" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFinanziamentiDetail />)} />
           {/* Listini Serramenti Avanzati (feature opt-in) */}
           <Route
             path="listini-serramenti/fornitori"
             element={
-              <FeatureRoute featureKey="listini_serramenti_avanzati">
+              withCompanyPermission("canViewSettingsCustomization", <FeatureRoute featureKey="listini_serramenti_avanzati">
                 <ErrorBoundary title="Errore listini serramenti">
                   <ListiniFornitoriPage />
                 </ErrorBoundary>
-              </FeatureRoute>
+              </FeatureRoute>)
             }
           />
           <Route
             path="listini-serramenti/matrice"
             element={
-              <FeatureRoute featureKey="listini_serramenti_avanzati">
+              withCompanyPermission("canViewSettingsCustomization", <FeatureRoute featureKey="listini_serramenti_avanzati">
                 <ErrorBoundary title="Errore matrice listini">
                   <MatriceListiniPage />
                 </ErrorBoundary>
-              </FeatureRoute>
+              </FeatureRoute>)
             }
           />
-          <Route path="margini" element={<SettingsMargini />} />
-          <Route path="scontistica" element={<SettingsScontistica />} />
-          <Route path="stati-ordine" element={<SettingsOrderStatus />} />
-          <Route path="fornitori" element={<SettingsSuppliers />} />
-          <Route path="qr-codici" element={<SettingsQrCodici />} />
-          <Route path="categorie-costi" element={<SettingsCostCategories />} />
-          <Route path="automazioni-finanza" element={<SettingsFinanceAutomation />} />
-          <Route path="tag" element={<SettingsTags />} />
-          <Route path="campi-personalizzati" element={<SettingsCustomFields />} />
-          <Route path="sequenze" element={<SettingsPipelines />} />
-          <Route path="calendari" element={<SettingsMarketingCalendars />} />
+          <Route path="margini" element={withCompanyPermission("canViewCosts", <SettingsMargini />)} />
+          <Route path="scontistica" element={withCompanyPermission("canViewSettingsCustomization", <SettingsScontistica />)} />
+          <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />
+          <Route path="fornitori" element={withCompanyPermission("canViewSettingsOrders", <SettingsSuppliers />)} />
+          <Route path="qr-codici" element={withCompanyPermission("canViewSettingsOrders", <SettingsQrCodici />)} />
+          <Route path="categorie-costi" element={withCompanyPermission("canViewCosts", <SettingsCostCategories />)} />
+          <Route path="automazioni-finanza" element={withCompanyPermission("canViewCosts", <SettingsFinanceAutomation />)} />
+          <Route path="tag" element={withCompanyPermission("canViewSettingsCustomization", <SettingsTags />)} />
+          <Route path="campi-personalizzati" element={withCompanyPermission("canViewSettingsCustomization", <SettingsCustomFields />)} />
+          <Route path="sequenze" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPipelines />)} />
+          <Route path="calendari" element={withCompanyPermission("canViewSettingsCustomization", <SettingsMarketingCalendars />)} />
           {/* IMP3: Persone & Accessi — pagina unica con 4 tab */}
-          <Route path="persone" element={<SettingsPeople />} />
+          <Route path="persone" element={withCompanyPermission("canViewSettingsPeople", <SettingsPeople />)} />
           {/* Redirect delle 4 route precedenti → pagina unificata con tab corretto */}
           <Route path="utenti" element={<Navigate to="/azienda/impostazioni/persone?tab=utenti" replace />} />
-          <Route path="utenti/:userId" element={<SettingsUserDetail />} />
+          <Route path="utenti/:userId" element={withCompanyPermission("canViewSettingsPeople", <SettingsUserDetail />)} />
           <Route path="venditori" element={<Navigate to="/azienda/impostazioni/persone?tab=venditori" replace />} />
           <Route path="staff" element={<Navigate to="/azienda/impostazioni/persone?tab=staff" replace />} />
-          <Route path="sedi" element={<SettingsSedi />} />
+          <Route path="sedi" element={withCompanyPermission("canViewSettingsPeople", <SettingsSedi />)} />
           <Route path="team" element={<Navigate to="/azienda/impostazioni/persone?tab=team" replace />} />
           {/* IMP4: Sicurezza & Privacy — pagina unica con 4 tab */}
-          <Route path="sicurezza-privacy" element={<SettingsSecurityHub />} />
+          <Route path="sicurezza-privacy" element={withCompanyPermission("canViewSettingsSecurity", <SettingsSecurityHub />)} />
           {/* Redirect delle 4 route precedenti → pagina unificata con tab corretto */}
           <Route path="sicurezza" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=password" replace />} />
           <Route path="security-dashboard" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=dashboard" replace />} />
           <Route path="attivita" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=attivita" replace />} />
-          <Route path="integrazioni" element={<SettingsIntegrations />} />
-          <Route path="whatsapp-bot" element={<SettingsWhatsAppBot />} />
-          <Route path="lead-forms" element={<FacebookFormsPage />} />
-          <Route path="crediti" element={<SettingsCredits />} />
-          <Route path="api" element={<SettingsApiKeys />} />
-          <Route path="webhook" element={<SettingsWebhooks />} />
-          <Route path="dominio-email" element={<SettingsEmailDomain />} />
-          <Route path="preferenze-email" element={<SettingsEmailPreferences />} />
+          <Route path="integrazioni" element={withCompanyPermission("canViewSettingsSecurity", <SettingsIntegrations />)} />
+          <Route path="whatsapp-bot" element={withCompanyPermission("canViewSettingsCustomization", <SettingsWhatsAppBot />)} />
+          <Route path="lead-forms" element={withCompanyPermission("canViewSettingsCustomization", <FacebookFormsPage />)} />
+          <Route path="crediti" element={withCompanyPermission("canViewBilling", <SettingsCredits />)} />
+          <Route path="api" element={withCompanyPermission("canViewSettingsSecurity", <SettingsApiKeys />)} />
+          <Route path="webhook" element={withCompanyPermission("canViewSettingsSecurity", <SettingsWebhooks />)} />
+          <Route path="dominio-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailDomain />)} />
+          <Route path="preferenze-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailPreferences />)} />
           <Route path="privacy" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=privacy" replace />} />
-          <Route path="branding" element={<SettingsBranding />} />
-          <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
-          <Route path="template-preventivi" element={<SettingsQuoteTemplates />} />
-          <Route path="fatturazione" element={<SettingsBilling />} />
-          <Route path="fatturazione-nativa" element={<ImpostazioniFatturazione />} />
-          <Route path="abbonamento" element={<SettingsSubscriptionBilling />} />
-          <Route path="form-builder" element={<SettingsFormBuilder />} />
-          <Route path="numeri-telefono" element={<SettingsPhoneNumbers />} />
+          <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
+          <Route path="materiali-preventivi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsQuoteMaterials />)} />
+          <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsQuoteTemplates />)} />
+          <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <SettingsBilling />)} />
+          <Route path="fatturazione-nativa" element={withCompanyPermission("canViewBilling", <ImpostazioniFatturazione />)} />
+          <Route path="abbonamento" element={withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />)} />
+          <Route path="form-builder" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFormBuilder />)} />
+          <Route path="numeri-telefono" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPhoneNumbers />)} />
         </Route>
 
-        <Route path="ritenute-garanzia" element={<ErrorBoundary title="Errore nel caricamento ritenute"><RitenuteGaranzia /></ErrorBoundary>} />
+        <Route path="ritenute-garanzia" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel caricamento ritenute"><RitenuteGaranzia /></ErrorBoundary>)} />
         <Route path="foto-cantiere" element={<Navigate to="/azienda/ordini" replace />} />
         <Route path="gantt-ordini" element={<Navigate to="/azienda/calendario?view=gantt" replace />} />
-        <Route path="contabilita-fiscale" element={<ErrorBoundary title="Errore nella contabilità fiscale"><ContabilitaFiscale /></ErrorBoundary>} />
-        <Route path="archivio-sostitutivo" element={<ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary>} />
+        <Route path="contabilita-fiscale" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nella contabilità fiscale"><ContabilitaFiscale /></ErrorBoundary>)} />
+        <Route path="archivio-sostitutivo" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary>)} />
 
         {/* FEA — Firma Elettronica Avanzata + Documenti (gated: firma_fea) */}
-        <Route path="firma-elettronica" element={<FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>} />
-        <Route path="firma-elettronica/nuovo-template" element={<FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>} />
+        <Route path="firma-elettronica" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
+        <Route path="firma-elettronica/nuovo-template" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>)} />
       </Route>
     </>
   );

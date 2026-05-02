@@ -4,11 +4,48 @@ import type { Webhook, WebhookDelivery } from "@/types/webhooks";
 import { WEBHOOK_EVENTS } from "@/types/webhooks";
 
 const VALID_WEBHOOK_EVENTS = new Set(Object.values(WEBHOOK_EVENTS).flat() as string[]);
+const PRIVATE_HOST_PATTERNS = [
+  /^10\./,
+  /^127\./,
+  /^169\.254\./,
+  /^172\.(1[6-9]|2\d|3[0-1])\./,
+  /^192\.168\./,
+  /^0\./,
+];
+
+function validateWebhookEndpoint(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) throw new Error("URL endpoint obbligatorio.");
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("URL webhook non valido.");
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+  if (parsed.username || parsed.password) {
+    throw new Error("L'URL webhook non può contenere credenziali.");
+  }
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && isLocalhost)) {
+    throw new Error("I webhook devono usare HTTPS, salvo localhost per test locale.");
+  }
+  if (!isLocalhost && PRIVATE_HOST_PATTERNS.some((pattern) => pattern.test(hostname))) {
+    throw new Error("Endpoint webhook su reti private/locali non consentiti.");
+  }
+  if (hostname.endsWith(".local") || hostname === "metadata.google.internal") {
+    throw new Error("Endpoint webhook locali o metadata non consentiti.");
+  }
+
+  return parsed.toString();
+}
 
 function normalizeWebhookPayload<T extends Partial<Pick<Webhook, "name" | "url" | "secret" | "events" | "timeout_seconds" | "allowed_ips">>>(input: T): T {
   const normalized = { ...input } as T;
   if (typeof normalized.name === "string") normalized.name = normalized.name.trim() as T["name"];
-  if (typeof normalized.url === "string") normalized.url = normalized.url.trim() as T["url"];
+  if (typeof normalized.url === "string") normalized.url = validateWebhookEndpoint(normalized.url) as T["url"];
   if (Array.isArray(normalized.events)) {
     normalized.events = Array.from(new Set(normalized.events)).filter((event) => VALID_WEBHOOK_EVENTS.has(event)) as T["events"];
   }
@@ -28,7 +65,7 @@ export function useWebhooks(companyId: string | undefined) {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("webhooks")
-        .select("*")
+        .select("id, company_id, name, url, is_active, events, created_by, created_at, updated_at, allowed_ips, timeout_seconds, consecutive_failures, max_consecutive_failures, paused_at, paused_reason")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -132,17 +169,17 @@ export function useRetryDelivery(webhookId: string | null) {
         .from("webhook_deliveries")
         .update({
           status: "retrying",
-          attempt_count: ((delivery as any).attempt_count ?? 1) + 1,
+          attempt_count: (delivery.attempt_count ?? 1) + 1,
           last_attempt_at: new Date().toISOString(),
-        } as any)
+        } as never)
         .eq("id", deliveryId)
         .eq("webhook_id", webhookId);
 
       const { error } = await supabase.functions.invoke("send-webhook", {
         body: {
-          webhook_id: (delivery as any).webhook_id,
-          event_type: (delivery as any).event_type,
-          payload: (delivery as any).payload,
+          webhook_id: delivery.webhook_id,
+          event_type: delivery.event_type,
+          payload: delivery.payload,
         },
       });
       if (error) throw error;

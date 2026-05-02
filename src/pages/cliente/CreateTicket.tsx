@@ -29,7 +29,8 @@ export default function CreateTicket() {
   const [searchParams] = useSearchParams();
   const preselectedOrderId = searchParams.get("ordine");
 
-  const { user, profile } = useAuth();
+  const { user, profile, company } = useAuth();
+  const companyId = profile?.company_id ?? company?.id ?? null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -54,25 +55,31 @@ export default function CreateTicket() {
 
   // Fetch customer's orders
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
-    queryKey: ["customer-orders-for-ticket", user?.id],
+    queryKey: ["customer-orders-for-ticket", companyId, user?.id],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("orders")
         .select("id, description")
+        .eq("company_id", companyId)
         .eq("customer_id", user!.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!user?.id && !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
   const createTicketMutation = useMutation({
     mutationFn: async () => {
-      if (!user || !profile?.company_id) {
+      if (!user || !companyId) {
         throw new Error("Dati utente non disponibili");
+      }
+      const selectedOrderId = orderId && orderId !== "__none__" ? orderId : null;
+      if (selectedOrderId && !orders.some((order) => order.id === selectedOrderId)) {
+        throw new Error("Ordine non disponibile per questo cliente");
       }
 
       // Create ticket
@@ -81,8 +88,8 @@ export default function CreateTicket() {
         .insert({
           subject,
           customer_id: user.id,
-          company_id: profile.company_id,
-          order_id: orderId && orderId !== "__none__" ? orderId : null,
+          company_id: companyId,
+          order_id: selectedOrderId,
           status: "aperto",
         })
         .select()
@@ -144,7 +151,7 @@ export default function CreateTicket() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !message.trim()) return;
-    if (!user || !profile?.company_id) {
+    if (!user || !companyId) {
       toast({
         title: "Attendere",
         description: "Dati utente in caricamento. Riprova tra un momento.",
@@ -265,7 +272,7 @@ export default function CreateTicket() {
           <div className="flex flex-col gap-3 pt-2">
             <Button
               type="submit"
-              disabled={!subject.trim() || !message.trim() || !profile?.company_id || createTicketMutation.isPending}
+              disabled={!subject.trim() || !message.trim() || !companyId || createTicketMutation.isPending}
               className="w-full rounded-2xl py-3.5 h-auto text-base font-semibold"
             >
               {createTicketMutation.isPending ? (

@@ -85,15 +85,18 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
 };
 
 export default function CustomerAppointments() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
 
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ["customer-appointments", user?.id],
+    queryKey: ["customer-appointments", companyId, user?.id],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("email")
         .eq("id", user!.id)
+        .eq("company_id", companyId)
         .maybeSingle();
 
       if (profileError) throw profileError;
@@ -102,6 +105,7 @@ export default function CustomerAppointments() {
       const { data, error } = await supabase
         .from("appointments")
         .select("id, title, description, appointment_date, appointment_time, appointment_end_time, appointment_type, status, is_completed, formatted_address, address_city, contact_email")
+        .eq("company_id", companyId)
         .eq("contact_email", profile.email)
         .not("appointment_type", "in", `(${EXCLUDED_TYPES.join(",")})`)
         .order("appointment_date", { ascending: false })
@@ -109,7 +113,7 @@ export default function CustomerAppointments() {
       if (error) throw error;
       return (data || []) as Appointment[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 

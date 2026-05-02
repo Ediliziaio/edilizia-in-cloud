@@ -16,6 +16,8 @@ import {
   CalendarDays,
   HeadphonesIcon,
   Activity,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatCurrency, formatRelativeTime } from "@/lib/formatters";
@@ -53,20 +55,23 @@ interface StatusHistoryEntry {
 
 export default function CustomerOrders() {
   const { user, company, profile } = useAuth();
+  const companyId = profile?.company_id ?? company?.id ?? null;
   const [searchQuery, setSearchQuery] = useState("");
   // Conta ticket aperti
   const { data: openTicketsCount = 0 } = useQuery({
-    queryKey: ["customer-open-tickets", user?.id],
+    queryKey: ["customer-open-tickets", companyId, user?.id],
     queryFn: async () => {
+      if (!companyId) return 0;
       const { count, error } = await supabase
         .from("tickets")
         .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
         .eq("customer_id", user!.id)
         .in("status", ["aperto", "in_lavorazione"]);
       if (error) throw error;
       return count || 0;
     },
-    enabled: !!user,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -77,8 +82,9 @@ export default function CustomerOrders() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["customer-orders", user?.id],
+    queryKey: ["customer-orders", companyId, user?.id],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("orders")
         .select(
@@ -93,6 +99,7 @@ export default function CustomerOrders() {
           status:order_statuses(name, color, icon)
         `
         )
+        .eq("company_id", companyId)
         .eq("customer_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(100);
@@ -100,7 +107,7 @@ export default function CustomerOrders() {
       if (error) throw error;
       return data as unknown as Order[];
     },
-    enabled: !!user,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -117,8 +124,9 @@ export default function CustomerOrders() {
 
   // ── Installments due within 7 days ────────────────────────
   const { data: dueSoonCount = 0 } = useQuery({
-    queryKey: ["customer-installments-due", user?.id],
+    queryKey: ["customer-installments-due", companyId, user?.id],
     queryFn: async () => {
+      if (!companyId) return 0;
       const now = new Date().toISOString().split("T")[0];
       const in7days = addDays(new Date(), 7).toISOString().split("T")[0];
 
@@ -136,7 +144,7 @@ export default function CustomerOrders() {
       if (error) throw error;
       return count || 0;
     },
-    enabled: !!user,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -154,10 +162,57 @@ export default function CustomerOrders() {
     return upcoming.length > 0 ? upcoming[0].expected_date : null;
   }, [orders]);
 
+  const nextAction = useMemo(() => {
+    if (dueSoonCount > 0) {
+      return {
+        title: "Ci sono pagamenti in scadenza",
+        description: "Controlla rate, acconti e saldo per evitare ritardi.",
+        href: "/cliente/rate",
+        label: "Vai ai pagamenti",
+        icon: CreditCard,
+      };
+    }
+    if (nextAppointment) {
+      return {
+        title: "Hai un intervento programmato",
+        description: `Prossimo appuntamento il ${format(new Date(nextAppointment), "d MMMM yyyy", { locale: it })}.`,
+        href: "/cliente/appuntamenti",
+        label: "Vedi interventi",
+        icon: CalendarDays,
+      };
+    }
+    if (openTicketsCount > 0) {
+      return {
+        title: "Assistenza in corso",
+        description: "Segui gli aggiornamenti dei ticket aperti.",
+        href: "/cliente/assistenza",
+        label: "Vedi assistenza",
+        icon: HeadphonesIcon,
+      };
+    }
+    if (activeOrdersCount > 0) {
+      return {
+        title: "I tuoi ordini sono in lavorazione",
+        description: "Apri un ordine per consultare avanzamento, date e documenti.",
+        href: "/cliente/documenti",
+        label: "Vedi documenti",
+        icon: FileText,
+      };
+    }
+    return {
+      title: "Area cliente aggiornata",
+      description: "Qui trovi ordini, pagamenti, interventi e documenti condivisi.",
+      href: "/cliente/documenti",
+      label: "Apri documenti",
+      icon: ShieldCheck,
+    };
+  }, [activeOrdersCount, dueSoonCount, nextAppointment, openTicketsCount]);
+
   // ── Activity feed: last 5 status changes ──────────────────
   const { data: activityFeed = [] } = useQuery({
-    queryKey: ["customer-activity-feed", user?.id],
+    queryKey: ["customer-activity-feed", companyId, user?.id],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("order_status_history")
         .select(
@@ -175,7 +230,7 @@ export default function CustomerOrders() {
       if (error) throw error;
       return data as unknown as StatusHistoryEntry[];
     },
-    enabled: !!user,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -213,6 +268,7 @@ export default function CustomerOrders() {
   // Greeting based on time of day
   const hour = new Date().getHours();
   const greeting = hour < 13 ? "Buongiorno" : hour < 18 ? "Buon pomeriggio" : "Buonasera";
+  const NextActionIcon = nextAction.icon;
 
   return (
     <div className="space-y-5">
@@ -276,6 +332,28 @@ export default function CustomerOrders() {
           </div>
         </Link>
       </div>
+
+      <Link
+        to={nextAction.href}
+        className="flex items-center justify-between gap-3 bg-background border border-border/60 rounded-2xl p-4 hover:shadow-md transition-all active:scale-[0.98]"
+      >
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <NextActionIcon className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm md:text-base">{nextAction.title}</p>
+            <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+              {nextAction.description}
+            </p>
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-1 text-sm font-semibold text-primary shrink-0">
+          {nextAction.label}
+          <ChevronRight className="h-4 w-4" />
+        </div>
+        <ChevronRight className="h-5 w-5 text-muted-foreground/50 shrink-0 sm:hidden" />
+      </Link>
 
       {/* FEATURE 3 — Activity Feed */}
       {activityFeed.length > 0 && (

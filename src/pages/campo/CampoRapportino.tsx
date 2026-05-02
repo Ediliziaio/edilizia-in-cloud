@@ -65,6 +65,7 @@ export default function CampoRapportino() {
   const { isSubappaltatore } = useIsCampo();
   const queryClient = useQueryClient();
   const { lat, lng, accuracy, requestPosition } = useGPS(profile?.company_id ?? null);
+  const companyId = profile?.company_id ?? null;
 
   const [step, setStep] = useState(1);
 
@@ -147,13 +148,53 @@ export default function CampoRapportino() {
   // ── Salvataggio ──────────────────────────────────────────────────────
   const { mutate: salva, isPending: saving } = useMutation({
     mutationFn: async () => {
+      if (!companyId || !orderId || !user?.id) {
+        throw new Error("Sessione non pronta, ricarica la pagina");
+      }
+
+      const { data: directAssignment, error: directAssignmentError } = await supabase
+        .from("order_campo_assignments")
+        .select("id")
+        .eq("order_id", orderId)
+        .eq("user_id", user.id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (directAssignmentError) throw directAssignmentError;
+
+      let hasAssignment = !!directAssignment;
+      if (!hasAssignment) {
+        const { data: employee, error: employeeError } = await supabase
+          .from("employees")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("company_id", companyId)
+          .maybeSingle();
+        if (employeeError) throw employeeError;
+
+        if (employee?.id) {
+          const { data: employeeAssignment, error: employeeAssignmentError } = await supabase
+            .from("order_employees")
+            .select("id")
+            .eq("order_id", orderId)
+            .eq("employee_id", employee.id)
+            .limit(1)
+            .maybeSingle();
+          if (employeeAssignmentError) throw employeeAssignmentError;
+          hasAssignment = !!employeeAssignment;
+        }
+      }
+
+      if (!hasAssignment) {
+        throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
+      }
+
       // Inserisci rapportino
       const { data: inserted, error } = await supabase
         .from("campo_rapportini")
         .insert({
-          company_id: profile!.company_id,
+          company_id: companyId,
           order_id: orderId,
-          user_id: user!.id,
+          user_id: user.id,
           role_type: isSubappaltatore ? "subcontractor" : "employee",
           data_lavoro: format(new Date(), "yyyy-MM-dd"),
           ore_lavorate: oreLavorate,
@@ -173,15 +214,15 @@ export default function CampoRapportino() {
 
       if (error) throw error;
 
-      if (inserted?.id && profile?.company_id) {
+      if (inserted?.id) {
         const actorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || "Operatore campo";
         await supabase
           .from("order_events" as never)
           .insert({
             order_id: orderId,
-            company_id: profile.company_id,
+            company_id: companyId,
             event_type: "reportino_cantiere",
-            actor_id: user!.id,
+            actor_id: user.id,
             actor_name: actorName,
             payload: {
               rapportino_id: inserted.id,
@@ -203,10 +244,20 @@ export default function CampoRapportino() {
 
       // Aggiorna avanzamento sull'ordine se impostato
       if (percentuale > 0) {
+        const { data: currentOrder, error: currentOrderError } = await supabase
+          .from("orders")
+          .select("percentuale_avanzamento")
+          .eq("id", orderId)
+          .eq("company_id", companyId)
+          .maybeSingle();
+        if (currentOrderError) throw currentOrderError;
+
+        const nextProgress = Math.max(Number(currentOrder?.percentuale_avanzamento ?? 0), percentuale);
         await supabase
           .from("orders")
-          .update({ percentuale_avanzamento: percentuale })
-          .eq("id", orderId!);
+          .update({ percentuale_avanzamento: nextProgress })
+          .eq("id", orderId)
+          .eq("company_id", companyId);
       }
 
       // Genera PDF in background (fire-and-forget)
@@ -220,7 +271,8 @@ export default function CampoRapportino() {
       navigator.vibrate?.([10, 50, 10]);
       toast.success("Rapportino inviato!");
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["order-events", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-events", companyId, orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-diary-audit", orderId, companyId] });
       navigate(`/campo/lavoro/${orderId}`);
     },
     onError: () => {

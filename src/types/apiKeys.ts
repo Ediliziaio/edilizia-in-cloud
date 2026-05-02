@@ -3,7 +3,7 @@ export interface ApiKey {
   company_id: string;
   name: string;
   key_prefix: string;
-  key_hash: string;
+  key_hash?: string;
   scopes: string[];
   is_active: boolean;
   last_used_at: string | null;

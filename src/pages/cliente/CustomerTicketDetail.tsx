@@ -24,34 +24,37 @@ import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 export default function CustomerTicketDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile, company } = useAuth();
+  const companyId = profile?.company_id ?? company?.id ?? null;
   const queryClient = useQueryClient();
 
   const { data: ticket, isLoading: ticketLoading, isError: ticketError, refetch: refetchTicket } = useQuery({
-    queryKey: queryKeys.customerTickets.detail(id),
+    queryKey: [...queryKeys.customerTickets.detail(id), companyId],
     queryFn: async () => {
+      if (!companyId) return null;
       const { data, error } = await supabase
         .from("tickets")
-        .select(`id, subject, status, priority, created_at, order_id, order:orders(id, description)`)
+        .select(`id, subject, status, priority, created_at, order_id, company_id, order:orders(id, description)`)
         .eq("id", id!)
+        .eq("company_id", companyId)
         .eq("customer_id", user!.id)
         .maybeSingle();
       if (error) throw error;
       return data as unknown as CustomerTicketDetailType | null;
     },
-    enabled: !!id && !!user?.id,
+    enabled: !!id && !!user?.id && !!companyId,
     staleTime: 30 * 1000,
   });
 
   // Mark ticket as read via ticket_read_status upsert
   useEffect(() => {
-    if (!id || !user?.id) return;
+    if (!ticket?.id || !user?.id) return;
     (async () => {
       try {
         await supabase
           .from("ticket_read_status")
           .upsert(
-            { ticket_id: id, user_id: user.id, last_read_at: new Date().toISOString() },
+            { ticket_id: ticket.id, user_id: user.id, last_read_at: new Date().toISOString() },
             { onConflict: "ticket_id,user_id" }
           );
         // Refresh unread badge count
@@ -60,15 +63,15 @@ export default function CustomerTicketDetail() {
         // non-critical, ignore
       }
     })();
-  }, [id, user?.id, queryClient]);
+  }, [ticket?.id, user?.id, queryClient]);
 
   const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
-    queryKey: queryKeys.customerTickets.messages(id),
+    queryKey: queryKeys.customerTickets.messages(ticket?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ticket_messages")
         .select("id, message, sender_id, created_at, attachment_url")
-        .eq("ticket_id", id!)
+        .eq("ticket_id", ticket!.id)
         .order("created_at", { ascending: true });
       if (error) throw error;
 
@@ -78,6 +81,7 @@ export default function CustomerTicketDetail() {
         const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("id, first_name, last_name")
+          .eq("company_id", (ticket as any).company_id)
           .in("id", senderIds);
         if (profilesError) throw profilesError;
         for (const p of profiles || []) {
@@ -90,7 +94,7 @@ export default function CustomerTicketDetail() {
         sender: profilesMap[m.sender_id] || null,
       })) as TicketMessage[];
     },
-    enabled: !!id && !!user?.id,
+    enabled: !!ticket?.id && !!user?.id,
     staleTime: 30 * 1000,
   });
 

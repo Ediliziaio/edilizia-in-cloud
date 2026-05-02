@@ -11,8 +11,8 @@ import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialS
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { VariantiCard } from "@/components/orders/VariantiCard";
-import { ArrowLeft, MessageSquare, FileText, AlertCircle, CalendarDays, Truck, Wrench, CheckCircle2, Clock } from "lucide-react";
-import { formatDate } from "@/lib/formatters";
+import { ArrowLeft, MessageSquare, FileText, AlertCircle, CalendarDays, Truck, Wrench, CheckCircle2, Clock, CreditCard, ShieldCheck } from "lucide-react";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 import { type Installment, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 
 export default function CustomerOrderDetail() {
@@ -50,17 +50,18 @@ export default function CustomerOrderDetail() {
 
   // Fetch installments from DB
   const { data: dbInstallments = [] } = useQuery({
-    queryKey: ["order-installments", id],
+    queryKey: ["customer-order-installments", user?.id, order?.id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("order_installments")
-        .select("*")
-        .eq("order_id", id!)
+        .select("*, order:orders!inner(id, customer_id)")
+        .eq("order_id", order!.id)
+        .eq("order.customer_id", user!.id)
         .order("position");
       if (error) throw error;
       return (data || []) as unknown as (Installment & { id: string })[];
     },
-    enabled: !!id && !!user,
+    enabled: !!order?.id && !!user?.id,
   });
 
   // Build installments for display
@@ -94,17 +95,18 @@ export default function CustomerOrderDetail() {
 
   // Fetch status history
   const { data: statusHistory = [] } = useQuery({
-    queryKey: ["order-status-history", id],
+    queryKey: ["customer-order-status-history", user?.id, order?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_status_history")
-        .select(`id, status_id, changed_at, status:order_statuses(name, color, icon)`)
-        .eq("order_id", id!)
+        .select(`id, status_id, changed_at, order:orders!inner(id, customer_id), status:order_statuses(name, color, icon)`)
+        .eq("order_id", order!.id)
+        .eq("order.customer_id", user!.id)
         .order("changed_at", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!id && !!user?.id,
+    enabled: !!order?.id && !!user?.id,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -141,6 +143,14 @@ export default function CustomerOrderDetail() {
     status_id: h.status_id,
     changed_at: h.changed_at,
   }));
+  const nextUnpaidInstallment = displayInstallments
+    .filter((installment) => !installment.is_paid)
+    .sort((a, b) => {
+      if (!a.expected_date && !b.expected_date) return a.position - b.position;
+      if (!a.expected_date) return 1;
+      if (!b.expected_date) return -1;
+      return new Date(a.expected_date).getTime() - new Date(b.expected_date).getTime();
+    })[0];
 
   return (
     <div className="space-y-6">
@@ -166,6 +176,38 @@ export default function CustomerOrderDetail() {
         <MessageSquare className="h-4 w-4" />
         Richiedi Assistenza
       </Link>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Link
+          to="/cliente/rate"
+          className="flex items-start gap-3 rounded-2xl border border-border/60 bg-background p-4 hover:shadow-md transition-all"
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <CreditCard className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">
+              {nextUnpaidInstallment ? "Prossimo pagamento" : "Pagamenti completati"}
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {nextUnpaidInstallment
+                ? `${nextUnpaidInstallment.label}: ${formatCurrency(nextUnpaidInstallment.amount)}${nextUnpaidInstallment.expected_date ? ` entro ${formatDate(nextUnpaidInstallment.expected_date)}` : ""}`
+                : "Non risultano rate aperte per questo ordine."}
+            </p>
+          </div>
+        </Link>
+        <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+          <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center shrink-0">
+            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-emerald-900">Dati protetti</p>
+            <p className="text-sm text-emerald-800/80 mt-0.5">
+              Vedi solo documenti, pagamenti e aggiornamenti collegati al tuo ordine.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Progress Tracker */}
       <Card>

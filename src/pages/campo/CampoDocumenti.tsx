@@ -3,6 +3,7 @@
  * Mostra documenti_dipendenti per l'utente loggato.
  */
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -12,6 +13,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+
+const PRIVATE_DOC_BUCKET = "documenti-dipendenti";
 
 const TIPO_LABELS: Record<string, string> = {
   contratto: "Contratto",
@@ -24,19 +27,23 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 export default function CampoDocumenti() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
 
   const { data: documenti = [], isLoading } = useQuery({
-    queryKey: ["campo-documenti", user?.id],
+    queryKey: ["campo-documenti", companyId, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!companyId) return [];
+      const { data, error } = await supabase
         .from("documenti_dipendenti")
         .select("*")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId)
         .order("data_scadenza", { ascending: true, nullsFirst: false });
+      if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
   });
 
   const today = new Date();
@@ -64,6 +71,22 @@ export default function CampoDocumenti() {
   const inScadenzaCount = documenti.filter(
     (d: any) => getScadenzaStatus(d.data_scadenza) === "in_scadenza"
   ).length;
+
+  const openDocumento = async (url: string) => {
+    if (/^https?:\/\//i.test(url)) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    const { data, error } = await supabase.storage
+      .from(PRIVATE_DOC_BUCKET)
+      .createSignedUrl(url, 60 * 5);
+    if (error || !data?.signedUrl) {
+      toast.error("Impossibile aprire il documento");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="flex flex-col h-full overflow-y-auto px-4 py-4 pb-24 space-y-4">
@@ -155,7 +178,7 @@ export default function CampoDocumenti() {
 
                 {doc.url && (
                   <button
-                    onClick={() => window.open(doc.url, "_blank")}
+                    onClick={() => openDocumento(doc.url)}
                     className="mt-3 flex items-center gap-1.5 text-xs text-primary ml-12"
                   >
                     <Download className="w-3.5 h-3.5" />

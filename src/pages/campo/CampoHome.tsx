@@ -97,20 +97,23 @@ function TimbraturaCampo() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
+  const companyId = profile?.company_id ?? null;
 
   const { data: timbratureOggi = [], isLoading } = useQuery({
-    queryKey: ["campo-timbrature-oggi", user?.id, today],
+    queryKey: ["campo-timbrature-oggi", companyId, user?.id, today],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId)
         .gte("timestamp_evento", `${today}T00:00:00`)
         .order("timestamp_evento", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
     refetchInterval: 30000,
   });
 
@@ -137,9 +140,20 @@ function TimbraturaCampo() {
 
   const timbraMutation = useMutation({
     mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
+      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
+      const lastTipo = lastTimbro?.tipo as string | undefined;
+      const allowedNext: Record<string, Array<string | undefined>> = {
+        entrata: ["uscita", undefined],
+        pausa_inizio: ["entrata", "pausa_fine"],
+        pausa_fine: ["pausa_inizio"],
+        uscita: ["entrata", "pausa_fine", "pausa_inizio"],
+      };
+      if (!allowedNext[tipo].includes(lastTipo)) {
+        throw new Error("Sequenza timbratura non valida per lo stato attuale");
+      }
       const now = new Date().toISOString();
       const { error } = await supabase.from("campo_timbrature").insert({
-        company_id: (profile as any)?.company_id,
+        company_id: companyId,
         user_id: user!.id,
         tipo,
         timestamp_evento: now,
@@ -149,7 +163,7 @@ function TimbraturaCampo() {
     },
     onSuccess: () => {
       toast.success("Timbratura registrata");
-      queryClient.invalidateQueries({ queryKey: ["campo-timbrature-oggi"] });
+      queryClient.invalidateQueries({ queryKey: ["campo-timbrature-oggi", companyId, user?.id, today] });
     },
     onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
   });

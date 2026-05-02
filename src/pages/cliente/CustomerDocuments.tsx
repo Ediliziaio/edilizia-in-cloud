@@ -2,53 +2,65 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { FileText, Download, Loader2, Receipt, FileCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { FileText, Download, Loader2, Receipt, Search, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { useMemo, useState } from "react";
 
 const fmtCur = (n: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 
+const CUSTOMER_STORAGE_BUCKETS = new Set([
+  "order-attachments",
+  "invoices",
+  "fatture",
+  "documenti-fiscali",
+]);
+
 export default function CustomerDocuments() {
-  const { user } = useAuth();
+  const { user, profile, company } = useAuth();
+  const companyId = profile?.company_id ?? company?.id ?? null;
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Order attachments visible to customer
   const { data: attachments = [], isLoading: loadingAtt } = useQuery({
-    queryKey: queryKeys.customerDocuments.attachments(user?.id),
+    queryKey: [...queryKeys.customerDocuments.attachments(user?.id), companyId],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("order_attachments")
         .select(`
           id, file_name, file_url, file_type, file_size, created_at,
-          order:orders!inner(id, order_code, description, customer_id)
+          order:orders!inner(id, order_code, description, customer_id, company_id)
         `)
         .eq("visible_to_customer", true)
         .eq("order.customer_id", user!.id)
+        .eq("order.company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 
   // Invoices linked to customer
   const { data: invoices = [], isLoading: loadingInv } = useQuery({
-    queryKey: queryKeys.customerDocuments.invoices(user?.id),
+    queryKey: [...queryKeys.customerDocuments.invoices(user?.id), companyId],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("invoices")
         .select("id, invoice_number, document_type, status, issue_date, total, pdf_url, order_id, orders(order_code)")
+        .eq("company_id", companyId)
         .eq("client_id", user!.id)
         .order("issue_date", { ascending: false })
         .limit(100);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -70,6 +82,7 @@ export default function CustomerDocuments() {
         // Path relativo senza prefisso noto — prova come signed URL su bucket generico
         const bucketMatch = fileUrl.match(/^([^/]+)\/(.*)/);
         if (!bucketMatch) throw new Error("Formato file non supportato");
+        if (!CUSTOMER_STORAGE_BUCKETS.has(bucketMatch[1])) throw new Error("Bucket documento non autorizzato");
         const { data, error } = await supabase.storage
           .from(bucketMatch[1])
           .createSignedUrl(bucketMatch[2], 3600);
@@ -91,6 +104,7 @@ export default function CustomerDocuments() {
         // storage path
         const bucketMatch = pdfUrl.match(/^([^/]+)\/(.*)/);
         if (!bucketMatch) throw new Error("Formato URL fattura non supportato");
+        if (!CUSTOMER_STORAGE_BUCKETS.has(bucketMatch[1])) throw new Error("Bucket fattura non autorizzato");
         const { data, error } = await supabase.storage
           .from(bucketMatch[1])
           .createSignedUrl(bucketMatch[2], 3600);
@@ -128,10 +142,61 @@ export default function CustomerDocuments() {
   }
 
   const hasContent = attachments.length > 0 || invoices.length > 0;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredInvoices = useMemo(() => {
+    if (!normalizedSearch) return invoices;
+    return invoices.filter((inv: any) => {
+      const haystack = [
+        inv.invoice_number,
+        inv.document_type,
+        inv.status,
+        inv.orders?.order_code,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(normalizedSearch);
+    });
+  }, [invoices, normalizedSearch]);
+
+  const filteredAttachments = useMemo(() => {
+    if (!normalizedSearch) return attachments;
+    return attachments.filter((att: any) => {
+      const haystack = [
+        att.file_name,
+        att.file_type,
+        att.order?.order_code,
+        att.order?.description,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(normalizedSearch);
+    });
+  }, [attachments, normalizedSearch]);
+  const hasFilteredContent = filteredInvoices.length > 0 || filteredAttachments.length > 0;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold tracking-tight">Documenti</h1>
+      <div>
+        <h1 className="text-xl font-bold tracking-tight">Documenti</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Fatture, allegati e file condivisi dalla tua azienda.
+        </p>
+      </div>
+
+      {hasContent && (
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Cerca per nome, ordine o stato..."
+              className="w-full bg-muted/70 border border-border/60 rounded-2xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
+            />
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-emerald-50 border border-emerald-100 rounded-2xl px-3 py-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            Link protetti e temporanei
+          </div>
+        </div>
+      )}
 
       {!hasContent && (
         <div className="bg-background border border-border/60 rounded-2xl p-8 text-center">
@@ -142,14 +207,24 @@ export default function CustomerDocuments() {
         </div>
       )}
 
+      {hasContent && !hasFilteredContent && (
+        <div className="bg-background border border-border/60 rounded-2xl p-8 text-center">
+          <Search className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="font-medium">Nessun documento trovato</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Prova con un altro nome, numero ordine o stato.
+          </p>
+        </div>
+      )}
+
       {/* Invoices */}
-      {invoices.length > 0 && (
+      {filteredInvoices.length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-            Fatture e Documenti Fiscali
+            Fatture e Documenti Fiscali ({filteredInvoices.length})
           </p>
           <div className="bg-background border border-border/60 rounded-2xl divide-y divide-border/40">
-            {invoices.map((inv: any) => {
+            {filteredInvoices.map((inv: any) => {
               const st = invoiceStatusMap[inv.status] || { label: inv.status, color: "text-slate-600", bg: "bg-slate-100" };
               return (
                 <div key={inv.id} className="flex items-center justify-between p-4 gap-3 first:rounded-t-2xl last:rounded-b-2xl">
@@ -189,13 +264,13 @@ export default function CustomerDocuments() {
       )}
 
       {/* Order Attachments */}
-      {attachments.length > 0 && (
+      {filteredAttachments.length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-            Allegati Ordini
+            Allegati Ordini ({filteredAttachments.length})
           </p>
           <div className="bg-background border border-border/60 rounded-2xl divide-y divide-border/40">
-            {attachments.map((att: any) => (
+            {filteredAttachments.map((att: any) => (
               <div key={att.id} className="flex items-center justify-between p-4 gap-3 first:rounded-t-2xl last:rounded-b-2xl">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">

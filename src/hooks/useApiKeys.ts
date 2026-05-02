@@ -11,7 +11,7 @@ export function useApiKeys(companyId: string | undefined) {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("api_keys")
-        .select("*")
+        .select("id, company_id, name, key_prefix, scopes, is_active, last_used_at, expires_at, created_by, created_at, updated_at, revoked_at, rate_limit_per_minute, rate_limit_per_day")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -65,7 +65,7 @@ export function useCreateApiKey(companyId: string | undefined) {
       const prefix = getKeyPrefix(rawKey);
       const expiresAt = computeExpiresAt(expiryOption);
 
-      const { error } = await supabase.from("api_keys").insert({
+      const insertPayload = {
         company_id: companyId,
         name: trimmedName,
         key_prefix: prefix,
@@ -73,7 +73,9 @@ export function useCreateApiKey(companyId: string | undefined) {
         scopes: normalizedScopes,
         expires_at: expiresAt?.toISOString() || null,
         created_by: user.id,
-      } as any);
+      };
+
+      const { error } = await supabase.from("api_keys").insert(insertPayload as never);
       if (error) throw error;
 
       return rawKey;
@@ -89,7 +91,7 @@ export function useRevokeApiKey(companyId: string | undefined) {
       if (!companyId) throw new Error("companyId richiesto");
       const { error } = await supabase
         .from("api_keys")
-        .update({ is_active: false, revoked_at: new Date().toISOString() } as any)
+        .update({ is_active: false, revoked_at: new Date().toISOString() } as never)
         .eq("id", keyId)
         .eq("company_id", companyId);
       if (error) throw error;
@@ -114,7 +116,7 @@ export function useRotateApiKey(companyId: string | undefined) {
       const prefix = getKeyPrefix(rawKey);
       const rotatedName = `${key.name} (rotata ${new Date().toLocaleDateString("it-IT")})`.slice(0, 80);
 
-      const { error: insertError } = await supabase.from("api_keys").insert({
+      const insertPayload = {
         company_id: companyId,
         name: rotatedName,
         key_prefix: prefix,
@@ -124,12 +126,14 @@ export function useRotateApiKey(companyId: string | undefined) {
         rate_limit_per_minute: key.rate_limit_per_minute,
         rate_limit_per_day: key.rate_limit_per_day,
         created_by: user.id,
-      } as any);
+      };
+
+      const { error: insertError } = await supabase.from("api_keys").insert(insertPayload as never);
       if (insertError) throw insertError;
 
       const { error: revokeError } = await supabase
         .from("api_keys")
-        .update({ is_active: false, revoked_at: new Date().toISOString() } as any)
+        .update({ is_active: false, revoked_at: new Date().toISOString() } as never)
         .eq("id", key.id)
         .eq("company_id", companyId);
       if (revokeError) throw revokeError;

@@ -25,6 +25,20 @@ const TIPI_DOCUMENTO = [
   { value: "altro", label: "Altro" },
 ];
 
+const PRIVATE_DOC_BUCKET = "documenti-dipendenti";
+const MAX_FILE_SIZE = 15 * 1024 * 1024;
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+function isStoragePath(value: string | null | undefined) {
+  return !!value && !/^https?:\/\//i.test(value);
+}
+
 export default function SubDocumenti() {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
@@ -40,16 +54,19 @@ export default function SubDocumenti() {
   const today = new Date();
 
   const { data: documenti = [], isLoading } = useQuery({
-    queryKey: ["sub-documenti", user?.id],
+    queryKey: ["sub-documenti", companyId, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!companyId) return [];
+      const { data, error } = await supabase
         .from("documenti_dipendenti")
         .select("*")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
   });
 
   const getScadenzaStatus = (dataScad: string | null) => {
@@ -63,27 +80,28 @@ export default function SubDocumenti() {
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
       if (!selectedFile) throw new Error("Seleziona un file");
+      if (selectedFile.size > MAX_FILE_SIZE) throw new Error("File troppo grande: massimo 15 MB");
+      if (selectedFile.type && !ALLOWED_MIME_TYPES.has(selectedFile.type)) {
+        throw new Error("Formato non consentito. Usa PDF, JPG, PNG, DOC o DOCX");
+      }
 
       setUploading(true);
       const ext = selectedFile.name.split(".").pop() ?? "pdf";
-      const path = `${user!.id}/${Date.now()}.${ext}`;
+      const path = `${user!.id}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
 
       const { error: uploadErr } = await supabase.storage
-        .from("documenti-sub")
+        .from(PRIVATE_DOC_BUCKET)
         .upload(path, selectedFile, { contentType: selectedFile.type });
       if (uploadErr) throw uploadErr;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from("documenti-sub")
-        .getPublicUrl(path);
 
       const { error: dbErr } = await supabase.from("documenti_dipendenti").insert({
         user_id: user!.id,
         company_id: companyId,
         tipo: tipoDoc,
         nome_file: nomeFile.trim() || selectedFile.name,
-        url: publicUrl,
+        url: path,
         data_scadenza: dataScadenza || null,
       });
       if (dbErr) throw dbErr;
@@ -95,7 +113,7 @@ export default function SubDocumenti() {
       setNomeFile("");
       setDataScadenza("");
       setTipoDoc("durc");
-      qc.invalidateQueries({ queryKey: ["sub-documenti"] });
+      qc.invalidateQueries({ queryKey: ["sub-documenti", companyId, user?.id] });
     },
     onError: (err: any) => toast.error(err.message ?? "Errore nel caricamento"),
     onSettled: () => setUploading(false),
@@ -119,6 +137,22 @@ export default function SubDocumenti() {
 
   const scadutiCount = documenti.filter((d: any) => getScadenzaStatus(d.data_scadenza) === "scaduto").length;
   const inScadenzaCount = documenti.filter((d: any) => getScadenzaStatus(d.data_scadenza) === "in_scadenza").length;
+
+  const openDocumento = async (url: string) => {
+    if (!isStoragePath(url)) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    const { data, error } = await supabase.storage
+      .from(PRIVATE_DOC_BUCKET)
+      .createSignedUrl(url, 60 * 5);
+    if (error || !data?.signedUrl) {
+      toast.error("Impossibile aprire il documento");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="flex flex-col h-full pb-28">
@@ -229,7 +263,7 @@ export default function SubDocumenti() {
                       <div className="flex gap-1">
                         {doc.url && (
                           <button
-                            onClick={() => window.open(doc.url, "_blank")}
+                            onClick={() => openDocumento(doc.url)}
                             className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center"
                           >
                             <Download className="w-3.5 h-3.5 text-muted-foreground" />

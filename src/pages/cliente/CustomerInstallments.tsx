@@ -31,7 +31,7 @@ interface Installment {
   is_paid: boolean;
   paid_date: string | null;
   expected_date: string | null;
-  order: { id: string; order_code: string; description: string; total_amount: number };
+  order: { id: string; order_code: string; description: string; total_amount: number; company_id?: string };
 }
 
 type StatusKey = "paid" | "overdue" | "due_soon" | "pending";
@@ -55,24 +55,27 @@ const statusConfig: Record<StatusKey, { label: string; icon: typeof CheckCircle2
 type FilterKey = "all" | StatusKey;
 
 export default function CustomerInstallments() {
-  const { user } = useAuth();
+  const { user, profile, company } = useAuth();
+  const companyId = profile?.company_id ?? company?.id ?? null;
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const { data: installments = [], isLoading } = useQuery({
-    queryKey: ["customer-installments", user?.id],
+    queryKey: ["customer-installments", companyId, user?.id],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("order_installments")
         .select(`
           id, order_id, position, label, type, amount, is_paid, paid_date, expected_date,
-          order:orders!inner(id, order_code, description, total_amount, customer_id)
+          order:orders!inner(id, order_code, description, total_amount, customer_id, company_id)
         `)
         .eq("order.customer_id", user!.id)
+        .eq("order.company_id", companyId)
         .order("position", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as Installment[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 

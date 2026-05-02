@@ -1,6 +1,7 @@
 import { lazy } from "react";
 import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RequireAdminPermission } from "@/components/auth/RequireAdminPermission";
 import { RequireSuperAdmin } from "@/components/auth/RequireSuperAdmin";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
@@ -96,7 +97,9 @@ export function adminRoutes() {
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
-              <AdminMarketingAutomationBuilder />
+              <RequireAdminPermission permission="can_manage_marketing">
+                <AdminMarketingAutomationBuilder />
+              </RequireAdminPermission>
             </ErrorBoundary>
           </ProtectedRoute>
         }
@@ -106,7 +109,9 @@ export function adminRoutes() {
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
-              <AdminMarketingAutomationBuilder />
+              <RequireAdminPermission permission="can_manage_marketing">
+                <AdminMarketingAutomationBuilder />
+              </RequireAdminPermission>
             </ErrorBoundary>
           </ProtectedRoute>
         }
@@ -118,7 +123,9 @@ export function adminRoutes() {
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nell'editor campagna">
-              <AdminCampaignEditor />
+              <RequireAdminPermission permission="can_manage_marketing">
+                <AdminCampaignEditor />
+              </RequireAdminPermission>
             </ErrorBoundary>
           </ProtectedRoute>
         }
@@ -128,7 +135,9 @@ export function adminRoutes() {
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder email">
-              <AdminDragDropEmailBuilder />
+              <RequireAdminPermission permission="can_manage_marketing">
+                <AdminDragDropEmailBuilder />
+              </RequireAdminPermission>
             </ErrorBoundary>
           </ProtectedRoute>
         }
@@ -138,7 +147,9 @@ export function adminRoutes() {
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nelle impostazioni campagna">
-              <AdminCampaignSendSettings />
+              <RequireAdminPermission permission="can_manage_marketing">
+                <AdminCampaignSendSettings />
+              </RequireAdminPermission>
             </ErrorBoundary>
           </ProtectedRoute>
         }
@@ -155,20 +166,20 @@ export function adminRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<AdminDashboard />} />
-        <Route path="menu" element={<AdminMobileMenu />} />
+        <Route index element={<RequireAdminPermission permission="can_view_platform_stats"><AdminDashboard /></RequireAdminPermission>} />
+        <Route path="menu" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminMobileMenu /></RequireAdminPermission>} />
         <Route path="aziende" element={<RequireSuperAdmin><CompaniesList /></RequireSuperAdmin>} />
         <Route path="aziende/nuova" element={<RequireSuperAdmin><CreateCompany /></RequireSuperAdmin>} />
         <Route path="aziende/:id" element={<RequireSuperAdmin><CompanyDetail /></RequireSuperAdmin>} />
-        <Route path="ticket" element={<GlobalTickets />} />
+        <Route path="ticket" element={<RequireAdminPermission permission="can_manage_tickets"><GlobalTickets /></RequireAdminPermission>} />
         <Route path="impostazioni" element={<Navigate to="/admin/impostazioni/profilo" replace />} />
         <Route path="impostazioni/profilo" element={<AdminSettingsProfile />} />
         <Route path="impostazioni/piattaforma" element={<RequireSuperAdmin><AdminSettingsPlatform /></RequireSuperAdmin>} />
-        <Route path="impostazioni/notifiche" element={<AdminSettingsNotifications />} />
+        <Route path="impostazioni/notifiche" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsNotifications /></RequireAdminPermission>} />
         <Route path="impostazioni/super-admin" element={<RequireSuperAdmin><AdminSettingsSuperAdmins /></RequireSuperAdmin>} />
         <Route path="impostazioni/audit" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
-        <Route path="impostazioni/email" element={<AdminSettingsEmail />} />
-        <Route path="impostazioni/agenti-ai" element={<AdminSettingsAI />} />
+        <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
+        <Route path="impostazioni/agenti-ai" element={<RequireSuperAdmin><AdminSettingsAI /></RequireSuperAdmin>} />
         <Route path="impostazioni/ip-allowlist" element={<RequireSuperAdmin><AdminSettingsIPAllowlist /></RequireSuperAdmin>} />
         <Route path="impostazioni/sicurezza" element={<RequireSuperAdmin><AdminSettingsSecurity /></RequireSuperAdmin>} />
         <Route path="impostazioni/feature-flags" element={<Navigate to="/admin/feature-flags" replace />} />
@@ -179,7 +190,7 @@ export function adminRoutes() {
         <Route path="impostazioni/banking-overview" element={<RequireSuperAdmin><AdminSettingsBankingOverview /></RequireSuperAdmin>} />
         {/* Monitor AI: nuova route nella sidebar principale.
             Vecchio path /admin/impostazioni/ai-usage redirige per backward compat. */}
-        <Route path="ai-usage" element={<AdminSettingsAIUsage />} />
+        <Route path="ai-usage" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsAIUsage /></RequireAdminPermission>} />
         <Route path="impostazioni/ai-usage" element={<Navigate to="/admin/ai-usage" replace />} />
         <Route path="piani" element={<RequireSuperAdmin><SubscriptionPlans /></RequireSuperAdmin>} />
         <Route path="piani/:id" element={<RequireSuperAdmin><PlanDetail /></RequireSuperAdmin>} />
@@ -187,56 +198,56 @@ export function adminRoutes() {
         <Route path="feature-flags" element={<RequireSuperAdmin><FeatureFlags /></RequireSuperAdmin>} />
         <Route path="implementazioni" element={<Navigate to="/admin/feature-flags" replace />} />
         <Route path="fv-modulo" element={<RequireSuperAdmin><AdminFvModulo /></RequireSuperAdmin>} />
-        <Route path="sync-logs" element={<SyncLogs />} />
-        <Route path="lifecycle" element={<CompanyLifecycle />} />
-        <Route path="annunci" element={<Announcements />} />
-        <Route path="customer-success" element={<CustomerSuccess />} />
+        <Route path="sync-logs" element={<RequireAdminPermission permission="can_view_platform_stats"><SyncLogs /></RequireAdminPermission>} />
+        <Route path="lifecycle" element={<RequireAdminPermission permission="can_manage_companies"><CompanyLifecycle /></RequireAdminPermission>} />
+        <Route path="annunci" element={<RequireAdminPermission permission="can_view_platform_stats"><Announcements /></RequireAdminPermission>} />
+        <Route path="customer-success" element={<RequireAdminPermission permission="can_manage_companies"><CustomerSuccess /></RequireAdminPermission>} />
         {/* Cruscotto top section: Attività & Chat (replicate dalla sidebar Azienda).
             La gestione completa task vive ora dentro Attività come tab "Tutte le
             attività"; /admin/cs-tasks redirige al tab per non rompere link
             esistenti (mobile menu, lifecycle, breadcrumb, deep link salvati). */}
-        <Route path="attivita" element={<AdminAttivita />} />
+        <Route path="attivita" element={<RequireAdminPermission permission="can_manage_companies"><AdminAttivita /></RequireAdminPermission>} />
         <Route path="cs-tasks" element={<Navigate to="/admin/attivita?tab=tutte" replace />} />
-        <Route path="chat" element={<AdminTeamChat />} />
+        <Route path="chat" element={<RequireAdminPermission permission="can_manage_companies"><AdminTeamChat /></RequireAdminPermission>} />
         <Route path="gdpr" element={<RequireSuperAdmin><AdminGDPR /></RequireSuperAdmin>} />
-        <Route path="marketing" element={<AdminMarketingDashboard />} />
-        <Route path="marketing/contatti" element={<AdminMarketingContacts />} />
-        <Route path="marketing/contatti/:id" element={<AdminMarketingContactDetail />} />
-        <Route path="marketing/opportunita" element={<AdminMarketingOpportunities />} />
-        <Route path="marketing/calendario" element={<AdminMarketingCalendar />} />
-        <Route path="marketing/email" element={<AdminEmailMarketing />} />
-        <Route path="marketing/sms" element={<AdminSmsMarketing />} />
-        <Route path="marketing/whatsapp" element={<AdminWhatsApp />} />
-        <Route path="marketing/automazioni" element={<AdminMarketingAutomations />} />
+        <Route path="marketing" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingDashboard /></RequireAdminPermission>} />
+        <Route path="marketing/contatti" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContacts /></RequireAdminPermission>} />
+        <Route path="marketing/contatti/:id" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContactDetail /></RequireAdminPermission>} />
+        <Route path="marketing/opportunita" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingOpportunities /></RequireAdminPermission>} />
+        <Route path="marketing/calendario" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingCalendar /></RequireAdminPermission>} />
+        <Route path="marketing/email" element={<RequireAdminPermission permission="can_manage_marketing"><AdminEmailMarketing /></RequireAdminPermission>} />
+        <Route path="marketing/sms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminSmsMarketing /></RequireAdminPermission>} />
+        <Route path="marketing/whatsapp" element={<RequireAdminPermission permission="can_manage_marketing"><AdminWhatsApp /></RequireAdminPermission>} />
+        <Route path="marketing/automazioni" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingAutomations /></RequireAdminPermission>} />
         {/* MP-CLEANUP: rotta admin marketing/whatsapp rimossa (vecchio dominio messaging). */}
-        <Route path="marketing/lead-forms" element={<AdminFacebookForms />} />
-        <Route path="marketing/reportistica" element={<AdminMarketingReportistica />} />
-        <Route path="marketing/sales-os" element={<AdminSalesOS />} />
-        <Route path="marketing/preventivi" element={<AdminPreventivi />} />
-        <Route path="marketing/preventivi/nuovo" element={<AdminQuoteBuilder />} />
-        <Route path="marketing/preventivi/:id" element={<AdminQuoteDetail />} />
-        <Route path="marketing/preventivi/:id/modifica" element={<AdminQuoteBuilder />} />
-        <Route path="marketing/agenti-ai/*" element={<AdminMarketingAgents />} />
-        <Route path="revenue" element={<AdminRevenueDashboard />} />
-        <Route path="promo-codes" element={<PromoCodes />} />
-        <Route path="fatture" element={<AdminInvoiceHistory />} />
+        <Route path="marketing/lead-forms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminFacebookForms /></RequireAdminPermission>} />
+        <Route path="marketing/reportistica" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingReportistica /></RequireAdminPermission>} />
+        <Route path="marketing/sales-os" element={<RequireAdminPermission permission="can_manage_marketing"><AdminSalesOS /></RequireAdminPermission>} />
+        <Route path="marketing/preventivi" element={<RequireAdminPermission permission="can_manage_marketing"><AdminPreventivi /></RequireAdminPermission>} />
+        <Route path="marketing/preventivi/nuovo" element={<RequireAdminPermission permission="can_manage_marketing"><AdminQuoteBuilder /></RequireAdminPermission>} />
+        <Route path="marketing/preventivi/:id" element={<RequireAdminPermission permission="can_manage_marketing"><AdminQuoteDetail /></RequireAdminPermission>} />
+        <Route path="marketing/preventivi/:id/modifica" element={<RequireAdminPermission permission="can_manage_marketing"><AdminQuoteBuilder /></RequireAdminPermission>} />
+        <Route path="marketing/agenti-ai/*" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingAgents /></RequireAdminPermission>} />
+        <Route path="revenue" element={<RequireAdminPermission permission="billing_read"><AdminRevenueDashboard /></RequireAdminPermission>} />
+        <Route path="promo-codes" element={<RequireAdminPermission permission="billing_write"><PromoCodes /></RequireAdminPermission>} />
+        <Route path="fatture" element={<RequireAdminPermission permission="billing_read"><AdminInvoiceHistory /></RequireAdminPermission>} />
         <Route path="dunning" element={<RequireSuperAdmin><AdminDunningConfig /></RequireSuperAdmin>} />
-        <Route path="cs-dashboard" element={<AdminCSDashboard />} />
-        <Route path="sms" element={<SmsSuperAdminPage />} />
-        <Route path="crm" element={<AdminCRM />} />
+        <Route path="cs-dashboard" element={<RequireAdminPermission permission="impersonation"><AdminCSDashboard /></RequireAdminPermission>} />
+        <Route path="sms" element={<RequireSuperAdmin><SmsSuperAdminPage /></RequireSuperAdmin>} />
+        <Route path="crm" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminCRM /></RequireAdminPermission>} />
         {/* Campagne AB Test — Feature 7 */}
-        <Route path="campagne" element={<CampaignsPage />} />
-        <Route path="campagne/:id/analytics" element={<CampaignAnalyticsPage />} />
+        <Route path="campagne" element={<RequireAdminPermission permission="can_manage_marketing"><CampaignsPage /></RequireAdminPermission>} />
+        <Route path="campagne/:id/analytics" element={<RequireAdminPermission permission="can_manage_marketing"><CampaignAnalyticsPage /></RequireAdminPermission>} />
         {/* Playbook Automatici — Feature 8 */}
-        <Route path="playbooks" element={<PlaybooksPage />} />
+        <Route path="playbooks" element={<RequireAdminPermission permission="can_manage_companies"><PlaybooksPage /></RequireAdminPermission>} />
         {/* Import CSV Lead — Feature 5 */}
-        <Route path="csv-import" element={<CsvImportPage />} />
+        <Route path="csv-import" element={<RequireAdminPermission permission="can_manage_companies"><CsvImportPage /></RequireAdminPermission>} />
         {/* Audit Log Flag — Feature 9 */}
         <Route path="audit-log" element={<RequireSuperAdmin><AuditLogPage /></RequireSuperAdmin>} />
         {/* Failure Alerts — Feature 11 */}
-        <Route path="failure-alerts" element={<FailureAlertsPage />} />
+        <Route path="failure-alerts" element={<RequireAdminPermission permission="can_manage_companies"><FailureAlertsPage /></RequireAdminPermission>} />
         {/* Cohort Chart — Feature 3 */}
-        <Route path="cohort" element={<CohortPage />} />
+        <Route path="cohort" element={<RequireAdminPermission permission="can_view_platform_stats"><CohortPage /></RequireAdminPermission>} />
         {/* Dunning Templates — Feature 4 */}
         <Route path="dunning-templates" element={<RequireSuperAdmin><DunningTemplatesPage /></RequireSuperAdmin>} />
       </Route>

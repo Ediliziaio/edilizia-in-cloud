@@ -39,7 +39,7 @@ export interface Webhook {
   company_id: string;
   name: string;
   url: string;
-  secret: string | null;
+  secret?: string | null;
   is_active: boolean;
   events: string[];
   created_by: string | null;

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
-import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
+import { ADMIN_PLATFORM_ROLES, PLATFORM_ROLE_PRESETS, PLATFORM_ROLES, type PlatformRole } from "@/types/auth";
 
 export interface SuperAdminPermissions {
   // Legacy module-level permissions (maintained for backward compatibility)
@@ -48,6 +48,50 @@ const ALL_TRUE: SuperAdminPermissions = {
   support_tickets: true,
 };
 
+const ALL_FALSE: SuperAdminPermissions = {
+  can_manage_companies: false,
+  can_manage_plans: false,
+  can_manage_tickets: false,
+  can_manage_referrals: false,
+  can_manage_admins: false,
+  can_view_platform_stats: false,
+  can_manage_marketing: false,
+  allowed_company_ids: [],
+  billing_read: false,
+  billing_write: false,
+  impersonation: false,
+  user_management: false,
+  pricing_override: false,
+  feature_flags: false,
+  audit_log_access: false,
+  bulk_actions: false,
+  data_export: false,
+  support_tickets: false,
+};
+
+function permissionsFromPlatformPreset(role: string | null): SuperAdminPermissions {
+  if (!role || !PLATFORM_ROLES.includes(role as PlatformRole)) {
+    return ALL_FALSE;
+  }
+
+  const preset = PLATFORM_ROLE_PRESETS[role as PlatformRole];
+  return {
+    ...ALL_FALSE,
+    ...preset,
+    allowed_company_ids: null,
+    billing_read: preset.can_manage_plans,
+    billing_write: preset.can_manage_plans,
+    impersonation: false,
+    user_management: preset.can_manage_admins,
+    pricing_override: preset.can_manage_plans,
+    feature_flags: preset.can_manage_companies,
+    audit_log_access: preset.can_view_platform_stats,
+    bulk_actions: preset.can_manage_companies,
+    data_export: preset.can_view_platform_stats,
+    support_tickets: preset.can_manage_tickets,
+  };
+}
+
 
 export function useSuperAdminPermissions() {
   const { user, role } = useAuth();
@@ -80,30 +124,33 @@ export function useSuperAdminPermissions() {
   }
 
   // If record exists → use its explicit values.
-  // If no record → full access by default (super_admin bootstrap / no restrictions set yet).
-  const permissions: SuperAdminPermissions = data
+  // If a platform_* user has no row yet, fall back to the role preset. Never
+  // grant ALL_TRUE to non-super_admin users: direct URL access would otherwise
+  // bypass sidebar filtering for billing, audit and platform settings.
+  const row = data as Partial<SuperAdminPermissions> | null;
+  const permissions: SuperAdminPermissions = row
     ? {
-        can_manage_companies: data.can_manage_companies,
-        can_manage_plans: data.can_manage_plans,
-        can_manage_tickets: data.can_manage_tickets,
-        can_manage_referrals: data.can_manage_referrals,
-        can_manage_admins: data.can_manage_admins,
-        can_view_platform_stats: data.can_view_platform_stats,
-        can_manage_marketing: data.can_manage_marketing,
-        allowed_company_ids: data.allowed_company_ids as string[] | null,
+        can_manage_companies: row.can_manage_companies ?? false,
+        can_manage_plans: row.can_manage_plans ?? false,
+        can_manage_tickets: row.can_manage_tickets ?? false,
+        can_manage_referrals: row.can_manage_referrals ?? false,
+        can_manage_admins: row.can_manage_admins ?? false,
+        can_view_platform_stats: row.can_view_platform_stats ?? false,
+        can_manage_marketing: row.can_manage_marketing ?? false,
+        allowed_company_ids: row.allowed_company_ids ?? null,
         // Granular permissions — fallback to legacy values if not yet migrated
-        billing_read: (data as any).billing_read ?? data.can_manage_plans,
-        billing_write: (data as any).billing_write ?? data.can_manage_plans,
-        impersonation: (data as any).impersonation ?? data.can_manage_companies,
-        user_management: (data as any).user_management ?? data.can_manage_admins,
-        pricing_override: (data as any).pricing_override ?? data.can_manage_plans,
-        feature_flags: (data as any).feature_flags ?? data.can_manage_companies,
-        audit_log_access: (data as any).audit_log_access ?? data.can_view_platform_stats,
-        bulk_actions: (data as any).bulk_actions ?? data.can_manage_companies,
-        data_export: (data as any).data_export ?? data.can_view_platform_stats,
-        support_tickets: (data as any).support_tickets ?? data.can_manage_tickets,
+        billing_read: row.billing_read ?? row.can_manage_plans ?? false,
+        billing_write: row.billing_write ?? row.can_manage_plans ?? false,
+        impersonation: row.impersonation ?? row.can_manage_companies ?? false,
+        user_management: row.user_management ?? row.can_manage_admins ?? false,
+        pricing_override: row.pricing_override ?? row.can_manage_plans ?? false,
+        feature_flags: row.feature_flags ?? row.can_manage_companies ?? false,
+        audit_log_access: row.audit_log_access ?? row.can_view_platform_stats ?? false,
+        bulk_actions: row.bulk_actions ?? row.can_manage_companies ?? false,
+        data_export: row.data_export ?? row.can_view_platform_stats ?? false,
+        support_tickets: row.support_tickets ?? row.can_manage_tickets ?? false,
       }
-    : ALL_TRUE;
+    : permissionsFromPlatformPreset(role);
 
   return { permissions, isLoading };
 }
