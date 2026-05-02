@@ -33,22 +33,24 @@ export function useMyHrProfilo() {
 
 /** Get today's timbrature for current user */
 export function useMyTodayTimbrature(profiloId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
   const today = new Date().toISOString().slice(0, 10);
 
   return useQuery({
-    queryKey: ["hr-my-timbrature-today", profiloId, today],
+    queryKey: ["hr-my-timbrature-today", companyId, profiloId, today],
     queryFn: async () => {
-      if (!profiloId) return [];
+      if (!companyId || !profiloId) return [];
       const { data, error } = await supabase
         .from("hr_timbrature")
         .select("*")
+        .eq("company_id", companyId)
         .eq("profilo_id", profiloId)
         .eq("data_evento", today)
         .order("timestamp", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as HrTimbratura[];
     },
-    enabled: !!profiloId,
+    enabled: !!companyId && !!profiloId,
     staleTime: 30 * 1000,
     refetchInterval: 60000,
   });
@@ -146,22 +148,25 @@ export function useLiveStatus() {
       if (!companyId) return [];
 
       // Get all active profili
-      const { data: profili } = await supabase
+      const { data: profili, error: profiliError } = await supabase
         .from("hr_profili")
         .select("id, nome, cognome, colore_avatar, mansione")
         .eq("company_id", companyId)
         .eq("attivo", true)
         .order("cognome");
 
+      if (profiliError) throw profiliError;
       if (!profili) return [];
 
       // Get today's timbrature
-      const { data: timbrature } = await supabase
+      const { data: timbrature, error: timbratureError } = await supabase
         .from("hr_timbrature")
         .select("profilo_id, tipo, timestamp, ora_evento")
         .eq("company_id", companyId)
         .eq("data_evento", today)
         .order("timestamp", { ascending: false });
+
+      if (timbratureError) throw timbratureError;
 
       // Map: for each profilo, find last timbratura
       return profili.map((p: any) => {

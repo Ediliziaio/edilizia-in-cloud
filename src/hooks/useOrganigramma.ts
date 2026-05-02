@@ -14,14 +14,26 @@ function buildTree(profili: HrProfilo[]): OrgTreeNode[] {
 
   profili.forEach((p) => {
     const node = map.get(p.id)!;
-    if (p.responsabile_id && map.has(p.responsabile_id)) {
+    if (p.responsabile_id && p.responsabile_id !== p.id && map.has(p.responsabile_id)) {
       const parent = map.get(p.responsabile_id)!;
-      node.depth = parent.depth + 1;
       parent.children.push(node);
     } else {
       roots.push(node);
     }
   });
+
+  const setDepth = (node: OrgTreeNode, depth: number, visited: Set<string>) => {
+    if (visited.has(node.id)) {
+      node.children = [];
+      return;
+    }
+    node.depth = depth;
+    const nextVisited = new Set(visited);
+    nextVisited.add(node.id);
+    node.children.forEach((child) => setDepth(child, depth + 1, nextVisited));
+  };
+
+  roots.forEach((root) => setDepth(root, 0, new Set()));
 
   return roots;
 }
@@ -148,10 +160,12 @@ export function useSyncFromEmployees() {
 }
 
 export function useUpdateHrProfilo() {
+  const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<HrProfilo> & { id: string }) => {
+      if (!companyId) throw new Error("companyId required");
       // Remove immutable and non-DB fields
       const {
         created_at, company_id, employee_id, user_id,
@@ -163,7 +177,8 @@ export function useUpdateHrProfilo() {
       const { error } = await supabase
         .from("hr_profili")
         .update({ ...safeUpdates, updated_at: new Date().toISOString() } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId);
 
       if (error) throw error;
     },

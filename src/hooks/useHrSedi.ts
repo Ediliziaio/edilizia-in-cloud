@@ -54,10 +54,12 @@ export function useCreateHrSede() {
 }
 
 export function useUpdateHrSede() {
+  const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...data }: Partial<HrSede> & { id: string }) => {
+      if (!companyId) throw new Error("companyId required");
       const { error } = await supabase
         .from("hr_sedi")
         .update({
@@ -71,7 +73,8 @@ export function useUpdateHrSede() {
           raggio_mt: data.raggio_mt,
           attiva: data.attiva,
         } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -83,11 +86,29 @@ export function useUpdateHrSede() {
 }
 
 export function useDeleteHrSede() {
+  const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("hr_sedi").delete().eq("id", id);
+      if (!companyId) throw new Error("companyId required");
+
+      const { count, error: countError } = await supabase
+        .from("hr_profili")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("sede_id", id);
+
+      if (countError) throw countError;
+      if ((count ?? 0) > 0) {
+        throw new Error("Non puoi eliminare una sede assegnata a profili HR. Disattivala o sposta prima i profili.");
+      }
+
+      const { error } = await supabase
+        .from("hr_sedi")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {

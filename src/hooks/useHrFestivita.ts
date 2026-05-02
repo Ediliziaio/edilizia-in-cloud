@@ -48,10 +48,12 @@ export function useCreateHrFestivita() {
 }
 
 export function useUpdateHrFestivita() {
+  const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...data }: Partial<HrFestivita> & { id: string }) => {
+      if (!companyId) throw new Error("companyId required");
       const { error } = await supabase
         .from("hr_festivita")
         .update({
@@ -59,7 +61,8 @@ export function useUpdateHrFestivita() {
           descrizione: data.descrizione,
           ricorrente: data.ricorrente,
         } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -71,11 +74,17 @@ export function useUpdateHrFestivita() {
 }
 
 export function useDeleteHrFestivita() {
+  const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("hr_festivita").delete().eq("id", id);
+      if (!companyId) throw new Error("companyId required");
+      const { error } = await supabase
+        .from("hr_festivita")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {

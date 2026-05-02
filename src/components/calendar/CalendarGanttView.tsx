@@ -39,7 +39,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Wrench, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Wrench, Settings, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { CalendarAppointment, CalendarOrder, GanttZoom, OrderStatus, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
@@ -57,14 +57,14 @@ interface CalendarGanttViewProps {
   appointments?: CalendarAppointment[];
 }
 
-const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; label: string }> = {
-  year: { dayWidth: 3, label: "Anno" },
-  quarter: { dayWidth: 8, label: "Trimestre" },
-  month: { dayWidth: 25, label: "Mese" },
+const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; minBarWidth: number; label: string }> = {
+  year: { dayWidth: 3.5, minBarWidth: 18, label: "Anno" },
+  quarter: { dayWidth: 10, minBarWidth: 24, label: "Trimestre" },
+  month: { dayWidth: 28, minBarWidth: 34, label: "Mese" },
 };
 
-const ROW_HEIGHT = 50;
-const LEFT_COL_WIDTH = 220;
+const ROW_HEIGHT = 54;
+const LEFT_COL_WIDTH = 250;
 
 function getOrderProgress(order: CalendarOrder): number | undefined {
   if (!order.work_start_date || !order.work_end_date) return undefined;
@@ -90,8 +90,9 @@ export function CalendarGanttView({
   const queryClient = useQueryClient();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState<GanttZoom>("quarter");
+  const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
 
-  const { dayWidth } = ZOOM_CONFIG[zoom];
+  const { dayWidth: baseDayWidth, minBarWidth } = ZOOM_CONFIG[zoom];
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -136,6 +137,28 @@ export function CalendarGanttView({
 
     return { startDate: start, endDate: end, days, months };
   }, [currentDate, zoom]);
+
+  const dayWidth = useMemo(() => {
+    if (!days.length || timelineViewportWidth <= 0) return baseDayWidth;
+    return Math.max(baseDayWidth, timelineViewportWidth / days.length);
+  }, [baseDayWidth, days.length, timelineViewportWidth]);
+
+  const timelineWidth = useMemo(
+    () => Math.max(days.length * dayWidth, timelineViewportWidth),
+    [dayWidth, days.length, timelineViewportWidth]
+  );
+
+  useEffect(() => {
+    const node = scrollContainerRef.current;
+    if (!node) return;
+
+    const updateViewport = () => setTimelineViewportWidth(node.clientWidth);
+    updateViewport();
+
+    const observer = new ResizeObserver(updateViewport);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [zoom]);
 
   const todayOffset = useMemo(() => {
     const today = new Date();
@@ -319,9 +342,14 @@ export function CalendarGanttView({
           <Button variant="ghost" size="icon" onClick={handlePrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h2 className="text-lg font-semibold min-w-[180px] text-center capitalize">
-            {getPeriodLabel()}
-          </h2>
+          <div className="min-w-[180px] text-center">
+            <h2 className="text-lg font-semibold capitalize leading-tight">
+              {getPeriodLabel()}
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              {format(startDate, "d MMM", { locale: it })} - {format(endDate, "d MMM yyyy", { locale: it })}
+            </p>
+          </div>
           <Button variant="ghost" size="icon" onClick={handleNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -380,13 +408,16 @@ export function CalendarGanttView({
         </div>
       ) : (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div className="flex border rounded-lg overflow-hidden">
+          <div className="flex overflow-hidden rounded-lg border bg-background">
             {/* Fixed left column - Client names + Lead Time */}
-            <div className="flex-shrink-0 bg-muted/30 border-r min-w-[220px]">
+            <div
+              className="flex-shrink-0 border-r bg-muted/30"
+              style={{ width: LEFT_COL_WIDTH }}
+            >
               {/* Left header must match dual-level header height */}
-              <div className={cn("border-b bg-muted/50 flex", zoom === "month" || zoom === "quarter" ? "h-16" : "h-12")}>
+              <div className={cn("sticky top-0 z-30 border-b bg-muted/80 backdrop-blur flex", zoom === "month" || zoom === "quarter" ? "h-16" : "h-12")}>
                 <div className="flex-1 flex items-center px-3">
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <span className="text-sm font-semibold text-muted-foreground">
                     Cliente / Ordine
                   </span>
                 </div>
@@ -417,7 +448,7 @@ export function CalendarGanttView({
                         {order.status && (
                           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: order.status.color }} />
                         )}
-                        <span className="text-sm font-medium truncate">
+                        <span className="text-sm font-semibold truncate">
                           {order.customer.last_name}
                         </span>
                       </div>
@@ -468,7 +499,7 @@ export function CalendarGanttView({
                 </>
               )}
               {/* Capacity row label */}
-              <div className="h-8 flex items-center px-3 bg-muted/40 border-t">
+              <div className="h-9 flex items-center px-3 bg-muted/40 border-t">
                 <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Carico</span>
               </div>
             </div>
@@ -476,28 +507,41 @@ export function CalendarGanttView({
             {/* Scrollable timeline */}
             <div
               ref={scrollContainerRef}
-              className="flex-1 overflow-x-auto relative"
+              className="relative flex-1 overflow-x-auto overflow-y-hidden"
             >
               {/* Dual-level header */}
               <div
-                className={cn("border-b bg-muted/50 sticky top-0 z-10", zoom === "month" || zoom === "quarter" ? "h-16" : "h-12")}
-                style={{ width: days.length * dayWidth }}
+                className={cn("sticky top-0 z-20 border-b bg-muted/80 backdrop-blur", zoom === "month" || zoom === "quarter" ? "h-16" : "h-12")}
+                style={{ width: timelineWidth }}
               >
-                {/* Level 1: Months */}
+                {/* Level 1: Months or quarters */}
                 <div className="flex h-1/2">
-                  {months.map((month, idx) => {
-                    const monthDays = days.filter((d) => d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear());
-                    const monthWidth = monthDays.length * dayWidth;
-                    return (
-                      <div
-                        key={idx}
-                        className="border-r border-b flex items-center justify-center text-xs font-medium text-muted-foreground"
-                        style={{ width: monthWidth }}
-                      >
-                        {format(month, zoom === "year" ? "MMM" : "MMMM yyyy", { locale: it })}
-                      </div>
-                    );
-                  })}
+                  {zoom === "year"
+                    ? [0, 1, 2, 3].map((quarter) => {
+                        const quarterDays = days.filter((day) => Math.floor(day.getMonth() / 3) === quarter);
+                        return (
+                          <div
+                            key={`q-${quarter}`}
+                            className="border-r border-b flex items-center justify-center text-xs font-semibold text-muted-foreground"
+                            style={{ width: quarterDays.length * dayWidth }}
+                          >
+                            Q{quarter + 1} {format(currentDate, "yyyy")}
+                          </div>
+                        );
+                      })
+                    : months.map((month, idx) => {
+                        const monthDays = days.filter((d) => d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear());
+                        const monthWidth = monthDays.length * dayWidth;
+                        return (
+                          <div
+                            key={idx}
+                            className="border-r border-b flex items-center justify-center text-xs font-semibold text-muted-foreground"
+                            style={{ width: monthWidth }}
+                          >
+                            {format(month, "MMMM yyyy", { locale: it })}
+                          </div>
+                        );
+                      })}
                 </div>
                 {/* Level 2: Days (month zoom) or Week numbers (quarter zoom) */}
                 {zoom === "month" && (
@@ -530,27 +574,44 @@ export function CalendarGanttView({
                     ))}
                   </div>
                 )}
+                {zoom === "year" && (
+                  <div className="flex h-1/2">
+                    {months.map((month, idx) => {
+                      const monthDays = days.filter((d) => d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear());
+                      return (
+                        <div
+                          key={`year-${idx}`}
+                          className="border-r flex items-center justify-center text-[10px] text-muted-foreground/70"
+                          style={{ width: monthDays.length * dayWidth }}
+                        >
+                          {format(month, "MMM", { locale: it })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Rows with bars */}
-              <div className="relative" style={{ width: days.length * dayWidth }}>
+              <div className="relative" style={{ width: timelineWidth }}>
                 {/* Today indicator */}
                 {todayOffset !== null && (
                   <div
-                    className="absolute top-0 bottom-0 w-0.5 bg-destructive z-20"
+                    className="absolute top-0 bottom-0 z-20 w-0.5 bg-destructive shadow-[0_0_0_1px_rgba(255,255,255,0.65)]"
                     style={{ left: todayOffset + dayWidth / 2 }}
                   />
                 )}
 
                 {/* Day grid lines + weekend shading */}
-                {(zoom === "month" || zoom === "quarter") && (
+                {(zoom === "month" || zoom === "quarter" || zoom === "year") && (
                   <div className="absolute inset-0 flex">
                     {days.map((day, idx) => (
                       <div
                         key={idx}
                         className={cn(
-                          "border-r flex-shrink-0",
-                          isWeekend(day) ? "bg-muted/40 border-r-muted-foreground/20" : "border-muted/50",
+                          "flex-shrink-0 border-r",
+                          idx === 0 || day.getDate() === 1 ? "border-r-border" : "border-muted/45",
+                          isWeekend(day) && zoom !== "year" && "bg-muted/40 border-r-muted-foreground/20",
                           isSameDay(day, new Date()) && "bg-primary/5"
                         )}
                         style={{ width: dayWidth, height: (sortedOrders.length * ROW_HEIGHT) + 32 }}
@@ -586,6 +647,7 @@ export function CalendarGanttView({
                           order={order}
                           bar={bar}
                           dayWidth={dayWidth}
+                          minBarWidth={minBarWidth}
                           color={getOrderColor(order)}
                           progress={progress}
                         />
@@ -627,7 +689,7 @@ export function CalendarGanttView({
                 {/* ── Sezione Interventi ──────────────────────────────── */}
                 {interventi.length > 0 && (
                   <>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border-y border-orange-200" style={{ minWidth: LEFT_COL_WIDTH }}>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border-y border-orange-200">
                       <Wrench className="h-3.5 w-3.5 text-orange-600" />
                       <span className="text-xs font-semibold text-orange-700">Interventi ({interventi.length})</span>
                     </div>
@@ -655,7 +717,7 @@ export function CalendarGanttView({
                 {/* ── Sezione Manutenzioni ────────────────────────────── */}
                 {manutenzioni.length > 0 && (
                   <>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-y border-blue-200" style={{ minWidth: LEFT_COL_WIDTH }}>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-y border-blue-200">
                       <Settings className="h-3.5 w-3.5 text-blue-600" />
                       <span className="text-xs font-semibold text-blue-700">Manutenzioni in scadenza ({manutenzioni.length})</span>
                     </div>
@@ -681,18 +743,18 @@ export function CalendarGanttView({
                   </>
                 )}
                 {/* Capacity row */}
-                <div className="flex h-8 border-t bg-muted/20">
+                <div className="flex h-9 border-t bg-muted/20">
                   {capacityPerDay.map((count, idx) => (
                     <div
                       key={idx}
                       className={cn(
-                        "flex-shrink-0 flex items-center justify-center text-[9px] font-medium border-r border-muted/30",
+                        "flex-shrink-0 flex items-center justify-center text-[9px] font-semibold border-r border-muted/30",
                         capacityColor(count),
                         count > 0 && "text-foreground"
                       )}
                       style={{ width: dayWidth }}
                     >
-                      {count > 0 && (zoom === "month" ? count : "")}
+                      {count > 0 && (zoom !== "year" ? count : "")}
                     </div>
                   ))}
                 </div>
@@ -704,6 +766,10 @@ export function CalendarGanttView({
 
       {/* Legend with actual order statuses */}
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
+        <div className="flex items-center gap-2 font-medium text-muted-foreground">
+          <CalendarRange className="h-4 w-4" />
+          <span>{ZOOM_CONFIG[zoom].label}</span>
+        </div>
         {statuses.slice(0, 5).map((status) => (
           <div key={status.id} className="flex items-center gap-2">
             <div

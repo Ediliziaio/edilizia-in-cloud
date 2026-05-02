@@ -27,14 +27,16 @@ export function TabTimbrature() {
   const [filterName, setFilterName] = useState("");
 
   const companyId = useEffectiveCompanyId();
+  const rangeFrom = dateFrom <= dateTo ? dateFrom : dateTo;
+  const rangeTo = dateFrom <= dateTo ? dateTo : dateFrom;
 
-  const { data: timbrature = [], isLoading } = useTimbratureAdmin(dateFrom, dateTo);
+  const { data: timbrature = [], isLoading } = useTimbratureAdmin(rangeFrom, rangeTo);
   const { data: liveStatus = [] } = useLiveStatus();
 
   const { data: timbratureCampo = [], isLoading: loadingCampo } = useQuery({
-    queryKey: ["campo-timbrature-admin", companyId, dateFrom, dateTo],
+    queryKey: ["campo-timbrature-admin", companyId, rangeFrom, rangeTo],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("campo_timbrature")
         .select(`
           *,
@@ -42,9 +44,10 @@ export function TabTimbrature() {
           order:orders(order_code, description)
         `)
         .eq("company_id", companyId)
-        .gte("timestamp_evento", `${dateFrom}T00:00:00`)
-        .lte("timestamp_evento", `${dateTo}T23:59:59`)
+        .gte("timestamp_evento", `${rangeFrom}T00:00:00`)
+        .lte("timestamp_evento", `${rangeTo}T23:59:59`)
         .order("timestamp_evento", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!companyId,
@@ -192,7 +195,7 @@ export function TabTimbrature() {
                         {t.fonte || "—"}
                       </TableCell>
                       <TableCell>
-                        {t.lat ? (
+                        {t.lat != null && t.lng != null ? (
                           <MapPin className={`h-4 w-4 ${t.sede_id ? "text-emerald-500" : "text-amber-500"}`} />
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
@@ -257,7 +260,7 @@ export function TabTimbrature() {
                     {t.order?.order_code ?? "—"}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                    {t.gps_lat ? `${t.gps_lat.toFixed(4)}, ${t.gps_lng?.toFixed(4)}` : "—"}
+                    {t.gps_lat != null && t.gps_lng != null ? `${t.gps_lat.toFixed(4)}, ${t.gps_lng.toFixed(4)}` : "—"}
                   </TableCell>
                   <TableCell>
                     <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">

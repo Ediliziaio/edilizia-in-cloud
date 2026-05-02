@@ -48,6 +48,25 @@ export function useCreateRichiesta() {
   return useMutation({
     mutationFn: async (data: Partial<HrRichiesta>) => {
       if (!companyId) throw new Error("companyId required");
+      if (!data.profilo_id) throw new Error("Profilo HR obbligatorio");
+      if (!data.data_inizio || !data.data_fine) throw new Error("Periodo richiesta obbligatorio");
+      if (data.data_fine < data.data_inizio) {
+        throw new Error("La data fine non può essere precedente alla data inizio");
+      }
+      if (data.ore_richieste != null && (!Number.isFinite(data.ore_richieste) || data.ore_richieste <= 0)) {
+        throw new Error("Le ore richieste devono essere maggiori di zero");
+      }
+
+      const { data: profilo, error: profiloError } = await supabase
+        .from("hr_profili")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("id", data.profilo_id)
+        .maybeSingle();
+
+      if (profiloError) throw profiloError;
+      if (!profilo) throw new Error("Profilo HR non valido per questa azienda");
+
       const { error } = await supabase.from("hr_richieste").insert({
         company_id: companyId,
         profilo_id: data.profilo_id!,
@@ -69,10 +88,12 @@ export function useCreateRichiesta() {
 }
 
 export function useUpdateRichiestaStato() {
+  const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, stato, note_risposta }: { id: string; stato: RichiestaStato; note_risposta?: string }) => {
+      if (!companyId) throw new Error("companyId required");
       const { error } = await supabase
         .from("hr_richieste")
         .update({
@@ -80,7 +101,8 @@ export function useUpdateRichiestaStato() {
           note_risposta: note_risposta ?? null,
           approvata_il: stato === "approvata" ? new Date().toISOString() : null,
         } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {

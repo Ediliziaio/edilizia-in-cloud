@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { useUpdateHrProfilo } from "@/hooks/useOrganigramma";
 import { useCreateHrProfilo } from "@/hooks/useCreateHrProfilo";
+import { useHrSedi } from "@/hooks/useHrSedi";
 import type { HrProfilo } from "@/types/hr";
 import { Save, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Props {
   open: boolean;
@@ -41,14 +44,47 @@ const ORARIO_TIPO_OPTIONS = [
   { value: "part_time", label: "Part Time" },
 ];
 
+const NUMERIC_DEFAULTS: Record<string, number> = {
+  ore_settimanali: 40,
+  ore_giornaliere: 8,
+  pausa_pranzo_minuti: 60,
+  ferie_anno_giorni: 26,
+  ferie_residue: 26,
+  permessi_anno_ore: 32,
+  permessi_residui_ore: 32,
+  rol_anno_ore: 0,
+  rol_residuo_ore: 0,
+  posizione_organigramma: 0,
+};
+
 export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Props) {
   const updateMutation = useUpdateHrProfilo();
   const createMutation = useCreateHrProfilo();
+  const { data: sedi = [] } = useHrSedi();
   const isEditing = !!profilo;
 
   const { register, handleSubmit, reset, setValue, watch } = useForm<Partial<HrProfilo>>({
     defaultValues: profilo || {},
   });
+
+  const descendantIds = useMemo(() => {
+    if (!profilo?.id) return new Set<string>();
+    const descendants = new Set<string>();
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+      for (const candidate of allProfili) {
+        const parentId = candidate.responsabile_id;
+        if (parentId && (parentId === profilo.id || descendants.has(parentId)) && !descendants.has(candidate.id)) {
+          descendants.add(candidate.id);
+          changed = true;
+        }
+      }
+    }
+
+    return descendants;
+  }, [allProfili, profilo?.id]);
 
   useEffect(() => {
     if (profilo) {
@@ -94,6 +130,43 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
       if (field in sanitized && sanitized[field] === "") {
         sanitized[field] = null;
       }
+    }
+
+    sanitized.nome = sanitized.nome?.trim();
+    sanitized.cognome = sanitized.cognome?.trim();
+
+    if (!sanitized.nome || !sanitized.cognome) {
+      toast.error("Nome e cognome sono obbligatori");
+      return;
+    }
+
+    if (profilo?.id && sanitized.responsabile_id) {
+      if (sanitized.responsabile_id === profilo.id) {
+        toast.error("Un profilo non può essere responsabile di sé stesso");
+        return;
+      }
+      if (descendantIds.has(sanitized.responsabile_id)) {
+        toast.error("Non puoi assegnare come responsabile un collaboratore già sotto questo profilo");
+        return;
+      }
+    }
+
+    if (sanitized.sede_id && !sedi.some((s) => s.id === sanitized.sede_id)) {
+      toast.error("La sede selezionata non è valida per questa azienda");
+      return;
+    }
+
+    for (const [field, defaultValue] of Object.entries(NUMERIC_DEFAULTS)) {
+      const value = sanitized[field];
+      if (value === "" || value == null || !Number.isFinite(Number(value)) || Number(value) < 0) {
+        sanitized[field] = defaultValue;
+      } else {
+        sanitized[field] = Number(value);
+      }
+    }
+
+    if (sanitized.data_cessazione && sanitized.attivo !== false) {
+      sanitized.attivo = false;
     }
 
     if (isEditing && profilo) {
@@ -176,7 +249,7 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                     >
                       <option value="">Nessuno (root)</option>
                       {allProfili
-                        .filter((p) => p.id !== profilo?.id)
+                        .filter((p) => p.id !== profilo?.id && !descendantIds.has(p.id))
                         .map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.nome} {p.cognome} {p.mansione ? `(${p.mansione})` : ""}
@@ -185,8 +258,29 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                     </select>
                   </div>
                   <div>
+                    <Label>Sede HR</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      {...register("sede_id")}
+                    >
+                      <option value="">Nessuna sede</option>
+                      {sedi.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nome}{!s.attiva ? " (inattiva)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <Label>Colore Avatar</Label>
                     <Input type="color" {...register("colore_avatar")} className="h-10 p-1" />
+                  </div>
+                  <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
+                    <div>
+                      <Label>Profilo attivo</Label>
+                      <p className="text-xs text-muted-foreground">I profili inattivi restano nello storico ma non compaiono nei flussi operativi.</p>
+                    </div>
+                    <Switch checked={watch("attivo") ?? true} onCheckedChange={(checked) => setValue("attivo", checked)} />
                   </div>
                 </div>
               </div>

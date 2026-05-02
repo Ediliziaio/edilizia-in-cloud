@@ -47,7 +47,7 @@ export function TabSedi() {
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-muted"><CircleDot className="h-5 w-5 text-muted-foreground" /></div>
             <div>
-              <p className="text-2xl font-bold">{sedi.filter((s) => s.lat && s.lng).length}</p>
+              <p className="text-2xl font-bold">{sedi.filter((s) => s.lat != null && s.lng != null).length}</p>
               <p className="text-xs text-muted-foreground">Con GPS</p>
             </div>
           </CardContent>
@@ -89,15 +89,19 @@ export function TabSedi() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina Sede</AlertDialogTitle>
-            <AlertDialogDescription>Questa azione è irreversibile. La sede sarà rimossa permanentemente.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Questa azione è irreversibile. Se la sede è assegnata a profili HR, il sistema bloccherà l'eliminazione:
+              in quel caso disattivala o sposta prima i profili.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => { if (deleteId) deleteMut.mutate(deleteId); setDeleteId(null); }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMut.isPending}
             >
-              Elimina
+              {deleteMut.isPending ? "Eliminazione..." : "Elimina"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -173,15 +177,33 @@ function SedeDialog({ sede, open, onClose }: { sede: HrSede | null; open: boolea
 
   const handleSubmit = () => {
     if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
+
+    const parsedLat = lat.trim() ? Number(lat) : null;
+    const parsedLng = lng.trim() ? Number(lng) : null;
+    const parsedRaggio = Number(raggioMt);
+
+    if (parsedLat != null && (!Number.isFinite(parsedLat) || parsedLat < -90 || parsedLat > 90)) {
+      toast.error("Latitudine non valida");
+      return;
+    }
+    if (parsedLng != null && (!Number.isFinite(parsedLng) || parsedLng < -180 || parsedLng > 180)) {
+      toast.error("Longitudine non valida");
+      return;
+    }
+    if (!Number.isFinite(parsedRaggio) || parsedRaggio < 10 || parsedRaggio > 5000) {
+      toast.error("Il raggio deve essere compreso tra 10 e 5000 metri");
+      return;
+    }
+
     const payload: any = {
       nome: nome.trim(),
-      indirizzo: indirizzo || null,
-      citta: citta || null,
-      provincia: provincia || null,
-      cap: cap || null,
-      lat: lat ? parseFloat(lat) : null,
-      lng: lng ? parseFloat(lng) : null,
-      raggio_mt: parseInt(raggioMt) || 200,
+      indirizzo: indirizzo.trim() || null,
+      citta: citta.trim() || null,
+      provincia: provincia.trim().toUpperCase() || null,
+      cap: cap.trim() || null,
+      lat: parsedLat,
+      lng: parsedLng,
+      raggio_mt: Math.round(parsedRaggio),
       attiva,
     };
 
@@ -264,7 +286,7 @@ function SedeDialog({ sede, open, onClose }: { sede: HrSede | null; open: boolea
             <Label>Raggio geofencing (metri)</Label>
             <Input type="number" min={10} max={5000} value={raggioMt} onChange={(e) => setRaggioMt(e.target.value)} />
             <p className="text-xs text-muted-foreground mt-1">
-              Distanza massima dalla sede per validare la timbratura ({raggioMt}m = {(parseInt(raggioMt) / 1000).toFixed(1)}km)
+              Distanza massima dalla sede per validare la timbratura ({Number.isFinite(Number(raggioMt)) ? Math.round(Number(raggioMt)) : 0}m = {Number.isFinite(Number(raggioMt)) ? (Number(raggioMt) / 1000).toFixed(1) : "0.0"}km)
             </p>
           </div>
 

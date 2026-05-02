@@ -57,6 +57,20 @@ const emptyForm = (): CedolinoForm => ({
   note: "",
 });
 
+function parseNonNegativeAmount(value: string, label: string, required = false) {
+  if (!value.trim()) {
+    if (required) throw new Error(`${label} obbligatorio`);
+    return 0;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${label} deve essere un importo valido e non negativo`);
+  }
+
+  return parsed;
+}
+
 export function TabCedolini() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -94,6 +108,10 @@ export function TabCedolini() {
   const [isFetchingOre, setIsFetchingOre] = useState(false);
 
   const autoFetchOre = async () => {
+    if (!companyId) {
+      toast.error("Azienda non disponibile");
+      return;
+    }
     if (!form.employee_name.trim()) {
       toast.error("Inserisci prima il nome del dipendente");
       return;
@@ -134,17 +152,26 @@ export function TabCedolini() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       if (!form.employee_name.trim()) throw new Error("Nome dipendente obbligatorio");
-      if (!form.lordo) throw new Error("Lordo obbligatorio");
+      const lordo = parseNonNegativeAmount(form.lordo, "Lordo", true);
+      const contributiDipendente = parseNonNegativeAmount(form.contributi_dipendente, "Contributi dipendente");
+      const contributiDatore = parseNonNegativeAmount(form.contributi_datore, "Contributi datore");
+      const ritenuteIrpef = parseNonNegativeAmount(form.ritenute_irpef, "Ritenute IRPEF");
+
+      if (contributiDipendente + ritenuteIrpef > lordo) {
+        throw new Error("Contributi dipendente e IRPEF non possono superare il lordo");
+      }
+
       const { error } = await supabase.from("cedolini").insert({
         company_id: companyId,
         employee_name: form.employee_name.trim(),
         mese: parseInt(form.mese),
         anno: parseInt(form.anno),
-        lordo: parseFloat(form.lordo) || 0,
-        contributi_dipendente: parseFloat(form.contributi_dipendente) || 0,
-        contributi_datore: parseFloat(form.contributi_datore) || 0,
-        ritenute_irpef: parseFloat(form.ritenute_irpef) || 0,
+        lordo,
+        contributi_dipendente: contributiDipendente,
+        contributi_datore: contributiDatore,
+        ritenute_irpef: ritenuteIrpef,
         stato: form.stato,
         note: form.note.trim() || null,
       });
@@ -161,7 +188,12 @@ export function TabCedolini() {
 
   const updateStatoMutation = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
-      const { error } = await supabase.from("cedolini").update({ stato }).eq("id", id);
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { error } = await supabase
+        .from("cedolini")
+        .update({ stato })
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw new Error(error.message || error.details || error.hint || "Errore");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cedolini", companyId] }),
@@ -246,49 +278,52 @@ export function TabCedolini() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {cedolini.map((c: any) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.employee_name}</TableCell>
-                  <TableCell className="text-sm">{MESI[c.mese - 1]} {c.anno}</TableCell>
-                  <TableCell className="text-right text-sm">{formatCurrency(c.lordo)}</TableCell>
-                  <TableCell className="text-right text-sm hidden sm:table-cell">{formatCurrency(c.contributi_dipendente)}</TableCell>
-                  <TableCell className="text-right text-sm hidden sm:table-cell">{formatCurrency(c.ritenute_irpef)}</TableCell>
-                  <TableCell className="text-right font-semibold text-primary">{formatCurrency(c.netto)}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-0.5">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATO_COLORS[c.stato] || "bg-muted text-muted-foreground"}`}>
-                        {STATO_LABELS[c.stato] || c.stato}
-                      </span>
-                    </div>
-                    <Select value={c.stato} onValueChange={(v) => updateStatoMutation.mutate({ id: c.id, stato: v })}>
-                      <SelectTrigger className="h-6 text-xs w-24 border-none p-1 mt-0.5 opacity-50 hover:opacity-100">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(["bozza", "emesso", "pagato"] as const).map((s) => (
-                          <SelectItem key={s} value={s} className="text-xs">{STATO_LABELS[s]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={() => handleExportPdf(c)}
-                      disabled={isExporting && exportingId === c.id}
-                      aria-label="Scarica cedolino PDF"
-                    >
-                      {isExporting && exportingId === c.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {cedolini.map((c: any) => {
+                const netto = c.netto ?? ((Number(c.lordo) || 0) - (Number(c.contributi_dipendente) || 0) - (Number(c.ritenute_irpef) || 0));
+                return (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.employee_name}</TableCell>
+                    <TableCell className="text-sm">{MESI[c.mese - 1]} {c.anno}</TableCell>
+                    <TableCell className="text-right text-sm">{formatCurrency(c.lordo)}</TableCell>
+                    <TableCell className="text-right text-sm hidden sm:table-cell">{formatCurrency(c.contributi_dipendente)}</TableCell>
+                    <TableCell className="text-right text-sm hidden sm:table-cell">{formatCurrency(c.ritenute_irpef)}</TableCell>
+                    <TableCell className="text-right font-semibold text-primary">{formatCurrency(netto)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATO_COLORS[c.stato] || "bg-muted text-muted-foreground"}`}>
+                          {STATO_LABELS[c.stato] || c.stato}
+                        </span>
+                      </div>
+                      <Select value={c.stato} onValueChange={(v) => updateStatoMutation.mutate({ id: c.id, stato: v })}>
+                        <SelectTrigger className="h-6 text-xs w-24 border-none p-1 mt-0.5 opacity-50 hover:opacity-100">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(["bozza", "emesso", "pagato"] as const).map((s) => (
+                            <SelectItem key={s} value={s} className="text-xs">{STATO_LABELS[s]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => handleExportPdf(c)}
+                        disabled={isExporting && exportingId === c.id}
+                        aria-label="Scarica cedolino PDF"
+                      >
+                        {isExporting && exportingId === c.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

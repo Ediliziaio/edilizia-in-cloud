@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { loadRenderGalleryMeta, resolveRenderGalleryMeta, type RenderGalleryMeta } from "@/lib/render/renderGalleryMeta";
-import { renderPromptTemplates } from "@/lib/render/renderPromptTemplates";
 import { formatRenderDate, isRenderStale, normalizeRenderStatus } from "@/lib/render/renderStatus";
 import {
   AlertTriangle,
@@ -551,43 +550,6 @@ export default function RenderCategoryHub() {
               </Card>
             );
           })}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Template prompt settoriali
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Tracce operative per mantenere coerenza tecnica, qualità AI e risultati commerciali nei moduli render.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {renderPromptTemplates.map((template) => (
-            <Card key={template.id} className="border-slate-200 bg-slate-50/50">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <Badge variant="outline" className="mb-2 bg-white">
-                      {template.category}
-                    </Badge>
-                    <h3 className="font-semibold">{template.title}</h3>
-                  </div>
-                  <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{template.description}</p>
-                <div className="rounded-xl border bg-white p-3 text-xs leading-5 text-slate-700">
-                  <span className="font-semibold text-slate-950">Prompt base: </span>
-                  {template.basePrompt}
-                </div>
-                <div className="grid gap-2 text-xs text-muted-foreground">
-                  <p><span className="font-semibold text-foreground">Foto richieste:</span> {template.requiredImages}</p>
-                  <p><span className="font-semibold text-foreground">Output:</span> {template.expectedOutput}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
         </div>
       </section>
 

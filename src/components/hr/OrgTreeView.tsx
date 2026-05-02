@@ -13,13 +13,16 @@ function TreeBranch({
   node,
   onNodeClick,
   isRoot,
+  hasParentConnector = false,
 }: {
   node: OrgTreeNode;
   onNodeClick: (n: OrgTreeNode) => void;
   isRoot?: boolean;
+  hasParentConnector?: boolean;
 }) {
   return (
     <li className="flex flex-col items-center relative">
+      {hasParentConnector && <div className="w-px h-6 bg-border" />}
       <OrgNode node={node} isRoot={isRoot} onClick={onNodeClick} />
       {node.children.length > 0 && (
         <>
@@ -37,11 +40,7 @@ function TreeBranch({
               />
             )}
             {node.children.map((child) => (
-              <li key={child.id} className="flex flex-col items-center relative">
-                {/* Vertical connector up to horizontal line */}
-                <div className="w-px h-6 bg-border" />
-                <TreeBranch node={child} onNodeClick={onNodeClick} />
-              </li>
+              <TreeBranch key={child.id} node={child} onNodeClick={onNodeClick} hasParentConnector />
             ))}
           </ul>
         </>

@@ -32,6 +32,7 @@ interface DraggableOrderBarProps {
   order: CalendarOrder;
   bar: BarInfo;
   dayWidth: number;
+  minBarWidth?: number;
   color: string;
   progress?: number; // 0-100
 }
@@ -40,6 +41,7 @@ export function DraggableOrderBar({
   order,
   bar,
   dayWidth,
+  minBarWidth = 24,
   color,
   progress,
 }: DraggableOrderBarProps) {
@@ -58,9 +60,14 @@ export function DraggableOrderBar({
     ?.map((aet) => aet.external_team.name)
     .join(", ");
 
+  const visualWidth = Math.max(bar.width, dayWidth, minBarWidth);
+  const showFullLabel = visualWidth >= 150;
+  const showCompactLabel = visualWidth >= 72;
+  const showDuration = visualWidth >= 220;
+
   const style = {
     left: bar.left + (transform?.x || 0),
-    width: Math.max(bar.width, dayWidth),
+    width: visualWidth,
     backgroundColor: color,
     borderLeftColor: darkenColor(color),
     opacity: isDragging ? 0.6 : 1,
@@ -86,9 +93,10 @@ export function DraggableOrderBar({
             ref={setNodeRef}
             {...attributes}
             {...listeners}
-            className="absolute top-2 bottom-2 rounded-md shadow-sm hover:shadow-lg transition-all flex items-center px-2 overflow-hidden touch-none border-l-[3px]"
+            className="absolute top-2 bottom-2 rounded-md shadow-sm ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40 flex items-center px-2 overflow-hidden touch-none border-l-[3px]"
             style={style}
             onClick={handleClick}
+            title={`${order.order_code || "Ordine"} - ${order.customer.last_name}`}
           >
             {/* Progress overlay */}
             {progress !== undefined && progress > 0 && progress < 100 && (
@@ -100,16 +108,16 @@ export function DraggableOrderBar({
                 }}
               />
             )}
-            <div className="relative z-10 flex items-center gap-1 text-xs text-white truncate w-full">
-              {bar.width > 120 ? (
+            <div className="relative z-10 flex w-full items-center gap-1 truncate text-xs text-white">
+              {showFullLabel ? (
                 <>
                   <span className="font-semibold">{order.order_code || "N/A"}</span>
                   <span className="opacity-75">- {order.customer.last_name}</span>
-                  {bar.width > 200 && (
-                    <span className="ml-auto opacity-60 text-[10px]">{duration}g</span>
+                  {showDuration && (
+                    <span className="ml-auto rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">{duration}g</span>
                   )}
                 </>
-              ) : bar.width > 60 ? (
+              ) : showCompactLabel ? (
                 <span className="font-medium truncate">
                   {order.order_code || order.description.slice(0, 20)}
                 </span>

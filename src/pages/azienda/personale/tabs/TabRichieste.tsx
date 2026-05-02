@@ -217,8 +217,20 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: any[]; open
       toast_missing();
       return;
     }
+
+    if (dataFine < dataInizio) {
+      toast.error("La data fine non può essere precedente alla data inizio");
+      return;
+    }
+
+    const oreRichieste = ore.trim() ? Number(ore) : null;
+    if (oreRichieste != null && (!Number.isFinite(oreRichieste) || oreRichieste <= 0)) {
+      toast.error("Le ore richieste devono essere maggiori di zero");
+      return;
+    }
+
     create.mutate(
-      { profilo_id: profiloId, tipo, data_inizio: dataInizio, data_fine: dataFine, ore_richieste: ore ? Number(ore) : null, motivo: motivo || null },
+      { profilo_id: profiloId, tipo, data_inizio: dataInizio, data_fine: dataFine, ore_richieste: oreRichieste, motivo: motivo.trim() || null },
       { onSuccess: onClose }
     );
   };

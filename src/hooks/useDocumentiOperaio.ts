@@ -41,7 +41,7 @@ export function useTipiDocumento() {
 export function useDocumentiOperaio(operaioId: string | null | undefined) {
   const { profile } = useAuth();
   return useQuery<DocumentoOperaio[]>({
-    queryKey: ["documenti-operaio", operaioId],
+    queryKey: ["documenti-operaio", profile?.company_id, operaioId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("documenti_operai")
@@ -145,6 +145,16 @@ export function useUploadDocumento() {
     }) => {
       if (!profile?.company_id || !user) throw new Error("Utente non autenticato");
 
+      const { data: operaio, error: operaioErr } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("company_id", profile.company_id)
+        .eq("id", operaioId)
+        .maybeSingle();
+
+      if (operaioErr) throw operaioErr;
+      if (!operaio) throw new Error("Operaio non valido per questa azienda");
+
       // 1. Upload su Storage (privato)
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
       const filePath = `${profile.company_id}/${operaioId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
@@ -181,7 +191,7 @@ export function useUploadDocumento() {
     },
     onSuccess: (_data, vars) => {
       toast.success("Documento caricato");
-      qc.invalidateQueries({ queryKey: ["documenti-operaio", vars.operaioId] });
+      qc.invalidateQueries({ queryKey: ["documenti-operaio", profile?.company_id, vars.operaioId] });
       qc.invalidateQueries({ queryKey: ["documenti-company", profile?.company_id] });
     },
     onError: (err: Error) => {
@@ -196,21 +206,35 @@ export function useEliminaDocumento(operaioId: string) {
   const { profile } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ id, filePath }: { id: string; filePath: string }) => {
-      // 1. Rimuovi da Storage
-      const { error: storErr } = await supabase.storage.from(BUCKET).remove([filePath]);
+    mutationFn: async ({ id }: { id: string; filePath: string }) => {
+      if (!profile?.company_id) throw new Error("Azienda non disponibile");
+
+      const { data: doc, error: docErr } = await supabase
+        .from("documenti_operai")
+        .select("file_path")
+        .eq("id", id)
+        .eq("company_id", profile.company_id)
+        .eq("operaio_id", operaioId)
+        .maybeSingle();
+
+      if (docErr) throw new Error(docErr.message);
+      if (!doc?.file_path) throw new Error("Documento non trovato per questa azienda");
+
+      // 1. Rimuovi da Storage solo il path verificato a database
+      const { error: storErr } = await supabase.storage.from(BUCKET).remove([doc.file_path]);
       if (storErr) console.warn("Storage remove:", storErr.message);
 
       // 2. Rimuovi il record
       const { error } = await supabase
         .from("documenti_operai")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", profile.company_id);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       toast.success("Documento eliminato");
-      qc.invalidateQueries({ queryKey: ["documenti-operaio", operaioId] });
+      qc.invalidateQueries({ queryKey: ["documenti-operaio", profile?.company_id, operaioId] });
       qc.invalidateQueries({ queryKey: ["documenti-company", profile?.company_id] });
     },
     onError: (err: Error) => toast.error(err.message ?? "Errore eliminazione"),
